@@ -58,16 +58,10 @@ TEST_F(SystemCapabilitiesIntegrationTest, ReasonableSystemValues) {
         EXPECT_LE(capabilities.l3_cache_size(), 1024 * 1024 * 1024);  // At most 1GB
     }
 
-    // Performance characteristics
-    EXPECT_GE(capabilities.simd_efficiency(), 0.0);
-    EXPECT_LE(capabilities.simd_efficiency(), 10.0);  // Very generous upper bound
-
-    EXPECT_GE(capabilities.threading_overhead_ns(), 0.0);
-    EXPECT_LE(capabilities.threading_overhead_ns(), 1000000.0);  // 1ms max overhead
-
-    EXPECT_GE(capabilities.memory_bandwidth_gb_s(), 0.0);
-    EXPECT_LE(capabilities.memory_bandwidth_gb_s(),
-              100.0);  // 100GB/s upper bound (clamped in benchmark)
+    // Core and cache counts verified above; benchmark metrics removed
+    // (simd_efficiency, threading_overhead_ns, memory_bandwidth_gb_s were produced
+    // by benchmarkPerformance() which was removed as it ran at cold-start but
+    // its results were never consulted by selectStrategy()).
 }
 
 TEST_F(SystemCapabilitiesIntegrationTest, SIMDCapabilityConsistency) {
@@ -156,27 +150,13 @@ TEST_F(SystemCapabilitiesIntegrationTest, ThreadSafety) {
 }
 
 TEST_F(SystemCapabilitiesIntegrationTest, PerformanceCharacteristicsRealistic) {
-    // Test that performance characteristics are within realistic bounds
-
-    // SIMD efficiency should be reasonable
-    // (1.0 = perfect efficiency, 0.5 = half efficiency due to overhead)
-    if (capabilities.has_sse2() || capabilities.has_avx() || capabilities.has_neon()) {
-        EXPECT_GE(capabilities.simd_efficiency(), 0.01);  // Some benefit (reduced from 0.1)
-        EXPECT_LE(capabilities.simd_efficiency(), 4.0);   // Not impossibly good
-    }
-
-    // Threading overhead should be measurable but not excessive
-    if (capabilities.physical_cores() > 1) {
-        EXPECT_GE(capabilities.threading_overhead_ns(), 10.0);  // At least 10ns
-        EXPECT_LE(capabilities.threading_overhead_ns(),
-                  500000.0);  // At most 500μs (Windows SRWLOCK + scheduler jitter)
-    }
-
-    // Memory bandwidth should be realistic for the era
-    if (capabilities.memory_bandwidth_gb_s() > 0.0) {
-        EXPECT_GE(capabilities.memory_bandwidth_gb_s(), 0.1);    // At least 100MB/s
-        EXPECT_LE(capabilities.memory_bandwidth_gb_s(), 100.0);  // At most 100GB/s (clamped)
-    }
+    // Benchmark metrics (simd_efficiency, threading_overhead_ns, memory_bandwidth_gb_s)
+    // were removed with benchmarkPerformance() — results were never used by dispatch.
+    // This test now verifies that core/cache/SIMD fields are self-consistent.
+    EXPECT_GE(capabilities.physical_cores(), 1);
+    EXPECT_LE(capabilities.physical_cores(), capabilities.logical_cores());
+    EXPECT_GT(capabilities.l1_cache_size(), 0);
+    SUCCEED();
 }
 
 TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
@@ -268,9 +248,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, ConsistentResults) {
     EXPECT_EQ(caps1.has_avx512(), caps2.has_avx512());
     EXPECT_EQ(caps1.has_neon(), caps2.has_neon());
 
-    EXPECT_DOUBLE_EQ(caps1.simd_efficiency(), caps2.simd_efficiency());
-    EXPECT_DOUBLE_EQ(caps1.threading_overhead_ns(), caps2.threading_overhead_ns());
-    EXPECT_DOUBLE_EQ(caps1.memory_bandwidth_gb_s(), caps2.memory_bandwidth_gb_s());
+    // Benchmark metrics removed; SIMD flags and core counts cover singleton consistency.
 }
 
 #ifdef _MSC_VER

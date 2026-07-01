@@ -6,8 +6,11 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/exponential.h"
+#include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <cmath>      // for std::exp, std::log, std::isfinite, std::abs
 #include <gtest/gtest.h>
@@ -51,7 +54,7 @@ class ExponentialEnhancedTest : public ::testing::Test {
 
         auto result = stats::ExponentialDistribution::create(test_lambda_);
         if (result.isOk()) {
-            test_distribution_ = std::move(result.value);
+            test_distribution_ = std::move(result).unwrap();
         };
     }
 
@@ -67,7 +70,7 @@ class ExponentialEnhancedTest : public ::testing::Test {
 
 TEST_F(ExponentialEnhancedTest, BasicEnhancedFunctionality) {
     // Test unit exponential distribution properties
-    auto unitExp = stats::ExponentialDistribution::create(1.0).value;
+    auto unitExp = stats::ExponentialDistribution::create(1.0).unwrap();
 
     EXPECT_DOUBLE_EQ(unitExp.getLambda(), 1.0);
     EXPECT_DOUBLE_EQ(unitExp.getMean(), 1.0);
@@ -83,7 +86,7 @@ TEST_F(ExponentialEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_1, 1.0 - std::exp(-1.0), 1e-10);
 
     // Test custom distribution
-    auto custom = stats::ExponentialDistribution::create(2.0).value;
+    auto custom = stats::ExponentialDistribution::create(2.0).unwrap();
     EXPECT_DOUBLE_EQ(custom.getLambda(), 2.0);
     EXPECT_DOUBLE_EQ(custom.getMean(), 0.5);
     EXPECT_DOUBLE_EQ(custom.getVariance(), 0.25);
@@ -104,7 +107,7 @@ TEST_F(ExponentialEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with exponential data
     auto [ks_stat_exp, ks_p_exp, ks_reject_exp] =
-        ExponentialDistribution::kolmogorovSmirnovTest(exponential_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(exponential_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ks_stat_exp, 0.0);
     EXPECT_LE(ks_stat_exp, 1.0);
@@ -118,8 +121,7 @@ TEST_F(ExponentialEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with non-exponential data (should reject)
     auto [ks_stat_non_exp, ks_p_non_exp, ks_reject_non_exp] =
-        ExponentialDistribution::kolmogorovSmirnovTest(non_exponential_data_, test_distribution_,
-                                                       0.05);
+        stats::analysis::kolmogorovSmirnovTest(non_exponential_data_, test_distribution_, 0.05);
 
     EXPECT_TRUE(ks_reject_non_exp);     // Should reject exponential distribution for normal data
     EXPECT_LT(ks_p_non_exp, ks_p_exp);  // Non-exponential data should have lower p-value
@@ -129,10 +131,9 @@ TEST_F(ExponentialEnhancedTest, GoodnessOfFitTests) {
 
     // Anderson-Darling test
     auto [ad_stat_exp, ad_p_exp, ad_reject_exp] =
-        ExponentialDistribution::andersonDarlingTest(exponential_data_, test_distribution_, 0.05);
+        stats::analysis::andersonDarlingTest(exponential_data_, test_distribution_, 0.05);
     auto [ad_stat_non_exp, ad_p_non_exp, ad_reject_non_exp] =
-        ExponentialDistribution::andersonDarlingTest(non_exponential_data_, test_distribution_,
-                                                     0.05);
+        stats::analysis::andersonDarlingTest(non_exponential_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ad_stat_exp, 0.0);
     EXPECT_GE(ad_p_exp, 0.0);
@@ -157,7 +158,7 @@ TEST_F(ExponentialEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(exponential_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        ExponentialDistribution::computeInformationCriteria(exponential_data_, fitted_dist);
+        stats::analysis::informationCriteria(exponential_data_, fitted_dist);
 
     // Basic validity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -188,8 +189,8 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
 
     // Bootstrap parameter confidence intervals
     auto [lambda_ci_lower, lambda_ci_upper] =
-        ExponentialDistribution::bootstrapParameterConfidenceIntervals(exponential_data_, 0.95,
-                                                                       1000, 456);
+        stats::analysis::bootstrapMeanCI<stats::ExponentialDistribution>(exponential_data_, 0.95,
+                                                                         1000, 456);
 
     // Check that confidence intervals are reasonable
     EXPECT_LT(lambda_ci_lower, lambda_ci_upper);
@@ -203,16 +204,12 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
     std::cout << "  Lambda 95% CI: [" << lambda_ci_lower << ", " << lambda_ci_upper << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = ExponentialDistribution::kFoldCrossValidation(exponential_data_, 5, 42);
+    auto cv_results = stats::analysis::kFoldCrossValidation<stats::ExponentialDistribution>(
+        exponential_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mae, rmse, log_likelihood] : cv_results) {
-        EXPECT_GE(mae, 0.0);             // Mean absolute error should be non-negative
-        EXPECT_GE(rmse, 0.0);            // RMSE should be non-negative
-        EXPECT_GE(rmse, mae);            // RMSE should be >= MAE
+    for (const double log_likelihood : cv_results) {
         EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mae));
-        EXPECT_TRUE(std::isfinite(rmse));
         EXPECT_TRUE(std::isfinite(log_likelihood));
     }
 
@@ -220,20 +217,13 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_exp_data(exponential_data_.begin(), exponential_data_.begin() + 20);
-    auto [loocv_mae, loocv_rmse, loocv_log_likelihood] =
-        ExponentialDistribution::leaveOneOutCrossValidation(small_exp_data);
-
-    EXPECT_GE(loocv_mae, 0.0);             // Mean absolute error should be non-negative
-    EXPECT_GE(loocv_rmse, 0.0);            // RMSE should be non-negative
-    EXPECT_GE(loocv_rmse, loocv_mae);      // RMSE should be >= MAE
+    const auto loocv_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::ExponentialDistribution>(
+            small_exp_data);  // Mean absolute error should be non-negative // RMSE should be
+                              // non-negative // RMSE should be >= MAE
     EXPECT_LE(loocv_log_likelihood, 0.0);  // Total log-likelihood should be negative
 
-    EXPECT_TRUE(std::isfinite(loocv_mae));
-    EXPECT_TRUE(std::isfinite(loocv_rmse));
     EXPECT_TRUE(std::isfinite(loocv_log_likelihood));
-
-    std::cout << "  Leave-one-out CV: MAE=" << loocv_mae << ", RMSE=" << loocv_rmse
-              << ", LogL=" << loocv_log_likelihood << "\n";
 }
 
 //==============================================================================
@@ -241,7 +231,7 @@ TEST_F(ExponentialEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdExp = stats::ExponentialDistribution::create(1.0).value;
+    auto stdExp = stats::ExponentialDistribution::create(1.0).unwrap();
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -275,35 +265,43 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
-        start = std::chrono::high_resolution_clock::now();
-        stdExp.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                          std::span<double>(simd_results),
-                                          stats::detail::Strategy::VECTORIZED);
-        end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+            start = std::chrono::high_resolution_clock::now();
+            stdExp.getProbability(std::span<const double>(test_values),
+                                  std::span<double>(simd_results), h);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        auto simd_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
         std::span<const double> input_span(test_values);
         std::span<double> output_span(parallel_results);
-
-        start = std::chrono::high_resolution_clock::now();
-        stdExp.getProbabilityWithStrategy(input_span, output_span,
-                                          stats::detail::Strategy::PARALLEL);
-        end = std::chrono::high_resolution_clock::now();
-        auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+            start = std::chrono::high_resolution_clock::now();
+            stdExp.getProbability(input_span, output_span, h);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        auto parallel_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
         std::span<double> ws_output_span(work_stealing_results);
-
-        start = std::chrono::high_resolution_clock::now();
-        stdExp.getProbabilityWithStrategy(input_span, ws_output_span,
-                                          stats::detail::Strategy::WORK_STEALING);
-        end = std::chrono::high_resolution_clock::now();
-        auto work_stealing_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+            start = std::chrono::high_resolution_clock::now();
+            stdExp.getProbability(input_span, ws_output_span, h);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        auto work_stealing_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -356,54 +354,10 @@ TEST_F(ExponentialEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, AdvancedStatisticalMethods) {
-    std::cout << "\n=== Advanced Statistical Methods ===\n";
-
-    // Confidence interval for rate parameter (lambda)
-    auto [lambda_ci_lower, lambda_ci_upper] =
-        ExponentialDistribution::confidenceIntervalRate(exponential_data_, 0.95);
-    EXPECT_LT(lambda_ci_lower, lambda_ci_upper);
-    EXPECT_GT(lambda_ci_lower, 0.0);
-    EXPECT_GT(lambda_ci_upper, 0.0);
-    EXPECT_TRUE(std::isfinite(lambda_ci_lower));
-    EXPECT_TRUE(std::isfinite(lambda_ci_upper));
-    std::cout << "  95% CI for λ: [" << lambda_ci_lower << ", " << lambda_ci_upper << "]\n";
-
-    // Likelihood ratio test
-    auto [lr_stat, p_value, reject_null] =
-        ExponentialDistribution::likelihoodRatioTest(exponential_data_, test_lambda_, 0.05);
-    EXPECT_GE(lr_stat, 0.0);
-    EXPECT_GE(p_value, 0.0);
-    EXPECT_LE(p_value, 1.0);
-    EXPECT_TRUE(std::isfinite(lr_stat));
-    EXPECT_TRUE(std::isfinite(p_value));
-    std::cout << "  LR test: stat=" << lr_stat << ", p=" << p_value << ", reject=" << reject_null
-              << "\n";
-
-    // Method of moments estimation
-    double mom_lambda = ExponentialDistribution::methodOfMomentsEstimation(exponential_data_);
-    EXPECT_GT(mom_lambda, 0.0);
-    EXPECT_TRUE(std::isfinite(mom_lambda));
-    std::cout << "  MoM estimate for λ: " << mom_lambda << "\n";
-
-    // For exponential, MLE is same as MoM (1/sample_mean), so we can use MoM as proxy
-    double mle_lambda = ExponentialDistribution::methodOfMomentsEstimation(exponential_data_);
-    EXPECT_GT(mle_lambda, 0.0);
-    EXPECT_TRUE(std::isfinite(mle_lambda));
-    std::cout << "  MLE estimate for λ (via MoM): " << mle_lambda << "\n";
-
-    // Bayesian estimation (returns posterior parameters)
-    if constexpr (requires {
-                      ExponentialDistribution::bayesianEstimation(exponential_data_, 1.0, 1.0);
-                  }) {
-        auto [posterior_shape, posterior_rate] =
-            ExponentialDistribution::bayesianEstimation(exponential_data_, 1.0, 1.0);
-        EXPECT_GT(posterior_shape, 0.0);
-        EXPECT_GT(posterior_rate, 0.0);
-        EXPECT_TRUE(std::isfinite(posterior_shape));
-        EXPECT_TRUE(std::isfinite(posterior_rate));
-        std::cout << "  Bayesian posterior: shape=" << posterior_shape
-                  << ", rate=" << posterior_rate << "\n";
-    }
+    // v2.0.0: per-distribution CI, MoM, and Bayesian methods were removed as part of
+    // the analysis-utility extraction. Use stats::analysis:: for generic functions
+    // and stats::analysis::gaussian:: for Gaussian-specific analysis.
+    SUCCEED();  // Placeholder — methods moved to stats::analysis::
 }
 
 //==============================================================================
@@ -413,7 +367,7 @@ TEST_F(ExponentialEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto exp_dist = stats::ExponentialDistribution::create(1.0).value;
+    auto exp_dist = stats::ExponentialDistribution::create(1.0).unwrap();
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -469,7 +423,7 @@ TEST_F(ExponentialEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
-    auto exp_dist = stats::ExponentialDistribution::create(1.0).value;
+    auto exp_dist = stats::ExponentialDistribution::create(1.0).unwrap();
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -503,9 +457,6 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
             exp_dist.getProbability(std::span<const double>(test_values),
                                     std::span<double>(auto_pdf_results));
         } else {
-            exp_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                std::span<double>(auto_pdf_results),
-                                                stats::detail::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_pdf_time =
@@ -519,9 +470,6 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
             exp_dist.getLogProbability(std::span<const double>(test_values),
                                        std::span<double>(auto_logpdf_results));
         } else {
-            exp_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                   std::span<double>(auto_logpdf_results),
-                                                   stats::detail::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_logpdf_time =
@@ -535,28 +483,20 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
             exp_dist.getCumulativeProbability(std::span<const double>(test_values),
                                               std::span<double>(auto_cdf_results));
         } else {
-            exp_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                          std::span<double>(auto_cdf_results),
-                                                          stats::detail::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        // Compare with traditional batch methods for correctness
+        // Reference: per-element scalar calls
         std::vector<double> trad_pdf_results(batch_size);
         std::vector<double> trad_logpdf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
-
-        exp_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                            std::span<double>(trad_pdf_results),
-                                            stats::detail::Strategy::SCALAR);
-        exp_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                               std::span<double>(trad_logpdf_results),
-                                               stats::detail::Strategy::SCALAR);
-        exp_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                      std::span<double>(trad_cdf_results),
-                                                      stats::detail::Strategy::SCALAR);
+        for (size_t j = 0; j < batch_size; ++j) {
+            trad_pdf_results[j] = exp_dist.getProbability(test_values[j]);
+            trad_logpdf_results[j] = exp_dist.getLogProbability(test_values[j]);
+            trad_cdf_results[j] = exp_dist.getCumulativeProbability(test_values[j]);
+        }
 
         // Verify correctness
         bool pdf_correct = true, logpdf_correct = true, cdf_correct = true;
@@ -599,7 +539,7 @@ TEST_F(ExponentialEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto unitExp = stats::ExponentialDistribution::create(1.0).value;
+    auto unitExp = stats::ExponentialDistribution::create(1.0).unwrap();
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     // Generate test data
@@ -631,141 +571,84 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                               std::span<double>(pdf_results),
-                                               stats::detail::Strategy::SCALAR);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                pdf_results[i] = unitExp.getProbability(test_values[i]);
         } else if (op == "LogPDF") {
-            unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                  std::span<double>(log_pdf_results),
-                                                  stats::detail::Strategy::SCALAR);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                log_pdf_results[i] = unitExp.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
-            unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                         std::span<double>(cdf_results),
-                                                         stats::detail::Strategy::SCALAR);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                cdf_results[i] = unitExp.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 2. SIMD Batch operations
-        start = std::chrono::high_resolution_clock::now();
-        if (op == "PDF") {
-            unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                               std::span<double>(pdf_results),
-                                               stats::detail::Strategy::VECTORIZED);
-        } else if (op == "LogPDF") {
-            unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                  std::span<double>(log_pdf_results),
-                                                  stats::detail::Strategy::VECTORIZED);
-        } else if (op == "CDF") {
-            unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                         std::span<double>(cdf_results),
-                                                         stats::detail::Strategy::VECTORIZED);
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+            start = std::chrono::high_resolution_clock::now();
+            if (op == "PDF") {
+                unitExp.getProbability(std::span<const double>(test_values),
+                                       std::span<double>(pdf_results), h);
+            } else if (op == "LogPDF") {
+                unitExp.getLogProbability(std::span<const double>(test_values),
+                                          std::span<double>(log_pdf_results), h);
+            } else if (op == "CDF") {
+                unitExp.getCumulativeProbability(std::span<const double>(test_values),
+                                                 std::span<double>(cdf_results), h);
+            }
+            end = std::chrono::high_resolution_clock::now();
         }
-        end = std::chrono::high_resolution_clock::now();
         result.vectorized_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Parallel Batch Operations (PARALLEL strategy) - fallback to SCALAR
+        // 3. Parallel Batch Operations (PARALLEL strategy)
         std::span<const double> input_span(test_values);
-
-        if (op == "PDF") {
-            std::span<double> output_span(pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              unitExp.getProbabilityWithStrategy(input_span, output_span,
-                                                                 stats::detail::Strategy::PARALLEL);
-                          }) {
-                unitExp.getProbabilityWithStrategy(input_span, output_span,
-                                                   stats::detail::Strategy::PARALLEL);
-            } else {
-                unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                   std::span<double>(pdf_results),
-                                                   stats::detail::Strategy::SCALAR);
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+            if (op == "PDF") {
+                std::span<double> output_span(pdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                unitExp.getProbability(input_span, output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "LogPDF") {
+                std::span<double> log_output_span(log_pdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                unitExp.getLogProbability(input_span, log_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "CDF") {
+                std::span<double> cdf_output_span(cdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                unitExp.getCumulativeProbability(input_span, cdf_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
             }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPDF") {
-            std::span<double> log_output_span(log_pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              unitExp.getLogProbabilityWithStrategy(
-                                  input_span, log_output_span, stats::detail::Strategy::PARALLEL);
-                          }) {
-                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                      stats::detail::Strategy::PARALLEL);
-            } else {
-                unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                      std::span<double>(log_pdf_results),
-                                                      stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              unitExp.getCumulativeProbabilityWithStrategy(
-                                  input_span, cdf_output_span, stats::detail::Strategy::PARALLEL);
-                          }) {
-                unitExp.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                             stats::detail::Strategy::PARALLEL);
-            } else {
-                unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                             std::span<double>(cdf_results),
-                                                             stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
         }
         result.parallel_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Work-Stealing Operations (if available) - fallback to SCALAR
-        if (op == "PDF") {
-            std::span<double> output_span(pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              unitExp.getProbabilityWithStrategy(
-                                  input_span, output_span, stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                unitExp.getProbabilityWithStrategy(input_span, output_span,
-                                                   stats::detail::Strategy::WORK_STEALING);
-            } else {
-                unitExp.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                   std::span<double>(pdf_results),
-                                                   stats::detail::Strategy::SCALAR);
+        // 4. Work-Stealing Operations
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+            if (op == "PDF") {
+                std::span<double> output_span(pdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                unitExp.getProbability(input_span, output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "LogPDF") {
+                std::span<double> log_output_span(log_pdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                unitExp.getLogProbability(input_span, log_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "CDF") {
+                std::span<double> cdf_output_span(cdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                unitExp.getCumulativeProbability(input_span, cdf_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
             }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPDF") {
-            std::span<double> log_output_span(log_pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              unitExp.getLogProbabilityWithStrategy(
-                                  input_span, log_output_span,
-                                  stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                unitExp.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                      stats::detail::Strategy::WORK_STEALING);
-            } else {
-                unitExp.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                      std::span<double>(log_pdf_results),
-                                                      stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              unitExp.getCumulativeProbabilityWithStrategy(
-                                  input_span, cdf_output_span,
-                                  stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                unitExp.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, stats::detail::Strategy::WORK_STEALING);
-            } else {
-                unitExp.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                             std::span<double>(cdf_results),
-                                                             stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
         }
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
@@ -830,7 +713,7 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchFittingTests) {
         }
 
         datasets.push_back(std::move(dataset));
-        expected_distributions.push_back(ExponentialDistribution::create(lambda).value);
+        expected_distributions.push_back(ExponentialDistribution::create(lambda).unwrap());
     }
 
     std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
@@ -948,7 +831,7 @@ TEST_F(ExponentialEnhancedTest, ParallelBatchFittingTests) {
 //==============================================================================
 
 TEST_F(ExponentialEnhancedTest, NumericalStabilityAndEdgeCases) {
-    auto unitExp = stats::ExponentialDistribution::create(1.0).value;
+    auto unitExp = stats::ExponentialDistribution::create(1.0).unwrap();
 
     fixtures::EdgeCaseTester<ExponentialDistribution>::testExtremeValues(unitExp, "Exponential");
     fixtures::EdgeCaseTester<ExponentialDistribution>::testEmptyBatchOperations(unitExp,
@@ -960,3 +843,25 @@ TEST_F(ExponentialEnhancedTest, NumericalStabilityAndEdgeCases) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::ExponentialDistribution
+//==============================================================================
+template <>
+struct stats::tests::DistTraits<stats::ExponentialDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::ExponentialDistribution make() {
+        return stats::ExponentialDistribution::create(1.0).unwrap();
+    }
+    static std::vector<double> domain() { return {0.1, 0.5, 1.0, 2.0, 5.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 5.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::ExponentialDistribution::create(-1.0).isError(); },
+            [] { return stats::ExponentialDistribution::create(0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Exponential, DistributionEnhancedTest,
+                               ::testing::Types<stats::ExponentialDistribution>);

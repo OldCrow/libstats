@@ -3,6 +3,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 
@@ -17,6 +18,8 @@ class SIMDPolicy;
 }  // namespace stats
 
 #include "libstats/platform/simd_policy.h"
+// DistributionType is defined in a minimal header with no platform deps (AQ-2).
+#include "distribution_type.h"
 
 // Forward declare OperationType so it can be used in selectStrategy
 namespace stats {
@@ -67,37 +70,9 @@ enum class Strategy {
     WORK_STEALING  ///< Work-stealing pool for irregular workloads
 };
 
-/**
- * @brief Distribution types for strategy optimization
- */
-enum class DistributionType {
-    UNIFORM,      ///< Simple uniform distribution
-    GAUSSIAN,     ///< Normal distribution (moderate complexity)
-    EXPONENTIAL,  ///< Exponential distribution (moderate complexity)
-    DISCRETE,     ///< Discrete uniform distribution
-    POISSON,      ///< Poisson distribution (complex)
-    GAMMA,        ///< Gamma distribution (most complex)
-    STUDENT_T,    ///< Student's t distribution (log+transcendental, full real-line domain)
-    BETA,         ///< Beta distribution (log-space, bounded support [0,1])
-    CHI_SQUARED,  ///< Chi-squared distribution (delegates to Gamma; positive real-line support)
-    LOG_NORMAL,   ///< Log-normal distribution (log+exp pipeline, positive real-line support)
-    PARETO,       ///< Pareto distribution (log-only pipeline, power-law tail, x >= scale)
-    WEIBULL,      ///< Weibull distribution (log+exp pipeline, two-stage power, x >= 0)
-    RAYLEIGH,     ///< Rayleigh distribution (x² pipeline, positive real-line support)
-    VON_MISES,    ///< Von Mises distribution (circular, cos kernel; PARALLEL preferred)
-    BINOMIAL,     ///< Binomial distribution (discrete, lgamma PMF; PARALLEL preferred)
-    NEGATIVE_BINOMIAL  ///< Negative Binomial distribution (discrete, lgamma PMF; PARALLEL
-                       ///< preferred)
-};
-
-/**
- * @brief Computational complexity levels
- */
-enum class ComputationComplexity {
-    SIMPLE,    ///< Basic arithmetic operations
-    MODERATE,  ///< Transcendental functions (exp, log)
-    COMPLEX    ///< Special functions (gamma, erf)
-};
+// ComputationComplexity removed in v2.0.0 (Part 4): was the old
+// complexity-aware dispatch parameter; never used after the dispatch refactor.
+// complexityToString() in tool_utils.h removed alongside it.
 
 /**
  * @brief System capabilities and performance characteristics
@@ -120,161 +95,22 @@ class SystemCapabilities {
     bool has_avx512() const noexcept { return has_avx512_; }
     bool has_neon() const noexcept { return has_neon_; }
 
-    // Performance characteristics
-    double simd_efficiency() const noexcept { return simd_efficiency_; }
-    double threading_overhead_ns() const noexcept { return threading_overhead_ns_; }
-    double memory_bandwidth_gb_s() const noexcept { return memory_bandwidth_gb_s_; }
-
    private:
     SystemCapabilities();
     void detectCapabilities();
-    void benchmarkPerformance();
 
     // Cached capability data
     size_t logical_cores_, physical_cores_;
     size_t l1_cache_size_, l2_cache_size_, l3_cache_size_;
     bool has_sse2_, has_avx_, has_avx2_, has_avx512_, has_neon_;
-    double simd_efficiency_, threading_overhead_ns_, memory_bandwidth_gb_s_;
 };
-
-/// Forward declaration — defined in performance_history.h.
-class PerformanceHistory;
 
 /**
  * @brief Performance decision engine for strategy selection
  */
 class PerformanceDispatcher {
    public:
-    /**
-     * @brief Default constructor - initializes with architecture-aware thresholds
-     */
     PerformanceDispatcher();
-
-    /**
-     * @brief Constructor with explicit system capabilities
-     * @param system System capabilities for threshold initialization
-     */
-    explicit PerformanceDispatcher(const SystemCapabilities& system);
-    /**
-     * @brief SIMD architecture profiles with optimal thresholds
-     * @deprecated Use `arch::simd::SIMDPolicy::Level` directly.
-     *   SIMDArchitecture duplicates SIMDPolicy::Level and will be removed in v2.0.0.
-     */
-    enum class SIMDArchitecture {
-        NONE,    ///< No SIMD support
-        SSE2,    ///< 128-bit SIMD, older x86 processors
-        AVX,     ///< 256-bit SIMD, moderate x86 processors
-        AVX2,    ///< 256-bit with integer support, modern x86
-        AVX512,  ///< 512-bit SIMD, high-end x86 processors
-        NEON     ///< 128-bit SIMD, ARM processors
-    };
-
-    /**
-     * @brief Decision thresholds (architecture-aware with capability refinement)
-     *
-     * The authoritative per-(SIMD-level, distribution, operation) parallel thresholds
-     * live in `include/core/dispatch_thresholds.h` and are queried via
-     * `detail::getParallelThreshold()`. The distribution-specific fields below are
-     * **not read by selectStrategy()** and exist only for source compatibility.
-     * They are deprecated and will be removed in v2.0.0.
-     */
-    struct Thresholds {
-        size_t simd_min = 8;               ///< Below this, SIMD overhead exceeds benefit
-        size_t parallel_min = 1000;        ///< Below this, threading overhead exceeds benefit
-        size_t work_stealing_min = 10000;  ///< Minimum batch size where work-stealing helps
-
-        // Distribution-specific overrides — NOT read by selectStrategy(); see dispatch_thresholds.h
-        // @deprecated Active thresholds are in dispatch_thresholds.h. These fields will be
-        //   removed in v2.0.0 once the atomic-only cache migration is complete.
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t uniform_parallel_min = 65536;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t gaussian_parallel_min = 256;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t exponential_parallel_min = 512;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t discrete_parallel_min = 1024;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t poisson_parallel_min = 512;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t gamma_parallel_min = 256;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t student_t_parallel_min = 256;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t beta_parallel_min = 256;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t chi_squared_parallel_min = 256;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t lognormal_parallel_min = 256;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t pareto_parallel_min = 512;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t weibull_parallel_min = 256;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t rayleigh_parallel_min = 512;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t von_mises_parallel_min = 512;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t binomial_parallel_min = 512;
-        [[deprecated("Use dispatch_thresholds.h getParallelThreshold(); not read by selectStrategy()")]]
-        size_t negative_binomial_parallel_min = 512;
-
-        /**
-         * @brief Create thresholds based on SIMDPolicy level
-         * @param level SIMD level from SIMDPolicy
-         * @param system System capabilities for refinement
-         * @return Optimized thresholds for the SIMD level
-         */
-        static Thresholds createForSIMDLevel(arch::simd::SIMDPolicy::Level level,
-                                             const SystemCapabilities& system);
-
-        /**
-         * @brief Create architecture-specific thresholds (legacy compatibility)
-         * @deprecated Use createForSIMDLevel(SIMDPolicy::Level, system) directly.
-         */
-        [[deprecated("Use createForSIMDLevel(arch::simd::SIMDPolicy::Level, system)")]]
-        static Thresholds createForArchitecture(SIMDArchitecture arch,
-                                                const SystemCapabilities& system);
-
-        /**
-         * @brief Get SSE2-optimized thresholds (128-bit SIMD)
-         */
-        static Thresholds getSSE2Profile();
-
-        /**
-         * @brief Get AVX-optimized thresholds (256-bit SIMD, limited efficiency)
-         */
-        static Thresholds getAVXProfile();
-
-        /**
-         * @brief Get AVX2-optimized thresholds (256-bit SIMD with integer support)
-         */
-        static Thresholds getAVX2Profile();
-
-        /**
-         * @brief Get AVX-512-optimized thresholds (512-bit SIMD, high efficiency)
-         */
-        static Thresholds getAVX512Profile();
-
-        /**
-         * @brief Get NEON-optimized thresholds (128-bit ARM SIMD)
-         */
-        static Thresholds getNEONProfile();
-
-        /**
-         * @brief Get fallback thresholds (no SIMD support)
-         */
-        static Thresholds getScalarProfile();
-
-        /**
-         * @brief Refine thresholds based on measured system performance
-         * @deprecated This method mutates per-distribution Thresholds fields that
-         *   selectStrategy() does not read; calling it has no effect on actual dispatch
-         *   behaviour. Removed in v2.0.0.
-         */
-        [[deprecated("refineWithCapabilities mutates deprecated fields not read by selectStrategy(); removed in v2.0.0.")]]
-        void refineWithCapabilities(const SystemCapabilities& system);
-    };
 
     /**
      * @brief Select optimal execution strategy using profiling-derived lookup table
@@ -289,53 +125,17 @@ class PerformanceDispatcher {
                             const SystemCapabilities& system) const;
 
     /**
-     * @brief Get current decision thresholds
-     */
-    const Thresholds& getThresholds() const noexcept { return thresholds_; }
-
-    /**
-     * @brief Update thresholds based on performance feedback
-     */
-    void updateThresholds(const Thresholds& new_thresholds);
-
-    /**
-     * @brief Record performance data for learning optimization
-     *
-     * @param strategy The strategy that was used
-     * @param distribution_type Type of distribution processed
-     * @param batch_size Number of elements processed
-     * @param execution_time_ns Actual execution time in nanoseconds
-     */
-    static void recordPerformance(Strategy strategy, DistributionType distribution_type,
-                                  std::size_t batch_size, std::uint64_t execution_time_ns) noexcept;
-
-    /**
-     * @brief Get access to the global performance history for advanced users
-     * @return Reference to the performance history instance
-     */
-    static PerformanceHistory& getPerformanceHistory() noexcept;
-
-   private:
-    mutable Thresholds thresholds_;
-
-    bool shouldUseWorkStealing(size_t batch_size, DistributionType dist_type) const;
-
-    /**
-     * @brief Detect the highest available SIMD architecture
-     * @deprecated Use arch::simd::SIMDPolicy::getBestLevel() directly.
-     */
-    [[deprecated("Use arch::simd::SIMDPolicy::getBestLevel()")]]
-    static SIMDArchitecture detectSIMDArchitecture(const SystemCapabilities& system) noexcept;
-
-    /**
      * @brief Select multi-threaded strategy (PARALLEL vs WORK_STEALING)
      *
      * The choice depends on the threading backend (GCD vs Windows TP) and
      * whether hyperthreading is present, per four-architecture profiling data.
+     * Public so DispatchUtils::mapHintToStrategy can route MAXIMIZE_THROUGHPUT
+     * through the same OS-aware selection instead of hardcoding WORK_STEALING.
      */
     static Strategy selectMultiThreadedStrategy(DistributionType dist_type,
                                                 const SystemCapabilities& system) noexcept;
 
+   private:
     /// Cached SIMD level for table lookups
     arch::simd::SIMDPolicy::Level simd_level_;
 };
@@ -354,17 +154,19 @@ struct PerformanceHint {
     };
 
     PreferredStrategy strategy = PreferredStrategy::AUTO;
-    bool disable_learning = false;       ///< Don't record performance data
-    bool force_strategy = false;         ///< Override all safety checks
-    std::optional<size_t> thread_count;  ///< Override thread count
+    /// Override thread count for parallel strategies.
+    /// @note NOT YET WIRED INTO DISPATCH — setting this field has no effect.
+    ///       Both PARALLEL (ParallelUtils::parallelFor) and WORK_STEALING pool
+    ///       use their own thread counts determined at construction time.
+    ///       This field is reserved for a future release. Do not rely on it.
+    std::optional<size_t> thread_count;
 
     static PerformanceHint minimal_latency() {
-        // Strategy tag drives dispatch; thread_count left unset.
-        return {PreferredStrategy::MINIMIZE_LATENCY, false, false, std::nullopt};
+        return {PreferredStrategy::MINIMIZE_LATENCY, std::nullopt};
     }
 
     static PerformanceHint maximum_throughput() {
-        return {PreferredStrategy::MAXIMIZE_THROUGHPUT, false, false, std::nullopt};
+        return {PreferredStrategy::MAXIMIZE_THROUGHPUT, std::nullopt};
     }
 };
 

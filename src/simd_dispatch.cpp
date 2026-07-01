@@ -1,3 +1,4 @@
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 // Main SIMD dispatch logic — NO SIMD intrinsics in this file.
 // The dispatch table (makeDispatchTable) is the single change point for tier selection:
 //   Adding a new SIMD tier: edit makeDispatchTable() only.
@@ -12,6 +13,7 @@
 #include "libstats/platform/simd_policy.h"
 
 #include <algorithm>
+#include <cstdint>  // uintptr_t (required explicitly on libstdc++)
 #include <cstring>
 #include <string>
 
@@ -27,37 +29,39 @@ namespace ops {
 // editing when a new SIMD tier is added to the library.
 //==============================================================================
 
+// clang-format off  // Aligned dispatch-table assignments: column alignment is intentional
+//                    // and improves readability of the tier-selection ladder.
 VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
     DispatchTable t{};
 
     // Tier: Fallback (always available) — populated first as the safe default.
-    t.dot_product            = dot_product_fallback;
-    t.vector_add             = vector_add_fallback;
-    t.vector_subtract        = vector_subtract_fallback;
-    t.vector_multiply        = vector_multiply_fallback;
-    t.scalar_multiply        = scalar_multiply_fallback;
-    t.scalar_add             = scalar_add_fallback;
-    t.vector_exp             = vector_exp_fallback;
-    t.vector_log             = vector_log_fallback;
-    t.vector_pow             = vector_pow_fallback;
+    t.dot_product = dot_product_fallback;
+    t.vector_add = vector_add_fallback;
+    t.vector_subtract = vector_subtract_fallback;
+    t.vector_multiply = vector_multiply_fallback;
+    t.scalar_multiply = scalar_multiply_fallback;
+    t.scalar_add = scalar_add_fallback;
+    t.vector_exp = vector_exp_fallback;
+    t.vector_log = vector_log_fallback;
+    t.vector_pow = vector_pow_fallback;
     t.vector_pow_elementwise = vector_pow_elementwise_fallback;
-    t.vector_erf             = vector_erf_fallback;
-    t.vector_cos             = vector_cos_fallback;
+    t.vector_erf = vector_erf_fallback;
+    t.vector_cos = vector_cos_fallback;
 
 #ifdef LIBSTATS_HAS_NEON
     if (stats::arch::supports_neon()) {
-        t.dot_product            = dot_product_neon;
-        t.vector_add             = vector_add_neon;
-        t.vector_subtract        = vector_subtract_neon;
-        t.vector_multiply        = vector_multiply_neon;
-        t.scalar_multiply        = scalar_multiply_neon;
-        t.scalar_add             = scalar_add_neon;
-        t.vector_exp             = vector_exp_neon;
-        t.vector_log             = vector_log_neon;
-        t.vector_pow             = vector_pow_neon;
+        t.dot_product = dot_product_neon;
+        t.vector_add = vector_add_neon;
+        t.vector_subtract = vector_subtract_neon;
+        t.vector_multiply = vector_multiply_neon;
+        t.scalar_multiply = scalar_multiply_neon;
+        t.scalar_add = scalar_add_neon;
+        t.vector_exp = vector_exp_neon;
+        t.vector_log = vector_log_neon;
+        t.vector_pow = vector_pow_neon;
         t.vector_pow_elementwise = vector_pow_elementwise_neon;
-        t.vector_erf             = vector_erf_neon;
-        t.vector_cos             = vector_cos_neon;
+        t.vector_erf = vector_erf_neon;
+        t.vector_cos = vector_cos_neon;
         return t;  // ARM: NEON is the only SIMD tier
     }
 #endif
@@ -67,75 +71,76 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
     // overwriting means we always land on the highest available tier.
 #ifdef LIBSTATS_HAS_SSE2
     if (stats::arch::supports_sse2()) {
-        t.dot_product            = dot_product_sse2;
-        t.vector_add             = vector_add_sse2;
-        t.vector_subtract        = vector_subtract_sse2;
-        t.vector_multiply        = vector_multiply_sse2;
-        t.scalar_multiply        = scalar_multiply_sse2;
-        t.scalar_add             = scalar_add_sse2;
-        t.vector_exp             = vector_exp_sse2;
-        t.vector_log             = vector_log_sse2;
-        t.vector_pow             = vector_pow_sse2;
+        t.dot_product = dot_product_sse2;
+        t.vector_add = vector_add_sse2;
+        t.vector_subtract = vector_subtract_sse2;
+        t.vector_multiply = vector_multiply_sse2;
+        t.scalar_multiply = scalar_multiply_sse2;
+        t.scalar_add = scalar_add_sse2;
+        t.vector_exp = vector_exp_sse2;
+        t.vector_log = vector_log_sse2;
+        t.vector_pow = vector_pow_sse2;
         t.vector_pow_elementwise = vector_pow_elementwise_sse2;
-        t.vector_erf             = vector_erf_sse2;
-        t.vector_cos             = vector_cos_sse2;
+        t.vector_erf = vector_erf_sse2;
+        t.vector_cos = vector_cos_sse2;
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
     if (stats::arch::supports_avx()) {
-        t.dot_product            = dot_product_avx;
-        t.vector_add             = vector_add_avx;
-        t.vector_subtract        = vector_subtract_avx;
-        t.vector_multiply        = vector_multiply_avx;
-        t.scalar_multiply        = scalar_multiply_avx;
-        t.scalar_add             = scalar_add_avx;
-        t.vector_exp             = vector_exp_avx;
-        t.vector_log             = vector_log_avx;
-        t.vector_pow             = vector_pow_avx;
+        t.dot_product = dot_product_avx;
+        t.vector_add = vector_add_avx;
+        t.vector_subtract = vector_subtract_avx;
+        t.vector_multiply = vector_multiply_avx;
+        t.scalar_multiply = scalar_multiply_avx;
+        t.scalar_add = scalar_add_avx;
+        t.vector_exp = vector_exp_avx;
+        t.vector_log = vector_log_avx;
+        t.vector_pow = vector_pow_avx;
         t.vector_pow_elementwise = vector_pow_elementwise_avx;
-        t.vector_erf             = vector_erf_avx;
-        t.vector_cos             = vector_cos_avx;
+        t.vector_erf = vector_erf_avx;
+        t.vector_cos = vector_cos_avx;
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
     if (stats::arch::supports_avx2()) {
-        t.dot_product            = dot_product_avx2;
-        t.vector_add             = vector_add_avx2;
-        t.vector_subtract        = vector_subtract_avx2;
-        t.vector_multiply        = vector_multiply_avx2;
-        t.scalar_multiply        = scalar_multiply_avx2;
-        t.scalar_add             = scalar_add_avx2;
-        t.vector_exp             = vector_exp_avx2;
-        t.vector_log             = vector_log_avx2;
-        t.vector_pow             = vector_pow_avx2;
+        t.dot_product = dot_product_avx2;
+        t.vector_add = vector_add_avx2;
+        t.vector_subtract = vector_subtract_avx2;
+        t.vector_multiply = vector_multiply_avx2;
+        t.scalar_multiply = scalar_multiply_avx2;
+        t.scalar_add = scalar_add_avx2;
+        t.vector_exp = vector_exp_avx2;
+        t.vector_log = vector_log_avx2;
+        t.vector_pow = vector_pow_avx2;
         t.vector_pow_elementwise = vector_pow_elementwise_avx2;
-        t.vector_erf             = vector_erf_avx2;
-        t.vector_cos             = vector_cos_avx2;
+        t.vector_erf = vector_erf_avx2;
+        t.vector_cos = vector_cos_avx2;
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX512
     if (stats::arch::supports_avx512()) {
-        t.dot_product            = dot_product_avx512;
-        t.vector_add             = vector_add_avx512;
-        t.vector_subtract        = vector_subtract_avx512;
-        t.vector_multiply        = vector_multiply_avx512;
-        t.scalar_multiply        = scalar_multiply_avx512;
-        t.scalar_add             = scalar_add_avx512;
-        t.vector_exp             = vector_exp_avx512;
-        t.vector_log             = vector_log_avx512;
-        t.vector_pow             = vector_pow_avx512;
+        t.dot_product = dot_product_avx512;
+        t.vector_add = vector_add_avx512;
+        t.vector_subtract = vector_subtract_avx512;
+        t.vector_multiply = vector_multiply_avx512;
+        t.scalar_multiply = scalar_multiply_avx512;
+        t.scalar_add = scalar_add_avx512;
+        t.vector_exp = vector_exp_avx512;
+        t.vector_log = vector_log_avx512;
+        t.vector_pow = vector_pow_avx512;
         t.vector_pow_elementwise = vector_pow_elementwise_avx512;
-        t.vector_erf             = vector_erf_avx512;
-        t.vector_cos             = vector_cos_avx512;
+        t.vector_erf = vector_erf_avx512;
+        t.vector_cos = vector_cos_avx512;
     }
 #endif
 
     return t;
 }
 
+// clang-format on
 const VectorOps::DispatchTable& VectorOps::getDispatchTable() noexcept {
     static const DispatchTable table = makeDispatchTable();
     return table;
@@ -146,69 +151,81 @@ const VectorOps::DispatchTable& VectorOps::getDispatchTable() noexcept {
 //==============================================================================
 
 double VectorOps::dot_product(const double* a, const double* b, std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return dot_product_fallback(a, b, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return dot_product_fallback(a, b, size);
     return getDispatchTable().dot_product(a, b, size);
 }
 
 void VectorOps::vector_add(const double* a, const double* b, double* result,
                            std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_add_fallback(a, b, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_add_fallback(a, b, result, size);
     getDispatchTable().vector_add(a, b, result, size);
 }
 
 void VectorOps::vector_subtract(const double* a, const double* b, double* result,
                                 std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_subtract_fallback(a, b, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_subtract_fallback(a, b, result, size);
     getDispatchTable().vector_subtract(a, b, result, size);
 }
 
 void VectorOps::vector_multiply(const double* a, const double* b, double* result,
                                 std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_multiply_fallback(a, b, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_multiply_fallback(a, b, result, size);
     getDispatchTable().vector_multiply(a, b, result, size);
 }
 
 void VectorOps::scalar_multiply(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return scalar_multiply_fallback(a, scalar, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return scalar_multiply_fallback(a, scalar, result, size);
     getDispatchTable().scalar_multiply(a, scalar, result, size);
 }
 
 void VectorOps::scalar_add(const double* a, double scalar, double* result,
                            std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return scalar_add_fallback(a, scalar, result, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return scalar_add_fallback(a, scalar, result, size);
     getDispatchTable().scalar_add(a, scalar, result, size);
 }
 
 void VectorOps::vector_exp(const double* values, double* results, std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_exp_fallback(values, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_exp_fallback(values, results, size);
     getDispatchTable().vector_exp(values, results, size);
 }
 
 void VectorOps::vector_log(const double* values, double* results, std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_log_fallback(values, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_log_fallback(values, results, size);
     getDispatchTable().vector_log(values, results, size);
 }
 
 void VectorOps::vector_pow(const double* base, double exponent, double* results,
                            std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_pow_fallback(base, exponent, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_pow_fallback(base, exponent, results, size);
     getDispatchTable().vector_pow(base, exponent, results, size);
 }
 
 void VectorOps::vector_pow_elementwise(const double* base, const double* exponent, double* results,
                                        std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_pow_elementwise_fallback(base, exponent, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_pow_elementwise_fallback(base, exponent, results, size);
     getDispatchTable().vector_pow_elementwise(base, exponent, results, size);
 }
 
 void VectorOps::vector_erf(const double* values, double* results, std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_erf_fallback(values, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_erf_fallback(values, results, size);
     getDispatchTable().vector_erf(values, results, size);
 }
 
 void VectorOps::vector_cos(const double* values, double* results, std::size_t size) noexcept {
-    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size)) return vector_cos_fallback(values, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_cos_fallback(values, results, size);
     getDispatchTable().vector_cos(values, results, size);
 }
 

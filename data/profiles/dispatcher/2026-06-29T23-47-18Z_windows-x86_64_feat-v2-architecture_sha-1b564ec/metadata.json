@@ -1,0 +1,18 @@
+{
+  "captured_at_utc": "2026-06-29T23-47-18Z",
+  "run_id": "2026-06-29T23-47-18Z_windows-x86_64_feat-v2-architecture_sha-1b564ec",
+  "run_number": 3,
+  "total_runs": 3,
+  "include_large": true,
+  "git_branch": "feat-v2-architecture",
+  "git_sha": "1b564ec",
+  "project_root": "C:\\Users\\gdwol\\Development\\libstats",
+  "build_dir": "C:\\Users\\gdwol\\Development\\libstats\\build",
+  "build_type": "Release",
+  "cxx_compiler": "unknown",
+  "os": "windows",
+  "arch": "x86_64",
+  "cpu_brand": "AMD Ryzen 7 7445HS w/ Radeon 740M Graphics     ",
+  "physical_cores": 6,
+  "logical_cores": 12
+}

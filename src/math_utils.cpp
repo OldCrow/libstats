@@ -1,11 +1,13 @@
 #include "libstats/core/math_utils.h"
 
-#include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
-#include "libstats/common/simd_policy_fwd.h"    // SIMD policy decisions (lightweight)
+#include "libstats/common/cpu_detection_fwd.h"         // CPU feature queries (lightweight)
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+#include "libstats/common/simd_policy_fwd.h"           // SIMD policy decisions (lightweight)
 #include "libstats/core/distribution_base.h"
 #include "libstats/core/math_constants.h"
 #include "libstats/core/safety.h"
 #include "libstats/core/statistical_constants.h"
+#include "libstats/stats/analysis/statistical_utilities.h"
 
 #include <algorithm>
 #include <array>
@@ -76,17 +78,26 @@ double erf_inv(double x) noexcept {
     double result;
 
     if (a <= detail::ERF_INV_CENTRAL_CUTOFF) {
-        // Central region: use rational approximation
-        double z = a * a;
-        result = a * (((a3 * z + a2) * z + a1) * z + a0) /
-                 ((((b3 * z + b2) * z + b1) * z + b0) * z + detail::ONE);
+        // Moro's rational approximation for Phi^{-1}(p) converted to erf_inv.
+        //
+        // Identity: erf_inv(a) = Phi^{-1}((a+1)/2) / sqrt(2).
+        // Moro's formula is parameterised by y = p - 0.5 = a/2 (not by a).
+        //
+        // Bug that was here: used z = a*a instead of z = (a/2)*(a/2),
+        // evaluating the polynomial at 4x the correct argument. For a~0.5
+        // this produced ~2.8 instead of the true ~0.48, causing Halley's
+        // method to diverge over ~48 consecutive grid points.
+        double y = a * detail::HALF;  // y = a/2
+        double z = y * y;             // z = y^2 as required by Moro
+        result = y * (((a3 * z + a2) * z + a1) * z + a0) /
+                 ((((b3 * z + b2) * z + b1) * z + b0) * z + detail::ONE) *
+                 detail::INV_SQRT_2;  // Phi^{-1} / sqrt(2) = erf_inv
     } else if (a < detail::ERF_INV_TAIL_CUTOFF) {
         // Moderate tail region: use improved asymptotic expansion with better coefficients
         double z = std::sqrt(-std::log((detail::ONE - a) * detail::HALF));
 
         result = z - (ACKLAM_D0 + ACKLAM_D1 * z + ACKLAM_D2 * z * z) /
-                         (detail::ONE + ACKLAM_E0 * z + ACKLAM_E1 * z * z +
-                          ACKLAM_E2 * z * z * z);
+                         (detail::ONE + ACKLAM_E0 * z + ACKLAM_E1 * z * z + ACKLAM_E2 * z * z * z);
     } else {
         // Extreme tail region: use specialized asymptotic series
         // For erf(x) very close to 1, use high-precision asymptotic expansion
@@ -116,13 +127,14 @@ double erf_inv(double x) noexcept {
             // Standard extreme tail: use refined asymptotic expansion
             double t = std::sqrt(-detail::TWO * std::log(eps));
 
-            result = t - (ACKLAM_D0 + ACKLAM_D1 * t + ACKLAM_D2 * t * t) /
-                             (detail::ONE + ACKLAM_E0 * t + ACKLAM_E1 * t * t +
-                              ACKLAM_E2 * t * t * t);
+            result =
+                t - (ACKLAM_D0 + ACKLAM_D1 * t + ACKLAM_D2 * t * t) /
+                        (detail::ONE + ACKLAM_E0 * t + ACKLAM_E1 * t * t + ACKLAM_E2 * t * t * t);
 
             // Additional correction term for better accuracy
             double correction = std::log(t * detail::SQRT_PI * detail::HALF) / (detail::TWO * t);
-            result -= correction * detail::ERF_INV_HALLEY_DAMPING;  // Damped to avoid overcorrection
+            result -=
+                correction * detail::ERF_INV_HALLEY_DAMPING;  // Damped to avoid overcorrection
         }
     }
 
@@ -190,7 +202,12 @@ double gamma_q(double a, double x) noexcept {
     }
 
     // For large x, use continued fraction expansion for Q(a,x)
+    // Guard b before dividing: when x = a-1 exactly, b = 0 and d would be ±inf
+    // before the abs(d)<ZERO clamp inside the loop executes. Mirror the pattern
+    // used in beta_continued_fraction.
     double b = x + detail::ONE - a;
+    if (std::abs(b) < detail::ZERO)
+        b = detail::ZERO;
     double c = detail::LARGE_CONTINUED_FRACTION_VALUE;
     double d = detail::ONE / b;
     double h = d;
@@ -402,19 +419,17 @@ double trigamma(double x) noexcept {
         result += detail::ONE / (x * x);
         x += detail::ONE;
     }
-    const double r  = detail::ONE / x;
+    const double r = detail::ONE / x;
     const double r2 = r * r;
     // Asymptotic series: 1/x + 1/(2x²) + 1/(6x³) - 1/(30x⁵) + 1/(42x⁷) - 1/(30x⁹)
-    result += r * (detail::ONE + detail::HALF * r
-              + r2 * (detail::ONE / 6.0
-              - r2 * (detail::ONE / 30.0
-              - r2 * (detail::ONE / 42.0 - r2 / 30.0))));
+    result += r * (detail::ONE + detail::HALF * r +
+                   r2 * (detail::ONE / 6.0 -
+                         r2 * (detail::ONE / 30.0 - r2 * (detail::ONE / 42.0 - r2 / 30.0))));
     return result;
 }
 
 double inverse_beta_i(double p, double a, double b) noexcept {
     // Inverse regularized incomplete beta I_x(a,b) = p  =>  solve for x in (0,1).
-    // Follows the same pattern as inverse_t_cdf and inverse_chi_squared_cdf.
     if (p <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
     if (p >= detail::ONE)
@@ -423,11 +438,39 @@ double inverse_beta_i(double p, double a, double b) noexcept {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    // Initial estimate using the normal approximation to the Beta distribution.
-    // For large a and b the Beta is approximately Normal(a/(a+b), sqrt(ab)/((a+b)*sqrt(a+b+1))).
-    const double mu = a / (a + b);
-    const double sigma = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
-    double x = mu + sigma * inverse_normal_cdf(p);
+    // Initial estimate.
+    // The normal approximation N(a/(a+b), sqrt(ab/(a+b)^2/(a+b+1))) is accurate
+    // in the middle of [0,1] but can give x <= 0 or x >= 1 in the tails, after
+    // which Newton oscillates between the clamp boundaries and never converges.
+    //
+    // Tail asymptotic: I_x(a,b) ~ x^a / (a*B(a,b)) for small x
+    //   => x ~ (p * a * B(a,b))^(1/a)
+    // Symmetry for large p: use (1-p) and reversed parameters.
+    const double lb = lbeta(a, b);
+    double x;
+    {
+        const double mu = a / (a + b);
+        const double sigma = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
+        x = mu + sigma * inverse_normal_cdf(p);
+    }
+    // Blend normal approximation with the tail asymptotic.
+    // For small p the normal approximation can give x slightly above 0 (e.g. 4e-4
+    // instead of the true ~0.06 for Beta(2,3) at p=0.023).  Clamping a very small
+    // positive x to max(1e-8,...) leaves Newton too far from the root and the first
+    // step diverges.  Taking max(normal, asymptotic) for p<0.1 avoids this.
+    if (x <= detail::ZERO_DOUBLE) {
+        x = std::pow(p * a * std::exp(lb), 1.0 / a);
+    } else if (x >= detail::ONE) {
+        x = 1.0 - std::pow((1.0 - p) * b * std::exp(lb), 1.0 / b);
+    } else {
+        if (p < 0.1) {
+            const double x_asymp = std::pow(p * a * std::exp(lb), 1.0 / a);
+            x = std::max(x, x_asymp);  // never start below the asymptotic estimate
+        } else if (p > 0.9) {
+            const double x_asymp = 1.0 - std::pow((1.0 - p) * b * std::exp(lb), 1.0 / b);
+            x = std::min(x, x_asymp);
+        }
+    }
     x = std::max(1e-8, std::min(1.0 - 1e-8, x));  // clamp to (0,1)
 
     // Newton-Raphson: x_{n+1} = x_n - (I_{x_n}(a,b) - p) / f(x_n)
@@ -916,7 +959,13 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
     if (p < 0.1 || p > 0.9) {
         // Use bisection method which is more stable for extreme probabilities
         double low = detail::ZERO_DOUBLE;
-        double high = df + 10.0 * std::sqrt(df);  // Conservative upper bound
+        double high = df + 10.0 * std::sqrt(df);
+        // Expand upper bound until it actually brackets p (handles p > 0.9999)
+        while (chi_squared_cdf(high, df) < p) {
+            high *= 2.0;
+            if (high > 1e15)
+                break;  // safety cap
+        }
         const double tolerance = detail::DEFAULT_TOLERANCE;
         const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
 
@@ -977,10 +1026,15 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
         x = std::max(detail::ZERO, x - delta);  // Ensure x stays positive
 
         // Check for divergence and fall back to bisection if needed
-        if (x > df + 10.0 * std::sqrt(df) || !std::isfinite(x)) {
+        if (!std::isfinite(x) || x > 1e15) {
             // Fall back to bisection method
             double low = detail::ZERO_DOUBLE;
             double high = df + 10.0 * std::sqrt(df);
+            while (chi_squared_cdf(high, df) < p) {
+                high *= 2.0;
+                if (high > 1e15)
+                    break;  // safety cap
+            }
 
             for (int j = 0; j < max_iterations; ++j) {
                 double mid = (low + high) * detail::HALF;
@@ -1206,4 +1260,31 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
 }
 
 }  // namespace detail
+}  // namespace stats
+
+// =============================================================================
+// stats::analysis:: public wrappers
+// Delegate to the detail:: implementations above; no logic is duplicated.
+// =============================================================================
+namespace stats {
+namespace analysis {
+
+std::vector<double> empirical_cdf(std::span<const double> data) {
+    return detail::empirical_cdf(data);
+}
+
+std::vector<double> calculate_quantiles(std::span<const double> data,
+                                        std::span<const double> quantiles) {
+    return detail::calculate_quantiles(data, quantiles);
+}
+
+std::array<double, 4> sample_moments(std::span<const double> data) {
+    return detail::sample_moments(data);
+}
+
+bool validate_fitting_data(std::span<const double> data) noexcept {
+    return detail::validate_fitting_data(data);
+}
+
+}  // namespace analysis
 }  // namespace stats

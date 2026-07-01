@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dispatch_thresholds.h"
+#include "distribution_concepts.h"
 #include "libstats/platform/thread_pool.h"  // For ParallelUtils
 #include "libstats/platform/work_stealing_pool.h"
 #include "performance_dispatcher.h"
@@ -62,13 +63,13 @@ class DispatchUtils {
      * @param parallel_func Function to call for parallel operations
      * @param work_stealing_func Function to call for work-stealing operations
      */
-    template <typename Distribution, typename ScalarFunc, typename BatchFunc, typename ParallelFunc,
-              typename WorkStealingFunc>
+    template <stats::concepts::AnyDistribution Distribution, typename ScalarFunc,
+              typename BatchFunc, typename ParallelFunc, typename WorkStealingFunc>
     static void autoDispatch(const Distribution& dist, std::span<const double> values,
                              std::span<double> results, const PerformanceHint& hint,
-                             DistributionType dist_type, OperationType op_type,
-                             ScalarFunc&& scalar_func, BatchFunc&& batch_func,
-                             ParallelFunc&& parallel_func, WorkStealingFunc&& work_stealing_func) {
+                             OperationType op_type, ScalarFunc&& scalar_func,
+                             BatchFunc&& batch_func, ParallelFunc&& parallel_func,
+                             WorkStealingFunc&& work_stealing_func) {
         // Validate input
         if (values.size() != results.size()) {
             throw std::invalid_argument("Input and output spans must have the same size");
@@ -84,15 +85,20 @@ class DispatchUtils {
             return;
         }
 
-        // Get global dispatcher and system capabilities
-        static thread_local PerformanceDispatcher dispatcher;
+        // Get global dispatcher and system capabilities.
+        // A process-wide static is correct here: PerformanceDispatcher stores only
+        // simd_level_ (fixed at runtime, identical on all threads) and selectStrategy()
+        // is const. A thread_local would create one copy per thread per callers thread
+        // count — redundant construction with identical state.
+        static PerformanceDispatcher dispatcher;
         const SystemCapabilities& system = SystemCapabilities::current();
 
         // Smart dispatch based on problem characteristics
         auto strategy = Strategy::SCALAR;
 
         if (hint.strategy == PerformanceHint::PreferredStrategy::AUTO) {
-            strategy = dispatcher.selectStrategy(count, dist_type, op_type, system);
+            strategy =
+                dispatcher.selectStrategy(count, Distribution::kDistributionType, op_type, system);
         } else {
             strategy = mapHintToStrategy(hint.strategy, count);
         }
@@ -184,9 +190,16 @@ class DispatchUtils {
             case PerformanceHint::PreferredStrategy::FORCE_PARALLEL:
                 return Strategy::PARALLEL;
             case PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY:
-                return (count <= 8) ? Strategy::SCALAR : Strategy::VECTORIZED;
+                // Use the architecture-correct SIMD minimum threshold, not a
+                // hardcoded 8. AVX-512 and other wide tiers may have higher minimums.
+                return (count <= arch::simd::SIMDPolicy::getMinThreshold()) ? Strategy::SCALAR
+                                                                            : Strategy::VECTORIZED;
             case PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                return Strategy::PARALLEL;
+                // Route through selectMultiThreadedStrategy() so Windows gets
+                // PARALLEL (3.3:1 win over WS) rather than being hardcoded to WS.
+                return PerformanceDispatcher::selectMultiThreadedStrategy(
+                    DistributionType::GAUSSIAN,  // dist_type unused; OS is the deciding factor
+                    SystemCapabilities::current());
             default:
                 return Strategy::SCALAR;
         }
@@ -212,7 +225,7 @@ class DispatchUtils {
 
             case Strategy::VECTORIZED:
                 // Batch path through VectorOps. For Gaussian this uses SIMD intrinsics;
-                // for other distributions it currently uses scalar loops until Phase 6.
+                // for other distributions it currently uses scalar loops.
                 batch_func(dist, values.data(), results.data(), count);
                 break;
 
@@ -223,204 +236,22 @@ class DispatchUtils {
 
             case Strategy::WORK_STEALING: {
                 // Work-stealing pool for irregular or variable-cost workloads.
-                // Thread explosion note: this pool is thread_local, so each calling
-                // thread creates its own WorkStealingPool with hardware_concurrency()
-                // workers. N concurrent WORK_STEALING batches spawn N * cores threads.
-                // Results are always correct; performance degrades under this condition.
-                // Phase 6 will introduce a shared pool to address this.
-                static thread_local WorkStealingPool default_pool;
-                work_stealing_func(dist, values, results, default_pool);
+                // Use the shared GlobalWorkStealingPool singleton instead of
+                // a thread_local WorkStealingPool. The thread_local approach spawned
+                // N * hardware_concurrency threads for N concurrent callers, risking
+                // thread explosion under load. The global singleton amortises thread
+                // creation across all callers on all threads.
+                work_stealing_func(dist, values, results, GlobalWorkStealingPool::getInstance());
                 break;
             }
         }
     }
-
-    /**
-     * @brief Execute parallel batch operations with common pattern
-     *
-     * @tparam Distribution The distribution type
-     * @tparam ComputationFunc Function type for element-wise computation
-     *
-     * @param dist Reference to the distribution instance
-     * @param values Input values span
-     * @param results Output results span
-     * @param computation_func Function to compute result for each element
-     */
-    template <typename Distribution, typename ComputationFunc>
-    static void executeBatchParallel([[maybe_unused]] const Distribution& dist,
-                                     std::span<const double> values, std::span<double> results,
-                                     ComputationFunc&& computation_func) {
-        if (values.size() != results.size()) {
-            throw std::invalid_argument("Input and output spans must have the same size");
-        }
-
-        const std::size_t count = values.size();
-        if (count == 0)
-            return;
-
-        // Use ParallelUtils::parallelFor for Level 0-3 integration
-        if (arch::should_use_parallel(count)) {
-            ParallelUtils::parallelFor(std::size_t{0}, count,
-                                       [&](std::size_t i) { computation_func(i); });
-        } else {
-            // Serial processing for small datasets
-            for (std::size_t i = 0; i < count; ++i) {
-                computation_func(i);
-            }
-        }
-    }
-
-    /**
-     * @brief Execute work-stealing batch operations with common pattern
-     *
-     * @tparam Distribution The distribution type
-     * @tparam ComputationFunc Function type for element-wise computation
-     *
-     * @param dist Reference to the distribution instance
-     * @param values Input values span
-     * @param results Output results span
-     * @param pool Work-stealing thread pool
-     * @param computation_func Function to compute result for each element
-     */
-    template <typename Distribution, typename ComputationFunc>
-    static void executeBatchWorkStealing([[maybe_unused]] const Distribution& dist,
-                                         std::span<const double> values, std::span<double> results,
-                                         WorkStealingPool& pool,
-                                         ComputationFunc&& computation_func) {
-        if (values.size() != results.size()) {
-            throw std::invalid_argument("Input and output spans must have the same size");
-        }
-
-        const std::size_t count = values.size();
-        if (count == 0)
-            return;
-
-        // Use WorkStealingPool for dynamic load balancing
-        // Use same threshold as regular parallel operations to avoid inconsistency
-        if (stats::shouldUseWorkStealing(
-                count, stats::arch::get_min_elements_for_simple_distribution_parallel())) {
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) { computation_func(i); });
-            pool.waitForAll();
-        } else {
-            // Serial processing for small datasets
-            for (std::size_t i = 0; i < count; ++i) {
-                computation_func(i);
-            }
-        }
-    }
-
-    // GPU_ACCELERATED strategy slot removed. See issue #23 for future GPU backend prerequisites.
-
 };
 
-/**
- * @brief Distribution traits to map distribution types to enums
- *
- * Specializations should be provided for each distribution type to define
- * their corresponding DistributionType and ComputationComplexity values.
- */
-template <typename Distribution>
-struct DistributionTraits {
-    static constexpr DistributionType distType() = delete;
-    static constexpr ComputationComplexity complexity() = delete;
-};
-
-// Specializations for known distributions
-template <>
-struct DistributionTraits<class DiscreteDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::DISCRETE; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::SIMPLE; }
-};
-
-template <>
-struct DistributionTraits<class PoissonDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::POISSON; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class GaussianDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::GAUSSIAN; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class ExponentialDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::EXPONENTIAL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class UniformDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::UNIFORM; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::SIMPLE; }
-};
-
-template <>
-struct DistributionTraits<class GammaDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::GAMMA; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class StudentTDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::STUDENT_T; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class BetaDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::BETA; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class ChiSquaredDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::CHI_SQUARED; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class LogNormalDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::LOG_NORMAL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class ParetoDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::PARETO; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class WeibullDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::WEIBULL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class RayleighDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::RAYLEIGH; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::MODERATE; }
-};
-
-template <>
-struct DistributionTraits<class VonMisesDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::VON_MISES; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class BinomialDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::BINOMIAL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
-
-template <>
-struct DistributionTraits<class NegativeBinomialDistribution> {
-    static constexpr DistributionType distType() { return DistributionType::NEGATIVE_BINOMIAL; }
-    static constexpr ComputationComplexity complexity() { return ComputationComplexity::COMPLEX; }
-};
+// DistributionTraits<> removed in v2.0.0.
+// Use D::kDistributionType and D::kIsDiscrete directly.
+// Use stats::concepts::AnyDistribution<D>, stats::concepts::ContinuousDistribution<D>,
+// or stats::concepts::DiscreteDistribution<D> to constrain template parameters.
 
 }  // namespace detail
 }  // namespace stats

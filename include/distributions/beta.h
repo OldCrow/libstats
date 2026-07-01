@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools,
 // adaptive caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -57,10 +56,15 @@ namespace stats {
  * - **Random variable generation**: via inverse CDF
  *
  * @author libstats Development Team
- * @version 1.1.0
- * @since 1.0.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class BetaDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<BetaDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::BETA;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -86,8 +90,8 @@ class BetaDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     BetaDistribution(BetaDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    BetaDistribution& operator=(BetaDistribution&& other);
+    /** @brief Move assignment operator. Implementation in .cpp. */
+    BetaDistribution& operator=(BetaDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~BetaDistribution() override = default;
@@ -103,10 +107,11 @@ class BetaDistribution : public DistributionBase {
      * @return Result containing a valid BetaDistribution or error info
      */
     [[nodiscard]] static Result<BetaDistribution> create(double alpha = detail::ONE,
-                                                         double beta = detail::ONE) noexcept {
+                                                         double beta = detail::ONE) {
         auto validation = validateBetaParameters(alpha, beta);
         if (validation.isError()) {
-            return Result<BetaDistribution>::makeError(validation.error_code, validation.message);
+            return Result<BetaDistribution>::makeError(validation.errorCode(),
+                                                       validation.message());
         }
         return Result<BetaDistribution>::ok(createUnchecked(alpha, beta));
     }
@@ -146,22 +151,22 @@ class BetaDistribution : public DistributionBase {
     void setParameters(double alpha, double beta);
 
     /** @brief Mean = α/(α+β). */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = αβ / ((α+β)²(α+β+1)). */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness. */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis. */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override { return "BetaDistribution"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Beta"; }
 
     /** @brief Beta is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }
@@ -197,7 +202,7 @@ class BetaDistribution : public DistributionBase {
      * @brief Log-PDF at x: (α−1)·log(x) + (β−1)·log(1−x) − lbeta(α,β).
      * Returns −∞ for x outside (0,1) (or ±∞ at boundaries for α,β < 1).
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via detail::beta_i(x, α, β) (regularized incomplete beta).
@@ -262,10 +267,10 @@ class BetaDistribution : public DistributionBase {
     [[nodiscard]] double getEntropy() const override;
 
     /** @brief Mode: (α−1)/(α+β−2) for α,β>1; boundary values otherwise. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median — numerical via getQuantile(0.5). */
-    [[nodiscard]] double getMedian() const noexcept { return getQuantile(detail::HALF); }
+    [[nodiscard]] double getMedian() const override { return getQuantile(detail::HALF); }
 
     /**
      * @brief True if α = β = 1 within tolerance (Uniform(0,1) distribution).
@@ -295,23 +300,6 @@ class BetaDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -378,25 +366,11 @@ class BetaDistribution : public DistributionBase {
     // 21. PRIVATE VALIDATION METHODS
     //==========================================================================
 
+    // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double alpha, double beta) {
-        if (std::isnan(alpha) || std::isinf(alpha) || alpha <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Alpha (shape1) must be a positive finite number");
-        }
-        if (std::isnan(beta) || std::isinf(beta) || beta <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Beta (shape2) must be a positive finite number");
-        }
-    }
-
-    [[nodiscard]] static VoidResult validateBetaParameters(double alpha, double beta) noexcept {
-        if (std::isnan(alpha) || std::isinf(alpha) || alpha <= detail::ZERO_DOUBLE) {
-            return VoidResult::makeError(ValidationError::InvalidParameter,
-                                         "Alpha (shape1) must be a positive finite number");
-        }
-        if (std::isnan(beta) || std::isinf(beta) || beta <= detail::ZERO_DOUBLE) {
-            return VoidResult::makeError(ValidationError::InvalidParameter,
-                                         "Beta (shape2) must be a positive finite number");
-        }
-        return VoidResult::ok(true);
+        auto v = ::stats::validateBetaParameters(alpha, beta);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -450,7 +424,6 @@ class BetaDistribution : public DistributionBase {
     mutable bool isUnimodal_{false};
 
     /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 };
 
 }  // namespace stats

@@ -242,29 +242,56 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
         const std::size_t simdWidth = arch::simd::double_vector_width();
         grainSize = ((grainSize + simdWidth - 1) / simdWidth) * simdWidth;
 
-        // Ensure grain size is reasonable (not too small or too large)
-        grainSize = std::max(std::size_t{8}, std::min(grainSize, std::size_t{1024}));
+        // Clamp grain size below to SIMD-width minimum; no upper cap — the
+        // calculated value is already bounded by totalWork and baseGrainSize,
+        // and capping at 1024 defeats the "4x tasks per thread" design goal for
+        // large batches (e.g. 1M / 8 workers / 4 = 31250, not 1024).
+        grainSize = std::max(std::size_t{8}, grainSize);
     }
 
     // Calculate number of tasks we'll submit
     const std::size_t numTasks = (totalWork + grainSize - 1) / grainSize;
+
+    // Per-call synchronisation: a countdown latch scoped to this invocation.
+    // The global activeTasks_/waitForAll() mechanism would cause cross-caller
+    // interference when two threads each call parallelFor concurrently — each
+    // caller's waitForAll() would unblock as soon as any caller's tasks finish,
+    // not necessarily its own (A-2 correctness fix).
+    auto pendingTasks = std::make_shared<std::atomic<std::size_t>>(numTasks);
+    auto doneMutex = std::make_shared<std::mutex>();
+    auto doneCv = std::make_shared<std::condition_variable>();
 
     // Submit all tasks
     for (std::size_t taskId = 0; taskId < numTasks; ++taskId) {
         const std::size_t taskStart = start + taskId * grainSize;
         const std::size_t taskEnd = std::min(start + (taskId + 1) * grainSize, end);
 
-        // Capture by value to avoid lifetime issues
-        submit([func, taskStart, taskEnd]() {
-            // Execute function for this range with safety checks
-            for (std::size_t i = taskStart; i < taskEnd; ++i) {
-                func(i);
+        // Capture shared_ptrs by value so the latch outlives the submission scope.
+        submit([func, taskStart, taskEnd, pendingTasks, doneMutex, doneCv]() {
+            // Execute function for this range. The latch decrement must happen
+            // unconditionally: if func throws, executeTask() catches the exception
+            // and swallows it, but pendingTasks would never reach zero and
+            // doneCv->wait() in the caller would deadlock forever (POOL-1).
+            try {
+                for (std::size_t i = taskStart; i < taskEnd; ++i) {
+                    func(i);
+                }
+            } catch (...) {
+                // Exception already logged by executeTask(); swallow here so
+                // the latch decrement below always runs.
+            }
+            // Signal per-call completion unconditionally.
+            if (pendingTasks->fetch_sub(1u, std::memory_order_acq_rel) == 1u) {
+                std::lock_guard<std::mutex> lock(*doneMutex);
+                doneCv->notify_all();
             }
         });
     }
 
-    // Use the pool's built-in synchronization mechanism
-    waitForAll();
+    // Wait only for this invocation's tasks (not for tasks from other callers).
+    std::unique_lock<std::mutex> lock(*doneMutex);
+    doneCv->wait(lock,
+                 [&pendingTasks] { return pendingTasks->load(std::memory_order_acquire) == 0u; });
 }
 
 /**

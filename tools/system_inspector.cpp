@@ -213,7 +213,6 @@ class SystemInspector {
 
     void displayAdditionalAdaptiveConstants() {
         using namespace stats::detail;
-        using namespace stats::detail;
 
         stats::detail::detail::subsectionHeader("Additional Adaptive Constants");
 
@@ -243,7 +242,6 @@ class SystemInspector {
     }
 
     void displayCacheThresholds() {
-        using namespace stats::detail;
         using namespace stats::detail;
 
         stats::detail::detail::subsectionHeader("Cache Thresholds");
@@ -275,7 +273,6 @@ class SystemInspector {
     }
 
     void displayArchitectureComparison() {
-        using namespace stats::detail;
         using namespace stats::detail;
 
         stats::detail::detail::subsectionHeader("Architecture-Specific Constants Comparison");
@@ -466,10 +463,9 @@ class SystemInspector {
 
         const auto& capabilities = stats::detail::SystemCapabilities::current();
         std::vector<size_t> test_sizes = {100, 1000, 10000, 100000};
-        std::vector<stats::detail::DistributionType> dist_types = {
-            stats::detail::DistributionType::UNIFORM, stats::detail::DistributionType::GAUSSIAN,
-            stats::detail::DistributionType::EXPONENTIAL, stats::detail::DistributionType::POISSON,
-            stats::detail::DistributionType::DISCRETE};
+        std::vector<stats::detail::DistributionType> dist_types;
+        for (const auto& meta : stats::detail::kDistributionMeta)
+            dist_types.push_back(meta.type);
 
         for (auto size : test_sizes) {
             for (auto dist : dist_types) {

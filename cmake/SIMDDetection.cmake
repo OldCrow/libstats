@@ -771,50 +771,51 @@ function(apply_simd_source_flags)
     if(_sse2)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
-                                        PROPERTIES COMPILE_FLAGS "/arch:SSE2")
+                                        PROPERTIES COMPILE_OPTIONS "/arch:SSE2")
         else()
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
-                                        PROPERTIES COMPILE_FLAGS "-msse2")
+                                        PROPERTIES COMPILE_OPTIONS "-msse2")
         endif()
     endif()
 
     if(_avx)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx.cpp"
-                                        PROPERTIES COMPILE_FLAGS "/arch:AVX")
+                                        PROPERTIES COMPILE_OPTIONS "/arch:AVX")
         else()
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx.cpp"
-                                        PROPERTIES COMPILE_FLAGS "-mavx")
+                                        PROPERTIES COMPILE_OPTIONS "-mavx")
         endif()
     endif()
 
     if(_avx2)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx2.cpp"
-                                        PROPERTIES COMPILE_FLAGS "/arch:AVX2")
+                                        PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
         else()
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx2.cpp"
-                                        PROPERTIES COMPILE_FLAGS "-mavx2 -mfma")
+                                        PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma")
         endif()
     endif()
 
     if(_avx512)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx512.cpp"
-                                        PROPERTIES COMPILE_FLAGS "/arch:AVX512")
+                                        PROPERTIES COMPILE_OPTIONS "/arch:AVX512")
         else()
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_avx512.cpp"
-                                        PROPERTIES COMPILE_FLAGS "-mavx512f -mavx512dq")
+                                        PROPERTIES COMPILE_OPTIONS "-mavx512f;-mavx512dq")
         endif()
     endif()
 
     if(_neon)
         if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+            # AArch64 has NEON unconditionally — no extra flag needed.
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_neon.cpp"
-                                        PROPERTIES COMPILE_FLAGS "")
+                                        PROPERTIES COMPILE_OPTIONS "")
         else()
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_neon.cpp"
-                                        PROPERTIES COMPILE_FLAGS "-mfpu=neon")
+                                        PROPERTIES COMPILE_OPTIONS "-mfpu=neon")
         endif()
     endif()
 endfunction()

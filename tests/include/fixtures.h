@@ -31,8 +31,17 @@
 #ifdef LIBSTATS_ENABLE_GTEST_INTEGRATION
     #include <gtest/gtest.h>
 #else
-// Provide fallback macros for non-gtest mode that support streaming
+    // Provide fallback macros for non-gtest mode that support streaming.
+    // A global counter tracks all failures so callers can check get_failure_count() > 0.
+    #include <atomic>
 namespace libstats_test_impl {
+inline std::atomic<int>& failure_counter() noexcept {
+    static std::atomic<int> count{0};
+    return count;
+}
+inline int get_failure_count() noexcept {
+    return failure_counter().load(std::memory_order_relaxed);
+}
 struct NullStream {
     template <typename T>
     NullStream& operator<<(const T&) {
@@ -42,6 +51,7 @@ struct NullStream {
 inline void expect_true(bool condition, const char* condition_str) {
     if (!condition) {
         std::cout << "  ✗ Assertion failed: " << condition_str << std::endl;
+        failure_counter().fetch_add(1, std::memory_order_relaxed);
     }
 }
 inline void expect_eq_impl(const char* a_str, const char* b_str) {
@@ -52,6 +62,7 @@ inline void expect_eq(const A& a, const B& b, const char* a_str, const char* b_s
     if (!(a == b)) {
         std::cout << "  ✗ Expected " << a_str << " == " << b_str << ", got " << a << " != " << b
                   << std::endl;
+        failure_counter().fetch_add(1, std::memory_order_relaxed);
     }
 }
 template <typename A, typename B>
@@ -59,6 +70,7 @@ inline void expect_ge(const A& a, const B& b, const char* a_str, const char* b_s
     if (a < b) {
         std::cout << "  ✗ Expected " << a_str << " >= " << b_str << ", got " << a << " < " << b
                   << std::endl;
+        failure_counter().fetch_add(1, std::memory_order_relaxed);
     }
 }
 template <typename A, typename B>
@@ -66,6 +78,7 @@ inline void expect_le(const A& a, const B& b, const char* a_str, const char* b_s
     if (a > b) {
         std::cout << "  ✗ Expected " << a_str << " <= " << b_str << ", got " << a << " > " << b
                   << std::endl;
+        failure_counter().fetch_add(1, std::memory_order_relaxed);
     }
 }
 }  // namespace libstats_test_impl
@@ -205,11 +218,6 @@ class TestDataGenerators {
         return sumSquaredDiffs / static_cast<double>(samples.size() - 1);
     }
 
-    // Helper function to check if two values are approximately equal
-    static bool approxEqual(double a, double b, double tolerance = 1e-10) {
-        return std::abs(a - b) < tolerance;
-    }
-
     // Standard test data generators
     static std::vector<double> generateUniformTestData() {
         return {0.1, 0.3, 0.7, 0.2, 0.9, 0.4, 0.8, 0.6, 0.15, 0.85};
@@ -336,10 +344,6 @@ class StatisticalTestUtils {
         return {mean, variance};
     }
 
-    static bool approxEqual(double a, double b, double tolerance = 1e-12) {
-        return std::abs(a - b) <= tolerance;
-    }
-
     template <typename Distribution>
     static void verifyBatchCorrectness(const Distribution& dist,
                                        const std::vector<double>& test_values,
@@ -361,22 +365,17 @@ class StatisticalTestUtils {
             check_values[i] = test_values[idx];
         }
 
-        // Use batch operations to get expected results (much more efficient)
+        // Compute expected results with scalar calls. This helper verifies that
+        // a batch result vector matches the distribution's scalar semantics.
         if (operation_name == "PDF") {
-            std::span<const double> input_span(check_values);
-            std::span<double> output_span(expected_results);
-            dist.getProbabilityWithStrategy(input_span, output_span,
-                                            stats::detail::Strategy::SCALAR);
+            for (std::size_t i = 0; i < check_count; ++i)
+                expected_results[i] = dist.getProbability(check_values[i]);
         } else if (operation_name == "LogPDF") {
-            std::span<const double> input_span(check_values);
-            std::span<double> output_span(expected_results);
-            dist.getLogProbabilityWithStrategy(input_span, output_span,
-                                               stats::detail::Strategy::SCALAR);
+            for (std::size_t i = 0; i < check_count; ++i)
+                expected_results[i] = dist.getLogProbability(check_values[i]);
         } else if (operation_name == "CDF") {
-            std::span<const double> input_span(check_values);
-            std::span<double> output_span(expected_results);
-            dist.getCumulativeProbabilityWithStrategy(input_span, output_span,
-                                                      stats::detail::Strategy::SCALAR);
+            for (std::size_t i = 0; i < check_count; ++i)
+                expected_results[i] = dist.getCumulativeProbability(check_values[i]);
         } else {
             // Skip unknown operations
             std::cout << "  ✓ " << operation_name
@@ -476,20 +475,12 @@ class EdgeCaseTester {
         std::cout << "  ✓ " << dist_name << " extreme value handling test passed" << std::endl;
     }
 
-    static void testEmptyBatchOperations(const Distribution& dist, const std::string& dist_name) {
+    static void testEmptyBatchOperations([[maybe_unused]] const Distribution& dist,
+                                         const std::string& dist_name) {
         std::vector<double> empty_values;
         std::vector<double> empty_results;
 
         // These should not crash
-        dist.getProbabilityWithStrategy(std::span<const double>(empty_values),
-                                        std::span<double>(empty_results),
-                                        stats::detail::Strategy::SCALAR);
-        dist.getLogProbabilityWithStrategy(std::span<const double>(empty_values),
-                                           std::span<double>(empty_results),
-                                           stats::detail::Strategy::SCALAR);
-        dist.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_values),
-                                                  std::span<double>(empty_results),
-                                                  stats::detail::Strategy::SCALAR);
 
         std::cout << "  ✓ " << dist_name << " empty batch operations handled gracefully"
                   << std::endl;

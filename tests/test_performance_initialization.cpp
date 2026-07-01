@@ -76,7 +76,7 @@ TEST_F(PerformanceInitializationTest, BatchOperationsWorkAfterInitialization) {
     // Create a distribution for testing
     auto result = Gaussian::create(0.0, 1.0);
     ASSERT_TRUE(result.isOk());
-    auto dist = std::move(result.value);
+    auto dist = std::move(result).unwrap();
 
     // Create test data
     constexpr size_t test_size = 1000;
@@ -118,7 +118,7 @@ TEST(PerformanceInitializationTestStandalone, WorksWithoutExplicitInitialization
 
     auto result = Exponential::create(1.0);
     ASSERT_TRUE(result.isOk());
-    auto dist = std::move(result.value);
+    auto dist = std::move(result).unwrap();
 
     // Small batch operation - should work even without initialization
     std::vector<double> input_values = {0.1, 0.5, 1.0, 2.0, 5.0};
@@ -172,7 +172,7 @@ TEST(PerformanceInitializationBenchmark, InitializationImprovesColdStartPerforma
 
     auto result = Uniform::create(0.0, 10.0);
     ASSERT_TRUE(result.isOk());
-    auto dist = std::move(result.value);
+    auto dist = std::move(result).unwrap();
 
     auto start = std::chrono::high_resolution_clock::now();
     dist.getProbability(std::span<const double>(input_values), std::span<double>(output_results));

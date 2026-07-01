@@ -2,11 +2,16 @@
 
 Thank you for your interest in contributing to libstats! We welcome contributions from the community and are pleased to have you join us in making this project better.
 
-## 🚀 Quick Start for Contributors
+## Quick Start for Contributors
 
 ### Prerequisites
 
-- **C++20 compatible compiler**: GCC 10+, Clang 14+, MSVC 2019+, or LLVM (recommended)
+| Platform | Minimum compiler |
+|---|---|
+| macOS (Ventura 13+) | AppleClang 15 (Xcode 15+) |
+| Linux | GCC 13+ or Clang 17+ |
+| Windows | MSVC 19.38+ (Visual Studio 2022 17.8+) |
+
 - **CMake**: 3.20 or later
 - **Git**: For version control
 - **Optional**: GTest for running tests, Intel TBB for enhanced parallel support
@@ -15,20 +20,19 @@ Thank you for your interest in contributing to libstats! We welcome contribution
 
 1. **Fork and clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/libstats.git
+   git clone git@github.com:yourusername/libstats.git
    cd libstats
    ```
 
 2. **Build the project**:
    ```bash
-   mkdir build && cd build
-   cmake -DCMAKE_BUILD_TYPE=Debug ..
-   make -j$(nproc)
+   cmake -B build
+   cmake --build build --parallel
    ```
 
 3. **Run the correctness suite**:
    ```bash
-   ctest --output-on-failure -LE "timing|benchmark"
+   ctest --test-dir build --output-on-failure -LE "timing|benchmark"
    ```
 
 ## 📋 How to Contribute
@@ -67,11 +71,12 @@ We follow modern C++20 best practices with specific emphasis on:
   - Private members: `snake_case_` with trailing underscore
 
 #### **Modern C++ Features**
-- **Use C++20 features**: concepts, ranges, span, likely/unlikely attributes
-- **RAII principles**: Always use smart pointers and stack-based resource management
-- **Exception safety**: Provide strong exception guarantee where possible
-- **Thread safety**: All public APIs should be thread-safe
-- **const correctness**: Use const wherever appropriate
+- **Use C++20 features**: concepts, `std::span`, `std::ranges`, `[[likely]]`/`[[unlikely]]`
+- **RAII principles**: Smart pointers and stack-based resource management
+- **Exception safety**: Strong exception guarantee where possible
+- **Thread safety**: All public APIs must be thread-safe
+- **const correctness**: Mark everything `const` or `constexpr` where appropriate
+- **Primary namespace**: Use `stats::` throughout (not `libstats::`)
 
 #### **Performance Guidelines**
 - **Cache efficiency**: Consider memory layout and access patterns
@@ -111,16 +116,21 @@ libstats/
 
 ### Adding New Distributions
 
-When contributing new probability distributions:
+When contributing new probability distributions, follow the 5-step registration
+checklist in `include/core/distribution_meta.h` (authoritative), then implement:
 
-1. **Inherit from `DistributionBase`**
-2. **Implement all pure virtual methods**
-3. **Follow the 24-section template** (see `exponential.h`/`.cpp` or `beta.h`/`.cpp` as reference)
-4. **Include the full statistical interface** (PDF/LogPDF/CDF/quantile/sampling/MLE/`parallelBatchFit`)
-5. **Add parameter validation and safe factory methods** (exception-throwing + `Result<T>`/`VoidResult` API)
-6. **Implement SIMD-optimized batch operations** via the `VectorOps` pipeline in `*BatchUnsafeImpl`
-7. **Register in** `CMakeLists.txt`, `libstats.h`, `forward_declarations.h`, `performance_dispatcher.h`, and `dispatch_utils.h`
-8. **Provide thorough test coverage** (`*_basic.cpp` standalone + `*_enhanced.cpp` GTest with speedup assertions)
+1. **Append** the `DistributionType` enum value to `include/core/distribution_type.h`
+   (append-only — values are used as array indices).
+2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/core/distribution_meta.h`.
+3. **Append** one `ThresholdRow` to each of the four `kXxx` tables in
+   `include/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
+4. **Implement** the distribution (see `exponential.h`/`.cpp` as the reference template):
+   - Inherit from `DistributionBase`, implement all pure virtual methods.
+   - Full statistical interface: PDF/LogPDF/CDF/quantile/sampling/MLE/`parallelBatchFit`.
+   - Parameter validation and factory methods (`Result<T>`/`VoidResult` API).
+   - SIMD-optimized batch operations via the `VectorOps` pipeline in `*BatchUnsafeImpl`.
+   - Tests: `*_basic.cpp` standalone + `*_enhanced.cpp` GTest with speedup assertions.
+5. **Register** in `CMakeLists.txt` and `include/libstats.h`.
 
 ### SIMD Development
 
@@ -209,22 +219,24 @@ For new features:
 ### Build Configurations
 
 ```bash
-# Debug build with all checks
-cmake -DCMAKE_BUILD_TYPE=Debug -DLIBSTATS_ENABLE_RUNTIME_CHECKS=ON ..
+# Debug build
+cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 # Release build with optimizations
 cmake -DCMAKE_BUILD_TYPE=Release ..
 
-# Conservative SIMD (for compatibility testing)
-cmake -DLIBSTATS_CONSERVATIVE_SIMD=ON ..
+# Strict warnings (compile error on warnings)
+cmake -DCMAKE_BUILD_TYPE=Strict ..
 ```
 
 ### Useful CMake Options
 
-- `LIBSTATS_ENABLE_RUNTIME_CHECKS`: Enable additional runtime validation
-- `LIBSTATS_CONSERVATIVE_SIMD`: Use conservative SIMD settings
-- `BUILD_TESTING`: Enable/disable test building
-- `BUILD_EXAMPLES`: Enable/disable example building
+- `LIBSTATS_ENABLE_RUNTIME_CHECKS`: Enable runtime CPU feature checks when cross-compiling
+  (controls SIMD detection only; does not add distribution-level validation)
+- `LIBSTATS_VERBOSE_BUILD`: Enable verbose CMake status messages
+- `LIBSTATS_FORCE_TBB`: Force TBB over GCD even on macOS
+- `LIBSTATS_BUILD_TESTS`: Enable/disable test building
+- `LIBSTATS_BUILD_EXAMPLES`: Enable/disable example building
 
 ### IDE Setup
 
@@ -250,9 +262,9 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **New Distributions**: Weibull (reliability engineering), Rayleigh (signal processing),
-   Von Mises (circular statistics), Binomial, and Negative Binomial are the next planned
-   families — see `PROJECT_CONCEPT.md` for the full discussion
+1. **New Distributions**: All 19 distributions are fully implemented in v2.0.0. Inverse Gamma,
+   KDE (kernel density estimation), and GMM (Gaussian mixture models) remain on the v2.1+
+   roadmap.
 2. **Statistical Tests**: More goodness-of-fit tests and validation methods
 3. **Performance Optimization**: SIMD improvements and cache optimizations
 4. **Documentation**: API documentation and usage examples

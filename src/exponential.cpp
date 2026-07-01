@@ -1,10 +1,14 @@
 #include "libstats/distributions/exponential.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+
 #include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 // Note: parallel execution included through distribution base inheritance
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include "libstats/core/dispatch_thresholds.h"
@@ -12,25 +16,17 @@
 
 #include <algorithm>
 #include <cmath>
-#include <execution>   // For parallel algorithms
-#include <functional>  // For std::plus and std::divides
+#include <execution>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
 #include <random>
-#if LIBSTATS_HAS_STD_RANGES_HEADER
-    #include <ranges>  // C++20 ranges
-#endif
+#include <ranges>
 #include <sstream>
 #include <vector>
-#if LIBSTATS_HAS_STD_RANGES_HEADER
-    #define LIBSTATS_ALL_OF(range, predicate) std::ranges::all_of((range), (predicate))
-    #define LIBSTATS_SORT(range) std::ranges::sort((range))
-#else
-    #define LIBSTATS_ALL_OF(range, predicate)                                                      \
-        std::all_of((range).begin(), (range).end(), (predicate))
-    #define LIBSTATS_SORT(range) std::sort((range).begin(), (range).end())
-#endif
+#define LIBSTATS_ALL_OF(range, predicate) std::ranges::all_of((range), (predicate))
+#define LIBSTATS_SORT(range) std::ranges::sort((range))
 
 namespace stats {
 
@@ -66,9 +62,8 @@ ExponentialDistribution& ExponentialDistribution::operator=(const ExponentialDis
     return *this;
 }
 
-ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other)
+ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     lambda_ = other.lambda_;
     other.lambda_ = detail::ONE;
     other.cache_valid_ = false;
@@ -76,12 +71,9 @@ ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other
     // Cache will be updated on first use
 }
 
-ExponentialDistribution& ExponentialDistribution::operator=(ExponentialDistribution&& other) {
+ExponentialDistribution& ExponentialDistribution::operator=(
+    ExponentialDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
-
         lambda_ = other.lambda_;
         other.lambda_ = detail::ONE;
 
@@ -110,50 +102,42 @@ void ExponentialDistribution::setLambda(double lambda) {
     lambda_ = lambda;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
-double ExponentialDistribution::getMean() const noexcept {
+double ExponentialDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        return invLambda_;  // snapshot + early return under unique_lock
     }
-
     return invLambda_;
 }
 
-double ExponentialDistribution::getVariance() const noexcept {
+double ExponentialDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        return invLambdaSquared_;  // snapshot + early return under unique_lock
     }
-
     return invLambdaSquared_;
 }
 
-double ExponentialDistribution::getScale() const noexcept {
+double ExponentialDistribution::getScale() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        return invLambda_;  // snapshot + early return under unique_lock
     }
-
     return invLambda_;
 }
 
@@ -173,7 +157,7 @@ VoidResult ExponentialDistribution::trySetLambda(double lambda) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult ExponentialDistribution::trySetParameters(double lambda) noexcept {
@@ -188,7 +172,7 @@ VoidResult ExponentialDistribution::trySetParameters(double lambda) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 //==============================================================================
@@ -206,11 +190,14 @@ double ExponentialDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitRate_;
+        const double lam = lambda_, neg_lam = negLambda_;
+        if (is_unit)
+            return std::exp(-x);
+        return lam * std::exp(neg_lam * x);
     }
 
     // Fast path for unit exponential (λ = 1)
@@ -222,7 +209,7 @@ double ExponentialDistribution::getProbability(double x) const {
     return lambda_ * std::exp(negLambda_ * x);
 }
 
-double ExponentialDistribution::getLogProbability(double x) const noexcept {
+double ExponentialDistribution::getLogProbability(double x) const {
     // Return -∞ for negative values
     if (x < detail::ZERO_DOUBLE) {
         return detail::NEGATIVE_INFINITY;
@@ -233,11 +220,14 @@ double ExponentialDistribution::getLogProbability(double x) const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitRate_;
+        const double log_lam = logLambda_, neg_lam = negLambda_;
+        if (is_unit)
+            return -x;
+        return log_lam + neg_lam * x;
     }
 
     // Fast path for unit exponential (λ = 1)
@@ -260,11 +250,14 @@ double ExponentialDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitRate_;
+        const double neg_lam = negLambda_;
+        if (is_unit)
+            return detail::ONE - std::exp(-x);
+        return detail::ONE - std::exp(neg_lam * x);
     }
 
     // Fast path for unit exponential (λ = 1)
@@ -292,11 +285,14 @@ double ExponentialDistribution::getQuantile(double p) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitRate_;
+        const double inv_lam = invLambda_;
+        if (is_unit)
+            return -std::log(detail::ONE - p);
+        return -std::log(detail::ONE - p) * inv_lam;
     }
 
     // Fast path for unit exponential (λ = 1)
@@ -309,15 +305,22 @@ double ExponentialDistribution::getQuantile(double p) const {
 }
 
 double ExponentialDistribution::sample(std::mt19937& rng) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+    bool cached_is_unit_rate;
+    double cached_inv_lambda;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            cached_is_unit_rate = isUnitRate_;
+            cached_inv_lambda = invLambda_;
+        } else {
+            cached_is_unit_rate = isUnitRate_;
+            cached_inv_lambda = invLambda_;
         }
-        ulock.unlock();
-        lock.lock();
     }
 
     // Use high-quality uniform distribution
@@ -326,35 +329,36 @@ double ExponentialDistribution::sample(std::mt19937& rng) const {
     double u = uniform(rng);
 
     // Fast path for unit exponential (λ = 1)
-    if (isUnitRate_) {
+    if (cached_is_unit_rate) {
         return -std::log(u);
     }
 
     // General case: inverse transform sampling
     // X = -ln(U)/λ where U ~ Uniform(0,1)
-    return -std::log(u) * invLambda_;
+    return -std::log(u) * cached_inv_lambda;
 }
 
 std::vector<double> ExponentialDistribution::sample(std::mt19937& rng, size_t n) const {
     std::vector<double> samples;
     samples.reserve(n);
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+    bool cached_is_unit_rate;
+    double cached_inv_lambda;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            cached_is_unit_rate = isUnitRate_;
+            cached_inv_lambda = invLambda_;
+        } else {
+            cached_is_unit_rate = isUnitRate_;
+            cached_inv_lambda = invLambda_;
         }
-        ulock.unlock();
-        lock.lock();
     }
-
-    // Cache parameters for thread-safe batch generation
-    const bool cached_is_unit_rate = isUnitRate_;
-    const double cached_inv_lambda = invLambda_;
-
-    lock.unlock();  // Release lock before generation
 
     // Use high-quality uniform distribution for batch generation
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
@@ -412,6 +416,7 @@ void ExponentialDistribution::reset() noexcept {
     lambda_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 std::string ExponentialDistribution::toString() const {
@@ -425,664 +430,21 @@ std::string ExponentialDistribution::toString() const {
 // 7. ADVANCED STATISTICAL METHODS
 //==============================================================================
 
-std::pair<double, double> ExponentialDistribution::confidenceIntervalRate(
-    const std::vector<double>& data, double confidence_level) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
-        throw std::invalid_argument("Confidence level must be between 0 and 1");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const std::size_t n = data.size();
-    const double sample_sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-
-    // For exponential distribution, confidence interval for λ using chi-squared distribution
-    // The exact statistic is: 2n*X̄*λ ~ χ²(2n), where X̄ is the sample mean
-    // Rearranging: λ ~ χ²(2n) / (2n*X̄) = χ²(2n) / (2*ΣXᵢ)
-    // For confidence interval: P(χ²_{α/2,2n} < 2n*X̄*λ < χ²_{1-α/2,2n}) = confidence_level
-    const double alpha = detail::ONE - confidence_level;
-    const double dof = detail::TWO * static_cast<double>(n);
-
-    // Get chi-squared quantiles - note the order for proper bounds
-    const double chi_lower = detail::inverse_chi_squared_cdf(alpha * detail::HALF, dof);
-    const double chi_upper =
-        detail::inverse_chi_squared_cdf(detail::ONE - alpha * detail::HALF, dof);
-
-    // Transform to rate parameter confidence interval
-    // λ_lower = χ²{α/2,2n} / (2*ΣXᵢ), λ_upper = χ²{1-α/2,2n} / (2*ΣXᵢ)
-    const double lambda_lower = chi_lower / (detail::TWO * sample_sum);
-    const double lambda_upper = chi_upper / (detail::TWO * sample_sum);
-
-    return {lambda_lower, lambda_upper};
-}
-
-std::pair<double, double> ExponentialDistribution::confidenceIntervalScale(
-    const std::vector<double>& data, double confidence_level) {
-    // Get rate parameter confidence interval
-    const auto [lambda_lower, lambda_upper] = confidenceIntervalRate(data, confidence_level);
-
-    // Transform to scale parameter (reciprocal relationship)
-    const double scale_lower = detail::ONE / lambda_upper;
-    const double scale_upper = detail::ONE / lambda_lower;
-
-    return {scale_lower, scale_upper};
-}
-
-std::tuple<double, double, bool> ExponentialDistribution::likelihoodRatioTest(
-    const std::vector<double>& data, double null_lambda, double alpha) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    if (null_lambda <= detail::ZERO_DOUBLE) {
-        throw std::invalid_argument("Null hypothesis lambda must be positive");
-    }
-
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const std::size_t n = data.size();
-    const double sample_sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-    const double sample_mean = sample_sum / static_cast<double>(n);
-    const double mle_lambda = detail::ONE / sample_mean;
-
-    // Log-likelihood under null hypothesis: n*ln(λ₀) - λ₀*Σxᵢ
-    const double log_likelihood_null =
-        static_cast<double>(n) * std::log(null_lambda) - null_lambda * sample_sum;
-
-    // Log-likelihood under alternative (MLE): n*ln(λ̂) - λ̂*Σxᵢ = n*ln(λ̂) - n
-    const double log_likelihood_alt =
-        static_cast<double>(n) * std::log(mle_lambda) - static_cast<double>(n);
-
-    // Likelihood ratio statistic: -2ln(Λ) = 2(ℓ(λ̂) - ℓ(λ₀))
-    const double lr_statistic = detail::TWO * (log_likelihood_alt - log_likelihood_null);
-
-    // Under H₀: LR ~ χ²(1)
-    const double p_value = detail::ONE - detail::chi_squared_cdf(lr_statistic, detail::ONE);
-    const bool reject_null = p_value < alpha;
-
-    return {lr_statistic, p_value, reject_null};
-}
-
-std::pair<double, double> ExponentialDistribution::bayesianEstimation(
-    const std::vector<double>& data, double prior_shape, double prior_rate) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    if (prior_shape <= detail::ZERO_DOUBLE || prior_rate <= detail::ZERO_DOUBLE) {
-        throw std::invalid_argument("Prior parameters must be positive");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const std::size_t n = data.size();
-    const double sample_sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-
-    // Posterior parameters for Gamma(α, β) conjugate prior
-    // Prior: λ ~ Gamma(α, β)
-    // Likelihood: xᵢ ~ Exponential(λ)
-    // Posterior: λ|x ~ Gamma(α + n, β + Σxᵢ)
-    const double posterior_shape = prior_shape + static_cast<double>(n);
-    const double posterior_rate = prior_rate + sample_sum;
-
-    return {posterior_shape, posterior_rate};
-}
-
-std::pair<double, double> ExponentialDistribution::bayesianCredibleInterval(
-    const std::vector<double>& data, double credibility_level, double prior_shape,
-    double prior_rate) {
-    if (credibility_level <= detail::ZERO_DOUBLE || credibility_level >= detail::ONE) {
-        throw std::invalid_argument("Credibility level must be between 0 and 1");
-    }
-
-    // Posterior: λ | x ~ Gamma(α_n, β_n) (rate parameterisation)
-    const auto [post_shape, post_rate] = bayesianEstimation(data, prior_shape, prior_rate);
-
-    // Equal-tailed credible interval: find λ such that
-    //   P(λ_lo ≤ λ ≤ λ_hi | x) = credibility_level
-    // If λ ~ Gamma(α, β_rate) then gammaP(α, β_rate * λ) = p gives the CDF,
-    // so the quantile at probability p is gammaQuantile(α, p) / β_rate.
-    const double alpha_half = (detail::ONE - credibility_level) * detail::HALF;
-    const double lower_lambda = gammaQuantile(post_shape, alpha_half) / post_rate;
-    const double upper_lambda = gammaQuantile(post_shape, detail::ONE - alpha_half) / post_rate;
-
-    return {lower_lambda, upper_lambda};
-}
-
-double ExponentialDistribution::robustEstimation(const std::vector<double>& data,
-                                                 const std::string& estimator_type,
-                                                 double trim_proportion) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    if (trim_proportion < detail::ZERO_DOUBLE || trim_proportion >= detail::HALF) {
-        throw std::invalid_argument("Trim proportion must be between 0 and detail::HALF");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    std::vector<double> sorted_data = data;
-    LIBSTATS_SORT(sorted_data);
-
-    const std::size_t n = sorted_data.size();
-    const std::size_t trim_count =
-        static_cast<std::size_t>(std::floor(trim_proportion * static_cast<double>(n)));
-
-    if (estimator_type == "winsorized") {
-        // Winsorized estimation: replace extreme values with boundary values
-        if (trim_count > 0) {
-            const double lower_bound = sorted_data[trim_count];
-            const double upper_bound = sorted_data[n - detail::ONE_INT - trim_count];
-
-            for (std::size_t i = 0; i < trim_count; ++i) {
-                sorted_data[i] = lower_bound;
-                sorted_data[n - detail::ONE_INT - i] = upper_bound;
-            }
-        }
-    } else if (estimator_type == "trimmed") {
-        // Trimmed estimation: remove extreme values
-        if (trim_count > 0) {
-            sorted_data.erase(sorted_data.begin(),
-                              sorted_data.begin() + static_cast<std::ptrdiff_t>(trim_count));
-            sorted_data.erase(sorted_data.end() - static_cast<std::ptrdiff_t>(trim_count),
-                              sorted_data.end());
-        }
-    } else {
-        throw std::invalid_argument("Estimator type must be 'winsorized' or 'trimmed'");
-    }
-
-    if (sorted_data.empty()) {
-        throw std::runtime_error("No data remaining after trimming");
-    }
-
-    // Calculate robust mean
-    const double robust_sum =
-        std::accumulate(sorted_data.begin(), sorted_data.end(), detail::ZERO_DOUBLE);
-    const double robust_mean = robust_sum / static_cast<double>(sorted_data.size());
-
-    return detail::ONE / robust_mean;
-}
-
-double ExponentialDistribution::methodOfMomentsEstimation(const std::vector<double>& data) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    // For exponential distribution: E[X] = 1/λ, so λ = 1/sample_mean
-    const double sample_sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-    const double sample_mean = sample_sum / static_cast<double>(data.size());
-
-    return detail::ONE / sample_mean;
-}
-
-double ExponentialDistribution::lMomentsEstimation(const std::vector<double>& data) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    // For exponential distribution, L₁ = mean = 1/λ
-    // So this is equivalent to method of moments for exponential
-    std::vector<double> sorted_data = data;
-    LIBSTATS_SORT(sorted_data);
-
-    const std::size_t n = sorted_data.size();
-    double l1 = detail::ZERO_DOUBLE;  // First L-moment (mean)
-
-    // Calculate L₁ using order statistics
-    for (std::size_t i = 0; i < n; ++i) {
-        l1 += sorted_data[i];
-    }
-    l1 /= static_cast<double>(n);
-
-    return detail::ONE / l1;
-}
-
-std::tuple<double, double, bool> ExponentialDistribution::coefficientOfVariationTest(
-    const std::vector<double>& data, double alpha) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const size_t n = data.size();
-    if (n < 2) {
-        throw std::invalid_argument(
-            "At least 2 data points required for coefficient of variation test");
-    }
-
-    // Calculate sample mean and sample standard deviation
-    const double sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-    const double sample_mean = sum / static_cast<double>(n);
-
-    // Calculate sample variance (unbiased estimator)
-    double sum_squared_deviations = detail::ZERO_DOUBLE;
-    for (double value : data) {
-        const double deviation = value - sample_mean;
-        sum_squared_deviations += deviation * deviation;
-    }
-    const double sample_variance = sum_squared_deviations / static_cast<double>(n - 1);
-    const double sample_std_dev = std::sqrt(sample_variance);
-
-    // Calculate coefficient of variation
-    const double cv = sample_std_dev / sample_mean;
-
-    // For exponential distribution, the theoretical CV = 1
-    // Test statistic: how far the observed CV is from 1
-    const double cv_statistic = std::abs(cv - detail::ONE);
-
-    // For large n, the CV of exponential follows approximately normal distribution
-    // with mean = 1 and variance ≈ 1/n (asymptotic result)
-    const double cv_std_error = detail::ONE / std::sqrt(static_cast<double>(n));
-    const double z_statistic = cv_statistic / cv_std_error;
-
-    // Two-tailed test p-value using normal approximation
-    const double p_value = detail::TWO * (detail::ONE - detail::normal_cdf(z_statistic));
-
-    const bool reject_null = p_value < alpha;
-
-    return {cv_statistic, p_value, reject_null};
-}
-
 //==============================================================================
 // 8. GOODNESS-OF-FIT TESTS
 //==============================================================================
-
-std::tuple<double, double, bool> ExponentialDistribution::kolmogorovSmirnovTest(
-    const std::vector<double>& data, const ExponentialDistribution& distribution, double alpha) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    // Use the overflow-safe KS statistic calculation from math_utils
-    double ks_statistic = detail::calculate_ks_statistic(data, distribution);
-
-    // Asymptotic p-value approximation for KS test
-    // P-value ≈ 2 * exp(-2 * n * D²) for large n
-    const double n_double = static_cast<double>(data.size());
-    const double p_value_approx =
-        detail::TWO * std::exp(-detail::TWO * n_double * ks_statistic * ks_statistic);
-
-    // Clamp p-value to [0, 1]
-    const double p_value = std::min(detail::ONE, std::max(detail::ZERO_DOUBLE, p_value_approx));
-
-    const bool reject_null = p_value < alpha;
-
-    return {ks_statistic, p_value, reject_null};
-}
-
-std::tuple<double, double, bool> ExponentialDistribution::andersonDarlingTest(
-    const std::vector<double>& data, const ExponentialDistribution& distribution, double alpha) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    // Use the overflow-safe AD statistic calculation from math_utils
-    double ad_statistic = detail::calculate_ad_statistic(data, distribution);
-
-    // Adjust for exponential distribution (modification for known parameters)
-    // For exponential distribution with estimated parameter, adjust the statistic
-    const size_t n = data.size();
-    const double n_double = static_cast<double>(n);
-    const double ad_adjusted = ad_statistic * (detail::ONE + 0.6 / n_double);
-
-    // Improved p-value approximation for exponential distribution Anderson-Darling test
-    // Based on D'Agostino and Stephens (1986) formulas for exponential distribution
-    // with enhanced handling for large statistics
-    double p_value;
-    if (ad_adjusted < detail::SMALL_EFFECT) {
-        p_value = detail::ONE -
-                  std::exp(-13.436 + 101.14 * ad_adjusted - 223.73 * ad_adjusted * ad_adjusted);
-    } else if (ad_adjusted < 0.34) {
-        p_value = detail::ONE -
-                  std::exp(-8.318 + 42.796 * ad_adjusted - 59.938 * ad_adjusted * ad_adjusted);
-    } else if (ad_adjusted < 0.6) {
-        p_value = std::exp(0.9177 - 4.279 * ad_adjusted - 1.38 * ad_adjusted * ad_adjusted);
-    } else if (ad_adjusted < detail::TWO) {
-        p_value = std::exp(1.2937 - 5.709 * ad_adjusted + 0.0186 * ad_adjusted * ad_adjusted);
-    } else {
-        // For very large AD statistics, p-value should be very small (close to 0)
-        // Use asymptotic approximation for extreme values
-        p_value = std::exp(-ad_adjusted * detail::TWO);
-    }
-
-    // Clamp p-value to [0, 1]
-    p_value = std::min(detail::ONE, std::max(detail::ZERO_DOUBLE, p_value));
-
-    const bool reject_null = p_value < alpha;
-
-    return {ad_adjusted, p_value, reject_null};
-}
 
 //==============================================================================
 // 9. CROSS-VALIDATION METHODS
 //==============================================================================
 
-std::vector<std::tuple<double, double, double>> ExponentialDistribution::kFoldCrossValidation(
-    const std::vector<double>& data, int k, unsigned int random_seed) {
-    if (data.size() < static_cast<size_t>(k)) {
-        throw std::invalid_argument("Data size must be at least k for k-fold cross-validation");
-    }
-    if (k <= 1) {
-        throw std::invalid_argument("Number of folds k must be greater than 1");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const size_t n = data.size();
-    const size_t fold_size = n / static_cast<std::size_t>(k);
-
-    // Create shuffled indices for random fold assignment
-    std::vector<size_t> indices(n);
-    std::iota(indices.begin(), indices.end(), 0);
-
-    std::mt19937 rng(random_seed);
-    std::shuffle(indices.begin(), indices.end(), rng);
-
-    std::vector<std::tuple<double, double, double>> results;
-    results.reserve(static_cast<std::size_t>(k));
-
-    for (int fold = 0; fold < k; ++fold) {
-        // Define validation set indices for this fold
-        const size_t start_idx = static_cast<std::size_t>(fold) * fold_size;
-        const size_t end_idx =
-            (fold == k - 1) ? n : (static_cast<std::size_t>(fold) + 1) * fold_size;
-
-        // Create training and validation sets
-        std::vector<double> training_data;
-        std::vector<double> validation_data;
-        training_data.reserve(n - (end_idx - start_idx));
-        validation_data.reserve(end_idx - start_idx);
-
-        for (size_t i = 0; i < n; ++i) {
-            if (i >= start_idx && i < end_idx) {
-                validation_data.push_back(data[indices[i]]);
-            } else {
-                training_data.push_back(data[indices[i]]);
-            }
-        }
-
-        // Fit model on training data (MLE estimation)
-        const double training_sum =
-            std::accumulate(training_data.begin(), training_data.end(), detail::ZERO_DOUBLE);
-        const double training_mean = training_sum / static_cast<double>(training_data.size());
-        const double fitted_rate = detail::ONE / training_mean;
-
-        ExponentialDistribution fitted_model(fitted_rate);
-
-        // Evaluate on validation data
-        std::vector<double> absolute_errors;
-        std::vector<double> squared_errors;
-        double log_likelihood = detail::ZERO_DOUBLE;
-
-        absolute_errors.reserve(validation_data.size());
-        squared_errors.reserve(validation_data.size());
-
-        // Calculate prediction errors and log-likelihood
-        for (double val : validation_data) {
-            // For exponential distribution, the "prediction" is the mean (1/λ)
-            const double predicted_mean = detail::ONE / fitted_rate;
-
-            const double absolute_error = std::abs(val - predicted_mean);
-            const double squared_error = (val - predicted_mean) * (val - predicted_mean);
-
-            absolute_errors.push_back(absolute_error);
-            squared_errors.push_back(squared_error);
-
-            log_likelihood += fitted_model.getLogProbability(val);
-        }
-
-        // Calculate MAE and RMSE
-        const double mae =
-            std::accumulate(absolute_errors.begin(), absolute_errors.end(), detail::ZERO_DOUBLE) /
-            static_cast<double>(absolute_errors.size());
-        const double mse =
-            std::accumulate(squared_errors.begin(), squared_errors.end(), detail::ZERO_DOUBLE) /
-            static_cast<double>(squared_errors.size());
-        const double rmse = std::sqrt(mse);
-
-        results.emplace_back(mae, rmse, log_likelihood);
-    }
-
-    return results;
-}
-
-std::tuple<double, double, double> ExponentialDistribution::leaveOneOutCrossValidation(
-    const std::vector<double>& data) {
-    if (data.size() < 3) {
-        throw std::invalid_argument("At least 3 data points required for LOOCV");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const size_t n = data.size();
-    std::vector<double> absolute_errors;
-    std::vector<double> squared_errors;
-    double total_log_likelihood = detail::ZERO_DOUBLE;
-
-    absolute_errors.reserve(n);
-    squared_errors.reserve(n);
-
-    for (size_t i = 0; i < n; ++i) {
-        // Create training set excluding point i
-        std::vector<double> training_data;
-        training_data.reserve(n - 1);
-
-        for (size_t j = 0; j < n; ++j) {
-            if (j != i) {
-                training_data.push_back(data[j]);
-            }
-        }
-
-        // Fit model on training data (MLE estimation)
-        const double training_sum =
-            std::accumulate(training_data.begin(), training_data.end(), detail::ZERO_DOUBLE);
-        const double training_mean = training_sum / static_cast<double>(training_data.size());
-        const double fitted_rate = detail::ONE / training_mean;
-
-        ExponentialDistribution fitted_model(fitted_rate);
-
-        // Evaluate on left-out point
-        // For exponential distribution, the "prediction" is the mean (1/λ)
-        const double predicted_mean = detail::ONE / fitted_rate;
-        const double actual_value = data[i];
-
-        const double absolute_error = std::abs(actual_value - predicted_mean);
-        const double squared_error =
-            (actual_value - predicted_mean) * (actual_value - predicted_mean);
-
-        absolute_errors.push_back(absolute_error);
-        squared_errors.push_back(squared_error);
-
-        total_log_likelihood += fitted_model.getLogProbability(actual_value);
-    }
-
-    // Calculate summary statistics
-    const double mean_absolute_error =
-        std::accumulate(absolute_errors.begin(), absolute_errors.end(), detail::ZERO_DOUBLE) /
-        static_cast<double>(n);
-    const double mean_squared_error =
-        std::accumulate(squared_errors.begin(), squared_errors.end(), detail::ZERO_DOUBLE) /
-        static_cast<double>(n);
-    const double root_mean_squared_error = std::sqrt(mean_squared_error);
-
-    return {mean_absolute_error, root_mean_squared_error, total_log_likelihood};
-}
-
 //==============================================================================
 // 10. INFORMATION CRITERIA
 //==============================================================================
 
-std::tuple<double, double, double, double> ExponentialDistribution::computeInformationCriteria(
-    const std::vector<double>& data, const ExponentialDistribution& fitted_distribution) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const double n = static_cast<double>(data.size());
-    const int k = 1;  // Exponential distribution has 1 parameter (λ)
-
-    // Calculate log-likelihood
-    double log_likelihood = detail::ZERO_DOUBLE;
-    for (double val : data) {
-        log_likelihood += fitted_distribution.getLogProbability(val);
-    }
-
-    // Compute information criteria
-    const double aic = detail::TWO * static_cast<double>(k) - detail::TWO * log_likelihood;
-    const double bic = std::log(n) * static_cast<double>(k) - detail::TWO * log_likelihood;
-
-    // AICc (corrected AIC for small sample sizes)
-    double aicc;
-    if (n - static_cast<double>(k) - detail::ONE > detail::ZERO_DOUBLE) {
-        aicc =
-            aic + (detail::TWO * static_cast<double>(k) * (static_cast<double>(k) + detail::ONE)) /
-                      (n - static_cast<double>(k) - detail::ONE);
-    } else {
-        aicc = std::numeric_limits<double>::infinity();  // Undefined for small samples
-    }
-
-    return {aic, bic, aicc, log_likelihood};
-}
-
 //==============================================================================
 // 11. BOOTSTRAP METHODS
 //==============================================================================
-
-std::pair<double, double> ExponentialDistribution::bootstrapParameterConfidenceIntervals(
-    const std::vector<double>& data, double confidence_level, int n_bootstrap,
-    unsigned int random_seed) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
-        throw std::invalid_argument("Confidence level must be between 0 and 1");
-    }
-    if (n_bootstrap <= 0) {
-        throw std::invalid_argument("Number of bootstrap samples must be positive");
-    }
-
-    // Check for positive values
-    if (!LIBSTATS_ALL_OF(data, [](double x) { return x > detail::ZERO_DOUBLE; })) {
-        throw std::invalid_argument(
-            "All data values must be positive for exponential distribution");
-    }
-
-    const size_t n = data.size();
-    std::vector<double> bootstrap_rates;
-    bootstrap_rates.reserve(static_cast<std::size_t>(n_bootstrap));
-
-    std::mt19937 rng(random_seed);
-    std::uniform_int_distribution<size_t> dist(0, n - 1);
-
-    // Generate bootstrap samples
-    for (int b = 0; b < n_bootstrap; ++b) {
-        std::vector<double> bootstrap_sample;
-        bootstrap_sample.reserve(n);
-
-        // Sample with replacement
-        for (size_t i = 0; i < n; ++i) {
-            bootstrap_sample.push_back(data[dist(rng)]);
-        }
-
-        // Estimate rate parameter for bootstrap sample (MLE)
-        const double bootstrap_sum =
-            std::accumulate(bootstrap_sample.begin(), bootstrap_sample.end(), detail::ZERO_DOUBLE);
-        const double bootstrap_mean = bootstrap_sum / static_cast<double>(bootstrap_sample.size());
-        const double bootstrap_rate = detail::ONE / bootstrap_mean;
-
-        bootstrap_rates.push_back(bootstrap_rate);
-    }
-
-    // Sort for quantile calculation
-    std::sort(bootstrap_rates.begin(), bootstrap_rates.end());
-
-    // Calculate confidence intervals using percentile method
-    const double alpha = detail::ONE - confidence_level;
-    const double lower_percentile = alpha * detail::HALF;
-    const double upper_percentile = detail::ONE - alpha * detail::HALF;
-
-    const size_t lower_idx = static_cast<size_t>(lower_percentile * (n_bootstrap - 1));
-    const size_t upper_idx = static_cast<size_t>(upper_percentile * (n_bootstrap - 1));
-
-    return {bootstrap_rates[lower_idx], bootstrap_rates[upper_idx]};
-}
 
 //==============================================================================
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
@@ -1100,20 +462,16 @@ double ExponentialDistribution::getLambdaAtomic() const noexcept {
     return getLambda();
 }
 
-double ExponentialDistribution::getSkewness() const noexcept {
+double ExponentialDistribution::getSkewness() const {
     return 2.0;  // Exponential distribution is always right-skewed
 }
 
-double ExponentialDistribution::getKurtosis() const noexcept {
+double ExponentialDistribution::getKurtosis() const {
     return 6.0;  // Exponential distribution has high kurtosis
 }
 
 int ExponentialDistribution::getNumParameters() const noexcept {
     return 1;
-}
-
-std::string ExponentialDistribution::getDistributionName() const {
-    return "Exponential";
 }
 
 bool ExponentialDistribution::isDiscrete() const noexcept {
@@ -1133,7 +491,7 @@ VoidResult ExponentialDistribution::validateCurrentParameters() const noexcept {
     return validateExponentialParameters(lambda_);
 }
 
-double ExponentialDistribution::getHalfLife() const noexcept {
+double ExponentialDistribution::getHalfLife() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return std::log(2.0) / lambda_;
 }
@@ -1142,17 +500,17 @@ bool ExponentialDistribution::isMemoryless() const noexcept {
     return true;
 }
 
-double ExponentialDistribution::getMedian() const noexcept {
+double ExponentialDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return detail::LN2 / lambda_;  // Use precomputed ln(2)
 }
 
-double ExponentialDistribution::getEntropy() const noexcept {
+double ExponentialDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return detail::ONE - std::log(lambda_);
 }
 
-double ExponentialDistribution::getMode() const noexcept {
+double ExponentialDistribution::getMode() const {
     return detail::ZERO_DOUBLE;
 }
 
@@ -1164,8 +522,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                                              std::span<double> results,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<ExponentialDistribution>::distType(), detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getProbability(value);
         },
@@ -1176,13 +533,17 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_lambda = dist.lambda_;
+                const double cached_neg_lambda = dist.negLambda_;
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda,
+                                                   cached_neg_lambda);
+                return;
             }
 
-            // Cache parameters for batch processing
+            // Cache hit — snapshot under shared_lock.
             const double cached_lambda = dist.lambda_;
             const double cached_neg_lambda = dist.negLambda_;
             lock.unlock();
@@ -1201,23 +562,26 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_lambda, cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_lambda = dist.lambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_lambda = dist.lambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -1256,23 +620,26 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_lambda, cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_lambda = dist.lambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_lambda = dist.lambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -1285,6 +652,7 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                     res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
                 }
             });
+            pool.waitForAll();
         });
 }
 
@@ -1292,9 +660,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                                                 std::span<double> results,
                                                 const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<ExponentialDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -1305,13 +671,17 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_log_lambda = dist.logLambda_;
+                const double cached_neg_lambda = dist.negLambda_;
+                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_log_lambda,
+                                                      cached_neg_lambda);
+                return;
             }
 
-            // Cache parameters for batch processing
+            // Cache hit — snapshot under shared_lock.
             const double cached_log_lambda = dist.logLambda_;
             const double cached_neg_lambda = dist.negLambda_;
             lock.unlock();
@@ -1331,23 +701,26 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_log_lambda, cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_log_lambda = dist.logLambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_log_lambda = dist.logLambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel processing
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -1386,23 +759,26 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_log_lambda, cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_log_lambda = dist.logLambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_log_lambda = dist.logLambda_;
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -1415,6 +791,7 @@ void ExponentialDistribution::getLogProbability(std::span<const double> values,
                     res[i] = cached_log_lambda + cached_neg_lambda * x;
                 }
             });
+            pool.waitForAll();
         });
 }
 
@@ -1422,8 +799,7 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                                                        std::span<double> results,
                                                        const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint,
-        detail::DistributionTraits<ExponentialDistribution>::distType(), detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const ExponentialDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -1434,13 +810,15 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_neg_lambda = dist.negLambda_;
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_neg_lambda);
+                return;
             }
 
-            // Cache parameters for batch processing
+            // Cache hit — snapshot under shared_lock.
             const double cached_neg_lambda = dist.negLambda_;
             lock.unlock();
 
@@ -1458,22 +836,24 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel processing
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -1512,22 +892,24 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_neg_lambda;
+            bool cached_is_unit_rate;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
+                } else {
+                    cached_neg_lambda = dist.negLambda_;
+                    cached_is_unit_rate = dist.isUnitRate_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -1540,348 +922,13 @@ void ExponentialDistribution::getCumulativeProbability(std::span<const double> v
                     res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
                 }
             });
+            pool.waitForAll();
         });
 }
 
 //==============================================================================
 // 14. EXPLICIT STRATEGY BATCH METHODS (POWER USER INTERFACE)
 //==============================================================================
-
-void ExponentialDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                         std::span<double> results,
-                                                         detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const ExponentialDistribution& dist, double value) {
-            return dist.getProbability(value);
-        },
-        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for batch processing
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            lock.unlock();
-
-            // Call private implementation directly
-            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_neg_lambda);
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals,
-           std::span<double> res) {
-            // Parallel-SIMD lambda: WithStrategy power user method - execute parallel directly
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (cached_is_unit_rate) {
-                    res[i] = std::exp(-x);
-                } else {
-                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
-                }
-            });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_lambda = dist.lambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (cached_is_unit_rate) {
-                    res[i] = std::exp(-x);
-                } else {
-                    res[i] = cached_lambda * std::exp(cached_neg_lambda * x);
-                }
-            });
-        });
-}
-
-void ExponentialDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                            std::span<double> results,
-                                                            detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const ExponentialDistribution& dist, double value) {
-            return dist.getLogProbability(value);
-        },
-        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for batch processing
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            lock.unlock();
-
-            // Call private implementation directly
-            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_log_lambda,
-                                                  cached_neg_lambda);
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals,
-           std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel processing
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_rate) {
-                    res[i] = -x;
-                } else {
-                    res[i] = cached_log_lambda + cached_neg_lambda * x;
-                }
-            });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe work-stealing processing
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_rate) {
-                    res[i] = -x;
-                } else {
-                    res[i] = cached_log_lambda + cached_neg_lambda * x;
-                }
-            });
-        });
-}
-
-void ExponentialDistribution::getCumulativeProbabilityWithStrategy(
-    std::span<const double> values, std::span<double> results, detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const ExponentialDistribution& dist, double value) {
-            return dist.getCumulativeProbability(value);
-        },
-        [](const ExponentialDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for batch processing
-            const double cached_neg_lambda = dist.negLambda_;
-            lock.unlock();
-
-            // Call private implementation directly
-            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_neg_lambda);
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals,
-           std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel processing
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (cached_is_unit_rate) {
-                    res[i] = detail::ONE - std::exp(-x);
-                } else {
-                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
-                }
-            });
-        },
-        [](const ExponentialDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<ExponentialDistribution&>(dist).updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe work-stealing processing
-            const double cached_neg_lambda = dist.negLambda_;
-            const bool cached_is_unit_rate = dist.isUnitRate_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (cached_is_unit_rate) {
-                    res[i] = detail::ONE - std::exp(-x);
-                } else {
-                    res[i] = detail::ONE - std::exp(cached_neg_lambda * x);
-                }
-            });
-        });
-}
 
 //==============================================================================
 // 15. COMPARISON OPERATORS

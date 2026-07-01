@@ -1,10 +1,14 @@
 #include "libstats/distributions/student_t.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"  // provides detail::digamma, detail::t_cdf, detail::inverse_t_cdf
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -73,7 +77,6 @@ StudentTDistribution& StudentTDistribution::operator=(const StudentTDistribution
 
 StudentTDistribution::StudentTDistribution(StudentTDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     nu_ = other.nu_;
     halfNu_ = other.halfNu_;
     halfNuPlusOne_ = other.halfNuPlusOne_;
@@ -91,12 +94,8 @@ StudentTDistribution::StudentTDistribution(StudentTDistribution&& other) noexcep
     atomicNu_.store(nu_, std::memory_order_release);
 }
 
-StudentTDistribution& StudentTDistribution::operator=(StudentTDistribution&& other) {
+StudentTDistribution& StudentTDistribution::operator=(StudentTDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
-
         nu_ = other.nu_;
         halfNu_ = other.halfNu_;
         halfNuPlusOne_ = other.halfNuPlusOne_;
@@ -157,7 +156,7 @@ VoidResult StudentTDistribution::trySetNu(double nu) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult StudentTDistribution::validateCurrentParameters() const noexcept {
@@ -168,7 +167,7 @@ VoidResult StudentTDistribution::validateCurrentParameters() const noexcept {
 // 3. STATISTICAL MOMENTS
 //==============================================================================
 
-double StudentTDistribution::getMean() const noexcept {
+double StudentTDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!isMeanDefined_) {
         return std::numeric_limits<double>::quiet_NaN();
@@ -176,12 +175,12 @@ double StudentTDistribution::getMean() const noexcept {
     return detail::ZERO_DOUBLE;
 }
 
-double StudentTDistribution::getVariance() const noexcept {
+double StudentTDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return variance_;
 }
 
-double StudentTDistribution::getSkewness() const noexcept {
+double StudentTDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (nu_ <= 3.0) {
         return std::numeric_limits<double>::quiet_NaN();
@@ -189,7 +188,7 @@ double StudentTDistribution::getSkewness() const noexcept {
     return detail::ZERO_DOUBLE;
 }
 
-double StudentTDistribution::getKurtosis() const noexcept {
+double StudentTDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return kurtosis_;
 }
@@ -199,31 +198,34 @@ double StudentTDistribution::getKurtosis() const noexcept {
 //==============================================================================
 
 double StudentTDistribution::getProbability(double x) const {
+    // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double lnc = logNormConst_, nhnpo = negHalfNuPlusOne_, inv_nu = invNu_;
+        return std::exp(lnc + nhnpo * std::log1p(x * x * inv_nu));
     }
-    return std::exp(logNormConst_ + negHalfNuPlusOne_ * std::log(detail::ONE + x * x * invNu_));
+    // std::log1p(x²/ν) avoids catastrophic cancellation near x≈0 vs log(1+x²/ν)
+    return std::exp(logNormConst_ + negHalfNuPlusOne_ * std::log1p(x * x * invNu_));
 }
 
-double StudentTDistribution::getLogProbability(double x) const noexcept {
+double StudentTDistribution::getLogProbability(double x) const {
+    // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double lnc = logNormConst_, nhnpo = negHalfNuPlusOne_, inv_nu = invNu_;
+        return lnc + nhnpo * std::log1p(x * x * inv_nu);
     }
-    return logNormConst_ + negHalfNuPlusOne_ * std::log(detail::ONE + x * x * invNu_);
+    return logNormConst_ + negHalfNuPlusOne_ * std::log1p(x * x * invNu_);
 }
 
 double StudentTDistribution::getCumulativeProbability(double x) const {
@@ -259,10 +261,20 @@ double StudentTDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> StudentTDistribution::sample(std::mt19937& rng, size_t n) const {
+    // Read parameters once to avoid n lock acquisitions.
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    const double cached_half_nu = halfNu_;
+    const double cached_nu = nu_;
+    lock.unlock();
+
+    std::normal_distribution<double> normal(detail::ZERO_DOUBLE, detail::ONE);
+    std::gamma_distribution<double> gamma_gen(cached_half_nu, detail::TWO);
     std::vector<double> samples;
     samples.reserve(n);
     for (size_t i = 0; i < n; ++i) {
-        samples.push_back(sample(rng));
+        const double z = normal(rng);
+        const double chi2 = gamma_gen(rng);
+        samples.push_back(z / std::sqrt(chi2 / cached_nu));
     }
     return samples;
 }
@@ -322,56 +334,50 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
         x2[i] = values[i] * values[i];
     }
 
-    // Newton-Raphson on the score equation:
+    // Newton-Raphson on the score equation S(nu) = 0:
     //   S(nu) = n*[psi((nu+1)/2) - psi(nu/2) - 1/nu]
     //           - sum(log(1 + xi^2/nu))
     //           + ((nu+1)/nu) * sum(xi^2 / (nu + xi^2))
     //
-    // Derivative dS/dnu (for Newton step):
+    // Exact derivative (replaces 3-point finite differences which cost 3n digamma evals/step):
     //   S'(nu) = n/2 * [psi'((nu+1)/2) - psi'(nu/2)] + n/nu^2
-    //            + (1/nu^2) * sum(xi^2 * (nu - xi^2) / (nu + xi^2)^2)
-    //            ... approximated numerically for simplicity
-    //
-    // We use a simpler robust approach: numerical derivative via finite difference.
+    //            - (1/nu^2) * sum(xi^2 * (xi^2 - nu) / (nu + xi^2)^2)   [data term]
+    // = 2 trigamma calls + 1 additional data pass.
+    // Beta already uses the same exact-derivative pattern; StudentT converges in fewer steps.
 
     const int max_iter = 50;
     const double tol = 1e-8;
     double nu = nu_est;
 
-    auto score = [&](double v) -> double {
-        double psi_plus = detail::digamma((v + detail::ONE) * detail::HALF);
-        double psi_half = detail::digamma(v * detail::HALF);
-        double s = n * (psi_plus - psi_half - detail::ONE / v);
-        for (double xi2 : x2) {
-            s -= std::log(detail::ONE + xi2 / v);
-            s += (v + detail::ONE) / v * xi2 / (v + xi2);
-        }
-        return s;
-    };
-
     for (int iter = 0; iter < max_iter; ++iter) {
-        const double s = score(nu);
-        if (std::abs(s) < tol * n) {
+        // Score S(nu)
+        const double psi_plus = detail::digamma((nu + detail::ONE) * detail::HALF);
+        const double psi_half = detail::digamma(nu * detail::HALF);
+        double s = n * (psi_plus - psi_half - detail::ONE / nu);
+        // Exact derivative S'(nu)
+        const double tpsi_plus = detail::trigamma((nu + detail::ONE) * detail::HALF);
+        const double tpsi_half = detail::trigamma(nu * detail::HALF);
+        double ds = n * (detail::HALF * (tpsi_plus - tpsi_half) + detail::ONE / (nu * nu));
+
+        for (double xi2 : x2) {
+            const double nu_xi2 = nu + xi2;
+            s -= std::log(detail::ONE + xi2 / nu);
+            s += (nu + detail::ONE) / nu * xi2 / nu_xi2;
+            ds -= xi2 * (xi2 - nu) / (nu * nu * nu_xi2 * nu_xi2);
+        }
+
+        if (std::abs(s) < tol * n)
             break;
-        }
-
-        // Numerical derivative
-        const double h = nu * 1e-5;
-        const double ds = (score(nu + h) - score(nu - h)) / (detail::TWO * h);
-
-        if (std::abs(ds) < 1e-15) {
+        if (std::abs(ds) < 1e-15)
             break;  // Flat; can't iterate
-        }
 
         double step = s / ds;
-        // Clamp step to avoid moving outside the valid domain
-        step = std::max(step, -(nu - 0.1));
+        step = std::max(step, -(nu - 0.1));  // clamp away from nu=0
         nu -= step;
         nu = std::clamp(nu, 0.1, NU_MAX);
 
-        if (std::abs(step) < tol) {
+        if (std::abs(step) < tol)
             break;
-        }
     }
 
     setNu(nu);
@@ -385,6 +391,9 @@ void StudentTDistribution::parallelBatchFit(const std::vector<std::vector<double
 void StudentTDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     nu_ = detail::ONE;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
 }
 
@@ -418,8 +427,7 @@ double StudentTDistribution::getEntropy() const {
 void StudentTDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const StudentTDistribution& dist, double value) { return dist.getProbability(value); },
         [](const StudentTDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -427,11 +435,16 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held.
+                const double lnc = dist.logNormConst_;
+                const double nhnpo = dist.negHalfNuPlusOne_;
+                const double inv_nu = dist.invNu_;
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, lnc, nhnpo, inv_nu);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double lnc = dist.logNormConst_;
             const double nhnpo = dist.negHalfNuPlusOne_;
             const double inv_nu = dist.invNu_;
@@ -445,20 +458,24 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            double lnc, nhnpo, inv_nu;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    lnc = dist.logNormConst_;
+                    nhnpo = dist.negHalfNuPlusOne_;
+                    inv_nu = dist.invNu_;
+                } else {
+                    lnc = dist.logNormConst_;
+                    nhnpo = dist.negHalfNuPlusOne_;
+                    inv_nu = dist.invNu_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-            const double lnc = dist.logNormConst_;
-            const double nhnpo = dist.negHalfNuPlusOne_;
-            const double inv_nu = dist.invNu_;
-            lock.unlock();
             // std::log1p(x²/ν) avoids catastrophic cancellation when x²/ν ≈ 0;
             // log(1 + x²/ν) loses precision there. See <cmath>: log1p(x) = log(1+x).
             if (arch::should_use_parallel(count)) {
@@ -487,6 +504,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
             });
+            pool.waitForAll();
         });
 }
 
@@ -494,8 +512,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
                                              std::span<double> results,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const StudentTDistribution& dist, double value) {
             return dist.getLogProbability(value);
         },
@@ -505,11 +522,16 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<StudentTDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot while unique_lock is still held.
+                const double lnc = dist.logNormConst_;
+                const double nhnpo = dist.negHalfNuPlusOne_;
+                const double inv_nu = dist.invNu_;
+                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, lnc, nhnpo, inv_nu);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double lnc = dist.logNormConst_;
             const double nhnpo = dist.negHalfNuPlusOne_;
             const double inv_nu = dist.invNu_;
@@ -554,6 +576,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
             });
+            pool.waitForAll();
         });
 }
 
@@ -561,8 +584,7 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
                                                     std::span<double> results,
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<StudentTDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const StudentTDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -599,46 +621,8 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count,
                              [&](std::size_t i) { res[i] = detail::t_cdf(vals[i], cached_nu); });
+            pool.waitForAll();
         });
-}
-
-// Helper: map explicit Strategy to the nearest PerformanceHint::PreferredStrategy.
-// FORCE_VECTORIZED triggers the BatchUnsafeImpl SIMD path (used by simd_verification).
-static detail::PerformanceHint strategyToHint(detail::Strategy strategy) noexcept {
-    detail::PerformanceHint hint;
-    switch (strategy) {
-        case detail::Strategy::SCALAR:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
-            break;
-        case detail::Strategy::VECTORIZED:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-            break;
-        case detail::Strategy::PARALLEL:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
-            break;
-        case detail::Strategy::WORK_STEALING:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-            break;
-    }
-    return hint;
-}
-
-void StudentTDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                      std::span<double> results,
-                                                      detail::Strategy strategy) const {
-    getProbability(values, results, strategyToHint(strategy));
-}
-
-void StudentTDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                         std::span<double> results,
-                                                         detail::Strategy strategy) const {
-    getLogProbability(values, results, strategyToHint(strategy));
-}
-
-void StudentTDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                                                std::span<double> results,
-                                                                detail::Strategy strategy) const {
-    getCumulativeProbability(values, results, strategyToHint(strategy));
 }
 
 //==============================================================================

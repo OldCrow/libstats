@@ -2,9 +2,11 @@
  * @file test_atomic_parameters.cpp
  * @brief GTest suite for atomic parameter management in libstats distributions
  */
+#include "libstats/distributions/binomial.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/poisson.h"
 
 #include <atomic>
 #include <chrono>
@@ -17,10 +19,14 @@
 
 using namespace stats;
 
+namespace {
+constexpr int kConcurrentReaderOps = 20000;
+}  // namespace
+
 TEST(AtomicParameters, ExponentialAtomicGetter) {
     auto result = ExponentialDistribution::create(2.5);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     double lambda_regular = exp_dist.getLambda();
     double lambda_atomic = exp_dist.getLambdaAtomic();
@@ -34,7 +40,7 @@ TEST(AtomicParameters, ExponentialAtomicGetter) {
 TEST(AtomicParameters, AtomicGetterConsistency) {
     auto result = ExponentialDistribution::create(1.0);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(exp_dist.getLambdaAtomic(), 1.0, 1e-15);
 
@@ -51,7 +57,7 @@ TEST(AtomicParameters, AtomicGetterConsistency) {
 TEST(AtomicParameters, GaussianAtomicGetters) {
     auto result = GaussianDistribution::create(5.0, 2.0);
     ASSERT_TRUE(result.isOk());
-    auto gauss_dist = std::move(result.value);
+    auto gauss_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(gauss_dist.getMean(), gauss_dist.getMeanAtomic(), 1e-15);
     EXPECT_NEAR(gauss_dist.getStandardDeviation(), gauss_dist.getStandardDeviationAtomic(), 1e-15);
@@ -62,7 +68,7 @@ TEST(AtomicParameters, GaussianAtomicGetters) {
 TEST(AtomicParameters, DiscreteAtomicGetters) {
     auto result = DiscreteDistribution::create(1, 10);
     ASSERT_TRUE(result.isOk());
-    auto discrete_dist = std::move(result.value);
+    auto discrete_dist = std::move(result).unwrap();
 
     EXPECT_EQ(discrete_dist.getLowerBound(), discrete_dist.getLowerBoundAtomic());
     EXPECT_EQ(discrete_dist.getUpperBound(), discrete_dist.getUpperBoundAtomic());
@@ -73,7 +79,7 @@ TEST(AtomicParameters, DiscreteAtomicGetters) {
 TEST(AtomicParameters, GaussianAtomicInvalidation) {
     auto result = GaussianDistribution::create(1.0, 1.0);
     ASSERT_TRUE(result.isOk());
-    auto gauss_dist = std::move(result.value);
+    auto gauss_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(gauss_dist.getMeanAtomic(), 1.0, 1e-15);
     EXPECT_NEAR(gauss_dist.getStandardDeviationAtomic(), 1.0, 1e-15);
@@ -96,7 +102,7 @@ TEST(AtomicParameters, GaussianAtomicInvalidation) {
 TEST(AtomicParameters, ExponentialAtomicInvalidation) {
     auto result = ExponentialDistribution::create(1.0);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(exp_dist.getLambdaAtomic(), 1.0, 1e-15);
 
@@ -107,12 +113,36 @@ TEST(AtomicParameters, ExponentialAtomicInvalidation) {
     auto try_result = exp_dist.trySetParameters(4.0);
     ASSERT_TRUE(try_result.isOk());
     EXPECT_NEAR(exp_dist.getLambdaAtomic(), 4.0, 1e-15);
+
+    auto try_lambda_result = exp_dist.trySetLambda(5.0);
+    ASSERT_TRUE(try_lambda_result.isOk());
+    EXPECT_NEAR(exp_dist.getLambdaAtomic(), 5.0, 1e-15);
+}
+
+TEST(AtomicParameters, PoissonAtomicInvalidation) {
+    auto result = PoissonDistribution::create(2.0);
+    ASSERT_TRUE(result.isOk());
+    auto poisson_dist = std::move(result).unwrap();
+
+    EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 2.0, 1e-15);
+
+    poisson_dist.setLambda(4.0);
+    EXPECT_NEAR(poisson_dist.getLambda(), 4.0, 1e-15);
+    EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 4.0, 1e-15);
+
+    auto try_lambda_result = poisson_dist.trySetLambda(6.0);
+    ASSERT_TRUE(try_lambda_result.isOk());
+    EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 6.0, 1e-15);
+
+    auto try_params_result = poisson_dist.trySetParameters(8.0);
+    ASSERT_TRUE(try_params_result.isOk());
+    EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 8.0, 1e-15);
 }
 
 TEST(AtomicParameters, DiscreteAtomicInvalidation) {
     auto result = DiscreteDistribution::create(1, 5);
     ASSERT_TRUE(result.isOk());
-    auto discrete_dist = std::move(result.value);
+    auto discrete_dist = std::move(result).unwrap();
 
     EXPECT_EQ(discrete_dist.getLowerBoundAtomic(), 1);
     EXPECT_EQ(discrete_dist.getUpperBoundAtomic(), 5);
@@ -138,7 +168,7 @@ TEST(AtomicParameters, DiscreteAtomicInvalidation) {
 TEST(AtomicParameters, PerformanceComparison) {
     auto result = ExponentialDistribution::create(1.5);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     const int iterations = 100000;
     for (int i = 0; i < 1000; ++i)
@@ -167,7 +197,7 @@ TEST(AtomicParameters, PerformanceComparison) {
 TEST(AtomicParameters, ThreadSafety) {
     auto result = ExponentialDistribution::create(2.0);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     const int num_threads = 4;
     const int ops = 10000;
@@ -191,4 +221,106 @@ TEST(AtomicParameters, ThreadSafety) {
 
     EXPECT_EQ(success_count.load(), num_threads);
     std::cout << "  Thread safety: " << num_threads << " threads x " << ops << " ops OK\n";
+}
+
+// TC-new-1: concurrent write + read to cover the specific scenarios fixed by
+// the TS-2/TS-3 remediations.
+
+TEST(AtomicParameters, ConcurrentWriteReadPoisson) {
+    // One writer alternates lambda between two values; readers use the atomic
+    // getter and verify the returned value is always a valid lambda (> 0).
+    auto dist = PoissonDistribution::create(1.0).unwrap();
+    std::atomic<bool> stop{false};
+    std::atomic<bool> corrupt{false};
+
+    std::thread writer([&dist, &stop]() {
+        const double vals[] = {1.0, 5.0};
+        int idx = 0;
+        while (!stop.load(std::memory_order_relaxed)) {
+            dist.setLambda(vals[idx & 1]);
+            ++idx;
+        }
+    });
+
+    std::vector<std::thread> readers;
+    for (int t = 0; t < 3; ++t) {
+        readers.emplace_back([&dist, &corrupt]() {
+            for (int i = 0; i < kConcurrentReaderOps; ++i) {
+                const double v = dist.getLambdaAtomic();
+                if (v <= 0.0 || !std::isfinite(v))
+                    corrupt.store(true, std::memory_order_relaxed);
+            }
+        });
+    }
+
+    for (auto& r : readers)
+        r.join();
+    stop.store(true);
+    writer.join();
+
+    EXPECT_FALSE(corrupt.load()) << "Atomic getter returned invalid lambda under concurrent writes";
+}
+
+TEST(AtomicParameters, ConcurrentWriteReadExponential) {
+    auto dist = ExponentialDistribution::create(1.0).unwrap();
+    std::atomic<bool> stop{false};
+    std::atomic<bool> corrupt{false};
+
+    std::thread writer([&dist, &stop]() {
+        const double vals[] = {1.0, 4.0};
+        int idx = 0;
+        while (!stop.load(std::memory_order_relaxed)) {
+            dist.setLambda(vals[idx & 1]);
+            ++idx;
+        }
+    });
+
+    std::vector<std::thread> readers;
+    for (int t = 0; t < 3; ++t) {
+        readers.emplace_back([&dist, &corrupt]() {
+            for (int i = 0; i < 20000; ++i) {
+                const double v = dist.getLambdaAtomic();
+                if (v <= 0.0 || !std::isfinite(v))
+                    corrupt.store(true, std::memory_order_relaxed);
+            }
+        });
+    }
+
+    for (auto& r : readers)
+        r.join();
+    stop.store(true);
+    writer.join();
+
+    EXPECT_FALSE(corrupt.load()) << "Atomic getter returned invalid lambda under concurrent writes";
+}
+
+TEST(AtomicParameters, BinomialAtomicGetters) {
+    auto dist = BinomialDistribution::create(10, 0.4).unwrap();
+    EXPECT_EQ(dist.getNAtomic(), 10);
+    EXPECT_NEAR(dist.getPAtomic(), 0.4, 1e-15);
+    EXPECT_EQ(dist.getN(), dist.getNAtomic());
+    EXPECT_NEAR(dist.getP(), dist.getPAtomic(), 1e-15);
+}
+
+TEST(AtomicParameters, BinomialAtomicInvalidation) {
+    auto dist = BinomialDistribution::create(5, 0.3).unwrap();
+    EXPECT_EQ(dist.getNAtomic(), 5);
+    EXPECT_NEAR(dist.getPAtomic(), 0.3, 1e-15);
+
+    dist.setN(20);
+    EXPECT_EQ(dist.getNAtomic(), 20);
+    EXPECT_NEAR(dist.getPAtomic(), 0.3, 1e-15);
+
+    dist.setP(0.7);
+    EXPECT_EQ(dist.getNAtomic(), 20);
+    EXPECT_NEAR(dist.getPAtomic(), 0.7, 1e-15);
+
+    dist.setParameters(8, 0.5);
+    EXPECT_EQ(dist.getNAtomic(), 8);
+    EXPECT_NEAR(dist.getPAtomic(), 0.5, 1e-15);
+
+    auto r = dist.trySetParameters(15, 0.6);
+    ASSERT_TRUE(r.isOk());
+    EXPECT_EQ(dist.getNAtomic(), 15);
+    EXPECT_NEAR(dist.getPAtomic(), 0.6, 1e-15);
 }

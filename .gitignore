@@ -92,6 +92,9 @@ MinSizeRel/
 .idea/
 cmake-build-*/
 
+# clangd language server cache (generated automatically, never source-controlled)
+.cache/
+
 # Qt Creator
 CMakeLists.txt.user*
 
@@ -341,3 +344,4 @@ backup_*/
 *.bak
 *.bak2
 *.bak3
+.claude/

@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive
 // caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -53,12 +52,12 @@ namespace stats {
  * // Standard six-sided die [1,6]
  * auto diceResult = DiscreteDistribution::create(1, 6);
  * if (diceResult.isOk()) {
- *     auto dice = std::move(diceResult.value);
+ *     auto dice = std::move(diceResult.unwrap());
  *
  *     // Playing card ranks [1,13] (Ace to King)
  *     auto cardResult = DiscreteDistribution::create(1, 13);
  *     if (cardResult.isOk()) {
- *         auto cards = std::move(cardResult.value);
+ *         auto cards = std::move(cardResult.unwrap());
  *
  *         // Fit to observed roll data
  *         std::vector<double> rolls = {1, 3, 6, 2, 4, 5, 1, 6, 3, 2};
@@ -113,10 +112,16 @@ namespace stats {
  * - Integer-optimized algorithms for discrete operations
  *
  * @author libstats Development Team
- * @version 1.1.0
- * @since 1.0.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class DiscreteDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<DiscreteDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::DISCRETE;
+    static constexpr bool kIsDiscrete = true;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -152,16 +157,16 @@ class DiscreteDistribution : public DistributionBase {
     /**
      * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
-    DiscreteDistribution(DiscreteDistribution&& other);
+    DiscreteDistribution(DiscreteDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
-    DiscreteDistribution& operator=(DiscreteDistribution&& other);
+    DiscreteDistribution& operator=(DiscreteDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five
@@ -180,9 +185,8 @@ class DiscreteDistribution : public DistributionBase {
     /**
      * @brief Safely create a Discrete Uniform distribution without throwing exceptions
      *
-     * This factory method provides exception-free construction to work around
-     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
-     * exceptions thrown from the library cause segfaults during unwinding.
+     * This factory method provides exception-free construction.
+     * See `error_handling.h` for the Result<T> design rationale.
      *
      * @param a Lower bound parameter (inclusive)
      * @param b Upper bound parameter (inclusive, must be >= a)
@@ -192,18 +196,18 @@ class DiscreteDistribution : public DistributionBase {
      * @code
      * auto result = DiscreteDistribution::create(1, 6);  // Standard die
      * if (result.isOk()) {
-     *     auto dice = std::move(result.value);
+     *     auto dice = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<DiscreteDistribution> create(int a = 0, int b = 1) noexcept {
+    [[nodiscard]] static Result<DiscreteDistribution> create(int a = 0, int b = 1) {
         auto validation = validateDiscreteParameters(a, b);
         if (validation.isError()) {
-            return Result<DiscreteDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<DiscreteDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
 
         // Use private factory to bypass validation
@@ -330,7 +334,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Mean value
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * Gets the variance of the distribution.
@@ -339,7 +343,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Variance value
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Gets the skewness of the distribution.
@@ -348,7 +352,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Skewness value (always 0)
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -357,7 +361,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (approximately -1.2)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /**
      * @brief Gets the number of parameters for this distribution.
@@ -374,7 +378,9 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override;
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Discrete";
+    }
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -391,7 +397,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Lower bound (parameter a as double)
      */
-    [[nodiscard]] double getSupportLowerBound() const noexcept override;
+    [[nodiscard]] double getSupportLowerBound() const override;
 
     /**
      * @brief Gets the upper bound of the distribution support.
@@ -399,7 +405,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Upper bound (parameter b as double)
      */
-    [[nodiscard]] double getSupportUpperBound() const noexcept override;
+    [[nodiscard]] double getSupportUpperBound() const override;
 
     /**
      * Gets the range of the distribution (b - a + 1).
@@ -408,7 +414,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Range of the distribution
      */
-    [[nodiscard]] int getRange() const noexcept;
+    [[nodiscard]] int getRange() const;
 
     /**
      * Gets the probability of any single outcome.
@@ -426,7 +432,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Mode value (midpoint of the range)
      */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /**
      * Gets the median of the distribution.
@@ -435,7 +441,17 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Median value
      */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const override;
+
+    /**
+     * @brief Shannon entropy of the distribution in nats.
+     *
+     * For a discrete uniform distribution on {a, a+1, ..., b} with n = b - a + 1 outcomes,
+     * the maximum-entropy property gives: H = log(n).
+     *
+     * @return Entropy in nats
+     */
+    [[nodiscard]] double getEntropy() const override;
 
     //==============================================================================
     // 4. RESULT-BASED SETTERS
@@ -504,7 +520,7 @@ class DiscreteDistribution : public DistributionBase {
      * @param x The value at which to evaluate the log-PMF (will be rounded to nearest integer)
      * @return Natural logarithm of the probability mass, or -∞ for values outside support
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * Evaluates the CDF at x using the discrete uniform CDF formula.
@@ -601,8 +617,6 @@ class DiscreteDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for a
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    [[nodiscard]] static std::pair<int, int> confidenceIntervalLowerBound(
-        const std::vector<double>& data, double confidence_level = 0.95);
 
     /**
      * @brief Confidence interval for upper bound b
@@ -615,23 +629,6 @@ class DiscreteDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for b
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
-    [[nodiscard]] static std::pair<int, int> confidenceIntervalUpperBound(
-        const std::vector<double>& data, double confidence_level = 0.95);
-
-    /**
-     * @brief Likelihood ratio test for Discrete Uniform bounds
-     *
-     * Tests H0: (a, b) = (a₀, b₀) vs H1: (a, b) ≠ (a₀, b₀) using likelihood ratio statistic.
-     * Adapted for discrete case with exact computation of likelihood ratios.
-     *
-     * @param data Vector of observed integer data (as doubles)
-     * @param null_a Null hypothesis value for a lower bound
-     * @param null_b Null hypothesis value for b upper bound
-     * @param significance_level Significance level for test
-     * @return Tuple of (test_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
-        const std::vector<double>& data, int null_a, int null_b, double significance_level = 0.05);
 
     /**
      * @brief Bayesian estimation for Discrete Uniform bounds
@@ -646,41 +643,6 @@ class DiscreteDistribution : public DistributionBase {
      * @param prior_b_beta Prior beta for b (default: 1.0)
      * @return Pair of (posterior_a_interval, posterior_b_interval)
      */
-    [[nodiscard]] static std::pair<std::pair<double, double>, std::pair<double, double>>
-    bayesianEstimation(const std::vector<double>& data, double prior_a_alpha = 1.0,
-                       double prior_a_beta = 1.0, double prior_b_alpha = 1.0,
-                       double prior_b_beta = 1.0);
-
-    /**
-     * @brief Robust estimation using mode-based methods
-     *
-     * Provides robust estimation of Discrete Uniform bounds using discrete-specific methods.
-     * Uses mode ranges and frequency analysis for outlier resistance.
-     *
-     * @param data Vector of observed integer data (as doubles)
-     * @param estimator_type Type of robust estimator ("mode_range", "frequency_trim")
-     * @param trim_proportion Proportion to trim (default: 0.1)
-     * @return Pair of (robust_a_estimate, robust_b_estimate)
-     */
-    [[nodiscard]] static std::pair<int, int> robustEstimation(
-        const std::vector<double>& data, const std::string& estimator_type = "mode_range",
-        double trim_proportion = 0.1);
-
-    /**
-     * @brief Method of moments estimation
-     *
-     * Estimates Discrete Uniform bounds by matching sample moments with theoretical moments:
-     * For discrete uniform on {a, a+1, ..., b}:
-     * - Mean = (a + b) / 2
-     * - Variance = (b - a + 1)² - 1) / 12
-     *
-     * @param data Vector of observed integer data (as doubles)
-     * @return Pair of (a_estimate, b_estimate)
-     * @throws std::invalid_argument if data is empty or invalid
-     */
-    [[nodiscard]] static std::pair<int, int> methodOfMomentsEstimation(
-        const std::vector<double>& data);
-
     /**
      * @brief Bayesian credible interval from posterior distributions
      *
@@ -695,22 +657,6 @@ class DiscreteDistribution : public DistributionBase {
      * @param prior_b_beta Prior beta for b parameter (default: 1.0)
      * @return Tuple of ((a_CI_lower, a_CI_upper), (b_CI_lower, b_CI_upper))
      */
-    [[nodiscard]] static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bayesianCredibleInterval(const std::vector<double>& data, double credibility_level = 0.95,
-                             double prior_a_alpha = 1.0, double prior_a_beta = 1.0,
-                             double prior_b_alpha = 1.0, double prior_b_beta = 1.0);
-
-    /**
-     * @brief L-moments parameter estimation
-     *
-     * Uses L-moments (linear combinations of order statistics) for robust
-     * parameter estimation. For discrete uniform on {a,...,b}: uses sample order statistics.
-     *
-     * @param data Vector of observed integer data (as doubles)
-     * @return Pair of (a_estimate, b_estimate)
-     */
-    [[nodiscard]] static std::pair<int, int> lMomentsEstimation(const std::vector<double>& data);
-
     /**
      * @brief Discrete uniformity test using chi-square goodness-of-fit
      *
@@ -727,37 +673,6 @@ class DiscreteDistribution : public DistributionBase {
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
-
-    /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified discrete distribution.
-     * Note: KS test is generally less appropriate for discrete data than chi-squared.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data, const DiscreteDistribution& distribution,
-        double alpha = 0.05);
-
-    /**
-     * @brief Anderson-Darling goodness-of-fit test for discrete distributions
-     *
-     * Tests the null hypothesis that data follows the specified discrete distribution.
-     * More sensitive to tail differences than the KS test and adapted for discrete cases.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (AD_statistic, p_value, reject_null)
-     * @note Uses asymptotic p-value approximation adjusted for discrete distributions
-     */
-    static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data, const DiscreteDistribution& distribution,
-        double alpha = 0.05);
 
     /**
      * @brief Chi-squared goodness-of-fit test for discrete distributions
@@ -779,53 +694,6 @@ class DiscreteDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief K-fold cross-validation for parameter estimation
-     *
-     * Performs k-fold cross-validation to assess parameter estimation quality
-     * and model stability for discrete distributions.
-     *
-     * @param data Sample data for cross-validation
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment (default: 42)
-     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
-     */
-    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
-
-    /**
-     * @brief Leave-one-out cross-validation for parameter estimation
-     *
-     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
-     * estimation quality for discrete distributions.
-     *
-     * @param data Sample data for cross-validation
-     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
-     */
-    static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
-
-    //==========================================================================
-    // 10. INFORMATION CRITERIA
-    //==========================================================================
-
-    /**
-     * @brief Model comparison using information criteria
-     *
-     * Computes various information criteria (AIC, BIC, AICc) for model selection.
-     * Lower values indicate better model fit while penalizing complexity.
-     *
-     * @param data Sample data used for fitting
-     * @param fitted_distribution The fitted discrete distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data, const DiscreteDistribution& fitted_distribution);
-
-    //==========================================================================
-    // 11. BOOTSTRAP METHODS
-    //==========================================================================
-
-    /**
      * @brief Bootstrap parameter confidence intervals
      *
      * Uses bootstrap resampling to estimate confidence intervals for
@@ -838,11 +706,6 @@ class DiscreteDistribution : public DistributionBase {
      * @return Tuple of ((lower_bound_CI_lower, lower_bound_CI_upper), (upper_bound_CI_lower,
      * upper_bound_CI_upper))
      */
-    static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bootstrapParameterConfidenceIntervals(const std::vector<double>& data,
-                                          double confidence_level = 0.95, int n_bootstrap = 1000,
-                                          unsigned int random_seed = 42);
-
     //==========================================================================
     // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
@@ -918,62 +781,6 @@ class DiscreteDistribution : public DistributionBase {
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    /**
-     * @brief Explicit strategy batch probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for probability densities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     *
-     * @deprecated Consider migrating to auto-dispatch with hints for better portability
-     */
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    /**
-     * @brief Explicit strategy batch log probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for log probability densities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     *
-     * @deprecated Consider migrating to auto-dispatch with hints for better portability
-     */
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    /**
-     * @brief Explicit strategy batch cumulative probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for cumulative probabilities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     *
-     * @deprecated Consider migrating to auto-dispatch with hints for better portability
-     */
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1115,9 +922,6 @@ class DiscreteDistribution : public DistributionBase {
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
-
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     /** @brief True if this is a binary distribution [0,1] for optimization */
     mutable bool isBinary_{true};

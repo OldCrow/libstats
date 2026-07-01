@@ -1,7 +1,6 @@
 #pragma once
 
 #include "libstats/common/distribution_common.h"
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -64,10 +63,16 @@ namespace stats {
  * - HMM observation models for circular data (libhmm)
  *
  * @author libstats Development Team
- * @version 1.2.0
- * @since 1.2.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class VonMisesDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<VonMisesDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::VON_MISES;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -94,8 +99,8 @@ class VonMisesDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     VonMisesDistribution(VonMisesDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    VonMisesDistribution& operator=(VonMisesDistribution&& other);
+    /** @brief Move assignment operator. Implementation in .cpp. */
+    VonMisesDistribution& operator=(VonMisesDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~VonMisesDistribution() override = default;
@@ -111,11 +116,11 @@ class VonMisesDistribution : public DistributionBase {
      * @return Result containing a valid VonMisesDistribution or error info
      */
     [[nodiscard]] static Result<VonMisesDistribution> create(double mu = detail::ZERO_DOUBLE,
-                                                             double kappa = detail::ONE) noexcept {
+                                                             double kappa = detail::ONE) {
         auto validation = validateVonMisesParameters(mu, kappa);
         if (validation.isError()) {
-            return Result<VonMisesDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<VonMisesDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
         return Result<VonMisesDistribution>::ok(createUnchecked(mu, kappa));
     }
@@ -164,13 +169,13 @@ class VonMisesDistribution : public DistributionBase {
      * @brief getMean() returns the circular mean direction μ.
      * (Not a linear mean; meaningful only in circular statistics context.)
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * @brief getVariance() returns the circular variance = 1 − I₁(κ)/I₀(κ).
      * Range [0, 1]: 0 = fully concentrated, 1 = uniform.
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Skewness = 0 (Von Mises is symmetric about μ).
@@ -186,8 +191,8 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "VonMisesDistribution";
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "VonMises";
     }
 
     /** @brief Von Mises is continuous. */
@@ -222,7 +227,7 @@ class VonMisesDistribution : public DistributionBase {
      * @brief Log-PDF: κ·cos(x−μ) − logNormaliser_.
      * Returns −∞ for non-finite x.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via 512-step trapezoidal integration from −π to x.
@@ -280,19 +285,19 @@ class VonMisesDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Circular variance = 1 − I₁(κ)/I₀(κ). Same as getVariance(). */
-    [[nodiscard]] double getCircularVariance() const noexcept;
+    [[nodiscard]] double getCircularVariance() const;
 
     /** @brief Median = μ (Von Mises is symmetric about μ). */
-    [[nodiscard]] double getMedian() const noexcept { return getMu(); }
+    [[nodiscard]] double getMedian() const noexcept override { return getMu(); }
 
     /** @brief Mode = μ (always at the mean direction). */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /**
      * @brief Entropy = log(2π) − log I₀(κ) + κ·I₁(κ)/I₀(κ).
      * Matches the uniform entropy log(2π) at κ = 0.
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief True if κ = 0 within tolerance (uniform circular distribution).
@@ -315,23 +320,6 @@ class VonMisesDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -379,7 +367,8 @@ class VonMisesDistribution : public DistributionBase {
                                        double cached_kappa, double cached_mu,
                                        double cached_log_normaliser) const noexcept;
 
-    /** @brief CDF batch — each element calls the 512-step trapezoidal CDF. Unsafe: no validation. */
+    /** @brief CDF batch — each element calls the 512-step trapezoidal CDF. Unsafe: no validation.
+     */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                  std::size_t count) const noexcept;
 
@@ -437,9 +426,6 @@ class VonMisesDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
-
     /** @brief True if κ < 1e-10 (uniform circular distribution). */
     mutable bool isUniform_{false};
 
@@ -447,8 +433,20 @@ class VonMisesDistribution : public DistributionBase {
     // 24. SPECIALIZED CACHES
     //==========================================================================
 
-    // Note: Von Mises uses standard caching only.
-    // Section maintained for template compliance.
+    /**
+     * @brief Lazily-initialized CDF grid for O(log N) quantile lookup.
+     *
+     * Built on first getQuantile() call with a given κ. 2049 uniformly-spaced
+     * angles in [−π, π] and their CDF values. Binary search + linear interpolation
+     * replaces the 60-step bisection that called the 512-point trapezoidal CDF.
+     * Thread safety: guarded by cache_mutex_; rebuilt when κ changes.
+     */
+    mutable std::vector<double> cdfGridAngles_;  ///< angles[i] = -PI + i*h, i in [0,2048]
+    mutable std::vector<double> cdfGridValues_;  ///< CDF(angles[i]; mu_=0, current kappa_)
+    mutable double cdfGridKappa_{-1.0};          ///< kappa for which grid was built; -1=unbuilt
+
+    /** @brief Build cdfGrid* for the current kappa_. Called under cache_mutex_. */
+    void buildCdfGrid() const noexcept;
 };
 
 }  // namespace stats

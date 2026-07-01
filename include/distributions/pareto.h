@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools,
 // adaptive caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -50,10 +49,15 @@ namespace stats {
  * - Physics: earthquake magnitudes, particle sizes
  *
  * @author libstats Development Team
- * @version 1.2.0
- * @since 1.2.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class ParetoDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<ParetoDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::PARETO;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -79,8 +83,8 @@ class ParetoDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     ParetoDistribution(ParetoDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    ParetoDistribution& operator=(ParetoDistribution&& other);
+    /** @brief Move assignment operator. Implementation in .cpp. */
+    ParetoDistribution& operator=(ParetoDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~ParetoDistribution() override = default;
@@ -96,10 +100,11 @@ class ParetoDistribution : public DistributionBase {
      * @return Result containing a valid ParetoDistribution or error info
      */
     [[nodiscard]] static Result<ParetoDistribution> create(double scale = detail::ONE,
-                                                           double alpha = detail::ONE) noexcept {
+                                                           double alpha = detail::ONE) {
         auto validation = validateParetoParameters(scale, alpha);
         if (validation.isError()) {
-            return Result<ParetoDistribution>::makeError(validation.error_code, validation.message);
+            return Result<ParetoDistribution>::makeError(validation.errorCode(),
+                                                         validation.message());
         }
         return Result<ParetoDistribution>::ok(createUnchecked(scale, alpha));
     }
@@ -153,28 +158,30 @@ class ParetoDistribution : public DistributionBase {
     /**
      * @brief Mean = α·x_m/(α−1) for α > 1; returns +∞ for α ≤ 1.
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * @brief Variance = x_m²·α/((α−1)²·(α−2)) for α > 2; returns +∞ otherwise.
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Skewness = 2(1+α)/(α−3)·√((α−2)/α) for α > 3; returns +∞ otherwise.
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Excess kurtosis for α > 4; returns +∞ otherwise.
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override { return "ParetoDistribution"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Pareto";
+    }
 
     /** @brief Pareto is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }
@@ -213,7 +220,7 @@ class ParetoDistribution : public DistributionBase {
      * @brief Log-PDF at x: log(α) + α·log(x_m) − (α+1)·log(x) for x ≥ x_m.
      * Returns −∞ for x < x_m.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF: 1 − (x_m/x)^α for x ≥ x_m; 0 for x < x_m.
@@ -266,16 +273,16 @@ class ParetoDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = scale (x_m) — always at the lower boundary. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median = x_m·2^(1/α) = x_m·exp(log(2)/α). */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const override;
 
     /**
      * @brief Entropy = log(x_m/α) + 1 + 1/α.
      * Differential entropy for Pareto(x_m, α).
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief True if α > 1 (mean is finite).
@@ -305,23 +312,6 @@ class ParetoDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -454,9 +444,6 @@ class ParetoDistribution : public DistributionBase {
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
-
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     //==========================================================================
     // 24. SPECIALIZED CACHES

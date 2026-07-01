@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+
+import subprocess as _sp
+def _llvm_prefix():
+    """Detect Homebrew LLVM prefix on macOS; fall back to system."""
+    try:
+        return _sp.check_output(['brew', '--prefix', 'llvm'],
+                                 stderr=_sp.DEVNULL, text=True).strip()
+    except Exception:
+        return '/usr/local/opt/llvm'  # best-guess fallback
+
+_LLVM_PREFIX = _llvm_prefix()
 """
 Compilation Performance Benchmark Tool for libstats
 
@@ -48,12 +59,12 @@ class CompilationBenchmark:
             # Build the compile command
             include_flags = [f"-I{inc}" for inc in include_dirs]
             # Use Homebrew LLVM if available, otherwise fall back to system clang++
-            compiler = "/usr/local/opt/llvm/bin/clang++" if os.path.exists("/usr/local/opt/llvm/bin/clang++") else "clang++"
+            compiler = f"{_LLVM_PREFIX}/bin/clang++" if os.path.exists(f"{_LLVM_PREFIX}/bin/clang++") else "clang++"
 
             # Configure compiler with proper C++20 flags
-            if compiler.startswith("/usr/local/opt/llvm"):
+            if compiler.startswith(f"{_LLVM_PREFIX}"):
                 # Homebrew LLVM configuration
-                cmd_base = [compiler, "-std=c++20", "-stdlib=libc++", "-I/usr/local/opt/llvm/include/c++/v1", "-O0"] + include_flags
+                cmd_base = [compiler, "-std=c++20", "-stdlib=libc++", "-I{_LLVM_PREFIX}/include/c++/v1", "-O0"] + include_flags
             else:
                 # System compiler (fallback)
                 cmd_base = [compiler, "-std=c++20", "-O0"] + include_flags

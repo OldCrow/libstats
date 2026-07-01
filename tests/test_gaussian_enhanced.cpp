@@ -6,8 +6,12 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/stats/analysis/analysis.h"
+#include "libstats/stats/analysis/gaussian_analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <cmath>      // for std::sqrt, std::exp, M_PI, std::isfinite, std::abs
 #include <gtest/gtest.h>
@@ -46,7 +50,7 @@ class GaussianEnhancedTest : public ::testing::Test {
 
         auto result = stats::GaussianDistribution::create(test_mean_, test_std_);
         if (result.isOk()) {
-            test_distribution_ = std::move(result.value);
+            test_distribution_ = std::move(result.unwrap());
         }
     }
 
@@ -63,7 +67,7 @@ class GaussianEnhancedTest : public ::testing::Test {
 
 TEST_F(GaussianEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard normal distribution properties
-    auto stdNormal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto stdNormal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
     EXPECT_DOUBLE_EQ(stdNormal.getMean(), 0.0);
     EXPECT_DOUBLE_EQ(stdNormal.getStandardDeviation(), 1.0);
@@ -79,7 +83,7 @@ TEST_F(GaussianEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_0, 0.5, 1e-10);
 
     // Test custom distribution
-    auto custom = stats::GaussianDistribution::create(5.0, 2.0).value;
+    auto custom = stats::GaussianDistribution::create(5.0, 2.0).unwrap();
     EXPECT_DOUBLE_EQ(custom.getMean(), 5.0);
     EXPECT_DOUBLE_EQ(custom.getStandardDeviation(), 2.0);
     EXPECT_DOUBLE_EQ(custom.getVariance(), 4.0);
@@ -100,7 +104,8 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
     std::cout << "\n=== Advanced Statistical Methods ===\n";
 
     // Confidence interval for mean
-    auto [ci_lower, ci_upper] = GaussianDistribution::confidenceIntervalMean(normal_data_, 0.95);
+    auto [ci_lower, ci_upper] =
+        stats::analysis::gaussian::confidenceIntervalMean(normal_data_, 0.95);
     EXPECT_LT(ci_lower, ci_upper);
     EXPECT_TRUE(std::isfinite(ci_lower));
     EXPECT_TRUE(std::isfinite(ci_upper));
@@ -108,7 +113,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
 
     // One-sample t-test
     auto [t_stat, p_value, reject_null] =
-        GaussianDistribution::oneSampleTTest(normal_data_, test_mean_, 0.05);
+        stats::analysis::gaussian::oneSampleTTest(normal_data_, test_mean_, 0.05);
     EXPECT_TRUE(std::isfinite(t_stat));
     EXPECT_TRUE(std::isfinite(p_value));
     EXPECT_GE(p_value, 0.0);
@@ -118,7 +123,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
 
     // Method of moments estimation
     auto [estimated_mean, estimated_std] =
-        GaussianDistribution::methodOfMomentsEstimation(normal_data_);
+        stats::analysis::gaussian::methodOfMomentsEstimation(normal_data_);
     EXPECT_TRUE(std::isfinite(estimated_mean));
     EXPECT_TRUE(std::isfinite(estimated_std));
     EXPECT_GT(estimated_std, 0.0);
@@ -126,7 +131,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
 
     // Jarque-Bera test for normality
     auto [jb_stat, jb_p_value, reject_normality] =
-        GaussianDistribution::jarqueBeraTest(normal_data_, 0.05);
+        stats::analysis::gaussian::jarqueBeraTest(normal_data_, 0.05);
     EXPECT_GE(jb_stat, 0.0);
     EXPECT_GE(jb_p_value, 0.0);
     EXPECT_LE(jb_p_value, 1.0);
@@ -137,7 +142,7 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
 
     // Robust estimation
     auto [robust_loc, robust_scale] =
-        GaussianDistribution::robustEstimation(normal_data_, "huber", 1.345);
+        stats::analysis::gaussian::robustEstimation(normal_data_, "huber", 1.345);
     EXPECT_TRUE(std::isfinite(robust_loc));
     EXPECT_TRUE(std::isfinite(robust_scale));
     EXPECT_GT(robust_scale, 0.0);
@@ -154,7 +159,7 @@ TEST_F(GaussianEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with normal data
     auto [ks_stat_normal, ks_p_normal, ks_reject_normal] =
-        GaussianDistribution::kolmogorovSmirnovTest(normal_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(normal_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ks_stat_normal, 0.0);
     EXPECT_LE(ks_stat_normal, 1.0);
@@ -165,7 +170,7 @@ TEST_F(GaussianEnhancedTest, GoodnessOfFitTests) {
 
     // Kolmogorov-Smirnov test with non-normal data (should reject)
     auto [ks_stat_non_normal, ks_p_non_normal, ks_reject_non_normal] =
-        GaussianDistribution::kolmogorovSmirnovTest(non_normal_data_, test_distribution_, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(non_normal_data_, test_distribution_, 0.05);
 
     EXPECT_TRUE(ks_reject_non_normal);        // Should reject normality for quadratic data
     EXPECT_LT(ks_p_non_normal, ks_p_normal);  // Non-normal data should have lower p-value
@@ -177,9 +182,9 @@ TEST_F(GaussianEnhancedTest, GoodnessOfFitTests) {
 
     // Anderson-Darling test
     auto [ad_stat_normal, ad_p_normal, ad_reject_normal] =
-        GaussianDistribution::andersonDarlingTest(normal_data_, test_distribution_, 0.05);
+        stats::analysis::andersonDarlingTest(normal_data_, test_distribution_, 0.05);
     auto [ad_stat_non_normal, ad_p_non_normal, ad_reject_non_normal] =
-        GaussianDistribution::andersonDarlingTest(non_normal_data_, test_distribution_, 0.05);
+        stats::analysis::andersonDarlingTest(non_normal_data_, test_distribution_, 0.05);
 
     EXPECT_GE(ad_stat_normal, 0.0);
     EXPECT_GE(ad_p_normal, 0.0);
@@ -204,7 +209,7 @@ TEST_F(GaussianEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(normal_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        GaussianDistribution::computeInformationCriteria(normal_data_, fitted_dist);
+        stats::analysis::informationCriteria(normal_data_, fitted_dist);
 
     // Basic sanity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -232,8 +237,8 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap parameter confidence intervals
-    auto [mean_ci, std_ci] =
-        GaussianDistribution::bootstrapParameterConfidenceIntervals(normal_data_, 0.95, 1000, 456);
+    auto [mean_ci, std_ci] = stats::analysis::bootstrapMeanVarianceCI<stats::GaussianDistribution>(
+        normal_data_, 0.95, 1000, 456);
 
     // Check that confidence intervals are reasonable
     EXPECT_LT(mean_ci.first, mean_ci.second);  // Lower bound < Upper bound
@@ -253,36 +258,24 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
     std::cout << "  Std 95% CI: [" << std_ci.first << ", " << std_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = GaussianDistribution::kFoldCrossValidation(normal_data_, 5, 42);
+    auto cv_results =
+        stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(normal_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mean_error, std_error, log_likelihood] : cv_results) {
-        EXPECT_GE(mean_error, 0.0);      // Mean absolute error should be non-negative
-        EXPECT_GE(std_error, 0.0);       // Standard error should be non-negative
-        EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mean_error));
-        EXPECT_TRUE(std::isfinite(std_error));
-        EXPECT_TRUE(std::isfinite(log_likelihood));
+    for (const double fold_ll : cv_results) {
+        EXPECT_LE(fold_ll, 0.0);  // Fold log-likelihood should be negative
+        EXPECT_TRUE(std::isfinite(fold_ll));
     }
 
     std::cout << "  K-fold CV completed with " << cv_results.size() << " folds\n";
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_normal_data(normal_data_.begin(), normal_data_.begin() + 20);
-    auto [mae, rmse, loo_log_likelihood] =
-        GaussianDistribution::leaveOneOutCrossValidation(small_normal_data);
-
-    EXPECT_GE(mae, 0.0);                 // Mean absolute error should be non-negative
-    EXPECT_GE(rmse, 0.0);                // RMSE should be non-negative
-    EXPECT_LE(loo_log_likelihood, 0.0);  // Total log-likelihood should be negative
-    EXPECT_GE(rmse, mae);                // RMSE should be >= MAE
-
-    EXPECT_TRUE(std::isfinite(mae));
-    EXPECT_TRUE(std::isfinite(rmse));
+    const auto loo_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::GaussianDistribution>(small_normal_data);
+    EXPECT_LE(loo_log_likelihood, 0.0);
     EXPECT_TRUE(std::isfinite(loo_log_likelihood));
-
-    std::cout << "  Leave-one-out CV: MAE=" << mae << ", RMSE=" << rmse
-              << ", LogL=" << loo_log_likelihood << "\n";
+    std::cout << "  Leave-one-out CV: LogL=" << loo_log_likelihood << "\n";
 }
 
 //==============================================================================
@@ -290,7 +283,7 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdNormal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto stdNormal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -322,37 +315,37 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         auto sequential_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
+        std::span<const double> input_span(test_values);
+
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
+        detail::PerformanceHint simd_hint;
+        simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
         start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                             std::span<double>(simd_results),
-                                             stats::detail::Strategy::VECTORIZED);
+        stdNormal.getProbability(input_span, std::span<double>(simd_results), simd_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto simd_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
-        std::span<const double> input_span(test_values);
-        std::span<double> output_span(parallel_results);
-
+        detail::PerformanceHint parallel_hint;
+        parallel_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
         start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                             stats::detail::Strategy::PARALLEL);
+        stdNormal.getProbability(input_span, std::span<double>(parallel_results), parallel_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto parallel_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Work-stealing operations (use shared pool)
+        // 4. Work-stealing operations (use shared global pool)
         std::vector<double> work_stealing_results(batch_size);
-        std::span<double> ws_output_span(work_stealing_results);
-
+        detail::PerformanceHint ws_hint;
+        ws_hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
         start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbabilityWithStrategy(input_span, ws_output_span,
-                                             stats::detail::Strategy::WORK_STEALING);
+        stdNormal.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto work_stealing_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto work_stealing_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -405,7 +398,7 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
-    auto gauss_dist = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto gauss_dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
     std::cout << "\n=== Auto-Dispatch Strategy Assessment ===\n";
 
@@ -436,14 +429,14 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        // Compare with traditional batch method
+        // Compare with scalar loop baseline
         start = std::chrono::high_resolution_clock::now();
-        gauss_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                              std::span<double>(traditional_results),
-                                              stats::detail::Strategy::VECTORIZED);
+        for (size_t j = 0; j < batch_size; ++j) {
+            traditional_results[j] = gauss_dist.getProbability(test_values[j]);
+        }
         end = std::chrono::high_resolution_clock::now();
-        auto traditional_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto traditional_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Verify correctness
         bool results_match = true;
@@ -498,7 +491,7 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
 TEST_F(GaussianEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto gauss_dist = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto gauss_dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -554,7 +547,7 @@ TEST_F(GaussianEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto stdNormal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto stdNormal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     // Generate test data
@@ -589,46 +582,35 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         fixtures::BenchmarkResult result;
         result.operation_name = op;
 
-        // 1. Baseline (SCALAR strategy)
+        // 1. Baseline (scalar loop)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                 std::span<double>(pdf_results),
-                                                 stats::detail::Strategy::SCALAR);
-            // Save baseline results for verification
-            std::copy(pdf_results.begin(), pdf_results.end(), baseline_pdf_results.begin());
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                baseline_pdf_results[i] = stdNormal.getProbability(test_values[i]);
         } else if (op == "LogPDF") {
-            stdNormal.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                    std::span<double>(log_pdf_results),
-                                                    stats::detail::Strategy::SCALAR);
-            // Save baseline results for verification
-            std::copy(log_pdf_results.begin(), log_pdf_results.end(),
-                      baseline_log_pdf_results.begin());
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                baseline_log_pdf_results[i] = stdNormal.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
-            stdNormal.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                           std::span<double>(cdf_results),
-                                                           stats::detail::Strategy::SCALAR);
-            // Save baseline results for verification
-            std::copy(cdf_results.begin(), cdf_results.end(), baseline_cdf_results.begin());
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                baseline_cdf_results[i] = stdNormal.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 2. SIMD Batch operations
+        detail::PerformanceHint simd_hint;
+        simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
         start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            stdNormal.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                 std::span<double>(pdf_results),
-                                                 stats::detail::Strategy::VECTORIZED);
+            stdNormal.getProbability(std::span<const double>(test_values),
+                                     std::span<double>(pdf_results), simd_hint);
         } else if (op == "LogPDF") {
-            stdNormal.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                    std::span<double>(log_pdf_results),
-                                                    stats::detail::Strategy::VECTORIZED);
+            stdNormal.getLogProbability(std::span<const double>(test_values),
+                                        std::span<double>(log_pdf_results), simd_hint);
         } else if (op == "CDF") {
-            stdNormal.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                           std::span<double>(cdf_results),
-                                                           stats::detail::Strategy::VECTORIZED);
+            stdNormal.getCumulativeProbability(std::span<const double>(test_values),
+                                               std::span<double>(cdf_results), simd_hint);
         }
         end = std::chrono::high_resolution_clock::now();
         result.vectorized_time_us = static_cast<long>(
@@ -637,46 +619,40 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 3. Parallel Batch Operations (PARALLEL strategy)
         std::span<const double> input_span(test_values);
 
+        detail::PerformanceHint parallel_hint;
+        parallel_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
         if (op == "PDF") {
-            std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                                 stats::detail::Strategy::PARALLEL);
+            stdNormal.getProbability(input_span, std::span<double>(pdf_results), parallel_hint);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
-            std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                    stats::detail::Strategy::PARALLEL);
+            stdNormal.getLogProbability(input_span, std::span<double>(log_pdf_results),
+                                        parallel_hint);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                           stats::detail::Strategy::PARALLEL);
+            stdNormal.getCumulativeProbability(input_span, std::span<double>(cdf_results),
+                                               parallel_hint);
             end = std::chrono::high_resolution_clock::now();
         }
         result.parallel_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-Stealing Operations (use shared pool to avoid resource issues)
+        detail::PerformanceHint ws_hint;
+        ws_hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
         if (op == "PDF") {
-            std::span<double> output_span(pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getProbabilityWithStrategy(input_span, output_span,
-                                                 stats::detail::Strategy::WORK_STEALING);
+            stdNormal.getProbability(input_span, std::span<double>(pdf_results), ws_hint);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
-            std::span<double> log_output_span(log_pdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                    stats::detail::Strategy::WORK_STEALING);
+            stdNormal.getLogProbability(input_span, std::span<double>(log_pdf_results), ws_hint);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                           stats::detail::Strategy::WORK_STEALING);
+            stdNormal.getCumulativeProbability(input_span, std::span<double>(cdf_results), ws_hint);
             end = std::chrono::high_resolution_clock::now();
         }
         result.work_stealing_time_us = static_cast<long>(
@@ -723,7 +699,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
 TEST_F(GaussianEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "\n=== Numerical Stability and Edge Cases ===\n";
 
-    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
     // Test extreme values
     std::vector<double> extreme_values = {-100.0, -10.0, 10.0, 100.0};
@@ -747,15 +723,6 @@ TEST_F(GaussianEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::vector<double> empty_output;
 
     // These should not crash
-    normal.getProbabilityWithStrategy(std::span<const double>(empty_input),
-                                      std::span<double>(empty_output),
-                                      stats::detail::Strategy::SCALAR);
-    normal.getLogProbabilityWithStrategy(std::span<const double>(empty_input),
-                                         std::span<double>(empty_output),
-                                         stats::detail::Strategy::SCALAR);
-    normal.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_input),
-                                                std::span<double>(empty_output),
-                                                stats::detail::Strategy::SCALAR);
 
     // Test invalid parameter creation
     auto result_zero_std = GaussianDistribution::create(0.0, 0.0);
@@ -794,7 +761,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
         }
 
         datasets.push_back(std::move(dataset));
-        expected_distributions.push_back(GaussianDistribution::create(mean, std).value);
+        expected_distributions.push_back(GaussianDistribution::create(mean, std).unwrap());
     }
 
     std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
@@ -942,6 +909,93 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
 
 }  // namespace stats
 
+// =============================================================================
+// FitWithDiagnostics: base-class virtual method that bundles fit() +
+// AIC/BIC + CDF residuals + validate(). Tested here on Gaussian because
+// the base-class implementation is shared by all 19 distributions.
+// Part 2D — API rationalization plan.
+// =============================================================================
+
+TEST(FitWithDiagnosticsTest, GaussianReturnsValidResults) {
+    using namespace stats;
+
+    // Generate a sample from N(3, 2).
+    std::mt19937 rng(42);
+    std::normal_distribution<double> gen(3.0, 2.0);
+    std::vector<double> data(200);
+    for (double& x : data)
+        x = gen(rng);
+
+    auto dist = GaussianDistribution::create(0.0, 1.0).unwrap();
+    const auto results = dist.fitWithDiagnostics(data);
+
+    // Fit must succeed.
+    EXPECT_TRUE(results.fit_successful) << results.fit_diagnostics;
+
+    // AIC and BIC must be finite and positive.
+    EXPECT_TRUE(std::isfinite(results.aic)) << "AIC must be finite";
+    EXPECT_TRUE(std::isfinite(results.bic)) << "BIC must be finite";
+    EXPECT_GT(results.aic, 0.0) << "AIC is typically positive";
+    EXPECT_GT(results.bic, 0.0) << "BIC is typically positive";
+
+    // Log-likelihood must be finite and negative (for continuous density).
+    EXPECT_TRUE(std::isfinite(results.log_likelihood)) << "Log-likelihood must be finite";
+    EXPECT_LT(results.log_likelihood, 0.0) << "Log-likelihood should be negative";
+
+    // AIC == 2k - 2LL; BIC == k*ln(n) - 2LL; for Gaussian k=2.
+    const int k = 2;
+    const double n = static_cast<double>(data.size());
+    EXPECT_NEAR(results.aic, 2.0 * k - 2.0 * results.log_likelihood, 1e-9);
+    EXPECT_NEAR(results.bic, k * std::log(n) - 2.0 * results.log_likelihood, 1e-9);
+
+    // Residuals: one per datum, all in [-1, 1].
+    EXPECT_EQ(results.residuals.size(), data.size());
+    for (double r : results.residuals) {
+        EXPECT_GE(r, -1.0) << "Residual out of range";
+        EXPECT_LE(r, 1.0) << "Residual out of range";
+    }
+
+    // Validation fields must be finite and non-negative.
+    EXPECT_TRUE(std::isfinite(results.validation.ks_statistic));
+    EXPECT_GE(results.validation.ks_statistic, 0.0);
+    EXPECT_GE(results.validation.ks_p_value, 0.0);
+    EXPECT_LE(results.validation.ks_p_value, 1.0);
+    EXPECT_FALSE(results.validation.recommendations.empty());
+}
+
+TEST(FitWithDiagnosticsTest, FailurePathPopulatesNaN) {
+    using namespace stats;
+    // Empty data must trigger the failure path.
+    auto dist = GaussianDistribution::create(0.0, 1.0).unwrap();
+    const auto results = dist.fitWithDiagnostics({});
+    EXPECT_FALSE(results.fit_successful);
+    EXPECT_TRUE(std::isnan(results.log_likelihood));
+    EXPECT_TRUE(std::isnan(results.aic));
+    EXPECT_TRUE(std::isnan(results.bic));
+}
+
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::GaussianDistribution
+//==============================================================================
+template <>
+struct stats::tests::DistTraits<stats::GaussianDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::GaussianDistribution make() {
+        return stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+    }
+    static std::vector<double> domain() { return {-2.5, -1.2, 0.3, 1.8, 2.1}; }
+    static double batch_lo() { return -3.0; }
+    static double batch_hi() { return 3.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::GaussianDistribution::create(0.0, -1.0).isError(); },
+            [] { return stats::GaussianDistribution::create(0.0, 0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Gaussian, DistributionEnhancedTest,
+                               ::testing::Types<stats::GaussianDistribution>);

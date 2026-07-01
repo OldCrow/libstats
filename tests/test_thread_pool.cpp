@@ -236,7 +236,7 @@ class ThreadPoolTest {
 
         try {
             // Test that error handling types are available
-            auto success = VoidResult::ok(true);
+            auto success = VoidResult::ok({});
             auto error = VoidResult::makeError(ValidationError::InvalidParameter, "Test error");
 
             EXPECT_TRUE(success.isOk());
@@ -246,7 +246,7 @@ class ThreadPoolTest {
 
             std::cout << "  Success result: " << (success.isOk() ? "OK" : "Error") << std::endl;
             std::cout << "  Error result: " << (error.isError() ? "Error" : "OK") << std::endl;
-            std::cout << "  Error message: " << error.message << std::endl;
+            std::cout << "  Error message: " << error.message() << std::endl;
 
             // Test error string conversion
             auto errorString = errorToString(ValidationError::InvalidParameter);

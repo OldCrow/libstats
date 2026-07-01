@@ -134,15 +134,10 @@ bool supports_fma();
 bool supports_avx512();
 bool supports_neon();
 
-/**
- * @brief Intel CPU generation detection functions
- * These functions identify specific Intel CPU generations for optimized constants
- */
-bool is_sandy_ivy_bridge();    // Sandy Bridge (2011) / Ivy Bridge (2012) - AVX, no AVX2
-bool is_haswell_broadwell();   // Haswell (2013) / Broadwell (2014) - AVX2, FMA
-bool is_skylake_generation();  // Skylake (2015) and derivatives - improved AVX2
-bool is_kaby_coffee_lake();    // Kaby Lake (2016) / Coffee Lake (2017-2018) - optimized Skylake
-bool is_modern_intel();        // Ice Lake (2019+) and newer - AVX-512 or latest optimizations
+// Intel microarchitecture classification is now encapsulated by
+// stats::arch::cpu_tier() in include/platform/internal/cpu_tier.h.
+// Use CpuTier::Intel_Legacy (Sandy/Ivy Bridge) or CpuTier::Intel_Modern
+// (Haswell and later) instead of per-generation classifier functions.
 
 /**
  * @brief Get a human-readable string of supported features
@@ -183,13 +178,9 @@ bool supports_avx512vl();
 bool supports_sve();
 bool supports_sve2();
 
-/**
- * @brief Cache information queries
- */
-std::optional<CacheInfo> get_l1_data_cache();
-std::optional<CacheInfo> get_l1_instruction_cache();
-std::optional<CacheInfo> get_l2_cache();
-std::optional<CacheInfo> get_l3_cache();
+// Cache information is available directly via get_features():
+//   get_features().l1_data_cache, .l2_cache, .l3_cache, .cache_line_size
+// These getter wrappers have been removed; use the Features struct instead.
 
 /**
  * @brief CPU topology queries
@@ -202,7 +193,7 @@ bool has_hyperthreading();
 /**
  * @brief Performance monitoring utilities
  */
-PerformanceInfo get_performance_info();
+// get_performance_info() removed; use get_features().performance directly.
 bool has_rdtsc();
 bool has_invariant_tsc();
 std::optional<uint64_t> get_tsc_frequency();
@@ -263,25 +254,6 @@ TimingResult measure_performance(Func&& func) {
  * @return TSC value, or 0 if not supported
  */
 uint64_t read_tsc();
-
-/**
- * @brief Estimate CPU frequency using TSC
- * @param duration_ms Duration to measure in milliseconds
- * @return Estimated frequency in Hz, or 0 if measurement failed
- */
-std::optional<uint64_t> estimate_cpu_frequency(uint32_t duration_ms = 100);
-
-/**
- * @brief Get detailed CPU information string
- * @return Multi-line string with comprehensive CPU information
- */
-std::string detailed_cpu_info();
-
-/**
- * @brief Validate CPU feature consistency
- * @return True if detected features are consistent, false otherwise
- */
-bool validate_feature_consistency();
 
 }  // namespace arch
 }  // namespace stats

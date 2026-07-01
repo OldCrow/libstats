@@ -1,7 +1,9 @@
 #pragma once
 
+// AQ-7/8: simd.h removed from math_utils.h — no SIMD intrinsic types are used
+// in these declarations. The SIMD vector function implementations reside in .cpp
+// files which include simd.h directly.
 #include "libstats/common/utility_common.h"
-#include "libstats/platform/simd.h"
 #include "math_constants.h"
 #include "safety.h"
 #include "statistical_constants.h"
@@ -155,55 +157,40 @@ namespace detail {
  */
 void vector_erf(std::span<const double> input, std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized complementary error function computation using SIMD optimization
- * @param input Input values
- * @param output Output array for erfc(input[i])
- * @param size Number of elements to process
- */
+// DEFERRED: vector_erfc
+// Target: Gaussian CDF error-function-complement SIMD path; would eliminate
+//   the scalar fallback for erfc() in the Gaussian CDF batch kernel.
+// Prerequisite: an erfc SIMD primitive (currently only vector_erf exists).
+//   Low priority: erf is the dominant operation; erfc is a derived quantity.
 void vector_erfc(std::span<const double> input, std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized regularized incomplete gamma function P(a,x) using SIMD
- * @param a Shape parameter (constant for all x values)
- * @param x_values Input x values
- * @param output Output array for gamma_p(a, x_values[i])
- * @note Uses SIMD optimization for the series expansion when beneficial
- */
+// DEFERRED: vector_gamma_p / vector_gamma_q
+// Target: Gamma/ChiSquared/Poisson CDF batch SIMD acceleration.
+// Prerequisite: SIMD series expansion for the regularized incomplete gamma
+//   function — requires branch-free iteration or a lookup table approach
+//   for the alternating series (hard to vectorize with early exit).
+// Estimated impact: moderate; Gamma CDF is already fast at 64 per scalar.
 void vector_gamma_p(double a, std::span<const double> x_values, std::span<double> output) noexcept;
-
-/**
- * @brief Vectorized regularized incomplete gamma function Q(a,x) using SIMD
- * @param a Shape parameter (constant for all x values)
- * @param x_values Input x values
- * @param output Output array for math::gamma_q(a, x_values[i])
- */
 void vector_gamma_q(double a, std::span<const double> x_values, std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized regularized incomplete beta function I_x(a,b) using SIMD
- * @param x_values Input x values in [0,1]
- * @param a First shape parameter (constant for all x values)
- * @param b Second shape parameter (constant for all x values)
- * @param output Output array for beta_i(x_values[i], a, b)
- */
+// DEFERRED: vector_beta_i
+// Target: Beta/Binomial-CDF/Student-t CDF SIMD batch acceleration.
+// Prerequisite: SIMD continued fraction for the regularized incomplete beta;
+//   Lentz's algorithm is sequential by nature. A table/polynomial substitute
+//   is needed for batched evaluation.
+// Estimated impact: high for Beta and StudentT CDF paths.
 void vector_beta_i(std::span<const double> x_values, double a, double b,
                    std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized natural logarithm of gamma function using SIMD
- * @param input Input values (x > 0)
- * @param output Output array for lgamma(input[i])
- */
+// DEFERRED: vector_lgamma — indefinitely deferred (see AGENTS.md Deferred Items).
+// Too complex to implement correctly as a SIMD primitive; low immediate
+// distribution impact given the existing scalar batch speeds.
 void vector_lgamma(std::span<const double> input, std::span<double> output) noexcept;
 
-/**
- * @brief Vectorized natural logarithm of beta function using SIMD
- * @param a_values First parameter values (a > 0)
- * @param b_values Second parameter values (b > 0)
- * @param output Output array for lbeta(a_values[i], b_values[i])
- * @note Requires a_values.size() == b_values.size() == output.size()
- */
+// DEFERRED: vector_lbeta
+// Target: NegativeBinomial PMF/CDF SIMD batch (lbeta appears in the lgamma-based PMF).
+// Prerequisite: vector_lgamma (itself indefinitely deferred; see above).
+//   Once vector_lgamma is available, vector_lbeta is a trivial wrapper.
 void vector_lbeta(std::span<const double> a_values, std::span<const double> b_values,
                   std::span<double> output) noexcept;
 
@@ -224,20 +211,11 @@ void vector_lbeta(std::span<const double> a_values, std::span<const double> b_va
 // NUMERICAL INTEGRATION
 // =============================================================================
 
-#if LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK
-    #define LIBSTATS_MATHFUNC_TEMPLATE_1(name)                                                     \
-        template <typename name>                                                                   \
-            requires MathFunction<name, double>
-    #define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                             \
-        template <typename name1, typename name2>                                                  \
-            requires MathFunction<name1, double> && MathFunction<name2, double>
-    #define LIBSTATS_CONSTRAINED_NODISCARD
-#else
-    #define LIBSTATS_MATHFUNC_TEMPLATE_1(name) template <MathFunction<double> name>
-    #define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                             \
-        template <MathFunction<double> name1, MathFunction<double> name2>
-    #define LIBSTATS_CONSTRAINED_NODISCARD [[nodiscard]]
-#endif
+// Catalina concept-syntax fallback removed in v2.0.0 (v2.0.0 requires macOS 13+).
+#define LIBSTATS_MATHFUNC_TEMPLATE_1(name) template <MathFunction<double> name>
+#define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                                 \
+    template <MathFunction<double> name1, MathFunction<double> name2>
+#define LIBSTATS_CONSTRAINED_NODISCARD [[nodiscard]]
 
 /**
  * @brief Adaptive Simpson's rule for numerical integration
@@ -380,6 +358,10 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  * @param df2 denominator degrees of freedom (df2 > 0)
  * @return x such that P(F <= x) = p where F ~ F(df1, df2)
  */
+// DEFERRED: inverse_f_cdf
+// Forward-looking stub for the F-distribution quantile function.
+// Will be called by FDistribution::getQuantile() once an F-distribution is
+// implemented. Currently has no callers.
 [[nodiscard]] double inverse_f_cdf(double p, double df1, double df2) noexcept;
 
 /**
@@ -398,41 +380,17 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  * @param scale scale parameter (beta > 0)
  * @return x such that P(X <= x) = p where X ~ Gamma(shape, scale)
  */
+// DEFERRED: gamma_inverse_cdf
+// Forward-looking stub for an analytic Gamma/ChiSquared quantile path.
+// Currently has no callers — GammaDistribution::getQuantile() uses a
+// numerical inversion. Replace the numerical path with this function once
+// the analytic implementation is validated to be faster and equally accurate.
 [[nodiscard]] double gamma_inverse_cdf(double p, double shape, double scale) noexcept;
 
-// =============================================================================
-// STATISTICAL UTILITIES
-// =============================================================================
-
-/**
- * @brief Calculate empirical CDF from sorted data
- * @param data Sorted data vector
- * @return Vector of empirical CDF values
- */
-[[nodiscard]] std::vector<double> empirical_cdf(std::span<const double> data);
-
-/**
- * @brief Calculate quantiles from sorted data
- * @param data Sorted data vector
- * @param quantiles Quantile levels to calculate
- * @return Vector of quantile values
- */
-[[nodiscard]] std::vector<double> calculate_quantiles(std::span<const double> data,
-                                                      std::span<const double> quantiles);
-
-/**
- * @brief Calculate sample moments (mean, variance, skewness, kurtosis)
- * @param data Data vector
- * @return Array [mean, variance, skewness, excess_kurtosis]
- */
-[[nodiscard]] std::array<double, 4> sample_moments(std::span<const double> data);
-
-/**
- * @brief Validate data for statistical fitting
- * @param data Data to validate
- * @return true if data is valid for fitting
- */
-[[nodiscard]] bool validate_fitting_data(std::span<const double> data) noexcept;
+// empirical_cdf, calculate_quantiles, sample_moments, validate_fitting_data
+// promoted to stats::analysis:: in v2.0.0 (API rationalization, D3).
+// Use: #include "libstats/stats/analysis/statistical_utilities.h"
+//      stats::analysis::empirical_cdf(data)  etc.
 
 // =============================================================================
 // GOODNESS-OF-FIT TESTING
@@ -477,16 +435,13 @@ namespace detail {
  * @return log(1 + exp(x))
  */
 [[nodiscard]] inline double log1pexp(double x) noexcept {
-    if (x > detail::LOG1PEXP_LARGE_THRESHOLD)
-        LIBSTATS_LIKELY {
-            return x;  // exp(x) dominates
-        }
-    else if (x > detail::LOG1PEXP_SMALL_THRESHOLD) {
+    if (x > detail::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
+        return x;  // exp(x) dominates
+    } else if (x > detail::LOG1PEXP_SMALL_THRESHOLD) {
         return std::log1p(std::exp(x));
-    } else
-        LIBSTATS_UNLIKELY {
-            return std::exp(x);  // 1 + exp(x) ≈ 1
-        }
+    } else [[unlikely]] {
+        return std::exp(x);  // 1 + exp(x) ≈ 1
+    }
 }
 
 /**
@@ -495,11 +450,9 @@ namespace detail {
  * @return log(exp(x) - 1)
  */
 [[nodiscard]] inline double logexpm1(double x) noexcept {
-    if (x > detail::LOG1PEXP_LARGE_THRESHOLD)
-        LIBSTATS_LIKELY {
-            return x;  // exp(x) dominates
-        }
-    else {
+    if (x > detail::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
+        return x;  // exp(x) dominates
+    } else {
         return std::log(std::expm1(x));
     }
 }
@@ -511,11 +464,9 @@ namespace detail {
  * @return log(x + y)
  */
 [[nodiscard]] inline double log_sum_exp(double log_x, double log_y) noexcept {
-    if (log_x > log_y)
-        LIBSTATS_LIKELY {
-            return log_x + std::log1p(std::exp(log_y - log_x));
-        }
-    else {
+    if (log_x > log_y) [[likely]] {
+        return log_x + std::log1p(std::exp(log_y - log_x));
+    } else {
         return log_y + std::log1p(std::exp(log_x - log_y));
     }
 }
@@ -541,10 +492,9 @@ LIBSTATS_CONSTRAINED_NODISCARD constexpr bool is_safe_float(T x) noexcept {
 template <typename T>
     requires FloatingPoint<T>
 LIBSTATS_CONSTRAINED_NODISCARD constexpr T clamp_safe(T x, T min_val, T max_val) noexcept {
-    if (std::isnan(x))
-        LIBSTATS_UNLIKELY {
-            return min_val;
-        }
+    if (std::isnan(x)) [[unlikely]] {
+        return min_val;
+    }
     return std::clamp(x, min_val, max_val);
 }
 
@@ -619,132 +569,6 @@ LIBSTATS_CONSTRAINED_NODISCARD constexpr T safe_divide(T numerator, T denominato
     double log_sum_weights = log_sum_exp(log_weights);
 
     return log_sum_weighted - log_sum_weights;
-}
-
-/**
- * @brief Check numerical condition of a computation
- * @param value Result value to check
- * @param context Description of the computation
- * @return True if value is numerically sound
- */
-[[nodiscard]] inline bool check_numerical_condition(
-    double value, const std::string& context = "computation") noexcept {
-    if (std::isnan(value)) {
-        // In production, we might want to log this instead of throwing
-        // For now, the context could be used for debugging/logging purposes
-        [[maybe_unused]] auto _ =
-            context;  // Acknowledge parameter to avoid warning in non-debug builds
-        return false;
-    }
-    if (std::isinf(value)) {
-        [[maybe_unused]] auto _ = context;
-        return false;
-    }
-    if (std::abs(value) > detail::MAX_DISTRIBUTION_PARAMETER) {
-        [[maybe_unused]] auto _ = context;
-        return false;
-    }
-    return true;
-}
-
-/**
- * @brief Adaptive precision scaling based on data characteristics
- * @param base_tolerance Base tolerance
- * @param data_range Range of data values
- * @param problem_size Size of the problem
- * @return Scaled tolerance
- */
-[[nodiscard]] inline double adaptive_tolerance(double base_tolerance, double data_range,
-                                               std::size_t problem_size) noexcept {
-    // Scale tolerance based on data range
-    double range_factor = std::max(detail::ONE, std::log10(std::max(detail::ONE, data_range)));
-
-    // Scale tolerance based on problem size
-    double size_factor = std::max(detail::ONE, std::log10(static_cast<double>(problem_size)));
-
-    return base_tolerance * range_factor * size_factor;
-}
-
-//==============================================================================
-// NUMERICAL DIAGNOSTICS
-//==============================================================================
-
-/**
- * @brief Diagnostic information about numerical computations
- */
-struct NumericalDiagnostics {
-    bool has_nan = false;
-    bool has_inf = false;
-    bool has_underflow = false;
-    bool has_overflow = false;
-    double min_value = std::numeric_limits<double>::max();
-    double max_value = std::numeric_limits<double>::lowest();
-    double condition_estimate = detail::ONE;
-    std::size_t problem_size = 0;
-    std::string recommendations;
-};
-
-/**
- * @brief Analyze numerical properties of a data vector
- * @param data Vector to analyze
- * @param name Name for reporting
- * @return Diagnostic report
- */
-[[nodiscard]] inline NumericalDiagnostics analyze_vector(std::span<const double> data,
-                                                         const std::string& name = "vector") {
-    NumericalDiagnostics diag;
-    diag.problem_size = data.size();
-
-    if (data.empty()) {
-        diag.recommendations = "Empty " + name + " - no analysis possible";
-        return diag;
-    }
-
-    for (double value : data) {
-        if (std::isnan(value)) {
-            diag.has_nan = true;
-        } else if (std::isinf(value)) {
-            diag.has_inf = true;
-        } else {
-            diag.min_value = std::min(diag.min_value, value);
-            diag.max_value = std::max(diag.max_value, value);
-
-            if (std::abs(value) < detail::ZERO) {
-                diag.has_underflow = true;
-            }
-            if (std::abs(value) > detail::MAX_DISTRIBUTION_PARAMETER) {
-                diag.has_overflow = true;
-            }
-        }
-    }
-
-    // Estimate condition number (simplified)
-    if (diag.min_value > 0 && diag.max_value > 0) {
-        diag.condition_estimate = diag.max_value / diag.min_value;
-    }
-
-    // Generate recommendations
-    if (diag.has_nan) {
-        diag.recommendations += "NaN values detected - check input data; ";
-    }
-    if (diag.has_inf) {
-        diag.recommendations += "Infinite values detected - potential overflow; ";
-    }
-    if (diag.condition_estimate > detail::HIGH_CONDITION_NUMBER_THRESHOLD) {
-        diag.recommendations += "High condition number - numerical instability likely; ";
-    }
-    if (diag.has_underflow) {
-        diag.recommendations += "Underflow detected - consider log-space computation; ";
-    }
-    if (diag.has_overflow) {
-        diag.recommendations += "Overflow detected - consider scaling or log-space computation; ";
-    }
-
-    if (diag.recommendations.empty()) {
-        diag.recommendations = "Numerical properties appear healthy";
-    }
-
-    return diag;
 }
 
 }  // namespace detail

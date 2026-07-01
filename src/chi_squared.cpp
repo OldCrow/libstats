@@ -1,9 +1,13 @@
 #include "libstats/distributions/chi_squared.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -54,7 +58,6 @@ ChiSquaredDistribution& ChiSquaredDistribution::operator=(const ChiSquaredDistri
 
 ChiSquaredDistribution::ChiSquaredDistribution(ChiSquaredDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     k_ = other.k_;
     gamma_ = std::move(other.gamma_);
     other.k_ = detail::ONE;
@@ -62,12 +65,8 @@ ChiSquaredDistribution::ChiSquaredDistribution(ChiSquaredDistribution&& other) n
     other.cacheValidAtomic_.store(false, std::memory_order_release);
 }
 
-ChiSquaredDistribution& ChiSquaredDistribution::operator=(ChiSquaredDistribution&& other) {
+ChiSquaredDistribution& ChiSquaredDistribution::operator=(ChiSquaredDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
-
         k_ = other.k_;
         gamma_ = std::move(other.gamma_);
         other.k_ = detail::ONE;
@@ -106,8 +105,8 @@ void ChiSquaredDistribution::setK(double k) {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
     }
-    // Update gamma_ outside our lock to avoid holding two locks at once.
-    // gamma_ is private, so no external thread can lock it while we don't hold ours.
+    // Sync gamma_ outside our lock — same pattern as reset(). gamma_ is private,
+    // so no external thread can acquire its lock while we don't hold ours.
     (void)gamma_.trySetAlpha(k / detail::TWO);
 }
 
@@ -123,7 +122,7 @@ VoidResult ChiSquaredDistribution::trySetK(double k) noexcept {
         cacheValidAtomic_.store(false, std::memory_order_release);
     }
     (void)gamma_.trySetAlpha(k / detail::TWO);
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult ChiSquaredDistribution::validateCurrentParameters() const noexcept {
@@ -139,8 +138,9 @@ void ChiSquaredDistribution::fit(const std::vector<double>& values) {
         throw std::invalid_argument("Data vector cannot be empty");
     }
     for (double v : values) {
-        if (v <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("All values must be positive for chi-squared MLE");
+        if (v <= detail::ZERO_DOUBLE || !std::isfinite(v)) {
+            throw std::invalid_argument(
+                "All values must be positive and finite for chi-squared MLE");
         }
     }
 

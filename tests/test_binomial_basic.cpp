@@ -1,4 +1,5 @@
 // Focused unit test for Binomial distribution
+#include "include/basic_test_runner.h"
 #include "include/tests.h"
 #include "libstats/distributions/binomial.h"
 
@@ -26,18 +27,18 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Default (n=10, p=0.5). Discrete support {0, ..., n}." << endl;
 
-        auto default_b = BinomialDistribution::create().value;
+        auto default_b = BinomialDistribution::create().unwrap();
         BasicTestFormatter::printPropertyInt("Default n (expect 10)", default_b.getN());
         BasicTestFormatter::printProperty("Default p (expect 0.5)", default_b.getP());
 
-        auto b1 = BinomialDistribution::create(20, 0.3).value;
+        auto b1 = BinomialDistribution::create(20, 0.3).unwrap();
         BasicTestFormatter::printPropertyInt("n=20 trials", b1.getN());
         BasicTestFormatter::printProperty("p=0.3", b1.getP());
 
         auto copy_b = b1;
         BasicTestFormatter::printPropertyInt("Copy n", copy_b.getN());
 
-        auto temp = BinomialDistribution::create(5, 0.7).value;
+        auto temp = BinomialDistribution::create(5, 0.7).unwrap();
         auto move_b = std::move(temp);
         BasicTestFormatter::printPropertyInt("Move n (expect 5)", move_b.getN());
 
@@ -57,7 +58,7 @@ int main() {
         // =====================================================================
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
-        auto binom = BinomialDistribution::create(10, 0.5).value;
+        auto binom = BinomialDistribution::create(10, 0.5).unwrap();
         BasicTestFormatter::printPropertyInt("n", binom.getN());
         BasicTestFormatter::printProperty("p", binom.getP());
         BasicTestFormatter::printPropertyInt("Num parameters (expect 2)", binom.getNumParameters());
@@ -66,7 +67,7 @@ int main() {
 
         // Moments: Binomial(10, 0.5) — mean=5, var=2.5
         const double expected_mean = 5.0;
-        const double expected_var  = 2.5;
+        const double expected_var = 2.5;
         BasicTestFormatter::printProperty("Mean (expect 5.0)", binom.getMean());
         BasicTestFormatter::printProperty("Variance (expect 2.5)", binom.getVariance());
         BasicTestFormatter::printProperty("Skewness (expect 0)", binom.getSkewness());
@@ -103,7 +104,7 @@ int main() {
         BasicTestFormatter::printTestStart(3, "Core Probability Methods");
         cout << "Binomial(10, 0.5): PMF(5)=C(10,5)*(0.5)^10=252/1024≈0.24609375" << endl;
 
-        auto b = BinomialDistribution::create(10, 0.5).value;
+        auto b = BinomialDistribution::create(10, 0.5).unwrap();
 
         // PMF(5) = 252/1024 = 0.24609375
         const double pmf5 = b.getProbability(5.0);
@@ -134,9 +135,11 @@ int main() {
 
         // CDF boundaries
         const double cdf_neg = b.getCumulativeProbability(-1.0);
-        const double cdf_n   = b.getCumulativeProbability(10.0);
-        cout << "CDF(-1) = " << cdf_neg << " (expect 0): " << (cdf_neg == 0.0 ? "PASS" : "FAIL") << endl;
-        cout << "CDF(10) = " << cdf_n  << " (expect 1): " << (cdf_n == 1.0 ? "PASS" : "FAIL") << endl;
+        const double cdf_n = b.getCumulativeProbability(10.0);
+        cout << "CDF(-1) = " << cdf_neg << " (expect 0): " << (cdf_neg == 0.0 ? "PASS" : "FAIL")
+             << endl;
+        cout << "CDF(10) = " << cdf_n << " (expect 1): " << (cdf_n == 1.0 ? "PASS" : "FAIL")
+             << endl;
 
         // PMF out of range
         const double pmf_neg = b.getProbability(-1.0);
@@ -146,7 +149,8 @@ int main() {
 
         // Quantile round-trip
         const double q5 = b.getQuantile(cdf5);
-        cout << "Quantile(CDF(5)) = " << q5 << " (expect 5): " << (q5 == 5.0 ? "PASS" : "FAIL") << endl;
+        cout << "Quantile(CDF(5)) = " << q5 << " (expect 5): " << (q5 == 5.0 ? "PASS" : "FAIL")
+             << endl;
 
         if (!pmf5_ok || !pmf0_ok || !logpmf_ok || !cdf5_ok)
             throw runtime_error("Probability accuracy failed");
@@ -161,7 +165,7 @@ int main() {
         cout << "std::binomial_distribution<int>(n, p). Samples in {0, ..., n}." << endl;
 
         mt19937 rng(42);
-        auto sample_b = BinomialDistribution::create(10, 0.5).value;
+        auto sample_b = BinomialDistribution::create(10, 0.5).unwrap();
         const double s = sample_b.sample(rng);
         cout << "Single sample in {0..10}: " << (s >= 0.0 && s <= 10.0 ? "PASS" : "FAIL") << endl;
 
@@ -170,7 +174,9 @@ int main() {
         double sample_mean = 0.0;
         for (double sv : samples) {
             sample_mean += sv;
-            if (sv < 0.0 || sv > 10.0) { all_in_range = false; }
+            if (sv < 0.0 || sv > 10.0) {
+                all_in_range = false;
+            }
         }
         sample_mean /= 500.0;
         cout << "All 500 samples in {0..10}: " << (all_in_range ? "PASS" : "FAIL") << endl;
@@ -190,15 +196,18 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: n̂ = max(round(xᵢ)), p̂ = k̄/n̂." << endl;
 
-        auto fit_dist = BinomialDistribution::create(10, 0.5).value;
+        auto fit_dist = BinomialDistribution::create(10, 0.5).unwrap();
         // Fit to Binomial(8, 0.6) samples
-        auto source = BinomialDistribution::create(8, 0.6).value;
+        auto source = BinomialDistribution::create(8, 0.6).unwrap();
         const auto fit_data = source.sample(rng, 400);
         fit_dist.fit(fit_data);
-        BasicTestFormatter::printPropertyInt("Fitted n (from Bin(8,0.6), expect ~8)", fit_dist.getN());
-        BasicTestFormatter::printProperty("Fitted p (from Bin(8,0.6), expect ~0.6)", fit_dist.getP());
+        BasicTestFormatter::printPropertyInt("Fitted n (from Bin(8,0.6), expect ~8)",
+                                             fit_dist.getN());
+        BasicTestFormatter::printProperty("Fitted p (from Bin(8,0.6), expect ~0.6)",
+                                          fit_dist.getP());
         // n̂ = max(k) ≥ 1
-        const bool fit_ok = (fit_dist.getN() >= 1) && (fit_dist.getP() > 0.0) && (fit_dist.getP() <= 1.0);
+        const bool fit_ok =
+            (fit_dist.getN() >= 1) && (fit_dist.getP() > 0.0) && (fit_dist.getP() <= 1.0);
         cout << "Fit parameters valid: " << (fit_ok ? "PASS" : "FAIL") << endl;
 
         fit_dist.reset();
@@ -208,60 +217,27 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Batch Operations");
-        cout << "VECTORIZED = scalar loop with cached logNFact_, logP_, log1mP_." << endl;
+        stats::tests::BasicDistConfig cfg{
+            "Binomial", {0.0, 2.0, 5.0, 8.0, 10.0}, 0.0, 10.5, 1e-12,
+            1e-9  // cdf_tolerance
+        };
+        cfg.invalid_scenarios = {
+            {"n=0", [] { return BinomialDistribution::create(0, 0.5).isError(); }},
+            {"n=-1", [] { return BinomialDistribution::create(-1, 0.5).isError(); }},
+            {"p=-0.1", [] { return BinomialDistribution::create(10, -0.1).isError(); }},
+            {"p=1.1", [] { return BinomialDistribution::create(10, 1.1).isError(); }},
+        };
+        auto batch_b = BinomialDistribution::create(10, 0.5).unwrap();
+        stats::tests::runBatchTests(cfg, batch_b);
 
-        auto batch_b = BinomialDistribution::create(10, 0.5).value;
-        const vector<double> xs = {0.0, 2.0, 5.0, 8.0, 10.0};
-        vector<double> pdf_out(xs.size()), lpdf_out(xs.size()), cdf_out(xs.size());
-
-        batch_b.getProbability(span<const double>(xs), span<double>(pdf_out));
-        batch_b.getLogProbability(span<const double>(xs), span<double>(lpdf_out));
-        batch_b.getCumulativeProbability(span<const double>(xs), span<double>(cdf_out));
-
-        bool batch_ok = true;
-        for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_out[i] - batch_b.getProbability(xs[i])) > 1e-12 ||
-                std::abs(lpdf_out[i] - batch_b.getLogProbability(xs[i])) > 1e-12 ||
-                std::abs(cdf_out[i] - batch_b.getCumulativeProbability(xs[i])) > 1e-9) {
-                batch_ok = false;
-                break;
-            }
-        }
-        cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
-
-        const size_t N = 200;
-        vector<double> large_in(N), vec_out(N), scl_out(N);
-        for (size_t i = 0; i < N; ++i)
-            large_in[i] = static_cast<double>(i % 11);
-        batch_b.getLogProbabilityWithStrategy(span<const double>(large_in), span<double>(vec_out),
-                                              stats::detail::Strategy::VECTORIZED);
-        batch_b.getLogProbabilityWithStrategy(span<const double>(large_in), span<double>(scl_out),
-                                              stats::detail::Strategy::SCALAR);
-        bool large_ok = true;
-        for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-12) { large_ok = false; break; }
-        }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL") << endl;
-
-        if (!batch_ok || !large_ok)
-            throw runtime_error("Batch operation test failed");
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = BinomialDistribution::create(10, 0.5).value;
-        auto d2 = BinomialDistribution::create(10, 0.5).value;
-        auto d3 = BinomialDistribution::create(10, 0.3).value;
+        auto d1 = BinomialDistribution::create(10, 0.5).unwrap();
+        auto d2 = BinomialDistribution::create(10, 0.5).unwrap();
+        auto d3 = BinomialDistribution::create(10, 0.3).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << endl;
         cout << "d1 == d3: " << (d1 == d3 ? "true" : "false") << endl;
         cout << "d1 != d3: " << (d1 != d3 ? "true" : "false") << endl;
@@ -269,11 +245,10 @@ int main() {
         stringstream ss;
         ss << d1;
         cout << "Stream output: " << ss.str() << endl;
-        auto in_dist = BinomialDistribution::create().value;
+        auto in_dist = BinomialDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
-            cout << "Stream round-trip n=" << in_dist.getN()
-                 << " p=" << in_dist.getP() << endl;
+            cout << "Stream round-trip n=" << in_dist.getN() << " p=" << in_dist.getP() << endl;
 
         BasicTestFormatter::printTestSuccess("Comparison and stream tests passed");
         BasicTestFormatter::printNewline();
@@ -281,30 +256,7 @@ int main() {
         // =====================================================================
         // Test 8: Error Handling
         // =====================================================================
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-
-        auto e1 = BinomialDistribution::create(0, 0.5);
-        if (e1.isError())
-            BasicTestFormatter::printTestSuccess("n=0 rejected: " + e1.message);
-        auto e2 = BinomialDistribution::create(-1, 0.5);
-        if (e2.isError())
-            BasicTestFormatter::printTestSuccess("n=-1 rejected: " + e2.message);
-        auto e3 = BinomialDistribution::create(10, -0.1);
-        if (e3.isError())
-            BasicTestFormatter::printTestSuccess("p=-0.1 rejected: " + e3.message);
-        auto e4 = BinomialDistribution::create(10, 1.1);
-        if (e4.isError())
-            BasicTestFormatter::printTestSuccess("p=1.1 rejected: " + e4.message);
-
-        // PMF / CDF with non-finite x
-        auto eb = BinomialDistribution::create(10, 0.5).value;
-        const double pmf_nan = eb.getProbability(std::numeric_limits<double>::quiet_NaN());
-        const double pmf_inf = eb.getProbability(std::numeric_limits<double>::infinity());
-        cout << "PMF(NaN)=0: " << (pmf_nan == 0.0 ? "PASS" : "FAIL") << endl;
-        cout << "PMF(Inf)=0: " << (pmf_inf == 0.0 ? "PASS" : "FAIL") << endl;
-
-        BasicTestFormatter::printTestSuccess("All error handling tests passed");
-        BasicTestFormatter::printNewline();
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printTestSuccess("All Binomial tests completed successfully");
         return 0;

@@ -1,5 +1,6 @@
 #include "libstats/core/distribution_base.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/math_constants.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/performance_dispatcher.h"
@@ -20,24 +21,43 @@
 namespace stats {
 
 // =============================================================================
+// INTERNAL HELPERS
+// =============================================================================
+
+/**
+ * Computes log-likelihood, AIC and BIC for a fitted DistributionBase.
+ *
+ * Implements the same formula as stats::analysis::informationCriteria<D>().
+ * A file-local function is used here because DistributionBase cannot satisfy
+ * the AnyDistribution concept (it lacks static kDistributionType / kIsDiscrete
+ * members, which are only meaningful on concrete distribution types).
+ *
+ * Formula:
+ *   log_likelihood = Σ log P(x_i | θ)
+ *   AIC  = 2k − 2ℓ
+ *   BIC  = k ln n − 2ℓ
+ *
+ * Sync note: if the formula in information_criteria.h ever changes, update here.
+ */
+static void compute_fit_ic(const std::vector<double>& data, const DistributionBase& dist,
+                           double& log_likelihood, double& aic, double& bic) noexcept {
+    const int k = dist.getNumParameters();
+    const double n = static_cast<double>(data.size());
+    log_likelihood = 0.0;
+    for (double x : data)
+        log_likelihood += dist.getLogProbability(x);
+    aic = 2.0 * k - 2.0 * log_likelihood;
+    bic = k * std::log(n) - 2.0 * log_likelihood;
+}
+
+// =============================================================================
 // RULE OF FIVE IMPLEMENTATION
 // =============================================================================
 
 DistributionBase::DistributionBase() {
-    // Initialize all critical system components during base class construction
-    // This ensures one-time initialization overhead happens during object creation,
-    // not during the first method call, providing predictable performance.
-
-    // Initialize SystemCapabilities (thread_local singleton)
+    // Warm up SystemCapabilities on first construction so the SIMD detection
+    // singleton is initialised before any batch call.
     detail::SystemCapabilities::current();
-
-    // Initialize PerformanceDispatcher (static thread_local)
-    // This triggers SIMD level detection and threshold initialization
-    static thread_local detail::PerformanceDispatcher dispatcher;
-
-    // Initialize PerformanceHistory (static global singleton)
-    // This ensures the performance tracking system is ready
-    [[maybe_unused]] auto& history = detail::PerformanceDispatcher::getPerformanceHistory();
 }
 
 DistributionBase::DistributionBase(const DistributionBase& /* other */) {
@@ -69,61 +89,6 @@ DistributionBase& DistributionBase::operator=(DistributionBase&& other) noexcept
 }
 
 // =============================================================================
-// PARALLEL-OPTIMIZED BATCH OPERATIONS - WITH AUTOMATIC PARALLEL EXECUTION
-// =============================================================================
-
-std::vector<double> DistributionBase::getBatchProbabilities(
-    const std::vector<double>& x_values) const {
-    std::vector<double> results(x_values.size());
-
-    // Use parallel transform for large datasets
-    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                         [this](double x) { return this->getProbability(x); });
-
-    return results;
-}
-
-std::vector<double> DistributionBase::getBatchLogProbabilities(
-    const std::vector<double>& x_values) const {
-    std::vector<double> results(x_values.size());
-
-    // Use parallel transform for large datasets
-    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                         [this](double x) { return this->getLogProbability(x); });
-
-    return results;
-}
-
-std::vector<double> DistributionBase::getBatchCumulativeProbabilities(
-    const std::vector<double>& x_values) const {
-    std::vector<double> results(x_values.size());
-
-    // Use parallel transform for large datasets
-    arch::safe_transform(x_values.begin(), x_values.end(), results.begin(),
-                         [this](double x) { return this->getCumulativeProbability(x); });
-
-    return results;
-}
-
-std::vector<double> DistributionBase::getBatchQuantiles(const std::vector<double>& p_values) const {
-    // Validate input probabilities first
-    for (double p : p_values) {
-        if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
-            throw std::invalid_argument("Quantile probability must be in [0,1], got: " +
-                                        std::to_string(p));
-        }
-    }
-
-    std::vector<double> results(p_values.size());
-
-    // Use parallel transform for large datasets after validation
-    arch::safe_transform(p_values.begin(), p_values.end(), results.begin(),
-                         [this](double p) { return this->getQuantile(p); });
-
-    return results;
-}
-
-// =============================================================================
 // STATISTICAL VALIDATION AND DIAGNOSTICS
 // =============================================================================
 
@@ -139,20 +104,12 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
         results.fit_successful = true;
         results.fit_diagnostics = "Fit completed successfully";
 
-        // Calculate log-likelihood
-        results.log_likelihood = detail::ZERO_DOUBLE;
-        for (double x : data) {
-            double log_prob = getLogProbability(x);
-            if (std::isfinite(log_prob)) {
-                results.log_likelihood += log_prob;
-            }
-        }
-
-        // Calculate AIC and BIC
-        int k = getNumParameters();
-        int n = static_cast<int>(data.size());
-        results.aic = detail::TWO * k - detail::TWO * results.log_likelihood;
-        results.bic = k * std::log(n) - detail::TWO * results.log_likelihood;
+        // Compute log-likelihood, AIC, BIC via shared helper (same formula as
+        // stats::analysis::informationCriteria; see compute_fit_ic comment above).
+        // The previous isfinite guard is removed: silently skipping -inf
+        // log-probs was incorrect (it inflated the log-likelihood for
+        // out-of-support data). Letting -inf propagate is mathematically right.
+        compute_fit_ic(data, *this, results.log_likelihood, results.aic, results.bic);
 
         // Calculate residuals
         std::vector<double> sorted_data = data;
@@ -192,6 +149,22 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
 ValidationResult DistributionBase::validate(const std::vector<double>& data) const {
     ValidationResult result;
 
+    // KS and AD tests assume a continuous null distribution and are statistically
+    // invalid for discrete distributions (Poisson, Binomial, NegBinomial, Discrete).
+    // The stats::analysis:: layer already gates them behind ContinuousDistribution;
+    // mirror that guard here so validate() / fitWithDiagnostics() are consistent.
+    if (isDiscrete()) {
+        result.ks_statistic = std::numeric_limits<double>::quiet_NaN();
+        result.ks_p_value = std::numeric_limits<double>::quiet_NaN();
+        result.ad_statistic = std::numeric_limits<double>::quiet_NaN();
+        result.ad_p_value = std::numeric_limits<double>::quiet_NaN();
+        result.distribution_adequate = true;  // no evidence against
+        result.recommendations =
+            "KS and AD tests are not valid for discrete distributions. "
+            "Use stats::analysis::chiSquaredGoodnessOfFitTest instead.";
+        return result;
+    }
+
     try {
         validateFittingData(data);
 
@@ -209,17 +182,17 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
         // Anderson-Darling test
         result.ad_statistic = detail::calculate_ad_statistic(data, *this);
 
-        // Simple p-value approximation for AD test
-        // This is a simplified approximation - in practice, you'd use lookup tables
-        if (result.ad_statistic < detail::AD_THRESHOLD_1) {
-            result.ad_p_value = detail::AD_P_VALUE_HIGH;
-        } else if (result.ad_statistic < detail::ONE) {
-            result.ad_p_value = detail::AD_P_VALUE_MEDIUM;
-        } else if (result.ad_statistic < detail::TWO) {
-            result.ad_p_value = detail::ALPHA_10;
+        // LP-14: Continuous exponential p-value approximation (same formula as
+        // stats::analysis::andersonDarlingTest in goodness_of_fit.h) — replaces the
+        // 4-bucket step function that mapped very different statistic values to the same p-value.
+        if (result.ad_statistic >= 13.0) {
+            result.ad_p_value = 0.0;
+        } else if (result.ad_statistic >= 6.0) {
+            result.ad_p_value = std::exp(-1.28 * result.ad_statistic);
         } else {
-            result.ad_p_value = detail::ALPHA_01;
+            result.ad_p_value = std::exp(-1.8 * result.ad_statistic + 1.5);
         }
+        result.ad_p_value = std::min(1.0, std::max(0.0, result.ad_p_value));
 
         // Overall assessment
         result.distribution_adequate =
@@ -255,42 +228,11 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
 }
 
 // =============================================================================
-// INFORMATION THEORY METRICS
-// =============================================================================
-
-double DistributionBase::getKLDivergence(const DistributionBase& other) const {
-    // Numerical approximation using integration
-    // In practice, this would use adaptive quadrature
-    double lower = std::max(getSupportLowerBound(), other.getSupportLowerBound());
-    double upper = std::min(getSupportUpperBound(), other.getSupportUpperBound());
-
-    if (lower >= upper) {
-        return std::numeric_limits<double>::infinity();
-    }
-
-    // Simple integration using trapezoidal rule
-    const int n_points = detail::DEFAULT_INTEGRATION_POINTS;
-    double step = (upper - lower) / n_points;
-    double divergence = detail::ZERO_DOUBLE;
-
-    for (int i = 0; i < n_points; ++i) {
-        double x = lower + i * step;
-        double p = getProbability(x);
-        double q = other.getProbability(x);
-
-        if (p > detail::MIN_PROBABILITY && q > detail::MIN_PROBABILITY) {
-            divergence += p * std::log(p / q) * step;
-        }
-    }
-
-    return divergence;
-}
-
-// =============================================================================
 // DISTRIBUTION COMPARISON
 // =============================================================================
 
-bool DistributionBase::isApproximatelyEqual(const DistributionBase& other, double tolerance) const {
+bool DistributionBase::isApproximatelyEqual(const DistributionInterface& other,
+                                            double tolerance) const {
     // Compare basic properties
     if (getDistributionName() != other.getDistributionName()) {
         return false;
@@ -300,12 +242,17 @@ bool DistributionBase::isApproximatelyEqual(const DistributionBase& other, doubl
         return false;
     }
 
-    // Compare statistical moments
-    if (std::abs(getMean() - other.getMean()) > tolerance) {
+    // LP-7: guard against NaN mean/variance — NaN comparisons always return false,
+    // which would cause NaN distributions to be treated as approximately equal.
+    const double myMean = getMean();
+    const double otherMean = other.getMean();
+    if (std::isnan(myMean) || std::isnan(otherMean) || std::abs(myMean - otherMean) > tolerance) {
         return false;
     }
 
-    if (std::abs(getVariance() - other.getVariance()) > tolerance) {
+    const double myVar = getVariance();
+    const double otherVar = other.getVariance();
+    if (std::isnan(myVar) || std::isnan(otherVar) || std::abs(myVar - otherVar) > tolerance) {
         return false;
     }
 
@@ -323,95 +270,10 @@ bool DistributionBase::isApproximatelyEqual(const DistributionBase& other, doubl
 
 // Cache management is handled by ThreadSafeCacheManager base class
 
-// =============================================================================
-// NUMERICAL UTILITIES
-// =============================================================================
-
-double DistributionBase::numericalIntegration(std::function<double(double)> pdf_func,
-                                              double lower_bound, double upper_bound,
-                                              double tolerance) {
-    // Adaptive Simpson's rule implementation
-    return adaptiveSimpsonIntegration(pdf_func, lower_bound, upper_bound, tolerance, 0,
-                                      detail::MAX_ADAPTIVE_SIMPSON_DEPTH);
-}
-
-// Helper function for adaptive Simpson's rule
-double DistributionBase::adaptiveSimpsonIntegration(std::function<double(double)> func, double a,
-                                                    double b, double tolerance, int depth,
-                                                    int max_depth) {
-    if (depth > max_depth) {
-        // Fallback to simple Simpson's rule if max depth exceeded
-        double mid = (a + b) / detail::TWO;
-        double fa = func(a);
-        double fb = func(b);
-        double fmid = func(mid);
-        return (b - a) / detail::SIX * (fa + detail::FOUR * fmid + fb);
-    }
-
-    double mid = (a + b) / detail::TWO;
-    double left_mid = (a + mid) / detail::TWO;
-    double right_mid = (mid + b) / detail::TWO;
-
-    // Evaluate function at all points
-    double fa = func(a);
-    double fb = func(b);
-    double fmid = func(mid);
-    double fleft_mid = func(left_mid);
-    double fright_mid = func(right_mid);
-
-    // Compute Simpson's rule for whole interval
-    double whole = (b - a) / detail::SIX * (fa + detail::FOUR * fmid + fb);
-
-    // Compute Simpson's rule for left and right halves
-    double left = (mid - a) / detail::SIX * (fa + detail::FOUR * fleft_mid + fmid);
-    double right = (b - mid) / detail::SIX * (fmid + detail::FOUR * fright_mid + fb);
-
-    double combined = left + right;
-
-    // Check if the error is within tolerance
-    if (std::abs(combined - whole) < 15.0 * tolerance) {
-        return combined + (combined - whole) / 15.0;  // Richardson extrapolation
-    }
-
-    // Recursively refine both halves with half the tolerance
-    return adaptiveSimpsonIntegration(func, a, mid, tolerance / detail::TWO,
-                                      depth + detail::ONE_INT, max_depth) +
-           adaptiveSimpsonIntegration(func, mid, b, tolerance / detail::TWO,
-                                      depth + detail::ONE_INT, max_depth);
-}
-
-double DistributionBase::newtonRaphsonQuantile(std::function<double(double)> cdf_func,
-                                               double target_probability, double initial_guess,
-                                               double tolerance) {
-    detail::check_probability(target_probability, "target_probability");
-
-    double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double h = detail::FORWARD_DIFF_STEP;  // For numerical derivative
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double fx = cdf_func(x) - target_probability;
-
-        if (std::abs(fx) < tolerance) {
-            return x;
-        }
-
-        // Numerical derivative
-        double fpx = (cdf_func(x + h) - cdf_func(x - h)) / (detail::TWO * h);
-
-        // Hard stop on near-zero derivative: return the current best estimate
-        // rather than computing a divergent step. Previously this was a break,
-        // which fell through to the final return x anyway; the hard return makes
-        // intent explicit and avoids the useless remaining iterations.
-        if (std::abs(fpx) < detail::ZERO) {
-            return x;
-        }
-
-        x = x - fx / fpx;
-    }
-
-    return x;
-}
+// numericalIntegration, adaptiveSimpsonIntegration, newtonRaphsonQuantile removed
+// in v2.0.0 (Step 3B). Use detail::adaptive_simpson() and detail::newton_raphson()
+// from math_utils.h directly. No derived distribution called these through the
+// protected interface.
 
 void DistributionBase::validateFittingData(const std::vector<double>& data) {
     if (data.empty()) {
@@ -448,194 +310,8 @@ std::vector<double> DistributionBase::calculateEmpiricalCDF(const std::vector<do
     return cdf_values;
 }
 
-// =============================================================================
-// SPECIAL MATHEMATICAL FUNCTIONS
-// =============================================================================
-
-double DistributionBase::erf(double x) noexcept {
-    // Use math_utils implementation if available, otherwise use std::erf
-    return std::erf(x);
-}
-
-double DistributionBase::erfc(double x) noexcept {
-    return std::erfc(x);
-}
-
-double DistributionBase::lgamma(double x) noexcept {
-    return std::lgamma(x);
-}
-
-double DistributionBase::gammaP(double a, double x) noexcept {
-    // Simplified implementation - in practice, use specialized numerical algorithms
-    if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    // Use series expansion for small x, continued fraction for large x
-    if (x < a + detail::ONE) {
-        // Series expansion
-        double sum = detail::ONE;
-        double term = detail::ONE;
-        double n = detail::ONE;
-
-        while (std::abs(term) > detail::DEFAULT_TOLERANCE &&
-               n < detail::MAX_GAMMA_SERIES_ITERATIONS) {
-            term *= x / (a + n - detail::ONE);
-            sum += term;
-            n += detail::ONE;
-        }
-
-        return std::exp(-x + a * std::log(x) - lgamma(a)) * sum;
-    } else {
-        // Use complementary function
-        return detail::ONE - gammaQ(a, x);
-    }
-}
-
-double DistributionBase::gammaQ(double a, double x) noexcept {
-    if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
-        return detail::ONE;
-    }
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ONE;
-    }
-
-    // Legendre continued-fraction expansion via Lentz's algorithm.
-    // Numerically stable for x >= a + 1; gammaP uses the series path for
-    // x < a + 1, so the two functions together cover the full domain without
-    // mutual recursion.
-    const double log_prefix = -x + a * std::log(x) - lgamma(a);
-
-    double b = x + detail::ONE - a;
-    double c = detail::ONE / detail::ZERO;   // 1/FPMIN: very large sentinel
-    double d = detail::ONE / b;
-    double h = d;
-
-    for (int n = 1; n <= static_cast<int>(detail::MAX_CONTINUED_FRACTION_ITERATIONS); ++n) {
-        const double an = -static_cast<double>(n) * (static_cast<double>(n) - a);
-        b += detail::TWO;
-        d = an * d + b;
-        if (std::abs(d) < detail::ZERO) d = detail::ZERO;
-        c = b + an / c;
-        if (std::abs(c) < detail::ZERO) c = detail::ZERO;
-        d = detail::ONE / d;
-        const double del = d * c;
-        h *= del;
-        if (std::abs(del - detail::ONE) < detail::DEFAULT_TOLERANCE) break;
-    }
-
-    return std::exp(log_prefix) * h;
-}
-
-double DistributionBase::gammaQuantile(double a, double p) noexcept {
-    // Find x such that gammaP(a, x) = p using bisection.
-    // gammaP is monotone increasing on [0, ∞), so bisection is straightforward.
-    if (p <= detail::ZERO_DOUBLE) return detail::ZERO_DOUBLE;
-    if (p >= detail::ONE) return std::numeric_limits<double>::infinity();
-
-    // Conservative upper bound: a + 5·√a, then double until gammaP(a, hi) ≥ p.
-    double lo = detail::ZERO_DOUBLE;
-    double hi = a + detail::FIVE * std::sqrt(a);
-    if (hi < detail::ONE) hi = detail::ONE;
-
-    for (int i = 0; i < 100; ++i) {
-        if (gammaP(a, hi) >= p) break;
-        hi *= detail::TWO;
-    }
-
-    for (int i = 0; i < static_cast<int>(detail::MAX_BISECTION_ITERATIONS); ++i) {
-        const double mid = detail::HALF * (lo + hi);
-        if (gammaP(a, mid) < p) {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-        if ((hi - lo) < detail::HIGH_PRECISION_TOLERANCE * lo) break;
-    }
-
-    return detail::HALF * (lo + hi);
-}
-
-double DistributionBase::betaI(double x, double a, double b) noexcept {
-    // Simplified implementation of incomplete beta function
-    if (x < detail::ZERO_DOUBLE || x > detail::ONE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (x == detail::ONE) {
-        return detail::ONE;
-    }
-
-    // Use continued fraction approximation
-    double bt = std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) +
-                         b * std::log(detail::ONE - x));
-
-    if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
-        return bt * betaI_continued_fraction(x, a, b) / a;
-    } else {
-        return detail::ONE - bt * betaI_continued_fraction(detail::ONE - x, b, a) / b;
-    }
-}
-
-// =============================================================================
-// INTERNAL IMPLEMENTATION DETAILS
-// =============================================================================
-
-double DistributionBase::betaI_continued_fraction(double x, double a, double b) noexcept {
-    // Continued fraction for incomplete beta function
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    double qab = a + b;
-    double qap = a + detail::ONE;
-    double qam = a - detail::ONE;
-    double c = detail::ONE;
-    double d = detail::ONE - qab * x / qap;
-
-    if (std::abs(d) < detail::ZERO) {
-        d = detail::ZERO;
-    }
-
-    d = detail::ONE / d;
-    double h = d;
-
-    for (int m = 1; m <= max_iterations; ++m) {
-        int m2 = detail::TWO_INT * m;
-        double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
-        d = detail::ONE + aa * d;
-        if (std::abs(d) < detail::ZERO) d = detail::ZERO;
-        // Guard c BEFORE dividing by it: a near-zero c from the previous
-        // iteration would otherwise produce aa/c ≈ 1e+30 before being caught.
-        if (std::abs(c) < detail::ZERO) c = detail::ZERO;
-        c = detail::ONE + aa / c;
-
-        d = detail::ONE / d;
-        h *= d * c;
-
-        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
-        d = detail::ONE + aa * d;
-        if (std::abs(d) < detail::ZERO) d = detail::ZERO;
-        if (std::abs(c) < detail::ZERO) c = detail::ZERO;
-        c = detail::ONE + aa / c;
-
-        d = detail::ONE / d;
-        double del = d * c;
-        h *= del;
-
-        if (std::abs(del - detail::ONE) < tolerance) {
-            break;
-        }
-    }
-
-    return h;
-}
+// erf/erfc/lgamma/gammaP/gammaQ protected wrappers removed in v2.0.0 (AQ-5).
+// betaI_continued_fraction removed in v2.0.0 (Step 3B): defined but never
+// called. Use detail::beta_i() from math_utils.h if needed.
 
 }  // namespace stats

@@ -24,6 +24,7 @@
 #include "libstats/core/math_constants.h"
 #include "libstats/platform/platform_constants.h"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstring>  // For memcpy
@@ -73,11 +74,11 @@ struct FeaturesSingleton {
 
     // Non-copyable, non-movable: std::atomic members are non-copyable,
     // but the intent must be explicit (Rule of Five).
-    FeaturesSingleton()                                    = default;
-    FeaturesSingleton(const FeaturesSingleton&)            = delete;
+    FeaturesSingleton() = default;
+    FeaturesSingleton(const FeaturesSingleton&) = delete;
     FeaturesSingleton& operator=(const FeaturesSingleton&) = delete;
-    FeaturesSingleton(FeaturesSingleton&&)                 = delete;
-    FeaturesSingleton& operator=(FeaturesSingleton&&)      = delete;
+    FeaturesSingleton(FeaturesSingleton&&) = delete;
+    FeaturesSingleton& operator=(FeaturesSingleton&&) = delete;
 
     const Features& get() {
         Features* features = ptr.load(std::memory_order_acquire);
@@ -144,6 +145,20 @@ void safe_cpuid(uint32_t eax, uint32_t ecx, uint32_t& out_eax, uint32_t& out_ebx
     #else
     // Fallback for unknown compilers
     out_eax = out_ebx = out_ecx = out_edx = 0;
+    #endif
+}
+
+uint64_t safe_xgetbv(uint32_t index) noexcept {
+    #if defined(__GNUC__) || defined(__clang__)
+    uint32_t xcr0_eax = 0;
+    uint32_t xcr0_edx = 0;
+    asm volatile("xgetbv" : "=a"(xcr0_eax), "=d"(xcr0_edx) : "c"(index));
+    return (static_cast<uint64_t>(xcr0_edx) << 32) | xcr0_eax;
+    #elif defined(_MSC_VER)
+    return _xgetbv(index);
+    #else
+    (void)index;
+    return 0;
     #endif
 }
 
@@ -437,48 +452,45 @@ Features detect_x86_features() {
 
     // AVX requires both CPUID support AND OS support (OSXSAVE)
     if (osxsave && avx_cpuid) {
-        // Check if OS saves AVX registers
-        uint64_t xcr0 = 0;
-    #if defined(__GNUC__) || defined(__clang__)
-        asm("xgetbv" : "=a"(xcr0) : "c"(0) : "edx");
-    #elif defined(_MSC_VER)
-        xcr0 = _xgetbv(0);
-    #endif
-
-        if ((xcr0 & 0x6) == 0x6) {  // Check bits 1 and 2
+        // Check if OS saves XMM/YMM registers (XCR0 bits 1 and 2).
+        const uint64_t xcr0 = safe_xgetbv(0);
+        // cppcheck cannot model the xgetbv inline assembly output in safe_xgetbv().
+        // cppcheck-suppress knownConditionTrueFalse
+        if ((xcr0 & 0x6) == 0x6) {
             features.avx = true;
             features.fma = (ecx & (1 << 12)) != 0;
         }
     }
 
-    // Check for AVX2 support (requires CPUID leaf 7)
+    // Check for AVX2/AVX-512 support (requires CPUID leaf 7)
+    uint32_t leaf7_ebx = 0;
     if (features.avx && max_cpuid >= 7) {
-        safe_cpuid(7, 0, eax, ebx, ecx, edx);
-        features.avx2 = (ebx & (1 << 5)) != 0;
-        features.avx512f = (ebx & (1 << 16)) != 0;
+        safe_cpuid(7, 0, eax, leaf7_ebx, ecx, edx);
+        features.avx2 = (leaf7_ebx & (1 << 5)) != 0;
+        features.avx512f = (leaf7_ebx & (1 << 16)) != 0;
     }
 
     // Get brand string if available. Each CPUID call returns 4 × 4-byte registers
     // (eax, ebx, ecx, edx) = 16 bytes of brand string per call, three calls total.
     safe_cpuid(0x80000000, 0, eax, ebx, ecx, edx);
     if (eax >= 0x80000004) {
-        uint32_t regs[4];
-        char brand[49] = {0};
+        std::array<uint32_t, 4> regs{};
+        std::array<char, 49> brand{};
         safe_cpuid(0x80000002, 0, regs[0], regs[1], regs[2], regs[3]);
-        memcpy(brand, regs, 16);
+        memcpy(brand.data(), regs.data(), 16);
         safe_cpuid(0x80000003, 0, regs[0], regs[1], regs[2], regs[3]);
-        memcpy(brand + 16, regs, 16);
+        memcpy(brand.data() + 16, regs.data(), 16);
         safe_cpuid(0x80000004, 0, regs[0], regs[1], regs[2], regs[3]);
-        memcpy(brand + 32, regs, 16);
-        features.brand = brand;
+        memcpy(brand.data() + 32, regs.data(), 16);
+        features.brand = std::string(brand.data());
     }
 
-    // Additional AVX-512 detection
+    // Additional AVX-512 detection from preserved CPUID leaf 7 EBX.
     if (features.avx512f) {
-        features.avx512dq = (ebx & (1 << 17)) != 0;
-        features.avx512cd = (ebx & (1 << 28)) != 0;
-        features.avx512bw = (ebx & (1 << 30)) != 0;
-        features.avx512vl = (ebx & (1U << 31)) != 0;
+        features.avx512dq = (leaf7_ebx & (1 << 17)) != 0;
+        features.avx512cd = (leaf7_ebx & (1 << 28)) != 0;
+        features.avx512bw = (leaf7_ebx & (1 << 30)) != 0;
+        features.avx512vl = (leaf7_ebx & (1U << 31)) != 0;
     }
 
     #if defined(__APPLE__)
@@ -809,37 +821,9 @@ bool supports_sve2() {
 }
 
 // Cache information queries
-std::optional<CacheInfo> get_l1_data_cache() {
-    const Features& f = get_features();
-    if (f.l1_data_cache.size > 0) {
-        return f.l1_data_cache;
-    }
-    return std::nullopt;
-}
-
-std::optional<CacheInfo> get_l1_instruction_cache() {
-    const Features& f = get_features();
-    if (f.l1_instruction_cache.size > 0) {
-        return f.l1_instruction_cache;
-    }
-    return std::nullopt;
-}
-
-std::optional<CacheInfo> get_l2_cache() {
-    const Features& f = get_features();
-    if (f.l2_cache.size > 0) {
-        return f.l2_cache;
-    }
-    return std::nullopt;
-}
-
-std::optional<CacheInfo> get_l3_cache() {
-    const Features& f = get_features();
-    if (f.l3_cache.size > 0) {
-        return f.l3_cache;
-    }
-    return std::nullopt;
-}
+// get_l1_data_cache / get_l1_instruction_cache / get_l2_cache / get_l3_cache removed.
+// Access cache information directly via get_features():
+//   get_features().l1_data_cache, .l1_instruction_cache, .l2_cache, .l3_cache
 
 // CPU topology queries
 TopologyInfo get_topology() {
@@ -858,11 +842,7 @@ bool has_hyperthreading() {
     return get_features().topology.hyperthreading;
 }
 
-// Performance monitoring utilities
-PerformanceInfo get_performance_info() {
-    return get_features().performance;
-}
-
+// get_performance_info() removed — use get_features().performance directly.
 bool has_rdtsc() {
     return get_features().performance.has_rdtsc;
 }
@@ -894,137 +874,8 @@ uint64_t read_tsc() {
 #endif
 }
 
-std::optional<uint64_t> estimate_cpu_frequency(uint32_t duration_ms) {
-    if (!has_rdtsc()) {
-        return std::nullopt;
-    }
-
-    uint64_t start_tsc = read_tsc();
-    auto start_time = std::chrono::high_resolution_clock::now();
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
-
-    uint64_t end_tsc = read_tsc();
-    auto end_time = std::chrono::high_resolution_clock::now();
-
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time);
-    uint64_t cycles = end_tsc - start_tsc;
-
-    if (duration.count() > 0) {
-        // Calculate frequency: cycles per nanosecond * conversion factor = Hz
-        double freq = static_cast<double>(cycles) / static_cast<double>(duration.count()) *
-                      arch::simd::CPU_NANOSECONDS_TO_HZ;
-        return static_cast<uint64_t>(freq);
-    }
-
-    return std::nullopt;
-}
-
-std::string detailed_cpu_info() {
-    const Features& f = get_features();
-    std::string result;
-
-    result += "CPU Details:\n";
-    result += "  Vendor: " + f.vendor + "\n";
-    if (!f.brand.empty()) {
-        result += "  Brand: " + f.brand + "\n";
-    }
-    result += "  Family: " + std::to_string(f.family) + "\n";
-    result += "  Model: " + std::to_string(f.model) + "\n";
-    result += "  Stepping: " + std::to_string(f.stepping) + "\n";
-
-    result += "\nSIMD Features: " + features_string() + "\n";
-    result += "Best SIMD Level: " + best_simd_level() + "\n";
-
-    result += "\nOptimal Vector Widths:\n";
-    result += "  Double: " + std::to_string(optimal_double_width()) + "\n";
-    result += "  Float: " + std::to_string(optimal_float_width()) + "\n";
-    result += "  Alignment: " + std::to_string(optimal_alignment()) + " bytes\n";
-
-    result += "\nCache Information:\n";
-    result += "  L1 Data: " + std::to_string(f.l1_data_cache.size) + " bytes\n";
-    result += "  L1 Instruction: " + std::to_string(f.l1_instruction_cache.size) + " bytes\n";
-    result += "  L2: " + std::to_string(f.l2_cache.size) + " bytes\n";
-    result += "  L3: " + std::to_string(f.l3_cache.size) + " bytes\n";
-
-    result += "\nTopology:\n";
-    result += "  Logical Cores: " + std::to_string(f.topology.logical_cores) + "\n";
-    result += "  Physical Cores: " + std::to_string(f.topology.physical_cores) + "\n";
-    result += "  Hyperthreading: " +
-              (f.topology.hyperthreading ? std::string("Yes") : std::string("No")) + "\n";
-
-    return result;
-}
-
-bool validate_feature_consistency() {
-    const Features& f = get_features();
-
-    // Check AVX hierarchy consistency
-    if (f.avx2 && !f.avx)
-        return false;
-    if (f.avx && !f.sse2)
-        return false;
-    if (f.avx512f && !f.avx2)
-        return false;
-
-    // Check SSE hierarchy consistency
-    if (f.sse4_2 && !f.sse4_1)
-        return false;
-    if (f.sse4_1 && !f.ssse3)
-        return false;
-    if (f.ssse3 && !f.sse3)
-        return false;
-    if (f.sse3 && !f.sse2)
-        return false;
-
-    // Check AVX-512 sub-features require AVX-512F
-    if ((f.avx512dq || f.avx512cd || f.avx512bw || f.avx512vl) && !f.avx512f)
-        return false;
-
-    // Check ARM hierarchy consistency
-    if (f.sve2 && !f.sve)
-        return false;
-
-    return true;
-}
-
-// Intel CPU generation detection functions
-bool is_sandy_ivy_bridge() {
-    const Features& features = get_features();
-    return features.vendor == "GenuineIntel" && features.family == 6 &&
-           (features.model == 42 || features.model == 58);  // Sandy Bridge: 42, Ivy Bridge: 58
-}
-
-bool is_haswell_broadwell() {
-    const Features& features = get_features();
-    return features.vendor == "GenuineIntel" && features.family == 6 &&
-           (features.model == 60 || features.model == 61     // Haswell: 60, Broadwell: 61
-            || features.model == 69 || features.model == 70  // Haswell-ULT: 69, Haswell-GT3e: 70
-            || features.model == 71);                        // Broadwell-GT3e: 71
-}
-
-bool is_skylake_generation() {
-    const Features& features = get_features();
-    return features.vendor == "GenuineIntel" && features.family == 6 &&
-           (features.model == 78 || features.model == 94);  // Skylake-U/Y: 78, Skylake-S/H: 94
-}
-
-bool is_kaby_coffee_lake() {
-    const Features& features = get_features();
-    return features.vendor == "GenuineIntel" && features.family == 6 &&
-           (features.model == 142 ||
-            features.model == 158  // Kaby Lake-U/Y: 142, Coffee Lake-S: 158
-            || features.model == 165 ||
-            features.model == 166);  // Coffee Lake-H: 165, Cannon Lake: 166
-}
-
-bool is_modern_intel() {
-    const Features& features = get_features();
-    // Modern Intel includes Ice Lake (2019+) with AVX-512 or newer architectures
-    return features.vendor == "GenuineIntel" &&
-           (features.avx512f                                      // Any CPU with AVX-512 is modern
-            || (features.family == 6 && features.model >= 125));  // Ice Lake and newer models
-}
+// Intel CPU generation classifiers (is_sandy_ivy_bridge etc.) removed.
+// Classification is now handled by stats::arch::cpu_tier() in cpu_tier.cpp.
 
 }  // namespace stats::arch
 

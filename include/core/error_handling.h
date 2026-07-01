@@ -2,20 +2,17 @@
 
 #include <climits>
 #include <cmath>
-#include <iomanip>
 #include <limits>
-#include <sstream>
 #include <string>
+#include <variant>  // std::variant (Result<T> storage) + std::monostate (VoidResult)
 
 namespace stats {
 
 /**
  * @brief Error codes for distribution parameter validation
  *
- * This enum replaces exception-based error handling to avoid ABI compatibility
- * issues with Homebrew LLVM libc++ on macOS. The specific issue is that exceptions
- * thrown from the library compiled with Homebrew LLVM cannot be safely caught
- * in applications, leading to segfaults during exception unwinding.
+ * Used by Result<T> / VoidResult to report validation failures without
+ * exceptions. See Result<T> documentation below for the v2.0.0 design rationale.
  */
 enum class ValidationError {
     None = 0,          ///< No error
@@ -27,51 +24,137 @@ enum class ValidationError {
 };
 
 /**
- * @brief Result type for operations that may fail
+ * @brief Result type for operations that may fail.
  *
- * This provides a safe alternative to exceptions for error reporting.
- * @tparam T The type of the result value
+ * Implemented as a discriminated union (`std::variant<T, ErrorInfo>`) so that
+ * the success and error paths are mutually exclusive and `makeError()` never
+ * constructs `T`. This is the C++20 equivalent of C++23 `std::expected<T, E>`.
+ *
+ * **Migration from the v2.0.0-pre aggregate struct:**
+ * | Old call site          | New call site               |
+ * |------------------------|-----------------------------|
+ * | `result.value`         | `*result`                   |
+ * | `std::move(r.value)`   | `std::move(r).unwrap()`     |
+ * | `result.error_code`    | `result.errorCode()`        |
+ * | `result.message`       | `result.message()`          |
+ *
+ * **v2.x decision point**: when the project minimum is raised to macOS 14
+ * (AppleClang 16), `Result<T>` can become a thin alias over
+ * `std::expected<T, std::string>` with minimal call-site changes.
+ *
+ * @tparam T The type of the success value.
  */
 template <typename T>
-struct Result {
-    T value;
-    ValidationError error_code;
-    std::string message;
+class Result {
+    struct ErrorInfo {
+        ValidationError code;
+        std::string message;
+        // Explicit constructor required: std::in_place_type uses direct-init,
+        // which doesn't work for aggregates without a constructor.
+        ErrorInfo(ValidationError c, std::string m) noexcept : code(c), message(std::move(m)) {}
+    };
+
+    std::variant<T, ErrorInfo> data_;
+
+    // Private constructors — use the static factory methods.
+    explicit Result(T val) : data_(std::in_place_type<T>, std::move(val)) {}
+    explicit Result(ValidationError code, const std::string& msg)
+        : data_(std::in_place_type<ErrorInfo>, code, msg) {}
+
+   public:
+    // -------------------------------------------------------------------------
+    // Factory methods
+    // -------------------------------------------------------------------------
+
+    /** @brief Create a successful result containing @p val. */
+    [[nodiscard]] static Result ok(T val) noexcept { return Result(std::move(val)); }
 
     /**
-     * @brief Check if the result represents success
-     * @return true if no error occurred
+     * @brief Create an error result. T is **never** constructed.
+     * @param code  Error category.
+     * @param msg   Human-readable description.
      */
-    bool isOk() const noexcept { return error_code == ValidationError::None; }
+    [[nodiscard]] static Result makeError(ValidationError code, const std::string& msg) noexcept {
+        return Result(code, msg);
+    }
+
+    // -------------------------------------------------------------------------
+    // Status queries
+    // -------------------------------------------------------------------------
+
+    [[nodiscard]] bool isOk() const noexcept { return std::holds_alternative<T>(data_); }
+    [[nodiscard]] bool isError() const noexcept { return !isOk(); }
+
+    // -------------------------------------------------------------------------
+    // Value access (only valid when isOk())
+    // -------------------------------------------------------------------------
+
+    /** @brief Dereference to the success value (lvalue ref). */
+    [[nodiscard]] T& operator*() & { return std::get<T>(data_); }
+    /** @brief Dereference to the success value (const lvalue ref). */
+    [[nodiscard]] const T& operator*() const& { return std::get<T>(data_); }
+    /** @brief Dereference to the success value (rvalue ref). */
+    [[nodiscard]] T&& operator*() && { return std::get<T>(std::move(data_)); }
+
+    /** @brief Arrow access to the success value's members. */
+    [[nodiscard]] T* operator->() { return &std::get<T>(data_); }
+    /** @brief Arrow access to the success value's members (const). */
+    [[nodiscard]] const T* operator->() const { return &std::get<T>(data_); }
 
     /**
-     * @brief Check if the result represents an error
-     * @return true if an error occurred
+     * @brief Access or move the success value out.
+     *
+     * Three overloads cover all call patterns produced by the `.value` migration:
+     * - `result.unwrap()` (lvalue) — returns T& (same as `*result`)
+     * - `std::move(result).unwrap()` — returns T&& (moves value out of variant)
+     * - `std::move(result.unwrap())` — lvalue overload returns T&, std::move produces T&&
+     *
+     * Undefined (std::bad_variant_access) if isError().
      */
-    bool isError() const noexcept { return error_code != ValidationError::None; }
+    [[nodiscard]] T& unwrap() & { return std::get<T>(data_); }
+    [[nodiscard]] const T& unwrap() const& { return std::get<T>(data_); }
+    [[nodiscard]] T&& unwrap() && { return std::get<T>(std::move(data_)); }
+
+    // -------------------------------------------------------------------------
+    // Error access (only meaningful when isError())
+    // -------------------------------------------------------------------------
+
+    /** @brief Returns the error code, or ValidationError::None on success. */
+    [[nodiscard]] ValidationError errorCode() const noexcept {
+        if (const auto* e = std::get_if<ErrorInfo>(&data_))
+            return e->code;
+        return ValidationError::None;
+    }
 
     /**
-     * @brief Create a successful result
-     * @param val The success value
-     * @return Result representing success
+     * @brief Returns the error message, or an empty string on success.
+     *
+     * The returned reference is stable for the lifetime of this Result.
      */
-    static Result<T> ok(T val) noexcept { return {std::move(val), ValidationError::None, ""}; }
-
-    /**
-     * @brief Create an error result
-     * @param err The error code
-     * @param msg Error message
-     * @return Result representing an error
-     */
-    static Result<T> makeError(ValidationError err, const std::string& msg) noexcept {
-        return {T{}, err, msg};
+    [[nodiscard]] const std::string& message() const noexcept {
+        if (const auto* e = std::get_if<ErrorInfo>(&data_))
+            return e->message;
+        static const std::string empty;
+        return empty;
     }
 };
 
 /**
- * @brief Specialized result type for void operations
+ * @brief Specialized result type for void (no-value) operations.
+ *
+ * Uses std::monostate as the success sentinel value so the success
+ * branch carries no meaningful payload. The canonical usage pattern is:
+ * @code
+ *   VoidResult::ok({})               // success
+ *   VoidResult::makeError(code, msg) // failure
+ *   if (result.isOk()) { ... }       // check result
+ * @endcode
+ *
+ * **v2.x migration note**: v1.x used `Result<bool>` with `ok(true)` as
+ * the sentinel. v2.0.0 uses `Result<std::monostate>` to make the
+ * absence of a meaningful value explicit.
  */
-using VoidResult = Result<bool>;
+using VoidResult = Result<std::monostate>;
 
 /**
  * @brief Convert ValidationError to human-readable string
@@ -112,7 +195,7 @@ inline VoidResult validateGaussianParameters(double mean, double stdDev) noexcep
                                      "Standard deviation must be a positive finite number");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -126,7 +209,7 @@ inline VoidResult validateExponentialParameters(double lambda) noexcept {
                                      "Lambda (rate parameter) must be a positive finite number");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -147,7 +230,7 @@ inline VoidResult validateUniformParameters(double a, double b) noexcept {
             "Upper bound (b) must be strictly greater than lower bound (a)");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -178,7 +261,7 @@ inline VoidResult validateDiscreteParameters(int a, int b) noexcept {
                                      "Parameter range exceeds maximum supported size");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -198,7 +281,7 @@ inline VoidResult validatePoissonParameters(double lambda) noexcept {
                                      "Lambda too large for accurate Poisson computation");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -218,7 +301,7 @@ inline VoidResult validateGammaParameters(double alpha, double beta) noexcept {
                                      "Beta (rate parameter) must be a positive finite number");
     }
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -236,7 +319,7 @@ inline VoidResult validateLogNormalParameters(double mu, double sigma) noexcept 
         return VoidResult::makeError(ValidationError::InvalidStdDev,
                                      "Sigma (log-stddev) must be a positive finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -254,7 +337,7 @@ inline VoidResult validateParetoParameters(double scale, double alpha) noexcept 
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Alpha (shape) must be a positive finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -272,7 +355,7 @@ inline VoidResult validateWeibullParameters(double shape, double scale) noexcept
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale (λ) must be a positive finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -285,7 +368,7 @@ inline VoidResult validateRayleighParameters(double sigma) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Sigma (σ) must be a positive finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -303,7 +386,7 @@ inline VoidResult validateVonMisesParameters(double mu, double kappa) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Kappa (concentration) must be a non-negative finite number");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -321,7 +404,7 @@ inline VoidResult validateBinomialParameters(int n, double p) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Success probability p must be in [0, 1]");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 /**
@@ -339,7 +422,100 @@ inline VoidResult validateNegativeBinomialParameters(double r, double p) noexcep
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Success probability p must be in (0, 1]");
     }
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Beta distribution parameters without throwing exceptions
+ * @param alpha Shape parameter α (must be positive and finite)
+ * @param beta  Shape parameter β (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateBetaParameters(double alpha, double beta) noexcept {
+    if (std::isnan(alpha) || std::isinf(alpha) || alpha <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Alpha (shape1) must be a positive finite number");
+    }
+    if (std::isnan(beta) || std::isinf(beta) || beta <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Beta (shape2) must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Chi-squared distribution parameters without throwing exceptions
+ * @param k Degrees of freedom (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateChiSquaredParameters(double k) noexcept {
+    if (std::isnan(k) || std::isinf(k) || k <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Degrees of freedom k must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Student's t distribution parameters without throwing exceptions
+ * @param nu Degrees of freedom ν (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateStudentTParameters(double nu) noexcept {
+    if (std::isnan(nu) || std::isinf(nu) || nu <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Degrees of freedom nu must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Geometric distribution parameters without throwing exceptions
+ * @param p Success probability (must be in (0, 1])
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateGeometricParameters(double p) noexcept {
+    if (std::isnan(p) || std::isinf(p) || p <= 0.0 || p > 1.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Success probability p must be in (0, 1]");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Laplace distribution parameters without throwing exceptions
+ * @param mu Location parameter (must be finite)
+ * @param b  Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateLaplaceParameters(double mu, double b) noexcept {
+    if (!std::isfinite(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter mu must be a finite number");
+    }
+    if (std::isnan(b) || std::isinf(b) || b <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter b must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Cauchy distribution parameters without throwing exceptions
+ * @param x0    Location parameter (must be finite)
+ * @param gamma Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
+    if (!std::isfinite(x0)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter x0 must be a finite number");
+    }
+    if (std::isnan(gamma) || std::isinf(gamma) || gamma <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter gamma must be a positive finite number");
+    }
+    return VoidResult::ok({});
 }
 
 }  // namespace stats

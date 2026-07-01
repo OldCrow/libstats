@@ -6,8 +6,11 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/discrete.h"
+#include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <cmath>      // for std::log, std::isfinite, std::abs
 #include <gtest/gtest.h>
@@ -48,7 +51,7 @@ class DiscreteEnhancedTest : public ::testing::Test {
 
         auto result = stats::DiscreteDistribution::create(test_lower_, test_upper_);
         if (result.isOk()) {
-            test_distribution_ = std::move(result.value);
+            test_distribution_ = std::move(result).unwrap();
         };
     }
 
@@ -65,7 +68,7 @@ class DiscreteEnhancedTest : public ::testing::Test {
 
 TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard six-sided die
-    auto dice = stats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     EXPECT_EQ(dice.getLowerBound(), 1);
     EXPECT_EQ(dice.getUpperBound(), 6);
@@ -73,7 +76,7 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_DOUBLE_EQ(dice.getMean(), 3.5);
     EXPECT_NEAR(dice.getVariance(), 35.0 / 12.0, 1e-10);  // (6-1)(6-1+2)/12 = 5*7/12
     EXPECT_DOUBLE_EQ(dice.getSkewness(), 0.0);
-    EXPECT_DOUBLE_EQ(dice.getKurtosis(), -1.2);
+    EXPECT_NEAR(dice.getKurtosis(), -222.0 / 175.0, 1e-10);  // exact: -6(n²+1)/5(n²-1), n=6
 
     // Test known PMF/CDF values
     double pmf_at_3 = dice.getProbability(3.0);
@@ -83,16 +86,26 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_3, 3.0 / 6.0, 1e-10);
 
     // Test binary distribution
-    auto binary = stats::DiscreteDistribution::create(0, 1).value;
+    auto binary = stats::DiscreteDistribution::create(0, 1).unwrap();
     EXPECT_DOUBLE_EQ(binary.getMean(), 0.5);
     EXPECT_DOUBLE_EQ(binary.getVariance(), 0.25);  // (1-0)(1-0+2)/12 = 1*3/12 = 0.25
-    EXPECT_NEAR(binary.getCumulativeProbability(0.5), 1.0, 1e-10);
+    EXPECT_NEAR(binary.getCumulativeProbability(0.5), 0.5, 1e-10);  // P(X<=0.5)=P(X=0)=0.5
 
     // Test discrete-specific properties
     EXPECT_TRUE(dice.isInSupport(3.0));
     EXPECT_FALSE(dice.isInSupport(3.5));  // Non-integers not in discrete support
     EXPECT_TRUE(dice.isDiscrete());
-    EXPECT_EQ(dice.getDistributionName(), "DiscreteUniform");
+    EXPECT_EQ(dice.getDistributionName(), "Discrete");
+
+    // Entropy: H[a,b] = log(b - a + 1) nats exactly
+    EXPECT_DOUBLE_EQ(dice.getEntropy(), std::log(6.0));    // [1,6]: log(6)
+    EXPECT_DOUBLE_EQ(binary.getEntropy(), std::log(2.0));  // [0,1]: log(2)
+    auto degenerate = stats::DiscreteDistribution::create(3, 3).unwrap();
+    EXPECT_DOUBLE_EQ(degenerate.getEntropy(), 0.0);  // [3,3]: log(1) = 0
+    // Entropy monotone: wider support → higher entropy
+    auto d10 = stats::DiscreteDistribution::create(1, 10).unwrap();
+    EXPECT_GT(d10.getEntropy(), dice.getEntropy());  // [1,10] > [1,6]
+    EXPECT_TRUE(std::isfinite(dice.getEntropy()));
 }
 
 //==============================================================================
@@ -102,31 +115,10 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
 TEST_F(DiscreteEnhancedTest, GoodnessOfFitTests) {
     std::cout << "\n=== Goodness-of-Fit Tests ===\n";
 
-    // Kolmogorov-Smirnov test with uniform discrete data
-    auto [ks_stat_uniform, ks_p_uniform, ks_reject_uniform] =
-        DiscreteDistribution::kolmogorovSmirnovTest(discrete_data_, test_distribution_, 0.05);
+    // KS test removed (MC-12): stats::analysis::kolmogorovSmirnovTest requires
+    // ContinuousDistribution. Use chi-square GOF for discrete distributions instead.
 
-    EXPECT_GE(ks_stat_uniform, 0.0);
-    EXPECT_LE(ks_stat_uniform, 1.0);
-    EXPECT_GE(ks_p_uniform, 0.0);
-    EXPECT_LE(ks_p_uniform, 1.0);
-    EXPECT_TRUE(std::isfinite(ks_stat_uniform));
-    EXPECT_TRUE(std::isfinite(ks_p_uniform));
-
-    std::cout << "  KS test (uniform data): D=" << ks_stat_uniform << ", p=" << ks_p_uniform
-              << ", reject=" << ks_reject_uniform << "\n";
-
-    // Kolmogorov-Smirnov test with non-uniform data (should reject)
-    auto [ks_stat_non_uniform, ks_p_non_uniform, ks_reject_non_uniform] =
-        DiscreteDistribution::kolmogorovSmirnovTest(non_uniform_data_, test_distribution_, 0.05);
-
-    EXPECT_TRUE(ks_reject_non_uniform);  // Should reject uniform distribution for skewed data
-    EXPECT_LT(ks_p_non_uniform, ks_p_uniform);  // Non-uniform data should have lower p-value
-
-    std::cout << "  KS test (non-uniform data): D=" << ks_stat_non_uniform
-              << ", p=" << ks_p_non_uniform << ", reject=" << ks_reject_non_uniform << "\n";
-
-    // Chi-square test (more appropriate for discrete distributions)
+    // Chi-square test (correct test for discrete distributions)
     auto [chi_stat_uniform, chi_p_uniform, chi_reject_uniform] =
         DiscreteDistribution::chiSquaredGoodnessOfFitTest(discrete_data_, test_distribution_, 0.05);
     auto [chi_stat_non_uniform, chi_p_non_uniform, chi_reject_non_uniform] =
@@ -156,7 +148,7 @@ TEST_F(DiscreteEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(discrete_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        DiscreteDistribution::computeInformationCriteria(discrete_data_, fitted_dist);
+        stats::analysis::informationCriteria(discrete_data_, fitted_dist);
 
     // Basic validity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -186,12 +178,14 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap parameter confidence intervals
-    auto [lower_ci, upper_ci] = DiscreteDistribution::bootstrapParameterConfidenceIntervals(
-        discrete_data_, 0.95, 1000, 456);
+    auto [lower_ci, upper_ci] =
+        stats::analysis::bootstrapMeanVarianceCI<stats::DiscreteDistribution>(discrete_data_, 0.95,
+                                                                              1000, 456);
 
     // Check that confidence intervals are reasonable
-    EXPECT_LT(lower_ci.first, lower_ci.second);  // Lower bound CI
-    EXPECT_LT(upper_ci.first, upper_ci.second);  // Upper bound CI
+    EXPECT_LE(lower_ci.first,
+              lower_ci.second);  // Bootstrap CI may be degenerate for discrete params
+    EXPECT_LE(upper_ci.first, upper_ci.second);
 
     // Parameter CIs should be finite and make statistical sense
     // Note: For discrete uniform bounds, the true parameter 'a' could be below the sample minimum
@@ -211,15 +205,12 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
     std::cout << "  Upper bound 95% CI: [" << upper_ci.first << ", " << upper_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = DiscreteDistribution::kFoldCrossValidation(discrete_data_, 5, 42);
+    auto cv_results =
+        stats::analysis::kFoldCrossValidation<stats::DiscreteDistribution>(discrete_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mean_error, std_error, log_likelihood] : cv_results) {
-        EXPECT_GE(mean_error, 0.0);      // Mean absolute error should be non-negative
-        EXPECT_GE(std_error, 0.0);       // Standard error should be non-negative
+    for (const double log_likelihood : cv_results) {
         EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mean_error));
-        EXPECT_TRUE(std::isfinite(std_error));
         EXPECT_TRUE(std::isfinite(log_likelihood));
     }
 
@@ -227,20 +218,14 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_discrete_data(discrete_data_.begin(), discrete_data_.begin() + 20);
-    auto [mae, rmse, loo_log_likelihood] =
-        DiscreteDistribution::leaveOneOutCrossValidation(small_discrete_data);
+    const auto loo_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::DiscreteDistribution>(
+            small_discrete_data);  // Mean absolute error should be non-negative // RMSE should be
+                                   // non-negative
+    EXPECT_LE(loo_log_likelihood,
+              0.0);  // Total log-likelihood should be negative // RMSE should be >= MAE
 
-    EXPECT_GE(mae, 0.0);                 // Mean absolute error should be non-negative
-    EXPECT_GE(rmse, 0.0);                // RMSE should be non-negative
-    EXPECT_LE(loo_log_likelihood, 0.0);  // Total log-likelihood should be negative
-    EXPECT_GE(rmse, mae);                // RMSE should be >= MAE
-
-    EXPECT_TRUE(std::isfinite(mae));
-    EXPECT_TRUE(std::isfinite(rmse));
     EXPECT_TRUE(std::isfinite(loo_log_likelihood));
-
-    std::cout << "  Leave-one-out CV: MAE=" << mae << ", RMSE=" << rmse
-              << ", LogL=" << loo_log_likelihood << "\n";
 }
 
 //==============================================================================
@@ -248,7 +233,7 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdDiscrete = stats::DiscreteDistribution::create(1, 6).value;
+    auto stdDiscrete = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -282,35 +267,43 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
 
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
-        start = std::chrono::high_resolution_clock::now();
-        stdDiscrete.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                               std::span<double>(simd_results),
-                                               stats::detail::Strategy::VECTORIZED);
-        end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+            start = std::chrono::high_resolution_clock::now();
+            stdDiscrete.getProbability(std::span<const double>(test_values),
+                                       std::span<double>(simd_results), h);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        auto simd_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
         std::span<const double> input_span(test_values);
         std::span<double> output_span(parallel_results);
-
-        start = std::chrono::high_resolution_clock::now();
-        stdDiscrete.getProbabilityWithStrategy(input_span, output_span,
-                                               stats::detail::Strategy::PARALLEL);
-        end = std::chrono::high_resolution_clock::now();
-        auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+            start = std::chrono::high_resolution_clock::now();
+            stdDiscrete.getProbability(input_span, output_span, h);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        auto parallel_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
         std::span<double> ws_output_span(work_stealing_results);
-
-        start = std::chrono::high_resolution_clock::now();
-        stdDiscrete.getProbabilityWithStrategy(input_span, ws_output_span,
-                                               stats::detail::Strategy::WORK_STEALING);
-        end = std::chrono::high_resolution_clock::now();
-        auto work_stealing_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+            start = std::chrono::high_resolution_clock::now();
+            stdDiscrete.getProbability(input_span, ws_output_span, h);
+            end = std::chrono::high_resolution_clock::now();
+        }
+        auto work_stealing_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -362,37 +355,10 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, AdvancedStatisticalMethods) {
-    std::cout << "\n=== Advanced Statistical Methods ===\n";
-
-    // Confidence intervals for lower and upper bounds
-    auto [ci_lower_a, ci_upper_a] =
-        DiscreteDistribution::confidenceIntervalLowerBound(discrete_data_, 0.95);
-    auto [ci_lower_b, ci_upper_b] =
-        DiscreteDistribution::confidenceIntervalUpperBound(discrete_data_, 0.95);
-    EXPECT_LE(ci_lower_a, ci_upper_a);
-    EXPECT_LE(ci_lower_b, ci_upper_b);
-    std::cout << "  95% CI for lower bound: [" << ci_lower_a << ", " << ci_upper_a << "]\n";
-    std::cout << "  95% CI for upper bound: [" << ci_lower_b << ", " << ci_upper_b << "]\n";
-
-    // Method of moments estimation
-    auto parameters = DiscreteDistribution::methodOfMomentsEstimation(discrete_data_);
-    EXPECT_TRUE(std::isfinite(parameters.first));
-    EXPECT_TRUE(std::isfinite(parameters.second));
-    std::cout << "  MoM estimates: lower=" << parameters.first << ", upper=" << parameters.second
-              << "\n";
-
-    // L-moments estimation for discrete parameters
-    auto [estimated_lower, estimated_upper] =
-        DiscreteDistribution::lMomentsEstimation(discrete_data_);
-    EXPECT_LE(estimated_lower, estimated_upper);
-    std::cout << "  L-moments estimates: lower=" << estimated_lower << ", upper=" << estimated_upper
-              << "\n";
-
-    // For discrete uniform, MLE is simply min/max of data (like method of moments)
-    auto [mle_lower, mle_upper] = DiscreteDistribution::methodOfMomentsEstimation(discrete_data_);
-    EXPECT_LE(mle_lower, mle_upper);
-    std::cout << "  MLE estimates (via MoM): lower=" << mle_lower << ", upper=" << mle_upper
-              << "\n";
+    // v2.0.0: per-distribution CI, MoM, and LR methods were removed as part of
+    // the analysis-utility extraction. Generic methods are in stats::analysis::.
+    // Use fit() + stats::analysis:: functions for comparable functionality.
+    SUCCEED();  // Placeholder — methods moved to stats::analysis::
 }
 
 //==============================================================================
@@ -402,7 +368,7 @@ TEST_F(DiscreteEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
+    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -465,7 +431,7 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
-    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
+    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -499,9 +465,6 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
             discrete_dist.getProbability(std::span<const double>(test_values),
                                          std::span<double>(auto_pmf_results));
         } else {
-            discrete_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                     std::span<double>(auto_pmf_results),
-                                                     stats::detail::Strategy::SCALAR);
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_pmf_time =
@@ -515,9 +478,6 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
             discrete_dist.getLogProbability(std::span<const double>(test_values),
                                             std::span<double>(auto_logpmf_results));
         } else {
-            discrete_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                        std::span<double>(auto_logpmf_results),
-                                                        stats::detail::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_logpmf_time =
@@ -532,28 +492,20 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
             discrete_dist.getCumulativeProbability(std::span<const double>(test_values),
                                                    std::span<double>(auto_cdf_results));
         } else {
-            discrete_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                               std::span<double>(auto_cdf_results),
-                                                               stats::detail::Strategy::SCALAR);
         }
         end = std::chrono::high_resolution_clock::now();
         auto auto_cdf_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        // Compare with traditional batch methods for correctness
+        // Reference: per-element scalar calls
         std::vector<double> trad_pmf_results(batch_size);
         std::vector<double> trad_logpmf_results(batch_size);
         std::vector<double> trad_cdf_results(batch_size);
-
-        discrete_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                 std::span<double>(trad_pmf_results),
-                                                 stats::detail::Strategy::SCALAR);
-        discrete_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                    std::span<double>(trad_logpmf_results),
-                                                    stats::detail::Strategy::SCALAR);
-        discrete_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                           std::span<double>(trad_cdf_results),
-                                                           stats::detail::Strategy::SCALAR);
+        for (size_t j = 0; j < batch_size; ++j) {
+            trad_pmf_results[j] = discrete_dist.getProbability(test_values[j]);
+            trad_logpmf_results[j] = discrete_dist.getLogProbability(test_values[j]);
+            trad_cdf_results[j] = discrete_dist.getCumulativeProbability(test_values[j]);
+        }
 
         // Verify correctness
         bool pmf_correct = true, logpmf_correct = true, cdf_correct = true;
@@ -596,7 +548,7 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto dice = stats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).unwrap();
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     // Generate test data
@@ -628,141 +580,84 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (SCALAR strategy)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PMF") {
-            dice.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                            std::span<double>(pmf_results),
-                                            stats::detail::Strategy::SCALAR);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                pmf_results[i] = dice.getProbability(test_values[i]);
         } else if (op == "LogPMF") {
-            dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                               std::span<double>(log_pmf_results),
-                                               stats::detail::Strategy::SCALAR);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                log_pmf_results[i] = dice.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
-            dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                      std::span<double>(cdf_results),
-                                                      stats::detail::Strategy::SCALAR);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                cdf_results[i] = dice.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 2. SIMD Batch operations
-        start = std::chrono::high_resolution_clock::now();
-        if (op == "PMF") {
-            dice.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                            std::span<double>(pmf_results),
-                                            stats::detail::Strategy::VECTORIZED);
-        } else if (op == "LogPMF") {
-            dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                               std::span<double>(log_pmf_results),
-                                               stats::detail::Strategy::VECTORIZED);
-        } else if (op == "CDF") {
-            dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                      std::span<double>(cdf_results),
-                                                      stats::detail::Strategy::VECTORIZED);
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+            start = std::chrono::high_resolution_clock::now();
+            if (op == "PMF") {
+                dice.getProbability(std::span<const double>(test_values),
+                                    std::span<double>(pmf_results), h);
+            } else if (op == "LogPMF") {
+                dice.getLogProbability(std::span<const double>(test_values),
+                                       std::span<double>(log_pmf_results), h);
+            } else if (op == "CDF") {
+                dice.getCumulativeProbability(std::span<const double>(test_values),
+                                              std::span<double>(cdf_results), h);
+            }
+            end = std::chrono::high_resolution_clock::now();
         }
-        end = std::chrono::high_resolution_clock::now();
         result.vectorized_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 3. Parallel Batch Operations (PARALLEL strategy) - fallback to SCALAR
+        // 3. Parallel Batch Operations (PARALLEL strategy)
         std::span<const double> input_span(test_values);
-
-        if (op == "PMF") {
-            std::span<double> output_span(pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getProbabilityWithStrategy(input_span, output_span,
-                                                              stats::detail::Strategy::PARALLEL);
-                          }) {
-                dice.getProbabilityWithStrategy(input_span, output_span,
-                                                stats::detail::Strategy::PARALLEL);
-            } else {
-                dice.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                std::span<double>(pmf_results),
-                                                stats::detail::Strategy::SCALAR);
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+            if (op == "PMF") {
+                std::span<double> output_span(pmf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getProbability(input_span, output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "LogPMF") {
+                std::span<double> log_output_span(log_pmf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getLogProbability(input_span, log_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "CDF") {
+                std::span<double> cdf_output_span(cdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getCumulativeProbability(input_span, cdf_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
             }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPMF") {
-            std::span<double> log_output_span(log_pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                                 stats::detail::Strategy::PARALLEL);
-                          }) {
-                dice.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                   stats::detail::Strategy::PARALLEL);
-            } else {
-                dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                   std::span<double>(log_pmf_results),
-                                                   stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getCumulativeProbabilityWithStrategy(
-                                  input_span, cdf_output_span, stats::detail::Strategy::PARALLEL);
-                          }) {
-                dice.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                          stats::detail::Strategy::PARALLEL);
-            } else {
-                dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                          std::span<double>(cdf_results),
-                                                          stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
         }
         result.parallel_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Work-Stealing Operations (if available) - fallback to SCALAR
-        if (op == "PMF") {
-            std::span<double> output_span(pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getProbabilityWithStrategy(
-                                  input_span, output_span, stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                dice.getProbabilityWithStrategy(input_span, output_span,
-                                                stats::detail::Strategy::WORK_STEALING);
-            } else {
-                dice.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                std::span<double>(pmf_results),
-                                                stats::detail::Strategy::SCALAR);
+        // 4. Work-Stealing Operations
+        {
+            detail::PerformanceHint h;
+            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+            if (op == "PMF") {
+                std::span<double> output_span(pmf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getProbability(input_span, output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "LogPMF") {
+                std::span<double> log_output_span(log_pmf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getLogProbability(input_span, log_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
+            } else if (op == "CDF") {
+                std::span<double> cdf_output_span(cdf_results);
+                start = std::chrono::high_resolution_clock::now();
+                dice.getCumulativeProbability(input_span, cdf_output_span, h);
+                end = std::chrono::high_resolution_clock::now();
             }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPMF") {
-            std::span<double> log_output_span(log_pmf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getLogProbabilityWithStrategy(
-                                  input_span, log_output_span,
-                                  stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                dice.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                   stats::detail::Strategy::WORK_STEALING);
-            } else {
-                dice.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                   std::span<double>(log_pmf_results),
-                                                   stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            if constexpr (requires {
-                              dice.getCumulativeProbabilityWithStrategy(
-                                  input_span, cdf_output_span,
-                                  stats::detail::Strategy::WORK_STEALING);
-                          }) {
-                dice.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                          stats::detail::Strategy::WORK_STEALING);
-            } else {
-                dice.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                          std::span<double>(cdf_results),
-                                                          stats::detail::Strategy::SCALAR);
-            }
-            end = std::chrono::high_resolution_clock::now();
         }
         result.work_stealing_time_us = static_cast<long>(
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
@@ -1011,7 +906,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchFittingTests) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, NumericalStabilityAndEdgeCases) {
-    auto dice = stats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     fixtures::EdgeCaseTester<DiscreteDistribution>::testExtremeValues(dice, "Discrete");
     fixtures::EdgeCaseTester<DiscreteDistribution>::testEmptyBatchOperations(dice, "Discrete");
@@ -1022,3 +917,25 @@ TEST_F(DiscreteEnhancedTest, NumericalStabilityAndEdgeCases) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::DiscreteDistribution
+//==============================================================================
+template <>
+struct stats::tests::DistTraits<stats::DiscreteDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::DiscreteDistribution make() {
+        return stats::DiscreteDistribution::create(1, 6).unwrap();
+    }
+    static std::vector<double> domain() { return {1.0, 2.0, 3.0, 4.0, 5.0, 6.0}; }
+    static double batch_lo() { return 1.0; }
+    static double batch_hi() { return 6.5; }
+    static constexpr bool is_discrete = true;
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::DiscreteDistribution::create(5, 3).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Discrete, DistributionEnhancedTest,
+                               ::testing::Types<stats::DiscreteDistribution>);

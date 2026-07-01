@@ -1,4 +1,5 @@
 // Focused unit test for Rayleigh distribution
+#include "include/basic_test_runner.h"
 #include "include/tests.h"
 #include "libstats/distributions/rayleigh.h"
 
@@ -26,22 +27,22 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Default σ=1 is the standard Rayleigh. Support: x >= 0." << endl;
 
-        auto default_r = stats::RayleighDistribution::create().value;
+        auto default_r = stats::RayleighDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default sigma", default_r.getSigma());
 
-        auto r2 = stats::RayleighDistribution::create(2.0).value;
+        auto r2 = stats::RayleighDistribution::create(2.0).unwrap();
         BasicTestFormatter::printProperty("R(2) sigma", r2.getSigma());
 
         auto copy_r = r2;
         BasicTestFormatter::printProperty("Copy sigma", copy_r.getSigma());
 
-        auto temp = stats::RayleighDistribution::create(3.0).value;
+        auto temp = stats::RayleighDistribution::create(3.0).unwrap();
         auto move_r = std::move(temp);
         BasicTestFormatter::printProperty("Move sigma", move_r.getSigma());
 
         auto result = RayleighDistribution::create(0.5);
         if (result.isOk()) {
-            BasicTestFormatter::printProperty("Factory sigma", result.value.getSigma());
+            BasicTestFormatter::printProperty("Factory sigma", (*result).getSigma());
         }
 
         BasicTestFormatter::printTestSuccess("All constructor tests passed");
@@ -53,7 +54,7 @@ int main() {
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
         // Rayleigh(1): mean = √(π/2) ≈ 1.2533, variance = (4−π)/2 ≈ 0.4292
-        auto r = stats::RayleighDistribution::create(1.0).value;
+        auto r = stats::RayleighDistribution::create(1.0).unwrap();
         const double expected_mean = std::sqrt(M_PI / 2.0);
         const double expected_var = (4.0 - M_PI) / 2.0;
 
@@ -93,7 +94,7 @@ int main() {
         cout << "  Median = √(2·ln 2) ≈ 1.1774" << endl;
         cout << "  Mode = σ = 1" << endl;
 
-        auto r1 = RayleighDistribution::create(1.0).value;
+        auto r1 = RayleighDistribution::create(1.0).unwrap();
 
         // PDF(x=σ=1) = (1/σ²)·exp(-σ²/(2σ²)) = exp(-0.5)
         const double pdf_at_sigma = r1.getProbability(1.0);
@@ -110,7 +111,7 @@ int main() {
 
         // CDF(σ) independent of σ
         for (double sigma : {0.5, 1.0, 2.0, 5.0}) {
-            auto rd = RayleighDistribution::create(sigma).value;
+            auto rd = RayleighDistribution::create(sigma).unwrap();
             const bool cdf_sigma_ok =
                 std::abs(rd.getCumulativeProbability(sigma) - (1.0 - exp_neg_half)) < 1e-12;
             cout << "CDF(sigma=" << sigma
@@ -152,7 +153,7 @@ int main() {
         BasicTestFormatter::printTestStart(4, "Random Sampling");
 
         mt19937 rng(42);
-        auto sample_dist = RayleighDistribution::create(1.0).value;
+        auto sample_dist = RayleighDistribution::create(1.0).unwrap();
         double s = sample_dist.sample(rng);
         cout << "Single sample > 0: " << (s > 0.0 ? "PASS" : "FAIL") << endl;
 
@@ -174,8 +175,8 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: σ̂ = √(Σxᵢ²/(2n)). Single pass, no iteration." << endl;
 
-        auto fit_dist = RayleighDistribution::create(1.0).value;
-        auto source = RayleighDistribution::create(3.0).value;
+        auto fit_dist = RayleighDistribution::create(1.0).unwrap();
+        auto source = RayleighDistribution::create(3.0).unwrap();
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted sigma (from R(3), expect ~3)",
@@ -187,67 +188,29 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
-        // Test 6: Batch Operations
+        // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Batch Operations");
+        stats::tests::BasicDistConfig cfg{"Rayleigh", {0.5, 1.0, 2.0, 3.0, 5.0}, 0.1, 10.0, 1e-12,
+                                          1e-12};
+        cfg.invalid_scenarios = {
+            {"sigma=-1", [] { return RayleighDistribution::create(-1.0).isError(); }},
+            {"sigma=0", [] { return RayleighDistribution::create(0.0).isError(); }},
+        };
+        auto batch_dist = RayleighDistribution::create(1.0).unwrap();
+        stats::tests::runBatchTests(cfg, batch_dist);
 
-        auto batch_dist = RayleighDistribution::create(2.0).value;
-        const vector<double> xs = {0.5, 1.0, 2.0, 3.0, 5.0};
-        vector<double> pdf_b(xs.size()), lpdf_b(xs.size()), cdf_b(xs.size());
-
-        batch_dist.getProbability(span<const double>(xs), span<double>(pdf_b));
-        batch_dist.getLogProbability(span<const double>(xs), span<double>(lpdf_b));
-        batch_dist.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
-
-        bool batch_ok = true;
-        for (size_t i = 0; i < xs.size(); ++i) {
-            if (std::abs(pdf_b[i] - batch_dist.getProbability(xs[i])) > 1e-12 ||
-                std::abs(lpdf_b[i] - batch_dist.getLogProbability(xs[i])) > 1e-12 ||
-                std::abs(cdf_b[i] - batch_dist.getCumulativeProbability(xs[i])) > 1e-12) {
-                batch_ok = false;
-                break;
-            }
-        }
-        cout << "Batch matches scalar: " << (batch_ok ? "PASS" : "FAIL") << endl;
-
-        const size_t N = 2000;
-        vector<double> large_in(N), vec_out(N), scl_out(N);
-        for (size_t i = 0; i < N; ++i)
-            large_in[i] = 0.1 + 0.01 * static_cast<double>(i);
-        batch_dist.getLogProbabilityWithStrategy(span<const double>(large_in),
-                                                 span<double>(vec_out),
-                                                 stats::detail::Strategy::VECTORIZED);
-        batch_dist.getLogProbabilityWithStrategy(
-            span<const double>(large_in), span<double>(scl_out), stats::detail::Strategy::SCALAR);
-        bool large_ok = true;
-        for (size_t i = 0; i < N; ++i) {
-            if (std::abs(vec_out[i] - scl_out[i]) > 1e-10) {
-                large_ok = false;
-                break;
-            }
-        }
-        cout << "VECTORIZED matches SCALAR (n=" << N << "): " << (large_ok ? "PASS" : "FAIL")
-             << endl;
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = RayleighDistribution::create(2.0).value;
-        auto d2 = RayleighDistribution::create(2.0).value;
-        auto d3 = RayleighDistribution::create(3.0).value;
+        auto d1 = RayleighDistribution::create(2.0).unwrap();
+        auto d2 = RayleighDistribution::create(2.0).unwrap();
+        auto d3 = RayleighDistribution::create(3.0).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << endl;
         cout << "d1 == d3: " << (d1 == d3 ? "true" : "false") << endl;
         stringstream ss;
         ss << d1;
         cout << "Stream output: " << ss.str() << endl;
-        auto in_dist = RayleighDistribution::create().value;
+        auto in_dist = RayleighDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
             cout << "Stream round-trip sigma: " << in_dist.getSigma() << endl;
@@ -258,17 +221,7 @@ int main() {
         // =====================================================================
         // Test 8: Error Handling
         // =====================================================================
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-
-        auto err1 = RayleighDistribution::create(-1.0);
-        if (err1.isError())
-            BasicTestFormatter::printTestSuccess("sigma=-1 rejected: " + err1.message);
-        auto err2 = RayleighDistribution::create(0.0);
-        if (err2.isError())
-            BasicTestFormatter::printTestSuccess("sigma=0 rejected: " + err2.message);
-
-        BasicTestFormatter::printTestSuccess("All error handling tests passed");
-        BasicTestFormatter::printNewline();
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printTestSuccess("All Rayleigh tests completed successfully");
         return 0;

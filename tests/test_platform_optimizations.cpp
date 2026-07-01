@@ -700,3 +700,126 @@ TEST(PlatformOptimizations, PerformanceScaling) {
 TEST(PlatformOptimizations, AdaptiveOptimization) {
     test_adaptive_optimization();
 }
+
+// =============================================================================
+// CpuDetectionAPI: tests for cpu_detection.h public functions that previously
+// had no GTest coverage (Part 1D, API rationalization plan).
+// =============================================================================
+
+TEST(CpuDetectionAPI, TopologyIsConsistent) {
+    // get_topology(), get_logical_core_count(), get_physical_core_count(), has_hyperthreading()
+    const auto topo = get_topology();
+
+    // Every machine has at least one logical core.
+    EXPECT_GE(topo.logical_cores, 1u);
+    // physical_cores may be 0 on heavily virtualised CI runners (e.g. GitHub Actions
+    // Windows) where the hypervisor does not expose physical topology. Skip the
+    // hard lower-bound; the rest of the test already gates on physical_cores > 0.
+    EXPECT_GE(topo.physical_cores, 0u);
+
+    // Logical cores >= physical (SMT multiplies logical).
+    EXPECT_GE(topo.logical_cores, topo.physical_cores);
+
+    // Convenience accessors are consistent with the struct.
+    EXPECT_EQ(get_logical_core_count(), topo.logical_cores);
+    EXPECT_EQ(get_physical_core_count(), topo.physical_cores);
+
+    // has_hyperthreading() matches the struct field and the logical/physical ratio.
+    EXPECT_EQ(has_hyperthreading(), topo.hyperthreading);
+    if (topo.physical_cores > 0) {
+        bool smt_on = topo.logical_cores > topo.physical_cores;
+        // hyperthreading flag should be true iff logical > physical
+        // (some platforms may have hyperthreading=true but threads_per_core=1;
+        //  only assert the safe direction: smt_on implies hyperthreading).
+        if (smt_on) {
+            EXPECT_TRUE(topo.hyperthreading)
+                << "SMT detected (logical > physical) but hyperthreading flag is false";
+        }
+    }
+}
+
+TEST(CpuDetectionAPI, OptimalWidthsAndAlignment) {
+    // optimal_double_width(), optimal_float_width(), optimal_alignment()
+    // Must qualify: simd.h also exports optimal_alignment() in an overlapping namespace.
+    const auto dw = stats::arch::optimal_double_width();
+    const auto fw = stats::arch::optimal_float_width();
+    const auto al = stats::arch::optimal_alignment();
+
+    // At least scalar (width 1).
+    EXPECT_GE(dw, 1u);
+    EXPECT_GE(fw, 1u);
+
+    // Floats are smaller than doubles, so more fit per register.
+    EXPECT_GE(fw, dw);
+
+    // Alignment must be a positive power of two.
+    EXPECT_GT(al, 0u);
+    EXPECT_EQ(al & (al - 1), 0u) << "optimal_alignment() must be a power of two";
+
+    // Practical sanity: alignment should not exceed 512 bytes (AVX-512 = 64 bytes).
+    EXPECT_LE(al, 512u);
+}
+
+TEST(CpuDetectionAPI, FeatureStringsNonEmpty) {
+    // features_string(), best_simd_level()
+    const std::string fs = features_string();
+    const std::string bsl = best_simd_level();
+
+    EXPECT_FALSE(fs.empty()) << "features_string() must not be empty";
+    EXPECT_FALSE(bsl.empty()) << "best_simd_level() must not be empty";
+
+    // best_simd_level() should be one of the known tier strings.
+    const std::initializer_list<const char*> known_levels = {
+        "AVX-512", "AVX2", "AVX", "SSE4.2", "SSE4.1", "SSE2", "NEON", "SVE", "None"};
+    bool found = false;
+    for (const char* level : known_levels) {
+        if (bsl.find(level) != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found) << "best_simd_level() returned unrecognised string: " << bsl;
+}
+
+TEST(CpuDetectionAPI, PerformanceMeasurement) {
+    // measure_performance<>(), has_rdtsc()
+
+    // has_rdtsc() must not crash and must agree with the Features struct.
+    const bool rdtsc = has_rdtsc();
+    EXPECT_EQ(rdtsc, get_features().performance.has_rdtsc);
+
+    // Measuring a trivial lambda must produce a valid TimingResult.
+    volatile int sink = 0;
+    const auto result = measure_performance([&sink]() { sink = 42; });
+
+    EXPECT_TRUE(result.valid) << "measure_performance() must set valid=true";
+    EXPECT_GE(result.duration.count(), 0);
+
+    // If RDTSC is available, cycles should be non-zero (a trivial op still takes cycles).
+    if (rdtsc) {
+        // Allow 0 on very fast CPUs where the lambda is optimised out — don't assert,
+        // just report: the existence of a non-zero reading is informative, not required.
+        std::cout << "  measure_performance cycles: " << result.cycles << "\n";
+    }
+
+    (void)sink;  // suppress unused-variable warning
+}
+
+TEST(CpuDetectionAPI, ExtendedSIMDChecksConsistentWithFeatures) {
+    // supports_avx512dq/bw/vl(), supports_sve/sve2(): verify each agrees with get_features().
+    const auto& f = get_features();
+    EXPECT_EQ(supports_avx512dq(), f.avx512dq);
+    EXPECT_EQ(supports_avx512bw(), f.avx512bw);
+    EXPECT_EQ(supports_avx512vl(), f.avx512vl);
+    EXPECT_EQ(supports_sve(), f.sve);
+    EXPECT_EQ(supports_sve2(), f.sve2);
+
+    // Subset consistency: avx512dq/bw/vl require avx512f.
+    if (f.avx512dq || f.avx512bw || f.avx512vl) {
+        EXPECT_TRUE(f.avx512f) << "avx512dq/bw/vl implies avx512f must be set";
+    }
+    // sve2 implies sve.
+    if (f.sve2) {
+        EXPECT_TRUE(f.sve) << "sve2 implies sve must be set";
+    }
+}

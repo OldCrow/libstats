@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools,
 // adaptive caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -53,10 +52,16 @@ namespace stats {
  * - Environmental science: pollutant concentrations
  *
  * @author libstats Development Team
- * @version 1.2.0
- * @since 1.2.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class LogNormalDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<LogNormalDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::LOG_NORMAL;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -82,8 +87,8 @@ class LogNormalDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     LogNormalDistribution(LogNormalDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    LogNormalDistribution& operator=(LogNormalDistribution&& other);
+    /** @brief Move assignment operator. Implementation in .cpp. */
+    LogNormalDistribution& operator=(LogNormalDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~LogNormalDistribution() override = default;
@@ -99,11 +104,11 @@ class LogNormalDistribution : public DistributionBase {
      * @return Result containing a valid LogNormalDistribution or error info
      */
     [[nodiscard]] static Result<LogNormalDistribution> create(double mu = detail::ZERO_DOUBLE,
-                                                              double sigma = detail::ONE) noexcept {
+                                                              double sigma = detail::ONE) {
         auto validation = validateLogNormalParameters(mu, sigma);
         if (validation.isError()) {
-            return Result<LogNormalDistribution>::makeError(validation.error_code,
-                                                            validation.message);
+            return Result<LogNormalDistribution>::makeError(validation.errorCode(),
+                                                            validation.message());
         }
         return Result<LogNormalDistribution>::ok(createUnchecked(mu, sigma));
     }
@@ -155,23 +160,23 @@ class LogNormalDistribution : public DistributionBase {
     void setParameters(double mu, double sigma);
 
     /** @brief Mean = exp(μ + σ²/2). */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = (exp(σ²) − 1)·exp(2μ + σ²). */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness = (exp(σ²) + 2)·√(exp(σ²) − 1). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis = exp(4σ²) + 2exp(3σ²) + 3exp(2σ²) − 6. */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "LogNormalDistribution";
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "LogNormal";
     }
 
     /** @brief Log-normal is continuous. */
@@ -210,7 +215,7 @@ class LogNormalDistribution : public DistributionBase {
      * @brief Log-PDF at x: −(log x − μ)²/(2σ²) − log x − log σ − ½ log(2π).
      * Returns −∞ for x ≤ 0.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via Φ((log x − μ)/σ) = 0.5·(1 + erf((log x − μ)/(σ√2))).
@@ -264,15 +269,15 @@ class LogNormalDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = exp(μ − σ²). */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median = exp(μ). */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const override;
 
     /**
      * @brief Entropy = log(σ·√(2πe)) + μ = log σ + μ + ½(1 + log(2π)).
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief True if μ = 0 and σ = 1 (standard log-normal) within tolerance.
@@ -294,23 +299,6 @@ class LogNormalDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -437,9 +425,6 @@ class LogNormalDistribution : public DistributionBase {
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
-
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     /** @brief True if μ = 0 and σ = 1 (standard log-normal) within tolerance. */
     mutable bool isStandard_{true};

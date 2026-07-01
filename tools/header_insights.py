@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+
+import subprocess as _sp
+def _llvm_prefix():
+    """Detect Homebrew LLVM prefix on macOS; fall back to system."""
+    try:
+        return _sp.check_output(['brew', '--prefix', 'llvm'],
+                                 stderr=_sp.DEVNULL, text=True).strip()
+    except Exception:
+        return '/usr/local/opt/llvm'  # best-guess fallback
+
+_LLVM_PREFIX = _llvm_prefix()
 """
 Header Insights Tool - Clear, Actionable Header Optimization Analysis
 =====================================================================
@@ -15,9 +26,9 @@ from pathlib import Path
 
 def get_compiler_config():
     """Get compiler configuration."""
-    compiler = '/usr/local/opt/llvm/bin/clang++' if os.path.exists('/usr/local/opt/llvm/bin/clang++') else 'clang++'
-    if compiler.startswith('/usr/local/opt/llvm'):
-        return [compiler, '-std=c++20', '-stdlib=libc++', '-I/usr/local/opt/llvm/include/c++/v1']
+    compiler = f'{_LLVM_PREFIX}/bin/clang++' if os.path.exists(f'{_LLVM_PREFIX}/bin/clang++') else 'clang++'
+    if compiler.startswith(f'{_LLVM_PREFIX}'):
+        return [compiler, '-std=c++20', '-stdlib=libc++', '-I{_LLVM_PREFIX}/include/c++/v1']
     else:
         return [compiler, '-std=c++20']
 

@@ -1,5 +1,6 @@
 #include "libstats/platform/benchmark.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/math_constants.h"
 #include "libstats/core/statistical_constants.h"
 

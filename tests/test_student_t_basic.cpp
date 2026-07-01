@@ -1,4 +1,5 @@
 // Focused unit test for Student's t distribution
+#include "include/basic_test_runner.h"
 #include "include/tests.h"
 #include "libstats/distributions/student_t.h"
 
@@ -27,23 +28,24 @@ int main() {
         cout << "StudentTDistribution: full real-line, log-space SIMD batch." << endl;
         cout << "nu=1: Cauchy.  nu->inf: Normal(0,1)." << endl;
 
-        auto default_t = stats::StudentTDistribution::create().value;
+        auto default_t = stats::StudentTDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default nu (df)", default_t.getNu());
-        BasicTestFormatter::printProperty("Default isCauchy", static_cast<int>(default_t.isCauchy()));
+        BasicTestFormatter::printProperty("Default isCauchy",
+                                          static_cast<int>(default_t.isCauchy()));
 
-        auto t3 = stats::StudentTDistribution::create(3.0).value;
+        auto t3 = stats::StudentTDistribution::create(3.0).unwrap();
         BasicTestFormatter::printProperty("nu=3 created", t3.getNu());
 
         auto copy_t = t3;
         BasicTestFormatter::printProperty("Copy nu", copy_t.getNu());
 
-        auto temp = stats::StudentTDistribution::create(5.0).value;
+        auto temp = stats::StudentTDistribution::create(5.0).unwrap();
         auto move_t = std::move(temp);
         BasicTestFormatter::printProperty("Move nu", move_t.getNu());
 
         auto result = StudentTDistribution::create(10.0);
         if (result.isOk()) {
-            BasicTestFormatter::printProperty("Factory nu=10", result.value.getNu());
+            BasicTestFormatter::printProperty("Factory nu=10", (*result).getNu());
         }
 
         BasicTestFormatter::printTestSuccess("All constructor tests passed");
@@ -54,7 +56,7 @@ int main() {
         // =====================================================================
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
-        auto t5 = stats::StudentTDistribution::create(5.0).value;
+        auto t5 = stats::StudentTDistribution::create(5.0).unwrap();
         BasicTestFormatter::printProperty("getNu()", t5.getNu());
         BasicTestFormatter::printProperty("getDegreesOfFreedom()", t5.getDegreesOfFreedom());
         BasicTestFormatter::printProperty("getNumParameters()", t5.getNumParameters());
@@ -72,7 +74,7 @@ int main() {
         BasicTestFormatter::printProperty("Median (always 0)", t5.getMedian());
 
         // nu=1: mean and variance undefined
-        auto t1 = stats::StudentTDistribution::create(1.0).value;
+        auto t1 = stats::StudentTDistribution::create(1.0).unwrap();
         cout << "nu=1 mean isnan: " << (std::isnan(t1.getMean()) ? "YES" : "NO") << endl;
         cout << "nu=1 variance isnan: " << (std::isnan(t1.getVariance()) ? "YES" : "NO") << endl;
         cout << "nu=1 isCauchy: " << (t1.isCauchy() ? "YES" : "NO") << endl;
@@ -110,7 +112,7 @@ int main() {
 
         // CDF symmetry at 0
         for (double nu : {1.0, 3.0, 5.0, 10.0, 30.0}) {
-            auto td = StudentTDistribution::create(nu).value;
+            auto td = StudentTDistribution::create(nu).unwrap();
             double cdf0 = td.getCumulativeProbability(0.0);
             bool sym_ok = std::abs(cdf0 - 0.5) < 1e-8;
             cout << "CDF(0, nu=" << nu << ")=0.5: " << (sym_ok ? "PASS" : "FAIL") << " (got "
@@ -118,9 +120,9 @@ int main() {
         }
 
         // t-table critical values
-        auto t5b = StudentTDistribution::create(5.0).value;
-        auto t10 = StudentTDistribution::create(10.0).value;
-        auto t30 = StudentTDistribution::create(30.0).value;
+        auto t5b = StudentTDistribution::create(5.0).unwrap();
+        auto t10 = StudentTDistribution::create(10.0).unwrap();
+        auto t30 = StudentTDistribution::create(30.0).unwrap();
         const double q975_5 = t5b.getQuantile(0.975);
         const double q975_10 = t10.getQuantile(0.975);
         const double q975_30 = t30.getQuantile(0.975);
@@ -155,7 +157,7 @@ int main() {
         cout << "Sample mean should be near 0 (symmetric), variance near nu/(nu-2)." << endl;
 
         mt19937 rng(42);
-        auto t6 = StudentTDistribution::create(6.0).value;  // variance = 6/4 = 1.5
+        auto t6 = StudentTDistribution::create(6.0).unwrap();  // variance = 6/4 = 1.5
 
         const auto samples = t6.sample(rng, 500);
         const double smean = TestDataGenerators::computeSampleMean(samples);
@@ -172,10 +174,10 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE fit: Newton-Raphson on score equation for nu." << endl;
 
-        auto t_fit = StudentTDistribution::create(1.0).value;
+        auto t_fit = StudentTDistribution::create(1.0).unwrap();
 
         // Fit to samples from t(4)
-        auto t4_src = StudentTDistribution::create(4.0).value;
+        auto t4_src = StudentTDistribution::create(4.0).unwrap();
         const auto fit_data = t4_src.sample(rng, 300);
         t_fit.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted nu (from t(4) data, expect ~4)", t_fit.getNu());
@@ -187,41 +189,19 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("Distribution management tests passed");
         BasicTestFormatter::printNewline();
-
         // =====================================================================
-        // Test 6: Batch Operations — scalar matches batch
+        // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        BasicTestFormatter::printTestStart(6, "Batch Operations");
-        cout << "SIMD batch PDF/LogPDF vs scalar. CDF batch matches scalar t_cdf." << endl;
+        stats::tests::BasicDistConfig cfg{"Studentt", {-3.0, -1.0, 0.0, 1.0, 3.0}, -5.0, 5.0, 1e-12,
+                                          1e-12};
+        auto t_batch = StudentTDistribution::create(3.0).unwrap();
+        stats::tests::runBatchTests(cfg, t_batch);
 
-        auto t_batch = StudentTDistribution::create(3.0).value;
-        const size_t N = 1000;
-        vector<double> xs(N), pdf_r(N), logpdf_r(N), cdf_r(N);
-        for (size_t i = 0; i < N; ++i) {
-            xs[i] = -5.0 + static_cast<double>(i) * 10.0 / static_cast<double>(N - 1);
-        }
-        t_batch.getProbability(span<const double>(xs), span<double>(pdf_r));
-        t_batch.getLogProbability(span<const double>(xs), span<double>(logpdf_r));
-        t_batch.getCumulativeProbability(span<const double>(xs), span<double>(cdf_r));
-
-        const double scalar_pdf = t_batch.getProbability(xs[100]);
-        const bool batch_ok = std::abs(pdf_r[100] - scalar_pdf) < 1e-12;
-        cout << "Batch PDF vs scalar at x=" << xs[100] << ": " << (batch_ok ? "PASS" : "FAIL")
-             << endl;
-        BasicTestFormatter::printProperty("Batch CDF(0) = 0.5",
-                                          cdf_r[N / 2]);  // xs[500] = 0.0
-
-        BasicTestFormatter::printTestSuccess("Batch operation tests passed");
-        BasicTestFormatter::printNewline();
-
-        // =====================================================================
-        // Test 7: Comparison and Stream Operators
-        // =====================================================================
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto a = StudentTDistribution::create(3.0).value;
-        auto b = StudentTDistribution::create(3.0).value;
-        auto c = StudentTDistribution::create(5.0).value;
+        auto a = StudentTDistribution::create(3.0).unwrap();
+        auto b = StudentTDistribution::create(3.0).unwrap();
+        auto c = StudentTDistribution::create(5.0).unwrap();
         cout << "a==b (nu=3): " << (a == b ? "true" : "false") << endl;
         cout << "a!=c (nu=3 vs nu=5): " << (a != c ? "true" : "false") << endl;
 
@@ -230,7 +210,7 @@ int main() {
         cout << "Stream output: " << oss.str() << endl;
 
         istringstream iss("StudentTDistribution(nu=7)");
-        auto parsed = StudentTDistribution::create().value;
+        auto parsed = StudentTDistribution::create().unwrap();
         iss >> parsed;
         BasicTestFormatter::printProperty("Parsed from stream (expect 7)", parsed.getNu());
 

@@ -1,607 +1,200 @@
 # libstats Parallel and Batch Processing Guide
 
-## Overview
+This guide describes the v2.x batch API for probability, log-probability, and CDF evaluation.
 
-This guide provides comprehensive information about the parallel and batch processing capabilities in libstats. The library implements a **dual API approach**: intelligent auto-dispatch for most users and explicit strategy control for power users who need precise performance control.
+## Design model
 
-## Design Philosophy
+Batch APIs use C++20 spans:
 
-### Core Principles
+- input: `std::span<const double>`
+- output: `std::span<double>`
 
-1. **Simplicity First**: Clean, intuitive API for 95% of use cases
-2. **Power User Access**: Explicit strategy selection for advanced performance tuning
-3. **Performance Preservation**: Zero regression in optimized code paths
-4. **Intelligent Dispatch**: Automatic strategy selection based on data characteristics and system capabilities
-5. **Thread Safety**: All batch operations are fully thread-safe
+The caller owns storage. The distribution writes results into the output span. Input and output spans must have the same size.
 
-### Strategy Selection Logic
+Manual strategy-specific v1.x methods were removed in v2.0.0. Use the unified span API plus `detail::PerformanceHint`.
 
-Strategy selection uses a threshold hierarchy tuned per architecture at startup:
-
-- **Below SIMD threshold** (~8 elements): `SCALAR` — dispatch overhead exceeds benefit
-- **Below parallel threshold** (varies by distribution): `VECTORIZED` — VectorOps batch path
-- **Above parallel threshold**: `PARALLEL` or `WORK_STEALING` — threading pays off
-
-The parallel threshold is distribution-specific: Gaussian (exp/erf heavy) parallelizes
-sooner than Uniform (trivial arithmetic). Thresholds are refined at startup based on
-measured thread overhead and SIMD efficiency for the current machine.
-
-An optional performance history layer can override the threshold decision when it has
-high-confidence learned data for a specific distribution and batch size.
-
-## Public API Reference
-
-### Auto-Dispatch Methods (Recommended)
-
-These methods automatically select the optimal processing strategy based on your data and system capabilities:
+## Basic usage
 
 ```cpp
-// Probability Density Function (PDF)
-void getProbability(std::span<const double> values, std::span<double> results,
-                   const PerformanceHint& hint = {}) const;
+#include "libstats/distributions/gaussian.h"
+#include <span>
+#include <vector>
 
-// Log Probability Density Function (Log PDF)
-void getLogProbability(std::span<const double> values, std::span<double> results,
-                      const PerformanceHint& hint = {}) const;
-
-// Cumulative Distribution Function (CDF)
-void getCumulativeProbability(std::span<const double> values, std::span<double> results,
-                             const PerformanceHint& hint = {}) const;
-```
-
-#### Performance Hints
-
-You can provide optional hints to guide strategy selection:
-
-```cpp
-PerformanceHint hint;
-hint.strategy = PerformanceHint::PreferredStrategy::AUTO;          // Default: automatic
-hint.strategy = PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY;  // Favor speed
-hint.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT; // Favor parallelism
-hint.strategy = PerformanceHint::PreferredStrategy::FORCE_SCALAR;   // Force scalar processing
-hint.strategy = PerformanceHint::PreferredStrategy::FORCE_VECTORIZED; // Force vectorized batch path
-hint.strategy = PerformanceHint::PreferredStrategy::FORCE_PARALLEL; // Force parallel processing
-```
-
-### Explicit Strategy Methods (Power Users)
-
-These methods give you direct control over the processing strategy:
-
-```cpp
-// Probability Density Function with explicit strategy
-void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                               stats::detail::Strategy strategy) const;
-
-// Log Probability Density Function with explicit strategy
-void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                  stats::detail::Strategy strategy) const;
-
-// Cumulative Distribution Function with explicit strategy
-void getCumulativeProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                         stats::detail::Strategy strategy) const;
-```
-
-#### Available Strategies
-
-```cpp
-enum class Strategy {
-    SCALAR,        // Element-by-element loop (batch < simd_min threshold)
-    VECTORIZED,    // VectorOps batch path — SIMD-accelerated for all distributions
-                   // with a fixed-step VectorOps pipeline: Gaussian, Exponential,
-                   // Gamma, Uniform, Chi-squared, Student's t, Beta, Log-Normal,
-                   // Pareto, Weibull, Rayleigh.
-                   // Exception: Von Mises uses a scalar loop (no vector_cos)
-    PARALLEL,      // Multi-threaded via ParallelUtils::parallelFor
-    WORK_STEALING  // Work-stealing pool for irregular or variable workloads
-};
-```
-
-## Usage Examples
-
-### Basic Auto-Dispatch Usage
-
-```cpp
-#include "libstats.h"
-
-// Create a distribution
-auto result = libstats::GaussianDistribution::create(0.0, 1.0);
-if (result.isOk()) {
-    auto gaussian = std::move(result.value);
-
-    // Prepare data
-    std::vector<double> input_values(10000);
-    std::vector<double> pdf_results(10000);
-    std::vector<double> cdf_results(10000);
-
-    // Fill input with test data
-    std::iota(input_values.begin(), input_values.end(), -5.0);
-
-    // Auto-dispatch will select optimal strategy (likely PARALLEL for 10k elements)
-    gaussian.getProbability(std::span<const double>(input_values),
-                           std::span<double>(pdf_results));
-
-    gaussian.getCumulativeProbability(std::span<const double>(input_values),
-                                     std::span<double>(cdf_results));
-
-    std::cout << "Processed " << input_values.size() << " values" << std::endl;
-}
-```
-
-### Performance-Guided Usage
-
-```cpp
-// For latency-sensitive applications
-PerformanceHint low_latency;
-low_latency.strategy = PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY;
-
-gaussian.getProbability(std::span<const double>(small_batch),
-                       std::span<double>(results), low_latency);
-
-// For throughput-focused applications
-PerformanceHint high_throughput;
-high_throughput.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-
-gaussian.getProbability(std::span<const double>(large_batch),
-                       std::span<double>(results), high_throughput);
-```
-
-### Explicit Strategy Control
-
-```cpp
-// Power user: explicitly control the processing strategy
-using Strategy = stats::detail::Strategy;
-
-std::vector<double> input(5000);
-std::vector<double> results(5000);
-
-// Force scalar processing (useful for debugging or comparison)
-gaussian.getProbabilityWithStrategy(std::span<const double>(input),
-                                   std::span<double>(results), Strategy::SCALAR);
-
-// Force parallel processing (useful when you know your data characteristics)
-gaussian.getProbabilityWithStrategy(std::span<const double>(input),
-                                   std::span<double>(results), Strategy::PARALLEL);
-
-// Use work-stealing for irregular workloads
-gaussian.getProbabilityWithStrategy(std::span<const double>(input),
-                                   std::span<double>(results), Strategy::WORK_STEALING);
-```
-
-### Performance Benchmarking
-
-```cpp
-#include <chrono>
-
-// Benchmark different strategies
-auto benchmark_strategy = [&](Strategy strategy, const std::string& name) {
-    auto start = std::chrono::high_resolution_clock::now();
-
-    gaussian.getProbabilityWithStrategy(std::span<const double>(test_data),
-                                       std::span<double>(results), strategy);
-
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-    std::cout << name << ": " << duration.count() << " μs" << std::endl;
-};
-
-benchmark_strategy(Strategy::SCALAR, "Scalar");
-benchmark_strategy(Strategy::VECTORIZED, "Vectorized");
-benchmark_strategy(Strategy::PARALLEL, "Parallel");
-benchmark_strategy(Strategy::WORK_STEALING, "Work-Stealing");
-```
-
-## Performance Characteristics
-
-### Strategy Selection Guidelines
-
-| Batch Size | Recommended Strategy | Rationale |
-|------------|---------------------|-----------|
-| < 8 elements | `SCALAR` | Dispatch overhead exceeds any gain |
-| 8 – ~1000 elements | `VECTORIZED` | VectorOps batch path; SIMD-accelerated for Gaussian |
-| ~1000 – 10000 elements | `PARALLEL` | Threading benefit outweighs overhead |
-| 10000+ elements | `WORK_STEALING` | Dynamic load balancing for large/irregular workloads |
-
-Exact thresholds are architecture-specific (Gaussian parallel threshold ~2500 on Intel AVX,
-higher on machines with greater thread overhead). Query `./build/tools/system_inspector`
-for thresholds on your machine.
-
-### Measured Performance Gains (Intel Ivy Bridge, AVX only)
-
-From `simd_verification` on MacBook Pro 9,1 (i7-3820QM, SSE2+AVX, no FMA), v1.2.0:
-
-| Distribution | Operation | SIMD Speedup | Notes |
-|---|---|---|---|
-| Uniform | PDF | ~54x | Trivial bounds check; gain is batch-path amortization |
-| Uniform | CDF | ~25x | Linear interior vectorized; boundary scalar fixup |
-| Gaussian | LogPDF | ~52x | Purely affine, no transcendentals |
-| Gaussian | PDF | ~12x | Uses vector_exp |
-| Gaussian | CDF | ~10x | Uses vector_erf |
-| Exponential | LogPDF | ~21x | Purely affine |
-| Exponential | PDF | ~10x | vector_exp + scalar fixup |
-| Exponential | CDF | ~10x | vector_exp + scalar fixup |
-| Gamma | PDF | ~10x | vector_log pipeline |
-| Gamma | LogPDF | ~7x | vector_log pipeline |
-| Chi-squared | PDF | ~10x | Delegates to Gamma batch path |
-| Student's t | PDF | ~7x | One vector_log in the log-space pipeline |
-| Student's t | LogPDF | ~8x | Log-space SIMD pipeline |
-| Beta | PDF | ~5x | Two vector_log calls plus boundary fixup |
-| Beta | LogPDF | ~5x | Two-log SIMD pipeline |
-| Gamma/Poisson/Student's t/Beta | CDF | 1–2x | Dominated by scalar special functions |
-| **Overall** | **all 54** | **~2.5x** | Geometric mean across the full current suite |
-
-Higher speedups seen on AVX2/FMA (Kaby Lake: 4.45x+ overall) and different profile on NEON M1.
-AVX-512 (AMD Ryzen Zen 4) exercises 8-wide vectors; transcendentals currently delegate to AVX.
-
-**SIMD vectorization status:** Exponential (all 3 ops), Gamma (PDF/LogPDF), and Uniform (CDF)
-have full SIMD batch paths via `BatchUnsafeImpl` using the compute+fixup pattern. Poisson,
-Discrete, and Uniform PDF/LogPDF remain scalar in their hot paths — those require `vector_floor`
-or `vector_blend` primitives not yet in `VectorOps`.
-
-**ChiSquared** delegates all batch operations to `GammaDistribution` (Delegation pattern), so
-it inherits Gamma's SIMD performance automatically. **Student's t** and **Beta** use direct
-log-space SIMD batch paths for PDF/LogPDF while keeping scalar special-function CDF implementations.
-
-## Advanced Features
-
-### System Capability Detection
-
-The library automatically detects and uses available system capabilities:
-
-```cpp
-// Query detected capabilities (for informational purposes)
-std::cout << "SIMD level: " << libstats::cpu::best_simd_level() << std::endl;
-std::cout << "Vector width: " << libstats::cpu::optimal_double_width() << std::endl;
-std::cout << "CPU cores: " << std::thread::hardware_concurrency() << std::endl;
-```
-
-### Performance System Initialization
-
-For optimal performance in production applications:
-
-```cpp
 int main() {
-    // Initialize performance systems to eliminate cold-start delays
-    libstats::initialize_performance_systems();
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
 
-    // Your application code here...
-    auto gaussian = libstats::GaussianDistribution::create(0.0, 1.0);
-    // Batch operations will have optimal performance from the start
+    std::vector<double> x = {-2.0, -1.0, 0.0, 1.0, 2.0};
+    std::vector<double> pdf(x.size());
+
+    normal.getProbability(std::span<const double>(x),
+                          std::span<double>(pdf));
 }
 ```
 
-### Thread Safety Guarantees
+## Supported batch operations
 
-All batch processing methods are **fully thread-safe**:
-
-```cpp
-// Safe to call from multiple threads simultaneously
-std::vector<std::thread> threads;
-for (int i = 0; i < std::thread::hardware_concurrency(); ++i) {
-    threads.emplace_back([&gaussian, i]() {
-        std::vector<double> local_input(1000);
-        std::vector<double> local_results(1000);
-
-        // Fill with thread-specific data
-        std::iota(local_input.begin(), local_input.end(), i * 1000.0);
-
-        // Thread-safe batch processing
-        gaussian.getProbability(std::span<const double>(local_input),
-                               std::span<double>(local_results));
-    });
-}
-
-for (auto& t : threads) {
-    t.join();
-}
-```
-
-## Parallel Batch Fitting
-
-All nine distributions support `parallelBatchFit` for fitting distribution parameters to
-multiple independent datasets simultaneously, using the shared `detail::batchFitParallel`
-helper from `include/core/parallel_batch_fit.h`.
+All standard distributions expose the same three batch operations:
 
 ```cpp
-// Fit Gaussian parameters to 100 independent datasets in parallel
-std::vector<std::vector<double>> datasets(100);
-for (auto& ds : datasets) {
-    ds.resize(1000);
-    // ... fill each dataset ...
-}
-
-std::vector<stats::GaussianDistribution> fitted(100);
-stats::GaussianDistribution::parallelBatchFit(datasets, fitted);
-// fitted[i] now holds parameters estimated from datasets[i]
+dist.getProbability(values, results, hint);
+dist.getLogProbability(values, results, hint);
+dist.getCumulativeProbability(values, results, hint);
 ```
 
-**Available on all 9 distributions**: Gaussian, Exponential, Uniform, Discrete, Poisson,
-Gamma, Chi-squared, Student's t, and Beta all implement `parallelBatchFit`.
+`hint` is optional. With the default hint, libstats auto-dispatches based on batch size, operation type, distribution type, and system capabilities.
 
-The implementation uses the global ThreadPool for datasets ≥ 8 (configurable via
-`dispatch_table::BATCH_FIT_MIN`). Smaller counts run serially. Exceptions from individual
-fits are captured per-chunk and re-thrown after all futures complete; a serial fallback
-runs if the thread pool itself fails to initialise.
+## PerformanceHint
 
-## Distribution-Specific Considerations
-
-### Discrete Distributions (Discrete, Poisson)
-
-- **Strengths**: Extremely fast SIMD processing due to simple integer operations
-- **Cache Behavior**: Excellent cache locality for repeated discrete values
-- **Optimal Strategy**: VECTORIZED for most batch sizes
+`detail::PerformanceHint` lets advanced callers influence dispatch without using removed strategy-specific APIs.
 
 ```cpp
-PoissonDistribution poisson(3.0);
-std::vector<double> discrete_values = {0, 1, 2, 3, 4, 5, 1, 2, 3, 4}; // Repeated values
-std::vector<double> probabilities(discrete_values.size());
+stats::detail::PerformanceHint hint;
+hint.strategy = stats::detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
 
-// VECTORIZED will be extremely fast due to cache-friendly discrete lookups
-poisson.getProbability(std::span<const double>(discrete_values),
-                       std::span<double>(probabilities));
+dist.getProbability(std::span<const double>(values),
+                    std::span<double>(results),
+                    hint);
 ```
 
-### Continuous Distributions (Gaussian, Exponential, Uniform, Gamma)
+Available preferences:
 
-- **Mathematical Complexity**: Varies by distribution type
-- **Memory Patterns**: Sequential access patterns optimize well
-- **Optimal Strategy**: Depends on computational complexity
+| Hint | Meaning |
+|---|---|
+| `AUTO_SELECT` | Let libstats choose the strategy |
+| `FORCE_SCALAR` | Use scalar loop |
+| `FORCE_VECTORIZED` | Use SIMD/vectorized path |
+| `FORCE_PARALLEL` | Use standard parallel path |
+| `MINIMIZE_LATENCY` | Prefer low overhead for small batches |
+| `MAXIMIZE_THROUGHPUT` | Prefer work stealing for high-throughput workloads |
+
+In v2.x, `MAXIMIZE_THROUGHPUT` routes to the shared `GlobalWorkStealingPool`, not a per-thread pool. This avoids spawning `N * hardware_concurrency` worker threads when multiple callers run concurrently.
+
+## Strategy selection
+
+The default dispatcher considers:
+
+- batch size
+- operation type (`PDF`, `LogPDF`, `CDF`)
+- distribution type
+- current CPU SIMD capabilities
+- calibrated dispatch thresholds
+
+Thresholds live in:
+
+```text
+include/core/dispatch_thresholds.h
+```
+
+These thresholds are architecture-specific. Performance results from AVX2, NEON, and AVX-512 systems should not be compared directly.
+
+## Output storage
+
+The output span must be pre-sized:
 
 ```cpp
-// Uniform: Extremely simple (range checks) - SIMD dominates
-UniformDistribution uniform(0.0, 1.0);
-
-// Gaussian: Moderate complexity - balanced SIMD/Parallel trade-off
-GaussianDistribution gaussian(0.0, 1.0);
-
-// Gamma: High complexity - Parallel often better than SIMD
-GammaDistribution gamma(2.0, 1.5);
+std::vector<double> results(values.size());
+dist.getLogProbability(values, results);
 ```
 
-## Error Handling and Edge Cases
+The function does not allocate output memory. This keeps batch paths predictable and avoids hidden allocations in hot loops.
 
-### Input Validation
+## Error handling
+
+Batch operations throw `std::invalid_argument` when:
+
+- input and output span sizes differ
+- the distribution-specific implementation rejects an invalid input shape
+
+Individual out-of-support values are generally represented by distribution semantics:
+
+- PDF/PMF: usually `0.0`
+- LogPDF/LogPMF: usually `-inf`
+- CDF: clamped to `[0, 1]` as appropriate
+
+NaN handling is distribution-specific, but the base `getLogProbability(NaN)` default propagates NaN.
+
+## Parallel batch fitting
+
+Several distributions expose:
 
 ```cpp
-// The library validates inputs automatically
-std::vector<double> input(1000);
-std::vector<double> results(500);  // Wrong size!
-
-try {
-    gaussian.getProbability(std::span<const double>(input),
-                           std::span<double>(results));
-} catch (const std::invalid_argument& e) {
-    std::cout << "Error: " << e.what() << std::endl;
-    // "Input and output spans must have the same size"
-}
+Distribution::parallelBatchFit(datasets, results);
 ```
 
-### Empty Input Handling
+where:
+
+- `datasets` is `std::vector<std::vector<double>>`
+- `results` is `std::vector<Distribution>`
+
+Example:
 
 ```cpp
-// Empty inputs are handled gracefully
-std::vector<double> empty_input;
-std::vector<double> empty_results;
+std::vector<std::vector<double>> datasets = {sample1, sample2, sample3};
+std::vector<stats::GaussianDistribution> results;
 
-// No-op, returns immediately
-gaussian.getProbability(std::span<const double>(empty_input),
-                       std::span<double>(empty_results));
+stats::GaussianDistribution::parallelBatchFit(datasets, results);
 ```
 
-### Exception-Free Alternative
+`parallelBatchFit` is still an output-parameter API in v2.x. Changing it to `Result<T>` is tracked separately as an API design decision.
+
+## SIMD validation
+
+Use:
+
+```bash
+./build/tools/simd_verification
+```
+
+This validates SIMD correctness and reports per-operation geometric mean speedups. It is the right tool to verify that SIMD paths are active and correct on a given machine.
+
+## Timing tests
+
+Timing-sensitive tests are labelled separately and should run alone on a quiet machine:
+
+```bash
+ctest --test-dir build --output-on-failure -j1 -L timing
+```
+
+Correctness suites should exclude timing tests:
+
+```bash
+ctest --test-dir build --output-on-failure -LE "timing|benchmark"
+```
+
+## Migration from v1.x
+
+Removed v1.x API:
+
+- strategy-specific suffix methods for PDF, LogPDF, and CDF batch operations
+
+v2.x replacement:
 
 ```cpp
-// Use safe factory methods for exception-free operation
-auto safe_gaussian = libstats::GaussianDistribution::create(mean, std_dev);
-if (safe_gaussian.isOk()) {
-    // Process successfully
-    safe_gaussian.value.getProbability(input_span, results_span);
-} else {
-    std::cout << "Error: " << safe_gaussian.message << std::endl;
-}
+stats::detail::PerformanceHint hint;
+hint.strategy = stats::detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+
+dist.getProbability(std::span<const double>(values),
+                    std::span<double>(results),
+                    hint);
 ```
 
-## Performance Optimization Tips
+Removed v1.x vector-returning base API:
 
-### 1. Choose Appropriate Data Sizes
+- vector-returning batch helpers on `DistributionBase`
+
+v2.x replacement:
 
 ```cpp
-// Avoid very small batches in loops - combine when possible
-// ❌ Inefficient: Many small batch calls
-for (const auto& small_batch : many_small_batches) {
-    distribution.getProbability(small_batch, results);
-}
-
-// ✅ Efficient: Single large batch call
-std::vector<double> combined_input;
-for (const auto& batch : many_small_batches) {
-    combined_input.insert(combined_input.end(), batch.begin(), batch.end());
-}
-distribution.getProbability(std::span<const double>(combined_input), combined_results);
+std::vector<double> y(values.size());
+dist.getProbability(std::span<const double>(values),
+                    std::span<double>(y));
 ```
 
-### 2. Reuse Memory Allocations
+## Practical guidance
 
-```cpp
-// ✅ Reuse vectors to avoid allocation overhead
-std::vector<double> reusable_input(max_batch_size);
-std::vector<double> reusable_results(max_batch_size);
-
-for (size_t batch_start = 0; batch_start < total_size; batch_start += batch_size) {
-    size_t current_batch_size = std::min(batch_size, total_size - batch_start);
-
-    // Resize without reallocation (if capacity is sufficient)
-    reusable_input.resize(current_batch_size);
-    reusable_results.resize(current_batch_size);
-
-    // Fill input data...
-
-    distribution.getProbability(std::span<const double>(reusable_input),
-                               std::span<double>(reusable_results));
-}
-```
-
-### 3. Use Performance Hints Appropriately
-
-```cpp
-// For real-time applications where latency matters
-PerformanceHint real_time;
-real_time.strategy = PerformanceHint::PreferredStrategy::MINIMIZE_LATENCY;
-
-// For batch processing where throughput matters
-PerformanceHint batch_processing;
-batch_processing.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-```
-
-### 4. Profile Your Specific Use Case
-
-```cpp
-// Benchmark your specific data patterns and sizes
-auto profile_batch_sizes = [&](const std::vector<size_t>& sizes) {
-    for (size_t size : sizes) {
-        std::vector<double> test_input(size);
-        std::vector<double> test_results(size);
-
-        // Fill with representative data...
-
-        auto start = std::chrono::high_resolution_clock::now();
-        distribution.getProbability(std::span<const double>(test_input),
-                                   std::span<double>(test_results));
-        auto end = std::chrono::high_resolution_clock::now();
-
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        double throughput = static_cast<double>(size) / duration.count(); // elements per μs
-
-        std::cout << "Size " << size << ": " << throughput << " elements/μs" << std::endl;
-    }
-};
-
-profile_batch_sizes({100, 1000, 10000, 100000});
-```
-
-## Migration from Legacy APIs
-
-### From Deprecated Batch Methods
-
-If you're upgrading from older versions of libstats:
-
-```cpp
-// ❌ Old deprecated API (removed)
-// distribution.getProbabilityBatch(values, results, count);
-
-// ✅ New auto-dispatch API
-distribution.getProbability(std::span<const double>(values, count),
-                           std::span<double>(results, count));
-
-// ✅ Or explicit strategy API
-distribution.getProbabilityWithStrategy(std::span<const double>(values, count),
-                                       std::span<double>(results, count),
-                                       stats::detail::Strategy::VECTORIZED);
-```
-
-### From Individual Function Calls
-
-```cpp
-// ❌ Inefficient: Individual calls in a loop
-std::vector<double> results(input.size());
-for (size_t i = 0; i < input.size(); ++i) {
-    results[i] = distribution.getProbability(input[i]);
-}
-
-// ✅ Efficient: Single batch call
-distribution.getProbability(std::span<const double>(input),
-                           std::span<double>(results));
-```
-
-## Debugging and Diagnostics
-
-### Strategy Selection Verification
-
-```cpp
-// To understand which strategy was selected, use explicit strategy methods for comparison
-std::vector<double> input(5000);
-std::vector<double> auto_results(5000);
-std::vector<double> explicit_results(5000);
-
-// Auto-dispatch
-auto auto_start = std::chrono::high_resolution_clock::now();
-distribution.getProbability(std::span<const double>(input), std::span<double>(auto_results));
-auto auto_end = std::chrono::high_resolution_clock::now();
-auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(auto_end - auto_start);
-
-// Try different explicit strategies to see which matches auto-dispatch performance
-auto test_strategy = [&](stats::detail::Strategy strategy, const std::string& name) {
-    auto start = std::chrono::high_resolution_clock::now();
-    distribution.getProbabilityWithStrategy(std::span<const double>(input),
-                                           std::span<double>(explicit_results), strategy);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-    std::cout << name << ": " << time.count() << " μs";
-    if (std::abs(time.count() - auto_time.count()) < auto_time.count() * 0.1) {
-        std::cout << " ← Likely auto-selected strategy";
-    }
-    std::cout << std::endl;
-};
-
-std::cout << "Auto-dispatch: " << auto_time.count() << " μs" << std::endl;
-test_strategy(stats::detail::Strategy::SCALAR, "SCALAR");
-test_strategy(stats::detail::Strategy::VECTORIZED, "VECTORIZED");
-test_strategy(stats::detail::Strategy::PARALLEL, "PARALLEL");
-```
-
-### Correctness Verification
-
-```cpp
-// Verify that all strategies produce identical results
-bool verify_strategies(const std::vector<double>& input) {
-    std::vector<double> scalar_results(input.size());
-    std::vector<double> vectorized_results(input.size());
-    std::vector<double> parallel_results(input.size());
-
-    distribution.getProbabilityWithStrategy(std::span<const double>(input),
-                                           std::span<double>(scalar_results),
-                                           stats::detail::Strategy::SCALAR);
-
-    distribution.getProbabilityWithStrategy(std::span<const double>(input),
-                                           std::span<double>(vectorized_results),
-                                           stats::detail::Strategy::VECTORIZED);
-
-    distribution.getProbabilityWithStrategy(std::span<const double>(input),
-                                           std::span<double>(parallel_results),
-                                           stats::detail::Strategy::PARALLEL);
-
-    // Check for numerical differences
-    for (size_t i = 0; i < input.size(); ++i) {
-        if (std::abs(scalar_results[i] - vectorized_results[i]) > 1e-12 ||
-            std::abs(scalar_results[i] - parallel_results[i]) > 1e-12) {
-            std::cout << "Mismatch at index " << i << ": scalar=" << scalar_results[i]
-                      << ", vectorized=" << vectorized_results[i] << ", parallel=" << parallel_results[i] << std::endl;
-            return false;
-        }
-    }
-
-    return true;
-}
-```
-
-## Conclusion
-
-The libstats parallel and batch processing system provides:
-
-1. **Simple Interface**: Auto-dispatch handles optimization automatically for most users
-2. **Power User Control**: Explicit strategy selection for performance-critical applications
-3. **Excellent Performance**: Significant speedups through SIMD and parallel processing
-4. **Thread Safety**: Full concurrent access support
-5. **Cross-Platform**: Works on Windows, macOS, and Linux with automatic capability detection
-
-For most applications, the auto-dispatch methods provide optimal performance with minimal complexity. Power users can leverage explicit strategy control for fine-tuned performance optimization in specialized scenarios.
-
-The system is designed to scale from small embedded applications to high-performance computing workloads, automatically adapting to available system resources while maintaining mathematical accuracy and thread safety.
-
----
-
-**Document Version**: 1.2
-**Last Updated**: 2026-06-07 (v1.2.0: Phase labels removed; parallelBatchFit section added)
-**Covers**: Complete parallel/batch processing API and usage patterns
-**Replaces**: `batch-processing-refactoring.md`, `deprecated_batch_cleanup_process.md`
+- Use the default hint unless profiling shows a reason to override it.
+- Use `MINIMIZE_LATENCY` for small batches in latency-sensitive code.
+- Use `MAXIMIZE_THROUGHPUT` for large irregular workloads.
+- Pre-size output vectors and reuse them across calls.
+- Profile in Release builds only.
+- Re-run `system_inspector --quick` and `simd_verification` when moving between machines.

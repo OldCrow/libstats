@@ -27,6 +27,9 @@
 #include "libstats/distributions/poisson.h"
 #include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/platform/simd.h"
 
@@ -51,8 +54,6 @@ using namespace stats::detail;
 namespace {
 constexpr int VERIFICATION_SEED = 12345;
 constexpr size_t TEST_SIZE = 1024;  // Size for correctness tests
-[[maybe_unused]] constexpr size_t LARGE_TEST_SIZE =
-    65536;  // Size for performance tests - reserved for future benchmarking features
 constexpr int TEST_ITERATIONS = 5;
 constexpr double TOLERANCE_NORMAL = 1e-14;   // Normal numerical precision
 constexpr double TOLERANCE_RELAXED = 1e-12;  // Relaxed for complex operations
@@ -140,6 +141,13 @@ class SIMDVerifier {
         // rng_ state (and hence test data) for the original 54 tests is identical
         // to v1.4.0 baselines. Both new functions are rng_-independent.
         testVonMisesDistribution();  // uses local RNG
+
+        // New v2.0.0 distributions — placed after all existing tests to preserve
+        // rng_ state for the established baselines.
+        testGeometricDistribution();  // uses local RNG (integer outputs)
+        testLaplaceDistribution();     // uses deterministic linspace data
+        testCauchyDistribution();      // uses deterministic linspace data
+
         testPrimitiveVectorOps();    // uses deterministic linspace data
 
         // Analyze and report results
@@ -184,6 +192,133 @@ class SIMDVerifier {
         std::cout << "\nOptimal SIMD block size: " << stats::arch::get_optimal_simd_block_size()
                   << " elements\n";
         std::cout << "Memory alignment: " << stats::arch::get_optimal_alignment() << " bytes\n\n";
+    }
+
+    void testLaplaceDistribution() {
+        stats::detail::detail::subsectionHeader("Laplace Distribution (standalone)");
+        // Standard Laplace(0,1): LogPDF uses fabs + vector_exp pipeline.
+        // Correctness: VECTORIZED vs SCALAR should match to TOLERANCE_NORMAL.
+        auto dist = stats::LaplaceDistribution::create(0.0, 1.0).unwrap();
+
+        std::vector<double> test_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            test_data[i] = -5.0 + 10.0 * static_cast<double>(i) /
+                           static_cast<double>(TEST_SIZE - 1);
+
+        verifyOperation(
+            dist, test_data, "PDF", "Laplace",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "LogPDF", "Laplace",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getLogProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getLogProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "CDF", "Laplace",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getCumulativeProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+            });
+    }
+
+    void testCauchyDistribution() {
+        stats::detail::detail::subsectionHeader("Cauchy Distribution (delegates to StudentT(nu=1))");
+        // Standard Cauchy(0,1): batch ops transform input then delegate to StudentT.
+        // Correctness: VECTORIZED vs SCALAR should match to TOLERANCE_NORMAL.
+        auto dist = stats::CauchyDistribution::create(0.0, 1.0).unwrap();
+
+        std::vector<double> test_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            test_data[i] = -10.0 + 20.0 * static_cast<double>(i) /
+                           static_cast<double>(TEST_SIZE - 1);
+
+        verifyOperation(
+            dist, test_data, "PDF", "Cauchy",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "LogPDF", "Cauchy",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getLogProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getLogProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "CDF", "Cauchy",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getCumulativeProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+            });
+    }
+
+    void testGeometricDistribution() {
+        stats::detail::detail::subsectionHeader("Geometric Distribution (delegates to NegBinomial)");
+        // Geometric(p=0.5): PMF(k) = 0.5^(k+1), inputs are non-negative integers.
+        // Batch correctness: scalar vs auto-dispatch must match exactly (discrete,
+        // no SIMD approximation).
+        auto dist = stats::GeometricDistribution::create(0.5).unwrap();
+
+        // Generate integer test data {0, 1, 2, ..., TEST_SIZE-1} mod 20
+        std::vector<double> test_data(TEST_SIZE);
+        for (size_t i = 0; i < TEST_SIZE; ++i)
+            test_data[i] = static_cast<double>(i % 20);
+
+        verifyOperation(
+            dist, test_data, "PMF", "Geometric",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "LogPDF", "Geometric",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getLogProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getLogProbability(std::span<const double>(data), std::span<double>(output));
+            });
+
+        verifyOperation(
+            dist, test_data, "CDF", "Geometric",
+            [](const auto& d, const auto& data, auto& output) {
+                for (size_t i = 0; i < data.size(); ++i)
+                    output[i] = d.getCumulativeProbability(data[i]);
+            },
+            [](const auto& d, const auto& data, auto& output) {
+                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+            });
     }
 
     void testPrimitiveVectorOps() {
@@ -369,7 +504,7 @@ class SIMDVerifier {
         // kappa=2: unimodal, exercises vector_cos in both LogPDF and PDF batch paths.
         // Uses a local RNG (seed VERIFICATION_SEED+1) so that calling this after testEdgeCases()
         // does not alter rng_ or the test data of any previously-run test.
-        auto dist = stats::VonMisesDistribution::create(0.0, 2.0).value;
+        auto dist = stats::VonMisesDistribution::create(0.0, 2.0).unwrap();
 
         std::mt19937 local_rng(VERIFICATION_SEED + 1);
         std::uniform_real_distribution<double> angle_dist(-PI, PI);
@@ -382,7 +517,7 @@ class SIMDVerifier {
 
     void testUniformDistribution() {
         stats::detail::detail::subsectionHeader("Uniform Distribution SIMD Verification");
-        auto dist = stats::UniformDistribution::create(0.0, 1.0).value;
+        auto dist = stats::UniformDistribution::create(0.0, 1.0).unwrap();
 
         // Test data around the distribution range
         auto test_data = generateTestData(-0.5, 1.5, TEST_SIZE);
@@ -392,7 +527,7 @@ class SIMDVerifier {
 
     void testGaussianDistribution() {
         stats::detail::detail::subsectionHeader("Gaussian Distribution SIMD Verification");
-        auto dist = stats::GaussianDistribution::create(0.0, 1.0).value;
+        auto dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
         // Test data with wider range for Gaussian
         auto test_data = generateTestData(-5.0, 5.0, TEST_SIZE);
@@ -402,7 +537,7 @@ class SIMDVerifier {
 
     void testExponentialDistribution() {
         stats::detail::detail::subsectionHeader("Exponential Distribution SIMD Verification");
-        auto dist = stats::ExponentialDistribution::create(1.0).value;
+        auto dist = stats::ExponentialDistribution::create(1.0).unwrap();
 
         // Test data for exponential (positive values)
         auto test_data = generateTestData(0.0, 10.0, TEST_SIZE);
@@ -412,7 +547,7 @@ class SIMDVerifier {
 
     void testDiscreteDistribution() {
         stats::detail::detail::subsectionHeader("Discrete Distribution SIMD Verification");
-        auto dist = stats::DiscreteDistribution::create(0, 10).value;
+        auto dist = stats::DiscreteDistribution::create(0, 10).unwrap();
 
         // Test data with integer and near-integer values
         auto test_data = generateIntegerTestData(-2, 12, TEST_SIZE);
@@ -422,7 +557,7 @@ class SIMDVerifier {
 
     void testPoissonDistribution() {
         stats::detail::detail::subsectionHeader("Poisson Distribution SIMD Verification");
-        auto dist = stats::PoissonDistribution::create(3.0).value;
+        auto dist = stats::PoissonDistribution::create(3.0).unwrap();
 
         // Test data with non-negative integer and near-integer values
         auto test_data = generateIntegerTestData(0, 15, TEST_SIZE);
@@ -432,7 +567,7 @@ class SIMDVerifier {
 
     void testGammaDistribution() {
         stats::detail::detail::subsectionHeader("Gamma Distribution SIMD Verification");
-        auto dist = stats::GammaDistribution::create(2.0, 1.0).value;
+        auto dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
         // Test data for gamma (positive values)
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);
@@ -443,7 +578,7 @@ class SIMDVerifier {
     void testStudentTDistribution() {
         stats::detail::detail::subsectionHeader("StudentT Distribution SIMD Verification");
         // nu=3: finite variance (3), good SIMD test — full real-line domain, no fixup needed
-        auto dist = stats::StudentTDistribution::create(3.0).value;
+        auto dist = stats::StudentTDistribution::create(3.0).unwrap();
 
         // Full real line: test data spans negative and positive values
         auto test_data = generateTestData(-10.0, 10.0, TEST_SIZE);
@@ -454,7 +589,7 @@ class SIMDVerifier {
     void testBetaDistribution() {
         stats::detail::detail::subsectionHeader("Beta Distribution SIMD Verification");
         // alpha=2, beta=3: unimodal, interior-heavy, exercises the two-log SIMD pipeline
-        auto dist = stats::BetaDistribution::create(2.0, 3.0).value;
+        auto dist = stats::BetaDistribution::create(2.0, 3.0).unwrap();
 
         // Strictly interior (0.01, 0.99): avoids boundary fixup path for a clean SIMD benchmark
         auto test_data = generateTestData(0.01, 0.99, TEST_SIZE);
@@ -465,7 +600,7 @@ class SIMDVerifier {
     void testChiSquaredDistribution() {
         stats::detail::detail::subsectionHeader("ChiSquared Distribution SIMD Verification");
         // k=2: analytically tractable (Exp(1/2)), good SIMD test case
-        auto dist = stats::ChiSquaredDistribution::create(2.0).value;
+        auto dist = stats::ChiSquaredDistribution::create(2.0).unwrap();
 
         // Positive values only; chi-squared support is (0, +inf)
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);
@@ -487,11 +622,13 @@ class SIMDVerifier {
                 }
             },
             [](const auto& d, const auto& data, auto& output) {
-                // SIMD version - using explicit strategy for SIMD verification
+                // SIMD version: force-vectorized span batch call (TOOL-2)
+                stats::detail::PerformanceHint hint;
+                hint.strategy =
+                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
-                d.getProbabilityWithStrategy(input_span, output_span,
-                                             stats::detail::Strategy::VECTORIZED);
+                d.getProbability(input_span, output_span, hint);
             });
 
         // Test LogPDF operation
@@ -504,11 +641,13 @@ class SIMDVerifier {
                 }
             },
             [](const auto& d, const auto& data, auto& output) {
-                // SIMD version - using explicit strategy for SIMD verification
+                // SIMD version: force-vectorized span batch call (TOOL-2)
+                stats::detail::PerformanceHint hint;
+                hint.strategy =
+                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
-                d.getLogProbabilityWithStrategy(input_span, output_span,
-                                                stats::detail::Strategy::VECTORIZED);
+                d.getLogProbability(input_span, output_span, hint);
             });
 
         // Test CDF operation
@@ -521,11 +660,13 @@ class SIMDVerifier {
                 }
             },
             [](const auto& d, const auto& data, auto& output) {
-                // SIMD version - using explicit strategy for SIMD verification
+                // SIMD version: force-vectorized span batch call (TOOL-2)
+                stats::detail::PerformanceHint hint;
+                hint.strategy =
+                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
-                d.getCumulativeProbabilityWithStrategy(input_span, output_span,
-                                                       stats::detail::Strategy::VECTORIZED);
+                d.getCumulativeProbability(input_span, output_span, hint);
             });
     }
 
@@ -601,24 +742,28 @@ class SIMDVerifier {
         size_t valid_comparisons = 0;  // Track number of non-special-case comparisons
         std::ostringstream error_stream;
 
-        // Gaussian CDF uses SIMD erf (A&S 7.1.26, documented max error ~1.5e-7).
-        // Beta LogPDF uses two vector_log calls whose SIMD rounding order differs from
-        // scalar; the ~1 ULP difference is real but acceptable at machine precision.
-        // Both use absolute tolerance only (relative error is misleading near zero).
-        const double default_tolerance =
-            (result.distribution_name.find("Gaussian") != std::string::npos &&
-             result.operation_name == "CDF")
-                ? TOLERANCE_ERF_APPROX
-            : (result.distribution_name.find("Beta") != std::string::npos &&
-               result.operation_name == "LogPDF")
-                ? TOLERANCE_RELAXED
-            // VonMises PDF/LogPDF both route through the vector_cos SIMD batch path,
-            // which has an absolute error floor of ~1e-10. Use absolute tolerance only
-            // (relative error is misleading for values near the tails).
-            : (result.distribution_name.find("VonMises") != std::string::npos &&
-               result.operation_name != "CDF")
-                ? TOLERANCE_VONMISES
-                : TOLERANCE_NORMAL;
+        // Per-distribution tolerance table keyed by exact (dist_name, op_name) pairs.
+        // Uses == rather than find() so a name change does not silently fall through
+        // to TOLERANCE_NORMAL — any rename is immediately visible as a table miss.
+        struct ToleranceEntry { const char* dist; const char* op; double tol; };
+        static const ToleranceEntry kToleranceTable[] = {
+            // Gaussian CDF routes through vector_erf (musl polynomial, max ~2.2e-16)
+            { "Gaussian",            "CDF", TOLERANCE_ERF_APPROX },
+            // Same pipeline applies in the edge-case variant (name suffix breaks exact match)
+            { "Gaussian_EdgeCases",  "CDF", TOLERANCE_ERF_APPROX },
+            // Beta LogPDF: two vector_log calls accumulate ~1 ULP rounding vs scalar
+            { "Beta",     "LogPDF", TOLERANCE_RELAXED     },
+            // VonMises PDF/LogPDF route through vector_cos (7-term Horner, ~1e-10 floor)
+            { "VonMises", "PDF",    TOLERANCE_VONMISES    },
+            { "VonMises", "LogPDF", TOLERANCE_VONMISES    },
+        };
+        double default_tolerance = TOLERANCE_NORMAL;
+        for (const auto& e : kToleranceTable) {
+            if (result.distribution_name == e.dist && result.operation_name == e.op) {
+                default_tolerance = e.tol;
+                break;
+            }
+        }
 
         for (size_t i = 0; i < scalar_results.size(); ++i) {
             double scalar_val = scalar_results[i];
@@ -866,8 +1011,6 @@ class SIMDVerifier {
         // Mixing them produces a meaningless composite that changes with test composition.
         stats::detail::detail::subsectionHeader("Performance Analysis");
 
-        [[maybe_unused]] double prim_scalar = 0, prim_simd = 0;
-
         // Per-operation-type geometric mean speedups.
         // Partitioning by PDF/LogPDF/CDF reveals meaningful structure:
         //   LogPDF: log-space paths, exp-dominated, typically highest speedup
@@ -884,10 +1027,9 @@ class SIMDVerifier {
         std::map<std::string, OpStats> op_stats;  // keyed by operation_name
 
         for (const auto& result : results_) {
-            if (result.operation_name == "---") {
-                prim_scalar += result.scalar_time_ns;
-                prim_simd += result.simd_time_ns;
-            } else if (result.speedup_ratio > 0.0) {
+            // Primitive ops (operation_name == "---") are excluded from the distribution
+            // suite geometric mean — they are reported individually below.
+            if (result.operation_name != "---" && result.speedup_ratio > 0.0) {
                 auto& s = op_stats[result.operation_name];
                 s.log_sum += std::log(result.speedup_ratio);
                 ++s.count;

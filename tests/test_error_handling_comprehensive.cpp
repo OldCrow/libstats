@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cmath>
 #include <gtest/gtest.h>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -52,7 +53,7 @@ void test_factory_methods() {
         stats.record(result.isOk(), "GaussianDistribution::create with valid params");
 
         if (result.isOk()) {
-            auto& dist = result.value;
+            auto& dist = *result;
             stats.record(
                 approx_equal(dist.getMean(), 0.0) && approx_equal(dist.getStandardDeviation(), 1.0),
                 "Gaussian parameters correctly set");
@@ -76,7 +77,7 @@ void test_factory_methods() {
         stats.record(badResult4.isError(), "Gaussian rejects NaN standard deviation");
 
         if (false && badResult1.isError()) {
-            cout << "    Error message: " << badResult1.message << endl;
+            cout << "    Error message: " << badResult1.message() << endl;
         }
     }
 
@@ -155,7 +156,7 @@ void test_dual_api() {
     {
         auto result = GaussianDistribution::create(0.0, 1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             // Test Result-based setters
             auto setMeanResult = dist.trySetMean(5.0);
@@ -191,7 +192,7 @@ void test_dual_api() {
     {
         auto result = UniformDistribution::create(0.0, 1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             auto setLowerResult = dist.trySetLowerBound(-2.0);
             stats.record(setLowerResult.isOk(), "Uniform trySetLowerBound() accepts valid value");
@@ -215,7 +216,7 @@ void test_dual_api() {
     {
         auto result = ExponentialDistribution::create(1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             auto setLambdaResult = dist.trySetLambda(2.5);
             stats.record(setLambdaResult.isOk(), "Exponential trySetLambda() accepts valid value");
@@ -234,7 +235,7 @@ void test_dual_api() {
     {
         auto result = PoissonDistribution::create(1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             auto setLambdaResult = dist.trySetLambda(3.7);
             stats.record(setLambdaResult.isOk(), "Poisson trySetLambda() accepts valid value");
@@ -252,7 +253,7 @@ void test_dual_api() {
     {
         auto result = DiscreteDistribution::create(1, 6);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             auto setLowerResult = dist.trySetLowerBound(0);
             stats.record(setLowerResult.isOk(), "Discrete trySetLowerBound() accepts valid value");
@@ -275,7 +276,7 @@ void test_dual_api() {
     {
         auto result = GammaDistribution::create(2.0, 0.5);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             auto setAlphaResult = dist.trySetAlpha(3.0);
             stats.record(setAlphaResult.isOk(), "Gamma trySetAlpha() accepts valid value");
@@ -311,7 +312,7 @@ void test_parameter_validation() {
     {
         auto gaussResult = GaussianDistribution::create(0.0, 1.0);
         if (gaussResult.isOk()) {
-            auto& dist = gaussResult.value;
+            auto& dist = *gaussResult;
 
             auto validationResult = dist.validateCurrentParameters();
             stats.record(validationResult.isOk(),
@@ -363,17 +364,17 @@ void test_parameter_validation() {
 
         auto badGauss = GaussianDistribution::create(0.0, -1.0);
         if (badGauss.isError()) {
-            cout << "    Gaussian: " << badGauss.message << endl;
+            cout << "    Gaussian: " << badGauss.message() << endl;
         }
 
         auto badUniform = UniformDistribution::create(1.0, 0.0);
         if (badUniform.isError()) {
-            cout << "    Uniform: " << badUniform.message << endl;
+            cout << "    Uniform: " << badUniform.message() << endl;
         }
 
         auto badExp = ExponentialDistribution::create(0.0);
         if (badExp.isError()) {
-            cout << "    Exponential: " << badExp.message << endl;
+            cout << "    Exponential: " << badExp.message() << endl;
         }
     }
 
@@ -388,7 +389,7 @@ void test_specific_distribution(const string& dist_name, TestStats& stats) {
     if (dist_name == "gaussian" || dist_name == "all") {
         auto result = GaussianDistribution::create(0.0, 1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             // Test parameter setting with various edge cases
             auto r1 = dist.trySetMean(numeric_limits<double>::max());
@@ -405,7 +406,7 @@ void test_specific_distribution(const string& dist_name, TestStats& stats) {
     if (dist_name == "uniform" || dist_name == "all") {
         auto result = UniformDistribution::create(-1.0, 1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             // Test bounds adjustment
             auto r1 = dist.trySetLowerBound(0.5);
@@ -422,7 +423,7 @@ void test_specific_distribution(const string& dist_name, TestStats& stats) {
     if (dist_name == "exponential" || dist_name == "all") {
         auto result = ExponentialDistribution::create(1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             // Test very large lambda
             auto r1 = dist.trySetLambda(1e100);
@@ -437,7 +438,7 @@ void test_specific_distribution(const string& dist_name, TestStats& stats) {
     if (dist_name == "poisson" || dist_name == "all") {
         auto result = PoissonDistribution::create(1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             // Test maximum supported lambda
             auto r1 = dist.trySetLambda(700.0);  // Near exp limit
@@ -452,7 +453,7 @@ void test_specific_distribution(const string& dist_name, TestStats& stats) {
     if (dist_name == "discrete" || dist_name == "all") {
         auto result = DiscreteDistribution::create(0, 100);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             // Test large range
             auto r1 = dist.trySetParameters(-1000000, 1000000);
@@ -467,7 +468,7 @@ void test_specific_distribution(const string& dist_name, TestStats& stats) {
     if (dist_name == "gamma" || dist_name == "all") {
         auto result = GammaDistribution::create(1.0, 1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             // Test extreme shape and scale
             auto r1 = dist.trySetParameters(1000.0, 0.001);
@@ -514,7 +515,7 @@ void test_stress() {
     {
         auto result = GaussianDistribution::create(0.0, 1.0);
         if (result.isOk()) {
-            auto dist = make_shared<GaussianDistribution>(std::move(result.value));
+            auto dist = make_shared<GaussianDistribution>(std::move(result).unwrap());
 
             vector<thread> threads;
             for (size_t t = 0; t < 4; ++t) {
@@ -601,7 +602,7 @@ void test_benchmarks() {
     {
         auto result = GaussianDistribution::create(0.0, 1.0);
         if (result.isOk()) {
-            auto dist = std::move(result.value);
+            auto dist = std::move(result).unwrap();
 
             // Benchmark Result-based API
             auto start = chrono::high_resolution_clock::now();

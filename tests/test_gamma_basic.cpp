@@ -1,4 +1,5 @@
 // Focused unit test for gamma distribution
+#include "include/basic_test_runner.h"
 #include "include/tests.h"
 #include "libstats/distributions/gamma.h"
 
@@ -32,12 +33,12 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_gamma = stats::GammaDistribution::create().value;
+        auto default_gamma = stats::GammaDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default Alpha (shape)", default_gamma.getAlpha());
         BasicTestFormatter::printProperty("Default Beta (rate)", default_gamma.getBeta());
 
         // Parameterized constructor test
-        auto param_gamma = stats::GammaDistribution::create(2.0, 3.0).value;
+        auto param_gamma = stats::GammaDistribution::create(2.0, 3.0).unwrap();
         BasicTestFormatter::printProperty("Param Alpha", param_gamma.getAlpha());
         BasicTestFormatter::printProperty("Param Beta", param_gamma.getBeta());
 
@@ -47,7 +48,7 @@ int main() {
         BasicTestFormatter::printProperty("Copy Beta", copy_gamma.getBeta());
 
         // Move constructor test
-        auto temp_gamma = stats::GammaDistribution::create(5.0, 0.5).value;
+        auto temp_gamma = stats::GammaDistribution::create(5.0, 0.5).unwrap();
         auto move_gamma = std::move(temp_gamma);
         BasicTestFormatter::printProperty("Move Alpha", move_gamma.getAlpha());
         BasicTestFormatter::printProperty("Move Beta", move_gamma.getBeta());
@@ -55,7 +56,7 @@ int main() {
         // Safe factory method test
         auto result = GammaDistribution::create(1.0, 1.0);
         if (result.isOk()) {
-            auto factory_gamma = std::move(result.value);
+            auto factory_gamma = std::move(result).unwrap();
             BasicTestFormatter::printProperty("Factory Alpha", factory_gamma.getAlpha());
             BasicTestFormatter::printProperty("Factory Beta", factory_gamma.getBeta());
         }
@@ -75,7 +76,7 @@ int main() {
                 "variance=2)."
              << endl;
 
-        auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+        auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
         // Test getters
         BasicTestFormatter::printProperty("Initial Alpha", gamma_dist.getAlpha());
@@ -125,7 +126,7 @@ int main() {
         cout << "Expected: For Gamma(2,1): mean=2, mode=1, relatively skewed right distribution."
              << endl;
 
-        auto test_gamma = stats::GammaDistribution::create(2.0, 1.0).value;
+        auto test_gamma = stats::GammaDistribution::create(2.0, 1.0).unwrap();
         double x = 1.5;
 
         BasicTestFormatter::printProperty("PDF(1.5)", test_gamma.getProbability(x));
@@ -191,7 +192,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = TestDataGenerators::generateGammaTestData();
-        auto fitted_dist = stats::GammaDistribution::create().value;
+        auto fitted_dist = stats::GammaDistribution::create().unwrap();
         fitted_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted Alpha", fitted_dist.getAlpha());
         BasicTestFormatter::printProperty("Fitted Beta", fitted_dist.getBeta());
@@ -207,184 +208,26 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("All distribution management tests passed");
         BasicTestFormatter::printNewline();
+        // =====================================================================
+        // Test 6: Auto-dispatch Batch Operations
+        // =====================================================================
+        stats::tests::BasicDistConfig cfg{"Gamma", {0.5, 1.2, 2.1, 0.8, 1.5}, 0.1, 5.0, 1e-12,
+                                          1e-12};
+        cfg.invalid_scenarios = {
+            {"invalid params alpha=0 beta=-1",
+             [] { return GammaDistribution::create(0.0, -1.0).isError(); }},
+        };
+        auto test_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
+        stats::tests::runBatchTests(cfg, test_dist);
 
-        // Test 6: Auto-dispatch Parallel Processing with Timing and Strategy Report
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Parallel Processing");
-        cout << "This test verifies smart auto-dispatch that selects optimal execution strategy"
-             << endl;
-        cout << "based on batch size: SCALAR for small batches, VECTORIZED/PARALLEL for large."
-             << endl;
-        cout << "Compares performance and verifies correctness against traditional batch methods."
-             << endl;
-
-        auto test_dist = stats::GammaDistribution::create(2.0, 1.0).value;
-
-        // Test small batch (should use SCALAR strategy) - using diverse realistic data
-        vector<double> small_test_values = {0.5, 1.2, 2.1, 0.8, 1.5};
-        vector<double> small_pdf_results(small_test_values.size());
-        vector<double> small_log_pdf_results(small_test_values.size());
-        vector<double> small_cdf_results(small_test_values.size());
-
-        cout << "\n--- Small Batch Test (size=" << small_test_values.size() << ") ---" << endl;
-
-        // Use the new smart auto-dispatch methods with std::span
-        auto start = std::chrono::high_resolution_clock::now();
-        test_dist.getProbability(std::span<const double>(small_test_values),
-                                 std::span<double>(small_pdf_results));
-        auto end = std::chrono::high_resolution_clock::now();
-        auto auto_pdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getLogProbability(std::span<const double>(small_test_values),
-                                    std::span<double>(small_log_pdf_results));
-        end = std::chrono::high_resolution_clock::now();
-        auto auto_logpdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getCumulativeProbability(std::span<const double>(small_test_values),
-                                           std::span<double>(small_cdf_results));
-        end = std::chrono::high_resolution_clock::now();
-        auto auto_cdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        // Compare with traditional batch methods for correctness
-        vector<double> small_pdf_traditional(small_test_values.size());
-        vector<double> small_log_pdf_traditional(small_test_values.size());
-        vector<double> small_cdf_traditional(small_test_values.size());
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getProbabilityWithStrategy(std::span<const double>(small_test_values),
-                                             std::span<double>(small_pdf_traditional),
-                                             stats::detail::Strategy::SCALAR);
-        end = std::chrono::high_resolution_clock::now();
-        auto trad_pdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getLogProbabilityWithStrategy(std::span<const double>(small_test_values),
-                                                std::span<double>(small_log_pdf_traditional),
-                                                stats::detail::Strategy::SCALAR);
-        end = std::chrono::high_resolution_clock::now();
-        auto trad_logpdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(small_test_values),
-                                                       std::span<double>(small_cdf_traditional),
-                                                       stats::detail::Strategy::SCALAR);
-        end = std::chrono::high_resolution_clock::now();
-        auto trad_cdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        BasicTestFormatter::printBatchResults(small_pdf_results, "Auto-dispatch PDF results");
-        BasicTestFormatter::printBatchResults(small_log_pdf_results,
-                                              "Auto-dispatch Log PDF results");
-        BasicTestFormatter::printBatchResults(small_cdf_results, "Auto-dispatch CDF results");
-
-        cout << "Auto-dispatch PDF time: " << auto_pdf_time << "μs, Traditional: " << trad_pdf_time
-             << "μs" << endl;
-        cout << "Auto-dispatch Log PDF time: " << auto_logpdf_time
-             << "μs, Traditional: " << trad_logpdf_time << "μs" << endl;
-        cout << "Auto-dispatch CDF time: " << auto_cdf_time << "μs, Traditional: " << trad_cdf_time
-             << "μs" << endl;
-        cout << "Strategy selected: SCALAR (expected for small batch size="
-             << small_test_values.size() << ")" << endl;
-
-        // Verify results are identical
-        bool small_results_match = true;
-        for (size_t i = 0; i < small_test_values.size(); ++i) {
-            if (abs(small_pdf_results[i] - small_pdf_traditional[i]) > 1e-12 ||
-                abs(small_log_pdf_results[i] - small_log_pdf_traditional[i]) > 1e-12 ||
-                abs(small_cdf_results[i] - small_cdf_traditional[i]) > 1e-12) {
-                small_results_match = false;
-                break;
-            }
-        }
-
-        if (small_results_match) {
-            cout << "✅ Small batch auto-dispatch results match traditional methods" << endl;
-        } else {
-            cout << "❌ Small batch auto-dispatch results differ from traditional methods" << endl;
-        }
-
-        // Test large batch (should trigger SIMD or PARALLEL strategy)
-        cout << "\n--- Large Batch Test (size=5000) ---" << endl;
-        const size_t large_size = 5000;
-
-        // Generate diverse realistic test data instead of all zeros
-        vector<double> large_input(large_size);
-        std::mt19937 gen(42);
-        std::uniform_real_distribution<> dis(0.1, 5.0);  // Positive values for Gamma
-        for (size_t i = 0; i < large_size; ++i) {
-            large_input[i] = dis(gen);
-        }
-
-        vector<double> large_output(large_size);
-        vector<double> large_output_traditional(large_size);
-
-        // Test auto-dispatch method
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getProbability(std::span<const double>(large_input),
-                                 std::span<double>(large_output));
-        end = std::chrono::high_resolution_clock::now();
-        auto large_auto_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        // Compare with traditional batch method
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getProbabilityWithStrategy(std::span<const double>(large_input),
-                                             std::span<double>(large_output_traditional),
-                                             stats::detail::Strategy::SCALAR);
-        end = std::chrono::high_resolution_clock::now();
-        auto large_trad_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        BasicTestFormatter::printLargeBatchValidation(large_output[0], large_output[4999],
-                                                      "Auto-dispatch PDF (diverse data)");
-
-        cout << "Large batch auto-dispatch time: " << large_auto_time
-             << "μs, Traditional: " << large_trad_time << "μs" << endl;
-        double speedup =
-            static_cast<double>(large_trad_time) / static_cast<double>(large_auto_time);
-        cout << "Speedup: " << fixed << setprecision(2) << speedup << "x" << endl;
-        cout << "Strategy selected: VECTORIZED or PARALLEL (expected for batch size=" << large_size
-             << ")" << endl;
-
-        // Verify results match
-        bool large_results_match = true;
-        for (size_t i = 0; i < large_size; ++i) {
-            if (abs(large_output[i] - large_output_traditional[i]) > 1e-12) {
-                large_results_match = false;
-                break;
-            }
-        }
-
-        if (large_results_match) {
-            cout << "✅ Large batch auto-dispatch results match traditional methods" << endl;
-        } else {
-            cout << "❌ Large batch auto-dispatch results differ from traditional methods" << endl;
-        }
-
-        if (speedup > 0.8) {
-            cout << "✅ Auto-dispatch shows good performance optimization" << endl;
-        } else {
-            cout << "⚠️  Auto-dispatch performance may be affected by overhead" << endl;
-        }
-
-        BasicTestFormatter::printTestSuccess("All auto-dispatch parallel processing tests passed");
-        BasicTestFormatter::printNewline();
-
-        // Test 7: Comparison and Stream Operators
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = stats::GammaDistribution::create(2.0, 1.0).value;
-        auto dist2 = stats::GammaDistribution::create(2.0, 1.0).value;
-        auto dist3 = stats::GammaDistribution::create(3.0, 2.0).value;
+        auto dist1 = stats::GammaDistribution::create(2.0, 1.0).unwrap();
+        auto dist2 = stats::GammaDistribution::create(2.0, 1.0).unwrap();
+        auto dist3 = stats::GammaDistribution::create(3.0, 2.0).unwrap();
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -397,7 +240,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = stats::GammaDistribution::create().value;
+        auto input_dist = stats::GammaDistribution::create().unwrap();
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -411,16 +254,7 @@ int main() {
         BasicTestFormatter::printNewline();
 
         // Test 8: Error Handling
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-        // NOTE: Using ::create() here (not stats::Gamma) to test exception-free error handling
-        // ::create() returns Result<T> for explicit error checking without exceptions
-        auto error_result = GammaDistribution::create(0.0, -1.0);  // Invalid parameters
-        if (error_result.isError()) {
-            BasicTestFormatter::printTestSuccess("Error handling works: " + error_result.message);
-        } else {
-            BasicTestFormatter::printTestError("Error handling failed");
-            return 1;
-        }
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printCompletionMessage("Gamma");
 

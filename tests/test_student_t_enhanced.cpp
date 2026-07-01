@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/student_t.h"
 
@@ -24,7 +25,7 @@ class StudentTEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto result = stats::StudentTDistribution::create(5.0);
         ASSERT_TRUE(result.isOk());
-        dist5_ = std::move(result.value);
+        dist5_ = std::move(result).unwrap();
     }
     StudentTDistribution dist5_;
 };
@@ -39,7 +40,7 @@ TEST_F(StudentTEnhancedTest, TTableValues) {
         {1.0, 12.706}, {2.0, 4.303}, {5.0, 2.571}, {10.0, 2.228}, {30.0, 2.042}, {120.0, 1.980},
     };
     for (const auto& tc : cases) {
-        auto t = StudentTDistribution::create(tc.nu).value;
+        auto t = StudentTDistribution::create(tc.nu).unwrap();
         double q = t.getQuantile(0.975);
         EXPECT_NEAR(q, tc.expected, 0.002)
             << "t_{0.975}(nu=" << tc.nu << ") expected " << tc.expected << " got " << q;
@@ -49,7 +50,7 @@ TEST_F(StudentTEnhancedTest, TTableValues) {
 // CDF(0) = 0.5 and anti-symmetry CDF(-x) = 1 - CDF(x) for all nu
 TEST_F(StudentTEnhancedTest, CDFSymmetry) {
     for (double nu : {0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 100.0}) {
-        auto t = StudentTDistribution::create(nu).value;
+        auto t = StudentTDistribution::create(nu).unwrap();
         EXPECT_NEAR(t.getCumulativeProbability(0.0), 0.5, 1e-8) << "CDF(0) != 0.5 for nu=" << nu;
         const double x = 1.5;
         EXPECT_NEAR(t.getCumulativeProbability(-x), 1.0 - t.getCumulativeProbability(x), 1e-8)
@@ -59,7 +60,7 @@ TEST_F(StudentTEnhancedTest, CDFSymmetry) {
 
 // nu=1 is the Cauchy distribution: PDF(0) = 1/pi
 TEST_F(StudentTEnhancedTest, CauchyCase) {
-    auto cauchy = StudentTDistribution::create(1.0).value;
+    auto cauchy = StudentTDistribution::create(1.0).unwrap();
     EXPECT_TRUE(cauchy.isCauchy());
     EXPECT_NEAR(cauchy.getProbability(0.0), 1.0 / M_PI, 1e-10);
     EXPECT_TRUE(std::isnan(cauchy.getMean()));
@@ -76,12 +77,12 @@ TEST_F(StudentTEnhancedTest, MomentProperties) {
     EXPECT_DOUBLE_EQ(dist5_.getMedian(), 0.0);
 
     // nu=2: variance = +inf
-    auto t2 = StudentTDistribution::create(2.0).value;
+    auto t2 = StudentTDistribution::create(2.0).unwrap();
     EXPECT_TRUE(std::isinf(t2.getVariance()));
     EXPECT_GT(t2.getVariance(), 0.0);
 
     // nu=4: kurtosis is undefined (nu <= 4)
-    auto t4 = StudentTDistribution::create(4.0).value;
+    auto t4 = StudentTDistribution::create(4.0).unwrap();
     EXPECT_TRUE(std::isnan(t4.getKurtosis()));
 }
 
@@ -115,7 +116,7 @@ TEST_F(StudentTEnhancedTest, BatchMatchesScalar) {
 
 // setNu propagates to the cache immediately
 TEST_F(StudentTEnhancedTest, SetterPropagates) {
-    auto t = StudentTDistribution::create(5.0).value;
+    auto t = StudentTDistribution::create(5.0).unwrap();
     EXPECT_NEAR(t.getVariance(), 5.0 / 3.0, 1e-12);
     t.setNu(10.0);
     EXPECT_NEAR(t.getVariance(), 10.0 / 8.0, 1e-12);
@@ -131,10 +132,10 @@ TEST_F(StudentTEnhancedTest, SetterPropagates) {
 // sequence from the same mt19937 seed (algorithm is implementation-defined).
 TEST_F(StudentTEnhancedTest, MLEFit) {
     mt19937 rng(123);
-    auto source = StudentTDistribution::create(5.0).value;
+    auto source = StudentTDistribution::create(5.0).unwrap();
     const auto data = source.sample(rng, 2000);
 
-    auto fitted = StudentTDistribution::create(1.0).value;
+    auto fitted = StudentTDistribution::create(1.0).unwrap();
     fitted.fit(data);
 
     EXPECT_GT(fitted.getNu(), 2.0);
@@ -146,9 +147,35 @@ TEST_F(StudentTEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(StudentTDistribution::create(-1.0).isError());
     EXPECT_TRUE(StudentTDistribution::create(std::numeric_limits<double>::quiet_NaN()).isError());
 
-    auto t = StudentTDistribution::create(3.0).value;
+    auto t = StudentTDistribution::create(3.0).unwrap();
     EXPECT_TRUE(t.trySetNu(-1.0).isError());
     EXPECT_DOUBLE_EQ(t.getNu(), 3.0);  // unchanged
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::StudentTDistribution
+//==============================================================================
+template <>
+struct stats::tests::DistTraits<stats::StudentTDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::StudentTDistribution make() {
+        return stats::StudentTDistribution::create(3.0).unwrap();
+    }
+    static std::vector<double> domain() { return {-3.0, -1.0, 0.0, 1.0, 3.0}; }
+    static double batch_lo() { return -5.0; }
+    static double batch_hi() { return 5.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::StudentTDistribution::create(0.0).isError(); },
+            [] { return stats::StudentTDistribution::create(-1.0).isError(); },
+            [] {
+                return stats::StudentTDistribution::create(std::numeric_limits<double>::quiet_NaN())
+                    .isError();
+            },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(StudentT, DistributionEnhancedTest,
+                               ::testing::Types<stats::StudentTDistribution>);

@@ -1,10 +1,14 @@
 #include "libstats/distributions/beta.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"  // beta_i, inverse_beta_i, lbeta, digamma
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -76,7 +80,6 @@ BetaDistribution& BetaDistribution::operator=(const BetaDistribution& other) {
 
 BetaDistribution::BetaDistribution(BetaDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;
     alphaMinus1_ = other.alphaMinus1_;
@@ -96,12 +99,8 @@ BetaDistribution::BetaDistribution(BetaDistribution&& other) noexcept
     atomicBeta_.store(beta_, std::memory_order_release);
 }
 
-BetaDistribution& BetaDistribution::operator=(BetaDistribution&& other) {
+BetaDistribution& BetaDistribution::operator=(BetaDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
-
         alpha_ = other.alpha_;
         beta_ = other.beta_;
         alphaMinus1_ = other.alphaMinus1_;
@@ -184,7 +183,7 @@ VoidResult BetaDistribution::trySetAlpha(double alpha) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult BetaDistribution::trySetBeta(double beta) noexcept {
@@ -197,7 +196,7 @@ VoidResult BetaDistribution::trySetBeta(double beta) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult BetaDistribution::trySetParameters(double alpha, double beta) noexcept {
@@ -211,7 +210,7 @@ VoidResult BetaDistribution::trySetParameters(double alpha, double beta) noexcep
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult BetaDistribution::validateCurrentParameters() const noexcept {
@@ -222,17 +221,17 @@ VoidResult BetaDistribution::validateCurrentParameters() const noexcept {
 // 3. STATISTICAL MOMENTS
 //==============================================================================
 
-double BetaDistribution::getMean() const noexcept {
+double BetaDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mean_;
 }
 
-double BetaDistribution::getVariance() const noexcept {
+double BetaDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return variance_;
 }
 
-double BetaDistribution::getSkewness() const noexcept {
+double BetaDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (alpha_ <= detail::ZERO_DOUBLE || beta_ <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
@@ -242,7 +241,7 @@ double BetaDistribution::getSkewness() const noexcept {
            ((ab + detail::TWO) * std::sqrt(alpha_ * beta_));
 }
 
-double BetaDistribution::getKurtosis() const noexcept {
+double BetaDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double ab = alpha_ + beta_;
     const double num = 6.0 * ((alpha_ - beta_) * (alpha_ - beta_) * (ab + detail::ONE) -
@@ -251,7 +250,7 @@ double BetaDistribution::getKurtosis() const noexcept {
     return num / den;
 }
 
-double BetaDistribution::getMode() const noexcept {
+double BetaDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mode_;
 }
@@ -261,14 +260,27 @@ double BetaDistribution::getMode() const noexcept {
 //==============================================================================
 
 double BetaDistribution::getProbability(double x) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+    // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
+    double a, b, lnc, am1, bm1;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            a = alpha_;
+            b = beta_;
+            lnc = logNormConst_;
+            am1 = alphaMinus1_;
+            bm1 = betaMinus1_;
+        } else {
+            a = alpha_;
+            b = beta_;
+            lnc = logNormConst_;
+            am1 = alphaMinus1_;
+            bm1 = betaMinus1_;
+        }
     }
     if (x <= detail::ZERO_DOUBLE || x >= detail::ONE) {
         // Boundary: PDF = 0 for α,β > 1; ∞ for α or β < 1 (return +inf); 1 for α or β = 1
@@ -276,51 +288,63 @@ double BetaDistribution::getProbability(double x) const {
             return detail::ZERO_DOUBLE;
         // x = 0 or x = 1: handle carefully
         if (x == detail::ZERO_DOUBLE) {
-            if (alpha_ > detail::ONE)
+            if (a > detail::ONE)
                 return detail::ZERO_DOUBLE;
-            if (std::abs(alpha_ - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-                return std::exp(logNormConst_);
+            if (std::abs(a - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+                return std::exp(lnc);
             return std::numeric_limits<double>::infinity();
         }
         // x = 1
-        if (beta_ > detail::ONE)
+        if (b > detail::ONE)
             return detail::ZERO_DOUBLE;
-        if (std::abs(beta_ - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return std::exp(logNormConst_);
+        if (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+            return std::exp(lnc);
         return std::numeric_limits<double>::infinity();
     }
-    return std::exp(logNormConst_ + alphaMinus1_ * std::log(x) +
-                    betaMinus1_ * std::log(detail::ONE - x));
+    return std::exp(lnc + am1 * std::log(x) + bm1 * std::log(detail::ONE - x));
 }
 
-double BetaDistribution::getLogProbability(double x) const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+double BetaDistribution::getLogProbability(double x) const {
+    // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
+    double a, b, lnc, am1, bm1;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            a = alpha_;
+            b = beta_;
+            lnc = logNormConst_;
+            am1 = alphaMinus1_;
+            bm1 = betaMinus1_;
+        } else {
+            a = alpha_;
+            b = beta_;
+            lnc = logNormConst_;
+            am1 = alphaMinus1_;
+            bm1 = betaMinus1_;
+        }
     }
     if (x < detail::ZERO_DOUBLE || x > detail::ONE) {
         return -std::numeric_limits<double>::infinity();
     }
     if (x == detail::ZERO_DOUBLE) {
-        if (alpha_ > detail::ONE)
+        if (a > detail::ONE)
             return -std::numeric_limits<double>::infinity();
-        if (std::abs(alpha_ - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return logNormConst_;
+        if (std::abs(a - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+            return lnc;
         return std::numeric_limits<double>::infinity();
     }
     if (x == detail::ONE) {
-        if (beta_ > detail::ONE)
+        if (b > detail::ONE)
             return -std::numeric_limits<double>::infinity();
-        if (std::abs(beta_ - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return logNormConst_;
+        if (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+            return lnc;
         return std::numeric_limits<double>::infinity();
     }
-    return logNormConst_ + alphaMinus1_ * std::log(x) + betaMinus1_ * std::log(detail::ONE - x);
+    return lnc + am1 * std::log(x) + bm1 * std::log(detail::ONE - x);
 }
 
 double BetaDistribution::getCumulativeProbability(double x) const {
@@ -365,10 +389,20 @@ double BetaDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> BetaDistribution::sample(std::mt19937& rng, size_t n) const {
+    // Read parameters once under a single lock to avoid n lock acquisitions.
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    const double a = alpha_, b = beta_;
+    lock.unlock();
+
+    std::gamma_distribution<double> gamma_a(a, detail::ONE);
+    std::gamma_distribution<double> gamma_b(b, detail::ONE);
     std::vector<double> samples;
     samples.reserve(n);
     for (size_t i = 0; i < n; ++i) {
-        samples.push_back(sample(rng));
+        const double x = gamma_a(rng);
+        const double y = gamma_b(rng);
+        const double sum = x + y;
+        samples.push_back(sum <= detail::ZERO_DOUBLE ? detail::HALF : x / sum);
     }
     return samples;
 }
@@ -434,15 +468,12 @@ void BetaDistribution::fit(const std::vector<double>& values) {
         if (std::abs(sa) < tol && std::abs(sb) < tol)
             break;
 
-        // Diagonal Newton step: use trigamma for the Jacobian diagonal
-        // trigamma(x) ≈ (digamma(x+h) - digamma(x-h)) / (2h) — numerical derivative
-        const double h = 1e-4;
-        const double tpsi_a =
-            (detail::digamma(alpha_cur + h) - detail::digamma(alpha_cur - h)) / (detail::TWO * h);
-        const double tpsi_b =
-            (detail::digamma(beta_cur + h) - detail::digamma(beta_cur - h)) / (detail::TWO * h);
-        const double tpsi_ab =
-            (detail::digamma(ab + h) - detail::digamma(ab - h)) / (detail::TWO * h);
+        // Diagonal Newton step (FIT-3): use detail::trigamma() directly instead of
+        // finite-differencing digamma (which required 6 digamma calls per step).
+        // Exact derivatives give quadratic Newton convergence.
+        const double tpsi_a = detail::trigamma(alpha_cur);
+        const double tpsi_b = detail::trigamma(beta_cur);
+        const double tpsi_ab = detail::trigamma(ab);
 
         // 2×2 Jacobian (negated Hessian of log-likelihood per observation):
         // J = [[tpsi_a - tpsi_ab, -tpsi_ab],
@@ -478,6 +509,9 @@ void BetaDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     alpha_ = detail::ONE;
     beta_ = detail::ONE;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
 }
 
@@ -507,8 +541,7 @@ double BetaDistribution::getEntropy() const {
 void BetaDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                       const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const BetaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -516,10 +549,15 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                    dist.updateCacheUnsafe();
+                // Snapshot while unique_lock is still held.
+                const double lnc = dist.logNormConst_;
+                const double am1 = dist.alphaMinus1_;
+                const double bm1 = dist.betaMinus1_;
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, lnc, am1, bm1);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double lnc = dist.logNormConst_;
             const double am1 = dist.alphaMinus1_;
             const double bm1 = dist.betaMinus1_;
@@ -532,19 +570,23 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double lnc, am1, bm1;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
+                } else {
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
+                }
             }
-            const double lnc = dist.logNormConst_;
-            const double am1 = dist.alphaMinus1_;
-            const double bm1 = dist.betaMinus1_;
-            lock.unlock();
             // Chunk the batch so each parallel task uses the SIMD pipeline
             // (vector_log / vector_exp) instead of per-element scalar math.
             constexpr std::size_t CHUNK = 1024;
@@ -567,19 +609,23 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double lnc, am1, bm1;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
+                } else {
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
+                }
             }
-            const double lnc = dist.logNormConst_;
-            const double am1 = dist.alphaMinus1_;
-            const double bm1 = dist.betaMinus1_;
-            lock.unlock();
             constexpr std::size_t CHUNK = 1024;
             const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
             pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
@@ -588,14 +634,14 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
+            pool.waitForAll();
         });
 }
 
 void BetaDistribution::getLogProbability(std::span<const double> values, std::span<double> results,
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const BetaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -603,10 +649,15 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                    dist.updateCacheUnsafe();
+                // Snapshot while unique_lock is still held.
+                const double lnc = dist.logNormConst_;
+                const double am1 = dist.alphaMinus1_;
+                const double bm1 = dist.betaMinus1_;
+                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, lnc, am1, bm1);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double lnc = dist.logNormConst_;
             const double am1 = dist.alphaMinus1_;
             const double bm1 = dist.betaMinus1_;
@@ -619,19 +670,23 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double lnc, am1, bm1;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
+                } else {
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
+                }
             }
-            const double lnc = dist.logNormConst_;
-            const double am1 = dist.alphaMinus1_;
-            const double bm1 = dist.betaMinus1_;
-            lock.unlock();
             // Chunk the batch so each parallel task uses the SIMD pipeline
             // (vector_log) instead of per-element scalar math.
             constexpr std::size_t CHUNK = 1024;
@@ -655,19 +710,23 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    const_cast<BetaDistribution&>(dist).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double lnc, am1, bm1;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
+                if (!dist.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
+                } else {
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
+                }
             }
-            const double lnc = dist.logNormConst_;
-            const double am1 = dist.alphaMinus1_;
-            const double bm1 = dist.betaMinus1_;
-            lock.unlock();
             constexpr std::size_t CHUNK = 1024;
             const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
             pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
@@ -676,6 +735,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
+            pool.waitForAll();
         });
 }
 
@@ -683,8 +743,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
                                                 std::span<double> results,
                                                 const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BetaDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const BetaDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -739,44 +798,8 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
                 else
                     res[i] = detail::beta_i(x, a, b, log_prefix);
             });
+            pool.waitForAll();
         });
-}
-
-static detail::PerformanceHint betaStrategyToHint(detail::Strategy strategy) noexcept {
-    detail::PerformanceHint hint;
-    switch (strategy) {
-        case detail::Strategy::SCALAR:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
-            break;
-        case detail::Strategy::VECTORIZED:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-            break;
-        case detail::Strategy::PARALLEL:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
-            break;
-        case detail::Strategy::WORK_STEALING:
-            hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-            break;
-    }
-    return hint;
-}
-
-void BetaDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                  std::span<double> results,
-                                                  detail::Strategy strategy) const {
-    getProbability(values, results, betaStrategyToHint(strategy));
-}
-
-void BetaDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                     std::span<double> results,
-                                                     detail::Strategy strategy) const {
-    getLogProbability(values, results, betaStrategyToHint(strategy));
-}
-
-void BetaDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                                            std::span<double> results,
-                                                            detail::Strategy strategy) const {
-    getCumulativeProbability(values, results, betaStrategyToHint(strategy));
 }
 
 //==============================================================================

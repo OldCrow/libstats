@@ -1,0 +1,277 @@
+{
+  "run_id": "2026-06-24T02-49-41Z_darwin-arm64_feat-v2-architecture_sha-fb8e8b6",
+  "data_source": "strategy_profile_results.csv",
+  "metadata": {
+    "captured_at_utc": "2026-06-24T02-49-41Z",
+    "run_id": "2026-06-24T02-49-41Z_darwin-arm64_feat-v2-architecture_sha-fb8e8b6",
+    "run_number": 3,
+    "total_runs": 3,
+    "include_large": false,
+    "git_branch": "feat-v2-architecture",
+    "git_sha": "fb8e8b6",
+    "project_root": "/Users/wolfman/Development/libstats",
+    "build_dir": "/Users/wolfman/Development/libstats/build",
+    "build_type": "Release",
+    "cxx_compiler": "/usr/bin/c++",
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu_brand": "Apple M1",
+    "physical_cores": "8",
+    "logical_cores": "8"
+  },
+  "coverage": {
+    "distributions": [
+      "Beta",
+      "Binomial",
+      "ChiSquared",
+      "Discrete",
+      "Exponential",
+      "Gamma",
+      "Gaussian",
+      "LogNormal",
+      "NegBinomial",
+      "Pareto",
+      "Poisson",
+      "Rayleigh",
+      "StudentT",
+      "Uniform",
+      "VonMises",
+      "Weibull"
+    ],
+    "operations": [
+      "CDF",
+      "LogPDF",
+      "PDF"
+    ],
+    "batch_sizes": [
+      64,
+      128,
+      256,
+      512,
+      1024,
+      2048,
+      4096,
+      6144,
+      8192,
+      10000,
+      25000,
+      50000,
+      75000,
+      100000,
+      150000,
+      200000,
+      250000,
+      300000,
+      400000,
+      500000
+    ],
+    "total_measurements": 3840
+  },
+  "strategy_win_counts": {
+    "VECTORIZED": 484,
+    "WORK_STEALING": 279,
+    "PARALLEL": 173,
+    "SCALAR": 24
+  },
+  "crossover_summary": {
+    "groups": 48,
+    "vectorized_never_wins": [],
+    "parallel_crossover_sizes": [
+      {
+        "distribution": "Beta",
+        "operation": "CDF",
+        "vectorized_to_parallel": 128
+      },
+      {
+        "distribution": "Beta",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 256
+      },
+      {
+        "distribution": "Beta",
+        "operation": "PDF",
+        "vectorized_to_parallel": 128
+      },
+      {
+        "distribution": "Binomial",
+        "operation": "CDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "ChiSquared",
+        "operation": "CDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "ChiSquared",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "ChiSquared",
+        "operation": "PDF",
+        "vectorized_to_parallel": 4096
+      },
+      {
+        "distribution": "Discrete",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 50000
+      },
+      {
+        "distribution": "Discrete",
+        "operation": "PDF",
+        "vectorized_to_parallel": 50000
+      },
+      {
+        "distribution": "Exponential",
+        "operation": "CDF",
+        "vectorized_to_parallel": 10000
+      },
+      {
+        "distribution": "Exponential",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "Exponential",
+        "operation": "PDF",
+        "vectorized_to_parallel": 25000
+      },
+      {
+        "distribution": "Gamma",
+        "operation": "CDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "Gamma",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "Gamma",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8192
+      },
+      {
+        "distribution": "Gaussian",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "Gaussian",
+        "operation": "PDF",
+        "vectorized_to_parallel": 25000
+      },
+      {
+        "distribution": "LogNormal",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "LogNormal",
+        "operation": "PDF",
+        "vectorized_to_parallel": 25000
+      },
+      {
+        "distribution": "NegBinomial",
+        "operation": "CDF",
+        "vectorized_to_parallel": 256
+      },
+      {
+        "distribution": "Pareto",
+        "operation": "CDF",
+        "vectorized_to_parallel": 8192
+      },
+      {
+        "distribution": "Pareto",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 25000
+      },
+      {
+        "distribution": "Pareto",
+        "operation": "PDF",
+        "vectorized_to_parallel": 25000
+      },
+      {
+        "distribution": "Poisson",
+        "operation": "CDF",
+        "vectorized_to_parallel": 256
+      },
+      {
+        "distribution": "Poisson",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 256
+      },
+      {
+        "distribution": "Poisson",
+        "operation": "PDF",
+        "vectorized_to_parallel": 512
+      },
+      {
+        "distribution": "Rayleigh",
+        "operation": "CDF",
+        "vectorized_to_parallel": 10000
+      },
+      {
+        "distribution": "Rayleigh",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "Rayleigh",
+        "operation": "PDF",
+        "vectorized_to_parallel": 6144
+      },
+      {
+        "distribution": "StudentT",
+        "operation": "CDF",
+        "vectorized_to_parallel": 256
+      },
+      {
+        "distribution": "StudentT",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 25000
+      },
+      {
+        "distribution": "StudentT",
+        "operation": "PDF",
+        "vectorized_to_parallel": 25000
+      },
+      {
+        "distribution": "Uniform",
+        "operation": "CDF",
+        "vectorized_to_parallel": 64
+      },
+      {
+        "distribution": "VonMises",
+        "operation": "CDF",
+        "vectorized_to_parallel": 128
+      },
+      {
+        "distribution": "VonMises",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 150000
+      },
+      {
+        "distribution": "VonMises",
+        "operation": "PDF",
+        "vectorized_to_parallel": 100000
+      },
+      {
+        "distribution": "Weibull",
+        "operation": "CDF",
+        "vectorized_to_parallel": 25000
+      },
+      {
+        "distribution": "Weibull",
+        "operation": "LogPDF",
+        "vectorized_to_parallel": 8192
+      },
+      {
+        "distribution": "Weibull",
+        "operation": "PDF",
+        "vectorized_to_parallel": 8192
+      }
+    ]
+  }
+}

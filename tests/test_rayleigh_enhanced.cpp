@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/rayleigh.h"
 
@@ -24,7 +25,7 @@ class RayleighEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::RayleighDistribution::create(1.0);
         ASSERT_TRUE(r.isOk());
-        r1_ = std::move(r.value);
+        r1_ = std::move(r).unwrap();
     }
     RayleighDistribution r1_;  // standard Rayleigh (σ=1)
 };
@@ -32,7 +33,7 @@ class RayleighEnhancedTest : public ::testing::Test {
 // PDF(x=σ) = exp(-0.5) for any σ
 TEST_F(RayleighEnhancedTest, PDFAtSigma) {
     for (double sigma : {0.5, 1.0, 2.0, 5.0}) {
-        auto d = RayleighDistribution::create(sigma).value;
+        auto d = RayleighDistribution::create(sigma).unwrap();
         EXPECT_NEAR(d.getProbability(sigma), std::exp(-0.5) / sigma, 1e-12)
             << "PDF(σ) != exp(-0.5)/σ for σ=" << sigma;
     }
@@ -41,7 +42,7 @@ TEST_F(RayleighEnhancedTest, PDFAtSigma) {
 // CDF(σ) = 1 - exp(-0.5) for any σ
 TEST_F(RayleighEnhancedTest, CDFAtSigma) {
     for (double sigma : {0.5, 1.0, 2.0, 5.0}) {
-        auto d = RayleighDistribution::create(sigma).value;
+        auto d = RayleighDistribution::create(sigma).unwrap();
         EXPECT_NEAR(d.getCumulativeProbability(sigma), 1.0 - std::exp(-0.5), 1e-12)
             << "CDF(σ) != 1-exp(-0.5) for σ=" << sigma;
     }
@@ -65,7 +66,7 @@ TEST_F(RayleighEnhancedTest, ConstantSkewnessKurtosis) {
     EXPECT_NEAR(r1_.getKurtosis(), expected_kurt, 1e-10);
 
     // Must be σ-independent
-    auto r2 = RayleighDistribution::create(5.0).value;
+    auto r2 = RayleighDistribution::create(5.0).unwrap();
     EXPECT_NEAR(r2.getSkewness(), expected_skew, 1e-10);
     EXPECT_NEAR(r2.getKurtosis(), expected_kurt, 1e-10);
 }
@@ -119,17 +120,17 @@ TEST_F(RayleighEnhancedTest, VectorizedMatchesScalar) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = 0.01 + 0.05 * static_cast<double>(i + 1);
 
-    r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                      detail::Strategy::VECTORIZED);
-    r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                      detail::Strategy::SCALAR);
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    r1_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    r1_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF mismatch at i=" << i;
 
-    r1_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_vec),
-                                             detail::Strategy::VECTORIZED);
-    r1_.getCumulativeProbabilityWithStrategy(span<const double>(xs), span<double>(out_scl),
-                                             detail::Strategy::SCALAR);
+    r1_.getCumulativeProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    r1_.getCumulativeProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF mismatch at i=" << i;
 }
@@ -137,16 +138,16 @@ TEST_F(RayleighEnhancedTest, VectorizedMatchesScalar) {
 // MLE from samples
 TEST_F(RayleighEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source = RayleighDistribution::create(2.5).value;
+    auto source = RayleighDistribution::create(2.5).unwrap();
     const auto data = source.sample(rng, 500);
-    auto fitted = RayleighDistribution::create(1.0).value;
+    auto fitted = RayleighDistribution::create(1.0).unwrap();
     fitted.fit(data);
     EXPECT_NEAR(fitted.getSigma(), 2.5, 0.3) << "Fitted sigma should be near 2.5";
 }
 
 // Setter propagates
 TEST_F(RayleighEnhancedTest, SetterPropagates) {
-    auto d = RayleighDistribution::create(1.0).value;
+    auto d = RayleighDistribution::create(1.0).unwrap();
     EXPECT_NEAR(d.getMean(), std::sqrt(M_PI / 2.0), 1e-12);
     d.setSigma(2.0);
     EXPECT_NEAR(d.getMean(), 2.0 * std::sqrt(M_PI / 2.0), 1e-12);
@@ -160,7 +161,7 @@ TEST_F(RayleighEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(RayleighDistribution::create(0.0).isError());
     EXPECT_TRUE(RayleighDistribution::create(std::numeric_limits<double>::quiet_NaN()).isError());
 
-    auto d = RayleighDistribution::create(1.0).value;
+    auto d = RayleighDistribution::create(1.0).unwrap();
     EXPECT_TRUE(d.trySetSigma(-1.0).isError());
     EXPECT_DOUBLE_EQ(d.getSigma(), 1.0);
 }
@@ -172,13 +173,14 @@ TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
     for (size_t i = 0; i < N; ++i)
         xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
     vector<double> out(N), scl(N);
+    detail::PerformanceHint vec_hint, scl_hint;
+    vec_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    scl_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
 
     const auto t0 = std::chrono::high_resolution_clock::now();
-    r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(out),
-                                      detail::Strategy::VECTORIZED);
+    r1_.getLogProbability(span<const double>(xs), span<double>(out), vec_hint);
     const auto t1 = std::chrono::high_resolution_clock::now();
-    r1_.getLogProbabilityWithStrategy(span<const double>(xs), span<double>(scl),
-                                      detail::Strategy::SCALAR);
+    r1_.getLogProbability(span<const double>(xs), span<double>(scl), scl_hint);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
     const double vec_us =
@@ -195,3 +197,25 @@ TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
 }
 
 }  // namespace stats
+
+//==============================================================================
+// DistTraits specialization for stats::RayleighDistribution
+//==============================================================================
+template <>
+struct stats::tests::DistTraits<stats::RayleighDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::RayleighDistribution make() {
+        return stats::RayleighDistribution::create(1.0).unwrap();
+    }
+    static std::vector<double> domain() { return {0.5, 1.0, 2.0, 3.0, 5.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 10.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::RayleighDistribution::create(-1.0).isError(); },
+            [] { return stats::RayleighDistribution::create(0.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Rayleigh, DistributionEnhancedTest,
+                               ::testing::Types<stats::RayleighDistribution>);

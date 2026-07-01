@@ -8,7 +8,6 @@
 
 // Include the common base and split components
 #include "distribution_interface.h"
-#include "distribution_memory.h"
 #include "distribution_validation.h"
 #include "libstats/common/distribution_base_common.h"
 
@@ -31,6 +30,18 @@ namespace stats {
  *
  * The class inherits from multiple specialized interfaces to provide a clean
  * separation of concerns while maintaining full backwards compatibility.
+ *
+ * @note Thread safety: all const methods (getProbability, getLogProbability,
+ * getCumulativeProbability, getMean, etc.) are safe to call concurrently from
+ * multiple threads. Setters (setMean, setStdDev, fit, etc.) may be called
+ * concurrently with const methods; the internal shared_mutex ensures that
+ * cache recomputation and parameter reads are mutually consistent.
+ *
+ * Move construction and move assignment are @b NOT thread-safe with respect
+ * to the source object — the caller must ensure no concurrent access to the
+ * source during a move. This follows the same convention as @c std::vector
+ * and other STL containers: the source is left in a valid but unspecified
+ * state and must not be accessed concurrently during or after the move.
  *
  * @par Usage Example:
  * @code
@@ -99,6 +110,9 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @note Override for numerical stability when possible
      */
     double getLogProbability(double x) const override {
+        // propagate NaN rather than collapsing it to -inf via log(0)
+        if (std::isnan(x)) [[unlikely]]
+            return std::numeric_limits<double>::quiet_NaN();
         double prob = getProbability(x);
         return prob > 0.0 ? std::log(prob) : -std::numeric_limits<double>::infinity();
     }
@@ -108,42 +122,6 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
     // =============================================================================
 
     // Multi-sample method implementation inherited from DistributionInterface
-
-    // =============================================================================
-    // SIMD-OPTIMIZED BATCH OPERATIONS - Virtual (Override for Performance)
-    // =============================================================================
-
-    /**
-     * @brief Batch probability density/mass function evaluation
-     * @param x_values Vector of values to evaluate
-     * @return Vector of probability densities/masses
-     * @note Base implementation uses parallel processing for large datasets; override for SIMD
-     * optimization
-     */
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; removed in v2.0.0.")]]
-    virtual std::vector<double> getBatchProbabilities(const std::vector<double>& x_values) const;
-
-    /**
-     * @brief Batch log probability density/mass function evaluation
-     * @deprecated Use getLogProbability(span, span, PerformanceHint) instead; removed in v2.0.0.
-     */
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; removed in v2.0.0.")]]
-    virtual std::vector<double> getBatchLogProbabilities(const std::vector<double>& x_values) const;
-
-    /**
-     * @brief Batch cumulative distribution function evaluation
-     * @deprecated Use getCumulativeProbability(span, span, PerformanceHint) instead; removed in v2.0.0.
-     */
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; removed in v2.0.0.")]]
-    virtual std::vector<double> getBatchCumulativeProbabilities(
-        const std::vector<double>& x_values) const;
-
-    /**
-     * @brief Batch quantile function evaluation
-     * @deprecated Use getQuantile(span, span) instead; removed in v2.0.0.
-     */
-    [[deprecated("Use getQuantile with span-based overloads instead; removed in v2.0.0.")]]
-    virtual std::vector<double> getBatchQuantiles(const std::vector<double>& p_values) const;
 
     /**
      * @brief Check if SIMD batch operations should be used for given size
@@ -155,22 +133,40 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
     }
 
     // =============================================================================
-    // INFORMATION THEORY METRICS - Virtual (Override Optional)
+    // SURVIVAL ANALYSIS - Concrete (derived from core interface)
     // =============================================================================
 
     /**
-     * @brief Calculate entropy of the distribution
-     * @return Differential entropy (continuous) or entropy (discrete)
-     * @note Return NaN if not analytically computable
+     * @brief Survival function S(x) = 1 - F(x).
+     *
+     * Probability that the random variable exceeds x. Naturally interpreted
+     * as a reliability / survival probability for Weibull, Exponential, Pareto
+     * and other positive-support distributions.
+     *
+     * @param x Evaluation point.
+     * @return S(x) in [0, 1].
      */
-    virtual double getEntropy() const { return std::numeric_limits<double>::quiet_NaN(); }
+    [[nodiscard]] double getSurvival(double x) const { return 1.0 - getCumulativeProbability(x); }
 
     /**
-     * @brief Calculate Kullback-Leibler divergence from another distribution
-     * @deprecated Never overridden and never called; removed in v2.0.0.
+     * @brief Hazard function h(x) = f(x) / S(x).
+     *
+     * Instantaneous failure rate (or hazard rate) at x. Returns +inf when
+     * the survival function is zero (x past the support upper bound).
+     *
+     * @param x Evaluation point.
+     * @return h(x) ≥ 0, or +inf if S(x) = 0.
      */
-    [[deprecated("getKLDivergence has no overrides and no call sites; removed in v2.0.0.")]]
-    virtual double getKLDivergence(const DistributionBase& other) const;
+    [[nodiscard]] double getHazard(double x) const {
+        const double s = getSurvival(x);
+        if (s <= 0.0)
+            return std::numeric_limits<double>::infinity();
+        return getProbability(x) / s;
+    }
+
+    // getEntropy() promoted to DistributionInterface in v2.0.0 (Step 3A).
+    // DistributionBase inherits the NaN default from DistributionInterface;
+    // distributions that compute entropy override it directly.
 
     // =============================================================================
     // DISTRIBUTION COMPARISON - Virtual (Override Optional)
@@ -182,7 +178,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @param tolerance Numerical tolerance for comparison
      * @return true if distributions are approximately equal
      */
-    virtual bool isApproximatelyEqual(const DistributionBase& other,
+    virtual bool isApproximatelyEqual(const DistributionInterface& other,
                                       double tolerance = 1e-10) const;
 
     // =============================================================================
@@ -205,34 +201,15 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      */
     virtual FitResults fitWithDiagnostics(const std::vector<double>& data);
 
-
    protected:
     // =============================================================================
     // NUMERICAL UTILITIES - Protected Static Methods
     // =============================================================================
-
-    /**
-     * @brief Numerical integration for CDF calculation
-     * @param pdf_func PDF function to integrate
-     * @param lower_bound Integration lower bound
-     * @param upper_bound Integration upper bound
-     * @param tolerance Numerical tolerance
-     * @return Integral approximation
-     */
-    static double numericalIntegration(std::function<double(double)> pdf_func, double lower_bound,
-                                       double upper_bound, double tolerance = 1e-8);
-
-    /**
-     * @brief Newton-Raphson method for quantile calculation
-     * @param cdf_func CDF function
-     * @param target_probability Target probability value
-     * @param initial_guess Initial guess for root
-     * @param tolerance Numerical tolerance
-     * @return Quantile approximation
-     */
-    static double newtonRaphsonQuantile(std::function<double(double)> cdf_func,
-                                        double target_probability, double initial_guess,
-                                        double tolerance = 1e-10);
+    // numericalIntegration(), newtonRaphsonQuantile() and their private helpers
+    // (adaptiveSimpsonIntegration, betaI_continued_fraction) have been removed
+    // in v2.0.0 (Step 3B). No derived class called them through the protected
+    // interface. Use detail::adaptive_simpson() and detail::newton_raphson()
+    // from math_utils.h directly in distribution subclasses.
 
     /**
      * @brief Validate data for fitting
@@ -248,63 +225,9 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      */
     static std::vector<double> calculateEmpiricalCDF(const std::vector<double>& data);
 
-    // =============================================================================
-    // SPECIAL MATHEMATICAL FUNCTIONS - Protected Static Methods
-    // =============================================================================
-
-    /**
-     * @brief Error function erf(x)
-     */
-    static double erf(double x) noexcept;
-
-    /**
-     * @brief Complementary error function erfc(x)
-     */
-    static double erfc(double x) noexcept;
-
-    /**
-     * @brief Log gamma function ln(Γ(x))
-     */
-    static double lgamma(double x) noexcept;
-
-    /**
-     * @brief Regularized incomplete gamma function P(a,x)
-     */
-    static double gammaP(double a, double x) noexcept;
-
-    /**
-     * @brief Regularized incomplete gamma function Q(a,x) = 1 - P(a,x)
-     */
-    static double gammaQ(double a, double x) noexcept;
-
-    /**
-     * @brief Inverse of P(a, x): find x such that gammaP(a, x) = p
-     *
-     * Uses bisection on gammaP. Suitable for computing Gamma-posterior
-     * quantiles in Bayesian credible-interval calculations.
-     */
-    static double gammaQuantile(double a, double p) noexcept;
-
-    /**
-     * @brief Regularized incomplete beta function I_x(a,b)
-     */
-    static double betaI(double x, double a, double b) noexcept;
-
-   private:
-    // =============================================================================
-    // INTERNAL IMPLEMENTATION DETAILS
-    // =============================================================================
-
-    /**
-     * @brief Helper function for incomplete beta function continued fraction
-     */
-    static double betaI_continued_fraction(double x, double a, double b) noexcept;
-
-    /**
-     * @brief Helper function for adaptive Simpson's rule integration
-     */
-    static double adaptiveSimpsonIntegration(std::function<double(double)> func, double a, double b,
-                                             double tolerance, int depth, int max_depth);
+    // Special mathematical functions (erf, lgamma, gammaP/Q, betaI) that were
+    // formerly duplicated here as protected wrappers have been removed in
+    // v2.0.0 (AQ-5). Call stats::detail:: functions from math_utils.h directly.
 };
 
 }  // namespace stats

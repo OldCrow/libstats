@@ -1,11 +1,15 @@
 #include "libstats/distributions/binomial.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -59,7 +63,6 @@ BinomialDistribution& BinomialDistribution::operator=(const BinomialDistribution
 
 BinomialDistribution::BinomialDistribution(BinomialDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     n_ = other.n_;
     p_ = other.p_;
     logNFact_ = other.logNFact_;
@@ -73,12 +76,8 @@ BinomialDistribution::BinomialDistribution(BinomialDistribution&& other) noexcep
     atomicP_.store(p_, std::memory_order_release);
 }
 
-BinomialDistribution& BinomialDistribution::operator=(BinomialDistribution&& other) {
+BinomialDistribution& BinomialDistribution::operator=(BinomialDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
-
         n_ = other.n_;
         p_ = other.p_;
         logNFact_ = other.logNFact_;
@@ -115,8 +114,8 @@ BinomialDistribution::BinomialDistribution(int n, double p, bool /*bypassValidat
 //==============================================================================
 
 void BinomialDistribution::setN(int n) {
-    validateParameters(n, getP());
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(n, p_);
     n_ = n;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -125,8 +124,8 @@ void BinomialDistribution::setN(int n) {
 }
 
 void BinomialDistribution::setP(double p) {
-    validateParameters(getN(), p);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(n_, p);
     p_ = p;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -145,17 +144,17 @@ void BinomialDistribution::setParameters(int n, double p) {
     updateCacheUnsafe();
 }
 
-double BinomialDistribution::getMean() const noexcept {
+double BinomialDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return static_cast<double>(n_) * p_;
 }
 
-double BinomialDistribution::getVariance() const noexcept {
+double BinomialDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return static_cast<double>(n_) * p_ * (detail::ONE - p_);
 }
 
-double BinomialDistribution::getSkewness() const noexcept {
+double BinomialDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double var = static_cast<double>(n_) * p_ * (detail::ONE - p_);
     if (var <= detail::ZERO)
@@ -163,7 +162,7 @@ double BinomialDistribution::getSkewness() const noexcept {
     return (detail::ONE - detail::TWO * p_) / std::sqrt(var);
 }
 
-double BinomialDistribution::getKurtosis() const noexcept {
+double BinomialDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double var = static_cast<double>(n_) * p_ * (detail::ONE - p_);
     if (var <= detail::ZERO)
@@ -176,27 +175,55 @@ double BinomialDistribution::getKurtosis() const noexcept {
 //==============================================================================
 
 VoidResult BinomialDistribution::trySetN(int n) noexcept {
-    auto v = validateBinomialParameters(n, getP());
-    if (v.isError())
-        return v;
-    setN(n);
-    return VoidResult::ok(true);
+    try {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateBinomialParameters(n, p_);
+        if (v.isError())
+            return v;
+        n_ = n;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        updateCacheUnsafe();
+        return VoidResult::ok({});
+    } catch (const std::exception& e) {
+        return VoidResult::makeError(ValidationError::UnknownError, e.what());
+    }
 }
 
 VoidResult BinomialDistribution::trySetP(double p) noexcept {
-    auto v = validateBinomialParameters(getN(), p);
-    if (v.isError())
-        return v;
-    setP(p);
-    return VoidResult::ok(true);
+    try {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateBinomialParameters(n_, p);
+        if (v.isError())
+            return v;
+        p_ = p;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        updateCacheUnsafe();
+        return VoidResult::ok({});
+    } catch (const std::exception& e) {
+        return VoidResult::makeError(ValidationError::UnknownError, e.what());
+    }
 }
 
 VoidResult BinomialDistribution::trySetParameters(int n, double p) noexcept {
-    auto v = validateBinomialParameters(n, p);
-    if (v.isError())
-        return v;
-    setParameters(n, p);
-    return VoidResult::ok(true);
+    try {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateBinomialParameters(n, p);
+        if (v.isError())
+            return v;
+        n_ = n;
+        p_ = p;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        updateCacheUnsafe();
+        return VoidResult::ok({});
+    } catch (const std::exception& e) {
+        return VoidResult::makeError(ValidationError::UnknownError, e.what());
+    }
 }
 
 VoidResult BinomialDistribution::validateCurrentParameters() const noexcept {
@@ -216,8 +243,10 @@ double BinomialDistribution::logBinomCoeff(int k) const noexcept {
 }
 
 double BinomialDistribution::getProbability(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
-        return detail::ZERO_DOUBLE;
+        return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
     const int k = static_cast<int>(std::round(x));
     if (k < 0 || k > n_)
         return detail::ZERO_DOUBLE;
@@ -232,17 +261,27 @@ double BinomialDistribution::getProbability(double x) const {
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const int sn = n_;
+        const double slnf = logNFact_, slp = logP_, sl1mp = log1mP_;
+        const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
+                                   : slnf - std::lgamma(static_cast<double>(k + 1)) -
+                                         std::lgamma(static_cast<double>(sn - k + 1));
+        const double lp_val =
+            lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
+        return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
     }
+    // Cache hit — read directly under shared_lock (no gap possible)
     const double lp =
         logBinomCoeff(k) + static_cast<double>(k) * logP_ + static_cast<double>(n_ - k) * log1mP_;
     return std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
 }
 
-double BinomialDistribution::getLogProbability(double x) const noexcept {
+double BinomialDistribution::getLogProbability(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
-        return detail::NEGATIVE_INFINITY;
+        return detail::NEGATIVE_INFINITY;  // ±inf → -∞
     const int k = static_cast<int>(std::round(x));
     if (k < 0 || k > n_)
         return detail::NEGATIVE_INFINITY;
@@ -257,16 +296,26 @@ double BinomialDistribution::getLogProbability(double x) const noexcept {
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const int sn = n_;
+        const double slnf = logNFact_, slp = logP_, sl1mp = log1mP_;
+        const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
+                                   : slnf - std::lgamma(static_cast<double>(k + 1)) -
+                                         std::lgamma(static_cast<double>(sn - k + 1));
+        return lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
     }
+    // Cache hit — read directly under shared_lock (no gap possible)
     return logBinomCoeff(k) + static_cast<double>(k) * logP_ +
            static_cast<double>(n_ - k) * log1mP_;
 }
 
 double BinomialDistribution::getCumulativeProbability(double x) const {
-    if (!std::isfinite(x))
-        return std::isnan(x) ? detail::ZERO_DOUBLE : detail::ONE;
+    // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
+    if (!std::isfinite(x)) {
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
+    }
     const int k = static_cast<int>(std::floor(x));
     if (k < 0)
         return detail::ZERO_DOUBLE;
@@ -279,9 +328,17 @@ double BinomialDistribution::getCumulativeProbability(double x) const {
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+        const int sn = n_;
+        const double sp = p_;
+        if (sp == detail::ZERO_DOUBLE)
+            return detail::ONE;  // all mass at k=0
+        if (sp == detail::ONE)
+            return detail::ZERO_DOUBLE;  // all mass at k=n
+        return detail::beta_i(detail::ONE - sp, static_cast<double>(sn - k),
+                              static_cast<double>(k + 1));
     }
+    // Cache hit — read directly under shared_lock (no gap possible)
     if (p_ == detail::ZERO_DOUBLE)
         return detail::ONE;  // all mass at k=0
     if (p_ == detail::ONE)
@@ -355,12 +412,15 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
 
     int maxObs = 0;
     double sum = detail::ZERO_DOUBLE;
+    double sum_sq = detail::ZERO_DOUBLE;
     std::size_t count = 0;
     for (double v : values) {
         if (v >= detail::ZERO_DOUBLE && std::isfinite(v)) {
             const int k = static_cast<int>(std::round(v));
             maxObs = std::max(maxObs, k);
-            sum += static_cast<double>(k);
+            const double kd = static_cast<double>(k);
+            sum += kd;
+            sum_sq += kd * kd;
             ++count;
         }
     }
@@ -369,9 +429,26 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
         return;
     }
 
-    const int n_hat = maxObs;
-    const double p_hat =
-        std::clamp(sum / (static_cast<double>(count) * n_hat), detail::ZERO_DOUBLE, detail::ONE);
+    const double n_d = static_cast<double>(count);
+    const double xbar = sum / n_d;
+
+    // Method-of-moments (MC-10): n̂ = x̄² / (x̄ − s²),  p̂ = x̄ / n̂
+    // Valid when s² < x̄ (underdispersion consistent with Binomial).
+    // Falls back to n̂ = max(obs) when MoM is inapplicable (overdispersed or
+    // all observations equal).
+    const double var = sum_sq / n_d - xbar * xbar;  // biased MLE sample variance
+
+    int n_hat;
+    double p_hat;
+    if (count >= 2 && var > detail::ZERO_DOUBLE && var < xbar) {
+        const double n_mom = xbar * xbar / (xbar - var);
+        n_hat = std::max(maxObs, static_cast<int>(std::round(n_mom)));
+        p_hat = std::clamp(xbar / static_cast<double>(n_hat), detail::ZERO_DOUBLE, detail::ONE);
+    } else {
+        // Fallback: max(obs) is a lower bound for n; MLE p̂ = x̄ / n given n.
+        n_hat = maxObs;
+        p_hat = std::clamp(xbar / static_cast<double>(n_hat), detail::ZERO_DOUBLE, detail::ONE);
+    }
     setParameters(n_hat, p_hat);
 }
 
@@ -386,6 +463,7 @@ void BinomialDistribution::reset() noexcept {
     p_ = detail::HALF;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
 }
 
@@ -413,7 +491,7 @@ double BinomialDistribution::getPAtomic() const noexcept {
     return getP();
 }
 
-double BinomialDistribution::getMode() const noexcept {
+double BinomialDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double np1p = static_cast<double>(n_ + 1) * p_;
     const int mode = static_cast<int>(std::floor(np1p));
@@ -423,18 +501,56 @@ double BinomialDistribution::getMode() const noexcept {
     return static_cast<double>(mode);
 }
 
-double BinomialDistribution::getEntropy() const noexcept {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+double BinomialDistribution::getEntropy() const {
+    int n;
+    double p, lnf;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            n = n_;
+            p = p_;
+            lnf = logNFact_;  // snapshot under unique_lock
+        } else {
+            n = n_;
+            p = p_;
+            lnf = logNFact_;  // snapshot under shared_lock
+        }
     }
-    // Normal approximation: H ≈ ½ log(2πe·n·p·(1−p))
-    const double var = static_cast<double>(n_) * p_ * (detail::ONE - p_);
+
+    // Entropy is returned in nats (natural units; std::log = log base e).
+    //
+    // For n ≤ 1000: exact Pearson-Shannon entropy via the PMF.
+    //   H = -Σ_{k=0}^{n} P(k) · ln P(k)
+    //   ln P(k) = ln C(n,k) + k·ln(p) + (n-k)·ln(1-p)
+    //           = (logNFact - lgamma(k+1) - lgamma(n-k+1)) + k*lp + (n-k)*l1mp
+    // This is exact up to floating-point rounding for any p in [0,1].
+    //
+    // For n > 1000: Gaussian approximation H ≈ ½ ln(2πe·npq), which
+    // has <0.1% relative error for n·1000 and any non-degenerate p.
+    constexpr int kExactThreshold = 1000;
+    if (n <= kExactThreshold) {
+        if (p <= detail::ZERO_DOUBLE || p >= detail::ONE)
+            return detail::ZERO_DOUBLE;  // degenerate: all mass at one point
+        const double lp = std::log(p);
+        const double l1mp = std::log(detail::ONE - p);
+        double h = detail::ZERO_DOUBLE;
+        for (int k = 0; k <= n; ++k) {
+            // log P(k): log-binomial coefficient + log p^k (1-p)^(n-k)
+            const double log_pmf = lnf - std::lgamma(static_cast<double>(k + 1)) -
+                                   std::lgamma(static_cast<double>(n - k + 1)) +
+                                   static_cast<double>(k) * lp + static_cast<double>(n - k) * l1mp;
+            // P(k) * log P(k); guard against log_pmf = -inf when P(k) is tiny
+            if (std::isfinite(log_pmf))
+                h -= std::exp(log_pmf) * log_pmf;
+        }
+        return h;
+    }
+    // Large n: Gaussian approximation (MC-14)
+    const double var = static_cast<double>(n) * p * (detail::ONE - p);
     if (var <= detail::ZERO)
         return detail::ZERO_DOUBLE;
     return detail::HALF * std::log(detail::TWO * detail::PI * detail::E * var);
@@ -447,8 +563,7 @@ double BinomialDistribution::getEntropy() const noexcept {
 void BinomialDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                           const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BinomialDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const BinomialDistribution& d, double x) { return d.getProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -456,10 +571,14 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                    d.updateCacheUnsafe();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const int n = d.n_;
+                const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
+                d.getProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
+                return;
             }
+            // Cache hit — read directly under shared_lock (no gap possible)
             const int n = d.n_;
             const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
             lock.unlock();
@@ -471,18 +590,28 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            int n;
+            double lnf, lp, l1mp;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        d.updateCacheUnsafe();
+                    // Snapshot while unique_lock still held — no TOCTOU gap.
+                    n = d.n_;
+                    lnf = d.logNFact_;
+                    lp = d.logP_;
+                    l1mp = d.log1mP_;
+                } else {
+                    // Snapshot under shared_lock.
+                    n = d.n_;
+                    lnf = d.logNFact_;
+                    lp = d.logP_;
+                    l1mp = d.log1mP_;
+                }
             }
-            const int n = d.n_;
-            const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
-            lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     res[i] = d.getProbability(vals[i]);
@@ -509,8 +638,7 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
                                              std::span<double> results,
                                              const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BinomialDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const BinomialDistribution& d, double x) { return d.getLogProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -518,10 +646,14 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                    d.updateCacheUnsafe();
+                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
+                const int n = d.n_;
+                const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
+                d.getLogProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
+                return;
             }
+            // Cache hit — read directly under shared_lock (no gap possible)
             const int n = d.n_;
             const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
             lock.unlock();
@@ -555,8 +687,7 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
                                                     std::span<double> results,
                                                     const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<BinomialDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const BinomialDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             d.getCumulativeProbabilityBatchImpl(vals, res, count);
@@ -588,101 +719,6 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
 //==============================================================================
 // 14. EXPLICIT STRATEGY BATCH OPERATIONS
 //==============================================================================
-
-void BinomialDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                      std::span<double> results,
-                                                      detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const BinomialDistribution& d, double x) { return d.getProbability(x); },
-        [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const int n = d.n_;
-            const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
-            lock.unlock();
-            d.getProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
-        },
-        [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
-            const std::size_t count = vals.size();
-            ParallelUtils::parallelFor(std::size_t{0}, count,
-                                       [&](std::size_t i) { res[i] = d.getProbability(vals[i]); });
-        },
-        [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getProbability(vals[i]); });
-            pool.waitForAll();
-        });
-}
-
-void BinomialDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                         std::span<double> results,
-                                                         detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const BinomialDistribution& d, double x) { return d.getLogProbability(x); },
-        [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<BinomialDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const int n = d.n_;
-            const double lnf = d.logNFact_, lp = d.logP_, l1mp = d.log1mP_;
-            lock.unlock();
-            d.getLogProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
-        },
-        [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
-            const std::size_t count = vals.size();
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = d.getLogProbability(vals[i]);
-            });
-        },
-        [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getLogProbability(vals[i]); });
-            pool.waitForAll();
-        });
-}
-
-void BinomialDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                                                std::span<double> results,
-                                                                detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const BinomialDistribution& d, double x) { return d.getCumulativeProbability(x); },
-        [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
-            d.getCumulativeProbabilityBatchImpl(vals, res, count);
-        },
-        [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
-            const std::size_t count = vals.size();
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = d.getCumulativeProbability(vals[i]);
-            });
-        },
-        [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getCumulativeProbability(vals[i]); });
-            pool.waitForAll();
-        });
-}
 
 //==============================================================================
 // 15. COMPARISON OPERATORS
@@ -758,6 +794,14 @@ void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, doub
             results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
+        if (cached_logP == detail::NEGATIVE_INFINITY) {
+            results[i] = (k == 0) ? 0.0 : detail::NEGATIVE_INFINITY;
+            continue;
+        }
+        if (cached_log1mP == detail::NEGATIVE_INFINITY) {
+            results[i] = (k == cached_n) ? 0.0 : detail::NEGATIVE_INFINITY;
+            continue;
+        }
         const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -
                           std::lgamma(static_cast<double>(cached_n - k + 1));
         results[i] = lc + static_cast<double>(k) * cached_logP +
@@ -778,6 +822,14 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
         const int k = static_cast<int>(std::round(x));
         if (k < 0 || k > cached_n) {
             results[i] = detail::ZERO_DOUBLE;
+            continue;
+        }
+        if (cached_logP == detail::NEGATIVE_INFINITY) {
+            results[i] = (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
+            continue;
+        }
+        if (cached_log1mP == detail::NEGATIVE_INFINITY) {
+            results[i] = (k == cached_n) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
         }
         const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -

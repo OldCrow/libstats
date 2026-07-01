@@ -52,21 +52,9 @@ inline constexpr double PERFORMANCE_SIGNIFICANCE_THRESHOLD = 0.05;
 /// Maximum coefficient of variation for a measurement to be considered stable
 inline constexpr double CV_THRESHOLD = 0.1;
 
-// =============================================================================
-// DISPATCH AND STRATEGY CONSTANTS
-// Numerical parameters used inside performance-adaptive dispatch logic.
-// Values coincide with some statistical constants but carry distinct algorithmic
-// meaning; keeping them here prevents accidental coupling.
-// =============================================================================
-
-/// Scale factor applied to simd_min when SIMD efficiency is high
-inline constexpr double SIMD_THRESHOLD_SCALE_DOWN    = 0.70;
-
-/// Confidence assigned to a strategy recommendation backed by only one data point
-inline constexpr double SINGLE_SAMPLE_CONFIDENCE     = 0.50;
-
-/// Work-stealing fallback threshold when no profiling data is available
-inline constexpr std::size_t WORK_STEALING_FALLBACK_THRESHOLD = 10000;
+// SIMD_THRESHOLD_SCALE_DOWN, SINGLE_SAMPLE_CONFIDENCE, WORK_STEALING_FALLBACK_THRESHOLD
+// removed in v2.0.0 (Part 4): callers were in PerformanceHistory and the
+// Thresholds struct, both removed in the v2.0.0 performance-system cleanup.
 
 }  // namespace detail
 }  // namespace stats

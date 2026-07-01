@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../common/simd_policy_fwd.h"  // SIMDLevel — canonical SIMD level enum (AQ-1)
+
 #include <cstddef>
 #include <string>
 
@@ -60,16 +62,12 @@ namespace simd {
 class SIMDPolicy {
    public:
     /**
-     * @brief SIMD instruction set levels in order of general capability
+     * @brief SIMD instruction set levels in order of general capability.
+     *
+     * Alias for the canonical SIMDLevel enum defined in simd_policy_fwd.h
+     * (AQ-1: eliminates the duplicate parallel enum).
      */
-    enum class Level {
-        None,   ///< No SIMD support - use scalar implementation
-        NEON,   ///< ARM NEON - 128-bit vectors
-        SSE2,   ///< SSE2 - 128-bit vectors, 2 doubles
-        AVX,    ///< AVX - 256-bit vectors, 4 doubles
-        AVX2,   ///< AVX2 + FMA - enhanced 256-bit vectors
-        AVX512  ///< AVX-512 - 512-bit vectors, 8 doubles
-    };
+    using Level = SIMDLevel;
 
     /**
      * @brief Determine if SIMD should be used for a given data size

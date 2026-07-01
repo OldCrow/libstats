@@ -56,7 +56,6 @@ struct BenchmarkConfig {
     bool full_mode = true;
     bool export_results = false;
     bool verbose = false;
-    size_t num_threads = std::thread::hardware_concurrency();
     std::string target_distribution = "all";
 
     // Dataset configuration
@@ -277,6 +276,171 @@ class DatasetGenerator {
 
         return datasets;
     }
+
+    // Generators for the remaining 10 distributions use the libstats sample() method
+    // to ensure numerically valid data without reimplementing each distribution's RNG.
+
+    template <typename Dist, typename... Args>
+    static std::vector<std::vector<double>> generateViaSample(
+            size_t count, size_t size, std::mt19937& rng, Args&&... args) {
+        std::vector<std::vector<double>> datasets;
+        for (size_t i = 0; i < count; ++i) {
+            auto dist = Dist::create(std::forward<Args>(args)...).unwrap();
+            datasets.push_back(dist.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateLogNormalDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> mu_dist(-1.0, 2.0);
+        std::uniform_real_distribution<double> sigma_dist(0.3, 1.5);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = LogNormalDistribution::create(mu_dist(rng), sigma_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateParetoDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> scale_dist(0.5, 3.0);
+        std::uniform_real_distribution<double> alpha_dist(1.5, 5.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = ParetoDistribution::create(scale_dist(rng), alpha_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateWeibullDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> k_dist(0.8, 4.0);
+        std::uniform_real_distribution<double> lambda_dist(0.5, 3.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = WeibullDistribution::create(k_dist(rng), lambda_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateRayleighDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> sigma_dist(0.5, 3.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = RayleighDistribution::create(sigma_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateVonMisesDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> mu_dist(-2.0, 2.0);
+        std::uniform_real_distribution<double> kappa_dist(0.5, 5.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = VonMisesDistribution::create(mu_dist(rng), kappa_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateBinomialDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> p_dist(0.2, 0.8);
+        // Fixed n=20 across all datasets so fit() recovers a stable n estimate.
+        for (size_t i = 0; i < count; ++i) {
+            auto src = BinomialDistribution::create(20, p_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateNegBinomialDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> r_dist(2.0, 8.0);
+        std::uniform_real_distribution<double> p_dist(0.3, 0.7);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = NegativeBinomialDistribution::create(r_dist(rng), p_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateGeometricDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> p_dist(0.2, 0.8);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = GeometricDistribution::create(p_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateLaplaceDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> mu_dist(-5.0, 5.0);
+        std::uniform_real_distribution<double> b_dist(0.5, 3.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = LaplaceDistribution::create(mu_dist(rng), b_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateCauchyDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> x0_dist(-5.0, 5.0);
+        std::uniform_real_distribution<double> gamma_dist(0.5, 3.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = CauchyDistribution::create(x0_dist(rng), gamma_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateBetaDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> param_dist(0.5, 5.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = BetaDistribution::create(param_dist(rng), param_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateChiSquaredDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> k_dist(2.0, 10.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = ChiSquaredDistribution::create(k_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
+
+    static std::vector<std::vector<double>> generateStudentTDatasets(
+            size_t count, size_t size, std::mt19937& rng) {
+        std::vector<std::vector<double>> datasets;
+        std::uniform_real_distribution<double> nu_dist(3.0, 20.0);
+        for (size_t i = 0; i < count; ++i) {
+            auto src = StudentTDistribution::create(nu_dist(rng)).unwrap();
+            datasets.push_back(src.sample(rng, size));
+        }
+        return datasets;
+    }
 };
 
 //==============================================================================
@@ -445,6 +609,71 @@ class ParallelBatchFittingBenchmark {
                 "Discrete", &DatasetGenerator::generateDiscreteDatasets, summary);
         }
 
+        if (config_.target_distribution == "all" || config_.target_distribution == "lognormal") {
+            runDistributionBenchmark<LogNormalDistribution>(
+                "LogNormal", &DatasetGenerator::generateLogNormalDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "pareto") {
+            runDistributionBenchmark<ParetoDistribution>(
+                "Pareto", &DatasetGenerator::generateParetoDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "weibull") {
+            runDistributionBenchmark<WeibullDistribution>(
+                "Weibull", &DatasetGenerator::generateWeibullDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "rayleigh") {
+            runDistributionBenchmark<RayleighDistribution>(
+                "Rayleigh", &DatasetGenerator::generateRayleighDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "vonmises") {
+            runDistributionBenchmark<VonMisesDistribution>(
+                "VonMises", &DatasetGenerator::generateVonMisesDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "binomial") {
+            runDistributionBenchmark<BinomialDistribution>(
+                "Binomial", &DatasetGenerator::generateBinomialDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "negativebinomial") {
+            runDistributionBenchmark<NegativeBinomialDistribution>(
+                "NegativeBinomial", &DatasetGenerator::generateNegBinomialDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "geometric") {
+            runDistributionBenchmark<GeometricDistribution>(
+                "Geometric", &DatasetGenerator::generateGeometricDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "laplace") {
+            runDistributionBenchmark<LaplaceDistribution>(
+                "Laplace", &DatasetGenerator::generateLaplaceDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "cauchy") {
+            runDistributionBenchmark<CauchyDistribution>(
+                "Cauchy", &DatasetGenerator::generateCauchyDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "beta") {
+            runDistributionBenchmark<BetaDistribution>(
+                "Beta", &DatasetGenerator::generateBetaDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "chisquared") {
+            runDistributionBenchmark<ChiSquaredDistribution>(
+                "ChiSquared", &DatasetGenerator::generateChiSquaredDatasets, summary);
+        }
+
+        if (config_.target_distribution == "all" || config_.target_distribution == "studentt") {
+            runDistributionBenchmark<StudentTDistribution>(
+                "StudentT", &DatasetGenerator::generateStudentTDatasets, summary);
+        }
+
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
         summary.total_runtime_seconds = static_cast<double>(duration.count());
@@ -499,7 +728,6 @@ class ParallelBatchFittingBenchmark {
         std::cout << "\n";
         std::cout << "System: " << getSystemInfo() << "\n";
         std::cout << "Mode: " << (config_.quick_mode ? "Quick" : "Full") << "\n";
-        std::cout << "Threads: " << config_.num_threads << "\n";
         std::cout << "Target: " << config_.target_distribution << "\n";
         std::cout << "\n";
     }
@@ -656,8 +884,6 @@ BenchmarkConfig parseArguments(int argc, char* argv[]) {
             config.export_results = true;
         } else if (arg == "--verbose") {
             config.verbose = true;
-        } else if (arg == "--threads" && i + 1 < argc) {
-            config.num_threads = std::stoul(argv[++i]);
         } else if (arg == "--distribution" && i + 1 < argc) {
             config.target_distribution = argv[++i];
         } else if (arg == "--help" || arg == "-h") {
@@ -667,16 +893,16 @@ BenchmarkConfig parseArguments(int argc, char* argv[]) {
             std::cout << "  --quick              Run quick benchmark with smaller datasets\n";
             std::cout << "  --full               Run comprehensive benchmark (default)\n";
             std::cout << "  --export             Export results to CSV files\n";
-            std::cout << "  --threads N          Use N threads for parallel execution\n";
             std::cout << "  --verbose            Enable verbose output\n";
             std::cout << "  --distribution D     Test only distribution D\n";
-            std::cout << "                       (gaussian, exponential, uniform, gamma, poisson, "
-                         "discrete)\n";
+            std::cout << "                       (gaussian, exponential, uniform, gamma, poisson,\n";
+            std::cout << "                        discrete, lognormal, pareto, weibull, rayleigh,\n";
+            std::cout << "                        vonmises, binomial, negativebinomial, beta,\n";
+            std::cout << "                        chisquared, studentt)\n";
             std::cout << "  --help, -h           Show this help message\n\n";
             std::cout << "Examples:\n";
             std::cout << "  " << argv[0] << " --quick --verbose\n";
             std::cout << "  " << argv[0] << " --distribution gaussian --export\n";
-            std::cout << "  " << argv[0] << " --threads 8 --full\n";
             exit(0);
         }
     }

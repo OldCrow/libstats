@@ -149,60 +149,17 @@ void test_simd_constants() {
     EXPECT_TRUE(MAX_BLOCK_SIZE >= DEFAULT_BLOCK_SIZE);
     EXPECT_TRUE(DEFAULT_BLOCK_SIZE >= MIN_SIMD_SIZE);
 
-    // Test SIMD alignment constants
-    EXPECT_TRUE(AVX512_ALIGNMENT == 64);
-    EXPECT_TRUE(AVX_ALIGNMENT == 32);
-    EXPECT_TRUE(SSE_ALIGNMENT == 16);
-    EXPECT_TRUE(NEON_ALIGNMENT == 16);
-    EXPECT_TRUE(CACHE_LINE_ALIGNMENT == 64);
-    EXPECT_TRUE(MIN_SAFE_ALIGNMENT == 8);
-
-    // Test alignment hierarchy
-    EXPECT_TRUE(AVX512_ALIGNMENT >= AVX_ALIGNMENT);
-    EXPECT_TRUE(AVX_ALIGNMENT >= SSE_ALIGNMENT);
-    EXPECT_TRUE(SSE_ALIGNMENT == NEON_ALIGNMENT);
-    EXPECT_TRUE(SSE_ALIGNMENT >= MIN_SAFE_ALIGNMENT);
-
-    // Test all alignments are powers of 2
-    EXPECT_TRUE((AVX512_ALIGNMENT & (AVX512_ALIGNMENT - 1)) == 0);
-    EXPECT_TRUE((AVX_ALIGNMENT & (AVX_ALIGNMENT - 1)) == 0);
-    EXPECT_TRUE((SSE_ALIGNMENT & (SSE_ALIGNMENT - 1)) == 0);
-    EXPECT_TRUE((CACHE_LINE_ALIGNMENT & (CACHE_LINE_ALIGNMENT - 1)) == 0);
-
-    // Test matrix block sizes
-    EXPECT_TRUE(MATRIX_L1_BLOCK_SIZE == 64);
-    EXPECT_TRUE(MATRIX_L2_BLOCK_SIZE == 256);
-    EXPECT_TRUE(MATRIX_L3_BLOCK_SIZE == 1024);
-    EXPECT_TRUE(MATRIX_STEP_SIZE == 8);
-    EXPECT_TRUE(MATRIX_PANEL_WIDTH == 64);
-    EXPECT_TRUE(MATRIX_MIN_BLOCK_SIZE == 32);
-    EXPECT_TRUE(MATRIX_MAX_BLOCK_SIZE == 2048);
-
-    // Test matrix block size hierarchy
-    EXPECT_TRUE(MATRIX_L3_BLOCK_SIZE >= MATRIX_L2_BLOCK_SIZE);
-    EXPECT_TRUE(MATRIX_L2_BLOCK_SIZE >= MATRIX_L1_BLOCK_SIZE);
-    EXPECT_TRUE(MATRIX_L1_BLOCK_SIZE >= MATRIX_MIN_BLOCK_SIZE);
-    EXPECT_TRUE(MATRIX_MAX_BLOCK_SIZE >= MATRIX_L3_BLOCK_SIZE);
-
     // Test SIMD register widths (doubles per register)
     EXPECT_TRUE(AVX512_DOUBLES == 8);
     EXPECT_TRUE(AVX_DOUBLES == 4);
     EXPECT_TRUE(AVX2_DOUBLES == 4);
     EXPECT_TRUE(SSE_DOUBLES == 2);
     EXPECT_TRUE(NEON_DOUBLES == 2);
-    EXPECT_TRUE(SCALAR_DOUBLES == 1);
 
     // Test register width hierarchy
     EXPECT_TRUE(AVX512_DOUBLES >= AVX_DOUBLES);
     EXPECT_TRUE(AVX_DOUBLES >= SSE_DOUBLES);
-    EXPECT_TRUE(SSE_DOUBLES >= SCALAR_DOUBLES);
-
-    // Test loop unrolling factors
-    EXPECT_TRUE(AVX512_UNROLL == 4);
-    EXPECT_TRUE(AVX_UNROLL == 2);
-    EXPECT_TRUE(SSE_UNROLL == 2);
-    EXPECT_TRUE(NEON_UNROLL == 2);
-    EXPECT_TRUE(SCALAR_UNROLL == 1);
+    EXPECT_TRUE(SSE_DOUBLES >= NEON_DOUBLES);
 
     // Test optimization thresholds
     EXPECT_TRUE(OPT_MEDIUM_DATASET_MIN_SIZE == 32);
@@ -260,15 +217,9 @@ void test_parallel_constants() {
     EXPECT_TRUE(stats::arch::get_min_elements_for_distribution_parallel() > 0);
     EXPECT_TRUE(stats::arch::get_default_grain_size() > 0);
     EXPECT_TRUE(stats::arch::get_simple_operation_grain_size() > 0);
-    EXPECT_TRUE(MIN_DATASET_SIZE_FOR_PARALLEL > 0);
-    EXPECT_TRUE(MIN_BOOTSTRAP_SAMPLES_FOR_PARALLEL > 0);
     EXPECT_TRUE(MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL > 0);
     EXPECT_TRUE(stats::arch::get_monte_carlo_grain_size() > 0);
     EXPECT_TRUE(stats::arch::get_max_grain_size() > 0);
-    EXPECT_TRUE(MIN_WORK_PER_THREAD > 0);
-    EXPECT_TRUE(SAMPLE_BATCH_SIZE > 0);
-    EXPECT_TRUE(MIN_MATRIX_SIZE_FOR_PARALLEL > 0);
-    EXPECT_TRUE(MIN_ITERATIONS_FOR_PARALLEL > 0);
 
     // Test logical relationships (using accessor functions)
     EXPECT_TRUE(stats::arch::get_min_elements_for_distribution_parallel() <=

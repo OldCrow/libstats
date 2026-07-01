@@ -96,11 +96,15 @@
  *
  * This library uses conditional compilation to minimize header inclusion overhead:
  *
- * 1. DEFAULT MODE (forward declarations only):
- *    - By default, libstats.h includes only forward declarations and essential constants
- *    - Provides type information and compile-time features without implementation overhead
- *    - Ideal for header files that only need type information
- *    - Significantly reduces compilation time and preprocessor overhead
+ * 1. DEFAULT MODE:
+ *    - Includes forward_declarations.h, essential_constants.h, and platform/simd.h.
+ *    - platform/simd.h transitively pulls in platform_common.h, which includes <thread>,
+ *      <mutex>, <shared_mutex>, <functional>, <memory>, <atomic>, <chrono>, and OS-specific
+ *      system headers (<mach/mach.h>, <dispatch/dispatch.h>, <sys/sysctl.h> on macOS).
+ *    - NOT a zero-overhead include. Suitable for translation units that need distribution
+ *      type information (pointers, references) but not method implementations.
+ *    - If you need truly minimal includes in your own library headers, include
+ *      common/forward_declarations.h directly instead.
  *
  * 2. FULL INTERFACE MODE:
  *    - Define LIBSTATS_FULL_INTERFACE before including libstats.h to get full functionality
@@ -109,14 +113,14 @@
  *
  * RECOMMENDED USAGE PATTERNS:
  *
- * Header files (.h):
- *   #include "libstats.h"  // Just forward declarations, minimal overhead
+ * Header files (.h) — pointer/reference use only:
+ *   #include "libstats.h"  // Forward declarations + simd.h (pulls OS headers)
  *
  *   class MyClass {
  *       stats::Gaussian* gaussian_;  // Pointer/reference works with forward declaration
  *   };
  *
- * Implementation files (.cpp):
+ * Implementation files (.cpp) — full use:
  *   #define LIBSTATS_FULL_INTERFACE  // Enable full functionality
  *   #include "libstats.h"             // Get complete implementation
  *
@@ -145,29 +149,32 @@
     #include "platform/benchmark.h"
     #include "platform/cpu_detection.h"
     #include "platform/parallel_execution.h"
+    #include "platform/thread_pool.h"
     #include "platform/work_stealing_pool.h"
 
     // Cache infrastructure
     #include "core/distribution_cache.h"  // Distribution parameter caching
     #include "core/performance_dispatcher.h"
-    #include "core/performance_history.h"
 
     // Distribution implementations
     #include "distributions/beta.h"
+    #include "distributions/binomial.h"
+    #include "distributions/cauchy.h"
     #include "distributions/chi_squared.h"
     #include "distributions/discrete.h"
     #include "distributions/exponential.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
+    #include "distributions/geometric.h"
+    #include "distributions/laplace.h"
     #include "distributions/lognormal.h"
+    #include "distributions/negative_binomial.h"
     #include "distributions/pareto.h"
     #include "distributions/poisson.h"
     #include "distributions/rayleigh.h"
     #include "distributions/student_t.h"
     #include "distributions/uniform.h"
     #include "distributions/von_mises.h"
-    #include "distributions/binomial.h"
-    #include "distributions/negative_binomial.h"
     #include "distributions/weibull.h"
 
 // Type aliases — inside the guard because they reference types only defined
@@ -190,19 +197,18 @@ using Weibull = WeibullDistribution;
 using Rayleigh = RayleighDistribution;
 using VonMises = VonMisesDistribution;
 using Binomial = BinomialDistribution;
+using Geometric = GeometricDistribution;
+using Laplace = LaplaceDistribution;
+using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 
-// Version constants and initialization — available in both lightweight and
-// full-interface modes; do not require complete distribution types.
-// TODO(v2.0.0): generate these from ${PROJECT_VERSION} via configure_file so
-// they cannot drift from the CMakeLists.txt version again.
+// Version constants — generated from CMakeLists.txt project() declaration so
+// they always match the CMake version (NEW-BS-1). libstats_version.h is
+// produced by configure_file() into the build include shim directory.
+#include "libstats_version.h"  // LIBSTATS_VERSION_MAJOR/MINOR/PATCH, VERSION_STRING
 namespace stats {
-constexpr int LIBSTATS_VERSION_MAJOR = 1;
-constexpr int LIBSTATS_VERSION_MINOR = 5;
-constexpr int LIBSTATS_VERSION_PATCH = 3;
-constexpr const char* VERSION_STRING = "1.5.3_1";
 
 /**
  * @brief Initialize performance systems to eliminate cold-start delays
@@ -211,11 +217,9 @@ constexpr const char* VERSION_STRING = "1.5.3_1";
  * systems to eliminate cold-start latency during first-time batch operation dispatch.
  *
  * **What gets initialized:**
- * - System capability detection and benchmarking (CPU features, SIMD support)
- * - Performance dispatcher with optimized thresholds
+ * - System capability detection (CPU features, SIMD support)
  * - SIMD policy detection and configuration
- * - Performance history singleton
- * - Thread pool infrastructure
+ * - Thread pool singletons (GlobalThreadPool, GlobalWorkStealingPool)
  *
  * **When to call:**
  * - Once at application startup, before using batch operations
@@ -223,9 +227,9 @@ constexpr const char* VERSION_STRING = "1.5.3_1";
  * - Before performance-critical code sections to avoid cold-start penalty
  *
  * **Performance impact:**
- * - First call: ~10-50ms initialization time (system-dependent)
+ * - First call: ~1-5ms (thread pool startup dominates)
  * - Subsequent calls: ~1-2ns (fast path with static flag)
- * - Eliminates 10-50ms delay from first batch operation call
+ * - Eliminates thread-launch latency from first parallel batch operation
  *
  * **Thread safety:**
  * - Thread-safe: safe to call from multiple threads concurrently

@@ -2,6 +2,8 @@
 
 #include "libstats/common/distribution_base_common.h"
 
+#include <string_view>
+
 namespace stats {
 
 /**
@@ -150,7 +152,7 @@ class DistributionInterface {
      * @brief Get distribution name
      * @return Human-readable distribution name
      */
-    virtual std::string getDistributionName() const = 0;
+    virtual std::string_view getDistributionName() const noexcept = 0;
 
     /**
      * @brief Get string representation of distribution with current parameters
@@ -179,6 +181,30 @@ class DistributionInterface {
      * @return Maximum possible value (or +infinity)
      */
     virtual double getSupportUpperBound() const = 0;
+
+    // =============================================================================
+    // INFORMATION THEORY METRICS - Virtual (Override Optional)
+    // =============================================================================
+
+    /**
+     * @brief Differential entropy (continuous) or entropy (discrete) of the distribution.
+     * @return Entropy in nats; NaN if not analytically computable for this distribution.
+     * @note Distributions that do not override this return NaN.
+     */
+    [[nodiscard]] virtual double getEntropy() const {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    /**
+     * @brief Median of the distribution.
+     * @return Median value; NaN if not analytically available (default: getQuantile(0.5)).
+     * @note Added to the interface so Laplace, Cauchy, and future distributions can expose
+     *       a well-defined median even when the mean is undefined.
+     *       Distributions that do not override this return NaN.
+     */
+    [[nodiscard]] virtual double getMedian() const {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
 };
 
 // =============================================================================

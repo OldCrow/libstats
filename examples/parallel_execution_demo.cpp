@@ -231,6 +231,90 @@ void demonstrate_cache_optimization() {
     }
 }
 
+void demonstrate_parallel_batch_fit() {
+    print_separator("Parallel Batch Fitting: parallelBatchFit()");
+
+    std::cout
+        << "\nparallelBatchFit() fits independent datasets concurrently using the\n"
+        << "platform's thread pool. It is most useful when you have many datasets\n"
+        << "(e.g. simulation runs, cross-validation folds, streaming windows) that\n"
+        << "need to be fitted independently.\n\n";
+
+    std::mt19937 rng(42);
+    constexpr size_t N_DATASETS = 50;
+    constexpr size_t N_OBS     = 500;
+
+    // --- Gaussian parallelBatchFit ------------------------------------------
+    {
+        // Generate 50 independent datasets from different Gaussians
+        std::vector<std::vector<double>> datasets(N_DATASETS);
+        std::uniform_real_distribution<double> mu_gen(-5.0, 5.0);
+        std::uniform_real_distribution<double> sigma_gen(0.5, 3.0);
+        std::vector<stats::GaussianDistribution> true_params(N_DATASETS,
+            stats::GaussianDistribution::create(0.0, 1.0).unwrap());
+
+        for (size_t i = 0; i < N_DATASETS; ++i) {
+            auto src = stats::GaussianDistribution::create(mu_gen(rng), sigma_gen(rng)).unwrap();
+            true_params[i] = src;
+            datasets[i] = src.sample(rng, N_OBS);
+        }
+
+        // Sequential fit for timing comparison
+        std::vector<stats::GaussianDistribution> seq_results(N_DATASETS,
+            stats::GaussianDistribution::create(0.0, 1.0).unwrap());
+        auto t0 = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < N_DATASETS; ++i)
+            seq_results[i].fit(datasets[i]);
+        std::int64_t t_seq = std::chrono::duration_cast<std::chrono::microseconds>(
+                         std::chrono::high_resolution_clock::now() - t0).count();
+
+        // Parallel fit
+        std::vector<stats::GaussianDistribution> par_results(N_DATASETS,
+            stats::GaussianDistribution::create(0.0, 1.0).unwrap());
+        t0 = std::chrono::high_resolution_clock::now();
+        stats::GaussianDistribution::parallelBatchFit(datasets, par_results);
+        std::int64_t t_par = std::chrono::duration_cast<std::chrono::microseconds>(
+                         std::chrono::high_resolution_clock::now() - t0).count();
+
+        // Verify: parallel and sequential results should match
+        bool match = true;
+        for (size_t i = 0; i < N_DATASETS; ++i) {
+            if (std::abs(par_results[i].getMean() - seq_results[i].getMean()) > 1e-10)
+                { match = false; break; }
+        }
+
+        std::cout << std::fixed << std::setprecision(1);
+        std::cout << "Gaussian: " << N_DATASETS << " datasets x " << N_OBS << " obs each\n";
+        std::cout << "  Sequential fit: " << t_seq << " us\n";
+        std::cout << "  Parallel fit:   " << t_par << " us"
+                  << "  (" << static_cast<double>(t_seq) / std::max<std::int64_t>(t_par, 1) << "x)\n";
+        std::cout << "  Results match sequential: " << (match ? "yes" : "NO") << "\n";
+    }
+
+    // --- Exponential parallelBatchFit ---------------------------------------
+    {
+        std::vector<std::vector<double>> datasets(N_DATASETS);
+        std::uniform_real_distribution<double> lambda_gen(0.5, 5.0);
+        for (size_t i = 0; i < N_DATASETS; ++i) {
+            auto src = stats::ExponentialDistribution::create(lambda_gen(rng)).unwrap();
+            datasets[i] = src.sample(rng, N_OBS);
+        }
+
+        std::vector<stats::ExponentialDistribution> par_results(N_DATASETS,
+            stats::ExponentialDistribution::create(1.0).unwrap());
+        auto t0 = std::chrono::high_resolution_clock::now();
+        stats::ExponentialDistribution::parallelBatchFit(datasets, par_results);
+        std::int64_t t_par = std::chrono::duration_cast<std::chrono::microseconds>(
+                         std::chrono::high_resolution_clock::now() - t0).count();
+
+        std::cout << "Exponential: " << N_DATASETS << " datasets x " << N_OBS << " obs each\n";
+        std::cout << "  Parallel fit: " << t_par << " us\n";
+    }
+
+    std::cout << "\nparallelBatchFit() is available on all 19 distributions.\n"
+              << "For batch PDF/LogPDF/CDF dispatch, see performance_dispatch_demo.\n";
+}
+
 int main() {
     std::cout << "=== libstats Platform-Aware Parallel Execution Demo ===" << std::endl;
     std::cout << "This demonstration showcases adaptive parallel execution features" << std::endl;
@@ -242,6 +326,7 @@ int main() {
         demonstrate_thread_optimization();
         benchmark_parallel_operations();
         demonstrate_cache_optimization();
+        demonstrate_parallel_batch_fit();
 
         print_separator("Summary");
         std::cout << "✅ Platform detection working correctly" << std::endl;
@@ -249,6 +334,8 @@ int main() {
         std::cout << "✅ Thread count optimization based on workload size" << std::endl;
         std::cout << "✅ Performance benchmarks completed successfully" << std::endl;
         std::cout << "✅ Cache-aware optimizations functioning" << std::endl;
+        std::cout << "✅ parallelBatchFit() demonstrated on Gaussian and Exponential" << std::endl;
+        std::cout << "\nFor SIMD/parallel PDF batch dispatch, see performance_dispatch_demo.\n";
 
     } catch (const std::exception& e) {
         std::cerr << "Error during demonstration: " << e.what() << std::endl;

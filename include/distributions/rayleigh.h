@@ -1,7 +1,6 @@
 #pragma once
 
 #include "libstats/common/distribution_common.h"
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -59,10 +58,16 @@ namespace stats {
  * - Materials science: fibre strength distribution
  *
  * @author libstats Development Team
- * @version 1.2.0
- * @since 1.2.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class RayleighDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<RayleighDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::RAYLEIGH;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -87,8 +92,8 @@ class RayleighDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     RayleighDistribution(RayleighDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    RayleighDistribution& operator=(RayleighDistribution&& other);
+    /** @brief Move assignment operator. Implementation in .cpp. */
+    RayleighDistribution& operator=(RayleighDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~RayleighDistribution() override = default;
@@ -102,11 +107,11 @@ class RayleighDistribution : public DistributionBase {
      * @param sigma Scale parameter σ (must be positive)
      * @return Result containing a valid RayleighDistribution or error info
      */
-    [[nodiscard]] static Result<RayleighDistribution> create(double sigma = detail::ONE) noexcept {
+    [[nodiscard]] static Result<RayleighDistribution> create(double sigma = detail::ONE) {
         auto validation = validateRayleighParameters(sigma);
         if (validation.isError()) {
-            return Result<RayleighDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<RayleighDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
         return Result<RayleighDistribution>::ok(createUnchecked(sigma));
     }
@@ -134,23 +139,23 @@ class RayleighDistribution : public DistributionBase {
     void setParameters(double sigma);
 
     /** @brief Mean = σ·√(π/2). */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = σ²·(4−π)/2. */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness ≈ 0.6311 (constant, independent of σ). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis ≈ 0.2451 (constant, independent of σ). */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 1). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 1; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "RayleighDistribution";
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Rayleigh";
     }
 
     /** @brief Rayleigh is continuous. */
@@ -188,7 +193,7 @@ class RayleighDistribution : public DistributionBase {
      * @brief Log-PDF at x: log(x) − 2·log(σ) − x²/(2σ²).
      * Returns −∞ for x ≤ 0.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF: 1 − exp(−x²/(2σ²)) for x ≥ 0; 0 for x < 0.
@@ -240,13 +245,13 @@ class RayleighDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = σ. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median = σ·√(2·ln 2). */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const override;
 
     /** @brief Entropy = 1 + log(σ/√2) + γ/2 (γ = Euler–Mascheroni constant). */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
@@ -260,23 +265,6 @@ class RayleighDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -393,9 +381,6 @@ class RayleighDistribution : public DistributionBase {
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
-
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     //==========================================================================
     // 24. SPECIALIZED CACHES

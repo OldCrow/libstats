@@ -30,28 +30,11 @@
     #define LIBSTATS_HAS_STD_CONCEPTS_HEADER 0
 #endif
 
-// Catalina-specific language compatibility:
-// AppleClang 12 on Catalina rejects partial concept argument syntax like
-// `template <MathFunction<double> F>`, while newer AppleClang releases accept it.
-#if defined(__APPLE__) && defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) &&                \
-    (__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ <= 101500)
-    #define LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK 1
-#else
-    #define LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK 0
-#endif
+// LIBSTATS_NEEDS_CATALINA_CONCEPT_SYNTAX_FALLBACK removed in v2.0.0:
+// v2.0.0 minimum is macOS 13 Ventura; the Catalina (10.15) syntax fallback
+// was permanently 0 on all supported compilers. Downstream #if blocks in
+// math_utils.h removed alongside this definition.
 
-// C++20 branch-prediction attributes: [[likely]] and [[unlikely]].
-// AppleClang 12 (Catalina) does not implement these attributes and emits
-// -Wunknown-attributes. Use __has_cpp_attribute for a standard, portable check
-// rather than a compiler-version guard so that any future compiler that adds
-// support gets the attributes automatically.
-#if __has_cpp_attribute(likely)
-    #define LIBSTATS_LIKELY [[likely]]
-    #define LIBSTATS_UNLIKELY [[unlikely]]
-#else
-    #define LIBSTATS_LIKELY
-    #define LIBSTATS_UNLIKELY
-#endif
 #include <functional>
 #include <span>
 #include <stdexcept>  // Exception types

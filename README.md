@@ -2,21 +2,14 @@
 
 ---
 
-### 🚩 Final v1.x Release
+### v2.0.0 released
 
-**v1.5.3 is the last feature release of the v1.x series.**
-**v1.5.3_1** is a Linux/TBB linkage hotfix for v1.5.3.
-v2.0.0 is in active development and will introduce breaking API changes:
-new namespace organisation, reduction of the deprecated API surface, platform
-baseline raised to macOS 13 Ventura / GCC 13 / AppleClang 15, and
-analysis utilities extracted to `stats::analysis`.
-
-If you are building new code against libstats, pin to **v1.5.3_1**.
-Migration notes will be published alongside the v2.0.0 release.
+**v2.0.0 is the current release.** v1.5.3 was the final v1.x release.
+See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade instructions.
 
 ---
 
-[![Version](https://img.shields.io/badge/version-v1.5.3_1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v1.5.3_1)
+[![Version](https://img.shields.io/badge/version-v2.0.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.0.0)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -38,7 +31,7 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
 - **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
-### 📊 **Available Distributions** (16 across 6 families)
+### 📊 **Available Distributions** (19 across 7 families)
 
 **Symmetric, unbounded continuous**
 - Gaussian (Normal) N(μ, σ²) · Student's t t(ν)
@@ -58,7 +51,10 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 
 **Discrete**
 - Poisson P(λ) · Discrete (integer range)
-- Binomial B(n, p) · Negative Binomial NB(r, p)
+- Binomial B(n, p) · Negative Binomial NB(r, p) · Geometric Geo(p)
+
+**Heavy-tailed / real-line continuous**
+- Laplace Laplace(μ, b) · Cauchy Cauchy(x₀, γ)
 
 ### ⚡ **Modern C++20 Design**
 - **Thread-Safe**: Concurrent read access with safe cache management
@@ -116,12 +112,13 @@ ctest --output-on-failure  # Run tests
 
 int main() {
     // Initialize performance systems (recommended)
-    libstats::initialize_performance_systems();
+    stats::initialize_performance_systems();
 
     // Create distributions with safe factory methods
-    auto gaussian_result = libstats::GaussianDistribution::create(0.0, 1.0);
+    // stats:: is the primary namespace; libstats:: is an alias kept for compatibility.
+    auto gaussian_result = stats::GaussianDistribution::create(0.0, 1.0);
     if (gaussian_result.isOk()) {
-        auto& gaussian = gaussian_result.value;
+        auto& gaussian = *gaussian_result;  // operator* returns T&
 
         // Single-value operations
         std::cout << "PDF at 1.0: " << gaussian.getProbability(1.0) << std::endl;
@@ -151,6 +148,7 @@ libstats/
 │   ├── libstats.h        # Complete library (single include)
 │   ├── core/             # Core mathematical and statistical components
 │   ├── distributions/    # Statistical distributions (Gaussian, Exponential, etc.)
+│   ├── stats/analysis/   # Statistical tests and estimators (stats::analysis::)
 │   └── platform/         # SIMD, threading, and platform optimizations
 ├── src/              # Implementation files
 ├── tests/            # Comprehensive unit and integration tests
@@ -166,7 +164,7 @@ libstats/
 
 ### 🎯 **Statistical Completeness**
 - PDF, CDF, quantiles, parameter estimation, and validation
-- 16 distributions across 6 families (symmetric, positive-support, power-law, bounded, circular, discrete)
+- 19 distributions across 7 families (symmetric, positive-support, power-law, bounded, circular, discrete, real-line)
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
@@ -203,7 +201,7 @@ libstats/
 ### 📚 **Examples** (`examples/` directory)
 - `quick_start_tutorial.cpp` - 5-minute introduction to the core API
 - `basic_usage.cpp` - End-to-end usage of creation, evaluation, sampling, fitting, and batch APIs
-- `distribution_families_demo.cpp` - The 16 distributions organized by family: what each models, when to use it, and how to choose within a family
+- `distribution_families_demo.cpp` - The 19 distributions organized by family: what each models, when to use it, and how to choose within a family
 - `statistical_validation_demo.cpp` - Goodness-of-fit tests, cross-validation, bootstrap CIs, and model selection
 - `parallel_execution_demo.cpp` - Batch-processing and dispatch workflow
 
@@ -236,13 +234,9 @@ ctest -R test_gaussian_basic
 Tests are labelled: **no label** = correctness (parallel-safe); **timing** = speedup assertions (run serially); **benchmark** = performance tools (not in standard suite). The `*_enhanced` GTest tests require GTest installed; they are silently skipped when GTest is absent.
 
 ### System Requirements
-- **C++20 compatible compiler**: GCC 10+, Clang 14+, MSVC 2019+
+- **C++20 compatible compiler**: GCC 13+, Clang 17+, AppleClang 15+, MSVC 19.38+
 - **CMake**: 3.20 or later
-- **Platform**: Windows, macOS, Linux (automatic detection and optimization)
-
-> **⚠️ macOS Catalina (10.15) deprecation:** v1.5.x is the last series validated on
-> macOS 10.15 and Ivy Bridge hardware. A future v2.0.0 will require macOS 13 (Ventura)
-> or later, consistent with libhmm. See [CHANGELOG.md](CHANGELOG.md) for details.
+- **Platform**: Windows, macOS 13+, Linux (automatic detection and optimization)
 
 #### Common Build Configurations
 
@@ -273,10 +267,10 @@ Header organization and dependency management:
 
 ### ⚡ **[PARALLEL_BATCH_PROCESSING_GUIDE.md](docs/PARALLEL_BATCH_PROCESSING_GUIDE.md)**
 High-performance parallel and batch processing:
-- Auto-dispatch vs explicit strategy control
-- SIMD and parallel processing APIs
+- Span-based batch APIs
+- `PerformanceHint` and auto-dispatch
+- SIMD and parallel execution paths
 - Performance optimization guidelines
-- Thread safety and memory management
 
 ### 🧰 **Windows Support**
 For Windows development environment setup (MSVC activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [AGENTS.md](AGENTS.md).
@@ -299,7 +293,7 @@ In your project's `CMakeLists.txt`:
 
 ```cmake
 find_package(libstats REQUIRED)
-target_link_libraries(your_target PRIVATE libstats::libstats_static)
+target_link_libraries(your_target PRIVATE libstats::static)
 ```
 
 Configure with `-DCMAKE_PREFIX_PATH=/path/to/install`.
@@ -333,11 +327,11 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-The library is at **v1.5.1** on `main`.
+v2.0.0 is released. v1.5.3 was the final v1.x release.
 
-**16 distributions across 6 families** (symmetric, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
+**19 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
-- SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
+- Span-based SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds
 - Thread-safe with reader-writer locks and lock-free atomic fast paths
 

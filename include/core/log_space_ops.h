@@ -18,9 +18,7 @@ namespace stats {
  * - SIMD-vectorized array operations via the max-shift trick
  * - Efficient handling of log(0) via LOG_ZERO sentinel
  *
- * @note THREAD SAFETY:
- * - All operations are thread-safe without any initialization requirement
- * - @c initialize() is a no-op retained for API compatibility
+ * @note THREAD SAFETY: All operations are thread-safe; no initialisation required.
  */
 class LogSpaceOps {
    public:
@@ -29,16 +27,6 @@ class LogSpaceOps {
 
     /// Threshold below which exp() terms are considered negligible
     static constexpr double LOG_SUM_THRESHOLD = detail::LOG_SUM_EXP_THRESHOLD;
-
-    /**
-     * @brief No-op retained for API compatibility.
-     *
-     * The lookup-table optimization previously populated here was removed
-     * because 1024-point linear interpolation over [-50,0] only achieves
-     * ~6e-5 accuracy — insufficient for 1e-9 tolerances. All operations
-     * now use @c std::log1p / @c std::exp directly.
-     */
-    static void initialize();
 
     /**
      * @brief Numerically stable log-sum-exp: log(exp(a) + exp(b))
@@ -120,22 +108,8 @@ class LogSpaceOps {
 
    private:
     /// SIMD implementations
-    static double logSumExpArraySIMD(const double* logValues, std::size_t size) noexcept;
+    static double logSumExpArrayFallback(const double* logValues, std::size_t size) noexcept;
     static double logSumExpArrayScalar(const double* logValues, std::size_t size) noexcept;
 };
-
-/**
- * @brief RAII class to automatically initialize log-space operations
- *
- * Create one instance of this at program startup to ensure
- * lookup tables are properly initialized.
- */
-class LogSpaceInitializer {
-   public:
-    LogSpaceInitializer() { LogSpaceOps::initialize(); }
-};
-
-/// Global initializer - ensures tables are ready when library is loaded
-static LogSpaceInitializer globalLogSpaceInit;
 
 }  // namespace stats

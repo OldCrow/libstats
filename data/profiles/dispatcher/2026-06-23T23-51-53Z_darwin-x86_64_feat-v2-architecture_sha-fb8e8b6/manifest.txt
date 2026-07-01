@@ -1,0 +1,14 @@
+Dispatcher profile bundle
+=========================
+Run ID: 2026-06-23T23-51-53Z_darwin-x86_64_feat-v2-architecture_sha-fb8e8b6
+Captured at (UTC): 2026-06-23T23-51-53Z
+Run: 3 of 3
+
+Files:
+- metadata.json
+- summary.json
+- crossovers.csv          (derived: first batch where min(PARALLEL,WS) < VECTORIZED)
+- best_strategies.csv     (derived: best strategy at every measured batch size)
+- strategy_profile_results.csv  (canonical raw data)
+- logs/system_inspector_performance.txt
+- logs/strategy_profile.txt

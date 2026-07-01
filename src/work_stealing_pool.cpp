@@ -236,12 +236,13 @@ void WorkStealingPool::workerLoop(int workerId) {
             }
         }
 
+        static thread_local int backoffCount = 0;
         if (taskFound && task && !shutdown_.load(std::memory_order_acquire)) {
+            backoffCount = 0;  // Reset so next idle period starts fresh with yields
             executeTask(std::move(task), workerId);
         } else {
             // No work available, sleep briefly to avoid busy waiting
             // Use exponential backoff: yield first, then short sleep
-            static thread_local int backoffCount = 0;
             if (backoffCount < 10) {
                 std::this_thread::yield();
                 backoffCount++;

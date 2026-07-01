@@ -1,11 +1,15 @@
 #include "libstats/distributions/weibull.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
-#include "libstats/core/validation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -68,7 +72,6 @@ WeibullDistribution& WeibullDistribution::operator=(const WeibullDistribution& o
 
 WeibullDistribution::WeibullDistribution(WeibullDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     shape_ = other.shape_;
     scale_ = other.scale_;
     logShape_ = other.logShape_;
@@ -86,12 +89,8 @@ WeibullDistribution::WeibullDistribution(WeibullDistribution&& other) noexcept
     atomicScale_.store(scale_, std::memory_order_release);
 }
 
-WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) {
+WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
-
         shape_ = other.shape_;
         scale_ = other.scale_;
         logShape_ = other.logShape_;
@@ -133,8 +132,11 @@ WeibullDistribution::WeibullDistribution(double shape, double scale,
 //==============================================================================
 
 void WeibullDistribution::setShape(double shape) {
-    validateParameters(shape, getScale());
+    // Acquire lock first, then validate against scale_ member to eliminate
+    // the TOCTOU window where a concurrent setScale() could change scale_
+    // between validateParameters() and the unique_lock acquisition.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(shape, scale_);
     shape_ = shape;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -143,8 +145,8 @@ void WeibullDistribution::setShape(double shape) {
 }
 
 void WeibullDistribution::setScale(double scale) {
-    validateParameters(getShape(), scale);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(shape_, scale);
     scale_ = scale;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -163,42 +165,49 @@ void WeibullDistribution::setParameters(double shape, double scale) {
     updateCacheUnsafe();
 }
 
-double WeibullDistribution::getMean() const noexcept {
+double WeibullDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        return mean_;  // snapshot + early return under unique_lock
     }
     return mean_;
 }
 
-double WeibullDistribution::getVariance() const noexcept {
+double WeibullDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        return variance_;  // snapshot + early return under unique_lock
     }
     return variance_;
 }
 
-double WeibullDistribution::getSkewness() const noexcept {
+double WeibullDistribution::getSkewness() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double k = shape_, sc = scale_, var = variance_;
+        const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / k));
+        const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / k));
+        const double g3 = std::exp(detail::lgamma(detail::ONE + detail::THREE / k));
+        const double var_raw = g2 - g1 * g1;
+        if (var_raw <= detail::ZERO)
+            return detail::ZERO_DOUBLE;
+        const double num = g3 - detail::THREE * g1 * g2 + detail::TWO * g1 * g1 * g1;
+        return sc * sc * sc * num / (var * std::sqrt(var));
     }
+    // Cache hit: read under shared_lock.
     // Skewness = [Γ(1+3/k)λ³ − 3μσ² − μ³] / σ³  where σ² = variance_
     // More efficiently via standardized moments:
     const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / shape_));
@@ -211,16 +220,27 @@ double WeibullDistribution::getSkewness() const noexcept {
     return scale_ * scale_ * scale_ * num / (variance_ * std::sqrt(variance_));
 }
 
-double WeibullDistribution::getKurtosis() const noexcept {
+double WeibullDistribution::getKurtosis() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double k = shape_, sc = scale_, var = variance_;
+        const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / k));
+        const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / k));
+        const double g3 = std::exp(detail::lgamma(detail::ONE + detail::THREE / k));
+        const double g4 = std::exp(detail::lgamma(detail::ONE + detail::FOUR / k));
+        const double var_raw = g2 - g1 * g1;
+        if (var_raw <= detail::ZERO)
+            return detail::ZERO_DOUBLE;
+        const double m4 = (g4 - detail::FOUR * g3 * g1 + detail::SIX * g2 * g1 * g1 -
+                           detail::THREE * g1 * g1 * g1 * g1);
+        return sc * sc * sc * sc * m4 / (var * var) - detail::THREE;
     }
+    // Cache hit: read under shared_lock.
     const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / shape_));
     const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / shape_));
     const double g3 = std::exp(detail::lgamma(detail::ONE + detail::THREE / shape_));
@@ -239,29 +259,29 @@ double WeibullDistribution::getKurtosis() const noexcept {
 //==============================================================================
 
 VoidResult WeibullDistribution::trySetShape(double shape) noexcept {
-    auto v = validateWeibullParameters(shape, getScale());
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateWeibullParameters(shape, scale_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     shape_ = shape;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult WeibullDistribution::trySetScale(double scale) noexcept {
-    auto v = validateWeibullParameters(getShape(), scale);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto v = validateWeibullParameters(shape_, scale);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     scale_ = scale;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult WeibullDistribution::trySetParameters(double shape, double scale) noexcept {
@@ -275,7 +295,7 @@ VoidResult WeibullDistribution::trySetParameters(double shape, double scale) noe
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
     updateCacheUnsafe();
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult WeibullDistribution::validateCurrentParameters() const noexcept {
@@ -297,19 +317,43 @@ double WeibullDistribution::getProbability(double x) const {
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double k = shape_;
+        const double ls = logScale_;
+        const double km1 = shapeMinus1_;
+        const double lnc = logNormConst_;
+        const double sc = scale_;
+        if (x == detail::ZERO_DOUBLE) {
+            if (std::abs(k - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+                return detail::ONE / sc;
+            return (k > detail::ONE) ? detail::ZERO_DOUBLE
+                                     : std::numeric_limits<double>::infinity();
+        }
+        const double log_x = std::log(x);
+        const double z = log_x - ls;
+        return std::exp(lnc + km1 * log_x - std::exp(k * z));
     }
-    // At x = 0: PDF = k/λ for k=1; 0 for k>1; +∞ for k<1
+    // At x = 0: PDF = 1/λ for k=1; 0 for k>1; +∞ for k<1
+    // getLogProbability correctly returns +inf / -inf; getProbability must match.
     if (x == detail::ZERO_DOUBLE) {
-        return (std::abs(shape_ - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-                   ? (detail::ONE / scale_)
-                   : detail::ZERO_DOUBLE;
+        if (std::abs(shape_ - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+            return detail::ONE / scale_;
+        return (shape_ > detail::ONE) ? detail::ZERO_DOUBLE
+                                      : std::numeric_limits<double>::infinity();
     }
-    return std::exp(getLogProbability(x));
+    // Compute inline using cached values rather than re-acquiring cache_mutex_
+    // via getLogProbability(): re-entrant shared_lock deadlocks on Linux/Windows.
+    const double k = shape_;
+    const double ls = logScale_;
+    const double km1 = shapeMinus1_;
+    const double lnc = logNormConst_;
+    lock.unlock();
+    const double log_x = std::log(x);
+    const double z = log_x - ls;
+    return std::exp(lnc + km1 * log_x - std::exp(k * z));
 }
 
-double WeibullDistribution::getLogProbability(double x) const noexcept {
+double WeibullDistribution::getLogProbability(double x) const {
     if (x < detail::ZERO_DOUBLE)
         return detail::NEGATIVE_INFINITY;
 
@@ -319,8 +363,21 @@ double WeibullDistribution::getLogProbability(double x) const noexcept {
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double k = shape_;
+        const double ls = logScale_;
+        const double km1 = shapeMinus1_;
+        const double lnc = logNormConst_;
+        if (x == detail::ZERO_DOUBLE) {
+            if (std::abs(k - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+                return -ls;
+            return (k > detail::ONE) ? detail::NEGATIVE_INFINITY
+                                     : std::numeric_limits<double>::infinity();
+        }
+        const double log_x = std::log(x);
+        const double z = log_x - ls;
+        const double power = std::exp(k * z);
+        return lnc + km1 * log_x - power;
     }
     if (x == detail::ZERO_DOUBLE) {
         // k=1: log(1/λ); k>1: −∞; k<1: +∞
@@ -345,18 +402,21 @@ double WeibullDistribution::getCumulativeProbability(double x) const {
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double k = shape_, ls = logScale_;
+        return detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
     }
     return detail::ONE - std::exp(-std::exp(shape_ * (std::log(x) - logScale_)));
 }
 
 double WeibullDistribution::getQuantile(double p) const {
-    if (p < detail::ZERO_DOUBLE || p >= detail::ONE) {
-        throw std::invalid_argument("Probability must be in [0, 1) for Weibull distribution");
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
+        throw std::invalid_argument("Probability must be in [0, 1] for Weibull distribution");
     }
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
+    if (p == detail::ONE)
+        return std::numeric_limits<double>::infinity();
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
@@ -364,25 +424,30 @@ double WeibullDistribution::getQuantile(double p) const {
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double sc = scale_, k = shape_;
+        return sc * std::pow(-std::log(detail::ONE - p), detail::ONE / k);
     }
     // Q(p) = λ · (−log(1−p))^(1/k)
     return scale_ * std::pow(-std::log(detail::ONE - p), detail::ONE / shape_);
 }
 
 double WeibullDistribution::sample(std::mt19937& rng) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+    double k, lam;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            k = shape_;
+            lam = scale_;
+        } else {
+            k = shape_;
+            lam = scale_;
+        }
     }
-    const double k = shape_, lam = scale_;
-    lock.unlock();
     std::weibull_distribution<double> dist(k, lam);
     return dist(rng);
 }
@@ -391,17 +456,21 @@ std::vector<double> WeibullDistribution::sample(std::mt19937& rng, size_t n) con
     std::vector<double> samples;
     samples.reserve(n);
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+    double k, lam;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        if (!cache_valid_) {
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            k = shape_;
+            lam = scale_;
+        } else {
+            k = shape_;
+            lam = scale_;
+        }
     }
-    const double k = shape_, lam = scale_;
-    lock.unlock();
 
     std::weibull_distribution<double> dist(k, lam);
     for (size_t i = 0; i < n; ++i)
@@ -525,7 +594,7 @@ void WeibullDistribution::fit(const std::vector<double>& values) {
         k < detail::MAX_DISTRIBUTION_PARAMETER && lambda < detail::MAX_DISTRIBUTION_PARAMETER) {
         setParameters(k, lambda);
     } else {
-        reset();
+        throw std::runtime_error("Weibull MLE did not converge to a valid estimate");
     }
 }
 
@@ -540,6 +609,7 @@ void WeibullDistribution::reset() noexcept {
     scale_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);  // NEW-TS-4
     updateCacheUnsafe();
 }
 
@@ -569,44 +639,49 @@ double WeibullDistribution::getScaleAtomic() const noexcept {
     return getScale();
 }
 
-double WeibullDistribution::getMode() const noexcept {
+double WeibullDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double k = shape_, sc = scale_;
+        if (k <= detail::ONE)
+            return detail::ZERO_DOUBLE;
+        return sc * std::pow((k - detail::ONE) / k, detail::ONE / k);
     }
     if (shape_ <= detail::ONE)
         return detail::ZERO_DOUBLE;
     return scale_ * std::pow((shape_ - detail::ONE) / shape_, detail::ONE / shape_);
 }
 
-double WeibullDistribution::getMedian() const noexcept {
+double WeibullDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double sc = scale_, k = shape_;
+        return sc * std::pow(detail::LN2, detail::ONE / k);
     }
     // λ·(ln 2)^(1/k)
     return scale_ * std::pow(detail::LN2, detail::ONE / shape_);
 }
 
-double WeibullDistribution::getEntropy() const noexcept {
+double WeibullDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
         if (!cache_valid_)
             updateCacheUnsafe();
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double k = shape_, ls = logScale_, lk = logShape_;
+        return detail::EULER_MASCHERONI * (detail::ONE - detail::ONE / k) + ls - lk + detail::ONE;
     }
     // H = γ·(1 − 1/k) + log(λ/k) + 1
     return detail::EULER_MASCHERONI * (detail::ONE - detail::ONE / shape_) + logScale_ - logShape_ +
@@ -620,8 +695,7 @@ double WeibullDistribution::getEntropy() const noexcept {
 void WeibullDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<WeibullDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const WeibullDistribution& d, double x) { return d.getProbability(x); },
         [](const WeibullDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -629,9 +703,12 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                    d.updateCacheUnsafe();
+                // Snapshot while unique_lock is still held.
+                const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
+                             lnc = d.logNormConst_;
+                d.getProbabilityBatchUnsafeImpl(vals, res, count, k, ls, km1, lnc);
+                return;
             }
             const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
                          lnc = d.logNormConst_;
@@ -644,71 +721,80 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double k, ls, km1, lnc;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        d.updateCacheUnsafe();
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
+                } else {
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
+                }
             }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x < detail::ZERO_DOUBLE) {
+                    if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                         return;
                     }
-                    if (x == detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-                    const double z = std::log(x) - ls;
-                    res[i] = std::exp(lnc + km1 * std::log(x) - std::exp(k * z));
+                    const double log_x = std::log(x);
+                    const double z = log_x - ls;
+                    res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x < detail::ZERO_DOUBLE) {
+                    if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                         continue;
                     }
-                    if (x == detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-                    const double z = std::log(x) - ls;
-                    res[i] = std::exp(lnc + km1 * std::log(x) - std::exp(k * z));
+                    const double log_x = std::log(x);
+                    const double z = log_x - ls;
+                    res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
                 }
             }
         },
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double k, ls, km1, lnc;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        d.updateCacheUnsafe();
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
+                } else {
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
+                }
             }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= detail::ZERO_DOUBLE) {
                     res[i] = detail::ZERO_DOUBLE;
                     return;
                 }
-                const double z = std::log(x) - ls;
-                res[i] = std::exp(lnc + km1 * std::log(x) - std::exp(k * z));
+                const double log_x = std::log(x);
+                const double z = log_x - ls;
+                res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
             });
             pool.waitForAll();
         });
@@ -718,8 +804,7 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                                             std::span<double> results,
                                             const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<WeibullDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const WeibullDistribution& d, double x) { return d.getLogProbability(x); },
         [](const WeibullDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -727,9 +812,12 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                    d.updateCacheUnsafe();
+                // Snapshot while unique_lock is still held.
+                const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
+                             lnc = d.logNormConst_;
+                d.getLogProbabilityBatchUnsafeImpl(vals, res, count, k, ls, km1, lnc);
+                return;
             }
             const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
                          lnc = d.logNormConst_;
@@ -742,31 +830,35 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double k, ls, km1, lnc;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        d.updateCacheUnsafe();
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
+                } else {
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
+                }
             }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x < detail::ZERO_DOUBLE) {
+                    if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::NEGATIVE_INFINITY;
                         return;
                     }
-                    if (x == detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                        return;
-                    }
-                    const double z = std::log(x) - ls;
-                    res[i] = lnc + km1 * std::log(x) - std::exp(k * z);
+                    const double log_x = std::log(x);
+                    const double z = log_x - ls;
+                    res[i] = lnc + km1 * log_x - std::exp(k * z);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
@@ -775,34 +867,43 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                         res[i] = detail::NEGATIVE_INFINITY;
                         continue;
                     }
-                    const double z = std::log(x) - ls;
-                    res[i] = lnc + km1 * std::log(x) - std::exp(k * z);
+                    const double log_x = std::log(x);
+                    const double z = log_x - ls;
+                    res[i] = lnc + km1 * log_x - std::exp(k * z);
                 }
             }
         },
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double k, ls, km1, lnc;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        d.updateCacheUnsafe();
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
+                } else {
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
+                }
             }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= detail::ZERO_DOUBLE) {
                     res[i] = detail::NEGATIVE_INFINITY;
                     return;
                 }
-                const double z = std::log(x) - ls;
-                res[i] = lnc + km1 * std::log(x) - std::exp(k * z);
+                const double log_x = std::log(x);
+                const double z = log_x - ls;
+                res[i] = lnc + km1 * log_x - std::exp(k * z);
             });
             pool.waitForAll();
         });
@@ -812,8 +913,7 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                                                    std::span<double> results,
                                                    const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<WeibullDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const WeibullDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const WeibullDistribution& d, const double* vals, double* res, size_t count) {
             std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
@@ -821,9 +921,11 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                 if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+                    d.updateCacheUnsafe();
+                // Snapshot while unique_lock is still held.
+                const double ls = d.logScale_, k = d.shape_;
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, ls, k);
+                return;
             }
             const double ls = d.logScale_, k = d.shape_;
             lock.unlock();
@@ -835,17 +937,21 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double ls, k;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        d.updateCacheUnsafe();
+                    ls = d.logScale_;
+                    k = d.shape_;
+                } else {
+                    ls = d.logScale_;
+                    k = d.shape_;
+                }
             }
-            const double ls = d.logScale_, k = d.shape_;
-            lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -865,17 +971,21 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
+            double ls, k;
+            {
+                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
+                if (!d.cache_valid_) {
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
+                    if (!d.cache_valid_)
+                        d.updateCacheUnsafe();
+                    ls = d.logScale_;
+                    k = d.shape_;
+                } else {
+                    ls = d.logScale_;
+                    k = d.shape_;
+                }
             }
-            const double ls = d.logScale_, k = d.shape_;
-            lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] = (x <= detail::ZERO_DOUBLE)
@@ -889,214 +999,6 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
 //==============================================================================
 // 14. EXPLICIT STRATEGY BATCH OPERATIONS
 //==============================================================================
-
-void WeibullDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                     std::span<double> results,
-                                                     detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const WeibullDistribution& d, double x) { return d.getProbability(x); },
-        [](const WeibullDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
-            d.getProbabilityBatchUnsafeImpl(vals, res, count, k, ls, km1, lnc);
-        },
-        [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res) {
-            const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-                res[i] = std::exp(lnc + km1 * std::log(x) - std::exp(k * (std::log(x) - ls)));
-            });
-        },
-        [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-                res[i] = std::exp(lnc + km1 * std::log(x) - std::exp(k * (std::log(x) - ls)));
-            });
-            pool.waitForAll();
-        });
-}
-
-void WeibullDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                        std::span<double> results,
-                                                        detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const WeibullDistribution& d, double x) { return d.getLogProbability(x); },
-        [](const WeibullDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
-            d.getLogProbabilityBatchUnsafeImpl(vals, res, count, k, ls, km1, lnc);
-        },
-        [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res) {
-            const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                    return;
-                }
-                const double z = std::log(x) - ls;
-                res[i] = lnc + km1 * std::log(x) - std::exp(k * z);
-            });
-        },
-        [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double k = d.shape_, ls = d.logScale_, km1 = d.shapeMinus1_,
-                         lnc = d.logNormConst_;
-            lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                    return;
-                }
-                const double z = std::log(x) - ls;
-                res[i] = lnc + km1 * std::log(x) - std::exp(k * z);
-            });
-            pool.waitForAll();
-        });
-}
-
-void WeibullDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                                               std::span<double> results,
-                                                               detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const WeibullDistribution& d, double x) { return d.getCumulativeProbability(x); },
-        [](const WeibullDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double ls = d.logScale_, k = d.shape_;
-            lock.unlock();
-            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, ls, k);
-        },
-        [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res) {
-            const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double ls = d.logScale_, k = d.shape_;
-            lock.unlock();
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE)
-                             ? detail::ZERO_DOUBLE
-                             : detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
-            });
-        },
-        [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            const std::size_t count = vals.size();
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    const_cast<WeibullDistribution&>(d).updateCacheUnsafe();
-                ulock.unlock();
-                lock.lock();
-            }
-            const double ls = d.logScale_, k = d.shape_;
-            lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE)
-                             ? detail::ZERO_DOUBLE
-                             : detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
-            });
-            pool.waitForAll();
-        });
-}
 
 //==============================================================================
 // 15. COMPARISON OPERATORS

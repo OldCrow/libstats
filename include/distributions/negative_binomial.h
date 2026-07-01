@@ -1,7 +1,6 @@
 #pragma once
 
 #include "libstats/common/distribution_common.h"
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -41,10 +40,16 @@ namespace stats {
  * Seeded with method-of-moments: r̂ = k̄²/(s²−k̄) when s² > k̄.
  *
  * @author libstats Development Team
- * @version 1.3.0
- * @since 1.3.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class NegativeBinomialDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<NegativeBinomialDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::NEGATIVE_BINOMIAL;
+    static constexpr bool kIsDiscrete = true;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -67,8 +72,8 @@ class NegativeBinomialDistribution : public DistributionBase {
     /** @brief Move constructor. */
     NegativeBinomialDistribution(NegativeBinomialDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. @warning NOT noexcept. */
-    NegativeBinomialDistribution& operator=(NegativeBinomialDistribution&& other);
+    /** @brief Move assignment operator. */
+    NegativeBinomialDistribution& operator=(NegativeBinomialDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~NegativeBinomialDistribution() override = default;
@@ -77,11 +82,11 @@ class NegativeBinomialDistribution : public DistributionBase {
     // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
 
-    [[nodiscard]] static Result<NegativeBinomialDistribution> create(
-        double r = detail::ONE, double p = detail::HALF) noexcept {
+    [[nodiscard]] static Result<NegativeBinomialDistribution> create(double r = detail::ONE,
+                                                                     double p = detail::HALF) {
         auto v = validateNegativeBinomialParameters(r, p);
         if (v.isError())
-            return Result<NegativeBinomialDistribution>::makeError(v.error_code, v.message);
+            return Result<NegativeBinomialDistribution>::makeError(v.errorCode(), v.message());
         return Result<NegativeBinomialDistribution>::ok(createUnchecked(r, p));
     }
 
@@ -125,23 +130,23 @@ class NegativeBinomialDistribution : public DistributionBase {
     void setParameters(double r, double p);
 
     /** @brief Mean = r(1−p)/p. */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = r(1−p)/p². */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness = (2−p)/√(r(1−p)). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis = 6/r + p²/(r(1−p)). */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "NegativeBinomialDistribution";
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "NegativeBinomial";
     }
 
     /** @brief Negative Binomial is discrete. */
@@ -180,7 +185,7 @@ class NegativeBinomialDistribution : public DistributionBase {
      * @brief Log-PMF at k.
      * Returns −∞ for negative or non-finite values.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via regularized incomplete beta I_p(r, k+1).
@@ -231,10 +236,10 @@ class NegativeBinomialDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = floor((r−1)(1−p)/p) for r > 1; 0 otherwise. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Entropy (nats) — Sterling approximation for large r. */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
@@ -248,23 +253,6 @@ class NegativeBinomialDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -360,9 +348,6 @@ class NegativeBinomialDistribution : public DistributionBase {
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
-
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     //==========================================================================
     // 24. SPECIALIZED CACHES

@@ -71,7 +71,7 @@ void demo_symmetric_continuous() {
               << "Scenario: A production process fills 500 mL bottles. Repeated\n"
               << "measurements show fills are N(500, 1.5). What fraction of bottles\n"
               << "are underfilled (< 497 mL)?\n";
-    auto fill = stats::GaussianDistribution::create(500.0, 1.5).value;
+    auto fill = stats::GaussianDistribution::create(500.0, 1.5).unwrap();
     double p_under = fill.getCumulativeProbability(497.0);
     std::cout << std::fixed << std::setprecision(4);
     std::cout << "  P(fill < 497 mL)   = " << p_under << "  (~" << p_under * 100
@@ -91,8 +91,8 @@ void demo_symmetric_continuous() {
               << "Scenario: You run an A/B test with only 8 observations per group.\n"
               << "The critical value for a one-sample t-test at 5% significance\n"
               << "(two-tailed, df=7) is:\n";
-    auto t7 = stats::StudentTDistribution::create(7.0).value;
-    auto z = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto t7 = stats::StudentTDistribution::create(7.0).unwrap();
+    auto z = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
     double t_crit = t7.getQuantile(0.975);
     double z_crit = z.getQuantile(0.975);
     std::cout << "  t_{0.975, df=7}  = " << t_crit << "\n";
@@ -109,7 +109,7 @@ void demo_symmetric_continuous() {
     double p_gauss = 2.0 * (1.0 - z.getCumulativeProbability(2.5));
     std::cout << "  Gaussian (nu->inf):  " << p_gauss * 100 << "%\n";
     for (double nu : {2.0, 5.0, 15.0, 30.0}) {
-        auto t = stats::StudentTDistribution::create(nu).value;
+        auto t = stats::StudentTDistribution::create(nu).unwrap();
         double p = 2.0 * (1.0 - t.getCumulativeProbability(2.5));
         std::cout << "  Student's t(nu=" << std::setw(2) << static_cast<int>(nu) << "):  " << p * 100
                   << "%\n";
@@ -153,7 +153,7 @@ void demo_positive_support() {
               << "\n"
               << "Scenario: A web server receives requests at 20/second (lambda=20).\n"
               << "What is the probability that the next request arrives within 0.1 s?\n";
-    auto req = stats::ExponentialDistribution::create(20.0).value;
+    auto req = stats::ExponentialDistribution::create(20.0).unwrap();
     std::cout << "  Mean inter-arrival   = " << req.getMean() * 1000 << " ms\n";
     std::cout << "  P(next <= 0.1 s)     = " << req.getCumulativeProbability(0.1) << "\n";
     std::cout << "  P(wait > 0.2 s)      = " << (1.0 - req.getCumulativeProbability(0.2)) << "\n";
@@ -171,7 +171,7 @@ void demo_positive_support() {
               << "Scenario: A support ticket needs sign-off from 3 reviewers, each\n"
               << "taking Exponential(0.5 hr^-1) time. Total time ~ Gamma(3, 0.5).\n"
               << "What is the 90th percentile completion time?\n";
-    auto review = stats::GammaDistribution::create(3.0, 0.5).value;
+    auto review = stats::GammaDistribution::create(3.0, 0.5).unwrap();
     std::cout << std::setprecision(2);
     std::cout << "  Mean completion       = " << review.getMean() << " hours\n";
     std::cout << "  90th percentile       = " << review.getQuantile(0.90) << " hours\n";
@@ -190,28 +190,98 @@ void demo_positive_support() {
               << "Scenario: You test whether a population variance equals sigma^2=4\n"
               << "using n=10 observations. The statistic (n-1)*S^2/sigma^2 follows\n"
               << "chi^2(df=9) under H0. The two-tailed critical region at alpha=0.05:\n";
-    auto chi2_9 = stats::ChiSquaredDistribution::create(9.0).value;
+    auto chi2_9 = stats::ChiSquaredDistribution::create(9.0).unwrap();
     std::cout << std::setprecision(3);
     std::cout << "  Lower critical value  = " << chi2_9.getQuantile(0.025) << "\n";
     std::cout << "  Upper critical value  = " << chi2_9.getQuantile(0.975) << "\n";
     std::cout << "  Mean = " << chi2_9.getMean() << "  (always equals nu)\n";
 
+    // --- LogNormal ----------------------------------------------------------
+    subsection("Log-Normal distribution");
+    std::cout << "\n"
+              << "Parameters: mu (log-scale location), sigma (log-scale spread > 0).\n"
+              << "  The logarithm of a LogNormal variable is Gaussian(mu, sigma).\n"
+              << "  Median = exp(mu); Mean = exp(mu + sigma^2/2).\n"
+              << "Use when: a multiplicative process generates the data (income,\n"
+              << "          file sizes, latency, reaction times).\n"
+              << "\n"
+              << "Scenario: Service latency is log-normally distributed.\n"
+              << "LogNormal(mu=5, sigma=0.5) has median exp(5) = 148 ms.\n"
+              << "What fraction of requests take longer than 300 ms?\n";
+    auto latency = stats::LogNormalDistribution::create(5.0, 0.5).unwrap();
+    std::cout << std::setprecision(4);
+    std::cout << "  Median              = " << latency.getMedian() << " ms\n";
+    std::cout << "  Mean                = " << latency.getMean() << " ms\n";
+    std::cout << "  P(latency > 300ms)  = " << (1.0 - latency.getCumulativeProbability(300.0)) << "\n";
+
+    // --- Weibull ------------------------------------------------------------
+    subsection("Weibull distribution");
+    std::cout << "\n"
+              << "Parameters: shape k > 0, scale lambda > 0.\n"
+              << "  k < 1 -> decreasing hazard (infant mortality)\n"
+              << "  k = 1 -> constant hazard, identical to Exponential(1/lambda)\n"
+              << "  k > 1 -> increasing hazard (wear-out failures)\n"
+              << "Use when: modelling component lifetimes in reliability engineering,\n"
+              << "          or any quantity with a time-varying failure rate.\n"
+              << "\n"
+              << "Scenario: A motor bearing has a Weibull(k=2.5, lambda=1000 hr)\n"
+              << "lifetime. What fraction survive beyond 800 hours?\n";
+    auto bearing = stats::WeibullDistribution::create(2.5, 1000.0).unwrap();
+    std::cout << std::setprecision(4);
+    std::cout << "  Mean lifetime       = " << bearing.getMean() << " hr\n";
+    std::cout << "  P(survive > 800 hr) = " << (1.0 - bearing.getCumulativeProbability(800.0)) << "\n";
+    std::cout << "  10th percentile     = " << bearing.getQuantile(0.10) << " hr\n";
+
+    // --- Pareto -------------------------------------------------------------
+    subsection("Pareto distribution");
+    std::cout << "\n"
+              << "Parameters: scale xm > 0 (minimum value), shape alpha > 0.\n"
+              << "  Support: [xm, inf).  Mean = xm*alpha/(alpha-1) for alpha > 1.\n"
+              << "  Follows a power law: P(X > x) = (xm/x)^alpha.\n"
+              << "Use when: modelling heavy-tailed phenomena where extreme values\n"
+              << "          occur with non-negligible frequency (wealth, city sizes,\n"
+              << "          network traffic bursts, insurance claims).\n"
+              << "\n"
+              << "Scenario: File sizes follow Pareto(xm=1 MB, alpha=1.5).\n"
+              << "What fraction of files exceed 10 MB?\n";
+    auto files = stats::ParetoDistribution::create(1.0, 1.5).unwrap();
+    std::cout << std::setprecision(4);
+    std::cout << "  P(size > 10 MB)     = " << (1.0 - files.getCumulativeProbability(10.0)) << "\n";
+    std::cout << "  Mean file size      = " << files.getMean() << " MB\n";
+    std::cout << "  90th percentile     = " << files.getQuantile(0.90) << " MB\n";
+
+    // --- Rayleigh -----------------------------------------------------------
+    subsection("Rayleigh distribution");
+    std::cout << "\n"
+              << "Parameter: sigma > 0.  Support [0, inf).\n"
+              << "  Arises as the magnitude of a 2D vector whose components are\n"
+              << "  independent Gaussian(0, sigma). Mean = sigma * sqrt(pi/2).\n"
+              << "Use when: working with signal amplitude, wind speed (speed of a\n"
+              << "          2D wind vector), wave heights, or 2D error radii.\n"
+              << "\n"
+              << "Scenario: A GPS fix has east and north errors each ~ N(0, 5 m).\n"
+              << "The radial error magnitude follows Rayleigh(sigma=5 m).\n"
+              << "What is the 95th percentile radial error (2DRMS equivalent)?\n";
+    auto gps_error = stats::RayleighDistribution::create(5.0).unwrap();
+    std::cout << std::setprecision(2);
+    std::cout << "  Mean radial error   = " << gps_error.getMean() << " m\n";
+    std::cout << "  95th percentile     = " << gps_error.getQuantile(0.95) << " m\n";
+
     // --- Within-family comparison -------------------------------------------
     subsection("Choosing within the positive-support family");
     std::cout << "\n"
-              << "All three share (0, inf) support. Choose by asking:\n"
+              << "All seven share (0, inf) support (Pareto: [xm, inf)). Use:\n"
+              << "  Waiting for one Poisson event?                 -> Exponential\n"
+              << "  Waiting for k events or flexible skewed shape? -> Gamma\n"
+              << "  Sum of squared standard normals?               -> Chi-squared\n"
+              << "  Multiplicative process (income, latency)?      -> LogNormal\n"
+              << "  Component lifetime with changing hazard rate?  -> Weibull\n"
+              << "  Power-law / heavy-tailed quantity?             -> Pareto\n"
+              << "  Magnitude of a 2D Gaussian vector?            -> Rayleigh\n"
               << "\n"
-              << "  Waiting for one event at constant rate?          -> Exponential\n"
-              << "  Waiting for k events, or flexible skewed shape?  -> Gamma\n"
-              << "  Sum of squared normals, variance test statistic? -> Chi-squared\n"
-              << "\n"
-              << "Note: Chi-squared IS Gamma. The chi-squared parameterisation\n"
-              << "matches standard statistical tables directly.\n"
-              << "\n"
-              << "Verification -- Gamma(alpha=1, beta=2) and Exponential(lambda=2)\n"
-              << "are the same distribution:\n";
-    auto gamma_1_2 = stats::GammaDistribution::create(1.0, 2.0).value;
-    auto expo_2 = stats::ExponentialDistribution::create(2.0).value;
+              << "Verification: Gamma(1, beta) == Exponential(beta):\n";
+    auto gamma_1_2 = stats::GammaDistribution::create(1.0, 2.0).unwrap();
+    auto expo_2    = stats::ExponentialDistribution::create(2.0).unwrap();
     std::cout << std::setprecision(6);
     std::cout << "  Gamma(1,2) PDF(0.5)  = " << gamma_1_2.getProbability(0.5) << "\n";
     std::cout << "  Expo(2)    PDF(0.5)  = " << expo_2.getProbability(0.5) << "  (identical)\n";
@@ -249,7 +319,7 @@ void demo_bounded_continuous() {
               << "\n"
               << "Scenario: A project task is estimated to take between 3 and 7 days\n"
               << "with no further information about the shape.\n";
-    auto task = stats::UniformDistribution::create(3.0, 7.0).value;
+    auto task = stats::UniformDistribution::create(3.0, 7.0).unwrap();
     std::cout << std::setprecision(4);
     std::cout << "  Expected duration      = " << task.getMean() << " days\n";
     std::cout << "  P(done within 5 days)  = " << task.getCumulativeProbability(5.0) << "\n";
@@ -269,7 +339,7 @@ void demo_bounded_continuous() {
               << "Scenario: A new landing page has shown 6 conversions in 20 views.\n"
               << "Starting from a uniform prior Beta(1,1), the posterior on the\n"
               << "conversion rate is Beta(7, 15). What is the 95% credible interval?\n";
-    auto posterior = stats::BetaDistribution::create(7.0, 15.0).value;
+    auto posterior = stats::BetaDistribution::create(7.0, 15.0).unwrap();
     std::cout << "  Posterior mean         = " << std::setprecision(4) << posterior.getMean()
               << "  (point estimate)\n";
     std::cout << "  95% credible interval  = [" << posterior.getQuantile(0.025) << ", "
@@ -282,8 +352,8 @@ void demo_bounded_continuous() {
     std::cout << "\n"
               << "Both have [0,1] support but very different shapes.\n"
               << "Beta(1,1) IS Uniform -- verifying this is a useful sanity check:\n";
-    auto beta_1_1 = stats::BetaDistribution::create(1.0, 1.0).value;
-    auto uniform_01 = stats::UniformDistribution::create(0.0, 1.0).value;
+    auto beta_1_1 = stats::BetaDistribution::create(1.0, 1.0).unwrap();
+    auto uniform_01 = stats::UniformDistribution::create(0.0, 1.0).unwrap();
     std::cout << "  Beta(1,1) PDF(0.4)     = " << beta_1_1.getProbability(0.4) << "\n";
     std::cout << "  Uniform(0,1) PDF(0.4)  = " << uniform_01.getProbability(0.4) << "  (same)\n";
     std::cout << "\n"
@@ -296,13 +366,12 @@ void demo_bounded_continuous() {
 // FAMILY 4: Discrete
 // ==========================================================================
 //
-// Use these distributions when the outcome is a count or integer -- you
-// cannot observe 2.7 events or 1.4 items.
+// Use these distributions when the outcome is a count or integer.
 //
-//   Poisson  -- number of independent events in a fixed time or space
-//               when the rate is constant. Mean equals variance.
-//   Discrete -- uniform draw over a finite integer range. Each integer
-//               value is equally likely.
+//   Poisson          -- events at constant rate; mean == variance.
+//   Discrete         -- uniform over a finite integer range.
+//   Binomial         -- count of successes in n independent trials.
+//   NegativeBinomial -- trials until r successes; overdispersed counts.
 // ==========================================================================
 
 void demo_discrete() {
@@ -324,7 +393,7 @@ void demo_discrete() {
               << "Scenario: A call centre receives 12 calls/hour on average.\n"
               << "In a 30-minute window (lambda=6), what is the probability of\n"
               << "10 or more calls (triggering an alert threshold)?\n";
-    auto calls = stats::PoissonDistribution::create(6.0).value;
+    auto calls = stats::PoissonDistribution::create(6.0).unwrap();
     double p_over = 1.0 - calls.getCumulativeProbability(9);
     std::cout << std::setprecision(4);
     std::cout << "  lambda = 6 calls / 30 min\n";
@@ -340,10 +409,91 @@ void demo_discrete() {
               << "          die roll, a random selection from a numbered list.\n"
               << "\n"
               << "Scenario: Fair six-sided die -- expected value and P(roll >= 5):\n";
-    auto die = stats::DiscreteDistribution::create(1, 6).value;
+    auto die = stats::DiscreteDistribution::create(1, 6).unwrap();
     std::cout << "  Expected value    = " << die.getMean() << "\n";
     std::cout << "  P(roll >= 5)      = " << (1.0 - die.getCumulativeProbability(4)) << "\n";
     std::cout << "  P(roll = 3)       = " << die.getProbability(3) << "  (1/6 for all faces)\n";
+
+    // --- Binomial -----------------------------------------------------------
+    subsection("Binomial distribution");
+    std::cout << "\n"
+              << "Parameters: n (number of trials, integer >= 1), p (success prob in [0,1]).\n"
+              << "  Models the number of successes in n independent Bernoulli(p) trials.\n"
+              << "  Mean = n*p; Variance = n*p*(1-p).\n"
+              << "Use when: you know n in advance and want to count successes\n"
+              << "          (passed tests, defective items, ad clicks).\n"
+              << "\n"
+              << "Scenario: A quality inspector tests 20 items from a batch with a\n"
+              << "2% defect rate. What is the probability of finding >= 2 defects?\n";
+    auto inspect = stats::BinomialDistribution::create(20, 0.02).unwrap();
+    std::cout << std::setprecision(4);
+    std::cout << "  Mean defects        = " << inspect.getMean() << "\n";
+    std::cout << "  P(defects >= 2)     = " << (1.0 - inspect.getCumulativeProbability(1.0)) << "\n";
+    std::cout << "  P(defects = 0)      = " << inspect.getProbability(0) << "  (all pass)\n";
+
+    // --- NegativeBinomial ---------------------------------------------------
+    subsection("Negative Binomial distribution");
+    std::cout << "\n"
+              << "Parameters: r (target successes, real > 0), p (success prob in (0,1)).\n"
+              << "  Models the number of failures before r successes.\n"
+              << "  Mean = r*(1-p)/p; Variance > Mean (overdispersed relative to Poisson).\n"
+              << "Use when: count data shows variance >> mean (overdispersion),\n"
+              << "          or when modelling trials until a target number of successes.\n"
+              << "\n"
+              << "Scenario: A recruiter needs to make 5 successful hires (r=5) from\n"
+              << "candidates who accept offers with probability p=0.4.\n"
+              << "Expected number of rejected offers before 5 hires:\n";
+    auto hiring = stats::NegativeBinomialDistribution::create(5.0, 0.4).unwrap();
+    std::cout << std::setprecision(2);
+    std::cout << "  Mean rejections     = " << hiring.getMean() << "\n";
+    std::cout << "  90th percentile     = " << hiring.getQuantile(0.90) << " rejections\n";
+    std::cout << std::setprecision(4);
+    std::cout << "  P(>= 10 rejections) = " << (1.0 - hiring.getCumulativeProbability(9.0)) << "\n";
+}
+
+// ==========================================================================
+// FAMILY 5: Circular
+// ==========================================================================
+//
+// Use this distribution when the quantity wraps around: angles, compass
+// bearings, time-of-day, phase. Arithmetic on circular quantities requires
+// special handling (the midpoint of 350° and 10° is 0°, not 180°).
+//
+//   Von Mises -- the circular analogue of the Gaussian. Mean direction mu,
+//               concentration kappa (0 = uniform, large = concentrated).
+// ==========================================================================
+
+void demo_circular() {
+    section("Family 5: Circular distributions");
+
+    std::cout << "\n"
+              << "Circular distributions model quantities defined on a circle.\n"
+              << "Standard distributions cannot be used for angles because the\n"
+              << "endpoints wrap around -- distance from 350 degrees to 10 degrees\n"
+              << "is 20 degrees, not 340.\n";
+
+    // --- Von Mises ----------------------------------------------------------
+    subsection("Von Mises distribution");
+    std::cout << "\n"
+              << "Parameters: mu in (-pi, pi] (mean direction), kappa >= 0 (concentration).\n"
+              << "  kappa = 0   -> uniform on the circle (maximum entropy)\n"
+              << "  kappa large -> tightly concentrated around mu\n"
+              << "Use when: analysing wind directions, neuron spike phases, compass\n"
+              << "          bearings, protein dihedral angles, or any periodic signal.\n"
+              << "\n"
+              << "Scenario: A wind rose dataset shows prevailing wind from the east\n"
+              << "(mu = 0 radians) with moderate concentration (kappa = 2).\n";
+    auto wind = stats::VonMisesDistribution::create(0.0, 2.0).unwrap();
+    std::cout << std::setprecision(4);
+    std::cout << "  Mean direction      = " << wind.getMu() << " radians  (east)\n";
+    std::cout << "  Concentration kappa = " << wind.getKappa() << "\n";
+    std::cout << "  PDF at mu (peak)    = " << wind.getProbability(0.0) << "\n";
+    std::cout << "  PDF at pi (opposite)= " << wind.getProbability(3.14159) << "\n";
+    std::cout << "  Entropy             = " << wind.getEntropy() << " nats\n";
+
+    auto uniform_wind = stats::VonMisesDistribution::create(0.0, 0.0).unwrap();
+    std::cout << "\nWith kappa=0 (no prevailing direction) PDF is uniform over the circle:\n";
+    std::cout << "  PDF at any angle = " << uniform_wind.getProbability(0.0) << "  (= 1/(2*pi))\n";
 }
 
 // ==========================================================================
@@ -370,7 +520,7 @@ void demo_batch_api() {
     std::vector<double> xs = {0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0};
     std::vector<double> out(xs.size());
 
-    auto gamma = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma = stats::GammaDistribution::create(2.0, 1.0).unwrap();
     gamma.getProbability(xs, out);
 
     std::cout << "\nGamma(alpha=2, beta=1) PDF across a grid:\n";
@@ -378,7 +528,7 @@ void demo_batch_api() {
     for (size_t i = 0; i < xs.size(); ++i) {
         std::cout << "  x=" << xs[i] << "  ->  " << out[i] << "\n";
     }
-    std::cout << "\nThe same call works identically for all 9 distributions.\n";
+    std::cout << "\nThe same batch interface works identically for all 19 distributions.\n";
 }
 
 int main() {
@@ -388,10 +538,11 @@ int main() {
     demo_positive_support();
     demo_bounded_continuous();
     demo_discrete();
+    demo_circular();
     demo_batch_api();
 
     std::cout << "\n" << std::string(72, '=') << "\n";
-    std::cout << "14 distributions across 6 families.\n";
+    std::cout << "19 distributions across 7 families.\n";
     std::cout << "See the individual distribution headers for the full API surface.\n";
     std::cout << std::string(72, '=') << "\n";
 

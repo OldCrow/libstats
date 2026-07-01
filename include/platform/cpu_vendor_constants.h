@@ -7,7 +7,7 @@
  * @file cpu_vendor_constants.h
  * @brief CPU vendor-specific tuning parameters and optimization constants
  *
- * Phase 3D: CPU vendor-specific namespace organization
+
  * This file centralizes all CPU vendor-specific constants under stats::arch::cpu::
  */
 

@@ -1,4 +1,5 @@
 // Focused unit test for discrete distribution
+#include "include/basic_test_runner.h"
 #include "include/tests.h"
 #include "libstats/distributions/discrete.h"
 
@@ -32,14 +33,14 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_discrete = stats::DiscreteDistribution::create().value;
+        auto default_discrete = stats::DiscreteDistribution::create().unwrap();
         BasicTestFormatter::printPropertyInt("Default Lower bound",
                                              default_discrete.getLowerBound());
         BasicTestFormatter::printPropertyInt("Default Upper bound",
                                              default_discrete.getUpperBound());
 
         // Parameterized constructor test
-        auto param_discrete = stats::DiscreteDistribution::create(0, 1).value;
+        auto param_discrete = stats::DiscreteDistribution::create(0, 1).unwrap();
         BasicTestFormatter::printPropertyInt("Param Lower bound", param_discrete.getLowerBound());
         BasicTestFormatter::printPropertyInt("Param Upper bound", param_discrete.getUpperBound());
 
@@ -49,7 +50,7 @@ int main() {
         BasicTestFormatter::printPropertyInt("Copy Upper bound", copy_discrete.getUpperBound());
 
         // Move constructor test
-        auto temp_discrete = stats::DiscreteDistribution::create(10, 15).value;
+        auto temp_discrete = stats::DiscreteDistribution::create(10, 15).unwrap();
         auto move_discrete = std::move(temp_discrete);
         BasicTestFormatter::printPropertyInt("Move Lower bound", move_discrete.getLowerBound());
         BasicTestFormatter::printPropertyInt("Move Upper bound", move_discrete.getUpperBound());
@@ -57,7 +58,7 @@ int main() {
         // Safe factory method test
         auto result = DiscreteDistribution::create(1, 6);
         if (result.isOk()) {
-            auto factory_discrete = std::move(result.value);
+            auto factory_discrete = std::move(result).unwrap();
             BasicTestFormatter::printPropertyInt("Factory Lower bound",
                                                  factory_discrete.getLowerBound());
             BasicTestFormatter::printPropertyInt("Factory Upper bound",
@@ -79,7 +80,7 @@ int main() {
                 "variance=2.916)."
              << endl;
 
-        auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
+        auto discrete_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
 
         // Test getters
         BasicTestFormatter::printPropertyInt("Initial Lower bound", discrete_dist.getLowerBound());
@@ -137,7 +138,7 @@ int main() {
                 "standard die."
              << endl;
 
-        auto dice_dist = stats::DiscreteDistribution::create(1, 6).value;
+        auto dice_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
         double x = 3.0;
 
         BasicTestFormatter::printProperty("PMF(3.0)", dice_dist.getProbability(x));
@@ -203,7 +204,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = TestDataGenerators::generateDiscreteTestData();
-        auto fitted_dist = stats::DiscreteDistribution::create().value;
+        auto fitted_dist = stats::DiscreteDistribution::create().unwrap();
         fitted_dist.fit(fit_data);
         BasicTestFormatter::printPropertyInt("Fitted Lower bound", fitted_dist.getLowerBound());
         BasicTestFormatter::printPropertyInt("Fitted Upper bound", fitted_dist.getUpperBound());
@@ -221,184 +222,25 @@ int main() {
 
         BasicTestFormatter::printTestSuccess("All distribution management tests passed");
         BasicTestFormatter::printNewline();
+        // =====================================================================
+        // Test 6: Auto-dispatch Batch Operations
+        // =====================================================================
+        stats::tests::BasicDistConfig cfg{
+            "Discrete", {1.0, 2.0, 3.0, 4.0, 5.0, 6.0}, 1.0, 6.5, 1e-12, 1e-12};
+        cfg.invalid_scenarios = {
+            {"upper < lower", [] { return DiscreteDistribution::create(5, 3).isError(); }},
+        };
+        auto test_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
+        stats::tests::runBatchTests(cfg, test_dist);
 
-        // Test 6: Auto-dispatch Parallel Processing with Timing and Strategy Report
-        BasicTestFormatter::printTestStart(6, "Auto-dispatch Parallel Processing");
-        cout << "This test verifies smart auto-dispatch that selects optimal execution strategy"
-             << endl;
-        cout << "based on batch size: SCALAR for small batches, VECTORIZED/PARALLEL for large."
-             << endl;
-        cout << "Compares performance and verifies correctness against traditional batch methods."
-             << endl;
-
-        auto test_dist = stats::DiscreteDistribution::create(1, 6).value;
-
-        // Test small batch (should use SCALAR strategy) - using diverse realistic data
-        vector<double> small_test_values = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0};
-        vector<double> small_pdf_results(small_test_values.size());
-        vector<double> small_log_pdf_results(small_test_values.size());
-        vector<double> small_cdf_results(small_test_values.size());
-
-        cout << "\n--- Small Batch Test (size=" << small_test_values.size() << ") ---" << endl;
-
-        // Use the new smart auto-dispatch methods with std::span
-        auto start = std::chrono::high_resolution_clock::now();
-        test_dist.getProbability(std::span<const double>(small_test_values),
-                                 std::span<double>(small_pdf_results));
-        auto end = std::chrono::high_resolution_clock::now();
-        auto auto_pdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getLogProbability(std::span<const double>(small_test_values),
-                                    std::span<double>(small_log_pdf_results));
-        end = std::chrono::high_resolution_clock::now();
-        auto auto_logpdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getCumulativeProbability(std::span<const double>(small_test_values),
-                                           std::span<double>(small_cdf_results));
-        end = std::chrono::high_resolution_clock::now();
-        auto auto_cdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        // Compare with traditional batch methods for correctness
-        vector<double> small_pdf_traditional(small_test_values.size());
-        vector<double> small_log_pdf_traditional(small_test_values.size());
-        vector<double> small_cdf_traditional(small_test_values.size());
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getProbabilityWithStrategy(std::span<const double>(small_test_values),
-                                             std::span<double>(small_pdf_traditional),
-                                             stats::detail::Strategy::SCALAR);
-        end = std::chrono::high_resolution_clock::now();
-        auto trad_pdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getLogProbabilityWithStrategy(std::span<const double>(small_test_values),
-                                                std::span<double>(small_log_pdf_traditional),
-                                                stats::detail::Strategy::SCALAR);
-        end = std::chrono::high_resolution_clock::now();
-        auto trad_logpdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(small_test_values),
-                                                       std::span<double>(small_cdf_traditional),
-                                                       stats::detail::Strategy::SCALAR);
-        end = std::chrono::high_resolution_clock::now();
-        auto trad_cdf_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        BasicTestFormatter::printBatchResults(small_pdf_results, "Auto-dispatch PDF results");
-        BasicTestFormatter::printBatchResults(small_log_pdf_results,
-                                              "Auto-dispatch Log PDF results");
-        BasicTestFormatter::printBatchResults(small_cdf_results, "Auto-dispatch CDF results");
-
-        cout << "Auto-dispatch PDF time: " << auto_pdf_time << "μs, Traditional: " << trad_pdf_time
-             << "μs" << endl;
-        cout << "Auto-dispatch Log PDF time: " << auto_logpdf_time
-             << "μs, Traditional: " << trad_logpdf_time << "μs" << endl;
-        cout << "Auto-dispatch CDF time: " << auto_cdf_time << "μs, Traditional: " << trad_cdf_time
-             << "μs" << endl;
-        cout << "Strategy selected: SCALAR (expected for small batch size="
-             << small_test_values.size() << ")" << endl;
-
-        // Verify results are identical
-        bool small_results_match = true;
-        for (size_t i = 0; i < small_test_values.size(); ++i) {
-            if (abs(small_pdf_results[i] - small_pdf_traditional[i]) > 1e-12 ||
-                abs(small_log_pdf_results[i] - small_log_pdf_traditional[i]) > 1e-12 ||
-                abs(small_cdf_results[i] - small_cdf_traditional[i]) > 1e-12) {
-                small_results_match = false;
-                break;
-            }
-        }
-
-        if (small_results_match) {
-            cout << "✅ Small batch auto-dispatch results match traditional methods" << endl;
-        } else {
-            cout << "❌ Small batch auto-dispatch results differ from traditional methods" << endl;
-        }
-
-        // Test large batch (should trigger SIMD or PARALLEL strategy)
-        cout << "\n--- Large Batch Test (size=5000) ---" << endl;
-        const size_t large_size = 5000;
-
-        // Generate diverse realistic test data instead of all zeros
-        vector<double> large_input(large_size);
-        std::mt19937 gen(42);
-        std::uniform_int_distribution<> dis(1, 6);
-        for (size_t i = 0; i < large_size; ++i) {
-            large_input[i] = static_cast<double>(dis(gen));
-        }
-
-        vector<double> large_output(large_size);
-        vector<double> large_output_traditional(large_size);
-
-        // Test auto-dispatch method
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getProbability(std::span<const double>(large_input),
-                                 std::span<double>(large_output));
-        end = std::chrono::high_resolution_clock::now();
-        auto large_auto_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        // Compare with traditional batch method
-        start = std::chrono::high_resolution_clock::now();
-        test_dist.getProbabilityWithStrategy(std::span<const double>(large_input),
-                                             std::span<double>(large_output_traditional),
-                                             stats::detail::Strategy::SCALAR);
-        end = std::chrono::high_resolution_clock::now();
-        auto large_trad_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-        BasicTestFormatter::printLargeBatchValidation(large_output[0], large_output[4999],
-                                                      "Auto-dispatch PDF (diverse data)");
-
-        cout << "Large batch auto-dispatch time: " << large_auto_time
-             << "μs, Traditional: " << large_trad_time << "μs" << endl;
-        double speedup =
-            static_cast<double>(large_trad_time) / static_cast<double>(large_auto_time);
-        cout << "Speedup: " << fixed << setprecision(2) << speedup << "x" << endl;
-        cout << "Strategy selected: VECTORIZED or PARALLEL (expected for batch size=" << large_size
-             << ")" << endl;
-
-        // Verify results match
-        bool large_results_match = true;
-        for (size_t i = 0; i < large_size; ++i) {
-            if (abs(large_output[i] - large_output_traditional[i]) > 1e-12) {
-                large_results_match = false;
-                break;
-            }
-        }
-
-        if (large_results_match) {
-            cout << "✅ Large batch auto-dispatch results match traditional methods" << endl;
-        } else {
-            cout << "❌ Large batch auto-dispatch results differ from traditional methods" << endl;
-        }
-
-        if (speedup > 0.8) {
-            cout << "✅ Auto-dispatch shows good performance optimization" << endl;
-        } else {
-            cout << "⚠️  Auto-dispatch performance may be affected by overhead" << endl;
-        }
-
-        BasicTestFormatter::printTestSuccess("All auto-dispatch parallel processing tests passed");
-        BasicTestFormatter::printNewline();
-
-        // Test 7: Comparison and Stream Operators
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
         cout << "This test verifies equality/inequality operators for parameter comparison" << endl;
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = stats::DiscreteDistribution::create(1, 6).value;
-        auto dist2 = stats::DiscreteDistribution::create(1, 6).value;
-        auto dist3 = stats::DiscreteDistribution::create(0, 10).value;
+        auto dist1 = stats::DiscreteDistribution::create(1, 6).unwrap();
+        auto dist2 = stats::DiscreteDistribution::create(1, 6).unwrap();
+        auto dist3 = stats::DiscreteDistribution::create(0, 10).unwrap();
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -411,7 +253,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = stats::DiscreteDistribution::create().value;
+        auto input_dist = stats::DiscreteDistribution::create().unwrap();
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;
@@ -425,17 +267,7 @@ int main() {
         BasicTestFormatter::printNewline();
 
         // Test 8: Error Handling
-        BasicTestFormatter::printTestStart(8, "Error Handling");
-        // NOTE: Using ::create() here (not stats::Discrete) to test exception-free error
-        // handling
-        // ::create() returns Result<T> for explicit error checking without exceptions
-        auto error_result = DiscreteDistribution::create(5, 3);  // Invalid: upper < lower
-        if (error_result.isError()) {
-            BasicTestFormatter::printTestSuccess("Error handling works: " + error_result.message);
-        } else {
-            BasicTestFormatter::printTestError("Error handling failed");
-            return 1;
-        }
+        stats::tests::runErrorTests(cfg);
 
         BasicTestFormatter::printCompletionMessage("Discrete");
 

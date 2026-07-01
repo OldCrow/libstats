@@ -4,6 +4,13 @@
 
 Reads strategy_profile_results.csv (canonical raw data from strategy_profile)
 and produces crossovers.csv, best_strategies.csv, and summary.json.
+
+The vectorized_to_parallel crossover is defined as the first batch size where
+*either* PARALLEL or WORK_STEALING is faster than VECTORIZED (whichever comes
+first). Using min(PARALLEL, WORK_STEALING) rather than PARALLEL alone is
+critical because GCD/thread-pool scheduling often routes the initial parallel
+work through WORK_STEALING; reporting only the PARALLEL crossover can produce
+a threshold 2.5x larger than the real switchover point.
 """
 
 from __future__ import annotations
@@ -18,7 +25,9 @@ from typing import Any
 
 
 def load_metadata(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
+    # Use utf-8-sig to transparently strip a UTF-8 BOM if present (Windows PS1
+    # writers may produce BOM-prefixed UTF-8; utf-8-sig handles both cases).
+    with path.open("r", encoding="utf-8-sig") as handle:
         return json.load(handle)
 
 
@@ -65,6 +74,7 @@ def find_first_crossover(
     slower: str,
     faster: str,
 ) -> int | None:
+    """First batch size where `faster` strategy beats `slower` strategy."""
     for batch_size in sorted(size_map.keys()):
         timings = size_map[batch_size]
         slower_time = timings.get(slower)
@@ -75,6 +85,31 @@ def find_first_crossover(
     return None
 
 
+def find_first_parallel_crossover(
+    size_map: dict[int, dict[str, float]],
+) -> int | None:
+    """First batch size where min(PARALLEL, WORK_STEALING) < VECTORIZED.
+
+    Using the minimum of both parallel strategies is essential: scheduling
+    runtimes (GCD, Windows Thread Pool) may route work to WORK_STEALING before
+    PARALLEL reaches its crossover, or vice versa.  Reporting only the PARALLEL
+    crossover can overstate the real switchover by 2-5x.
+    """
+    for batch_size in sorted(size_map.keys()):
+        timings = size_map[batch_size]
+        vect_time = timings.get("VECTORIZED")
+        par_time = timings.get("PARALLEL")
+        ws_time = timings.get("WORK_STEALING")
+        if vect_time is None:
+            continue
+        parallel_candidates = [t for t in (par_time, ws_time) if t is not None]
+        if not parallel_candidates:
+            continue
+        if min(parallel_candidates) < vect_time:
+            return batch_size
+    return None
+
+
 def build_crossover_rows(
     grouped: dict[GroupKey, dict[int, dict[str, float]]],
 ) -> list[dict[str, Any]]:
@@ -82,7 +117,7 @@ def build_crossover_rows(
     for (dist, op) in sorted(grouped.keys()):
         size_map = grouped[(dist, op)]
         s_to_v = find_first_crossover(size_map, "SCALAR", "VECTORIZED")
-        v_to_p = find_first_crossover(size_map, "VECTORIZED", "PARALLEL")
+        v_to_p = find_first_parallel_crossover(size_map)  # min(PARALLEL,WS) < VECTORIZED
         p_to_ws = find_first_crossover(size_map, "PARALLEL", "WORK_STEALING")
 
         largest_size = max(size_map.keys())
@@ -255,6 +290,23 @@ def main() -> int:
         handle.write("\n")
 
     print(f"Derived files written to {run_dir}")
+
+    # Advisory: flag crossovers at the measurement ceiling.
+    # Any V→P reported at max_batch_size means the true crossover may be higher;
+    # re-running with --large will resolve it.
+    if crossover_rows:
+        max_size = max(r["max_batch_size"] for r in crossover_rows)
+        ceiling_hits = [
+            r for r in crossover_rows
+            if r["vectorized_to_parallel"] == max_size
+            and r["best_strategy_at_max_size"] not in ("VECTORIZED", "SCALAR", None)
+        ]
+        if ceiling_hits:
+            print()
+            print("⚠  V→P crossover at measurement ceiling — re-run with --large to resolve:")
+            for r in ceiling_hits:
+                print(f"   {r['distribution']} {r['operation']}: V→P = {r['vectorized_to_parallel']}")
+
     return 0
 
 

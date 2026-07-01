@@ -8,7 +8,7 @@ permissions:
 
 on:
   push:
-    branches: [ main, develop, 'release/*', 'v*' ]
+    branches: [ main, 'release/*' ]
   pull_request:
     branches: [ main ]
 
@@ -42,13 +42,14 @@ jobs:
         echo "CXX=${{ matrix.compiler.cxx }}" >> $GITHUB_ENV
 
     - name: Configure CMake for AVX-512 Compilation
+      env:
+        LIBSTATS_FORCE_AVX512: "1"
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DCMAKE_CXX_STANDARD=20 \
           -DCMAKE_CXX_FLAGS="-mavx512f -mavx512dq -mavx512bw -mavx512vl -DLIBSTATS_HAS_AVX512" \
           -DLIBSTATS_ENABLE_AVX512=ON \
-          -DLIBSTATS_FORCE_AVX512=ON \
           -DLIBSTATS_TEST_AVX512_COMPILATION=ON
 
     - name: Compile AVX-512 Source Files

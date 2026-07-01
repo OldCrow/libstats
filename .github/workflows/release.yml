@@ -132,6 +132,7 @@ jobs:
       run: npx semantic-release --dry-run
 
     - name: Run semantic-release
+      id: semantic
       if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

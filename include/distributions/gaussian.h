@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive
 // caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 // Additional standard headers specific to Gaussian (C++20 showcase)
 #include <algorithm>  // C++20 ranges algorithms
@@ -47,28 +46,37 @@ namespace stats {
  *
  * @par Usage Examples:
  * @code
- * // Create standard normal distribution
- * GaussianDistribution stdNormal(0.0, 1.0);
+ * // Create standard normal distribution via factory (exception-free)
+ * auto result = GaussianDistribution::create(0.0, 1.0);
+ * if (result.isOk()) {
+ *     auto& stdNormal = result.unwrap();
  *
- * // Evaluate probability density
- * double pdf = stdNormal.getProbability(1.0);
+ *     // Evaluate probability density
+ *     double pdf = stdNormal.getProbability(1.0);
  *
- * // Fit to data
- * std::vector<double> data = {1.0, 2.0, 3.0, 4.0, 5.0};
- * GaussianDistribution fitted;
- * fitted.fit(data);
+ *     // Fit to data
+ *     std::vector<double> data = {1.0, 2.0, 3.0, 4.0, 5.0};
+ *     GaussianDistribution fitted;
+ *     fitted.fit(data);
  *
- * // Batch operations for performance
- * std::vector<double> values(1000);
- * std::vector<double> results(1000);
- * fitted.getProbabilityBatch(values.data(), results.data(), 1000);
+ *     // Batch operations using the span-based API (v2.0.0)
+ *     std::vector<double> values(1000);
+ *     std::vector<double> results(1000);
+ *     fitted.getProbability(std::span<const double>(values), std::span<double>(results));
+ * }
  * @endcode
  *
  * @author libstats Development Team
- * @version 1.1.0
- * @since 1.0.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class GaussianDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<GaussianDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::GAUSSIAN;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -104,16 +112,16 @@ class GaussianDistribution : public DistributionBase {
     /**
      * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
-    GaussianDistribution(GaussianDistribution&& other);
+    GaussianDistribution(GaussianDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
-    GaussianDistribution& operator=(GaussianDistribution&& other);
+    GaussianDistribution& operator=(GaussianDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five
@@ -132,9 +140,8 @@ class GaussianDistribution : public DistributionBase {
     /**
      * @brief Safely create a Gaussian distribution without throwing exceptions
      *
-     * This factory method provides exception-free construction to work around
-     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
-     * exceptions thrown from the library cause segfaults during unwinding.
+     * This factory method provides exception-free construction.
+     * See `error_handling.h` for the Result<T> design rationale.
      *
      * @param mean Mean parameter μ (any finite value)
      * @param standardDeviation Standard deviation parameter σ (must be positive)
@@ -144,19 +151,19 @@ class GaussianDistribution : public DistributionBase {
      * @code
      * auto result = GaussianDistribution::create(0.0, 1.0);
      * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
+     *     auto distribution = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<GaussianDistribution> create(
-        double mean = 0.0, double standardDeviation = 1.0) noexcept {
+    [[nodiscard]] static Result<GaussianDistribution> create(double mean = 0.0,
+                                                             double standardDeviation = 1.0) {
         auto validation = validateGaussianParameters(mean, standardDeviation);
         if (validation.isError()) {
-            return Result<GaussianDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<GaussianDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
 
         // Use private factory to bypass validation
@@ -271,7 +278,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Skewness value (always 0)
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -279,14 +286,16 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (always 0)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /**
      * @brief Gets the distribution name.
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override;
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Gaussian";
+    }
 
     /**
      * @brief Gets the number of parameters for this distribution.
@@ -379,7 +388,7 @@ class GaussianDistribution : public DistributionBase {
      * @param x The value at which to evaluate the log PDF
      * @return Log probability density
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief Evaluates the CDF at x using the error function
@@ -457,322 +466,7 @@ class GaussianDistribution : public DistributionBase {
     std::string toString() const override;
 
     //==========================================================================
-    // 7. ADVANCED STATISTICAL METHODS
-    //==========================================================================
-
-    /**
-     * @brief Confidence interval for mean parameter μ
-     *
-     * Calculates confidence interval for the population mean using the
-     * t-distribution when population variance is unknown, or normal
-     * distribution when population variance is known.
-     *
-     * @param data Sample data
-     * @param confidence_level Confidence level (e.g., 0.95 for 95%)
-     * @param population_variance_known If true, uses known population variance
-     * @return Pair of (lower_bound, upper_bound)
-     */
-    static std::pair<double, double> confidenceIntervalMean(const std::vector<double>& data,
-                                                            double confidence_level = 0.95,
-                                                            bool population_variance_known = false);
-
-    /**
-     * @brief Confidence interval for variance parameter σ²
-     *
-     * Calculates confidence interval for population variance using
-     * chi-squared distribution.
-     *
-     * @param data Sample data
-     * @param confidence_level Confidence level (e.g., 0.95 for 95%)
-     * @return Pair of (lower_bound, upper_bound)
-     */
-    static std::pair<double, double> confidenceIntervalVariance(const std::vector<double>& data,
-                                                                double confidence_level = 0.95);
-
-    /**
-     * @brief One-sample t-test for population mean
-     *
-     * Tests the null hypothesis that the population mean equals
-     * the specified value against a two-tailed alternative.
-     *
-     * @param data Sample data
-     * @param hypothesized_mean Null hypothesis mean value
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (t_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> oneSampleTTest(const std::vector<double>& data,
-                                                           double hypothesized_mean,
-                                                           double alpha = 0.05);
-
-    /**
-     * @brief Two-sample t-test for equal means
-     *
-     * Tests whether two independent samples have equal population means.
-     * Assumes equal variances by default, with Welch's test option.
-     *
-     * @param data1 First sample
-     * @param data2 Second sample
-     * @param equal_variances If true, assumes equal population variances
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (t_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> twoSampleTTest(const std::vector<double>& data1,
-                                                           const std::vector<double>& data2,
-                                                           bool equal_variances = true,
-                                                           double alpha = 0.05);
-
-    /**
-     * @brief Paired t-test for matched samples
-     *
-     * Tests whether the mean difference between paired observations
-     * is significantly different from zero.
-     *
-     * @param data1 First sample (paired with data2)
-     * @param data2 Second sample (paired with data1)
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (t_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> pairedTTest(const std::vector<double>& data1,
-                                                        const std::vector<double>& data2,
-                                                        double alpha = 0.05);
-
-    /**
-     * @brief Bayesian parameter estimation with conjugate prior
-     *
-     * Performs Bayesian estimation of Gaussian parameters using
-     * normal-inverse-gamma conjugate prior. Returns posterior
-     * distribution parameters.
-     *
-     * @param data Observed data
-     * @param prior_mean Prior mean for μ (default: 0)
-     * @param prior_precision Prior precision for μ (default: 0.001)
-     * @param prior_shape Prior shape parameter for precision (default: 1)
-     * @param prior_rate Prior rate parameter for precision (default: 1)
-     * @return Tuple of (posterior_mean, posterior_precision, posterior_shape, posterior_rate)
-     */
-    static std::tuple<double, double, double, double> bayesianEstimation(
-        const std::vector<double>& data, double prior_mean = 0.0, double prior_precision = 0.001,
-        double prior_shape = 1.0, double prior_rate = 1.0);
-
-    /**
-     * @brief Credible interval from Bayesian posterior
-     *
-     * Calculates Bayesian credible interval for mean parameter
-     * from posterior distribution.
-     *
-     * @param data Observed data
-     * @param credibility_level Credibility level (e.g., 0.95 for 95%)
-     * @param prior_mean Prior mean for μ (default: 0)
-     * @param prior_precision Prior precision for μ (default: 0.001)
-     * @param prior_shape Prior shape parameter for precision (default: 1)
-     * @param prior_rate Prior rate parameter for precision (default: 1)
-     * @return Pair of (lower_bound, upper_bound)
-     */
-    static std::pair<double, double> bayesianCredibleInterval(
-        const std::vector<double>& data, double credibility_level = 0.95, double prior_mean = 0.0,
-        double prior_precision = 0.001, double prior_shape = 1.0, double prior_rate = 1.0);
-
-    /**
-     * @brief Robust parameter estimation using M-estimators
-     *
-     * Provides robust estimation of location and scale parameters
-     * that are less sensitive to outliers than maximum likelihood.
-     *
-     * @param data Sample data
-     * @param estimator_type Type of robust estimator ("huber", "tukey", "hampel")
-     * @param tuning_constant Tuning constant for the estimator
-     * @return Pair of (robust_mean, robust_scale)
-     */
-    static std::pair<double, double> robustEstimation(const std::vector<double>& data,
-                                                      const std::string& estimator_type = "huber",
-                                                      double tuning_constant = 1.345);
-
-    /**
-     * @brief Method of moments parameter estimation
-     *
-     * Estimates parameters by matching sample moments with
-     * theoretical distribution moments.
-     *
-     * @param data Sample data
-     * @return Pair of (mean_estimate, stddev_estimate)
-     */
-    static std::pair<double, double> methodOfMomentsEstimation(const std::vector<double>& data);
-
-    /**
-     * @brief L-moments parameter estimation
-     *
-     * Uses L-moments (linear combinations of order statistics)
-     * for robust parameter estimation, particularly useful
-     * for extreme value analysis.
-     *
-     * @param data Sample data
-     * @return Pair of (location_parameter, scale_parameter)
-     */
-    static std::pair<double, double> lMomentsEstimation(const std::vector<double>& data);
-
-    /**
-     * @brief Advanced moment calculations (up to 6th moment)
-     *
-     * Calculates higher-order sample moments for detailed
-     * distributional analysis.
-     *
-     * @param data Sample data
-     * @param center_on_mean If true, calculates central moments
-     * @return Vector of moments [1st, 2nd, 3rd, 4th, 5th, 6th]
-     */
-    static std::vector<double> calculateHigherMoments(const std::vector<double>& data,
-                                                      bool center_on_mean = true);
-
-    /**
-     * @brief Jarque-Bera normality test
-     *
-     * Tests the null hypothesis that data follows a normal distribution
-     * using skewness and kurtosis statistics.
-     *
-     * @param data Sample data
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (JB_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> jarqueBeraTest(const std::vector<double>& data,
-                                                           double alpha = 0.05);
-
-    /**
-     * @brief Shapiro-Wilk normality test
-     *
-     * Tests the null hypothesis that data follows a normal distribution.
-     * Generally more powerful than Jarque-Bera for small samples.
-     *
-     * @param data Sample data (works best for n <= 5000)
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (W_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> shapiroWilkTest(const std::vector<double>& data,
-                                                            double alpha = 0.05);
-
-    /**
-     * @brief Likelihood ratio test for nested models
-     *
-     * Tests whether the simpler model (restricted) is adequate
-     * compared to the more complex model (unrestricted).
-     *
-     * @param data Sample data
-     * @param restricted_model Simpler model (e.g., fixed mean)
-     * @param unrestricted_model More complex model
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (LR_statistic, p_value, reject_null)
-     */
-    static std::tuple<double, double, bool> likelihoodRatioTest(
-        const std::vector<double>& data, const GaussianDistribution& restricted_model,
-        const GaussianDistribution& unrestricted_model, double alpha = 0.05);
-
-    //==========================================================================
-    // 8. GOODNESS-OF-FIT TESTS
-    //==========================================================================
-
-    /**
-     * @brief Kolmogorov-Smirnov goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified Gaussian distribution.
-     * More general than JB/SW tests as it doesn't assume any particular alternative.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (KS_statistic, p_value, reject_null)
-     * @note p_value approximation using asymptotic distribution
-     */
-    static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data, const GaussianDistribution& distribution,
-        double alpha = 0.05);
-
-    /**
-     * @brief Anderson-Darling goodness-of-fit test
-     *
-     * Tests the null hypothesis that data follows the specified Gaussian distribution.
-     * More sensitive to deviations in the tails than KS test.
-     *
-     * @param data Sample data to test
-     * @param distribution Theoretical distribution to test against
-     * @param alpha Significance level (default: 0.05)
-     * @return Tuple of (AD_statistic, p_value, reject_null)
-     * @note Uses asymptotic p-value approximation for Gaussian case
-     */
-    static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data, const GaussianDistribution& distribution,
-        double alpha = 0.05);
-
-    //==========================================================================
-    // 9. CROSS-VALIDATION METHODS
-    //==========================================================================
-
-    /**
-     * @brief K-fold cross-validation for parameter estimation
-     *
-     * Performs k-fold cross-validation to assess parameter estimation quality
-     * and model stability. Splits data into k folds, trains on k-1 folds,
-     * and validates on the remaining fold.
-     *
-     * @param data Sample data for cross-validation
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment (default: 42)
-     * @return Vector of k validation results: (mean_error, std_error, log_likelihood)
-     */
-    static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
-
-    /**
-     * @brief Leave-one-out cross-validation for parameter estimation
-     *
-     * Performs leave-one-out cross-validation (LOOCV) to assess parameter
-     * estimation quality. For each data point, trains on all other points
-     * and validates on the left-out point.
-     *
-     * @param data Sample data for cross-validation
-     * @return Tuple of (mean_absolute_error, root_mean_squared_error, total_log_likelihood)
-     */
-    static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
-
-    //==========================================================================
-    // 10. INFORMATION CRITERIA
-    //==========================================================================
-
-    /**
-     * @brief Model comparison using information criteria
-     *
-     * Computes various information criteria (AIC, BIC, AICc) for model selection.
-     * Lower values indicate better model fit while penalizing complexity.
-     *
-     * @param data Sample data used for fitting
-     * @param fitted_distribution The fitted Gaussian distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data, const GaussianDistribution& fitted_distribution);
-
-    //==========================================================================
-    // 11. BOOTSTRAP METHODS
-    //==========================================================================
-
-    /**
-     * @brief Bootstrap parameter confidence intervals
-     *
-     * Uses bootstrap resampling to estimate confidence intervals for
-     * the distribution parameters (mean and standard deviation).
-     *
-     * @param data Sample data for bootstrap resampling
-     * @param confidence_level Confidence level (e.g., 0.95 for 95% CI)
-     * @param n_bootstrap Number of bootstrap samples (default: 1000)
-     * @param random_seed Seed for random sampling (default: 42)
-     * @return Tuple of ((mean_CI_lower, mean_CI_upper), (std_CI_lower, std_CI_upper))
-     */
-    static std::tuple<std::pair<double, double>, std::pair<double, double>>
-    bootstrapParameterConfidenceIntervals(const std::vector<double>& data,
-                                          double confidence_level = 0.95, int n_bootstrap = 1000,
-                                          unsigned int random_seed = 42);
-
-    //==========================================================================
-    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
+    // 7. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
 
     /**
@@ -816,7 +510,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Entropy value
      */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief Get the median of the distribution
@@ -826,7 +520,7 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Median value (equals μ)
      */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const override;
 
     /**
      * @brief Get the mode of the distribution
@@ -836,19 +530,20 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Mode value (equals μ)
      */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
-#ifdef DEBUG
     /**
-     * Debug method to check if standard normal optimization is active
-     * Only available in debug builds
-     * @return true if this distribution is detected as standard normal
+     * @brief Check if the standard-normal fast-path optimization is active.
+     *
+     * Returns true when kDebugOptimizations is enabled (compile with
+     * -DLIBSTATS_DEBUG_OPTIMIZATIONS) and the distribution is currently
+     * detected as a standard normal (\u03bc≈0, σ≈1). Returns false in all
+     * other cases, including release builds.
      */
     bool isUsingStandardNormalOptimization() const;
-#endif
 
     //==========================================================================
-    // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
+    // 8. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
 
     /**
@@ -892,56 +587,6 @@ class GaussianDistribution : public DistributionBase {
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    /**
-     * @brief Explicit strategy batch probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for probability densities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     */
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    /**
-     * @brief Explicit strategy batch log probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for log probability densities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     */
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    /**
-     * @brief Explicit strategy batch cumulative probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for cumulative probabilities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     */
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1123,7 +768,6 @@ class GaussianDistribution : public DistributionBase {
     mutable bool isLowVariance_{false};
 
     /** @brief Atomic cache validity flag for lock-free fast path */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     //==========================================================================
     // 24. SPECIALIZED CACHES

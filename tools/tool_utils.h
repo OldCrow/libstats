@@ -10,6 +10,7 @@
 
 // Use libstats.h for complete library functionality
 #define LIBSTATS_FULL_INTERFACE
+#include "libstats/core/distribution_meta.h"  // distributionDisplayName()
 #include "libstats/libstats.h"
 
 // Additional standard library includes for tool-specific functionality
@@ -107,52 +108,15 @@ inline std::string strategyToDisplayString(stats::detail::Strategy strategy) {
 }
 
 /**
- * @brief Converts DistributionType enum to string representation
+ * @brief Converts DistributionType enum to display-friendly string
  * @param type The distribution type enum value
- * @return String representation of the distribution type
+ * @return PascalCase display name (e.g. "NegativeBinomial")
  */
 inline std::string distributionTypeToString(stats::detail::DistributionType type) {
-    switch (type) {
-        case stats::detail::DistributionType::UNIFORM:
-            return "Uniform";
-        case stats::detail::DistributionType::GAUSSIAN:
-            return "Gaussian";
-        case stats::detail::DistributionType::EXPONENTIAL:
-            return "Exponential";
-        case stats::detail::DistributionType::DISCRETE:
-            return "Discrete";
-        case stats::detail::DistributionType::POISSON:
-            return "Poisson";
-        case stats::detail::DistributionType::GAMMA:
-            return "Gamma";
-        case stats::detail::DistributionType::CHI_SQUARED:
-            return "ChiSquared";
-        case stats::detail::DistributionType::STUDENT_T:
-            return "StudentT";
-        case stats::detail::DistributionType::BETA:
-            return "Beta";
-        default:
-            return "Unknown";
-    }
+    return std::string(stats::detail::distributionDisplayName(type));
 }
 
-/**
- * @brief Converts ComputationComplexity enum to string representation
- * @param complexity The computation complexity enum value
- * @return String representation of the complexity
- */
-inline std::string complexityToString(stats::detail::ComputationComplexity complexity) {
-    switch (complexity) {
-        case stats::detail::ComputationComplexity::SIMPLE:
-            return "Simple";
-        case stats::detail::ComputationComplexity::MODERATE:
-            return "Moderate";
-        case stats::detail::ComputationComplexity::COMPLEX:
-            return "Complex";
-        default:
-            return "Unknown";
-    }
-}
+// complexityToString() removed in v2.0.0 (Part 4) alongside ComputationComplexity.
 }  // namespace detail
 
 // Formatting utilities
@@ -267,25 +231,6 @@ class ColumnFormatter {
 };
 }  // namespace detail
 
-// Performance recording utilities
-namespace detail {  // perf_utils utilities
-/**
- * @brief Record performance data with automatic unit conversion
- * @param strategy Strategy used
- * @param dist_type Distribution type
- * @param data_size Size of data processed
- * @param time_microseconds Execution time in microseconds
- */
-inline void recordPerformanceMicroseconds(stats::detail::Strategy strategy,
-                                          stats::detail::DistributionType dist_type,
-                                          size_t data_size, double time_microseconds) {
-    constexpr double MICROSECONDS_TO_NANOSECONDS = 1000.0;
-    stats::detail::PerformanceDispatcher::recordPerformance(
-        strategy, dist_type, data_size,
-        static_cast<uint64_t>(time_microseconds * MICROSECONDS_TO_NANOSECONDS));
-}
-}  // namespace detail
-
 // Common display utilities
 namespace detail {  // display utilities
 /**
@@ -380,12 +325,6 @@ inline void displaySystemCapabilities() {
               << (capabilities.logical_cores() > capabilities.physical_cores() ? "Enabled"
                                                                                : "Disabled")
               << "\n";
-    std::cout << std::setw(25) << "SIMD Efficiency:" << std::fixed << std::setprecision(3)
-              << capabilities.simd_efficiency() << "\n";
-    std::cout << std::setw(25) << "Memory Bandwidth:" << std::setprecision(2)
-              << capabilities.memory_bandwidth_gb_s() << " GB/s\n";
-    std::cout << std::setw(25) << "Thread Overhead:" << std::setprecision(1)
-              << capabilities.threading_overhead_ns() << " ns\n";
 
     std::cout << "\n";
 }

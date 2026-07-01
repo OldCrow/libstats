@@ -39,22 +39,23 @@ jobs:
         echo "=== AVX-512 Extensions ==="
         grep -o 'avx512[a-z]*' /proc/cpuinfo | sort | uniq || echo "No AVX-512 extensions found"
 
-    - name: Install GCC-12 (for best AVX-512 support)
+    - name: Install GCC 13
       if: env.AVX512_SUPPORTED == 'true'
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-12 g++-12
-        echo "CC=gcc-12" >> $GITHUB_ENV
-        echo "CXX=g++-12" >> $GITHUB_ENV
+        sudo apt-get install -y gcc-13 g++-13
+        echo "CC=gcc-13" >> $GITHUB_ENV
+        echo "CXX=g++-13" >> $GITHUB_ENV
 
     - name: Configure CMake with AVX-512
       if: env.AVX512_SUPPORTED == 'true'
+      env:
+        LIBSTATS_FORCE_AVX512: "1"
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_CXX_STANDARD=20 \
-          -DCMAKE_CXX_FLAGS="-march=native -mavx512f -mavx512dq -mavx512bw -mavx512vl" \
-          -DLIBSTATS_FORCE_AVX512=ON
+          -DCMAKE_CXX_FLAGS="-march=native -mavx512f -mavx512dq -mavx512bw -mavx512vl"
 
     - name: Build with AVX-512
       if: env.AVX512_SUPPORTED == 'true'

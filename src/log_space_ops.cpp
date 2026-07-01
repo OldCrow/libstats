@@ -3,31 +3,15 @@
 #include "libstats/core/math_constants.h"
 #include "libstats/core/safety.h"
 #include "libstats/core/statistical_constants.h"
+#include "libstats/platform/simd.h"
 #include "libstats/platform/simd_policy.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <mutex>
+#include <vector>
 
 namespace stats {
-
-// =============================================================================
-// INITIALIZATION (no-op — lookup table removed)
-// =============================================================================
-
-void LogSpaceOps::initialize() {
-    // call_once guard makes repeated calls idempotent and safe under concurrent
-    // initialization from multiple TUs, each of which instantiates the static
-    // globalLogSpaceInit from the header. Currently this function is a no-op,
-    // but the guard prevents any future content from running multiple times.
-    static std::once_flag initFlag;
-    std::call_once(initFlag, []() {
-        // No-op: lookup table removed (1024-point interpolation over [-50,0]
-        // achieved only ~6e-5 accuracy, insufficient for 1e-9 tolerances).
-        // Retaining the guard for future expansion.
-    });
-}
 
 // =============================================================================
 // CORE LOG-SPACE OPERATIONS
@@ -70,13 +54,17 @@ double LogSpaceOps::logSumExpArray(const double* logValues, std::size_t size) no
         return logValues[0];
     }
 
-    // Use SIMD implementation if available and size is large enough
+    // logSumExpArrayFallback is partial-SIMD: VectorOps::scalar_add +
+    // VectorOps::vector_exp vectorise the expensive shift+exponentiate step;
+    // the horizontal reduction is a scalar loop (no vector_hadd primitive yet).
+    // Gate to promote to full-SIMD: implement vector_hadd across all five
+    // SIMD backends (SSE2/AVX/AVX2/NEON/AVX-512) once logSumExpArray becomes
+    // a measured bottleneck or a second caller needs a reduction primitive.
     if constexpr (arch::simd::has_simd_support()) {
         if (arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-            return logSumExpArraySIMD(logValues, size);
+            return logSumExpArrayFallback(logValues, size);
         }
     }
-
     return logSumExpArrayScalar(logValues, size);
 }
 
@@ -88,6 +76,12 @@ void LogSpaceOps::precomputeLogMatrix(const double* probMatrix, double* logMatri
     if constexpr (arch::simd::has_simd_support()) {
         if (arch::simd::SIMDPolicy::shouldUseSIMD(total_size)) {
             arch::simd::VectorOps::vector_log(probMatrix, logMatrix, total_size);
+            // Harmonise with safeLog semantics: vector_log returns NaN for
+            // non-positive inputs; safeLog returns -inf. Replace NaN → -inf so
+            // SIMD and scalar paths agree for zero-probability transitions.
+            for (std::size_t i = 0; i < total_size; ++i)
+                if (std::isnan(logMatrix[i]))
+                    logMatrix[i] = -std::numeric_limits<double>::infinity();
             return;
         }
     }
@@ -141,44 +135,26 @@ void LogSpaceOps::logMatrixVectorMultiplyTransposed(const double* logMatrix,
 }
 
 // =============================================================================
-// SIMD IMPLEMENTATIONS
+// PARTIAL-SIMD IMPLEMENTATION (shift+exp via VectorOps; reduction scalar)
 // =============================================================================
 
-double LogSpaceOps::logSumExpArraySIMD(const double* logValues, std::size_t size) noexcept {
-    // Find the maximum value for numerical stability
+double LogSpaceOps::logSumExpArrayFallback(const double* logValues, std::size_t size) noexcept {
     double max_val = *std::max_element(logValues, logValues + size);
 
-    // Handle the case where all values are -infinity
     if (std::isinf(max_val) && max_val < 0) {
         return LOG_ZERO;
     }
 
-    // Use SIMD to compute sum of exp(logValues[i] - max_val)
-    // This is a simplified version - in practice, you'd use specific SIMD intrinsics
+    // Shift by -max_val and exponentiate using SIMD, then reduce scalar.
+    // Scratch buffer avoids modifying the caller's data.
+    std::vector<double, arch::simd::aligned_allocator<double>> scratch(size);
+    arch::simd::VectorOps::scalar_add(logValues, -max_val, scratch.data(), size);
+    arch::simd::VectorOps::vector_exp(scratch.data(), scratch.data(), size);
+
+    // Horizontal sum — scalar because no vector_hadd primitive exists yet.
     double sum_exp = detail::ZERO_DOUBLE;
-
-    // Process SIMD blocks
-    const std::size_t simd_width = arch::simd::double_vector_width();
-    const std::size_t simd_blocks = size / simd_width;
-
-    for (std::size_t block = 0; block < simd_blocks; ++block) {
-        const std::size_t base_idx = block * simd_width;
-
-        // In a real implementation, this would use SIMD intrinsics
-        for (std::size_t i = 0; i < simd_width; ++i) {
-            double val = logValues[base_idx + i];
-            if (std::isfinite(val)) {
-                sum_exp += std::exp(val - max_val);
-            }
-        }
-    }
-
-    // Handle remaining elements
-    for (std::size_t i = simd_blocks * simd_width; i < size; ++i) {
-        double val = logValues[i];
-        if (std::isfinite(val)) {
-            sum_exp += std::exp(val - max_val);
-        }
+    for (std::size_t i = 0; i < size; ++i) {
+        sum_exp += scratch[i];
     }
 
     return detail::safe_log(sum_exp) + max_val;

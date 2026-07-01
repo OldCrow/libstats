@@ -1,5 +1,10 @@
 #include "libstats/distributions/uniform.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
+using stats::detail::validateParameter;
+using stats::detail::validatePositiveParameter;
+
 #include "libstats/core/math_constants.h"
 #include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/statistical_constants.h"
@@ -10,7 +15,6 @@
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/statistical_constants.h"
-#include "libstats/core/validation.h"
 
 // Platform headers - use forward declarations where available
 #include "libstats/common/cpu_detection_fwd.h"  // Lightweight CPU detection
@@ -47,9 +51,6 @@ UniformDistribution::UniformDistribution(const UniformDistribution& other)
 UniformDistribution& UniformDistribution::operator=(const UniformDistribution& other) {
     if (this != &other) {
         // Acquire locks in a consistent order to prevent deadlock
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
 
         // Copy parameters (don't call base class operator= to avoid deadlock)
         a_ = other.a_;
@@ -60,9 +61,8 @@ UniformDistribution& UniformDistribution::operator=(const UniformDistribution& o
     return *this;
 }
 
-UniformDistribution::UniformDistribution(UniformDistribution&& other)
+UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    std::unique_lock<std::shared_mutex> lock(other.cache_mutex_);
     a_ = other.a_;
     b_ = other.b_;
     other.a_ = detail::ZERO_DOUBLE;
@@ -72,12 +72,8 @@ UniformDistribution::UniformDistribution(UniformDistribution&& other)
     // Cache will be updated on first use
 }
 
-UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other) {
+UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other) noexcept {
     if (this != &other) {
-        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
-        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
-        std::lock(lock1, lock2);
-
         a_ = other.a_;
         b_ = other.b_;
         other.a_ = detail::ZERO_DOUBLE;
@@ -168,48 +164,39 @@ void UniformDistribution::setParameters(double a, double b) {
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
-double UniformDistribution::getMean() const noexcept {
+double UniformDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        return midpoint_;  // snapshot + early return under unique_lock
     }
-
     return midpoint_;
 }
 
-double UniformDistribution::getVariance() const noexcept {
+double UniformDistribution::getVariance() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        return variance_;  // snapshot + early return under unique_lock
     }
-
     return variance_;
 }
 
-double UniformDistribution::getWidth() const noexcept {
+double UniformDistribution::getWidth() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        return width_;  // snapshot + early return under unique_lock
     }
-
     return width_;
 }
 
@@ -235,7 +222,7 @@ VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
@@ -256,7 +243,7 @@ VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
@@ -274,7 +261,7 @@ VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
     // Invalidate atomic parameters when parameters change
     atomicParamsValid_.store(false, std::memory_order_release);
 
-    return VoidResult::ok(true);
+    return VoidResult::ok({});
 }
 
 //==============================================================================
@@ -287,12 +274,25 @@ double UniformDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double lo = a_, hi = b_;
+        const bool is_unit = isUnitInterval_;
+        const double inv_w = invWidth_;
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        if (x < lo || x > hi)
+            return detail::ZERO_DOUBLE;
+        if (is_unit)
+            return detail::ONE;
+        return inv_w;
     }
+
+    // NaN must propagate before the bounds checks (both comparisons are false for NaN,
+    // so NaN would silently pass through and return the density constant).
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
 
     // Check if x is within the support [a, b]
     if (x < a_ || x > b_) {
@@ -308,18 +308,29 @@ double UniformDistribution::getProbability(double x) const {
     return invWidth_;
 }
 
-double UniformDistribution::getLogProbability(double x) const noexcept {
+double UniformDistribution::getLogProbability(double x) const {
     // Ensure cache is valid
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double lo = a_, hi = b_;
+        const bool is_unit = isUnitInterval_;
+        const double w = width_;
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        if (x < lo || x > hi)
+            return detail::NEGATIVE_INFINITY;
+        if (is_unit)
+            return detail::ZERO_DOUBLE;
+        return -std::log(w);
     }
+
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
 
     // Check if x is within the support [a, b]
     if (x < a_ || x > b_) {
@@ -341,11 +352,19 @@ double UniformDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const double lo = a_, hi = b_;
+        const bool is_unit = isUnitInterval_;
+        const double inv_w = invWidth_;
+        if (x < lo)
+            return detail::ZERO_DOUBLE;
+        if (x > hi)
+            return detail::ONE;
+        if (is_unit)
+            return x;
+        return (x - lo) * inv_w;
     }
 
     // CDF for uniform distribution
@@ -381,11 +400,14 @@ double UniformDistribution::getQuantile(double p) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) {
+        if (!cache_valid_)
             updateCacheUnsafe();
-        }
-        ulock.unlock();
-        lock.lock();
+        // Snapshot while unique_lock is still held.
+        const bool is_unit = isUnitInterval_;
+        const double lo = a_, w = width_;
+        if (is_unit)
+            return p;
+        return lo + p * w;
     }
 
     // Fast path for unit interval [0,1]
@@ -398,15 +420,24 @@ double UniformDistribution::getQuantile(double p) const {
 }
 
 double UniformDistribution::sample(std::mt19937& rng) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
+    bool cached_is_unit_interval;
+    double cached_a, cached_width;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            cached_is_unit_interval = isUnitInterval_;
+            cached_a = a_;
+            cached_width = width_;
+        } else {
+            cached_is_unit_interval = isUnitInterval_;
+            cached_a = a_;
+            cached_width = width_;
         }
-        ulock.unlock();
-        lock.lock();
     }
 
     // Use high-quality uniform distribution
@@ -415,12 +446,12 @@ double UniformDistribution::sample(std::mt19937& rng) const {
     double u = uniform(rng);
 
     // Fast path for unit interval [0,1]
-    if (isUnitInterval_) {
+    if (cached_is_unit_interval) {
         return u;
     }
 
     // General case: linear transformation X = a + (b-a)*U
-    return a_ + width_ * u;
+    return cached_a + cached_width * u;
 }
 
 std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) const {
@@ -429,22 +460,25 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
 
     std::uniform_real_distribution<double> dist(detail::ZERO_DOUBLE, detail::ONE);
 
-    // Get cached parameters for efficiency
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+    // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+    double cached_a, cached_width;
+    bool cached_is_unit_interval;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
         if (!cache_valid_) {
-            updateCacheUnsafe();
+            lock.unlock();
+            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            cached_a = a_;
+            cached_width = width_;
+            cached_is_unit_interval = isUnitInterval_;
+        } else {
+            cached_a = a_;
+            cached_width = width_;
+            cached_is_unit_interval = isUnitInterval_;
         }
-        ulock.unlock();
-        lock.lock();
     }
-
-    const double cached_a = a_;
-    const double cached_width = width_;
-    const bool cached_is_unit_interval = isUnitInterval_;
-    lock.unlock();
 
     // Generate batch samples using linear transformation
     for (size_t i = 0; i < n; ++i) {
@@ -466,6 +500,13 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
 void UniformDistribution::fit(const std::vector<double>& values) {
     if (values.empty()) {
         throw std::invalid_argument("Cannot fit distribution to empty data");
+    }
+
+    // Reject non-finite values before calling minmax_element (UB with NaN)
+    for (double v : values) {
+        if (!std::isfinite(v)) {
+            throw std::invalid_argument("Uniform fit requires all values to be finite");
+        }
     }
 
     // For uniform distribution, use sample minimum and maximum
@@ -498,6 +539,7 @@ void UniformDistribution::reset() noexcept {
     b_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 std::string UniformDistribution::toString() const {
@@ -510,295 +552,6 @@ std::string UniformDistribution::toString() const {
 //==============================================================================
 // 7. ADVANCED STATISTICAL METHODS
 //==============================================================================
-
-std::pair<double, double> UniformDistribution::confidenceIntervalLowerBound(
-    const std::vector<double>& data, double confidence_level) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data cannot be empty");
-    }
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
-        throw std::invalid_argument("Confidence level must be between 0 and 1");
-    }
-
-    const size_t n = data.size();
-    const double alpha = detail::ONE - confidence_level;
-    const double min_val = *std::min_element(data.begin(), data.end());
-
-    // For uniform distribution, the minimum X_(1) has distribution:
-    // F(x) = 1 - ((b-x)/(b-a))^n for a <= x <= b
-    // We use the fact that (X_(1) - a)/(b - a) ~ Beta(1, n)
-    // The confidence interval uses order statistics theory
-
-    // Conservative approach: use the empirical minimum with adjustment
-    const double range_estimate = *std::max_element(data.begin(), data.end()) - min_val;
-    const double adjustment =
-        range_estimate * std::pow(alpha / detail::TWO, detail::ONE / static_cast<double>(n)) /
-        (detail::ONE + std::pow(alpha / detail::TWO, detail::ONE / static_cast<double>(n)));
-
-    const double ci_lower = min_val - adjustment;
-    const double ci_upper = min_val;
-
-    return {ci_lower, ci_upper};
-}
-
-std::pair<double, double> UniformDistribution::confidenceIntervalUpperBound(
-    const std::vector<double>& data, double confidence_level) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data cannot be empty");
-    }
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
-        throw std::invalid_argument("Confidence level must be between 0 and 1");
-    }
-
-    const size_t n = data.size();
-    const double alpha = detail::ONE - confidence_level;
-    const double max_val = *std::max_element(data.begin(), data.end());
-    const double min_val = *std::min_element(data.begin(), data.end());
-
-    // For uniform distribution, the maximum X_(n) has distribution:
-    // F(x) = ((x-a)/(b-a))^n for a <= x <= b
-    // We use the fact that (b - X_(n))/(b - a) ~ Beta(1, n)
-
-    const double range_estimate = max_val - min_val;
-    const double adjustment =
-        range_estimate * std::pow(alpha / detail::TWO, detail::ONE / static_cast<double>(n)) /
-        (detail::ONE + std::pow(alpha / detail::TWO, detail::ONE / static_cast<double>(n)));
-
-    const double ci_lower = max_val;
-    const double ci_upper = max_val + adjustment;
-
-    return {ci_lower, ci_upper};
-}
-
-std::tuple<double, double, bool> UniformDistribution::likelihoodRatioTest(
-    const std::vector<double>& data, double null_a, double null_b, double significance_level) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data cannot be empty");
-    }
-    if (null_a >= null_b) {
-        throw std::invalid_argument("null_a must be less than null_b");
-    }
-    if (significance_level <= detail::ZERO_DOUBLE || significance_level >= detail::ONE) {
-        throw std::invalid_argument("Significance level must be between 0 and 1");
-    }
-
-    const size_t n = data.size();
-    const double sample_min = *std::min_element(data.begin(), data.end());
-    const double sample_max = *std::max_element(data.begin(), data.end());
-
-    // Check if null hypothesis is feasible
-    if (sample_min < null_a || sample_max > null_b) {
-        // Data outside null hypothesis bounds - reject immediately
-        return {std::numeric_limits<double>::infinity(), detail::ZERO_DOUBLE, true};
-    }
-
-    // Log-likelihood under null hypothesis: n * log(1/(null_b - null_a))
-    const double log_like_null = static_cast<double>(n) * (-std::log(null_b - null_a));
-
-    // Log-likelihood under alternative (MLE): n * log(1/(sample_max - sample_min))
-    const double sample_range = sample_max - sample_min;
-    const double log_like_alt = (sample_range > 0)
-                                    ? static_cast<double>(n) * (-std::log(sample_range))
-                                    : detail::ZERO_DOUBLE;
-
-    // Likelihood ratio test statistic: -2 * (log L_0 - log L_1)
-    const double test_statistic = -detail::TWO * (log_like_null - log_like_alt);
-
-    // For large n, test statistic follows chi-square with 2 degrees of freedom
-    // Approximate p-value using chi-square distribution
-    const double p_value =
-        1.0 - (1.0 - std::exp(-test_statistic / detail::TWO));  // Simplified approximation
-
-    const bool reject_null = (p_value < significance_level);
-
-    return {test_statistic, p_value, reject_null};
-}
-
-std::pair<std::pair<double, double>, std::pair<double, double>>
-UniformDistribution::bayesianEstimation(const std::vector<double>& data,
-                                        [[maybe_unused]] double prior_a_shape,
-                                        [[maybe_unused]] double prior_a_scale,
-                                        [[maybe_unused]] double prior_b_shape,
-                                        [[maybe_unused]] double prior_b_scale) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data cannot be empty");
-    }
-
-    const double sample_min = *std::min_element(data.begin(), data.end());
-    const double sample_max = *std::max_element(data.begin(), data.end());
-    const size_t n = data.size();
-
-    // For uniform distribution with uniform priors on [a, b]:
-    // Posterior for 'a' given data: truncated at sample_min
-    // Posterior for 'b' given data: truncated at sample_max
-
-    // Simplified Bayesian update (assuming uniform priors)
-    const double posterior_a_mean =
-        sample_min - (sample_max - sample_min) / (static_cast<double>(n) + detail::TWO);
-    const double posterior_a_var = std::pow(sample_max - sample_min, 2) /
-                                   (detail::TWELVE * (static_cast<double>(n) + detail::TWO));
-
-    const double posterior_b_mean =
-        sample_max + (sample_max - sample_min) / (static_cast<double>(n) + detail::TWO);
-    const double posterior_b_var = std::pow(sample_max - sample_min, 2) /
-                                   (detail::TWELVE * (static_cast<double>(n) + detail::TWO));
-
-    // Return as (mean, std_dev) pairs
-    std::pair<double, double> posterior_a = {posterior_a_mean, std::sqrt(posterior_a_var)};
-    std::pair<double, double> posterior_b = {posterior_b_mean, std::sqrt(posterior_b_var)};
-
-    return {posterior_a, posterior_b};
-}
-
-std::pair<double, double> UniformDistribution::robustEstimation(const std::vector<double>& data,
-                                                                const std::string& estimator_type,
-                                                                double trim_proportion) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data cannot be empty");
-    }
-    if (trim_proportion < detail::ZERO_DOUBLE || trim_proportion >= detail::HALF) {
-        throw std::invalid_argument("Trim proportion must be in [0, detail::HALF)");
-    }
-
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
-    const size_t n = sorted_data.size();
-
-    if (estimator_type == "quantile") {
-        // Use empirical quantiles with small adjustments
-        const size_t lower_idx = static_cast<size_t>(trim_proportion * static_cast<double>(n));
-        const size_t upper_idx = n - 1 - lower_idx;
-
-        const double robust_a = sorted_data[lower_idx];
-        const double robust_b = sorted_data[upper_idx];
-
-        return {robust_a, robust_b};
-    } else if (estimator_type == "trimmed") {
-        // Trimmed mean approach - use trimmed range
-        const size_t trim_count = static_cast<size_t>(trim_proportion * static_cast<double>(n));
-        const size_t start_idx = trim_count;
-        const size_t end_idx = n - trim_count - 1;
-
-        if (start_idx >= end_idx) {
-            // Fallback to min/max if too much trimming
-            return {sorted_data.front(), sorted_data.back()};
-        }
-
-        const double robust_a = sorted_data[start_idx];
-        const double robust_b = sorted_data[end_idx];
-
-        return {robust_a, robust_b};
-    }
-
-    // Default: return min/max
-    return {sorted_data.front(), sorted_data.back()};
-}
-
-std::pair<double, double> UniformDistribution::methodOfMomentsEstimation(
-    const std::vector<double>& data) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data cannot be empty");
-    }
-
-    // For uniform distribution U(a,b):
-    // Mean = (a + b)/2
-    // Variance = (b - a)²/12
-    // From these: a = mean - sqrt(3*variance), b = mean + sqrt(3*variance)
-
-    const size_t n = data.size();
-    const double sum = std::accumulate(data.begin(), data.end(), detail::ZERO_DOUBLE);
-    const double mean = sum / static_cast<double>(n);
-
-    double variance = detail::ZERO_DOUBLE;
-    for (double x : data) {
-        variance += (x - mean) * (x - mean);
-    }
-    variance /= static_cast<double>(n - 1);  // Sample variance
-
-    const double range_estimate = std::sqrt(12.0 * variance);
-    const double a_estimate = mean - range_estimate / detail::TWO;
-    const double b_estimate = mean + range_estimate / detail::TWO;
-
-    return {a_estimate, b_estimate};
-}
-
-std::tuple<std::pair<double, double>, std::pair<double, double>>
-UniformDistribution::bayesianCredibleInterval(const std::vector<double>& data,
-                                              double credibility_level, double prior_a_shape,
-                                              double prior_a_scale, double prior_b_shape,
-                                              double prior_b_scale) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data cannot be empty");
-    }
-    if (credibility_level <= detail::ZERO_DOUBLE || credibility_level >= detail::ONE) {
-        throw std::invalid_argument("Credibility level must be between 0 and 1");
-    }
-
-    // Get Bayesian estimates
-    auto posterior_params =
-        bayesianEstimation(data, prior_a_shape, prior_a_scale, prior_b_shape, prior_b_scale);
-
-    const double alpha = detail::ONE - credibility_level;
-    [[maybe_unused]] const double tail_prob = alpha / detail::TWO;
-
-    // For simplicity, use normal approximation to posterior
-    const double z_score = detail::Z_95;  // Approximate 97.5th percentile of standard normal
-
-    // Credible interval for 'a'
-    const double a_mean = posterior_params.first.first;
-    const double a_std = posterior_params.first.second;
-    const double a_ci_lower = a_mean - z_score * a_std;
-    const double a_ci_upper = a_mean + z_score * a_std;
-
-    // Credible interval for 'b'
-    const double b_mean = posterior_params.second.first;
-    const double b_std = posterior_params.second.second;
-    const double b_ci_lower = b_mean - z_score * b_std;
-    const double b_ci_upper = b_mean + z_score * b_std;
-
-    std::pair<double, double> a_CI = {a_ci_lower, a_ci_upper};
-    std::pair<double, double> b_CI = {b_ci_lower, b_ci_upper};
-
-    return {a_CI, b_CI};
-}
-
-std::pair<double, double> UniformDistribution::lMomentsEstimation(const std::vector<double>& data) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data cannot be empty");
-    }
-
-    std::vector<double> sorted_data = data;
-    std::sort(sorted_data.begin(), sorted_data.end());
-    const size_t n = sorted_data.size();
-
-    // L-moments for uniform distribution:
-    // L1 = (a + b)/2 (location)
-    // L2 = (b - a)/6 (scale)
-
-    // Sample L-moments
-    double L1 = 0.0;  // Sample mean
-    for (double x : sorted_data) {
-        L1 += x;
-    }
-    L1 /= static_cast<double>(n);
-
-    // L2 calculation using order statistics
-    double L2 = detail::ZERO_DOUBLE;
-    for (size_t i = 0; i < n; ++i) {
-        const double weight =
-            (detail::TWO * static_cast<double>(i) - static_cast<double>(n) + 1.0) /
-            static_cast<double>(n);
-        L2 += weight * sorted_data[i];
-    }
-    L2 /= static_cast<double>(n);
-    L2 = std::abs(L2);  // L2 should be positive
-
-    // Invert the relationships: a = L1 - 3*L2, b = L1 + 3*L2
-    const double a_estimate = L1 - detail::THREE * L2;
-    const double b_estimate = L1 + detail::THREE * L2;
-
-    return {a_estimate, b_estimate};
-}
 
 std::tuple<double, double, bool> UniformDistribution::uniformityTest(
     const std::vector<double>& data, double significance_level) {
@@ -853,357 +606,17 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
 // 8. GOODNESS-OF-FIT TESTS
 //==========================================================================
 
-std::tuple<double, double, bool> UniformDistribution::kolmogorovSmirnovTest(
-    const std::vector<double>& data, const UniformDistribution& distribution, double alpha) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-
-    // Use the overflow-safe KS statistic calculation from math_utils
-    double ks_statistic = detail::calculate_ks_statistic(data, distribution);
-
-    const size_t n = data.size();
-
-    // Asymptotic critical value for KS test
-    double critical_value = std::sqrt(-detail::HALF * std::log(alpha / detail::TWO)) / std::sqrt(n);
-
-    // Asymptotic p-value approximation (Kolmogorov distribution)
-    double ks_stat_scaled = ks_statistic * std::sqrt(n);
-    double p_value = detail::TWO * std::exp(-detail::TWO * ks_stat_scaled * ks_stat_scaled);
-    p_value = std::max(0.0, std::min(1.0, p_value));  // Clamp to [0,1]
-
-    bool reject_null = (ks_statistic > critical_value);
-
-    return std::make_tuple(ks_statistic, p_value, reject_null);
-}
-
-std::tuple<double, double, bool> UniformDistribution::andersonDarlingTest(
-    const std::vector<double>& data, const UniformDistribution& distribution, double alpha) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    if (alpha <= detail::ZERO_DOUBLE || alpha >= detail::ONE) {
-        throw std::invalid_argument("Alpha must be between 0 and 1");
-    }
-
-    // Use the overflow-safe AD statistic calculation from math_utils
-    double ad_stat = detail::calculate_ad_statistic(data, distribution);
-
-    // Asymptotic critical values for Anderson-Darling test (approximate)
-    double critical_value;
-    if (alpha <= detail::ALPHA_01) {
-        critical_value = 3.857;
-    } else if (alpha <= detail::ALPHA_05) {
-        critical_value = 2.492;
-    } else if (alpha <= detail::ALPHA_10) {
-        critical_value = 1.933;
-    } else {
-        critical_value = 1.159;  // alpha = detail::QUARTER
-    }
-
-    // Better p-value approximation for Anderson-Darling test
-    // For the uniform distribution, we use a more accurate formula
-    double p_value;
-    if (ad_stat < detail::SMALL_EFFECT) {
-        p_value = detail::ONE - std::exp(-1.2804 * std::pow(ad_stat, -detail::HALF));
-    } else if (ad_stat < 0.34) {
-        p_value = detail::ONE - std::exp(-detail::LARGE_EFFECT * ad_stat - 0.26);
-    } else if (ad_stat < 0.6) {
-        p_value = std::exp(-0.9 * ad_stat - 0.16);
-    } else {
-        p_value = std::exp(-1.8 * ad_stat + 0.258);
-    }
-    p_value = std::max(0.0, std::min(1.0, p_value));  // Clamp to [0,1]
-
-    bool reject_null = (ad_stat > critical_value);
-
-    return std::make_tuple(ad_stat, p_value, reject_null);
-}
-
 //==========================================================================
 // 9. CROSS-VALIDATION METHODS
 //==========================================================================
-
-std::vector<std::tuple<double, double, double>> UniformDistribution::kFoldCrossValidation(
-    const std::vector<double>& data, int k, unsigned int random_seed) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    if (k <= 1) {
-        throw std::invalid_argument("Number of folds k must be greater than 1");
-    }
-
-    if (k > static_cast<int>(data.size())) {
-        throw std::invalid_argument("Number of folds k cannot exceed data size");
-    }
-
-    const size_t n = data.size();
-    std::vector<size_t> indices(n);
-    std::iota(indices.begin(), indices.end(), 0);
-
-    // Shuffle indices for random fold assignment
-    std::mt19937 rng(random_seed);
-    std::shuffle(indices.begin(), indices.end(), rng);
-
-    std::vector<std::tuple<double, double, double>> results;
-    results.reserve(static_cast<std::size_t>(k));
-
-    const size_t fold_size = n / static_cast<std::size_t>(k);
-    const size_t remainder = n % static_cast<std::size_t>(k);
-
-    for (int fold = 0; fold < k; ++fold) {
-        // Determine validation set indices for this fold
-        size_t start_idx = static_cast<std::size_t>(fold) * fold_size +
-                           std::min(static_cast<size_t>(fold), remainder);
-        size_t end_idx = start_idx + fold_size + (static_cast<size_t>(fold) < remainder ? 1 : 0);
-
-        // Split data into training and validation sets
-        std::vector<double> train_data, validation_data;
-        train_data.reserve(n - (end_idx - start_idx));
-        validation_data.reserve(end_idx - start_idx);
-
-        for (size_t i = 0; i < n; ++i) {
-            if (i >= start_idx && i < end_idx) {
-                validation_data.push_back(data[indices[i]]);
-            } else {
-                train_data.push_back(data[indices[i]]);
-            }
-        }
-
-        // Fit distribution to training data
-        if (train_data.size() < 2) {
-            results.emplace_back(std::numeric_limits<double>::infinity(),
-                                 std::numeric_limits<double>::infinity(),
-                                 -std::numeric_limits<double>::infinity());
-            continue;
-        }
-
-        auto train_minmax = std::minmax_element(train_data.begin(), train_data.end());
-        double train_a = *train_minmax.first;
-        double train_b = *train_minmax.second;
-
-        // Add small epsilon to ensure all training data is within bounds
-        double width = train_b - train_a;
-        double epsilon = std::max(detail::NEWTON_RAPHSON_TOLERANCE, width * detail::MIN_STD_DEV);
-        train_a -= epsilon;
-        train_b += epsilon;
-
-        UniformDistribution fitted_dist(train_a, train_b);
-
-        // Evaluate on validation data
-        std::vector<double> errors;
-        errors.reserve(validation_data.size());
-        double total_log_likelihood = detail::ZERO_DOUBLE;
-
-        for (double val : validation_data) {
-            // Prediction error (use mean as point prediction)
-            double predicted = fitted_dist.getMean();
-            double error = std::abs(val - predicted);
-            errors.push_back(error);
-
-            // Log likelihood
-            double log_prob = fitted_dist.getLogProbability(val);
-            total_log_likelihood +=
-                std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds
-        }
-
-        // Calculate metrics - MAE and RMSE
-        double mae = std::accumulate(errors.begin(), errors.end(), detail::ZERO_DOUBLE) /
-                     static_cast<double>(errors.size());
-
-        // Calculate RMSE = sqrt(mean(squared_errors))
-        double mse = detail::ZERO_DOUBLE;
-        for (double error : errors) {
-            mse += error * error;
-        }
-        mse /= static_cast<double>(errors.size());
-        double rmse = std::sqrt(mse);
-
-        results.emplace_back(mae, rmse, total_log_likelihood);
-    }
-
-    return results;
-}
-
-std::tuple<double, double, double> UniformDistribution::leaveOneOutCrossValidation(
-    const std::vector<double>& data) {
-    if (data.size() < 2) {
-        throw std::invalid_argument("Data must contain at least 2 elements for LOOCV");
-    }
-
-    const size_t n = data.size();
-    std::vector<double> errors;
-    errors.reserve(n);
-    double total_log_likelihood = detail::ZERO_DOUBLE;
-
-    for (size_t i = 0; i < n; ++i) {
-        // Create training set (all data except point i)
-        std::vector<double> train_data;
-        train_data.reserve(n - 1);
-
-        for (size_t j = 0; j < n; ++j) {
-            if (j != i) {
-                train_data.push_back(data[j]);
-            }
-        }
-
-        // Fit distribution to training data
-        auto train_minmax = std::minmax_element(train_data.begin(), train_data.end());
-        double train_a = *train_minmax.first;
-        double train_b = *train_minmax.second;
-
-        // Add small epsilon to ensure robustness
-        double width = train_b - train_a;
-        double epsilon = std::max(detail::NEWTON_RAPHSON_TOLERANCE, width * detail::MIN_STD_DEV);
-        train_a -= epsilon;
-        train_b += epsilon;
-
-        UniformDistribution fitted_dist(train_a, train_b);
-
-        // Evaluate on left-out point
-        double validation_point = data[i];
-
-        // Prediction error (use mean as point prediction)
-        double predicted = fitted_dist.getMean();
-        double error = std::abs(validation_point - predicted);
-        errors.push_back(error);
-
-        // Log likelihood
-        double log_prob = fitted_dist.getLogProbability(validation_point);
-        total_log_likelihood +=
-            std::isfinite(log_prob) ? log_prob : -1000.0;  // Penalty for out-of-bounds
-    }
-
-    // Calculate final metrics
-    double mae = std::accumulate(errors.begin(), errors.end(), detail::ZERO_DOUBLE) /
-                 static_cast<double>(errors.size());
-
-    double mse = detail::ZERO_DOUBLE;
-    for (double error : errors) {
-        mse += error * error;
-    }
-    mse /= static_cast<double>(errors.size());
-    double rmse = std::sqrt(mse);
-
-    return std::make_tuple(mae, rmse, total_log_likelihood);
-}
 
 //==========================================================================
 // 10. INFORMATION CRITERIA
 //==========================================================================
 
-std::tuple<double, double, double, double> UniformDistribution::computeInformationCriteria(
-    const std::vector<double>& data, const UniformDistribution& fitted_distribution) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    const size_t n = data.size();
-    const int k = 2;  // Number of parameters for uniform distribution (a, b)
-
-    // Compute log likelihood
-    double log_likelihood = detail::ZERO_DOUBLE;
-    for (double x : data) {
-        double log_prob = fitted_distribution.getLogProbability(x);
-        // Handle the case where data points are outside the distribution bounds
-        if (std::isfinite(log_prob)) {
-            log_likelihood += log_prob;
-        } else {
-            // Penalize data points outside bounds with a large negative value
-            log_likelihood += -1000.0;
-        }
-    }
-
-    // Compute information criteria
-    double aic = -detail::TWO * log_likelihood + detail::TWO * k;
-    double bic = -detail::TWO * log_likelihood + k * std::log(n);
-
-    // AICc (corrected AIC for small sample sizes)
-    double aicc = aic;
-    if (n > k + 1) {
-        aicc += (detail::TWO * k * (k + 1)) / static_cast<double>(n - k - 1);
-    }
-
-    return std::make_tuple(aic, bic, aicc, log_likelihood);
-}
-
 //==========================================================================
 // 11. BOOTSTRAP METHODS
 //==========================================================================
-
-std::tuple<std::pair<double, double>, std::pair<double, double>>
-UniformDistribution::bootstrapParameterConfidenceIntervals(const std::vector<double>& data,
-                                                           double confidence_level, int n_bootstrap,
-                                                           unsigned int random_seed) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector cannot be empty");
-    }
-
-    if (confidence_level <= detail::ZERO_DOUBLE || confidence_level >= detail::ONE) {
-        throw std::invalid_argument("Confidence level must be between 0 and 1");
-    }
-
-    if (n_bootstrap <= 0) {
-        throw std::invalid_argument("Number of bootstrap samples must be positive");
-    }
-
-    const size_t n = data.size();
-    std::mt19937 rng(random_seed);
-    std::uniform_int_distribution<size_t> index_dist(0, n - 1);
-
-    std::vector<double> bootstrap_a_estimates;
-    std::vector<double> bootstrap_b_estimates;
-    bootstrap_a_estimates.reserve(static_cast<std::size_t>(n_bootstrap));
-    bootstrap_b_estimates.reserve(static_cast<std::size_t>(n_bootstrap));
-
-    for (int boot = 0; boot < n_bootstrap; ++boot) {
-        // Generate bootstrap sample
-        std::vector<double> bootstrap_sample;
-        bootstrap_sample.reserve(n);
-
-        for (size_t i = 0; i < n; ++i) {
-            bootstrap_sample.push_back(data[index_dist(rng)]);
-        }
-
-        // Estimate parameters from bootstrap sample
-        auto minmax = std::minmax_element(bootstrap_sample.begin(), bootstrap_sample.end());
-        double boot_a = *minmax.first;
-        double boot_b = *minmax.second;
-
-        bootstrap_a_estimates.push_back(boot_a);
-        bootstrap_b_estimates.push_back(boot_b);
-    }
-
-    // Sort estimates for percentile method
-    std::sort(bootstrap_a_estimates.begin(), bootstrap_a_estimates.end());
-    std::sort(bootstrap_b_estimates.begin(), bootstrap_b_estimates.end());
-
-    // Calculate confidence intervals using percentile method
-    double alpha = detail::ONE - confidence_level;
-    double lower_percentile = alpha / detail::TWO;
-    double upper_percentile = detail::ONE - alpha / detail::TWO;
-
-    size_t lower_idx = static_cast<size_t>(std::floor(lower_percentile * (n_bootstrap - 1)));
-    size_t upper_idx = static_cast<size_t>(std::ceil(upper_percentile * (n_bootstrap - 1)));
-
-    // Ensure indices are within bounds
-    lower_idx = std::min(lower_idx, static_cast<size_t>(n_bootstrap - 1));
-    upper_idx = std::min(upper_idx, static_cast<size_t>(n_bootstrap - 1));
-
-    std::pair<double, double> a_ci = {bootstrap_a_estimates[lower_idx],
-                                      bootstrap_a_estimates[upper_idx]};
-
-    std::pair<double, double> b_ci = {bootstrap_b_estimates[lower_idx],
-                                      bootstrap_b_estimates[upper_idx]};
-
-    return std::make_tuple(a_ci, b_ci);
-}
 
 //==========================================================================
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
@@ -1212,7 +625,7 @@ UniformDistribution::bootstrapParameterConfidenceIntervals(const std::vector<dou
 // Inline utility methods moved from header for PIMPL optimization
 // These retain 'inline' hint to allow compiler optimization while reducing header bloat
 
-double UniformDistribution::getRange() const noexcept {
+double UniformDistribution::getRange() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return b_ - a_;  // Direct subtraction is most efficient
 }
@@ -1222,7 +635,7 @@ bool UniformDistribution::contains(double x) const noexcept {
     return x >= a_ && x <= b_;
 }
 
-double UniformDistribution::getEntropy() const noexcept {
+double UniformDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return std::log(b_ - a_);  // ln(range)
 }
@@ -1238,12 +651,12 @@ bool UniformDistribution::isSymmetricAroundZero() const noexcept {
     return std::abs(a_ + b_) <= detail::DEFAULT_TOLERANCE;
 }
 
-double UniformDistribution::getMedian() const noexcept {
+double UniformDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return (a_ + b_) / 2.0;
 }
 
-double UniformDistribution::getMode() const noexcept {
+double UniformDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return (a_ + b_) / 2.0;
 }
@@ -1260,8 +673,7 @@ double UniformDistribution::getMidpoint() const noexcept {
 void UniformDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                          const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::OperationType::PDF,
+        *this, values, results, hint, detail::OperationType::PDF,
         [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
             // Use the unsafe implementation directly since batch methods were removed
@@ -1272,9 +684,15 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                 if (!dist.cache_valid_) {
                     dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_a = dist.a_;
+                const double cached_b = dist.b_;
+                const double cached_inv_width = dist.invWidth_;
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
+                                                   cached_inv_width);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_inv_width = dist.invWidth_;
@@ -1292,23 +710,25 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_inv_width;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -1337,23 +757,25 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_inv_width;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -1367,8 +789,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                                             std::span<double> results,
                                             const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::OperationType::LOG_PDF,
+        *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
             // Use the unsafe implementation directly since batch methods were removed
@@ -1379,9 +800,15 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                 if (!dist.cache_valid_) {
                     dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_a = dist.a_;
+                const double cached_b = dist.b_;
+                const double cached_log_inv_width = -std::log(dist.width_);
+                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
+                                                      cached_log_inv_width);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_log_inv_width = -std::log(dist.width_);
@@ -1399,24 +826,28 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_log_inv_width;
+            bool cached_is_unit_interval;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_is_unit_interval = dist.isUnitInterval_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -1455,24 +886,28 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_log_inv_width;
+            bool cached_is_unit_interval;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_is_unit_interval = dist.isUnitInterval_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -1492,8 +927,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                                                    std::span<double> results,
                                                    const detail::PerformanceHint& hint) const {
     detail::DispatchUtils::autoDispatch(
-        *this, values, results, hint, detail::DistributionTraits<UniformDistribution>::distType(),
-        detail::OperationType::CDF,
+        *this, values, results, hint, detail::OperationType::CDF,
         [](const UniformDistribution& dist, double value) {
             return dist.getCumulativeProbability(value);
         },
@@ -1506,9 +940,15 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                 if (!dist.cache_valid_) {
                     dist.updateCacheUnsafe();
                 }
-                ulock.unlock();
-                lock.lock();
+                // Snapshot under unique_lock — eliminates TOCTOU gap.
+                const double cached_a = dist.a_;
+                const double cached_b = dist.b_;
+                const double cached_inv_width = dist.invWidth_;
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
+                                                             cached_inv_width);
+                return;
             }
+            // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
             const double cached_inv_width = dist.invWidth_;
@@ -1526,24 +966,28 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_inv_width;
+            bool cached_is_unit_interval;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                    cached_is_unit_interval = dist.isUnitInterval_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -1586,24 +1030,28 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             if (count == 0)
                 return;
 
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
+            double cached_a, cached_b, cached_inv_width;
+            bool cached_is_unit_interval;
+            {
+                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution&>(dist).updateCacheUnsafe();
+                    lock.unlock();
+                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
+                    if (!dist.cache_valid_) {
+                        dist.updateCacheUnsafe();
+                    }
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                    cached_is_unit_interval = dist.isUnitInterval_;
+                } else {
+                    cached_a = dist.a_;
+                    cached_b = dist.b_;
+                    cached_inv_width = dist.invWidth_;
+                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
-                ulock.unlock();
-                lock.lock();
             }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -1624,318 +1072,6 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
 //==============================================================================
 // 14. EXPLICIT STRATEGY BATCH METHODS (Power User Interface)
 //==============================================================================
-
-void UniformDistribution::getProbabilityWithStrategy(std::span<const double> values,
-                                                     std::span<double> results,
-                                                     detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const UniformDistribution& dist, double value) { return dist.getProbability(value); },
-        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            // Use the unsafe implementation directly since batch methods were removed
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    dist.updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
-            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
-                                               cached_inv_width);
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
-
-            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width
-                                                                      : detail::ZERO_DOUBLE;
-            });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = (vals[i] >= cached_a && vals[i] <= cached_b) ? cached_inv_width
-                                                                      : detail::ZERO_DOUBLE;
-            });
-        });
-}
-
-void UniformDistribution::getLogProbabilityWithStrategy(std::span<const double> values,
-                                                        std::span<double> results,
-                                                        detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const UniformDistribution& dist, double value) { return dist.getLogProbability(value); },
-        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            // Use the unsafe implementation directly since batch methods were removed
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    dist.updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            lock.unlock();
-            dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
-                                                  cached_log_inv_width);
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
-
-            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < cached_a || vals[i] > cached_b) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_interval) {
-                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                } else {
-                    res[i] = cached_log_inv_width;
-                }
-            });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < cached_a || vals[i] > cached_b) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_interval) {
-                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                } else {
-                    res[i] = cached_log_inv_width;
-                }
-            });
-        });
-}
-
-void UniformDistribution::getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                                               std::span<double> results,
-                                                               detail::Strategy strategy) const {
-    detail::DispatchUtils::executeWithStrategy(
-        *this, values, results, strategy,
-        [](const UniformDistribution& dist, double value) {
-            return dist.getCumulativeProbability(value);
-        },
-        [](const UniformDistribution& dist, const double* vals, double* res, size_t count) {
-            // Use the unsafe implementation directly since batch methods were removed
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    dist.updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            lock.unlock();
-            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
-                                                         cached_inv_width);
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe parallel access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
-
-            // Execute parallel strategy directly - no threshold checks for WithStrategy power users
-            ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < cached_a) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (vals[i] > cached_b) {
-                    res[i] = detail::ONE;
-                } else if (cached_is_unit_interval) {
-                    res[i] = vals[i];  // CDF(x) = x for U(0,1)
-                } else {
-                    res[i] = (vals[i] - cached_a) * cached_inv_width;
-                }
-            });
-        },
-        [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
-           WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
-                throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
-            const std::size_t count = vals.size();
-            if (count == 0)
-                return;
-
-            // Ensure cache is valid
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    const_cast<UniformDistribution*>(&dist)->updateCacheUnsafe();
-                }
-                ulock.unlock();
-                lock.lock();
-            }
-
-            // Cache parameters for thread-safe work-stealing access
-            const double cached_a = dist.a_;
-            const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
-            const bool cached_is_unit_interval = dist.isUnitInterval_;
-            lock.unlock();
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < cached_a) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (vals[i] > cached_b) {
-                    res[i] = detail::ONE;
-                } else if (cached_is_unit_interval) {
-                    res[i] = vals[i];  // CDF(x) = x for U(0,1)
-                } else {
-                    res[i] = (vals[i] - cached_a) * cached_inv_width;
-                }
-            });
-        });
-}
 
 //==============================================================================
 // 15. COMPARISON OPERATORS

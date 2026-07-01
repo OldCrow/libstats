@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools,
 // adaptive caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -51,7 +50,7 @@ namespace stats {
  * // Two-sample t-test: t(ν=18) with ν = n1+n2-2 degrees of freedom
  * auto result = StudentTDistribution::create(18.0);
  * if (result.isOk()) {
- *     auto& t_dist = result.value;
+ *     auto& t_dist = result.unwrap();
  *
  *     double t_stat = 2.8;
  *     double p_value = 2.0 * (1.0 - t_dist.getCumulativeProbability(std::abs(t_stat)));
@@ -70,10 +69,16 @@ namespace stats {
  * - **Finance**: Fat-tailed return modelling
  *
  * @author libstats Development Team
- * @version 1.1.0
- * @since 1.0.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class StudentTDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<StudentTDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::STUDENT_T;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -97,8 +102,8 @@ class StudentTDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     StudentTDistribution(StudentTDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    StudentTDistribution& operator=(StudentTDistribution&& other);
+    /** @brief Move assignment operator. Implementation in .cpp. */
+    StudentTDistribution& operator=(StudentTDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~StudentTDistribution() override = default;
@@ -112,11 +117,11 @@ class StudentTDistribution : public DistributionBase {
      * @param nu Degrees of freedom (must be positive)
      * @return Result containing either a valid StudentTDistribution or error info
      */
-    [[nodiscard]] static Result<StudentTDistribution> create(double nu = detail::ONE) noexcept {
+    [[nodiscard]] static Result<StudentTDistribution> create(double nu = detail::ONE) {
         auto validation = validateStudentTParameters(nu);
         if (validation.isError()) {
-            return Result<StudentTDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<StudentTDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
         return Result<StudentTDistribution>::ok(createUnchecked(nu));
     }
@@ -147,23 +152,23 @@ class StudentTDistribution : public DistributionBase {
     void setParameters(double nu) { setNu(nu); }
 
     /** @brief Mean = 0 for ν > 1; NaN otherwise. */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = ν/(ν−2) for ν > 2; +∞ for 1 < ν ≤ 2; NaN for ν ≤ 1. */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness = 0 for ν > 3; NaN otherwise. */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis = 6/(ν−4) for ν > 4; NaN otherwise. */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 1). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 1; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "StudentTDistribution";
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "StudentT";
     }
 
     /** @brief Student's t is continuous. */
@@ -208,7 +213,7 @@ class StudentTDistribution : public DistributionBase {
     /**
      * @brief Log-PDF at x: log_norm_const − (ν+1)/2 · log(1+x²/ν)
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via detail::t_cdf(x, ν) (regularized incomplete beta).
@@ -277,7 +282,7 @@ class StudentTDistribution : public DistributionBase {
     /**
      * @brief Median (always 0 by symmetry).
      */
-    [[nodiscard]] double getMedian() const noexcept { return detail::ZERO_DOUBLE; }
+    [[nodiscard]] double getMedian() const noexcept override { return detail::ZERO_DOUBLE; }
 
     /**
      * @brief Mode (always 0).
@@ -304,23 +309,6 @@ class StudentTDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -384,18 +372,11 @@ class StudentTDistribution : public DistributionBase {
     // 21. PRIVATE VALIDATION METHODS
     //==========================================================================
 
+    // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double nu) {
-        if (std::isnan(nu) || std::isinf(nu) || nu <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Degrees of freedom nu must be a positive finite number");
-        }
-    }
-
-    [[nodiscard]] static VoidResult validateStudentTParameters(double nu) noexcept {
-        if (std::isnan(nu) || std::isinf(nu) || nu <= detail::ZERO_DOUBLE) {
-            return VoidResult::makeError(ValidationError::InvalidParameter,
-                                         "Degrees of freedom nu must be a positive finite number");
-        }
-        return VoidResult::ok(true);
+        auto v = ::stats::validateStudentTParameters(nu);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -448,7 +429,6 @@ class StudentTDistribution : public DistributionBase {
     mutable bool isVarianceDefined_{false};
 
     /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 };
 
 }  // namespace stats

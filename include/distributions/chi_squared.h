@@ -5,7 +5,6 @@
 
 // Consolidated distribution platform headers (SIMD, parallel execution, thread pools, adaptive
 // caching, etc.)
-#include "libstats/common/distribution_platform_common.h"
 
 // Chi-squared is a thin delegation wrapper over GammaDistribution
 #include "gamma.h"
@@ -49,6 +48,21 @@ namespace stats {
  *   on distinct objects; acquiring the outer lock and then calling `gamma_`'s setters (which
  *   acquire the inner lock) has no lock-ordering conflict because `gamma_` is private and
  *   never exposed to external code
+ * - ChiSquaredDistribution has **no** `atomicParamsValid_` member and no per-parameter atomic
+ *   copies of its own. The atomic fast-path is provided entirely by `gamma_`'s own atomics.
+ *   If a `getKAtomic()` fast-path is ever added, `atomicParamsValid_` and corresponding atomic
+ *   storage must be added and invalidated in `setK`, `trySetK`, and `reset()`.
+ *
+ * @par Implementation Notes for Contributors:
+ * - **Two-phase setters**: `setK` / `trySetK` release the ChiSquaredDistribution lock *before*
+ *   calling `gamma_.trySetAlpha()`. Do not collapse into a single locked block — that would
+ *   acquire two mutexes simultaneously without a defined ordering convention.
+ * - **`updateCacheUnsafe()` is a sync trigger, not a computation**: it calls
+ *   `gamma_.trySetAlpha(k_/2)` and sets `cache_valid_ = true`. All parameter derivation
+ *   happens inside `gamma_`; ChiSquared itself caches nothing.
+ * - **`k_` is a redundant API copy** of `gamma_.getAlpha() * 2`, kept for O(1) reads via
+ *   `getK()` without entering `gamma_`'s mutex. Every setter and `reset()` must keep the
+ *   invariant `k_ == gamma_.getAlpha() * 2`.
  *
  * @par Performance:
  * Batch operations (SIMD/parallel) run through GammaDistribution's dispatch infrastructure,
@@ -59,7 +73,7 @@ namespace stats {
  * // Goodness-of-fit test: compare test statistic to chi-squared critical value
  * auto result = ChiSquaredDistribution::create(5.0);  // 5 degrees of freedom
  * if (result.isOk()) {
- *     auto& chi2 = result.value;
+ *     auto& chi2 = result.unwrap();
  *
  *     double test_statistic = 11.07;
  *     double p_value = 1.0 - chi2.getCumulativeProbability(test_statistic);
@@ -86,10 +100,16 @@ namespace stats {
  * - Moment generating function: (1 - 2t)^(-k/2) for t < 1/2
  *
  * @author libstats Development Team
- * @version 1.1.0
- * @since 1.0.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class ChiSquaredDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<ChiSquaredDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::CHI_SQUARED;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -126,9 +146,9 @@ class ChiSquaredDistribution : public DistributionBase {
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: thread-safe move with deadlock prevention.
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
-    ChiSquaredDistribution& operator=(ChiSquaredDistribution&& other);
+    ChiSquaredDistribution& operator=(ChiSquaredDistribution&& other) noexcept;
 
     /**
      * @brief Destructor — explicitly defaulted to satisfy Rule of Five.
@@ -145,11 +165,11 @@ class ChiSquaredDistribution : public DistributionBase {
      * @param k Degrees of freedom (must be positive)
      * @return Result containing either a valid ChiSquaredDistribution or error info
      */
-    [[nodiscard]] static Result<ChiSquaredDistribution> create(double k = detail::ONE) noexcept {
+    [[nodiscard]] static Result<ChiSquaredDistribution> create(double k = detail::ONE) {
         auto validation = validateChiSquaredParameters(k);
         if (validation.isError()) {
-            return Result<ChiSquaredDistribution>::makeError(validation.error_code,
-                                                             validation.message);
+            return Result<ChiSquaredDistribution>::makeError(validation.errorCode(),
+                                                             validation.message());
         }
         return Result<ChiSquaredDistribution>::ok(createUnchecked(k));
     }
@@ -224,8 +244,8 @@ class ChiSquaredDistribution : public DistributionBase {
     /**
      * @brief Get the distribution name.
      */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "ChiSquaredDistribution";
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "ChiSquared";
     }
 
     /**
@@ -361,12 +381,12 @@ class ChiSquaredDistribution : public DistributionBase {
      * @brief Entropy of the distribution — delegates to GammaDistribution.
      * H = k/2 + log(2) + log(Γ(k/2)) + (1 - k/2)ψ(k/2)
      */
-    [[nodiscard]] double getEntropy() const override { return gamma_.getEntropy(); }
+    [[nodiscard]] double getEntropy() const noexcept override { return gamma_.getEntropy(); }
 
     /**
      * @brief Median — delegates to GammaDistribution (numerical, via quantile).
      */
-    [[nodiscard]] double getMedian() const noexcept { return gamma_.getMedian(); }
+    [[nodiscard]] double getMedian() const override { return gamma_.getMedian(); }
 
     /**
      * @brief Mode = max(k - 2, 0) — delegates to GammaDistribution.
@@ -402,32 +422,6 @@ class ChiSquaredDistribution : public DistributionBase {
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const {
         gamma_.getCumulativeProbability(values, results, hint);
-    }
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS — delegated to gamma_
-    //==========================================================================
-
-    /** @brief Explicit-strategy batch PDF — delegates to GammaDistribution. */
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const {
-        gamma_.getProbabilityWithStrategy(values, results, strategy);
-    }
-
-    /** @brief Explicit-strategy batch log-PDF — delegates to GammaDistribution. */
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const {
-        gamma_.getLogProbabilityWithStrategy(values, results, strategy);
-    }
-
-    /** @brief Explicit-strategy batch CDF — delegates to GammaDistribution. */
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const {
-        gamma_.getCumulativeProbabilityWithStrategy(values, results, strategy);
     }
 
     //==========================================================================
@@ -474,11 +468,13 @@ class ChiSquaredDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief Sync gamma_ with current k_ and mark cache valid.
+     * @brief Sync `gamma_` with current `k_` and mark cache valid.
      *
-     * Called from within a held unique_lock on cache_mutex_.
-     * Acquires gamma_'s own mutex internally via trySetAlpha — no lock-ordering
-     * conflict because gamma_ is private and never locked by external code.
+     * Unlike regular distributions, this does not compute anything locally.
+     * It calls `gamma_.trySetAlpha(k_ / 2)` (which updates `gamma_`'s own internals)
+     * then sets `cache_valid_ = true` and `cacheValidAtomic_ = true` on this object.
+     * Called from within a held unique_lock on `cache_mutex_`; acquires `gamma_`'s
+     * own mutex internally — no lock-ordering conflict since `gamma_` is private.
      */
     void updateCacheUnsafe() const noexcept override;
 
@@ -491,21 +487,11 @@ class ChiSquaredDistribution : public DistributionBase {
      * @param k Degrees of freedom (must be positive and finite)
      * @throws std::invalid_argument if invalid
      */
+    // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double k) {
-        if (std::isnan(k) || std::isinf(k) || k <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Degrees of freedom k must be a positive finite number");
-        }
-    }
-
-    /**
-     * @brief Result-based parameter validation (no-throw).
-     */
-    [[nodiscard]] static VoidResult validateChiSquaredParameters(double k) noexcept {
-        if (std::isnan(k) || std::isinf(k) || k <= detail::ZERO_DOUBLE) {
-            return VoidResult::makeError(ValidationError::InvalidParameter,
-                                         "Degrees of freedom k must be a positive finite number");
-        }
-        return VoidResult::ok(true);
+        auto v = ::stats::validateChiSquaredParameters(k);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -519,7 +505,13 @@ class ChiSquaredDistribution : public DistributionBase {
     // 23. DISTRIBUTION PARAMETERS
     //==========================================================================
 
-    /** @brief Degrees of freedom k — must be positive. */
+    /**
+     * @brief Degrees of freedom k — must be positive.
+     *
+     * Redundant API copy of `gamma_.getAlpha() * 2`. Exists for O(1) locked reads
+     * without entering `gamma_`'s mutex. The invariant `k_ == gamma_.getAlpha() * 2`
+     * must hold after every setter and `reset()`.
+     */
     double k_{detail::ONE};
 
     //==========================================================================

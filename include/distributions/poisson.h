@@ -4,7 +4,6 @@
 #include "libstats/common/distribution_common.h"
 
 // Common platform headers for distributions (consolidates shared platform dependencies)
-#include "libstats/common/distribution_platform_common.h"
 
 // Additional standard headers specific to Poisson
 #include <array>  // For precomputed factorials
@@ -56,12 +55,12 @@ namespace stats {
  * // Customer arrivals (average 3 per hour)
  * auto result = PoissonDistribution::create(3.0);
  * if (result.isOk()) {
- *     auto arrivals = std::move(result.value);
+ *     auto arrivals = std::move(result.unwrap());
  *
  *     // Network packet errors (average 0.1 per second)
  *     auto errorResult = PoissonDistribution::create(0.1);
  *     if (errorResult.isOk()) {
- *         auto errors = std::move(errorResult.value);
+ *         auto errors = std::move(errorResult.unwrap());
  *
  *         // Fit to observed count data
  *         std::vector<double> counts = {2, 1, 4, 3, 2, 5, 1, 3, 2, 4};
@@ -121,10 +120,15 @@ namespace stats {
  * - Specialized algorithms for different λ ranges
  *
  * @author libstats Development Team
- * @version 1.1.0
- * @since 1.0.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class PoissonDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<PoissonDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::POISSON;
+    static constexpr bool kIsDiscrete = true;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -159,16 +163,16 @@ class PoissonDistribution : public DistributionBase {
     /**
      * @brief Move constructor (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with locking for legacy compatibility
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
-    PoissonDistribution(PoissonDistribution&& other);
+    PoissonDistribution(PoissonDistribution&& other) noexcept;
 
     /**
      * @brief Move assignment operator (DEFENSIVE THREAD SAFETY)
      * Implementation in .cpp: Thread-safe move with deadlock prevention
-     * @warning NOT noexcept due to potential lock acquisition exceptions
+     *
      */
-    PoissonDistribution& operator=(PoissonDistribution&& other);
+    PoissonDistribution& operator=(PoissonDistribution&& other) noexcept;
 
     /**
      * @brief Destructor - explicitly defaulted to satisfy Rule of Five
@@ -187,9 +191,8 @@ class PoissonDistribution : public DistributionBase {
     /**
      * @brief Safely create a Poisson distribution without throwing exceptions
      *
-     * This factory method provides exception-free construction to work around
-     * ABI compatibility issues with Homebrew LLVM libc++ on macOS where
-     * exceptions thrown from the library cause segfaults during unwinding.
+     * This factory method provides exception-free construction.
+     * See `error_handling.h` for the Result<T> design rationale.
      *
      * @param lambda Rate parameter λ (must be positive)
      * @return Result containing either a valid PoissonDistribution or error info
@@ -198,18 +201,18 @@ class PoissonDistribution : public DistributionBase {
      * @code
      * auto result = PoissonDistribution::create(2.5);
      * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
+     *     auto distribution = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<PoissonDistribution> create(double lambda = detail::ONE) noexcept {
+    [[nodiscard]] static Result<PoissonDistribution> create(double lambda = detail::ONE) {
         auto validation = validatePoissonParameters(lambda);
         if (validation.isError()) {
-            return Result<PoissonDistribution>::makeError(validation.error_code,
-                                                          validation.message);
+            return Result<PoissonDistribution>::makeError(validation.errorCode(),
+                                                          validation.message());
         }
 
         // Use private factory to bypass validation
@@ -284,7 +287,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Mean value (equals λ)
      */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /**
      * Gets the variance of the distribution.
@@ -293,7 +296,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Variance value (equals λ)
      */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /**
      * @brief Gets the skewness of the distribution.
@@ -302,7 +305,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Skewness value (1/√λ)
      */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /**
      * @brief Gets the kurtosis of the distribution.
@@ -311,7 +314,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Excess kurtosis value (1/λ)
      */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /**
      * @brief Gets the number of parameters for this distribution.
@@ -328,7 +331,9 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string getDistributionName() const override;
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Poisson";
+    }
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -411,7 +416,7 @@ class PoissonDistribution : public DistributionBase {
      * integer)
      * @return Natural logarithm of the probability mass, or -∞ for negative values
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * Evaluates the CDF at x using the regularized incomplete gamma function.
@@ -508,89 +513,6 @@ class PoissonDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound) for λ
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty
      */
-    [[nodiscard]] static std::pair<double, double> confidenceIntervalRate(
-        const std::vector<double>& data, double confidence_level = 0.95);
-
-    /**
-     * @brief Likelihood ratio test for rate parameter
-     *
-     * Tests H0: λ = λ0 vs H1: λ ≠ λ0 using likelihood ratio statistic.
-     *
-     * @param data Vector of observed count data
-     * @param lambda0 Null hypothesis value for λ
-     * @param significance_level Significance level for test
-     * @return Tuple of (test_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> likelihoodRatioTest(
-        const std::vector<double>& data, double lambda0, double significance_level = 0.05);
-
-    /**
-     * @brief Bayesian estimation with conjugate Gamma prior
-     *
-     * Uses Gamma(α, β) prior for λ. Posterior is Gamma(α + Σx_i, β + n).
-     * Returns posterior parameters for the conjugate Gamma distribution.
-     *
-     * @param data Vector of observed count data
-     * @param prior_shape Prior shape parameter α (default: 1.0)
-     * @param prior_rate Prior rate parameter β (default: 1.0)
-     * @return Pair of (posterior_shape, posterior_rate)
-     */
-    [[nodiscard]] static std::pair<double, double> bayesianEstimation(
-        const std::vector<double>& data, double prior_shape = 1.0, double prior_rate = 1.0);
-
-    /**
-     * @brief Method of moments estimation
-     *
-     * For Poisson distribution, method of moments estimator is simply the sample mean.
-     * Included for completeness and consistency with other distributions.
-     *
-     * @param data Vector of observed count data
-     * @return Estimated λ parameter (sample mean)
-     * @throws std::invalid_argument if data is empty
-     */
-    [[nodiscard]] static double methodOfMomentsEstimation(const std::vector<double>& data);
-
-    /**
-     * @brief Bayesian credible interval from conjugate Gamma posterior
-     *
-     * Calculates Bayesian credible interval for rate parameter λ
-     * from posterior Gamma distribution after observing count data.
-     *
-     * @param data Vector of observed count data
-     * @param credibility_level Credibility level (e.g., 0.95 for 95%)
-     * @param prior_shape Prior shape parameter α (default: 1.0)
-     * @param prior_rate Prior rate parameter β (default: 1.0)
-     * @return Pair of (lower_bound, upper_bound)
-     */
-    [[nodiscard]] static std::pair<double, double> bayesianCredibleInterval(
-        const std::vector<double>& data, double credibility_level = 0.95, double prior_shape = 1.0,
-        double prior_rate = 1.0);
-
-    /**
-     * @brief Robust estimation of rate parameter using M-estimators
-     *
-     * Provides robust estimation of λ that is less sensitive to outliers
-     * than maximum likelihood. Uses trimmed means or Winsorized estimation.
-     *
-     * @param data Vector of observed count data
-     * @param estimator_type Type of robust estimator ("winsorized", "trimmed", "median")
-     * @param trim_proportion Proportion to trim/winsorize (default: 0.1)
-     * @return Robust rate parameter estimate
-     */
-    [[nodiscard]] static double robustEstimation(const std::vector<double>& data,
-                                                 const std::string& estimator_type = "winsorized",
-                                                 double trim_proportion = 0.1);
-
-    /**
-     * @brief L-moments parameter estimation
-     *
-     * Uses L-moments (linear combinations of order statistics) for robust
-     * parameter estimation. For Poisson: λ = L₁ (first L-moment = mean).
-     *
-     * @param data Vector of observed count data
-     * @return Rate parameter estimate from L-moments
-     */
-    [[nodiscard]] static double lMomentsEstimation(const std::vector<double>& data);
 
     /**
      * @brief Overdispersion test for Poisson vs Negative Binomial
@@ -602,8 +524,6 @@ class PoissonDistribution : public DistributionBase {
      * @param significance_level Significance level for test (default: 0.05)
      * @return Tuple of (test_statistic, p_value, is_overdispersed)
      */
-    [[nodiscard]] static std::tuple<double, double, bool> overdispersionTest(
-        const std::vector<double>& data, double significance_level = 0.05);
 
     /**
      * @brief Test for excess zeros in count data
@@ -615,72 +535,12 @@ class PoissonDistribution : public DistributionBase {
      * @param significance_level Significance level for test (default: 0.05)
      * @return Tuple of (test_statistic, p_value, has_excess_zeros)
      */
-    [[nodiscard]] static std::tuple<double, double, bool> excessZerosTest(
-        const std::vector<double>& data, double significance_level = 0.05);
-
-    /**
-     * @brief Rate stability test for time series count data
-     *
-     * Tests whether the Poisson rate parameter λ remains constant over time
-     * or exhibits trends/changes. Useful for quality control applications.
-     *
-     * @param data Vector of observed count data (assumed chronologically ordered)
-     * @param significance_level Significance level for test (default: 0.05)
-     * @return Tuple of (test_statistic, p_value, rate_is_stable)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> rateStabilityTest(
-        const std::vector<double>& data, double significance_level = 0.05);
+    // excessZerosTest, rateStabilityTest, chiSquareGoodnessOfFit moved to
+    // stats::analysis::poisson (include/stats/analysis/poisson_analysis.h) in v2.0.0.
 
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
-
-    /**
-     * @brief Kolmogorov-Smirnov test adapted for discrete distributions
-     *
-     * Tests goodness-of-fit using the maximum difference between empirical
-     * and theoretical CDFs, with adjustments for discrete distributions.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Hypothesized Poisson distribution
-     * @param significance_level Significance level for test
-     * @return Tuple of (ks_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> kolmogorovSmirnovTest(
-        const std::vector<double>& data, const PoissonDistribution& distribution,
-        double significance_level = 0.05);
-
-    /**
-     * @brief Anderson-Darling test adapted for discrete Poisson distributions
-     *
-     * Tests goodness-of-fit using a weighted sum of squared differences between
-     * empirical and theoretical CDFs. More sensitive to tail deviations than KS test.
-     * Uses discrete adaptation with appropriate critical values for Poisson distributions.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Hypothesized Poisson distribution
-     * @param significance_level Significance level for test (default: 0.05)
-     * @return Tuple of (ad_statistic, p_value, reject_null)
-     * @note Uses asymptotic p-value approximation adapted for discrete Poisson case
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> andersonDarlingTest(
-        const std::vector<double>& data, const PoissonDistribution& distribution,
-        double significance_level = 0.05);
-
-    /**
-     * @brief Chi-square goodness-of-fit test for Poisson distribution
-     *
-     * Tests whether observed data follows the specified Poisson distribution.
-     * Groups rare events to ensure expected frequencies ≥ 5 for valid chi-square test.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Hypothesized Poisson distribution
-     * @param significance_level Significance level for test
-     * @return Tuple of (chi_square_statistic, p_value, reject_null)
-     */
-    [[nodiscard]] static std::tuple<double, double, bool> chiSquareGoodnessOfFit(
-        const std::vector<double>& data, const PoissonDistribution& distribution,
-        double significance_level = 0.05);
 
     /**
      * @brief Comprehensive Poisson goodness-of-fit test
@@ -694,78 +554,9 @@ class PoissonDistribution : public DistributionBase {
      * @param significance_level Significance level for tests (default: 0.05)
      * @return Tuple of (combined_statistic, combined_p_value, follows_poisson)
      */
-    [[nodiscard]] static std::tuple<double, double, bool> comprehensiveGoodnessOfFitTest(
-        const std::vector<double>& data, double significance_level = 0.05);
 
     //==========================================================================
     // 9. CROSS-VALIDATION METHODS
-    //==========================================================================
-
-    /**
-     * @brief K-fold cross-validation for model assessment
-     *
-     * Splits data into k folds, fits Poisson distribution to k-1 folds,
-     * and evaluates on the remaining fold. Reports performance metrics.
-     *
-     * @param data Vector of observed count data
-     * @param k Number of folds (default: 5)
-     * @param random_seed Seed for random fold assignment
-     * @return Vector of (mae, rmse, log_likelihood) for each fold
-     */
-    [[nodiscard]] static std::vector<std::tuple<double, double, double>> kFoldCrossValidation(
-        const std::vector<double>& data, int k = 5, unsigned int random_seed = 42);
-
-    /**
-     * @brief Leave-one-out cross-validation
-     *
-     * Fits Poisson distribution to n-1 data points and evaluates on the left-out point.
-     * Repeats for all data points and reports aggregate metrics.
-     *
-     * @param data Vector of observed count data
-     * @return Tuple of (mean_absolute_error, rmse, total_log_likelihood)
-     */
-    [[nodiscard]] static std::tuple<double, double, double> leaveOneOutCrossValidation(
-        const std::vector<double>& data);
-
-    //==========================================================================
-    // 10. INFORMATION CRITERIA
-    //==========================================================================
-
-    /**
-     * @brief Compute information criteria for model selection
-     *
-     * Calculates AIC, BIC, and AICc for the fitted Poisson distribution.
-     * Lower values indicate better model fit with appropriate complexity penalty.
-     *
-     * @param data Vector of observed count data
-     * @param distribution Fitted Poisson distribution
-     * @return Tuple of (AIC, BIC, AICc, log_likelihood)
-     */
-    [[nodiscard]] static std::tuple<double, double, double, double> computeInformationCriteria(
-        const std::vector<double>& data, const PoissonDistribution& distribution);
-
-    //==========================================================================
-    // 11. BOOTSTRAP METHODS
-    //==========================================================================
-
-    /**
-     * @brief Bootstrap confidence intervals for parameter λ
-     *
-     * Uses bootstrap resampling to construct confidence intervals for the rate parameter.
-     * More robust than asymptotic methods for small sample sizes.
-     *
-     * @param data Vector of observed count data
-     * @param confidence_level Confidence level (e.g., 0.95)
-     * @param num_bootstrap_samples Number of bootstrap samples
-     * @param random_seed Seed for reproducible results
-     * @return Confidence interval (lower_bound, upper_bound) for λ
-     */
-    [[nodiscard]] static std::pair<double, double> bootstrapParameterConfidenceIntervals(
-        const std::vector<double>& data, double confidence_level = 0.95,
-        int num_bootstrap_samples = 1000, unsigned int random_seed = 42);
-
-    //==========================================================================
-    // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
     //==========================================================================
 
     /**
@@ -825,7 +616,7 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Median value (approximate)
      */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const override;
 
     /**
      * Gets the mode of the distribution.
@@ -833,7 +624,18 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Mode value
      */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
+
+    /**
+     * @brief Shannon entropy of the distribution in nats.
+     *
+     * For small λ (≤ 100): computed exactly via PMF summation truncated
+     * when P(k) < 1e-15. For large λ: asymptotic Stirling-based formula
+     * H ≈ ½ log(2πeλ) − 1/(12λ).
+     *
+     * @return Entropy in nats
+     */
+    [[nodiscard]] double getEntropy() const override;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
@@ -879,62 +681,6 @@ class PoissonDistribution : public DistributionBase {
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS (Power User Interface)
-    //==========================================================================
-
-    /**
-     * @brief Explicit strategy batch probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for probability densities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     *
-     * @deprecated Consider migrating to auto-dispatch with hints for better portability
-     */
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    /**
-     * @brief Explicit strategy batch log probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for log probability densities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     *
-     * @deprecated Consider migrating to auto-dispatch with hints for better portability
-     */
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    /**
-     * @brief Explicit strategy batch cumulative probability calculation for power users
-     *
-     * Allows explicit selection of execution strategy, bypassing auto-dispatch.
-     * Use when you have specific performance requirements or want deterministic execution.
-     *
-     * @param values Input values to evaluate
-     * @param results Output array for cumulative probabilities
-     * @param strategy Explicit execution strategy to use
-     * @throws std::invalid_argument if strategy is not supported
-     *
-     * @deprecated Consider migrating to auto-dispatch with hints for better portability
-     */
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -1087,9 +833,6 @@ class PoissonDistribution : public DistributionBase {
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
-
-    /** @brief Atomic cache validity flag for lock-free fast path optimization */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     /** @brief True if λ is small (< 10) for direct computation algorithm */
     mutable bool isSmallLambda_{true};

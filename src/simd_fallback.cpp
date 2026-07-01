@@ -1,3 +1,4 @@
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 // Scalar fallback implementations - no SIMD instructions
 // These implementations work on any CPU and serve as the baseline
 
@@ -85,7 +86,7 @@ void VectorOps::vector_erf_fallback(const double* values, double* results,
 }
 
 void VectorOps::vector_pow_elementwise_fallback(const double* base, const double* exponent,
-                                               double* results, std::size_t size) noexcept {
+                                                double* results, std::size_t size) noexcept {
     for (std::size_t i = 0; i < size; ++i) {
         results[i] = std::pow(base[i], exponent[i]);
     }

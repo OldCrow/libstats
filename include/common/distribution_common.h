@@ -20,26 +20,6 @@
 #include <string>
 #include <vector>
 
-// Modern C++20 standard headers for advanced distributions
-#if __has_include(<concepts>)
-    #include <concepts>
-    #ifndef LIBSTATS_HAS_STD_CONCEPTS_HEADER
-        #define LIBSTATS_HAS_STD_CONCEPTS_HEADER 1
-    #endif
-#else
-    #ifndef LIBSTATS_HAS_STD_CONCEPTS_HEADER
-        #define LIBSTATS_HAS_STD_CONCEPTS_HEADER 0
-    #endif
-#endif
-
-#if __has_include(<ranges>)
-    #include <ranges>
-    #define LIBSTATS_HAS_STD_RANGES_HEADER 1
-#else
-    #define LIBSTATS_HAS_STD_RANGES_HEADER 0
-#endif
-#include <version>
-
 // Core libstats headers needed by all distributions
 #include "libstats/core/distribution_base.h"
 #include "libstats/core/distribution_interface.h"
@@ -49,14 +29,11 @@
 // Performance and platform headers commonly used
 #include "libstats/core/performance_dispatcher.h"
 
+namespace stats::detail {
+
 /**
- * @brief Common validation helper for distribution parameters
- * @tparam T Parameter type
- * @param value Parameter value to validate
- * @param name Parameter name for error messages
- * @param min_val Minimum allowed value (inclusive)
- * @param max_val Maximum allowed value (inclusive)
- * @throws std::invalid_argument if value is outside valid range
+ * @brief Common validation helper for distribution parameters.
+ * @note Moved to `stats::detail` in v2.0.0; previously at global scope.
  */
 template <typename T>
 inline void validateParameter(T value, const std::string& name, T min_val, T max_val) {
@@ -66,13 +43,7 @@ inline void validateParameter(T value, const std::string& name, T min_val, T max
     }
 }
 
-/**
- * @brief Common validation helper for positive parameters
- * @tparam T Parameter type
- * @param value Parameter value to validate
- * @param name Parameter name for error messages
- * @throws std::invalid_argument if value is not positive and finite
- */
+/** @brief Common validation helper for positive parameters. */
 template <typename T>
 inline void validatePositiveParameter(T value, const std::string& name) {
     if (value <= T(0) || !std::isfinite(value)) {
@@ -80,16 +51,12 @@ inline void validatePositiveParameter(T value, const std::string& name) {
     }
 }
 
-/**
- * @brief Common validation helper for non-negative parameters
- * @tparam T Parameter type
- * @param value Parameter value to validate
- * @param name Parameter name for error messages
- * @throws std::invalid_argument if value is negative or not finite
- */
+/** @brief Common validation helper for non-negative parameters. */
 template <typename T>
 inline void validateNonNegativeParameter(T value, const std::string& name) {
     if (value < T(0) || !std::isfinite(value)) {
         throw std::invalid_argument("Parameter " + name + " must be non-negative and finite");
     }
 }
+
+}  // namespace stats::detail

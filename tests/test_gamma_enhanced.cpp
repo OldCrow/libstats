@@ -6,8 +6,12 @@
 
 #include "include/tests.h"
 #include "libstats/distributions/gamma.h"
+#include "libstats/stats/analysis/analysis.h"
+#include "libstats/stats/analysis/gamma_analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <cmath>      // for std::exp, std::log, std::isfinite, std::abs
 #include <gtest/gtest.h>
@@ -40,7 +44,7 @@ class GammaEnhancedTest : public ::testing::Test {
 
         auto result = stats::GammaDistribution::create(test_alpha_, test_beta_);
         if (result.isOk()) {
-            test_distribution_ = std::move(result.value);
+            test_distribution_ = std::move(result).unwrap();
         };
     }
 
@@ -57,7 +61,7 @@ class GammaEnhancedTest : public ::testing::Test {
 TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard gamma distribution properties
     auto gamma1 =
-        stats::GammaDistribution::create(2.0, 1.0).value;  // shape=2, rate=1 -> mean=2, var=2
+        stats::GammaDistribution::create(2.0, 1.0).unwrap();  // shape=2, rate=1 -> mean=2, var=2
 
     EXPECT_DOUBLE_EQ(gamma1.getAlpha(), 2.0);
     EXPECT_DOUBLE_EQ(gamma1.getBeta(), 1.0);
@@ -68,7 +72,7 @@ TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
 
     // Test another gamma distribution
     auto gamma2 = stats::GammaDistribution::create(1.0, 0.5)
-                      .value;  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
+                      .unwrap();  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
     EXPECT_DOUBLE_EQ(gamma2.getAlpha(), 1.0);
     EXPECT_DOUBLE_EQ(gamma2.getBeta(), 0.5);
     EXPECT_DOUBLE_EQ(gamma2.getMean(), 2.0);
@@ -100,23 +104,11 @@ TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, AdvancedStatisticalMethods) {
-    std::cout << "\n=== Advanced Statistical Methods ===\n";
-
-    // Confidence interval for shape
-    auto [ci_lower, ci_upper] = test_distribution_.confidenceIntervalShape(gamma_data_, 0.95);
-    EXPECT_LT(ci_lower, ci_upper);
-    EXPECT_TRUE(std::isfinite(ci_lower));
-    EXPECT_TRUE(std::isfinite(ci_upper));
-    std::cout << "  95% CI for shape: [" << ci_lower << ", " << ci_upper << "]\n";
-
-    // Method of moments estimation
-    auto [estimated_alpha, estimated_beta] =
-        GammaDistribution::methodOfMomentsEstimation(gamma_data_);
-    EXPECT_TRUE(std::isfinite(estimated_alpha));
-    EXPECT_TRUE(std::isfinite(estimated_beta));
-    EXPECT_GT(estimated_beta, 0.0);
-    std::cout << "  MoM estimates: alpha=" << estimated_alpha << ", beta=" << estimated_beta
-              << "\n";
+    auto [lower, upper, valid] = stats::analysis::gamma::normalApproximationTest(gamma_data_, 0.05);
+    EXPECT_LT(lower, upper);
+    EXPECT_TRUE(std::isfinite(lower));
+    EXPECT_TRUE(std::isfinite(upper));
+    EXPECT_FALSE(valid);  // alpha≈2 data should not use large-alpha normal approximation
 }
 
 //==============================================================================
@@ -144,7 +136,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
               << ", mean=" << fitted_test_distribution.getMean() << "\n";
 
     auto [ks_stat_gamma, ks_p_gamma, ks_reject_gamma] =
-        fitted_test_distribution.kolmogorovSmirnovTest(gamma_data_, fitted_test_distribution, 0.05);
+        stats::analysis::kolmogorovSmirnovTest(gamma_data_, fitted_test_distribution, 0.05);
     EXPECT_GE(ks_stat_gamma, 0.0);
     EXPECT_LE(ks_stat_gamma, 1.0);
     EXPECT_GE(ks_p_gamma, 0.0);
@@ -156,7 +148,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
               << ", reject=" << ks_reject_gamma << "\n";
 
     auto [ad_stat_gamma, ad_p_gamma, ad_reject_gamma] =
-        fitted_test_distribution.andersonDarlingTest(gamma_data_, fitted_test_distribution, 0.05);
+        stats::analysis::andersonDarlingTest(gamma_data_, fitted_test_distribution, 0.05);
     EXPECT_GE(ad_stat_gamma, 0.0);
     EXPECT_GE(ad_p_gamma, 0.0);
     EXPECT_LE(ad_p_gamma, 1.0);
@@ -179,8 +171,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
     }
 
     auto [ks_stat_non_gamma, ks_p_non_gamma, ks_reject_non_gamma] =
-        fitted_test_distribution.kolmogorovSmirnovTest(non_gamma_data, fitted_test_distribution,
-                                                       0.05);
+        stats::analysis::kolmogorovSmirnovTest(non_gamma_data, fitted_test_distribution, 0.05);
     EXPECT_GE(ks_stat_non_gamma, 0.0);
     EXPECT_LE(ks_stat_non_gamma, 1.0);
     EXPECT_GE(ks_p_non_gamma, 0.0);
@@ -192,8 +183,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
               << ", reject=" << ks_reject_non_gamma << "\n";
 
     auto [ad_stat_non_gamma, ad_p_non_gamma, ad_reject_non_gamma] =
-        fitted_test_distribution.andersonDarlingTest(non_gamma_data, fitted_test_distribution,
-                                                     0.05);
+        stats::analysis::andersonDarlingTest(non_gamma_data, fitted_test_distribution, 0.05);
     EXPECT_GE(ad_stat_non_gamma, 0.0);
     EXPECT_GE(ad_p_non_gamma, 0.0);
     EXPECT_LE(ad_p_non_gamma, 1.0);
@@ -205,13 +195,9 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
 
     // The non-gamma data should have much higher test statistics and lower p-values than gamma data
     EXPECT_GT(ks_stat_non_gamma, ks_stat_gamma) << "Non-gamma data should have higher KS statistic";
-    // Note: AD test comparison may not always hold due to numerical issues, so we make it
-    // conditional
-    if (std::isfinite(ad_stat_gamma) && std::isfinite(ad_stat_non_gamma) && ad_stat_gamma < 1e15 &&
-        ad_stat_non_gamma < 1e15) {
-        EXPECT_GT(ad_stat_non_gamma, ad_stat_gamma)
-            << "Non-gamma data should have higher AD statistic";
-    }
+    // TC-3: EXPECT_TRUE(isfinite) assertions above already validate finiteness;
+    // the < 1e15 safety guard was masking real failures. Assert unconditionally.
+    EXPECT_GT(ad_stat_non_gamma, ad_stat_gamma) << "Non-gamma data should have higher AD statistic";
     EXPECT_LT(ks_p_non_gamma, ks_p_gamma) << "Non-gamma data should have lower KS p-value";
     if (ad_p_gamma > 0.0 && ad_p_non_gamma > 0.0) {
         EXPECT_LT(ad_p_non_gamma, ad_p_gamma) << "Non-gamma data should have lower AD p-value";
@@ -227,16 +213,12 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
                      "poor fit)\n";
     }
 
-    // For non-gamma data, we expect it to be rejected
-    if (ks_reject_non_gamma && ad_reject_non_gamma) {
-        std::cout << "  ✓ Both tests correctly rejected non-gamma data\n";
-    } else if (ks_reject_non_gamma || ad_reject_non_gamma) {
-        std::cout << "  ⚠ Only one test rejected non-gamma data (this can happen with small effect "
-                     "sizes)\n";
-    } else {
-        std::cout << "  ⚠ Neither test rejected non-gamma data (effect size may be small, but test "
-                     "statistics should still be higher)\n";
-    }
+    // For non-gamma data (deterministic quadratic), both tests must reject.
+    // TC-3: these assertions replace the print-only conditional that allowed
+    // the test to pass silently even when GoF tests wrongly accepted non-gamma data.
+    EXPECT_TRUE(ks_reject_non_gamma) << "KS test should reject non-gamma quadratic data";
+    // TC-3: isfinite already asserted above; remove the conditional guard.
+    EXPECT_TRUE(ad_reject_non_gamma) << "AD test should reject non-gamma quadratic data";
 }
 
 //==============================================================================
@@ -251,7 +233,7 @@ TEST_F(GammaEnhancedTest, InformationCriteriaTests) {
     fitted_dist.fit(gamma_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
-        GammaDistribution::computeInformationCriteria(gamma_data_, fitted_dist);
+        stats::analysis::informationCriteria(gamma_data_, fitted_dist);
 
     // Basic sanity checks
     EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
@@ -296,8 +278,8 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap parameter confidence intervals
-    auto [alpha_ci, beta_ci] =
-        GammaDistribution::bootstrapParameterConfidenceIntervals(gamma_data_, 0.95, 1000, 456);
+    auto [alpha_ci, beta_ci] = stats::analysis::bootstrapMeanVarianceCI<stats::GammaDistribution>(
+        gamma_data_, 0.95, 1000, 456);
 
     // Check that confidence intervals are reasonable
     EXPECT_LT(alpha_ci.first, alpha_ci.second);  // Lower bound < Upper bound
@@ -316,16 +298,12 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
     std::cout << "  Beta 95% CI: [" << beta_ci.first << ", " << beta_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = GammaDistribution::kFoldCrossValidation(gamma_data_, 5, 42);
+    auto cv_results =
+        stats::analysis::kFoldCrossValidation<stats::GammaDistribution>(gamma_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
-    for (const auto& [mae, rmse, log_likelihood] : cv_results) {
-        EXPECT_GE(mae, 0.0);             // MAE should be non-negative
-        EXPECT_GE(rmse, 0.0);            // RMSE should be non-negative
-        EXPECT_GE(rmse, mae);            // RMSE should be >= MAE
+    for (const double log_likelihood : cv_results) {
         EXPECT_LE(log_likelihood, 0.0);  // Log-likelihood should be negative
-        EXPECT_TRUE(std::isfinite(mae));
-        EXPECT_TRUE(std::isfinite(rmse));
         EXPECT_TRUE(std::isfinite(log_likelihood));
     }
 
@@ -333,20 +311,13 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_gamma_data(gamma_data_.begin(), gamma_data_.begin() + 20);
-    auto [mae, rmse, total_log_likelihood] =
-        GammaDistribution::leaveOneOutCrossValidation(small_gamma_data);
-
-    EXPECT_GE(mae, 0.0);                   // MAE should be non-negative
-    EXPECT_GE(rmse, 0.0);                  // RMSE should be non-negative
-    EXPECT_GE(rmse, mae);                  // RMSE should be >= MAE
+    const auto total_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::GammaDistribution>(
+            small_gamma_data);  // MAE should be non-negative // RMSE should be non-negative // RMSE
+                                // should be >= MAE
     EXPECT_LE(total_log_likelihood, 0.0);  // Total log-likelihood should be negative
 
-    EXPECT_TRUE(std::isfinite(mae));
-    EXPECT_TRUE(std::isfinite(rmse));
     EXPECT_TRUE(std::isfinite(total_log_likelihood));
-
-    std::cout << "  Leave-one-out CV: MAE=" << mae << ", RMSE=" << rmse
-              << ", Total LogL=" << total_log_likelihood << "\n";
 }
 
 //==============================================================================
@@ -354,7 +325,7 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdGamma = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto stdGamma = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -386,57 +357,37 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         auto sequential_time =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
+        std::span<const double> input_span(test_values);
+
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
+        detail::PerformanceHint simd_hint;
+        simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
         start = std::chrono::high_resolution_clock::now();
-        stdGamma.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                            std::span<double>(simd_results),
-                                            stats::detail::Strategy::VECTORIZED);
+        stdGamma.getProbability(input_span, std::span<double>(simd_results), simd_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto simd_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
-        std::span<const double> input_span(test_values);
-        std::span<double> output_span(parallel_results);
-
+        detail::PerformanceHint parallel_hint;
+        parallel_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
         start = std::chrono::high_resolution_clock::now();
-        stdGamma.getProbabilityWithStrategy(input_span, output_span,
-                                            stats::detail::Strategy::PARALLEL);
+        stdGamma.getProbability(input_span, std::span<double>(parallel_results), parallel_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto parallel_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto parallel_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
-        // 4. Work-stealing operations (if available)
+        // 4. Work-stealing operations
         std::vector<double> work_stealing_results(batch_size);
-        auto work_stealing_time = std::chrono::microseconds(0).count();
-
-        if constexpr (requires {
-                          typename WorkStealingPool;
-                          {
-                              stdGamma.getProbabilityWithStrategy(
-                                  input_span, std::span<double>(work_stealing_results),
-                                  stats::detail::Strategy::WORK_STEALING)
-                          };
-                      }) {
-            std::span<double> ws_output_span(work_stealing_results);
-
-            start = std::chrono::high_resolution_clock::now();
-            stdGamma.getProbabilityWithStrategy(input_span, ws_output_span,
-                                                stats::detail::Strategy::WORK_STEALING);
-            end = std::chrono::high_resolution_clock::now();
-            work_stealing_time =
-                std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        } else {
-            // Fallback to parallel method
-            std::span<double> ws_output_span(work_stealing_results);
-            start = std::chrono::high_resolution_clock::now();
-            stdGamma.getProbabilityWithStrategy(input_span, ws_output_span,
-                                                stats::detail::Strategy::PARALLEL);
-            end = std::chrono::high_resolution_clock::now();
-            work_stealing_time =
-                std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        }
+        detail::PerformanceHint ws_hint;
+        ws_hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+        start = std::chrono::high_resolution_clock::now();
+        stdGamma.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
+        end = std::chrono::high_resolution_clock::now();
+        auto work_stealing_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -491,7 +442,7 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
-    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
     std::cout << "\n=== Auto-Dispatch Strategy Assessment ===\n";
 
@@ -522,14 +473,14 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
         auto end = std::chrono::high_resolution_clock::now();
         auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
-        // Compare with traditional batch method
+        // Compare with scalar loop baseline
         start = std::chrono::high_resolution_clock::now();
-        gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                              std::span<double>(traditional_results),
-                                              stats::detail::Strategy::SCALAR);
+        for (size_t j = 0; j < batch_size; ++j) {
+            traditional_results[j] = gamma_dist.getProbability(test_values[j]);
+        }
         end = std::chrono::high_resolution_clock::now();
-        auto traditional_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto traditional_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Verify correctness
         bool results_match = true;
@@ -578,7 +529,7 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
 TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -634,171 +585,42 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
     constexpr size_t BENCHMARK_SIZE = 50000;
 
-    // Generate test data (positive values for Gamma distribution)
     std::vector<double> test_values(BENCHMARK_SIZE);
     std::vector<double> pdf_results(BENCHMARK_SIZE);
     std::vector<double> log_pdf_results(BENCHMARK_SIZE);
     std::vector<double> cdf_results(BENCHMARK_SIZE);
+    std::vector<double> scalar_pdf(BENCHMARK_SIZE);
+    std::vector<double> scalar_log_pdf(BENCHMARK_SIZE);
+    std::vector<double> scalar_cdf(BENCHMARK_SIZE);
 
     std::mt19937 gen(42);
     std::gamma_distribution<> dis(2.0, 1.0);
-    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
+    for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
         test_values[i] = dis(gen);
+
+    for (size_t i = 0; i < BENCHMARK_SIZE; ++i) {
+        scalar_pdf[i] = gamma_dist.getProbability(test_values[i]);
+        scalar_log_pdf[i] = gamma_dist.getLogProbability(test_values[i]);
+        scalar_cdf[i] = gamma_dist.getCumulativeProbability(test_values[i]);
     }
 
-    fixtures::BenchmarkFormatter::printBenchmarkHeader("Gamma Distribution", BENCHMARK_SIZE);
+    detail::PerformanceHint hint;
+    hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+    gamma_dist.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results),
+                              hint);
+    gamma_dist.getLogProbability(std::span<const double>(test_values),
+                                 std::span<double>(log_pdf_results), hint);
+    gamma_dist.getCumulativeProbability(std::span<const double>(test_values),
+                                        std::span<double>(cdf_results), hint);
 
-    // Create shared resources ONCE outside the loop to avoid resource issues
-    WorkStealingPool work_stealing_pool(std::thread::hardware_concurrency());
-
-    std::vector<fixtures::BenchmarkResult> benchmark_results;
-
-    // For each operation type (PDF, LogPDF, CDF)
-    std::vector<std::string> operations = {"PDF", "LogPDF", "CDF"};
-
-    for (const auto& op : operations) {
-        fixtures::BenchmarkResult result;
-        result.operation_name = op;
-
-        // 1. Baseline (SCALAR strategy)
-        auto start = std::chrono::high_resolution_clock::now();
-        if (op == "PDF") {
-            gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                  std::span<double>(pdf_results),
-                                                  stats::detail::Strategy::SCALAR);
-        } else if (op == "LogPDF") {
-            gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                     std::span<double>(log_pdf_results),
-                                                     stats::detail::Strategy::SCALAR);
-        } else if (op == "CDF") {
-            gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                            std::span<double>(cdf_results),
-                                                            stats::detail::Strategy::SCALAR);
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        result.baseline_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // 2. SIMD Batch operations
-        start = std::chrono::high_resolution_clock::now();
-        if (op == "PDF") {
-            gamma_dist.getProbabilityWithStrategy(std::span<const double>(test_values),
-                                                  std::span<double>(pdf_results),
-                                                  stats::detail::Strategy::VECTORIZED);
-        } else if (op == "LogPDF") {
-            gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(test_values),
-                                                     std::span<double>(log_pdf_results),
-                                                     stats::detail::Strategy::VECTORIZED);
-        } else if (op == "CDF") {
-            gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(test_values),
-                                                            std::span<double>(cdf_results),
-                                                            stats::detail::Strategy::VECTORIZED);
-        }
-        end = std::chrono::high_resolution_clock::now();
-        result.vectorized_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // 3. Parallel Batch Operations (PARALLEL strategy)
-        std::span<const double> input_span(test_values);
-
-        if (op == "PDF") {
-            std::span<double> output_span(pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            gamma_dist.getProbabilityWithStrategy(input_span, output_span,
-                                                  stats::detail::Strategy::PARALLEL);
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "LogPDF") {
-            std::span<double> log_output_span(log_pdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                     stats::detail::Strategy::PARALLEL);
-            end = std::chrono::high_resolution_clock::now();
-        } else if (op == "CDF") {
-            std::span<double> cdf_output_span(cdf_results);
-            start = std::chrono::high_resolution_clock::now();
-            gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                            stats::detail::Strategy::PARALLEL);
-            end = std::chrono::high_resolution_clock::now();
-        }
-        result.parallel_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // 4. Work-Stealing Operations (use shared pool to avoid resource issues)
-        if constexpr (requires {
-                          typename WorkStealingPool;
-                          {
-                              gamma_dist.getProbabilityWithStrategy(
-                                  input_span, std::span<double>(pdf_results),
-                                  stats::detail::Strategy::WORK_STEALING)
-                          };
-                      }) {
-            if (op == "PDF") {
-                std::span<double> output_span(pdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getProbabilityWithStrategy(input_span, output_span,
-                                                      stats::detail::Strategy::WORK_STEALING);
-                end = std::chrono::high_resolution_clock::now();
-            } else if (op == "LogPDF") {
-                std::span<double> log_output_span(log_pdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                         stats::detail::Strategy::WORK_STEALING);
-                end = std::chrono::high_resolution_clock::now();
-            } else if (op == "CDF") {
-                std::span<double> cdf_output_span(cdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getCumulativeProbabilityWithStrategy(
-                    input_span, cdf_output_span, stats::detail::Strategy::WORK_STEALING);
-                end = std::chrono::high_resolution_clock::now();
-            }
-        } else {
-            // Fallback to parallel method
-            if (op == "PDF") {
-                std::span<double> output_span(pdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getProbabilityWithStrategy(input_span, output_span,
-                                                      stats::detail::Strategy::PARALLEL);
-                end = std::chrono::high_resolution_clock::now();
-            } else if (op == "LogPDF") {
-                std::span<double> log_output_span(log_pdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getLogProbabilityWithStrategy(input_span, log_output_span,
-                                                         stats::detail::Strategy::PARALLEL);
-                end = std::chrono::high_resolution_clock::now();
-            } else if (op == "CDF") {
-                std::span<double> cdf_output_span(cdf_results);
-                start = std::chrono::high_resolution_clock::now();
-                gamma_dist.getCumulativeProbabilityWithStrategy(input_span, cdf_output_span,
-                                                                stats::detail::Strategy::PARALLEL);
-                end = std::chrono::high_resolution_clock::now();
-            }
-        }
-        result.work_stealing_time_us = static_cast<long>(
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-
-        // Calculate speedups relative to baseline
-        result.vectorized_speedup = result.baseline_time_us > 0
-                                        ? static_cast<double>(result.baseline_time_us) /
-                                              static_cast<double>(result.vectorized_time_us)
-                                        : 0.0;
-        result.parallel_speedup = result.baseline_time_us > 0
-                                      ? static_cast<double>(result.baseline_time_us) /
-                                            static_cast<double>(result.parallel_time_us)
-                                      : 0.0;
-        result.work_stealing_speedup = result.baseline_time_us > 0
-                                           ? static_cast<double>(result.baseline_time_us) /
-                                                 static_cast<double>(result.work_stealing_time_us)
-                                           : 0.0;
-
-        benchmark_results.push_back(result);
+    for (size_t i = 0; i < 100; ++i) {
+        EXPECT_NEAR(pdf_results[i], scalar_pdf[i], 1e-10);
+        EXPECT_NEAR(log_pdf_results[i], scalar_log_pdf[i], 1e-10);
+        EXPECT_NEAR(cdf_results[i], scalar_cdf[i], 1e-10);
     }
-
-    // Print results and verify correctness
-    fixtures::BenchmarkFormatter::printBenchmarkResults(benchmark_results);
-    fixtures::BenchmarkFormatter::printPerformanceAnalysis(benchmark_results);
 }
 
 //==============================================================================
@@ -829,7 +651,7 @@ TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
         }
 
         datasets.push_back(std::move(dataset));
-        expected_distributions.push_back(GammaDistribution::create(alpha, beta).value);
+        expected_distributions.push_back(GammaDistribution::create(alpha, beta).unwrap());
     }
 
     std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
@@ -961,7 +783,7 @@ TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
 TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "\n=== Numerical Stability and Edge Cases ===\n";
 
-    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
     // Test extreme values (Gamma distribution support is [0, ∞))
     std::vector<double> extreme_values = {1e-10, 0.001, 0.1, 10.0, 100.0, 1000.0};
@@ -998,15 +820,6 @@ TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::vector<double> empty_output;
 
     // These should not crash
-    gamma_dist.getProbabilityWithStrategy(std::span<const double>(empty_input),
-                                          std::span<double>(empty_output),
-                                          stats::detail::Strategy::SCALAR);
-    gamma_dist.getLogProbabilityWithStrategy(std::span<const double>(empty_input),
-                                             std::span<double>(empty_output),
-                                             stats::detail::Strategy::SCALAR);
-    gamma_dist.getCumulativeProbabilityWithStrategy(std::span<const double>(empty_input),
-                                                    std::span<double>(empty_output),
-                                                    stats::detail::Strategy::SCALAR);
 
     // Test invalid parameter creation
     auto result_zero_alpha = GammaDistribution::create(0.0, 1.0);
@@ -1034,3 +847,26 @@ int main(int argc, char** argv) {
 #ifdef _MSC_VER
     #pragma warning(pop)
 #endif
+
+//==============================================================================
+// DistTraits specialization for stats::GammaDistribution
+//==============================================================================
+template <>
+struct stats::tests::DistTraits<stats::GammaDistribution> : stats::tests::DistTraitsDefaults {
+    static stats::GammaDistribution make() {
+        return stats::GammaDistribution::create(2.0, 1.0).unwrap();
+    }
+    static std::vector<double> domain() { return {0.5, 1.0, 2.0, 3.0, 5.0}; }
+    static double batch_lo() { return 0.1; }
+    static double batch_hi() { return 8.0; }
+    static std::vector<std::function<bool()>> invalid_creators() {
+        return {
+            [] { return stats::GammaDistribution::create(0.0, 1.0).isError(); },
+            [] { return stats::GammaDistribution::create(1.0, 0.0).isError(); },
+            [] { return stats::GammaDistribution::create(-1.0, 1.0).isError(); },
+        };
+    }
+};
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Gamma, DistributionEnhancedTest,
+                               ::testing::Types<stats::GammaDistribution>);

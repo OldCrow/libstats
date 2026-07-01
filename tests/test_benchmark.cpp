@@ -14,6 +14,9 @@
  * --help/-h          Show this help
  */
 
+#include "libstats/distributions/cauchy.h"
+#include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
 #include "libstats/platform/benchmark.h"
 
 // Standard library includes
@@ -404,4 +407,95 @@ TEST(BenchmarkInfrastructure, ThroughputMeasurements) {
 }
 TEST(BenchmarkInfrastructure, StressConditions) {
     test_stress_conditions();
+}
+
+//==============================================================================
+// DISTRIBUTION THROUGHPUT BENCHMARKS
+//==============================================================================
+
+TEST(DistributionBenchmark, GeometricPDFLogPDFCDF) {
+    auto dist = GeometricDistribution::create(0.3).unwrap();
+    constexpr size_t N = 10000;
+    std::vector<double> xs(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = static_cast<double>(i % 50 + 1);
+
+    Benchmark bench(false, 5);
+    bench.addTest("Geometric PDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getProbability(xs[i]);
+    });
+    bench.addTest("Geometric LogPDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getLogProbability(xs[i]);
+    });
+    bench.addTest("Geometric CDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getCumulativeProbability(xs[i]);
+    });
+    auto results = bench.runAll();
+    EXPECT_EQ(results.size(), 3u);
+    for (const auto& r : results)
+        EXPECT_GT(r.stats.mean, 0.0);
+}
+
+TEST(DistributionBenchmark, LaplacePDFLogPDFCDF) {
+    auto dist = LaplaceDistribution::create(0.0, 1.0).unwrap();
+    constexpr size_t N = 10000;
+    std::vector<double> xs(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = -5.0 + 10.0 * static_cast<double>(i) / static_cast<double>(N);
+
+    Benchmark bench(false, 5);
+    bench.addTest("Laplace PDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getProbability(xs[i]);
+    });
+    bench.addTest("Laplace LogPDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getLogProbability(xs[i]);
+    });
+    bench.addTest("Laplace CDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getCumulativeProbability(xs[i]);
+    });
+    auto results = bench.runAll();
+    EXPECT_EQ(results.size(), 3u);
+    for (const auto& r : results)
+        EXPECT_GT(r.stats.mean, 0.0);
+}
+
+TEST(DistributionBenchmark, CauchyPDFLogPDFCDF) {
+    auto dist = CauchyDistribution::create(0.0, 1.0).unwrap();
+    constexpr size_t N = 10000;
+    std::vector<double> xs(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = -5.0 + 10.0 * static_cast<double>(i) / static_cast<double>(N);
+
+    Benchmark bench(false, 5);
+    bench.addTest("Cauchy PDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getProbability(xs[i]);
+    });
+    bench.addTest("Cauchy LogPDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getLogProbability(xs[i]);
+    });
+    bench.addTest("Cauchy CDF", [&]() {
+        volatile double sink = 0.0;
+        for (size_t i = 0; i < N; ++i)
+            sink += dist.getCumulativeProbability(xs[i]);
+    });
+    auto results = bench.runAll();
+    EXPECT_EQ(results.size(), 3u);
+    for (const auto& r : results)
+        EXPECT_GT(r.stats.mean, 0.0);
 }

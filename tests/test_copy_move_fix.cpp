@@ -1,7 +1,67 @@
-// Include all three distributions
+// All 19 distribution headers — needed for static_assert regression guards
+#include "libstats/distributions/beta.h"
+#include "libstats/distributions/binomial.h"
+#include "libstats/distributions/cauchy.h"
+#include "libstats/distributions/chi_squared.h"
+#include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
+#include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
+#include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/negative_binomial.h"
+#include "libstats/distributions/pareto.h"
+#include "libstats/distributions/poisson.h"
+#include "libstats/distributions/rayleigh.h"
+#include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/distributions/von_mises.h"
+#include "libstats/distributions/weibull.h"
+
+// =============================================================================
+// COMPILE-TIME noexcept REGRESSION GUARDS
+// Each assertion fires at build time if the move ctor or move assignment
+// reverts to a throwing implementation on any distribution.
+// =============================================================================
+static_assert(std::is_nothrow_move_constructible_v<stats::BetaDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::BetaDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::BinomialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::BinomialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::CauchyDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::CauchyDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::ChiSquaredDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::ChiSquaredDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::DiscreteDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::DiscreteDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::ExponentialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::ExponentialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::GammaDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::GammaDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::GaussianDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::GaussianDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::GeometricDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::GeometricDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::LaplaceDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::LaplaceDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::LogNormalDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::LogNormalDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::NegativeBinomialDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::NegativeBinomialDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::ParetoDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::ParetoDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::PoissonDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::PoissonDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::RayleighDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::RayleighDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::StudentTDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::StudentTDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::UniformDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::UniformDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::VonMisesDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::VonMisesDistribution>);
+static_assert(std::is_nothrow_move_constructible_v<stats::WeibullDistribution>);
+static_assert(std::is_nothrow_move_assignable_v<stats::WeibullDistribution>);
 
 // Standard library includes
 #include <atomic>    // for std::atomic
@@ -23,8 +83,8 @@ void testUniformCopyMove() {
     auto result2 = UniformDistribution::create(0.0, 1.0);
 
     if (result1.isOk() && result2.isOk()) {
-        auto uniform1 = std::move(result1.value);
-        auto uniform2 = std::move(result2.value);
+        auto uniform1 = std::move(result1).unwrap();
+        auto uniform2 = std::move(result2).unwrap();
 
         cout << "  Before copy assignment: uniform1 range [" << uniform1.getLowerBound() << ", "
              << uniform1.getUpperBound() << "]" << endl;
@@ -43,8 +103,8 @@ void testUniformCopyMove() {
     auto result4 = UniformDistribution::create(5.0, 10.0);
 
     if (result3.isOk() && result4.isOk()) {
-        auto uniform3 = std::move(result3.value);
-        auto uniform4 = std::move(result4.value);
+        auto uniform3 = std::move(result3).unwrap();
+        auto uniform4 = std::move(result4).unwrap();
 
         cout << "  Before move assignment: uniform3 range [" << uniform3.getLowerBound() << ", "
              << uniform3.getUpperBound() << "]" << endl;
@@ -61,8 +121,8 @@ void testGaussianCopyMove() {
     cout << "\nTesting Gaussian copy/move semantics:" << endl;
 
     // Test Gaussian copy assignment
-    auto gauss1 = stats::GaussianDistribution::create(1.0, 2.0).value;
-    auto gauss2 = stats::GaussianDistribution::create(5.0, 1.0).value;
+    auto gauss1 = stats::GaussianDistribution::create(1.0, 2.0).unwrap();
+    auto gauss2 = stats::GaussianDistribution::create(5.0, 1.0).unwrap();
 
     cout << "  Before copy assignment: gauss1 N(" << gauss1.getMean() << ", "
          << gauss1.getVariance() << ")" << endl;
@@ -76,8 +136,8 @@ void testGaussianCopyMove() {
     cout << "  ✓ Copy assignment successful" << endl;
 
     // Test Gaussian move assignment
-    auto gauss3 = stats::GaussianDistribution::create(3.0, 4.0).value;
-    auto gauss4 = stats::GaussianDistribution::create(7.0, 9.0).value;
+    auto gauss3 = stats::GaussianDistribution::create(3.0, 4.0).unwrap();
+    auto gauss4 = stats::GaussianDistribution::create(7.0, 9.0).unwrap();
 
     cout << "  Before move assignment: gauss3 N(" << gauss3.getMean() << ", "
          << gauss3.getVariance() << ")" << endl;
@@ -97,8 +157,8 @@ void testExponentialCopyMove() {
     auto result2 = ExponentialDistribution::create(0.5);
 
     if (result1.isOk() && result2.isOk()) {
-        auto exp1 = std::move(result1.value);
-        auto exp2 = std::move(result2.value);
+        auto exp1 = std::move(result1).unwrap();
+        auto exp2 = std::move(result2).unwrap();
 
         cout << "  Before copy assignment: exp1 lambda=" << exp1.getLambda()
              << ", mean=" << exp1.getMean() << endl;
@@ -117,8 +177,8 @@ void testExponentialCopyMove() {
     auto result4 = ExponentialDistribution::create(3.0);
 
     if (result3.isOk() && result4.isOk()) {
-        auto exp3 = std::move(result3.value);
-        auto exp4 = std::move(result4.value);
+        auto exp3 = std::move(result3).unwrap();
+        auto exp4 = std::move(result4).unwrap();
 
         cout << "  Before move assignment: exp3 lambda=" << exp3.getLambda()
              << ", mean=" << exp3.getMean() << endl;
@@ -145,12 +205,12 @@ void testConcurrentCopyMove() {
             for (int i = 0; i < numOperations; ++i) {
                 // Create distributions
                 auto uniformResult = UniformDistribution::create(t, t + 1);
-                auto gauss = stats::GaussianDistribution::create(t, 1.0).value;
+                auto gauss = stats::GaussianDistribution::create(t, 1.0).unwrap();
                 auto expResult = ExponentialDistribution::create(t + 1);
 
                 if (uniformResult.isOk() && expResult.isOk()) {
-                    auto uniform = std::move(uniformResult.value);
-                    auto exp = std::move(expResult.value);
+                    auto uniform = std::move(uniformResult).unwrap();
+                    auto exp = std::move(expResult).unwrap();
 
                     // Perform copy operations
                     auto uniform2 = uniform;

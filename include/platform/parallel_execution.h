@@ -135,10 +135,10 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0,
 // Platform-specific adjustments
 #if defined(__APPLE__) && defined(__aarch64__)
     // Apple Silicon: Fast thread creation, can handle smaller grains
-    adjusted_grain = static_cast<std::size_t>(base_grain / detail::TWO);
+    adjusted_grain = base_grain / 2;
 #elif defined(__x86_64__) && (defined(__AVX2__) || defined(__AVX512F__))
     // High-end x86_64: Larger grains for better SIMD utilization
-    adjusted_grain = static_cast<std::size_t>(base_grain * detail::TWO);
+    adjusted_grain = base_grain * 2;
 #endif
 
     // Operation type adjustments
@@ -147,7 +147,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0,
             if (features.l3_cache_size > 0 && data_size > 0) {
                 // Adjust grain to fit well in cache hierarchy
                 const std::size_t cache_elements = static_cast<std::size_t>(
-                    std::round(features.l3_cache_size / (sizeof(double) * detail::FOUR)));
+                    std::round(features.l3_cache_size / (sizeof(double) * 4)));
                 if (data_size > cache_elements) {
                     adjusted_grain =
                         std::max(adjusted_grain, cache_elements / get_logical_core_count());
@@ -156,8 +156,7 @@ inline std::size_t get_adaptive_grain_size(int operation_type = 0,
             break;
         case 1:  // Computation-bound operations
             // Larger grains for computation to amortize thread overhead
-            adjusted_grain =
-                static_cast<std::size_t>(static_cast<double>(adjusted_grain) * detail::TWO);
+            adjusted_grain = adjusted_grain * 2;
             break;
         case 2:  // Mixed operations (default)
         default:
@@ -186,9 +185,7 @@ inline std::size_t get_optimal_thread_count(
 
     // For very large workloads, consider using more threads
     if (workload_size > detail::MAX_ITERATIONS) {
-        optimal_threads =
-            std::min(static_cast<std::size_t>(logical_cores + detail::TWO),
-                     static_cast<std::size_t>(logical_cores * detail::THREE / detail::TWO));
+        optimal_threads = std::min(logical_cores + 2, logical_cores * 3 / 2);
     }
 #elif defined(__x86_64__)
     // x86_64: Balance between physical and logical cores
@@ -472,7 +469,8 @@ struct WorkItem {
 };
 
 /// Windows Thread Pool callback function
-VOID CALLBACK ThreadPoolWorkCallback(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work) {
+inline VOID CALLBACK ThreadPoolWorkCallback(PTP_CALLBACK_INSTANCE Instance, PVOID Context,
+                                            PTP_WORK Work) {
     WorkItem* item = static_cast<WorkItem*>(Context);
     try {
         item->work_function();
@@ -712,26 +710,41 @@ void openmp_fill(Iterator first, Iterator last, const T& value) {
 }
 
 /// OpenMP-based parallel reduce implementation
+///
+/// Uses manual per-thread partials instead of `reduction(+:result)` so that
+/// the caller's arbitrary BinaryOp is respected. The OpenMP reduction clause
+/// hard-codes additive identity (0) for each thread's private copy, which
+/// silently produces wrong answers for non-additive ops (multiply, min, max).
 template <typename Iterator, typename T, typename BinaryOp>
 T openmp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
     const size_t total_elements = static_cast<size_t>(std::distance(first, last));
-    const size_t chunk_size = get_openmp_chunk_size(total_elements);
 
     if (total_elements < get_min_elements_for_distribution_parallel()) {
         return std::accumulate(first, last, init, op);
     }
 
-    T result = init;
+    const int max_threads = omp_get_max_threads();
+    std::vector<T> partials(static_cast<size_t>(max_threads), init);
 
-    #pragma omp parallel for reduction(+ : result) schedule(dynamic, chunk_size)
-    for (size_t i = 0; i < total_elements; ++i) {
-        // Note: This assumes op is associative and commutative (like +)
-        // For more complex operations, we'd need a different approach
-        result =
-            op(result,
-               *(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
+    #pragma omp parallel
+    {
+        const int tid = omp_get_thread_num();
+        const int nthreads = omp_get_num_threads();
+        const size_t n = static_cast<size_t>(nthreads);
+        const size_t chunk = (total_elements + n - 1) / n;
+        const size_t lo = std::min(chunk * static_cast<size_t>(tid), total_elements);
+        const size_t hi = std::min(lo + chunk, total_elements);
+        T local = init;
+        for (size_t i = lo; i < hi; ++i)
+            local = op(local,
+                       *(first +
+                         static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
+        partials[static_cast<size_t>(tid)] = local;
     }
 
+    T result = init;
+    for (auto& p : partials)
+        result = op(result, p);
     return result;
 }
 

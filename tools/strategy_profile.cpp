@@ -16,6 +16,9 @@
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -84,6 +87,13 @@ std::string operation_to_string(ProfileOperation operation) {
 constexpr std::array<ProfileOperation, 3> OPERATIONS = {
     ProfileOperation::PDF, ProfileOperation::LOG_PDF, ProfileOperation::CDF};
 
+// REGISTRATION: list every Strategy value here.
+// The executeStrategy() switch in dispatch_utils.h has no default, so the
+// compiler enforces completeness there — but this array is invisible to the
+// compiler.  When a new strategy (e.g. GPU_ACCELERATED, NUMA) is added:
+//   1. Add it to this array so the profiler measures it.
+//   2. Add a PerformanceHint::PreferredStrategy mapping in mapHintToStrategy()
+//      (dispatch_utils.h) if forced-strategy profiling is needed.
 constexpr std::array<Strategy, 4> STRATEGIES = {Strategy::SCALAR, Strategy::VECTORIZED,
                                                 Strategy::PARALLEL, Strategy::WORK_STEALING};
 
@@ -116,11 +126,27 @@ class StrategyProfiler {
     std::vector<std::size_t> batch_sizes_;
 
     void initialize_batch_sizes(bool include_large) {
-        batch_sizes_ = {8,    16,   32,    64,    128,   256,    512,    1000,
-                        2000, 5000, 10000, 20000, 50000, 100000, 250000, 500000};
+        // Standard grid: powers-of-2 to L1/L2 cache boundary (8 doubles per
+        // cache line; L1 boundary ~4-8 KiB on all target CPUs), then
+        // geometrically spaced large-batch points for precise V→P threshold
+        // resolution.  Sizes < 64 are excluded: timing resolution (~0.1-0.2 µs)
+        // is too coarse to distinguish strategies at those batch sizes, and
+        // the dispatch table clamps all thresholds to a minimum of 64.
+        batch_sizes_ = {
+            // Cache-line-aligned small sizes (8 doubles = 1 cache line)
+            64, 128, 256, 512, 1024, 2048, 4096, 6144, 8192,
+            // Medium/large: dense coverage of the 10k-500k band where most
+            // V→P crossovers actually occur.
+            10000, 25000, 50000, 75000,
+            100000, 150000, 200000, 250000, 300000, 400000, 500000
+        };
 
         if (include_large) {
+            // Extended range for resolving crossovers that hit the 500k ceiling.
+            // Use --large when any standard run reports V→P = 500000.
+            batch_sizes_.push_back(750000);
             batch_sizes_.push_back(1000000);
+            batch_sizes_.push_back(1500000);
             batch_sizes_.push_back(2000000);
         }
     }
@@ -142,6 +168,9 @@ class StrategyProfiler {
         profile_von_mises_distribution();
         profile_binomial_distribution();
         profile_negative_binomial_distribution();
+        profile_geometric_distribution();
+        profile_laplace_distribution();
+        profile_cauchy_distribution();
     }
 
     template <typename Distribution, typename Generator>
@@ -195,25 +224,35 @@ class StrategyProfiler {
     }
 
     template <typename Distribution>
-    void perform_operation(const Distribution& distribution, std::span<const double> input_values,
-                           std::span<double> output_values, ProfileOperation operation,
+    void perform_operation(const Distribution& distribution,
+                           std::span<const double> input_values,
+                           std::span<double> output_values,
+                           ProfileOperation operation,
                            Strategy strategy) const {
+        // Map Strategy -> PerformanceHint::PreferredStrategy (TOOL-1)
+        PerformanceHint hint;
+        switch (strategy) {
+            case Strategy::SCALAR:
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_SCALAR; break;
+            case Strategy::VECTORIZED:
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_VECTORIZED; break;
+            case Strategy::PARALLEL:
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_PARALLEL; break;
+            case Strategy::WORK_STEALING:
+                hint.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT; break;
+        }
         switch (operation) {
             case ProfileOperation::PDF:
-                distribution.getProbabilityWithStrategy(input_values, output_values, strategy);
-                break;
+                distribution.getProbability(input_values, output_values, hint); break;
             case ProfileOperation::LOG_PDF:
-                distribution.getLogProbabilityWithStrategy(input_values, output_values, strategy);
-                break;
+                distribution.getLogProbability(input_values, output_values, hint); break;
             case ProfileOperation::CDF:
-                distribution.getCumulativeProbabilityWithStrategy(input_values, output_values,
-                                                                  strategy);
-                break;
+                distribution.getCumulativeProbability(input_values, output_values, hint); break;
         }
     }
 
     void profile_uniform_distribution() {
-        const auto uniform = stats::UniformDistribution::create(0.0, 1.0).value;
+        const auto uniform = stats::UniformDistribution::create(0.0, 1.0).unwrap();
         profile_distribution("Uniform", uniform, [this](std::size_t count) {
             std::vector<double> values(count);
             std::uniform_real_distribution<double> dist(-0.5, 1.5);
@@ -225,7 +264,7 @@ class StrategyProfiler {
     }
 
     void profile_gaussian_distribution() {
-        const auto gaussian = stats::GaussianDistribution::create(0.0, 1.0).value;
+        const auto gaussian = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
         profile_distribution("Gaussian", gaussian, [](std::size_t count) {
             std::vector<double> values(count);
             const double denominator =
@@ -238,7 +277,7 @@ class StrategyProfiler {
     }
 
     void profile_exponential_distribution() {
-        const auto exponential = stats::ExponentialDistribution::create(1.0).value;
+        const auto exponential = stats::ExponentialDistribution::create(1.0).unwrap();
         profile_distribution("Exponential", exponential, [this](std::size_t count) {
             std::vector<double> values(count);
             std::exponential_distribution<double> dist(1.0);
@@ -250,7 +289,7 @@ class StrategyProfiler {
     }
 
     void profile_discrete_distribution() {
-        const auto discrete = stats::DiscreteDistribution::create(0, 10).value;
+        const auto discrete = stats::DiscreteDistribution::create(0, 10).unwrap();
         profile_distribution("Discrete", discrete, [this](std::size_t count) {
             std::vector<double> values(count);
             std::uniform_int_distribution<int> dist(0, 10);
@@ -262,7 +301,7 @@ class StrategyProfiler {
     }
 
     void profile_poisson_distribution() {
-        const auto poisson = stats::PoissonDistribution::create(3.5).value;
+        const auto poisson = stats::PoissonDistribution::create(3.5).unwrap();
         profile_distribution("Poisson", poisson, [this](std::size_t count) {
             std::vector<double> values(count);
             std::poisson_distribution<int> dist(3);
@@ -274,7 +313,7 @@ class StrategyProfiler {
     }
 
     void profile_gamma_distribution() {
-        const auto gamma = stats::GammaDistribution::create(2.0, 1.0).value;
+        const auto gamma = stats::GammaDistribution::create(2.0, 1.0).unwrap();
         profile_distribution("Gamma", gamma, [this](std::size_t count) {
             std::vector<double> values(count);
             std::gamma_distribution<double> dist(1.5, 2.0);
@@ -286,7 +325,7 @@ class StrategyProfiler {
     }
 
     void profile_student_t_distribution() {
-        const auto student_t = stats::StudentTDistribution::create(5.0).value;
+        const auto student_t = stats::StudentTDistribution::create(5.0).unwrap();
         profile_distribution("StudentT", student_t, [this](std::size_t count) {
             std::vector<double> values(count);
             std::student_t_distribution<double> dist(5.0);
@@ -298,7 +337,7 @@ class StrategyProfiler {
     }
 
     void profile_beta_distribution() {
-        const auto beta = stats::BetaDistribution::create(2.0, 5.0).value;
+        const auto beta = stats::BetaDistribution::create(2.0, 5.0).unwrap();
         profile_distribution("Beta", beta, [this](std::size_t count) {
             std::vector<double> values(count);
             std::uniform_real_distribution<double> dist(-0.1, 1.1);
@@ -310,7 +349,7 @@ class StrategyProfiler {
     }
 
     void profile_chi_squared_distribution() {
-        const auto chi_squared = stats::ChiSquaredDistribution::create(4.0).value;
+        const auto chi_squared = stats::ChiSquaredDistribution::create(4.0).unwrap();
         profile_distribution("ChiSquared", chi_squared, [this](std::size_t count) {
             std::vector<double> values(count);
             std::chi_squared_distribution<double> dist(4.0);
@@ -322,7 +361,7 @@ class StrategyProfiler {
     }
 
     void profile_lognormal_distribution() {
-        const auto lognormal = stats::LogNormalDistribution::create(ZERO_DOUBLE, ONE).value;
+        const auto lognormal = stats::LogNormalDistribution::create(ZERO_DOUBLE, ONE).unwrap();
         profile_distribution("LogNormal", lognormal, [this](std::size_t count) {
             std::vector<double> values(count);
             std::lognormal_distribution<double> dist(ZERO_DOUBLE, ONE);
@@ -335,7 +374,7 @@ class StrategyProfiler {
 
     void profile_pareto_distribution() {
         // Pareto(scale=1, alpha=2): sample via inverse CDF X = scale / U^(1/alpha)
-        const auto pareto = stats::ParetoDistribution::create(ONE, TWO).value;
+        const auto pareto = stats::ParetoDistribution::create(ONE, TWO).unwrap();
         profile_distribution("Pareto", pareto, [this](std::size_t count) {
             std::vector<double> values(count);
             std::uniform_real_distribution<double> unif(ZERO_DOUBLE, ONE);
@@ -347,7 +386,7 @@ class StrategyProfiler {
     }
 
     void profile_weibull_distribution() {
-        const auto weibull = stats::WeibullDistribution::create(TWO, ONE).value;
+        const auto weibull = stats::WeibullDistribution::create(TWO, ONE).unwrap();
         profile_distribution("Weibull", weibull, [this](std::size_t count) {
             std::vector<double> values(count);
             std::weibull_distribution<double> dist(TWO, ONE);
@@ -360,7 +399,7 @@ class StrategyProfiler {
 
     void profile_rayleigh_distribution() {
         // Rayleigh(sigma=1): magnitude of 2D standard normal
-        const auto rayleigh = stats::RayleighDistribution::create(ONE).value;
+        const auto rayleigh = stats::RayleighDistribution::create(ONE).unwrap();
         profile_distribution("Rayleigh", rayleigh, [this](std::size_t count) {
             std::vector<double> values(count);
             std::normal_distribution<double> norm(ZERO_DOUBLE, ONE);
@@ -374,7 +413,7 @@ class StrategyProfiler {
     }
 
     void profile_von_mises_distribution() {
-        const auto von_mises = stats::VonMisesDistribution::create(ZERO_DOUBLE, TWO).value;
+        const auto von_mises = stats::VonMisesDistribution::create(ZERO_DOUBLE, TWO).unwrap();
         profile_distribution("VonMises", von_mises, [this](std::size_t count) {
             std::vector<double> values(count);
             std::uniform_real_distribution<double> dist(-PI, PI);
@@ -386,7 +425,7 @@ class StrategyProfiler {
     }
 
     void profile_binomial_distribution() {
-        const auto binomial = stats::BinomialDistribution::create(20, HALF).value;
+        const auto binomial = stats::BinomialDistribution::create(20, HALF).unwrap();
         profile_distribution("Binomial", binomial, [this](std::size_t count) {
             std::vector<double> values(count);
             std::binomial_distribution<int> dist(20, HALF);
@@ -398,13 +437,52 @@ class StrategyProfiler {
     }
 
     void profile_negative_binomial_distribution() {
-        const auto neg_binom = stats::NegativeBinomialDistribution::create(5.0, HALF).value;
+        const auto neg_binom = stats::NegativeBinomialDistribution::create(5.0, HALF).unwrap();
         profile_distribution("NegBinomial", neg_binom, [this](std::size_t count) {
             std::vector<double> values(count);
             std::negative_binomial_distribution<int> dist(5, HALF);
             for (auto& value : values) {
                 value = static_cast<double>(dist(gen_));
             }
+            return values;
+        });
+    }
+
+    void profile_geometric_distribution() {
+        // Geometric(p=0.5) delegates to NegBinomial(r=1, p=0.5).
+        // Inputs: non-negative integers (failure counts).
+        const auto geometric = stats::GeometricDistribution::create(HALF).unwrap();
+        profile_distribution("Geometric", geometric, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::geometric_distribution<int> dist(HALF);
+            for (auto& value : values) {
+                value = static_cast<double>(dist(gen_));
+            }
+            return values;
+        });
+    }
+
+    void profile_laplace_distribution() {
+        // Laplace(mu=0, b=1): standard double-exponential, full real line.
+        const auto laplace = stats::LaplaceDistribution::create(ZERO_DOUBLE, ONE).unwrap();
+        profile_distribution("Laplace", laplace, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(-5.0, 5.0);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    void profile_cauchy_distribution() {
+        // Cauchy(x0=0, gamma=1): standard Cauchy, delegates to StudentT(nu=1).
+        // Inputs: full real line; heavy tails — use wide uniform range.
+        const auto cauchy = stats::CauchyDistribution::create(ZERO_DOUBLE, ONE).unwrap();
+        profile_distribution("Cauchy", cauchy, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(-10.0, 10.0);
+            for (auto& value : values)
+                value = dist(gen_);
             return values;
         });
     }
@@ -521,7 +599,7 @@ class StrategyProfiler {
 void print_usage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [OPTIONS]\n";
     std::cout << "\nOptions:\n";
-    std::cout << "  -l, --large              Include 1M and 2M batch sizes\n";
+    std::cout << "  -l, --large              Include 750K, 1M, 1.5M, and 2M batch sizes\n";
     std::cout << "  -o, --output-csv PATH    Write CSV results to PATH\n";
     std::cout << "  -h, --help               Show this help message\n";
     std::cout << "\nDefault output file: " << RESULTS_CSV_FILENAME << "\n";

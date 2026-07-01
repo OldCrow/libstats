@@ -1,7 +1,6 @@
 #pragma once
 
 #include "libstats/common/distribution_common.h"
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -62,10 +61,15 @@ namespace stats {
  * - Finance: extreme event modelling
  *
  * @author libstats Development Team
- * @version 1.2.0
- * @since 1.2.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class WeibullDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<WeibullDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::WEIBULL;
+    static constexpr bool kIsDiscrete = false;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -91,8 +95,8 @@ class WeibullDistribution : public DistributionBase {
     /** @brief Move constructor. Implementation in .cpp. */
     WeibullDistribution(WeibullDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. Implementation in .cpp. @warning NOT noexcept. */
-    WeibullDistribution& operator=(WeibullDistribution&& other);
+    /** @brief Move assignment operator. Implementation in .cpp. */
+    WeibullDistribution& operator=(WeibullDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~WeibullDistribution() override = default;
@@ -108,11 +112,11 @@ class WeibullDistribution : public DistributionBase {
      * @return Result containing a valid WeibullDistribution or error info
      */
     [[nodiscard]] static Result<WeibullDistribution> create(double shape = detail::ONE,
-                                                            double scale = detail::ONE) noexcept {
+                                                            double scale = detail::ONE) {
         auto validation = validateWeibullParameters(shape, scale);
         if (validation.isError()) {
-            return Result<WeibullDistribution>::makeError(validation.error_code,
-                                                          validation.message);
+            return Result<WeibullDistribution>::makeError(validation.errorCode(),
+                                                          validation.message());
         }
         return Result<WeibullDistribution>::ok(createUnchecked(shape, scale));
     }
@@ -158,22 +162,24 @@ class WeibullDistribution : public DistributionBase {
     void setParameters(double shape, double scale);
 
     /** @brief Mean = λ·Γ(1 + 1/k). */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = λ²·[Γ(1 + 2/k) − Γ(1 + 1/k)²]. */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness (complex gamma expression, computed on demand). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis (complex gamma expression, computed on demand). */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override { return "WeibullDistribution"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Weibull";
+    }
 
     /** @brief Weibull is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }
@@ -211,7 +217,7 @@ class WeibullDistribution : public DistributionBase {
      * @brief Log-PDF at x: log(k) − k·log(λ) + (k−1)·log(x) − (x/λ)^k.
      * Returns −∞ for x < 0; special case at x = 0 depends on shape.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF: 1 − exp(−(x/λ)^k) for x ≥ 0; 0 for x < 0.
@@ -268,13 +274,13 @@ class WeibullDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = λ·((k−1)/k)^(1/k) for k > 1; 0 for k ≤ 1. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
     /** @brief Median = λ·(ln 2)^(1/k). */
-    [[nodiscard]] double getMedian() const noexcept;
+    [[nodiscard]] double getMedian() const override;
 
     /** @brief Entropy = γ·(1 − 1/k) + log(λ/k) + 1 (γ = Euler-Mascheroni). */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    [[nodiscard]] double getEntropy() const override;
 
     /**
      * @brief True if k = 1 within tolerance (reduces to Exponential(rate = 1/λ)).
@@ -296,23 +302,6 @@ class WeibullDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -447,9 +436,6 @@ class WeibullDistribution : public DistributionBase {
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
-
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     /** @brief True if k = 1 within tolerance (Exponential(rate = 1/λ)). */
     mutable bool isExponential_{true};

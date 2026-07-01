@@ -1,12 +1,13 @@
 #pragma once
 
-#include "libstats/platform/simd.h"
+// AQ-7: simd.h removed — no SIMD types are used in safety.h declarations.
 #include "math_constants.h"
 #include "statistical_constants.h"
 
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>  // SIZE_MAX, uintptr_t (required explicitly on libstdc++)
 #include <deque>
 #include <limits>
 #include <span>
@@ -323,60 +324,30 @@ inline double safe_sqrt(double value) noexcept {
 // VECTORIZED SAFETY FUNCTIONS
 //==============================================================================
 
-/**
- * @brief Vectorized safe logarithm with SIMD optimization
- * @param input Input values
- * @param output Output array for safe_log(input[i])
- * @note Automatically selects optimal SIMD implementation based on CPU capabilities
- * @note For small arrays, falls back to scalar implementation to avoid overhead
- */
+// =============================================================================
+// DEFERRED: Vectorized safety batch operations
+// These seven functions have no callers in the current codebase.
+// They are intended for future log-space SIMD pipelines in distributions
+// that use safe_log/safe_exp/safe_sqrt heavily (e.g. Pareto, LogNormal,
+// Weibull, Rayleigh log-space batch paths).
+//
+// Prerequisite for all: integration with the VectorOps pipeline pattern
+//   (scalar_func / batch_func / parallel_func lambdas) so that
+//   *BatchUnsafeImpl() can call them alongside vector_log/vector_exp.
+//   Currently VectorOps handles safe_log/exp inline; a dedicated safe-vector
+//   primitive is only worth adding when a distribution's hot path becomes
+//   bottlenecked by the scalar safety check overhead at large batch sizes.
+//
+// Implementation in: src/safety.cpp (stubs; forward to scalar safe_* loops).
+// =============================================================================
 void vector_safe_log(std::span<const double> input, std::span<double> output) noexcept;
-
-/**
- * @brief Vectorized safe exponential with SIMD optimization
- * @param input Input values
- * @param output Output array for safe_exp(input[i])
- * @note Automatically selects optimal SIMD implementation based on CPU capabilities
- * @note For small arrays, falls back to scalar implementation to avoid overhead
- */
 void vector_safe_exp(std::span<const double> input, std::span<double> output) noexcept;
-
-/**
- * @brief Vectorized safe square root with SIMD optimization
- * @param input Input values
- * @param output Output array for safe_sqrt(input[i])
- * @note Automatically selects optimal SIMD implementation based on CPU capabilities
- * @note For small arrays, falls back to scalar implementation to avoid overhead
- */
 void vector_safe_sqrt(std::span<const double> input, std::span<double> output) noexcept;
-
-/**
- * @brief Vectorized probability clamping with SIMD optimization
- * @param input Input values
- * @param output Output array for clamp_probability(input[i])
- * @note Automatically selects optimal SIMD implementation based on CPU capabilities
- */
 void vector_clamp_probability(std::span<const double> input, std::span<double> output) noexcept;
-
-/**
- * @brief Vectorized log probability clamping with SIMD optimization
- * @param input Input values
- * @param output Output array for clamp_log_probability(input[i])
- * @note Automatically selects optimal SIMD implementation based on CPU capabilities
- */
 void vector_clamp_log_probability(std::span<const double> input, std::span<double> output) noexcept;
 
-/**
- * @brief Check if vectorized safety operations should be used for given array size
- * @param size Number of elements to process
- * @return true if SIMD vectorization is beneficial for this size
- */
+// Dispatch helpers for the above (deferred alongside the functions themselves):
 [[nodiscard]] bool should_use_vectorized_safety(std::size_t size) noexcept;
-
-/**
- * @brief Get minimum array size threshold for vectorized safety operations
- * @return Minimum number of elements where vectorization becomes beneficial
- */
 [[nodiscard]] std::size_t vectorized_safety_threshold() noexcept;
 
 /**
@@ -455,7 +426,7 @@ inline bool is_probability_distribution(const std::vector<double>& probs,
  */
 class ConvergenceDetector {
    private:
-    std::deque<double> history_;   // O(1) pop_front; previously vector with O(n) erase
+    std::deque<double> history_;  // O(1) pop_front; previously vector with O(n) erase
     double tolerance_;
     std::size_t max_iterations_;
     std::size_t window_size_;

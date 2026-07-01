@@ -1,7 +1,6 @@
 #pragma once
 
 #include "libstats/common/distribution_common.h"
-#include "libstats/common/distribution_platform_common.h"
 
 namespace stats {
 
@@ -34,14 +33,24 @@ namespace stats {
  *
  * @par MLE:
  * Given fixed n: p̂ = k̄/n (one-pass, closed-form).
- * When n is unknown: n is estimated as max(observed k) — the smallest n consistent
- * with all observations (following libhmm's EM-compatible approach).
+ * When n is unknown, two paths are tried in order:
+ * 1. Method of moments: n̂ = round(k̄² / (k̄ − s²)) when the data appears underdispersed
+ *    (sample variance < sample mean).
+ * 2. Fallback: n̂ = max(round(kᵢ)) — the smallest n consistent with all observations.
+ *    **Warning:** this fallback estimator is biased downward and can be severely
+ *    inaccurate for large n with limited data; treat it as a lower bound only.
  *
  * @author libstats Development Team
- * @version 1.3.0
- * @since 1.3.0
+ * @version 2.0.0
+ * @since 2.0.0
  */
 class BinomialDistribution : public DistributionBase {
+   public:
+    // Dispatch metadata — replaces DistributionTraits<BinomialDistribution> (v2.0.0)
+    static constexpr detail::DistributionType kDistributionType =
+        detail::DistributionType::BINOMIAL;
+    static constexpr bool kIsDiscrete = true;
+
    public:
     //==========================================================================
     // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -64,8 +73,8 @@ class BinomialDistribution : public DistributionBase {
     /** @brief Move constructor. */
     BinomialDistribution(BinomialDistribution&& other) noexcept;
 
-    /** @brief Move assignment operator. @warning NOT noexcept. */
-    BinomialDistribution& operator=(BinomialDistribution&& other);
+    /** @brief Move assignment operator. */
+    BinomialDistribution& operator=(BinomialDistribution&& other) noexcept;
 
     /** @brief Destructor — defaulted. */
     ~BinomialDistribution() override = default;
@@ -74,11 +83,10 @@ class BinomialDistribution : public DistributionBase {
     // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
 
-    [[nodiscard]] static Result<BinomialDistribution> create(int n = 10,
-                                                             double p = detail::HALF) noexcept {
+    [[nodiscard]] static Result<BinomialDistribution> create(int n = 10, double p = detail::HALF) {
         auto v = validateBinomialParameters(n, p);
         if (v.isError())
-            return Result<BinomialDistribution>::makeError(v.error_code, v.message);
+            return Result<BinomialDistribution>::makeError(v.errorCode(), v.message());
         return Result<BinomialDistribution>::ok(createUnchecked(n, p));
     }
 
@@ -122,23 +130,23 @@ class BinomialDistribution : public DistributionBase {
     void setParameters(int n, double p);
 
     /** @brief Mean = n·p. */
-    [[nodiscard]] double getMean() const noexcept override;
+    [[nodiscard]] double getMean() const override;
 
     /** @brief Variance = n·p·(1−p). */
-    [[nodiscard]] double getVariance() const noexcept override;
+    [[nodiscard]] double getVariance() const override;
 
     /** @brief Skewness = (1−2p)/√(n·p·(1−p)). */
-    [[nodiscard]] double getSkewness() const noexcept override;
+    [[nodiscard]] double getSkewness() const override;
 
     /** @brief Excess kurtosis = (1−6p(1−p))/(n·p·(1−p)). */
-    [[nodiscard]] double getKurtosis() const noexcept override;
+    [[nodiscard]] double getKurtosis() const override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string getDistributionName() const override {
-        return "BinomialDistribution";
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Binomial";
     }
 
     /** @brief Binomial is discrete. */
@@ -178,7 +186,7 @@ class BinomialDistribution : public DistributionBase {
      * @brief Log-PMF at k.
      * Returns −∞ for out-of-range values.
      */
-    [[nodiscard]] double getLogProbability(double x) const noexcept override;
+    [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
      * @brief CDF via regularized incomplete beta I_{1−p}(n−k, k+1).
@@ -205,8 +213,12 @@ class BinomialDistribution : public DistributionBase {
     /**
      * @brief Fit n and p by MLE.
      *
-     * n̂ = max(round(xᵢ)) — smallest n consistent with all observations.
-     * p̂ = k̄/n̂  (exact MLE for p given n).
+     * p is always estimated as k̄/n̂ (exact MLE for p given n).
+     * n is estimated by method of moments when the data is underdispersed
+     * (sample variance < sample mean), otherwise falls back to max(round(xᵢ)).
+     *
+     * @warning The max(obs) fallback for n is biased downward and should be
+     *          treated as a lower bound, not a reliable point estimate.
      *
      * @param values Non-negative integer observations
      * @throws std::invalid_argument if values is empty
@@ -228,10 +240,16 @@ class BinomialDistribution : public DistributionBase {
     //==========================================================================
 
     /** @brief Mode = floor((n+1)·p) — with tie-breaking for exact integers. */
-    [[nodiscard]] double getMode() const noexcept;
+    [[nodiscard]] double getMode() const;
 
-    /** @brief Entropy (bits) ≈ ½ log₂(2πe·n·p·(1−p)) for large n. */
-    [[nodiscard]] double getEntropy() const noexcept override;
+    /**
+     * @brief Entropy in nats.
+     *
+     * Uses exact PMF summation for n ≤ 1000; falls back to the Stirling
+     * approximation ½ log(2πe·n·p·(1−p)) for larger n.
+     * All paths use std::log (nats), not std::log2 (bits).
+     */
+    [[nodiscard]] double getEntropy() const override;
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
@@ -245,23 +263,6 @@ class BinomialDistribution : public DistributionBase {
 
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;
-
-    //==========================================================================
-    // 14. EXPLICIT STRATEGY BATCH OPERATIONS
-    //==========================================================================
-
-    [[deprecated("Use getProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                    detail::Strategy strategy) const;
-
-    [[deprecated("Use getLogProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getLogProbabilityWithStrategy(std::span<const double> values, std::span<double> results,
-                                       detail::Strategy strategy) const;
-
-    [[deprecated("Use getCumulativeProbability(span, span, PerformanceHint) instead; explicit strategy methods removed in v2.0.0.")]]
-    void getCumulativeProbabilityWithStrategy(std::span<const double> values,
-                                              std::span<double> results,
-                                              detail::Strategy strategy) const;
 
     //==========================================================================
     // 15. COMPARISON OPERATORS
@@ -360,9 +361,6 @@ class BinomialDistribution : public DistributionBase {
     //==========================================================================
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
-
-    /** @brief Atomic cache validity flag for lock-free fast path. */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
 
     //==========================================================================
     // 24. SPECIALIZED CACHES

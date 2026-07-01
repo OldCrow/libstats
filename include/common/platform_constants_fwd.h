@@ -46,12 +46,12 @@ struct CacheThresholds;  // Forward declaration - full definition in platform_co
 
 CacheThresholds get_cache_thresholds();
 
-/// CPU detection functions
+/// CPU detection functions (feature struct and essential queries)
 struct Features;
 const Features& get_features();
 std::size_t optimal_double_width();
 std::size_t optimal_alignment();
-bool is_sandy_ivy_bridge();
+// is_sandy_ivy_bridge() removed — use cpu_tier() from cpu_tier.h instead.
 
 }  // namespace arch
 }  // namespace stats

@@ -1,7 +1,9 @@
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/performance_dispatcher.h"
 #include "libstats/libstats.h"
 #include "libstats/platform/simd_policy.h"
 #include "libstats/platform/thread_pool.h"
+#include "libstats/platform/work_stealing_pool.h"
 
 #include <atomic>
 #include <mutex>
@@ -28,26 +30,17 @@ void initialize_performance_systems() {
     }
 
     try {
-        // 1. Initialize system capabilities (triggers CPU detection and benchmarking)
-        // This is the most expensive operation (~10-30ms)
+        // 1. Warm up system capabilities (CPUID + core detection; ~0.1ms after benchmark removal)
         [[maybe_unused]] const auto& system_capabilities = detail::SystemCapabilities::current();
 
-        // 2. Initialize SIMD policy (triggers SIMD feature detection)
-        // Moderate cost (~1-5ms)
+        // 2. Warm up SIMD policy (amortises CPUID detection on first batch call)
         [[maybe_unused]] auto simd_level = arch::simd::SIMDPolicy::getBestLevel();
 
-        // 3. Initialize performance dispatcher with detected capabilities
-        // Creates optimized thresholds based on system characteristics (~1-2ms)
-        [[maybe_unused]] detail::PerformanceDispatcher dispatcher(system_capabilities);
-
-        // 4. Initialize performance history singleton
-        // Creates the global performance history instance (~0.1ms)
-        [[maybe_unused]] auto& perf_history =
-            detail::PerformanceDispatcher::getPerformanceHistory();
-
-        // 5. Initialize thread pool infrastructure
-        // Creates optimal thread pool for parallel operations (~1-3ms)
-        [[maybe_unused]] auto optimal_threads = ThreadPool::getOptimalThreadCount();
+        // 3. Warm up thread pool singletons (amortises thread-launch cost on first
+        // batch call). getOptimalThreadCount() only returns a number; the singletons
+        // must be touched explicitly to trigger thread creation.
+        [[maybe_unused]] auto& thread_pool = ParallelUtils::getGlobalThreadPool();
+        [[maybe_unused]] auto& ws_pool = GlobalWorkStealingPool::getInstance();
 
         // Mark as initialized
         initialized.store(true, std::memory_order_release);

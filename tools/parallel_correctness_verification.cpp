@@ -10,13 +10,26 @@
 // Use consolidated tool utilities header which includes libstats.h
 #include "tool_utils.h"
 
-// Additional specific distribution includes
+// Distribution includes
+#include "libstats/distributions/beta.h"
+#include "libstats/distributions/binomial.h"
+#include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
+#include "libstats/distributions/cauchy.h"
+#include "libstats/distributions/negative_binomial.h"
+#include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
+#include "libstats/distributions/rayleigh.h"
+#include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
+#include "libstats/distributions/von_mises.h"
+#include "libstats/distributions/weibull.h"
 #include "libstats/platform/cpu_detection.h"
 #include "libstats/platform/parallel_execution.h"
 #include "libstats/platform/thread_pool.h"
@@ -44,6 +57,54 @@
 #endif
 
 using namespace stats;
+
+//==============================================================================
+// Per-distribution factory helper — documents the test configuration explicitly
+// and avoids relying on each distribution's zero-argument create() default.
+//==============================================================================
+template <typename Dist>
+auto createTestDistribution() {
+    if constexpr (std::is_same_v<Dist, UniformDistribution>)
+        return UniformDistribution::create(0.0, 1.0);           // standard uniform
+    else if constexpr (std::is_same_v<Dist, GaussianDistribution>)
+        return GaussianDistribution::create(0.0, 1.0);          // standard normal
+    else if constexpr (std::is_same_v<Dist, ExponentialDistribution>)
+        return ExponentialDistribution::create(1.0);             // unit rate
+    else if constexpr (std::is_same_v<Dist, DiscreteDistribution>)
+        return DiscreteDistribution::create(0, 9);              // range [0, 9]
+    else if constexpr (std::is_same_v<Dist, PoissonDistribution>)
+        return PoissonDistribution::create(3.0);                // λ=3
+    else if constexpr (std::is_same_v<Dist, GammaDistribution>)
+        return GammaDistribution::create(2.0, 1.0);             // α=2, β=1
+    else if constexpr (std::is_same_v<Dist, LogNormalDistribution>)
+        return LogNormalDistribution::create(0.0, 1.0);         // μ=0, σ=1
+    else if constexpr (std::is_same_v<Dist, ParetoDistribution>)
+        return ParetoDistribution::create(1.0, 2.0);            // xm=1, α=2
+    else if constexpr (std::is_same_v<Dist, WeibullDistribution>)
+        return WeibullDistribution::create(2.0, 1.0);           // k=2, λ=1
+    else if constexpr (std::is_same_v<Dist, RayleighDistribution>)
+        return RayleighDistribution::create(1.0);               // σ=1
+    else if constexpr (std::is_same_v<Dist, VonMisesDistribution>)
+        return VonMisesDistribution::create(0.0, 1.0);          // μ=0, κ=1
+    else if constexpr (std::is_same_v<Dist, BinomialDistribution>)
+        return BinomialDistribution::create(10, 0.5);           // n=10, p=0.5
+    else if constexpr (std::is_same_v<Dist, NegativeBinomialDistribution>)
+        return NegativeBinomialDistribution::create(5.0, 0.4);  // r=5, p=0.4
+    else if constexpr (std::is_same_v<Dist, GeometricDistribution>)
+        return GeometricDistribution::create(0.4);              // p=0.4
+    else if constexpr (std::is_same_v<Dist, LaplaceDistribution>)
+        return LaplaceDistribution::create(0.0, 1.0);           // standard
+    else if constexpr (std::is_same_v<Dist, CauchyDistribution>)
+        return CauchyDistribution::create(0.0, 1.0);            // standard Cauchy
+    else if constexpr (std::is_same_v<Dist, BetaDistribution>)
+        return BetaDistribution::create(2.0, 3.0);              // α=2, β=3
+    else if constexpr (std::is_same_v<Dist, ChiSquaredDistribution>)
+        return ChiSquaredDistribution::create(4.0);             // k=4
+    else if constexpr (std::is_same_v<Dist, StudentTDistribution>)
+        return StudentTDistribution::create(5.0);               // ν=5
+    else
+        return Dist::create();
+}
 
 // Test configuration
 struct TestConfig {
@@ -80,15 +141,43 @@ class ParallelCorrectnessVerifier {
         std::mt19937 gen(static_cast<std::mt19937::result_type>(seed));
         std::vector<double> data(size);
 
+        // Input ranges match the createTestDistribution() configuration above.
         if constexpr (std::is_same_v<Dist, DiscreteDistribution>) {
-            for (size_t i = 0; i < size; ++i) {
-                data[i] = static_cast<double>(gen() % 10);  // 0-9 range
-            }
-        } else {
-            std::uniform_real_distribution<> uniform(0.1, 10.0);
-            for (size_t i = 0; i < size; ++i) {
+            // Integers in [0, 9] matching create(0, 9)
+            for (size_t i = 0; i < size; ++i)
+                data[i] = static_cast<double>(gen() % 10);
+        } else if constexpr (std::is_same_v<Dist, BinomialDistribution>) {
+            // Integers in [0, 10] matching create(10, 0.5)
+            for (size_t i = 0; i < size; ++i)
+                data[i] = static_cast<double>(gen() % 11);
+        } else if constexpr (std::is_same_v<Dist, NegativeBinomialDistribution>) {
+            // Non-negative integers matching create(5, 0.4)
+            for (size_t i = 0; i < size; ++i)
+                data[i] = static_cast<double>(gen() % 25);
+        } else if constexpr (std::is_same_v<Dist, GeometricDistribution>) {
+            // Non-negative integers matching create(0.4): failures before first success
+            for (size_t i = 0; i < size; ++i)
+                data[i] = static_cast<double>(gen() % 20);
+        } else if constexpr (std::is_same_v<Dist, ParetoDistribution>) {
+            // x >= xm = 1.0 matching create(1.0, 2.0)
+            std::uniform_real_distribution<> uniform(1.0, 20.0);
+            for (size_t i = 0; i < size; ++i)
                 data[i] = uniform(gen);
-            }
+        } else if constexpr (std::is_same_v<Dist, VonMisesDistribution>) {
+            // x in [-π, π] matching create(0.0, 1.0)
+            std::uniform_real_distribution<> uniform(-3.14159265358979, 3.14159265358979);
+            for (size_t i = 0; i < size; ++i)
+                data[i] = uniform(gen);
+        } else if constexpr (std::is_same_v<Dist, BetaDistribution>) {
+            // x in (0, 1) matching create(2.0, 3.0)
+            std::uniform_real_distribution<> uniform(0.01, 0.99);
+            for (size_t i = 0; i < size; ++i)
+                data[i] = uniform(gen);
+        } else {
+            // Generic positive-real range for all other distributions
+            std::uniform_real_distribution<> uniform(0.1, 10.0);
+            for (size_t i = 0; i < size; ++i)
+                data[i] = uniform(gen);
         }
 
         return data;
@@ -97,12 +186,12 @@ class ParallelCorrectnessVerifier {
     template <typename Dist>
     std::vector<double> compute_sequential(const std::vector<double>& inputs,
                                            const std::string& operation) {
-        auto dist_result = Dist::create();
+        auto dist_result = createTestDistribution<Dist>();
         if (dist_result.isError()) {
             throw std::runtime_error("Failed to create distribution instance: " +
-                                     dist_result.message);
+                                     dist_result.message());
         }
-        auto dist = dist_result.value;
+        auto dist = std::move(dist_result).unwrap();
         std::vector<double> results(inputs.size());
 
         for (size_t i = 0; i < inputs.size(); ++i) {
@@ -121,12 +210,12 @@ class ParallelCorrectnessVerifier {
     template <typename Dist>
     std::vector<double> compute_with_threadpool(const std::vector<double>& inputs,
                                                 const std::string& operation, int num_threads) {
-        auto dist_result = Dist::create();
+        auto dist_result = createTestDistribution<Dist>();
         if (dist_result.isError()) {
             throw std::runtime_error("Failed to create distribution instance: " +
-                                     dist_result.message);
+                                     dist_result.message());
         }
-        auto dist = dist_result.value;
+        auto dist = std::move(dist_result).unwrap();
         std::vector<double> results(inputs.size());
 
         stats::ThreadPool pool(static_cast<std::size_t>(num_threads));
@@ -164,12 +253,12 @@ class ParallelCorrectnessVerifier {
     template <typename Dist>
     std::vector<double> compute_with_gcd(const std::vector<double>& inputs,
                                          const std::string& operation) {
-        auto dist_result = Dist::create();
+        auto dist_result = createTestDistribution<Dist>();
         if (dist_result.isError()) {
             throw std::runtime_error("Failed to create distribution instance: " +
-                                     dist_result.message);
+                                     dist_result.message());
         }
-        auto dist = dist_result.value;
+        auto dist = std::move(dist_result).unwrap();
         std::vector<double> results(inputs.size());
 
         dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
@@ -187,11 +276,11 @@ class ParallelCorrectnessVerifier {
               size_t start = chunk * chunk_size;
               size_t end = (chunk == num_chunks - 1) ? inputs.size() : (chunk + 1) * chunk_size;
 
-              auto local_dist_result = Dist::create();  // Create local instance for thread safety
+              auto local_dist_result = createTestDistribution<Dist>();  // thread-local instance
               if (local_dist_result.isError()) {
                   return;  // Skip this chunk if distribution creation fails
               }
-              auto local_dist = local_dist_result.value;
+              auto local_dist = std::move(local_dist_result).unwrap();
               for (size_t i = start; i < end; ++i) {
                   if (operation == "PDF") {
                       results_ptr[i] = local_dist.getProbability(inputs_ptr[i]);
@@ -218,9 +307,9 @@ class ParallelCorrectnessVerifier {
         auto dist_result = Dist::create();
         if (dist_result.isError()) {
             throw std::runtime_error("Failed to create distribution instance: " +
-                                     dist_result.message);
+                                     dist_result.message());
         }
-        auto dist = dist_result.value;
+        auto dist = std::move(dist_result).unwrap();
         std::vector<double> results(inputs.size());
 
         omp_set_num_threads(num_threads);
@@ -479,13 +568,26 @@ class ParallelCorrectnessVerifier {
         std::cout << "  - POSIX threads\n";
 #endif
 
-        // Test all distributions using safe factory methods
+        // Test all 19 distributions
         test_distribution<UniformDistribution>("Uniform");
         test_distribution<GaussianDistribution>("Gaussian");
         test_distribution<ExponentialDistribution>("Exponential");
         test_distribution<DiscreteDistribution>("Discrete");
         test_distribution<PoissonDistribution>("Poisson");
         test_distribution<GammaDistribution>("Gamma");
+        test_distribution<LogNormalDistribution>("LogNormal");
+        test_distribution<ParetoDistribution>("Pareto");
+        test_distribution<WeibullDistribution>("Weibull");
+        test_distribution<RayleighDistribution>("Rayleigh");
+        test_distribution<VonMisesDistribution>("VonMises");
+        test_distribution<BinomialDistribution>("Binomial");
+        test_distribution<NegativeBinomialDistribution>("NegativeBinomial");
+        test_distribution<GeometricDistribution>("Geometric");
+        test_distribution<LaplaceDistribution>("Laplace");
+        test_distribution<CauchyDistribution>("Cauchy");
+        test_distribution<BetaDistribution>("Beta");
+        test_distribution<ChiSquaredDistribution>("ChiSquared");
+        test_distribution<StudentTDistribution>("StudentT");
 
         print_summary();
     }

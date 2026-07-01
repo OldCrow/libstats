@@ -20,6 +20,16 @@ These are part of the normal development workflow and are expected to be used re
 - `check-copyright.sh` — verify copyright headers are present
 - `check-no-debug.sh` — detect leftover debug output (`std::cerr`, `printf`, etc.)
 - `validate-includes.sh` — check for common include hygiene issues
+- `capture_dispatcher_profile.sh` — run `tools/strategy_profile` with the current
+  build and bundle the CSV output into `data/profiles/dispatcher/<timestamp>/`.
+  Re-run after any change to the SIMD tier or distribution batch path that might
+  shift a crossover point. The bundle is the canonical input for threshold tuning.
+- `summarize_dispatcher_profile.py` — reads a profile bundle and produces
+  `crossovers.csv`, `best_strategies.csv`, and `summary.json`. Companion to
+  `capture_dispatcher_profile.sh`.
+- `gen_neon_erf_table.py` — regenerates `src/neon_erf_data.inc`, the
+  769-entry precomputed erf table used by `vector_erf_neon`. Re-run if the
+  NEON erf approximation accuracy target or grid spacing is changed.
 
 ## Setup utilities
 
@@ -31,15 +41,8 @@ Run once per machine or development environment. Not part of the regular build c
 
 ## Historical or ad-hoc
 
-These supported specific refactoring work that is now complete.
-Retain them only if there is a concrete reason to run them again.
-
-- `find_magic_numbers.sh` — identified numeric literals for the magic-number elimination
-  pass. That work is done; this script is archival.
-- `run-iwyu.sh` — ran Include What You Use analysis during the header optimization pass.
-  That work is done; this script is archival.
-- `check_collisions.py` — checked for symbol and namespace collisions during the
-  namespace consolidation pass. That work is done; this script is archival.
+These supported specific refactoring work that is now complete and have been
+removed from the repository. They are documented here for reference only.
 
 ## Guidance
 
