@@ -9,6 +9,8 @@
 #include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <chrono>
 #include <cmath>  // for std::log, std::isfinite, std::abs
@@ -23,7 +25,6 @@
 #include <utility>  // for std::move, std::pair
 #include <vector>   // for std::vector
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -862,9 +863,11 @@ TEST_F(UniformEnhancedTest, NumericalStabilityAndEdgeCases) {
 //==============================================================================
 // DistTraits specialization for stats::UniformDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::UniformDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::UniformDistribution make() { return stats::UniformDistribution::create(0.0, 1.0).unwrap(); }
+    static stats::UniformDistribution make() {
+        return stats::UniformDistribution::create(0.0, 1.0).unwrap();
+    }
     static std::vector<double> domain() { return {0.05, 0.25, 0.5, 0.75, 0.95}; }
     static double batch_lo() { return 0.0; }
     static double batch_hi() { return 1.0; }

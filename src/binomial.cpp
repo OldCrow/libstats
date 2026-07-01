@@ -1,8 +1,9 @@
 #include "libstats/distributions/binomial.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_thresholds.h"
@@ -77,7 +78,6 @@ BinomialDistribution::BinomialDistribution(BinomialDistribution&& other) noexcep
 
 BinomialDistribution& BinomialDistribution::operator=(BinomialDistribution&& other) noexcept {
     if (this != &other) {
-
         n_ = other.n_;
         p_ = other.p_;
         logNFact_ = other.logNFact_;
@@ -243,8 +243,10 @@ double BinomialDistribution::logBinomCoeff(int k) const noexcept {
 }
 
 double BinomialDistribution::getProbability(double x) const {
-    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
-    if (!std::isfinite(x)) return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x))
+        return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
     const int k = static_cast<int>(std::round(x));
     if (k < 0 || k > n_)
         return detail::ZERO_DOUBLE;
@@ -257,15 +259,16 @@ double BinomialDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const int sn = n_;
         const double slnf = logNFact_, slp = logP_, sl1mp = log1mP_;
         const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
                                    : slnf - std::lgamma(static_cast<double>(k + 1)) -
                                          std::lgamma(static_cast<double>(sn - k + 1));
-        const double lp_val = lc + static_cast<double>(k) * slp +
-                              static_cast<double>(sn - k) * sl1mp;
+        const double lp_val =
+            lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
         return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
     }
     // Cache hit — read directly under shared_lock (no gap possible)
@@ -275,8 +278,10 @@ double BinomialDistribution::getProbability(double x) const {
 }
 
 double BinomialDistribution::getLogProbability(double x) const {
-    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
-    if (!std::isfinite(x)) return detail::NEGATIVE_INFINITY;  // ±inf → -∞
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x))
+        return detail::NEGATIVE_INFINITY;  // ±inf → -∞
     const int k = static_cast<int>(std::round(x));
     if (k < 0 || k > n_)
         return detail::NEGATIVE_INFINITY;
@@ -289,7 +294,8 @@ double BinomialDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const int sn = n_;
         const double slnf = logNFact_, slp = logP_, sl1mp = log1mP_;
@@ -306,7 +312,8 @@ double BinomialDistribution::getLogProbability(double x) const {
 double BinomialDistribution::getCumulativeProbability(double x) const {
     // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
     if (!std::isfinite(x)) {
-        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
         return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
     }
     const int k = static_cast<int>(std::floor(x));
@@ -319,12 +326,15 @@ double BinomialDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const int sn = n_;
         const double sp = p_;
-        if (sp == detail::ZERO_DOUBLE) return detail::ONE;   // all mass at k=0
-        if (sp == detail::ONE) return detail::ZERO_DOUBLE;   // all mass at k=n
+        if (sp == detail::ZERO_DOUBLE)
+            return detail::ONE;  // all mass at k=0
+        if (sp == detail::ONE)
+            return detail::ZERO_DOUBLE;  // all mass at k=n
         return detail::beta_i(detail::ONE - sp, static_cast<double>(sn - k),
                               static_cast<double>(k + 1));
     }
@@ -409,7 +419,7 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
             const int k = static_cast<int>(std::round(v));
             maxObs = std::max(maxObs, k);
             const double kd = static_cast<double>(k);
-            sum    += kd;
+            sum += kd;
             sum_sq += kd * kd;
             ++count;
         }
@@ -419,7 +429,7 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
         return;
     }
 
-    const double n_d  = static_cast<double>(count);
+    const double n_d = static_cast<double>(count);
     const double xbar = sum / n_d;
 
     // Method-of-moments (MC-10): n̂ = x̄² / (x̄ − s²),  p̂ = x̄ / n̂
@@ -433,13 +443,11 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
     if (count >= 2 && var > detail::ZERO_DOUBLE && var < xbar) {
         const double n_mom = xbar * xbar / (xbar - var);
         n_hat = std::max(maxObs, static_cast<int>(std::round(n_mom)));
-        p_hat = std::clamp(xbar / static_cast<double>(n_hat),
-                           detail::ZERO_DOUBLE, detail::ONE);
+        p_hat = std::clamp(xbar / static_cast<double>(n_hat), detail::ZERO_DOUBLE, detail::ONE);
     } else {
         // Fallback: max(obs) is a lower bound for n; MLE p̂ = x̄ / n given n.
         n_hat = maxObs;
-        p_hat = std::clamp(xbar / static_cast<double>(n_hat),
-                           detail::ZERO_DOUBLE, detail::ONE);
+        p_hat = std::clamp(xbar / static_cast<double>(n_hat), detail::ZERO_DOUBLE, detail::ONE);
     }
     setParameters(n_hat, p_hat);
 }
@@ -501,10 +509,15 @@ double BinomialDistribution::getEntropy() const {
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            n = n_;  p = p_;  lnf = logNFact_;  // snapshot under unique_lock
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            n = n_;
+            p = p_;
+            lnf = logNFact_;  // snapshot under unique_lock
         } else {
-            n = n_;  p = p_;  lnf = logNFact_;  // snapshot under shared_lock
+            n = n_;
+            p = p_;
+            lnf = logNFact_;  // snapshot under shared_lock
         }
     }
 
@@ -522,16 +535,14 @@ double BinomialDistribution::getEntropy() const {
     if (n <= kExactThreshold) {
         if (p <= detail::ZERO_DOUBLE || p >= detail::ONE)
             return detail::ZERO_DOUBLE;  // degenerate: all mass at one point
-        const double lp   = std::log(p);
+        const double lp = std::log(p);
         const double l1mp = std::log(detail::ONE - p);
         double h = detail::ZERO_DOUBLE;
         for (int k = 0; k <= n; ++k) {
             // log P(k): log-binomial coefficient + log p^k (1-p)^(n-k)
-            const double log_pmf = lnf
-                - std::lgamma(static_cast<double>(k + 1))
-                - std::lgamma(static_cast<double>(n - k + 1))
-                + static_cast<double>(k) * lp
-                + static_cast<double>(n - k) * l1mp;
+            const double log_pmf = lnf - std::lgamma(static_cast<double>(k + 1)) -
+                                   std::lgamma(static_cast<double>(n - k + 1)) +
+                                   static_cast<double>(k) * lp + static_cast<double>(n - k) * l1mp;
             // P(k) * log P(k); guard against log_pmf = -inf when P(k) is tiny
             if (std::isfinite(log_pmf))
                 h -= std::exp(log_pmf) * log_pmf;
@@ -590,11 +601,15 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
                         d.updateCacheUnsafe();
                     // Snapshot while unique_lock still held — no TOCTOU gap.
                     n = d.n_;
-                    lnf = d.logNFact_; lp = d.logP_; l1mp = d.log1mP_;
+                    lnf = d.logNFact_;
+                    lp = d.logP_;
+                    l1mp = d.log1mP_;
                 } else {
                     // Snapshot under shared_lock.
                     n = d.n_;
-                    lnf = d.logNFact_; lp = d.logP_; l1mp = d.log1mP_;
+                    lnf = d.logNFact_;
+                    lp = d.logP_;
+                    l1mp = d.log1mP_;
                 }
             }
             if (arch::should_use_parallel(count)) {

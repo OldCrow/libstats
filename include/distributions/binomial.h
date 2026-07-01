@@ -83,8 +83,7 @@ class BinomialDistribution : public DistributionBase {
     // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
 
-    [[nodiscard]] static Result<BinomialDistribution> create(int n = 10,
-                                                             double p = detail::HALF) {
+    [[nodiscard]] static Result<BinomialDistribution> create(int n = 10, double p = detail::HALF) {
         auto v = validateBinomialParameters(n, p);
         if (v.isError())
             return Result<BinomialDistribution>::makeError(v.errorCode(), v.message());

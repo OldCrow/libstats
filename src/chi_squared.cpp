@@ -1,8 +1,9 @@
 #include "libstats/distributions/chi_squared.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -66,7 +67,6 @@ ChiSquaredDistribution::ChiSquaredDistribution(ChiSquaredDistribution&& other) n
 
 ChiSquaredDistribution& ChiSquaredDistribution::operator=(ChiSquaredDistribution&& other) noexcept {
     if (this != &other) {
-
         k_ = other.k_;
         gamma_ = std::move(other.gamma_);
         other.k_ = detail::ONE;
@@ -139,7 +139,8 @@ void ChiSquaredDistribution::fit(const std::vector<double>& values) {
     }
     for (double v : values) {
         if (v <= detail::ZERO_DOUBLE || !std::isfinite(v)) {
-            throw std::invalid_argument("All values must be positive and finite for chi-squared MLE");
+            throw std::invalid_argument(
+                "All values must be positive and finite for chi-squared MLE");
         }
     }
 

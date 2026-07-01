@@ -40,7 +40,7 @@ namespace stats {
  * Sync note: if the formula in information_criteria.h ever changes, update here.
  */
 static void compute_fit_ic(const std::vector<double>& data, const DistributionBase& dist,
-                            double& log_likelihood, double& aic, double& bic) noexcept {
+                           double& log_likelihood, double& aic, double& bic) noexcept {
     const int k = dist.getNumParameters();
     const double n = static_cast<double>(data.size());
     log_likelihood = 0.0;
@@ -109,8 +109,7 @@ FitResults DistributionBase::fitWithDiagnostics(const std::vector<double>& data)
         // The previous isfinite guard is removed: silently skipping -inf
         // log-probs was incorrect (it inflated the log-likelihood for
         // out-of-support data). Letting -inf propagate is mathematically right.
-        compute_fit_ic(data, *this,
-                       results.log_likelihood, results.aic, results.bic);
+        compute_fit_ic(data, *this, results.log_likelihood, results.aic, results.bic);
 
         // Calculate residuals
         std::vector<double> sorted_data = data;
@@ -155,12 +154,12 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
     // The stats::analysis:: layer already gates them behind ContinuousDistribution;
     // mirror that guard here so validate() / fitWithDiagnostics() are consistent.
     if (isDiscrete()) {
-        result.ks_statistic     = std::numeric_limits<double>::quiet_NaN();
-        result.ks_p_value       = std::numeric_limits<double>::quiet_NaN();
-        result.ad_statistic     = std::numeric_limits<double>::quiet_NaN();
-        result.ad_p_value       = std::numeric_limits<double>::quiet_NaN();
+        result.ks_statistic = std::numeric_limits<double>::quiet_NaN();
+        result.ks_p_value = std::numeric_limits<double>::quiet_NaN();
+        result.ad_statistic = std::numeric_limits<double>::quiet_NaN();
+        result.ad_p_value = std::numeric_limits<double>::quiet_NaN();
         result.distribution_adequate = true;  // no evidence against
-        result.recommendations  =
+        result.recommendations =
             "KS and AD tests are not valid for discrete distributions. "
             "Use stats::analysis::chiSquaredGoodnessOfFitTest instead.";
         return result;
@@ -232,7 +231,8 @@ ValidationResult DistributionBase::validate(const std::vector<double>& data) con
 // DISTRIBUTION COMPARISON
 // =============================================================================
 
-bool DistributionBase::isApproximatelyEqual(const DistributionInterface& other, double tolerance) const {
+bool DistributionBase::isApproximatelyEqual(const DistributionInterface& other,
+                                            double tolerance) const {
     // Compare basic properties
     if (getDistributionName() != other.getDistributionName()) {
         return false;

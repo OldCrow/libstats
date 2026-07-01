@@ -131,8 +131,7 @@ namespace stats {
 class GammaDistribution : public DistributionBase {
    public:
     // Dispatch metadata — replaces DistributionTraits<GammaDistribution> (v2.0.0)
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::GAMMA;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::GAMMA;
     static constexpr bool kIsDiscrete = false;
 
    public:
@@ -216,11 +215,11 @@ class GammaDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<GammaDistribution> create(double alpha = 1.0,
-                                                          double beta = 1.0) {
+    [[nodiscard]] static Result<GammaDistribution> create(double alpha = 1.0, double beta = 1.0) {
         auto validation = validateGammaParameters(alpha, beta);
         if (validation.isError()) {
-            return Result<GammaDistribution>::makeError(validation.errorCode(), validation.message());
+            return Result<GammaDistribution>::makeError(validation.errorCode(),
+                                                        validation.message());
         }
 
         // Use private factory to bypass validation
@@ -604,14 +603,6 @@ class GammaDistribution : public DistributionBase {
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
 
-    
-
-    
-
-    
-
-    
-
     /**
      * @brief Bayesian credible interval from posterior distributions
      *
@@ -641,16 +632,6 @@ class GammaDistribution : public DistributionBase {
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
-
-    
-
-    
-
-    
-
-    
-
-    
 
     /**
      * @brief Bootstrap parameter confidence intervals

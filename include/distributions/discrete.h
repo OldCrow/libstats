@@ -378,7 +378,9 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Discrete"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Discrete";
+    }
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -628,8 +630,6 @@ class DiscreteDistribution : public DistributionBase {
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
 
-    
-
     /**
      * @brief Bayesian estimation for Discrete Uniform bounds
      *
@@ -674,10 +674,6 @@ class DiscreteDistribution : public DistributionBase {
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
 
-    
-
-    
-
     /**
      * @brief Chi-squared goodness-of-fit test for discrete distributions
      *
@@ -696,12 +692,6 @@ class DiscreteDistribution : public DistributionBase {
     //==========================================================================
     // 9. CROSS-VALIDATION METHODS
     //==========================================================================
-
-    
-
-    
-
-    
 
     /**
      * @brief Bootstrap parameter confidence intervals

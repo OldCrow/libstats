@@ -490,7 +490,8 @@ class ChiSquaredDistribution : public DistributionBase {
     // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double k) {
         auto v = ::stats::validateChiSquaredParameters(k);
-        if (v.isError()) throw std::invalid_argument(v.message());
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================

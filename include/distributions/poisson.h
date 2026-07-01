@@ -126,8 +126,7 @@ namespace stats {
 class PoissonDistribution : public DistributionBase {
    public:
     // Dispatch metadata — replaces DistributionTraits<PoissonDistribution> (v2.0.0)
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::POISSON;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::POISSON;
     static constexpr bool kIsDiscrete = true;
 
    public:
@@ -332,7 +331,9 @@ class PoissonDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Poisson"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Poisson";
+    }
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -513,18 +514,6 @@ class PoissonDistribution : public DistributionBase {
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty
      */
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
     /**
      * @brief Overdispersion test for Poisson vs Negative Binomial
      *
@@ -569,14 +558,6 @@ class PoissonDistribution : public DistributionBase {
     //==========================================================================
     // 9. CROSS-VALIDATION METHODS
     //==========================================================================
-
-    
-
-    
-
-    
-
-    
 
     /**
      * @brief Generate multiple random integer samples efficiently

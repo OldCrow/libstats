@@ -110,10 +110,14 @@ std::size_t get_default_grain_size() {
             return stats::arch::cpu::arm::DEFAULT_GRAIN_SIZE;
         case stats::arch::CpuTier::x86_Generic: {
             const auto& f = stats::arch::get_features();
-            if (f.avx512f) return parallel::avx512::DEFAULT_GRAIN_SIZE;
-            if (f.avx2)    return parallel::avx2::DEFAULT_GRAIN_SIZE;
-            if (f.avx)     return parallel::avx::DEFAULT_GRAIN_SIZE;
-            if (f.sse2)    return parallel::sse::DEFAULT_GRAIN_SIZE;
+            if (f.avx512f)
+                return parallel::avx512::DEFAULT_GRAIN_SIZE;
+            if (f.avx2)
+                return parallel::avx2::DEFAULT_GRAIN_SIZE;
+            if (f.avx)
+                return parallel::avx::DEFAULT_GRAIN_SIZE;
+            if (f.sse2)
+                return parallel::sse::DEFAULT_GRAIN_SIZE;
             [[fallthrough]];
         }
         default:
@@ -135,10 +139,14 @@ std::size_t get_simple_operation_grain_size() {
             return stats::arch::cpu::arm::SIMPLE_OPERATION_GRAIN_SIZE;
         case stats::arch::CpuTier::x86_Generic: {
             const auto& f = stats::arch::get_features();
-            if (f.avx512f) return parallel::avx512::SIMPLE_OPERATION_GRAIN_SIZE;
-            if (f.avx2)    return parallel::avx2::SIMPLE_OPERATION_GRAIN_SIZE;
-            if (f.avx)     return parallel::avx::SIMPLE_OPERATION_GRAIN_SIZE;
-            if (f.sse2)    return parallel::sse::SIMPLE_OPERATION_GRAIN_SIZE;
+            if (f.avx512f)
+                return parallel::avx512::SIMPLE_OPERATION_GRAIN_SIZE;
+            if (f.avx2)
+                return parallel::avx2::SIMPLE_OPERATION_GRAIN_SIZE;
+            if (f.avx)
+                return parallel::avx::SIMPLE_OPERATION_GRAIN_SIZE;
+            if (f.sse2)
+                return parallel::sse::SIMPLE_OPERATION_GRAIN_SIZE;
             [[fallthrough]];
         }
         default:
@@ -159,10 +167,14 @@ std::size_t get_complex_operation_grain_size() {
             return stats::arch::cpu::arm::COMPLEX_OPERATION_GRAIN_SIZE;
         case stats::arch::CpuTier::x86_Generic: {
             const auto& f = stats::arch::get_features();
-            if (f.avx512f) return parallel::avx512::COMPLEX_OPERATION_GRAIN_SIZE;
-            if (f.avx2)    return parallel::avx2::COMPLEX_OPERATION_GRAIN_SIZE;
-            if (f.avx)     return parallel::avx::COMPLEX_OPERATION_GRAIN_SIZE;
-            if (f.sse2)    return parallel::sse::COMPLEX_OPERATION_GRAIN_SIZE;
+            if (f.avx512f)
+                return parallel::avx512::COMPLEX_OPERATION_GRAIN_SIZE;
+            if (f.avx2)
+                return parallel::avx2::COMPLEX_OPERATION_GRAIN_SIZE;
+            if (f.avx)
+                return parallel::avx::COMPLEX_OPERATION_GRAIN_SIZE;
+            if (f.sse2)
+                return parallel::sse::COMPLEX_OPERATION_GRAIN_SIZE;
             [[fallthrough]];
         }
         default:
@@ -183,14 +195,18 @@ std::size_t get_monte_carlo_grain_size() {
             return stats::arch::cpu::arm::MONTE_CARLO_GRAIN_SIZE;
         case stats::arch::CpuTier::x86_Generic: {
             const auto& f = stats::arch::get_features();
-            if (f.avx512f) return parallel::avx512::MONTE_CARLO_GRAIN_SIZE;
-            if (f.avx2)    return parallel::avx2::MONTE_CARLO_GRAIN_SIZE;
-            if (f.avx)     return parallel::avx::MONTE_CARLO_GRAIN_SIZE;
-            if (f.sse2)    return parallel::sse::MONTE_CARLO_GRAIN_SIZE;
+            if (f.avx512f)
+                return parallel::avx512::MONTE_CARLO_GRAIN_SIZE;
+            if (f.avx2)
+                return parallel::avx2::MONTE_CARLO_GRAIN_SIZE;
+            if (f.avx)
+                return parallel::avx::MONTE_CARLO_GRAIN_SIZE;
+            if (f.sse2)
+                return parallel::sse::MONTE_CARLO_GRAIN_SIZE;
             [[fallthrough]];
         }
         default:
-        return parallel::fallback::MONTE_CARLO_GRAIN_SIZE;
+            return parallel::fallback::MONTE_CARLO_GRAIN_SIZE;
     }
 }
 
@@ -220,49 +236,69 @@ namespace prefetch {
 
 std::size_t get_sequential_prefetch_distance() {
     switch (stats::arch::cpu_tier()) {
-        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::SEQUENTIAL_PREFETCH_DISTANCE;
         case stats::arch::CpuTier::Intel_Legacy:
         case stats::arch::CpuTier::Intel_Modern:
-        case stats::arch::CpuTier::x86_Generic:   return stats::arch::cpu::intel::SEQUENTIAL_PREFETCH_DISTANCE;
-        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::SEQUENTIAL_PREFETCH_DISTANCE;
-        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::SEQUENTIAL_PREFETCH_DISTANCE;
-        default:                                   return stats::arch::cpu::intel::SEQUENTIAL_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::x86_Generic:
+            return stats::arch::cpu::intel::SEQUENTIAL_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::SEQUENTIAL_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::SEQUENTIAL_PREFETCH_DISTANCE;
+        default:
+            return stats::arch::cpu::intel::SEQUENTIAL_PREFETCH_DISTANCE;
     }
 }
 
 std::size_t get_random_prefetch_distance() {
     switch (stats::arch::cpu_tier()) {
-        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::RANDOM_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::RANDOM_PREFETCH_DISTANCE;
         case stats::arch::CpuTier::Intel_Legacy:
         case stats::arch::CpuTier::Intel_Modern:
-        case stats::arch::CpuTier::x86_Generic:   return stats::arch::cpu::intel::RANDOM_PREFETCH_DISTANCE;
-        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::RANDOM_PREFETCH_DISTANCE;
-        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::RANDOM_PREFETCH_DISTANCE;
-        default:                                   return stats::arch::cpu::intel::RANDOM_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::x86_Generic:
+            return stats::arch::cpu::intel::RANDOM_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::RANDOM_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::RANDOM_PREFETCH_DISTANCE;
+        default:
+            return stats::arch::cpu::intel::RANDOM_PREFETCH_DISTANCE;
     }
 }
 
 std::size_t get_matrix_prefetch_distance() {
     switch (stats::arch::cpu_tier()) {
-        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::MATRIX_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::MATRIX_PREFETCH_DISTANCE;
         case stats::arch::CpuTier::Intel_Legacy:
         case stats::arch::CpuTier::Intel_Modern:
-        case stats::arch::CpuTier::x86_Generic:   return stats::arch::cpu::intel::MATRIX_PREFETCH_DISTANCE;
-        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::MATRIX_PREFETCH_DISTANCE;
-        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::MATRIX_PREFETCH_DISTANCE;
-        default:                                   return stats::arch::cpu::intel::MATRIX_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::x86_Generic:
+            return stats::arch::cpu::intel::MATRIX_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::MATRIX_PREFETCH_DISTANCE;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::MATRIX_PREFETCH_DISTANCE;
+        default:
+            return stats::arch::cpu::intel::MATRIX_PREFETCH_DISTANCE;
     }
 }
 
 std::size_t get_prefetch_stride() {
     switch (stats::arch::cpu_tier()) {
-        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::PREFETCH_STRIDE;
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::PREFETCH_STRIDE;
         case stats::arch::CpuTier::Intel_Legacy:
         case stats::arch::CpuTier::Intel_Modern:
-        case stats::arch::CpuTier::x86_Generic:   return stats::arch::cpu::intel::PREFETCH_STRIDE;
-        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::PREFETCH_STRIDE;
-        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::PREFETCH_STRIDE;
-        default:                                   return stats::arch::cpu::intel::PREFETCH_STRIDE;
+        case stats::arch::CpuTier::x86_Generic:
+            return stats::arch::cpu::intel::PREFETCH_STRIDE;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::PREFETCH_STRIDE;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::PREFETCH_STRIDE;
+        default:
+            return stats::arch::cpu::intel::PREFETCH_STRIDE;
     }
 }
 }  // namespace prefetch
@@ -273,19 +309,27 @@ std::size_t get_prefetch_stride() {
 /// Platform-specific tuning functions (implementation)
 std::size_t get_optimal_simd_block_size() {
     switch (stats::arch::cpu_tier()) {
-        case stats::arch::CpuTier::Apple_Silicon:  return stats::arch::cpu::apple_silicon::OPTIMAL_SIMD_BLOCK;
+        case stats::arch::CpuTier::Apple_Silicon:
+            return stats::arch::cpu::apple_silicon::OPTIMAL_SIMD_BLOCK;
         case stats::arch::CpuTier::Intel_Legacy:
-        case stats::arch::CpuTier::Intel_Modern:   return stats::arch::cpu::intel::OPTIMAL_SIMD_BLOCK;
-        case stats::arch::CpuTier::AMD_Zen:        return stats::arch::cpu::amd::OPTIMAL_SIMD_BLOCK;
-        case stats::arch::CpuTier::ARM_Generic:    return stats::arch::cpu::arm::OPTIMAL_SIMD_BLOCK;
+        case stats::arch::CpuTier::Intel_Modern:
+            return stats::arch::cpu::intel::OPTIMAL_SIMD_BLOCK;
+        case stats::arch::CpuTier::AMD_Zen:
+            return stats::arch::cpu::amd::OPTIMAL_SIMD_BLOCK;
+        case stats::arch::CpuTier::ARM_Generic:
+            return stats::arch::cpu::arm::OPTIMAL_SIMD_BLOCK;
         case stats::arch::CpuTier::x86_Generic: {
             const auto& f = stats::arch::get_features();
-            if (f.avx512f) return 8;  // 8 doubles per 512-bit register
-            if (f.avx || f.avx2) return 4;  // 4 doubles per 256-bit register
-            if (f.sse2)  return 2;  // 2 doubles per 128-bit register
+            if (f.avx512f)
+                return 8;  // 8 doubles per 512-bit register
+            if (f.avx || f.avx2)
+                return 4;  // 4 doubles per 256-bit register
+            if (f.sse2)
+                return 2;  // 2 doubles per 128-bit register
             [[fallthrough]];
         }
-        default: return 1;  // Scalar only
+        default:
+            return 1;  // Scalar only
     }
 }
 

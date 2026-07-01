@@ -17,14 +17,14 @@
  *   New: vector<double>                     {log_likelihood per fold}
  */
 
+#include "libstats/core/distribution_concepts.h"
+
 #include <algorithm>
 #include <cmath>
 #include <numeric>
 #include <random>
 #include <stdexcept>
 #include <vector>
-
-#include "libstats/core/distribution_concepts.h"
 
 namespace stats::analysis {
 
@@ -45,10 +45,8 @@ namespace stats::analysis {
  *         averaging even when the last fold is larger (n mod k extra elements).
  */
 template <concepts::FittableDistribution D>
-[[nodiscard]] std::vector<double>
-kFoldCrossValidation(const std::vector<double>& data,
-                     int k,
-                     unsigned int random_seed = 42) {
+[[nodiscard]] std::vector<double> kFoldCrossValidation(const std::vector<double>& data, int k,
+                                                       unsigned int random_seed = 42) {
     if (static_cast<std::size_t>(k) > data.size())
         throw std::invalid_argument("Data size must be at least k for k-fold CV");
     if (k <= 1)
@@ -105,8 +103,7 @@ kFoldCrossValidation(const std::vector<double>& data,
  *         fits, where θ̂_{-i} is the parameter estimate with x_i held out.
  */
 template <concepts::FittableDistribution D>
-[[nodiscard]] double
-leaveOneOutCrossValidation(const std::vector<double>& data) {
+[[nodiscard]] double leaveOneOutCrossValidation(const std::vector<double>& data) {
     if (data.size() < 3)
         throw std::invalid_argument("At least 3 data points required for LOOCV");
 
@@ -117,7 +114,8 @@ leaveOneOutCrossValidation(const std::vector<double>& data) {
         std::vector<double> training;
         training.reserve(n - 1);
         for (std::size_t j = 0; j < n; ++j)
-            if (j != i) training.push_back(data[j]);
+            if (j != i)
+                training.push_back(data[j]);
 
         D fitted;
         fitted.fit(training);

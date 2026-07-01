@@ -422,9 +422,9 @@ void VectorOps::vector_pow_neon(const double* base, double exponent, double* res
     }
     // Native 2-wide NEON path: pow(x, e) = exp(e * log(x)).
     // vector_log_neon and vector_exp_neon are both fully implemented (v1.5.0).
-    vector_log_neon(base, result, size);                  // result = log(base)
-    scalar_multiply_neon(result, exponent, result, size); // result = e * log(base)
-    vector_exp_neon(result, result, size);                // result = exp(e * log(base))
+    vector_log_neon(base, result, size);                   // result = log(base)
+    scalar_multiply_neon(result, exponent, result, size);  // result = e * log(base)
+    vector_exp_neon(result, result, size);                 // result = exp(e * log(base))
 }
 
 void VectorOps::vector_pow_elementwise_neon(const double* base, const double* exponent,

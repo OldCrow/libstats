@@ -310,7 +310,9 @@ class ExponentialDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Exponential"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Exponential";
+    }
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -488,18 +490,6 @@ class ExponentialDistribution : public DistributionBase {
      * @return Pair of (lower_bound, upper_bound)
      */
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
     /**
      * @brief Exponentiality test using coefficient of variation
      *
@@ -515,18 +505,6 @@ class ExponentialDistribution : public DistributionBase {
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 
     /**
      * @brief Compute the half-life of the exponential process

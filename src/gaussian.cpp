@@ -20,8 +20,8 @@ using stats::detail::validatePositiveParameter;
 #include <cmath>
 #include <numeric>
 #include <ranges>
-#include <sstream>  // for toString()
 #include <span>
+#include <sstream>  // for toString()
 #include <vector>
 
 namespace stats {
@@ -246,12 +246,14 @@ double GaussianDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const bool is_std = isStandardNormal_;
         const double m = mean_, norm = normalizationConstant_;
         const double neg_half = negHalfSigmaSquaredInv_;
-        if (is_std) return detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * x * x);
+        if (is_std)
+            return detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * x * x);
         const double diff = x - m;
         return norm * std::exp(neg_half * diff * diff);
     }
@@ -271,12 +273,14 @@ double GaussianDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const bool is_std = isStandardNormal_;
         const double m = mean_, log_sd = logStandardDeviation_;
         const double neg_half = negHalfSigmaSquaredInv_;
-        if (is_std) return detail::NEG_HALF_LN_2PI + detail::NEG_HALF * x * x;
+        if (is_std)
+            return detail::NEG_HALF_LN_2PI + detail::NEG_HALF * x * x;
         const double diff = x - m;
         return detail::NEG_HALF_LN_2PI - log_sd + neg_half * diff * diff;
     }
@@ -296,11 +300,13 @@ double GaussianDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const bool is_std = isStandardNormal_;
         const double m = mean_, sigma_sqrt2 = sigmaSqrt2_;
-        if (is_std) return detail::HALF * (detail::ONE + std::erf(x * detail::INV_SQRT_2));
+        if (is_std)
+            return detail::HALF * (detail::ONE + std::erf(x * detail::INV_SQRT_2));
         return detail::HALF * (detail::ONE + std::erf((x - m) / sigma_sqrt2));
     }
     // Fast path for standard normal
@@ -345,10 +351,13 @@ double GaussianDistribution::sample(std::mt19937& rng) const {
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            cached_mean = mean_;  cached_sigma = standardDeviation_;
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            cached_mean = mean_;
+            cached_sigma = standardDeviation_;
         } else {
-            cached_mean = mean_;  cached_sigma = standardDeviation_;
+            cached_mean = mean_;
+            cached_sigma = standardDeviation_;
         }
     }
 
@@ -401,11 +410,14 @@ std::vector<double> GaussianDistribution::sample(std::mt19937& rng, size_t n) co
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            cached_mu = mean_;  cached_sigma = standardDeviation_;
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            cached_mu = mean_;
+            cached_sigma = standardDeviation_;
             cached_is_standard = isStandardNormal_;
         } else {
-            cached_mu = mean_;  cached_sigma = standardDeviation_;
+            cached_mu = mean_;
+            cached_sigma = standardDeviation_;
             cached_is_standard = isStandardNormal_;
         }
     }
@@ -631,7 +643,8 @@ bool GaussianDistribution::isUsingStandardNormalOptimization() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return isStandardNormal_;  // snapshot + early return under unique_lock
     }
     return isStandardNormal_;
@@ -644,7 +657,8 @@ double GaussianDistribution::getStandardizedValue(double x) const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return (x - mean_) * invStandardDeviation_;  // snapshot + early return
     }
     return (x - mean_) * invStandardDeviation_;

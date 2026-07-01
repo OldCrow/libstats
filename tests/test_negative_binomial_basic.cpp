@@ -1,6 +1,6 @@
 // Focused unit test for Negative Binomial distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/negative_binomial.h"
 
 #include <cmath>
@@ -76,7 +76,7 @@ int main() {
 
         // Moments: NegBinom(2, 0.5) — mean=r(1-p)/p=2, var=r(1-p)/p^2=4
         const double expected_mean = 2.0;
-        const double expected_var  = 4.0;
+        const double expected_var = 4.0;
         BasicTestFormatter::printProperty("Mean (expect 2.0)", nb.getMean());
         BasicTestFormatter::printProperty("Variance (expect 4.0)", nb.getVariance());
         BasicTestFormatter::printProperty("Skewness", nb.getSkewness());
@@ -149,7 +149,8 @@ int main() {
 
         // CDF boundary: k < 0 → 0
         const double cdf_neg = b.getCumulativeProbability(-1.0);
-        cout << "CDF(-1) = " << cdf_neg << " (expect 0): " << (cdf_neg == 0.0 ? "PASS" : "FAIL") << endl;
+        cout << "CDF(-1) = " << cdf_neg << " (expect 0): " << (cdf_neg == 0.0 ? "PASS" : "FAIL")
+             << endl;
 
         // PMF out of range
         const double pmf_neg = b.getProbability(-1.0);
@@ -157,8 +158,8 @@ int main() {
 
         // Quantile round-trip
         const double q1 = b.getQuantile(cdf1);
-        cout << "Quantile(CDF(1)) = " << q1 << " (expect 1): "
-             << (std::abs(q1 - 1.0) < 0.5 ? "PASS" : "FAIL") << endl;
+        cout << "Quantile(CDF(1)) = " << q1
+             << " (expect 1): " << (std::abs(q1 - 1.0) < 0.5 ? "PASS" : "FAIL") << endl;
 
         // Mode for NB(2, 0.5): floor((r-1)(1-p)/p) = floor(1*1) = 1
         const double mode = b.getMode();
@@ -186,7 +187,9 @@ int main() {
         double sample_mean = 0.0;
         for (double sv : samples) {
             sample_mean += sv;
-            if (sv < 0.0) { all_non_neg = false; }
+            if (sv < 0.0) {
+                all_non_neg = false;
+            }
         }
         sample_mean /= 500.0;
         cout << "All 500 samples ≥ 0: " << (all_non_neg ? "PASS" : "FAIL") << endl;
@@ -217,9 +220,10 @@ int main() {
         const auto fit_data = source.sample(rng, 500);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted r (from NB(3,0.6), expect ~3)", fit_dist.getR());
-        BasicTestFormatter::printProperty("Fitted p (from NB(3,0.6), expect ~0.6)", fit_dist.getP());
-        const bool fit_ok = (fit_dist.getR() > 0.0) && (fit_dist.getP() > 0.0)
-                         && (fit_dist.getP() <= 1.0);
+        BasicTestFormatter::printProperty("Fitted p (from NB(3,0.6), expect ~0.6)",
+                                          fit_dist.getP());
+        const bool fit_ok =
+            (fit_dist.getR() > 0.0) && (fit_dist.getP() > 0.0) && (fit_dist.getP() <= 1.0);
         cout << "Fit parameters valid: " << (fit_ok ? "PASS" : "FAIL") << endl;
 
         fit_dist.reset();
@@ -233,12 +237,7 @@ int main() {
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
         stats::tests::BasicDistConfig cfg{
-            "Negativebinomial",
-            {0.0, 1.0, 2.0, 5.0, 10.0},
-            0.0, 19.5,
-            1e-12,
-            1e-12
-        };
+            "Negativebinomial", {0.0, 1.0, 2.0, 5.0, 10.0}, 0.0, 19.5, 1e-12, 1e-12};
         cfg.invalid_scenarios = {
             {"r=0", [] { return NegativeBinomialDistribution::create(0.0, 0.5).isError(); }},
             {"r=-1", [] { return NegativeBinomialDistribution::create(-1.0, 0.5).isError(); }},
@@ -263,8 +262,7 @@ int main() {
         auto in_dist = NegativeBinomialDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
-            cout << "Stream round-trip r=" << in_dist.getR()
-                 << " p=" << in_dist.getP() << endl;
+            cout << "Stream round-trip r=" << in_dist.getR() << " p=" << in_dist.getP() << endl;
 
         BasicTestFormatter::printTestSuccess("Comparison and stream tests passed");
         BasicTestFormatter::printNewline();

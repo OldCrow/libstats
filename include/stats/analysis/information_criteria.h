@@ -9,13 +9,13 @@
  *   → stats::analysis::informationCriteria(data, dist)
  */
 
+#include "libstats/core/distribution_concepts.h"
+
 #include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <tuple>
 #include <vector>
-
-#include "libstats/core/distribution_concepts.h"
 
 namespace stats::analysis {
 
@@ -32,8 +32,8 @@ namespace stats::analysis {
  * AICc = AIC + 2k(k+1)/(n−k−1)  (undefined → +∞ when n−k−1 ≤ 0)
  */
 template <concepts::AnyDistribution D>
-[[nodiscard]] std::tuple<double, double, double, double>
-informationCriteria(const std::vector<double>& data, const D& dist) {
+[[nodiscard]] std::tuple<double, double, double, double> informationCriteria(
+    const std::vector<double>& data, const D& dist) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
 
@@ -44,11 +44,10 @@ informationCriteria(const std::vector<double>& data, const D& dist) {
     for (double val : data)
         log_likelihood += dist.getLogProbability(val);
 
-    const double aic  = 2.0 * k - 2.0 * log_likelihood;
-    const double bic  = std::log(n) * k - 2.0 * log_likelihood;
-    const double aicc = (n - k - 1.0 > 0.0)
-        ? aic + (2.0 * k * (k + 1.0)) / (n - k - 1.0)
-        : std::numeric_limits<double>::infinity();
+    const double aic = 2.0 * k - 2.0 * log_likelihood;
+    const double bic = std::log(n) * k - 2.0 * log_likelihood;
+    const double aicc = (n - k - 1.0 > 0.0) ? aic + (2.0 * k * (k + 1.0)) / (n - k - 1.0)
+                                            : std::numeric_limits<double>::infinity();
 
     return {aic, bic, aicc, log_likelihood};
 }

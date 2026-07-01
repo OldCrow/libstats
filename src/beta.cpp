@@ -269,11 +269,17 @@ double BetaDistribution::getProbability(double x) const {
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
             if (!cache_valid_)
                 updateCacheUnsafe();
-            a = alpha_; b = beta_; lnc = logNormConst_;
-            am1 = alphaMinus1_; bm1 = betaMinus1_;
+            a = alpha_;
+            b = beta_;
+            lnc = logNormConst_;
+            am1 = alphaMinus1_;
+            bm1 = betaMinus1_;
         } else {
-            a = alpha_; b = beta_; lnc = logNormConst_;
-            am1 = alphaMinus1_; bm1 = betaMinus1_;
+            a = alpha_;
+            b = beta_;
+            lnc = logNormConst_;
+            am1 = alphaMinus1_;
+            bm1 = betaMinus1_;
         }
     }
     if (x <= detail::ZERO_DOUBLE || x >= detail::ONE) {
@@ -308,11 +314,17 @@ double BetaDistribution::getLogProbability(double x) const {
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
             if (!cache_valid_)
                 updateCacheUnsafe();
-            a = alpha_; b = beta_; lnc = logNormConst_;
-            am1 = alphaMinus1_; bm1 = betaMinus1_;
+            a = alpha_;
+            b = beta_;
+            lnc = logNormConst_;
+            am1 = alphaMinus1_;
+            bm1 = betaMinus1_;
         } else {
-            a = alpha_; b = beta_; lnc = logNormConst_;
-            am1 = alphaMinus1_; bm1 = betaMinus1_;
+            a = alpha_;
+            b = beta_;
+            lnc = logNormConst_;
+            am1 = alphaMinus1_;
+            bm1 = betaMinus1_;
         }
     }
     if (x < detail::ZERO_DOUBLE || x > detail::ONE) {
@@ -459,8 +471,8 @@ void BetaDistribution::fit(const std::vector<double>& values) {
         // Diagonal Newton step (FIT-3): use detail::trigamma() directly instead of
         // finite-differencing digamma (which required 6 digamma calls per step).
         // Exact derivatives give quadratic Newton convergence.
-        const double tpsi_a  = detail::trigamma(alpha_cur);
-        const double tpsi_b  = detail::trigamma(beta_cur);
+        const double tpsi_a = detail::trigamma(alpha_cur);
+        const double tpsi_b = detail::trigamma(beta_cur);
         const double tpsi_ab = detail::trigamma(ab);
 
         // 2×2 Jacobian (negated Hessian of log-likelihood per observation):
@@ -566,9 +578,13 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
                         dist.updateCacheUnsafe();
-                    lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
                 } else {
-                    lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
                 }
             }
             // Chunk the batch so each parallel task uses the SIMD pipeline
@@ -601,9 +617,13 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
                         dist.updateCacheUnsafe();
-                    lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
                 } else {
-                    lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
                 }
             }
             constexpr std::size_t CHUNK = 1024;
@@ -658,9 +678,13 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
                         dist.updateCacheUnsafe();
-                    lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
                 } else {
-                    lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
                 }
             }
             // Chunk the batch so each parallel task uses the SIMD pipeline
@@ -694,9 +718,13 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                     if (!dist.cache_valid_)
                         dist.updateCacheUnsafe();
-                    lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
                 } else {
-                    lnc = dist.logNormConst_;  am1 = dist.alphaMinus1_;  bm1 = dist.betaMinus1_;
+                    lnc = dist.logNormConst_;
+                    am1 = dist.alphaMinus1_;
+                    bm1 = dist.betaMinus1_;
                 }
             }
             constexpr std::size_t CHUNK = 1024;

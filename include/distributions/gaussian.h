@@ -158,8 +158,8 @@ class GaussianDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<GaussianDistribution> create(
-        double mean = 0.0, double standardDeviation = 1.0) {
+    [[nodiscard]] static Result<GaussianDistribution> create(double mean = 0.0,
+                                                             double standardDeviation = 1.0) {
         auto validation = validateGaussianParameters(mean, standardDeviation);
         if (validation.isError()) {
             return Result<GaussianDistribution>::makeError(validation.errorCode(),
@@ -293,7 +293,9 @@ class GaussianDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Gaussian"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Gaussian";
+    }
 
     /**
      * @brief Gets the number of parameters for this distribution.

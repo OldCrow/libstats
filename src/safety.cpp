@@ -1,6 +1,6 @@
 #include "libstats/core/safety.h"
-#include "libstats/common/distribution_impl_common.h"  // VectorOps (SIMD)
 
+#include "libstats/common/distribution_impl_common.h"  // VectorOps (SIMD)
 #include "libstats/core/math_constants.h"
 #include "libstats/core/statistical_constants.h"
 
@@ -59,8 +59,7 @@ void vector_safe_log(std::span<const double> input, std::span<double> output) no
         // safe_log returns MIN_LOG_PROBABILITY for all these cases.
         // +inf input -> +inf is already correct for both.
         for (std::size_t i = 0; i < size; ++i) {
-            if (std::isnan(output[i]) ||
-                (std::isinf(output[i]) && output[i] < 0)) {
+            if (std::isnan(output[i]) || (std::isinf(output[i]) && output[i] < 0)) {
                 output[i] = detail::MIN_LOG_PROBABILITY;
             }
         }

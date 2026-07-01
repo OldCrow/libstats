@@ -1,13 +1,13 @@
 #include "libstats/core/math_utils.h"
-#include "libstats/stats/analysis/statistical_utilities.h"
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 
-#include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
-#include "libstats/common/simd_policy_fwd.h"    // SIMD policy decisions (lightweight)
+#include "libstats/common/cpu_detection_fwd.h"         // CPU feature queries (lightweight)
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+#include "libstats/common/simd_policy_fwd.h"           // SIMD policy decisions (lightweight)
 #include "libstats/core/distribution_base.h"
 #include "libstats/core/math_constants.h"
 #include "libstats/core/safety.h"
 #include "libstats/core/statistical_constants.h"
+#include "libstats/stats/analysis/statistical_utilities.h"
 
 #include <algorithm>
 #include <array>
@@ -97,8 +97,7 @@ double erf_inv(double x) noexcept {
         double z = std::sqrt(-std::log((detail::ONE - a) * detail::HALF));
 
         result = z - (ACKLAM_D0 + ACKLAM_D1 * z + ACKLAM_D2 * z * z) /
-                         (detail::ONE + ACKLAM_E0 * z + ACKLAM_E1 * z * z +
-                          ACKLAM_E2 * z * z * z);
+                         (detail::ONE + ACKLAM_E0 * z + ACKLAM_E1 * z * z + ACKLAM_E2 * z * z * z);
     } else {
         // Extreme tail region: use specialized asymptotic series
         // For erf(x) very close to 1, use high-precision asymptotic expansion
@@ -128,13 +127,14 @@ double erf_inv(double x) noexcept {
             // Standard extreme tail: use refined asymptotic expansion
             double t = std::sqrt(-detail::TWO * std::log(eps));
 
-            result = t - (ACKLAM_D0 + ACKLAM_D1 * t + ACKLAM_D2 * t * t) /
-                             (detail::ONE + ACKLAM_E0 * t + ACKLAM_E1 * t * t +
-                              ACKLAM_E2 * t * t * t);
+            result =
+                t - (ACKLAM_D0 + ACKLAM_D1 * t + ACKLAM_D2 * t * t) /
+                        (detail::ONE + ACKLAM_E0 * t + ACKLAM_E1 * t * t + ACKLAM_E2 * t * t * t);
 
             // Additional correction term for better accuracy
             double correction = std::log(t * detail::SQRT_PI * detail::HALF) / (detail::TWO * t);
-            result -= correction * detail::ERF_INV_HALLEY_DAMPING;  // Damped to avoid overcorrection
+            result -=
+                correction * detail::ERF_INV_HALLEY_DAMPING;  // Damped to avoid overcorrection
         }
     }
 
@@ -206,7 +206,8 @@ double gamma_q(double a, double x) noexcept {
     // before the abs(d)<ZERO clamp inside the loop executes. Mirror the pattern
     // used in beta_continued_fraction.
     double b = x + detail::ONE - a;
-    if (std::abs(b) < detail::ZERO) b = detail::ZERO;
+    if (std::abs(b) < detail::ZERO)
+        b = detail::ZERO;
     double c = detail::LARGE_CONTINUED_FRACTION_VALUE;
     double d = detail::ONE / b;
     double h = d;
@@ -418,13 +419,12 @@ double trigamma(double x) noexcept {
         result += detail::ONE / (x * x);
         x += detail::ONE;
     }
-    const double r  = detail::ONE / x;
+    const double r = detail::ONE / x;
     const double r2 = r * r;
     // Asymptotic series: 1/x + 1/(2x²) + 1/(6x³) - 1/(30x⁵) + 1/(42x⁷) - 1/(30x⁹)
-    result += r * (detail::ONE + detail::HALF * r
-              + r2 * (detail::ONE / 6.0
-              - r2 * (detail::ONE / 30.0
-              - r2 * (detail::ONE / 42.0 - r2 / 30.0))));
+    result += r * (detail::ONE + detail::HALF * r +
+                   r2 * (detail::ONE / 6.0 -
+                         r2 * (detail::ONE / 30.0 - r2 * (detail::ONE / 42.0 - r2 / 30.0))));
     return result;
 }
 
@@ -449,7 +449,7 @@ double inverse_beta_i(double p, double a, double b) noexcept {
     const double lb = lbeta(a, b);
     double x;
     {
-        const double mu    = a / (a + b);
+        const double mu = a / (a + b);
         const double sigma = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
         x = mu + sigma * inverse_normal_cdf(p);
     }
@@ -963,7 +963,8 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
         // Expand upper bound until it actually brackets p (handles p > 0.9999)
         while (chi_squared_cdf(high, df) < p) {
             high *= 2.0;
-            if (high > 1e15) break;  // safety cap
+            if (high > 1e15)
+                break;  // safety cap
         }
         const double tolerance = detail::DEFAULT_TOLERANCE;
         const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
@@ -1031,7 +1032,8 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
             double high = df + 10.0 * std::sqrt(df);
             while (chi_squared_cdf(high, df) < p) {
                 high *= 2.0;
-                if (high > 1e15) break;  // safety cap
+                if (high > 1e15)
+                    break;  // safety cap
             }
 
             for (int j = 0; j < max_iterations; ++j) {
@@ -1272,7 +1274,7 @@ std::vector<double> empirical_cdf(std::span<const double> data) {
 }
 
 std::vector<double> calculate_quantiles(std::span<const double> data,
-                                         std::span<const double> quantiles) {
+                                        std::span<const double> quantiles) {
     return detail::calculate_quantiles(data, quantiles);
 }
 

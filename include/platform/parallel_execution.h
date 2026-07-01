@@ -469,7 +469,8 @@ struct WorkItem {
 };
 
 /// Windows Thread Pool callback function
-inline VOID CALLBACK ThreadPoolWorkCallback(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work) {
+inline VOID CALLBACK ThreadPoolWorkCallback(PTP_CALLBACK_INSTANCE Instance, PVOID Context,
+                                            PTP_WORK Work) {
     WorkItem* item = static_cast<WorkItem*>(Context);
     try {
         item->work_function();
@@ -727,16 +728,17 @@ T openmp_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
 
     #pragma omp parallel
     {
-        const int tid      = omp_get_thread_num();
+        const int tid = omp_get_thread_num();
         const int nthreads = omp_get_num_threads();
-        const size_t n     = static_cast<size_t>(nthreads);
+        const size_t n = static_cast<size_t>(nthreads);
         const size_t chunk = (total_elements + n - 1) / n;
-        const size_t lo    = std::min(chunk * static_cast<size_t>(tid), total_elements);
-        const size_t hi    = std::min(lo + chunk, total_elements);
+        const size_t lo = std::min(chunk * static_cast<size_t>(tid), total_elements);
+        const size_t hi = std::min(lo + chunk, total_elements);
         T local = init;
         for (size_t i = lo; i < hi; ++i)
             local = op(local,
-                       *(first + static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
+                       *(first +
+                         static_cast<typename std::iterator_traits<Iterator>::difference_type>(i)));
         partials[static_cast<size_t>(tid)] = local;
     }
 

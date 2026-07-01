@@ -1,6 +1,6 @@
 // Focused unit test for Binomial distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/binomial.h"
 
 #include <cmath>
@@ -67,7 +67,7 @@ int main() {
 
         // Moments: Binomial(10, 0.5) — mean=5, var=2.5
         const double expected_mean = 5.0;
-        const double expected_var  = 2.5;
+        const double expected_var = 2.5;
         BasicTestFormatter::printProperty("Mean (expect 5.0)", binom.getMean());
         BasicTestFormatter::printProperty("Variance (expect 2.5)", binom.getVariance());
         BasicTestFormatter::printProperty("Skewness (expect 0)", binom.getSkewness());
@@ -135,9 +135,11 @@ int main() {
 
         // CDF boundaries
         const double cdf_neg = b.getCumulativeProbability(-1.0);
-        const double cdf_n   = b.getCumulativeProbability(10.0);
-        cout << "CDF(-1) = " << cdf_neg << " (expect 0): " << (cdf_neg == 0.0 ? "PASS" : "FAIL") << endl;
-        cout << "CDF(10) = " << cdf_n  << " (expect 1): " << (cdf_n == 1.0 ? "PASS" : "FAIL") << endl;
+        const double cdf_n = b.getCumulativeProbability(10.0);
+        cout << "CDF(-1) = " << cdf_neg << " (expect 0): " << (cdf_neg == 0.0 ? "PASS" : "FAIL")
+             << endl;
+        cout << "CDF(10) = " << cdf_n << " (expect 1): " << (cdf_n == 1.0 ? "PASS" : "FAIL")
+             << endl;
 
         // PMF out of range
         const double pmf_neg = b.getProbability(-1.0);
@@ -147,7 +149,8 @@ int main() {
 
         // Quantile round-trip
         const double q5 = b.getQuantile(cdf5);
-        cout << "Quantile(CDF(5)) = " << q5 << " (expect 5): " << (q5 == 5.0 ? "PASS" : "FAIL") << endl;
+        cout << "Quantile(CDF(5)) = " << q5 << " (expect 5): " << (q5 == 5.0 ? "PASS" : "FAIL")
+             << endl;
 
         if (!pmf5_ok || !pmf0_ok || !logpmf_ok || !cdf5_ok)
             throw runtime_error("Probability accuracy failed");
@@ -171,7 +174,9 @@ int main() {
         double sample_mean = 0.0;
         for (double sv : samples) {
             sample_mean += sv;
-            if (sv < 0.0 || sv > 10.0) { all_in_range = false; }
+            if (sv < 0.0 || sv > 10.0) {
+                all_in_range = false;
+            }
         }
         sample_mean /= 500.0;
         cout << "All 500 samples in {0..10}: " << (all_in_range ? "PASS" : "FAIL") << endl;
@@ -196,10 +201,13 @@ int main() {
         auto source = BinomialDistribution::create(8, 0.6).unwrap();
         const auto fit_data = source.sample(rng, 400);
         fit_dist.fit(fit_data);
-        BasicTestFormatter::printPropertyInt("Fitted n (from Bin(8,0.6), expect ~8)", fit_dist.getN());
-        BasicTestFormatter::printProperty("Fitted p (from Bin(8,0.6), expect ~0.6)", fit_dist.getP());
+        BasicTestFormatter::printPropertyInt("Fitted n (from Bin(8,0.6), expect ~8)",
+                                             fit_dist.getN());
+        BasicTestFormatter::printProperty("Fitted p (from Bin(8,0.6), expect ~0.6)",
+                                          fit_dist.getP());
         // n̂ = max(k) ≥ 1
-        const bool fit_ok = (fit_dist.getN() >= 1) && (fit_dist.getP() > 0.0) && (fit_dist.getP() <= 1.0);
+        const bool fit_ok =
+            (fit_dist.getN() >= 1) && (fit_dist.getP() > 0.0) && (fit_dist.getP() <= 1.0);
         cout << "Fit parameters valid: " << (fit_ok ? "PASS" : "FAIL") << endl;
 
         fit_dist.reset();
@@ -213,10 +221,7 @@ int main() {
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
         stats::tests::BasicDistConfig cfg{
-            "Binomial",
-            {0.0, 2.0, 5.0, 8.0, 10.0},
-            0.0, 10.5,
-            1e-12,
+            "Binomial", {0.0, 2.0, 5.0, 8.0, 10.0}, 0.0, 10.5, 1e-12,
             1e-9  // cdf_tolerance
         };
         cfg.invalid_scenarios = {
@@ -243,8 +248,7 @@ int main() {
         auto in_dist = BinomialDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
-            cout << "Stream round-trip n=" << in_dist.getN()
-                 << " p=" << in_dist.getP() << endl;
+            cout << "Stream round-trip n=" << in_dist.getN() << " p=" << in_dist.getP() << endl;
 
         BasicTestFormatter::printTestSuccess("Comparison and stream tests passed");
         BasicTestFormatter::printNewline();

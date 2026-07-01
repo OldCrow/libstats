@@ -10,6 +10,8 @@
 #include "libstats/stats/analysis/poisson_analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <chrono>
 #include <cmath>  // for std::exp, std::log, std::isfinite, std::abs
@@ -24,7 +26,6 @@
 #include <utility>  // for std::move, std::pair
 #include <vector>   // for std::vector
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -100,15 +101,15 @@ TEST_F(PoissonEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(custom.getKurtosis(), 1.0 / 5.0, 1e-10);
 
     // Entropy: H > 0 for all valid λ; monotone increasing in λ
-    const double H1   = stdPoisson.getEntropy();
-    const double H5   = custom.getEntropy();
-    auto p50  = stats::PoissonDistribution::create(50.0).unwrap();
+    const double H1 = stdPoisson.getEntropy();
+    const double H5 = custom.getEntropy();
+    auto p50 = stats::PoissonDistribution::create(50.0).unwrap();
     auto p200 = stats::PoissonDistribution::create(200.0).unwrap();
     EXPECT_TRUE(std::isfinite(H1));
-    EXPECT_GT(H1, 0.0);                    // entropy is positive
-    EXPECT_GT(H5, H1);                     // higher λ → higher entropy
-    EXPECT_GT(p50.getEntropy(), H5);       // monotone continues
-    EXPECT_GT(p200.getEntropy(), p50.getEntropy()); // asymptotic formula region
+    EXPECT_GT(H1, 0.0);                              // entropy is positive
+    EXPECT_GT(H5, H1);                               // higher λ → higher entropy
+    EXPECT_GT(p50.getEntropy(), H5);                 // monotone continues
+    EXPECT_GT(p200.getEntropy(), p50.getEntropy());  // asymptotic formula region
     // Sanity-check the exact result at λ=1 against the known summed series value
     // H(Poisson(1)) ≈ 1.3049 nats
     EXPECT_NEAR(H1, 1.305, 5e-3);
@@ -849,9 +850,11 @@ TEST_F(PoissonEnhancedTest, NumericalStabilityAndEdgeCases) {
 //==============================================================================
 // DistTraits specialization for stats::PoissonDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::PoissonDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::PoissonDistribution make() { return stats::PoissonDistribution::create(3.0).unwrap(); }
+    static stats::PoissonDistribution make() {
+        return stats::PoissonDistribution::create(3.0).unwrap();
+    }
     static std::vector<double> domain() { return {0.0, 1.0, 2.0, 3.0, 4.0, 5.0}; }
     static double batch_lo() { return 0.0; }
     static double batch_hi() { return 10.5; }

@@ -110,7 +110,8 @@ double ExponentialDistribution::getMean() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return invLambda_;  // snapshot + early return under unique_lock
     }
     return invLambda_;
@@ -121,7 +122,8 @@ double ExponentialDistribution::getVariance() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return invLambdaSquared_;  // snapshot + early return under unique_lock
     }
     return invLambdaSquared_;
@@ -132,7 +134,8 @@ double ExponentialDistribution::getScale() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return invLambda_;  // snapshot + early return under unique_lock
     }
     return invLambda_;
@@ -187,11 +190,13 @@ double ExponentialDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const bool is_unit = isUnitRate_;
         const double lam = lambda_, neg_lam = negLambda_;
-        if (is_unit) return std::exp(-x);
+        if (is_unit)
+            return std::exp(-x);
         return lam * std::exp(neg_lam * x);
     }
 
@@ -215,11 +220,13 @@ double ExponentialDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const bool is_unit = isUnitRate_;
         const double log_lam = logLambda_, neg_lam = negLambda_;
-        if (is_unit) return -x;
+        if (is_unit)
+            return -x;
         return log_lam + neg_lam * x;
     }
 
@@ -243,11 +250,13 @@ double ExponentialDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const bool is_unit = isUnitRate_;
         const double neg_lam = negLambda_;
-        if (is_unit) return detail::ONE - std::exp(-x);
+        if (is_unit)
+            return detail::ONE - std::exp(-x);
         return detail::ONE - std::exp(neg_lam * x);
     }
 
@@ -276,11 +285,13 @@ double ExponentialDistribution::getQuantile(double p) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const bool is_unit = isUnitRate_;
         const double inv_lam = invLambda_;
-        if (is_unit) return -std::log(detail::ONE - p);
+        if (is_unit)
+            return -std::log(detail::ONE - p);
         return -std::log(detail::ONE - p) * inv_lam;
     }
 
@@ -302,7 +313,8 @@ double ExponentialDistribution::sample(std::mt19937& rng) const {
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
+            if (!cache_valid_)
+                updateCacheUnsafe();
             cached_is_unit_rate = isUnitRate_;
             cached_inv_lambda = invLambda_;
         } else {
@@ -338,7 +350,8 @@ std::vector<double> ExponentialDistribution::sample(std::mt19937& rng, size_t n)
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
+            if (!cache_valid_)
+                updateCacheUnsafe();
             cached_is_unit_rate = isUnitRate_;
             cached_inv_lambda = invLambda_;
         } else {
@@ -525,7 +538,8 @@ void ExponentialDistribution::getProbability(std::span<const double> values,
                 // Snapshot under unique_lock — eliminates TOCTOU gap.
                 const double cached_lambda = dist.lambda_;
                 const double cached_neg_lambda = dist.negLambda_;
-                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_neg_lambda);
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda,
+                                                   cached_neg_lambda);
                 return;
             }
 

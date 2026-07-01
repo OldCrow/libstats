@@ -1,6 +1,6 @@
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/platform/simd_policy.h"
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/platform/cpu_detection.h"
 
 #include <atomic>
@@ -152,7 +152,8 @@ SIMDPolicy::Level SIMDPolicy::detectBestLevel() noexcept {
 std::size_t SIMDPolicy::computeOptimalThreshold(SIMDPolicy::Level level) noexcept {
     switch (level) {
         case SIMDPolicy::Level::AVX512:
-            return 8;  // Aligned with getOptimalBlockSize(AVX512)=8; was 16, wasting one full register.
+            return 8;  // Aligned with getOptimalBlockSize(AVX512)=8; was 16, wasting one full
+                       // register.
         case SIMDPolicy::Level::AVX2:
             return 8;
         case SIMDPolicy::Level::AVX:

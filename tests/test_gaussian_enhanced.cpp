@@ -10,6 +10,8 @@
 #include "libstats/stats/analysis/gaussian_analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <cmath>      // for std::sqrt, std::exp, M_PI, std::isfinite, std::abs
 #include <gtest/gtest.h>
@@ -17,7 +19,6 @@
 #include <random>    // for std::mt19937, std::normal_distribution
 #include <utility>   // for std::move, std::pair
 #include <vector>    // for std::vector
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -103,7 +104,8 @@ TEST_F(GaussianEnhancedTest, AdvancedStatisticalMethods) {
     std::cout << "\n=== Advanced Statistical Methods ===\n";
 
     // Confidence interval for mean
-    auto [ci_lower, ci_upper] = stats::analysis::gaussian::confidenceIntervalMean(normal_data_, 0.95);
+    auto [ci_lower, ci_upper] =
+        stats::analysis::gaussian::confidenceIntervalMean(normal_data_, 0.95);
     EXPECT_LT(ci_lower, ci_upper);
     EXPECT_TRUE(std::isfinite(ci_lower));
     EXPECT_TRUE(std::isfinite(ci_upper));
@@ -235,8 +237,8 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
     std::cout << "\n=== Bootstrap Methods ===\n";
 
     // Bootstrap parameter confidence intervals
-    auto [mean_ci, std_ci] =
-        stats::analysis::bootstrapMeanVarianceCI<stats::GaussianDistribution>(normal_data_, 0.95, 1000, 456);
+    auto [mean_ci, std_ci] = stats::analysis::bootstrapMeanVarianceCI<stats::GaussianDistribution>(
+        normal_data_, 0.95, 1000, 456);
 
     // Check that confidence intervals are reasonable
     EXPECT_LT(mean_ci.first, mean_ci.second);  // Lower bound < Upper bound
@@ -256,7 +258,8 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
     std::cout << "  Std 95% CI: [" << std_ci.first << ", " << std_ci.second << "]\n";
 
     // K-fold cross-validation
-    auto cv_results = stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(normal_data_, 5, 42);
+    auto cv_results =
+        stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(normal_data_, 5, 42);
     EXPECT_EQ(cv_results.size(), 5);
 
     for (const double fold_ll : cv_results) {
@@ -268,7 +271,8 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
 
     // Leave-one-out cross-validation (using smaller dataset)
     std::vector<double> small_normal_data(normal_data_.begin(), normal_data_.begin() + 20);
-    const auto loo_log_likelihood = stats::analysis::leaveOneOutCrossValidation<stats::GaussianDistribution>(small_normal_data);
+    const auto loo_log_likelihood =
+        stats::analysis::leaveOneOutCrossValidation<stats::GaussianDistribution>(small_normal_data);
     EXPECT_LE(loo_log_likelihood, 0.0);
     EXPECT_TRUE(std::isfinite(loo_log_likelihood));
     std::cout << "  Leave-one-out CV: LogL=" << loo_log_likelihood << "\n";
@@ -320,7 +324,8 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdNormal.getProbability(input_span, std::span<double>(simd_results), simd_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::max<std::int64_t>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        auto simd_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
@@ -329,8 +334,8 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdNormal.getProbability(input_span, std::span<double>(parallel_results), parallel_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto parallel_time =
-            std::max<std::int64_t>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        auto parallel_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // 4. Work-stealing operations (use shared global pool)
         std::vector<double> work_stealing_results(batch_size);
@@ -339,8 +344,8 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         start = std::chrono::high_resolution_clock::now();
         stdNormal.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
         end = std::chrono::high_resolution_clock::now();
-        auto work_stealing_time =
-            std::max<std::int64_t>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        auto work_stealing_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Calculate speedups
         double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
@@ -430,8 +435,8 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
             traditional_results[j] = gauss_dist.getProbability(test_values[j]);
         }
         end = std::chrono::high_resolution_clock::now();
-        auto traditional_time =
-            std::max<std::int64_t>(1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        auto traditional_time = std::max<std::int64_t>(
+            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 
         // Verify correctness
         bool results_match = true;
@@ -580,11 +585,14 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         // 1. Baseline (scalar loop)
         auto start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) baseline_pdf_results[i] = stdNormal.getProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                baseline_pdf_results[i] = stdNormal.getProbability(test_values[i]);
         } else if (op == "LogPDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) baseline_log_pdf_results[i] = stdNormal.getLogProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                baseline_log_pdf_results[i] = stdNormal.getLogProbability(test_values[i]);
         } else if (op == "CDF") {
-            for (size_t i = 0; i < BENCHMARK_SIZE; ++i) baseline_cdf_results[i] = stdNormal.getCumulativeProbability(test_values[i]);
+            for (size_t i = 0; i < BENCHMARK_SIZE; ++i)
+                baseline_cdf_results[i] = stdNormal.getCumulativeProbability(test_values[i]);
         }
         auto end = std::chrono::high_resolution_clock::now();
         result.baseline_time_us = static_cast<long>(
@@ -595,11 +603,14 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
         simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
         start = std::chrono::high_resolution_clock::now();
         if (op == "PDF") {
-            stdNormal.getProbability(std::span<const double>(test_values), std::span<double>(pdf_results), simd_hint);
+            stdNormal.getProbability(std::span<const double>(test_values),
+                                     std::span<double>(pdf_results), simd_hint);
         } else if (op == "LogPDF") {
-            stdNormal.getLogProbability(std::span<const double>(test_values), std::span<double>(log_pdf_results), simd_hint);
+            stdNormal.getLogProbability(std::span<const double>(test_values),
+                                        std::span<double>(log_pdf_results), simd_hint);
         } else if (op == "CDF") {
-            stdNormal.getCumulativeProbability(std::span<const double>(test_values), std::span<double>(cdf_results), simd_hint);
+            stdNormal.getCumulativeProbability(std::span<const double>(test_values),
+                                               std::span<double>(cdf_results), simd_hint);
         }
         end = std::chrono::high_resolution_clock::now();
         result.vectorized_time_us = static_cast<long>(
@@ -616,11 +627,13 @@ TEST_F(GaussianEnhancedTest, ParallelBatchPerformanceBenchmark) {
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "LogPDF") {
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getLogProbability(input_span, std::span<double>(log_pdf_results), parallel_hint);
+            stdNormal.getLogProbability(input_span, std::span<double>(log_pdf_results),
+                                        parallel_hint);
             end = std::chrono::high_resolution_clock::now();
         } else if (op == "CDF") {
             start = std::chrono::high_resolution_clock::now();
-            stdNormal.getCumulativeProbability(input_span, std::span<double>(cdf_results), parallel_hint);
+            stdNormal.getCumulativeProbability(input_span, std::span<double>(cdf_results),
+                                               parallel_hint);
             end = std::chrono::high_resolution_clock::now();
         }
         result.parallel_time_us = static_cast<long>(
@@ -910,7 +923,8 @@ TEST(FitWithDiagnosticsTest, GaussianReturnsValidResults) {
     std::mt19937 rng(42);
     std::normal_distribution<double> gen(3.0, 2.0);
     std::vector<double> data(200);
-    for (double& x : data) x = gen(rng);
+    for (double& x : data)
+        x = gen(rng);
 
     auto dist = GaussianDistribution::create(0.0, 1.0).unwrap();
     const auto results = dist.fitWithDiagnostics(data);
@@ -919,14 +933,14 @@ TEST(FitWithDiagnosticsTest, GaussianReturnsValidResults) {
     EXPECT_TRUE(results.fit_successful) << results.fit_diagnostics;
 
     // AIC and BIC must be finite and positive.
-    EXPECT_TRUE(std::isfinite(results.aic))  << "AIC must be finite";
-    EXPECT_TRUE(std::isfinite(results.bic))  << "BIC must be finite";
-    EXPECT_GT(results.aic, 0.0)             << "AIC is typically positive";
-    EXPECT_GT(results.bic, 0.0)             << "BIC is typically positive";
+    EXPECT_TRUE(std::isfinite(results.aic)) << "AIC must be finite";
+    EXPECT_TRUE(std::isfinite(results.bic)) << "BIC must be finite";
+    EXPECT_GT(results.aic, 0.0) << "AIC is typically positive";
+    EXPECT_GT(results.bic, 0.0) << "BIC is typically positive";
 
     // Log-likelihood must be finite and negative (for continuous density).
     EXPECT_TRUE(std::isfinite(results.log_likelihood)) << "Log-likelihood must be finite";
-    EXPECT_LT(results.log_likelihood, 0.0)             << "Log-likelihood should be negative";
+    EXPECT_LT(results.log_likelihood, 0.0) << "Log-likelihood should be negative";
 
     // AIC == 2k - 2LL; BIC == k*ln(n) - 2LL; for Gaussian k=2.
     const int k = 2;
@@ -938,7 +952,7 @@ TEST(FitWithDiagnosticsTest, GaussianReturnsValidResults) {
     EXPECT_EQ(results.residuals.size(), data.size());
     for (double r : results.residuals) {
         EXPECT_GE(r, -1.0) << "Residual out of range";
-        EXPECT_LE(r, 1.0)  << "Residual out of range";
+        EXPECT_LE(r, 1.0) << "Residual out of range";
     }
 
     // Validation fields must be finite and non-negative.
@@ -967,9 +981,11 @@ TEST(FitWithDiagnosticsTest, FailurePathPopulatesNaN) {
 //==============================================================================
 // DistTraits specialization for stats::GaussianDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::GaussianDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::GaussianDistribution make() { return stats::GaussianDistribution::create(0.0, 1.0).unwrap(); }
+    static stats::GaussianDistribution make() {
+        return stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+    }
     static std::vector<double> domain() { return {-2.5, -1.2, 0.3, 1.8, 2.1}; }
     static double batch_lo() { return -3.0; }
     static double batch_hi() { return 3.0; }

@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/beta.h"
 
@@ -13,7 +14,6 @@
 #include <random>
 #include <span>
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -170,9 +170,11 @@ TEST_F(BetaEnhancedTest, OutOfSupport) {
 //==============================================================================
 // DistTraits specialization for stats::BetaDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::BetaDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::BetaDistribution make() { return stats::BetaDistribution::create(2.0, 3.0).unwrap(); }
+    static stats::BetaDistribution make() {
+        return stats::BetaDistribution::create(2.0, 3.0).unwrap();
+    }
     static std::vector<double> domain() { return {0.1, 0.3, 0.5, 0.7, 0.9}; }
     static double batch_lo() { return 0.01; }
     static double batch_hi() { return 0.99; }

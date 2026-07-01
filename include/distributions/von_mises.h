@@ -367,7 +367,8 @@ class VonMisesDistribution : public DistributionBase {
                                        double cached_kappa, double cached_mu,
                                        double cached_log_normaliser) const noexcept;
 
-    /** @brief CDF batch — each element calls the 512-step trapezoidal CDF. Unsafe: no validation. */
+    /** @brief CDF batch — each element calls the 512-step trapezoidal CDF. Unsafe: no validation.
+     */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                  std::size_t count) const noexcept;
 
@@ -440,9 +441,9 @@ class VonMisesDistribution : public DistributionBase {
      * replaces the 60-step bisection that called the 512-point trapezoidal CDF.
      * Thread safety: guarded by cache_mutex_; rebuilt when κ changes.
      */
-    mutable std::vector<double> cdfGridAngles_;   ///< angles[i] = -PI + i*h, i in [0,2048]
-    mutable std::vector<double> cdfGridValues_;   ///< CDF(angles[i]; mu_=0, current kappa_)
-    mutable double cdfGridKappa_{-1.0};           ///< kappa for which grid was built; -1=unbuilt
+    mutable std::vector<double> cdfGridAngles_;  ///< angles[i] = -PI + i*h, i in [0,2048]
+    mutable std::vector<double> cdfGridValues_;  ///< CDF(angles[i]; mu_=0, current kappa_)
+    mutable double cdfGridKappa_{-1.0};          ///< kappa for which grid was built; -1=unbuilt
 
     /** @brief Build cdfGrid* for the current kappa_. Called under cache_mutex_. */
     void buildCdfGrid() const noexcept;

@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/gamma.h"
@@ -13,7 +14,6 @@
 #include <random>
 #include <span>
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -203,9 +203,11 @@ TEST_F(ChiSquaredEnhancedTest, SupportBoundaries) {
 //==============================================================================
 // DistTraits specialization for stats::ChiSquaredDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::ChiSquaredDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::ChiSquaredDistribution make() { return stats::ChiSquaredDistribution::create(3.0).unwrap(); }
+    static stats::ChiSquaredDistribution make() {
+        return stats::ChiSquaredDistribution::create(3.0).unwrap();
+    }
     static std::vector<double> domain() { return {0.5, 1.0, 2.0, 4.0, 8.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 10.0; }
@@ -214,7 +216,11 @@ struct stats::tests::DistTraits<stats::ChiSquaredDistribution> : stats::tests::D
         return {
             [] { return stats::ChiSquaredDistribution::create(0.0).isError(); },
             [] { return stats::ChiSquaredDistribution::create(-1.0).isError(); },
-            [] { return stats::ChiSquaredDistribution::create(std::numeric_limits<double>::quiet_NaN()).isError(); },
+            [] {
+                return stats::ChiSquaredDistribution::create(
+                           std::numeric_limits<double>::quiet_NaN())
+                    .isError();
+            },
         };
     }
 };

@@ -40,9 +40,8 @@ namespace stats::analysis::poisson {
  * @param confidence_level CI level, e.g. 0.95.
  * @return {lower, upper} for λ.
  */
-[[nodiscard]] std::pair<double, double>
-confidenceIntervalRate(const std::vector<double>& data,
-                       double confidence_level = 0.95);
+[[nodiscard]] std::pair<double, double> confidenceIntervalRate(const std::vector<double>& data,
+                                                               double confidence_level = 0.95);
 
 // ---------------------------------------------------------------------------
 // Dispersion tests
@@ -58,9 +57,8 @@ confidenceIntervalRate(const std::vector<double>& data,
  * @param significance_level Significance level (default 0.05).
  * @return {dispersion_index, p_value, is_overdispersed}
  */
-[[nodiscard]] std::tuple<double, double, bool>
-overdispersionTest(const std::vector<double>& data,
-                   double significance_level = 0.05);
+[[nodiscard]] std::tuple<double, double, bool> overdispersionTest(const std::vector<double>& data,
+                                                                  double significance_level = 0.05);
 
 /**
  * @brief Test for excess zeros relative to a Poisson model.
@@ -72,9 +70,8 @@ overdispersionTest(const std::vector<double>& data,
  * @param significance_level Significance level (default 0.05).
  * @return {z_statistic, p_value, has_excess_zeros}
  */
-[[nodiscard]] std::tuple<double, double, bool>
-excessZerosTest(const std::vector<double>& data,
-                double significance_level = 0.05);
+[[nodiscard]] std::tuple<double, double, bool> excessZerosTest(const std::vector<double>& data,
+                                                               double significance_level = 0.05);
 
 /**
  * @brief Rate stability test for time-ordered count data.
@@ -86,9 +83,8 @@ excessZerosTest(const std::vector<double>& data,
  * @param significance_level Significance level (default 0.05).
  * @return {t_statistic, p_value, rate_is_stable}
  */
-[[nodiscard]] std::tuple<double, double, bool>
-rateStabilityTest(const std::vector<double>& data,
-                  double significance_level = 0.05);
+[[nodiscard]] std::tuple<double, double, bool> rateStabilityTest(const std::vector<double>& data,
+                                                                 double significance_level = 0.05);
 
 // ---------------------------------------------------------------------------
 // Goodness-of-fit
@@ -106,9 +102,8 @@ rateStabilityTest(const std::vector<double>& data,
  * @param significance_level Significance level (default 0.05).
  * @return {chi_square_statistic, p_value, reject_null}
  */
-[[nodiscard]] std::tuple<double, double, bool>
-chiSquareGoodnessOfFit(const std::vector<double>& data,
-                       const stats::PoissonDistribution& distribution,
-                       double significance_level = 0.05);
+[[nodiscard]] std::tuple<double, double, bool> chiSquareGoodnessOfFit(
+    const std::vector<double>& data, const stats::PoissonDistribution& distribution,
+    double significance_level = 0.05);
 
 }  // namespace stats::analysis::poisson

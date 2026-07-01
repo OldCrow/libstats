@@ -25,8 +25,8 @@ TEST(RunsTest, ThrowsOnTooFewElements) {
 
 TEST(RunsTest, ThrowsOnBadAlpha) {
     std::vector<double> data(20, 1.0);
-    EXPECT_THROW((void)runsTest(data, 0.0),  std::invalid_argument);
-    EXPECT_THROW((void)runsTest(data, 1.0),  std::invalid_argument);
+    EXPECT_THROW((void)runsTest(data, 0.0), std::invalid_argument);
+    EXPECT_THROW((void)runsTest(data, 1.0), std::invalid_argument);
     EXPECT_THROW((void)runsTest(data, -0.1), std::invalid_argument);
 }
 
@@ -38,9 +38,9 @@ TEST(RunsTest, RandomDataDoesNotReject) {
 
     auto [z, p, reject] = runsTest(alternating);
 
-    EXPECT_TRUE(std::isfinite(z))       << "z-statistic must be finite";
-    EXPECT_GE(p, 0.0)                   << "p-value must be non-negative";
-    EXPECT_LE(p, 1.0)                   << "p-value must be at most 1";
+    EXPECT_TRUE(std::isfinite(z)) << "z-statistic must be finite";
+    EXPECT_GE(p, 0.0) << "p-value must be non-negative";
+    EXPECT_LE(p, 1.0) << "p-value must be at most 1";
     // Alternating sequence is NOT random; many runs → reject randomness.
     // The test just validates output shape regardless of the decision.
 }
@@ -64,7 +64,8 @@ TEST(RunsTest, TrendedDataRejectsRandomness) {
 TEST(RunsTest, ReturnTupleOrder) {
     // Verify the return is {z, p, reject} in the documented order.
     std::vector<double> data(20);
-    for (int i = 0; i < 20; ++i) data[i] = (i % 2 == 0) ? 1.0 : 2.0;
+    for (int i = 0; i < 20; ++i)
+        data[i] = (i % 2 == 0) ? 1.0 : 2.0;
     auto result = runsTest(data);
     auto [z, p, reject] = result;
     // p-value must be in [0,1]; z can be any finite real.
@@ -79,15 +80,16 @@ TEST(RunsTest, ReturnTupleOrder) {
 
 TEST(FrequencyTest, ThrowsOnInvalidRange) {
     std::vector<double> data = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
-    EXPECT_THROW((void)frequencyTest(data, 5, 1),    std::invalid_argument);  // lo >= hi
-    EXPECT_THROW((void)frequencyTest(data, 3, 3),    std::invalid_argument);  // lo == hi
+    EXPECT_THROW((void)frequencyTest(data, 5, 1), std::invalid_argument);  // lo >= hi
+    EXPECT_THROW((void)frequencyTest(data, 3, 3), std::invalid_argument);  // lo == hi
 }
 
 TEST(FrequencyTest, ThrowsOnBadAlpha) {
     std::vector<double> data(30);
-    for (int i = 0; i < 30; ++i) data[i] = static_cast<double>(1 + i % 6);
-    EXPECT_THROW((void)frequencyTest(data, 1, 6, 0.0),  std::invalid_argument);
-    EXPECT_THROW((void)frequencyTest(data, 1, 6, 1.1),  std::invalid_argument);
+    for (int i = 0; i < 30; ++i)
+        data[i] = static_cast<double>(1 + i % 6);
+    EXPECT_THROW((void)frequencyTest(data, 1, 6, 0.0), std::invalid_argument);
+    EXPECT_THROW((void)frequencyTest(data, 1, 6, 1.1), std::invalid_argument);
 }
 
 TEST(FrequencyTest, ThrowsWhenTooFewValuesInSupport) {
@@ -106,10 +108,10 @@ TEST(FrequencyTest, UniformDataDoesNotReject) {
     auto [chi2, p, reject] = frequencyTest(data, 1, 6, 0.05);
 
     EXPECT_TRUE(std::isfinite(chi2)) << "chi2 statistic must be finite";
-    EXPECT_GE(chi2, 0.0)             << "chi2 must be non-negative";
-    EXPECT_GE(p, 0.0)                << "p-value must be non-negative";
-    EXPECT_LE(p, 1.0)                << "p-value must be at most 1";
-    EXPECT_FALSE(reject)             << "perfectly uniform data should not reject H₀";
+    EXPECT_GE(chi2, 0.0) << "chi2 must be non-negative";
+    EXPECT_GE(p, 0.0) << "p-value must be non-negative";
+    EXPECT_LE(p, 1.0) << "p-value must be at most 1";
+    EXPECT_FALSE(reject) << "perfectly uniform data should not reject H₀";
 }
 
 TEST(FrequencyTest, SkewedDataRejectsUniformity) {
@@ -125,13 +127,14 @@ TEST(FrequencyTest, SkewedDataRejectsUniformity) {
     EXPECT_TRUE(std::isfinite(chi2));
     EXPECT_GT(chi2, 0.0);
     EXPECT_LT(p, 0.001) << "heavily skewed data should strongly reject uniformity";
-    EXPECT_TRUE(reject)  << "heavily skewed data should be flagged as non-uniform";
+    EXPECT_TRUE(reject) << "heavily skewed data should be flagged as non-uniform";
 }
 
 TEST(FrequencyTest, ReturnTupleOrder) {
     // {chi2, p, reject} — chi2 >= 0, p in [0,1].
     std::vector<double> data;
-    for (int i = 0; i < 30; ++i) data.push_back(static_cast<double>(1 + i % 3));
+    for (int i = 0; i < 30; ++i)
+        data.push_back(static_cast<double>(1 + i % 3));
     auto [chi2, p, reject] = frequencyTest(data, 1, 3);
     EXPECT_GE(chi2, 0.0);
     EXPECT_GE(p, 0.0);

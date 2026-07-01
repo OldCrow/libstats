@@ -1,6 +1,6 @@
 // Focused unit test for poisson distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/poisson.h"
 
 // Standard library includes
@@ -202,12 +202,7 @@ int main() {
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
         stats::tests::BasicDistConfig cfg{
-            "Poisson",
-            {0.0, 1.0, 2.0, 3.0, 4.0, 5.0},
-            0.0, 10.5,
-            1e-12,
-            1e-12
-        };
+            "Poisson", {0.0, 1.0, 2.0, 3.0, 4.0, 5.0}, 0.0, 10.5, 1e-12, 1e-12};
         cfg.invalid_scenarios = {
             {"negative lambda", [] { return PoissonDistribution::create(-1.0).isError(); }},
         };

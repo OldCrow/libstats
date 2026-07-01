@@ -1,8 +1,9 @@
 #include "libstats/distributions/weibull.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_thresholds.h"
@@ -90,7 +91,6 @@ WeibullDistribution::WeibullDistribution(WeibullDistribution&& other) noexcept
 
 WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) noexcept {
     if (this != &other) {
-
         shape_ = other.shape_;
         scale_ = other.scale_;
         logShape_ = other.logShape_;
@@ -318,11 +318,11 @@ double WeibullDistribution::getProbability(double x) const {
         if (!cache_valid_)
             updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
-        const double k   = shape_;
-        const double ls  = logScale_;
+        const double k = shape_;
+        const double ls = logScale_;
         const double km1 = shapeMinus1_;
         const double lnc = logNormConst_;
-        const double sc  = scale_;
+        const double sc = scale_;
         if (x == detail::ZERO_DOUBLE) {
             if (std::abs(k - detail::ONE) <= detail::DEFAULT_TOLERANCE)
                 return detail::ONE / sc;
@@ -330,7 +330,7 @@ double WeibullDistribution::getProbability(double x) const {
                                      : std::numeric_limits<double>::infinity();
         }
         const double log_x = std::log(x);
-        const double z     = log_x - ls;
+        const double z = log_x - ls;
         return std::exp(lnc + km1 * log_x - std::exp(k * z));
     }
     // At x = 0: PDF = 1/λ for k=1; 0 for k>1; +∞ for k<1
@@ -343,13 +343,13 @@ double WeibullDistribution::getProbability(double x) const {
     }
     // Compute inline using cached values rather than re-acquiring cache_mutex_
     // via getLogProbability(): re-entrant shared_lock deadlocks on Linux/Windows.
-    const double k   = shape_;
-    const double ls  = logScale_;
+    const double k = shape_;
+    const double ls = logScale_;
     const double km1 = shapeMinus1_;
     const double lnc = logNormConst_;
     lock.unlock();
     const double log_x = std::log(x);
-    const double z     = log_x - ls;
+    const double z = log_x - ls;
     return std::exp(lnc + km1 * log_x - std::exp(k * z));
 }
 
@@ -364,8 +364,8 @@ double WeibullDistribution::getLogProbability(double x) const {
         if (!cache_valid_)
             updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
-        const double k   = shape_;
-        const double ls  = logScale_;
+        const double k = shape_;
+        const double ls = logScale_;
         const double km1 = shapeMinus1_;
         const double lnc = logNormConst_;
         if (x == detail::ZERO_DOUBLE) {
@@ -441,9 +441,11 @@ double WeibullDistribution::sample(std::mt19937& rng) const {
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
             if (!cache_valid_)
                 updateCacheUnsafe();
-            k = shape_; lam = scale_;
+            k = shape_;
+            lam = scale_;
         } else {
-            k = shape_; lam = scale_;
+            k = shape_;
+            lam = scale_;
         }
     }
     std::weibull_distribution<double> dist(k, lam);
@@ -462,9 +464,11 @@ std::vector<double> WeibullDistribution::sample(std::mt19937& rng, size_t n) con
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
             if (!cache_valid_)
                 updateCacheUnsafe();
-            k = shape_; lam = scale_;
+            k = shape_;
+            lam = scale_;
         } else {
-            k = shape_; lam = scale_;
+            k = shape_;
+            lam = scale_;
         }
     }
 
@@ -725,9 +729,15 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
                 } else {
-                    k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
                 }
             }
             if (arch::should_use_parallel(count)) {
@@ -765,9 +775,15 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
                 } else {
-                    k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
                 }
             }
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -822,9 +838,15 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
                 } else {
-                    k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
                 }
             }
             if (arch::should_use_parallel(count)) {
@@ -862,9 +884,15 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
                 } else {
-                    k = d.shape_; ls = d.logScale_; km1 = d.shapeMinus1_; lnc = d.logNormConst_;
+                    k = d.shape_;
+                    ls = d.logScale_;
+                    km1 = d.shapeMinus1_;
+                    lnc = d.logNormConst_;
                 }
             }
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -917,9 +945,11 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    ls = d.logScale_; k = d.shape_;
+                    ls = d.logScale_;
+                    k = d.shape_;
                 } else {
-                    ls = d.logScale_; k = d.shape_;
+                    ls = d.logScale_;
+                    k = d.shape_;
                 }
             }
             if (arch::should_use_parallel(count)) {
@@ -949,9 +979,11 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    ls = d.logScale_; k = d.shape_;
+                    ls = d.logScale_;
+                    k = d.shape_;
                 } else {
-                    ls = d.logScale_; k = d.shape_;
+                    ls = d.logScale_;
+                    k = d.shape_;
                 }
             }
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {

@@ -13,14 +13,14 @@
  *   → stats::analysis::bootstrapMeanCI<GaussianDistribution>(data, level, n_boot, seed)
  */
 
+#include "libstats/core/distribution_concepts.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <random>
 #include <stdexcept>
 #include <vector>
-
-#include "libstats/core/distribution_concepts.h"
 
 namespace stats::analysis {
 
@@ -38,11 +38,10 @@ namespace stats::analysis {
  * @return {lower_bound, upper_bound} for the mean.
  */
 template <concepts::FittableDistribution D>
-[[nodiscard]] std::pair<double, double>
-bootstrapMeanCI(const std::vector<double>& data,
-                double confidence_level = 0.95,
-                int n_bootstrap = 1000,
-                unsigned int random_seed = 42) {
+[[nodiscard]] std::pair<double, double> bootstrapMeanCI(const std::vector<double>& data,
+                                                        double confidence_level = 0.95,
+                                                        int n_bootstrap = 1000,
+                                                        unsigned int random_seed = 42) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     if (confidence_level <= 0.0 || confidence_level >= 1.0)
@@ -74,12 +73,11 @@ bootstrapMeanCI(const std::vector<double>& data,
     // shifted both bounds inward by one element, producing a CI ~0.1% too narrow.
     const double alpha_half = (1.0 - confidence_level) / 2.0;
     const auto B = static_cast<double>(n_bootstrap);
-    const std::size_t lower_idx = std::min(
-        static_cast<std::size_t>(std::floor(alpha_half * B)),
-        static_cast<std::size_t>(n_bootstrap - 1));
-    const std::size_t upper_idx = std::min(
-        static_cast<std::size_t>(std::ceil((1.0 - alpha_half) * B)) - 1u,
-        static_cast<std::size_t>(n_bootstrap - 1));
+    const std::size_t lower_idx = std::min(static_cast<std::size_t>(std::floor(alpha_half * B)),
+                                           static_cast<std::size_t>(n_bootstrap - 1));
+    const std::size_t upper_idx =
+        std::min(static_cast<std::size_t>(std::ceil((1.0 - alpha_half) * B)) - 1u,
+                 static_cast<std::size_t>(n_bootstrap - 1));
 
     return {bootstrap_means[lower_idx], bootstrap_means[upper_idx]};
 }
@@ -94,10 +92,8 @@ bootstrapMeanCI(const std::vector<double>& data,
  */
 template <concepts::FittableDistribution D>
 [[nodiscard]] std::pair<std::pair<double, double>, std::pair<double, double>>
-bootstrapMeanVarianceCI(const std::vector<double>& data,
-                        double confidence_level = 0.95,
-                        int n_bootstrap = 1000,
-                        unsigned int random_seed = 42) {
+bootstrapMeanVarianceCI(const std::vector<double>& data, double confidence_level = 0.95,
+                        int n_bootstrap = 1000, unsigned int random_seed = 42) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     if (confidence_level <= 0.0 || confidence_level >= 1.0)
@@ -131,12 +127,11 @@ bootstrapMeanVarianceCI(const std::vector<double>& data,
     // ANA-1: same percentile-index correction as bootstrapMeanCI.
     const double alpha_half = (1.0 - confidence_level) / 2.0;
     const auto B = static_cast<double>(n_bootstrap);
-    const std::size_t lo = std::min(
-        static_cast<std::size_t>(std::floor(alpha_half * B)),
-        static_cast<std::size_t>(n_bootstrap - 1));
-    const std::size_t hi = std::min(
-        static_cast<std::size_t>(std::ceil((1.0 - alpha_half) * B)) - 1u,
-        static_cast<std::size_t>(n_bootstrap - 1));
+    const std::size_t lo = std::min(static_cast<std::size_t>(std::floor(alpha_half * B)),
+                                    static_cast<std::size_t>(n_bootstrap - 1));
+    const std::size_t hi =
+        std::min(static_cast<std::size_t>(std::ceil((1.0 - alpha_half) * B)) - 1u,
+                 static_cast<std::size_t>(n_bootstrap - 1));
 
     return {{means[lo], means[hi]}, {variances[lo], variances[hi]}};
 }

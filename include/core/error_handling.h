@@ -48,38 +48,33 @@ template <typename T>
 class Result {
     struct ErrorInfo {
         ValidationError code;
-        std::string     message;
+        std::string message;
         // Explicit constructor required: std::in_place_type uses direct-init,
         // which doesn't work for aggregates without a constructor.
-        ErrorInfo(ValidationError c, std::string m) noexcept
-            : code(c), message(std::move(m)) {}
+        ErrorInfo(ValidationError c, std::string m) noexcept : code(c), message(std::move(m)) {}
     };
 
     std::variant<T, ErrorInfo> data_;
 
     // Private constructors — use the static factory methods.
-    explicit Result(T val)
-        : data_(std::in_place_type<T>, std::move(val)) {}
+    explicit Result(T val) : data_(std::in_place_type<T>, std::move(val)) {}
     explicit Result(ValidationError code, const std::string& msg)
         : data_(std::in_place_type<ErrorInfo>, code, msg) {}
 
-public:
+   public:
     // -------------------------------------------------------------------------
     // Factory methods
     // -------------------------------------------------------------------------
 
     /** @brief Create a successful result containing @p val. */
-    [[nodiscard]] static Result ok(T val) noexcept {
-        return Result(std::move(val));
-    }
+    [[nodiscard]] static Result ok(T val) noexcept { return Result(std::move(val)); }
 
     /**
      * @brief Create an error result. T is **never** constructed.
      * @param code  Error category.
      * @param msg   Human-readable description.
      */
-    [[nodiscard]] static Result makeError(ValidationError code,
-                                          const std::string& msg) noexcept {
+    [[nodiscard]] static Result makeError(ValidationError code, const std::string& msg) noexcept {
         return Result(code, msg);
     }
 
@@ -87,7 +82,7 @@ public:
     // Status queries
     // -------------------------------------------------------------------------
 
-    [[nodiscard]] bool isOk()    const noexcept { return std::holds_alternative<T>(data_); }
+    [[nodiscard]] bool isOk() const noexcept { return std::holds_alternative<T>(data_); }
     [[nodiscard]] bool isError() const noexcept { return !isOk(); }
 
     // -------------------------------------------------------------------------
@@ -95,14 +90,14 @@ public:
     // -------------------------------------------------------------------------
 
     /** @brief Dereference to the success value (lvalue ref). */
-    [[nodiscard]] T&       operator*() &      { return std::get<T>(data_); }
+    [[nodiscard]] T& operator*() & { return std::get<T>(data_); }
     /** @brief Dereference to the success value (const lvalue ref). */
     [[nodiscard]] const T& operator*() const& { return std::get<T>(data_); }
     /** @brief Dereference to the success value (rvalue ref). */
-    [[nodiscard]] T&&      operator*() &&     { return std::get<T>(std::move(data_)); }
+    [[nodiscard]] T&& operator*() && { return std::get<T>(std::move(data_)); }
 
     /** @brief Arrow access to the success value's members. */
-    [[nodiscard]] T*       operator->()       { return &std::get<T>(data_); }
+    [[nodiscard]] T* operator->() { return &std::get<T>(data_); }
     /** @brief Arrow access to the success value's members (const). */
     [[nodiscard]] const T* operator->() const { return &std::get<T>(data_); }
 
@@ -116,9 +111,9 @@ public:
      *
      * Undefined (std::bad_variant_access) if isError().
      */
-    [[nodiscard]] T&       unwrap() &      { return std::get<T>(data_); }
+    [[nodiscard]] T& unwrap() & { return std::get<T>(data_); }
     [[nodiscard]] const T& unwrap() const& { return std::get<T>(data_); }
-    [[nodiscard]] T&&      unwrap() &&     { return std::get<T>(std::move(data_)); }
+    [[nodiscard]] T&& unwrap() && { return std::get<T>(std::move(data_)); }
 
     // -------------------------------------------------------------------------
     // Error access (only meaningful when isError())
@@ -126,7 +121,8 @@ public:
 
     /** @brief Returns the error code, or ValidationError::None on success. */
     [[nodiscard]] ValidationError errorCode() const noexcept {
-        if (const auto* e = std::get_if<ErrorInfo>(&data_)) return e->code;
+        if (const auto* e = std::get_if<ErrorInfo>(&data_))
+            return e->code;
         return ValidationError::None;
     }
 
@@ -136,7 +132,8 @@ public:
      * The returned reference is stable for the lifetime of this Result.
      */
     [[nodiscard]] const std::string& message() const noexcept {
-        if (const auto* e = std::get_if<ErrorInfo>(&data_)) return e->message;
+        if (const auto* e = std::get_if<ErrorInfo>(&data_))
+            return e->message;
         static const std::string empty;
         return empty;
     }

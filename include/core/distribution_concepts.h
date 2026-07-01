@@ -19,13 +19,13 @@
  * template<stats::concepts::ContinuousDistribution D>.
  */
 
+#include "distribution_type.h"  // for detail::DistributionType (AQ-2: minimal include)
+
 #include <concepts>
 #include <random>
 #include <span>
 #include <string>
 #include <string_view>
-
-#include "distribution_type.h"  // for detail::DistributionType (AQ-2: minimal include)
 
 namespace stats::concepts {
 
@@ -41,43 +41,42 @@ namespace stats::concepts {
  * metadata members that replace DistributionTraits<D>.
  */
 template <typename D>
-concept AnyDistribution =
-    requires(const D& d, double x, std::span<const double> xs,
-             std::span<double> ys, std::mt19937& rng) {
-        // Scalar probability interface
-        { d.getProbability(x) }           -> std::convertible_to<double>;
-        { d.getLogProbability(x) }        -> std::convertible_to<double>;
-        { d.getCumulativeProbability(x) } -> std::convertible_to<double>;
-        { d.getQuantile(x) }              -> std::convertible_to<double>;
+concept AnyDistribution = requires(const D& d, double x, std::span<const double> xs,
+                                   std::span<double> ys, std::mt19937& rng) {
+    // Scalar probability interface
+    { d.getProbability(x) } -> std::convertible_to<double>;
+    { d.getLogProbability(x) } -> std::convertible_to<double>;
+    { d.getCumulativeProbability(x) } -> std::convertible_to<double>;
+    { d.getQuantile(x) } -> std::convertible_to<double>;
 
-        // Statistical moments (AR-2: getSkewness/getKurtosis added; pure virtual
-        // on DistributionInterface, implemented by all 19 distributions)
-        { d.getMean() }      -> std::convertible_to<double>;
-        { d.getVariance() }  -> std::convertible_to<double>;
-        { d.getSkewness() }  -> std::convertible_to<double>;
-        { d.getKurtosis() }  -> std::convertible_to<double>;
+    // Statistical moments (AR-2: getSkewness/getKurtosis added; pure virtual
+    // on DistributionInterface, implemented by all 19 distributions)
+    { d.getMean() } -> std::convertible_to<double>;
+    { d.getVariance() } -> std::convertible_to<double>;
+    { d.getSkewness() } -> std::convertible_to<double>;
+    { d.getKurtosis() } -> std::convertible_to<double>;
 
-        // Sampling
-        { d.sample(rng) } -> std::convertible_to<double>;
+    // Sampling
+    { d.sample(rng) } -> std::convertible_to<double>;
 
-        // Span-based batch operations (void return)
-        d.getProbability(xs, ys);
+    // Span-based batch operations (void return)
+    d.getProbability(xs, ys);
 
-        // Identity
-        { d.getDistributionName() } -> std::convertible_to<std::string_view>;
-        { d.getNumParameters() }    -> std::convertible_to<int>;
+    // Identity
+    { d.getDistributionName() } -> std::convertible_to<std::string_view>;
+    { d.getNumParameters() } -> std::convertible_to<int>;
 
-        // Support bounds (pure virtual on DistributionInterface)
-        { d.getSupportLowerBound() } -> std::convertible_to<double>;
-        { d.getSupportUpperBound() } -> std::convertible_to<double>;
+    // Support bounds (pure virtual on DistributionInterface)
+    { d.getSupportLowerBound() } -> std::convertible_to<double>;
+    { d.getSupportUpperBound() } -> std::convertible_to<double>;
 
-        // Information theory (Step 3A: promoted from DistributionBase to the interface)
-        { d.getEntropy() } -> std::convertible_to<double>;
+    // Information theory (Step 3A: promoted from DistributionBase to the interface)
+    { d.getEntropy() } -> std::convertible_to<double>;
 
-        // Dispatch metadata — replaces DistributionTraits<D>
-        { D::kDistributionType } -> std::convertible_to<detail::DistributionType>;
-        { D::kIsDiscrete }       -> std::convertible_to<bool>;
-    };
+    // Dispatch metadata — replaces DistributionTraits<D>
+    { D::kDistributionType } -> std::convertible_to<detail::DistributionType>;
+    { D::kIsDiscrete } -> std::convertible_to<bool>;
+};
 
 // ---------------------------------------------------------------------------
 // ContinuousDistribution — AnyDistribution where kIsDiscrete == false
@@ -122,11 +121,7 @@ concept DiscreteDistribution = AnyDistribution<D> && D::kIsDiscrete;
  * All 19 standard libstats distributions satisfy this concept.
  */
 template <typename D>
-concept FittableDistribution =
-    AnyDistribution<D> &&
-    std::default_initializable<D> &&
-    requires(D d, const std::vector<double>& data) {
-        d.fit(data);
-    };
+concept FittableDistribution = AnyDistribution<D> && std::default_initializable<D> &&
+                               requires(D d, const std::vector<double>& data) { d.fit(data); };
 
 }  // namespace stats::concepts

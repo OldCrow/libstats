@@ -113,7 +113,6 @@
 
 namespace stats {
 
-
 namespace simd {
 namespace utils {
 
@@ -521,7 +520,6 @@ class aligned_allocator {
 
 }  // namespace utils
 
-
 namespace ops {
 
 //==============================================================================
@@ -688,7 +686,7 @@ class VectorOps {
     static void vector_erf_fallback(const double* values, double* results,
                                     std::size_t size) noexcept;
     static void vector_pow_elementwise_fallback(const double* base, const double* exponent,
-                                               double* results, std::size_t size) noexcept;
+                                                double* results, std::size_t size) noexcept;
     static void vector_cos_fallback(const double* values, double* results,
                                     std::size_t size) noexcept;
 
@@ -827,7 +825,6 @@ class VectorOps {
 
 }  // namespace ops
 
-
 namespace dispatch {
 
 /**
@@ -874,7 +871,6 @@ class SIMDDispatcher {
 };
 
 }  // namespace dispatch
-
 
 namespace utils {
 
@@ -933,9 +929,9 @@ namespace simd {
 using VectorOps = ::stats::simd::ops::VectorOps;
 
 // SIMD width and alignment constants (defined in stats::simd::utils)
-inline constexpr std::size_t SIMD_ALIGNMENT   = ::stats::simd::utils::SIMD_ALIGNMENT;
+inline constexpr std::size_t SIMD_ALIGNMENT = ::stats::simd::utils::SIMD_ALIGNMENT;
 static constexpr std::size_t DOUBLE_SIMD_WIDTH = ::stats::simd::utils::DOUBLE_SIMD_WIDTH;
-static constexpr std::size_t FLOAT_SIMD_WIDTH  = ::stats::simd::utils::FLOAT_SIMD_WIDTH;
+static constexpr std::size_t FLOAT_SIMD_WIDTH = ::stats::simd::utils::FLOAT_SIMD_WIDTH;
 
 // Capability query and memory utility aliases (defined in stats::simd::utils)
 using ::stats::simd::utils::align_size;

@@ -111,8 +111,7 @@ namespace stats {
 class UniformDistribution : public DistributionBase {
    public:
     // Dispatch metadata — replaces DistributionTraits<UniformDistribution> (v2.0.0)
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::UNIFORM;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::UNIFORM;
     static constexpr bool kIsDiscrete = false;
 
    public:
@@ -195,8 +194,7 @@ class UniformDistribution : public DistributionBase {
      * }
      * @endcode
      */
-    [[nodiscard]] static Result<UniformDistribution> create(double a = 0.0,
-                                                            double b = 1.0) {
+    [[nodiscard]] static Result<UniformDistribution> create(double a = 0.0, double b = 1.0) {
         auto validation = validateUniformParameters(a, b);
         if (validation.isError()) {
             return Result<UniformDistribution>::makeError(validation.errorCode(),
@@ -355,7 +353,9 @@ class UniformDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Uniform"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Uniform";
+    }
 
     /**
      * @brief Checks if the distribution is discrete.
@@ -567,8 +567,6 @@ class UniformDistribution : public DistributionBase {
      * @throws std::invalid_argument if confidence_level not in (0,1) or data empty/invalid
      */
 
-    
-
     /**
      * @brief Bayesian estimation for Uniform bounds
      *
@@ -612,16 +610,6 @@ class UniformDistribution : public DistributionBase {
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS
     //==========================================================================
-
-    
-
-    
-
-    
-
-    
-
-    
 
     /**
      * @brief Bootstrap parameter confidence intervals

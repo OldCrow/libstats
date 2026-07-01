@@ -425,7 +425,7 @@ inline bool is_probability_distribution(const std::vector<double>& probs,
  */
 class ConvergenceDetector {
    private:
-    std::deque<double> history_;   // O(1) pop_front; previously vector with O(n) erase
+    std::deque<double> history_;  // O(1) pop_front; previously vector with O(n) erase
     double tolerance_;
     std::size_t max_iterations_;
     std::size_t window_size_;

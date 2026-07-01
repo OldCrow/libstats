@@ -1,8 +1,9 @@
 #include "libstats/distributions/cauchy.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -36,17 +37,14 @@ static double requirePositiveGamma(double gamma) {
 }
 
 CauchyDistribution::CauchyDistribution(double x0, double gamma)
-    : DistributionBase(),
-      x0_(requireFiniteX0(x0)),
-      gamma_(requirePositiveGamma(gamma)) {
+    : DistributionBase(), x0_(requireFiniteX0(x0)), gamma_(requirePositiveGamma(gamma)) {
     updateCacheUnsafe();
 }
 
-CauchyDistribution::CauchyDistribution(const CauchyDistribution& other)
-    : DistributionBase(other) {
+CauchyDistribution::CauchyDistribution(const CauchyDistribution& other) : DistributionBase(other) {
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
-    x0_       = other.x0_;
-    gamma_    = other.gamma_;
+    x0_ = other.x0_;
+    gamma_ = other.gamma_;
     inv_gamma_ = other.inv_gamma_;
     log_gamma_ = other.log_gamma_;
     atomicX0_.store(x0_, std::memory_order_release);
@@ -59,8 +57,8 @@ CauchyDistribution& CauchyDistribution::operator=(const CauchyDistribution& othe
         std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
         std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
         std::lock(lock1, lock2);
-        x0_        = other.x0_;
-        gamma_     = other.gamma_;
+        x0_ = other.x0_;
+        gamma_ = other.gamma_;
         inv_gamma_ = other.inv_gamma_;
         log_gamma_ = other.log_gamma_;
         cache_valid_ = false;
@@ -73,11 +71,11 @@ CauchyDistribution& CauchyDistribution::operator=(const CauchyDistribution& othe
 
 CauchyDistribution::CauchyDistribution(CauchyDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    x0_        = other.x0_;
-    gamma_     = other.gamma_;
+    x0_ = other.x0_;
+    gamma_ = other.gamma_;
     inv_gamma_ = other.inv_gamma_;
     log_gamma_ = other.log_gamma_;
-    other.x0_    = detail::ZERO_DOUBLE;
+    other.x0_ = detail::ZERO_DOUBLE;
     other.gamma_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
@@ -87,11 +85,11 @@ CauchyDistribution::CauchyDistribution(CauchyDistribution&& other) noexcept
 
 CauchyDistribution& CauchyDistribution::operator=(CauchyDistribution&& other) noexcept {
     if (this != &other) {
-        x0_        = other.x0_;
-        gamma_     = other.gamma_;
+        x0_ = other.x0_;
+        gamma_ = other.gamma_;
         inv_gamma_ = other.inv_gamma_;
         log_gamma_ = other.log_gamma_;
-        other.x0_    = detail::ZERO_DOUBLE;
+        other.x0_ = detail::ZERO_DOUBLE;
         other.gamma_ = detail::ONE;
 
         cache_valid_ = false;
@@ -112,8 +110,7 @@ CauchyDistribution CauchyDistribution::createUnchecked(double x0, double gamma) 
     return CauchyDistribution(x0, gamma, true);
 }
 
-CauchyDistribution::CauchyDistribution(double x0, double gamma,
-                                       bool /*bypassValidation*/) noexcept
+CauchyDistribution::CauchyDistribution(double x0, double gamma, bool /*bypassValidation*/) noexcept
     : DistributionBase(), x0_(x0), gamma_(gamma) {
     updateCacheUnsafe();
 }
@@ -145,7 +142,7 @@ void CauchyDistribution::setGamma(double gamma) {
 void CauchyDistribution::setParameters(double x0, double gamma) {
     validateParameters(x0, gamma);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    x0_    = x0;
+    x0_ = x0;
     gamma_ = gamma;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -159,7 +156,8 @@ void CauchyDistribution::setParameters(double x0, double gamma) {
 
 VoidResult CauchyDistribution::trySetX0(double x0) noexcept {
     auto v = validateCauchyParameters(x0, gamma_);
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     x0_ = x0;
     cache_valid_ = false;
@@ -171,7 +169,8 @@ VoidResult CauchyDistribution::trySetX0(double x0) noexcept {
 
 VoidResult CauchyDistribution::trySetGamma(double gamma) noexcept {
     auto v = validateCauchyParameters(x0_, gamma);
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     gamma_ = gamma;
     cache_valid_ = false;
@@ -183,9 +182,10 @@ VoidResult CauchyDistribution::trySetGamma(double gamma) noexcept {
 
 VoidResult CauchyDistribution::trySetParameters(double x0, double gamma) noexcept {
     auto v = validateCauchyParameters(x0, gamma);
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    x0_    = x0;
+    x0_ = x0;
     gamma_ = gamma;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -211,7 +211,8 @@ double CauchyDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const double x0 = x0_, ig = inv_gamma_;
         const double z = (x - x0) * ig;
@@ -232,7 +233,8 @@ double CauchyDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const double x0 = x0_, ig = inv_gamma_, lg = log_gamma_;
         const double z = (x - x0) * ig;
@@ -253,7 +255,8 @@ double CauchyDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const double x0 = x0_, ig = inv_gamma_;
         const double z = (x - x0) * ig;
@@ -272,13 +275,14 @@ double CauchyDistribution::getQuantile(double p) const {
     if (p == detail::ZERO_DOUBLE)
         return -std::numeric_limits<double>::infinity();
     if (p == detail::ONE)
-        return  std::numeric_limits<double>::infinity();
+        return std::numeric_limits<double>::infinity();
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const double x0 = x0_, g = gamma_;
         return x0 + g * std::tan(detail::PI * (p - detail::HALF));
@@ -297,10 +301,13 @@ double CauchyDistribution::sample(std::mt19937& rng) const {
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            x0 = x0_; g = gamma_;
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            x0 = x0_;
+            g = gamma_;
         } else {
-            x0 = x0_; g = gamma_;
+            x0 = x0_;
+            g = gamma_;
         }
     }
     // X = x0 + gamma * Z  where Z ~ StudentT(1) ~ Cauchy(0,1)
@@ -318,10 +325,13 @@ std::vector<double> CauchyDistribution::sample(std::mt19937& rng, size_t n) cons
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            x0 = x0_; g = gamma_;
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            x0 = x0_;
+            g = gamma_;
         } else {
-            x0 = x0_; g = gamma_;
+            x0 = x0_;
+            g = gamma_;
         }
     }
 
@@ -375,38 +385,38 @@ void CauchyDistribution::fit(const std::vector<double>& values) {
     //   ∂L/∂γ  = Σᵢ (-1/γ + 2dᵢ²/(γ·sᵢ))
     // Expected Fisher info (per obs): I(x₀) = I(γ) = 1/(2γ²)
     // Step: Δθ = 2γ² · (1/n) · ∂L/∂θ
-    constexpr int    MAX_ITER = 20;
+    constexpr int MAX_ITER = 20;
     constexpr double CONV_TOL = 1e-10;
 
     for (int iter = 0; iter < MAX_ITER; ++iter) {
         double score_x0 = detail::ZERO_DOUBLE;
-        double score_g  = detail::ZERO_DOUBLE;
+        double score_g = detail::ZERO_DOUBLE;
         const double g2 = gamma_hat * gamma_hat;
         for (double x : values) {
             const double d = x - x0_hat;
             const double s = g2 + d * d;
             score_x0 += detail::TWO * d / s;
-            score_g  += -detail::ONE / gamma_hat + detail::TWO * d * d / (gamma_hat * s);
+            score_g += -detail::ONE / gamma_hat + detail::TWO * d * d / (gamma_hat * s);
         }
 
         const double scale = detail::TWO * g2 / nd;  // = 2γ²/n = I⁻¹
-        const double dx0  = scale * score_x0;
-        const double dg   = scale * score_g;
+        const double dx0 = scale * score_x0;
+        const double dg = scale * score_g;
 
-        x0_hat    += dx0;
-        gamma_hat  = std::max(detail::HIGH_PRECISION_TOLERANCE, gamma_hat + dg);
+        x0_hat += dx0;
+        gamma_hat = std::max(detail::HIGH_PRECISION_TOLERANCE, gamma_hat + dg);
 
-        if (!std::isfinite(x0_hat) || !std::isfinite(gamma_hat)) break;
+        if (!std::isfinite(x0_hat) || !std::isfinite(gamma_hat))
+            break;
 
         if (std::fabs(dx0) < CONV_TOL * (detail::ONE + std::fabs(x0_hat)) &&
-            std::fabs(dg)  < CONV_TOL * gamma_hat)
+            std::fabs(dg) < CONV_TOL * gamma_hat)
             break;
     }
 
     // Guard against non-finite output (fallback to seeds).
     if (!std::isfinite(x0_hat))
-        x0_hat = (n % 2 == 1) ? sorted[n / 2]
-                               : (sorted[n / 2 - 1] + sorted[n / 2]) * detail::HALF;
+        x0_hat = (n % 2 == 1) ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) * detail::HALF;
     if (!std::isfinite(gamma_hat) || gamma_hat <= detail::ZERO_DOUBLE)
         gamma_hat = detail::ONE;
 
@@ -420,7 +430,7 @@ void CauchyDistribution::parallelBatchFit(const std::vector<std::vector<double>>
 
 void CauchyDistribution::reset() noexcept {
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-    x0_    = detail::ZERO_DOUBLE;
+    x0_ = detail::ZERO_DOUBLE;
     gamma_ = detail::ONE;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -445,7 +455,8 @@ double CauchyDistribution::getEntropy() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const double g = gamma_;
         return std::log(detail::FOUR_PI * g);
@@ -476,11 +487,11 @@ double CauchyDistribution::getGammaAtomic() const noexcept {
 // Delegate to StudentT(1)'s auto-dispatch batch, then scale output.
 //==============================================================================
 
-void CauchyDistribution::getProbability(std::span<const double> values,
-                                        std::span<double> results,
+void CauchyDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                         const detail::PerformanceHint& hint) const {
     const std::size_t n = values.size();
-    if (n == 0) return;
+    if (n == 0)
+        return;
     if (n != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
 
@@ -491,10 +502,13 @@ void CauchyDistribution::getProbability(std::span<const double> values,
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            x0 = x0_; ig = inv_gamma_;
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            x0 = x0_;
+            ig = inv_gamma_;
         } else {
-            x0 = x0_; ig = inv_gamma_;
+            x0 = x0_;
+            ig = inv_gamma_;
         }
     }
 
@@ -515,7 +529,8 @@ void CauchyDistribution::getLogProbability(std::span<const double> values,
                                            std::span<double> results,
                                            const detail::PerformanceHint& hint) const {
     const std::size_t n = values.size();
-    if (n == 0) return;
+    if (n == 0)
+        return;
     if (n != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
 
@@ -526,10 +541,15 @@ void CauchyDistribution::getLogProbability(std::span<const double> values,
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            x0 = x0_; ig = inv_gamma_; lg = log_gamma_;
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            x0 = x0_;
+            ig = inv_gamma_;
+            lg = log_gamma_;
         } else {
-            x0 = x0_; ig = inv_gamma_; lg = log_gamma_;
+            x0 = x0_;
+            ig = inv_gamma_;
+            lg = log_gamma_;
         }
     }
 
@@ -548,7 +568,8 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
                                                   std::span<double> results,
                                                   const detail::PerformanceHint& hint) const {
     const std::size_t n = values.size();
-    if (n == 0) return;
+    if (n == 0)
+        return;
     if (n != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
 
@@ -559,10 +580,13 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            x0 = x0_; ig = inv_gamma_;
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            x0 = x0_;
+            ig = inv_gamma_;
         } else {
-            x0 = x0_; ig = inv_gamma_;
+            x0 = x0_;
+            ig = inv_gamma_;
         }
     }
 
@@ -580,11 +604,12 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
 //==============================================================================
 
 bool CauchyDistribution::operator==(const CauchyDistribution& other) const {
-    if (this == &other) return true;
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
-    return std::fabs(x0_    - other.x0_)    <= detail::DEFAULT_TOLERANCE &&
+    return std::fabs(x0_ - other.x0_) <= detail::DEFAULT_TOLERANCE &&
            std::fabs(gamma_ - other.gamma_) <= detail::DEFAULT_TOLERANCE;
 }
 
@@ -610,9 +635,9 @@ std::istream& operator>>(std::istream& is, CauchyDistribution& dist) {
         return is;
     }
 
-    const size_t x0_pos    = token.find("x0=");
+    const size_t x0_pos = token.find("x0=");
     const size_t gamma_pos = token.find(",gamma=");
-    const size_t close     = token.find(")", gamma_pos != std::string::npos ? gamma_pos : 0);
+    const size_t close = token.find(")", gamma_pos != std::string::npos ? gamma_pos : 0);
 
     if (x0_pos == std::string::npos || gamma_pos == std::string::npos ||
         close == std::string::npos) {
@@ -621,7 +646,7 @@ std::istream& operator>>(std::istream& is, CauchyDistribution& dist) {
     }
 
     try {
-        x0    = std::stod(token.substr(x0_pos + 3, gamma_pos - x0_pos - 3));
+        x0 = std::stod(token.substr(x0_pos + 3, gamma_pos - x0_pos - 3));
         gamma = std::stod(token.substr(gamma_pos + 7, close - gamma_pos - 7));
     } catch (...) {
         is.setstate(std::ios::failbit);

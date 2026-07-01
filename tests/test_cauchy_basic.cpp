@@ -1,8 +1,8 @@
 // Basic test for CauchyDistribution (delegation wrapper over StudentT(ν=1)).
 // PDF: 1/(πγ(1+((x-x0)/γ)²)); MLE: median/IQR seed + Fisher scoring; support: all reals.
 // Note: getMean/getVariance/getSkewness/getKurtosis all return NaN (moments undefined).
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/cauchy.h"
 
 #include <cmath>
@@ -17,19 +17,23 @@ int main() {
     BasicTestFormatter::printTestHeader("Cauchy");
 
     stats::tests::BasicDistConfig cfg{
-        "Cauchy",
-        {-5.0, -1.0, 0.0, 1.0, 5.0},
-        -10.0, 10.0,
+        "Cauchy", {-5.0, -1.0, 0.0, 1.0, 5.0}, -10.0, 10.0,
         1e-10,  // pdf_tolerance (via StudentT delegation — no extra approx error)
         1e-10   // cdf_tolerance
     };
     cfg.invalid_scenarios = {
-        {"gamma = 0",  [] { return CauchyDistribution::create(0.0, 0.0).isError(); }},
-        {"gamma < 0",  [] { return CauchyDistribution::create(0.0, -1.0).isError(); }},
-        {"x0 = inf",   [] { return CauchyDistribution::create(
-                                std::numeric_limits<double>::infinity(), 1.0).isError(); }},
-        {"gamma = NaN", [] { return CauchyDistribution::create(
-                                 0.0, std::numeric_limits<double>::quiet_NaN()).isError(); }},
+        {"gamma = 0", [] { return CauchyDistribution::create(0.0, 0.0).isError(); }},
+        {"gamma < 0", [] { return CauchyDistribution::create(0.0, -1.0).isError(); }},
+        {"x0 = inf",
+         [] {
+             return CauchyDistribution::create(std::numeric_limits<double>::infinity(), 1.0)
+                 .isError();
+         }},
+        {"gamma = NaN",
+         [] {
+             return CauchyDistribution::create(0.0, std::numeric_limits<double>::quiet_NaN())
+                 .isError();
+         }},
     };
 
     try {
@@ -42,7 +46,7 @@ int main() {
         BasicTestFormatter::printProperty("Default gamma (expect 1)", def.getGamma());
 
         auto std_c = CauchyDistribution::create(0.0, 1.0).unwrap();
-        auto c5_2  = CauchyDistribution::create(5.0, 2.0).unwrap();
+        auto c5_2 = CauchyDistribution::create(5.0, 2.0).unwrap();
         BasicTestFormatter::printProperty("Cauchy(5,2) x0 (expect 5)", c5_2.getX0());
         BasicTestFormatter::printProperty("Cauchy(5,2) isStandard (expect 0)", c5_2.isStandard());
         BasicTestFormatter::printProperty("Cauchy(0,1) isStandard (expect 1)", std_c.isStandard());
@@ -86,16 +90,19 @@ int main() {
         const double expected_pdf0 = 1.0 / detail::PI;
         double pdf0 = sc.getProbability(0.0);
         cout << "PDF(0) = " << pdf0 << " [expect " << expected_pdf0 << "]\n";
-        if (std::abs(pdf0 - expected_pdf0) > 1e-10) throw runtime_error("PDF(0) failed");
+        if (std::abs(pdf0 - expected_pdf0) > 1e-10)
+            throw runtime_error("PDF(0) failed");
 
         const double expected_lpdf0 = -std::log(detail::PI);
         double lpdf0 = sc.getLogProbability(0.0);
         cout << "LogPDF(0) = " << lpdf0 << " [expect " << expected_lpdf0 << "]\n";
-        if (std::abs(lpdf0 - expected_lpdf0) > 1e-10) throw runtime_error("LogPDF(0) failed");
+        if (std::abs(lpdf0 - expected_lpdf0) > 1e-10)
+            throw runtime_error("LogPDF(0) failed");
 
         double cdf0 = sc.getCumulativeProbability(0.0);
         cout << "CDF(0) = " << cdf0 << " [expect 0.5]\n";
-        if (std::abs(cdf0 - 0.5) > 1e-10) throw runtime_error("CDF(0) failed");
+        if (std::abs(cdf0 - 0.5) > 1e-10)
+            throw runtime_error("CDF(0) failed");
 
         // Quantile round-trip
         for (double p : {0.1, 0.25, 0.5, 0.75, 0.9}) {
@@ -113,15 +120,21 @@ int main() {
         cout << "getKurtosis() = " << sc.getKurtosis() << " [expect NaN]\n";
         cout << "getMedian() = " << sc.getMedian() << " [expect 0.0]\n";
         cout << "getMode() = " << sc.getMode() << " [expect 0.0]\n";
-        cout << "getEntropy() = " << sc.getEntropy()
-             << " [expect log(4*pi) ≈ " << std::log(detail::FOUR_PI) << "]\n";
+        cout << "getEntropy() = " << sc.getEntropy() << " [expect log(4*pi) ≈ "
+             << std::log(detail::FOUR_PI) << "]\n";
 
-        if (!std::isnan(sc.getMean())) throw runtime_error("getMean should be NaN");
-        if (!std::isnan(sc.getVariance())) throw runtime_error("getVariance should be NaN");
-        if (!std::isnan(sc.getSkewness())) throw runtime_error("getSkewness should be NaN");
-        if (!std::isnan(sc.getKurtosis())) throw runtime_error("getKurtosis should be NaN");
-        if (std::abs(sc.getMedian()) > 1e-10) throw runtime_error("Median failed");
-        if (std::abs(sc.getMode()) > 1e-10) throw runtime_error("Mode failed");
+        if (!std::isnan(sc.getMean()))
+            throw runtime_error("getMean should be NaN");
+        if (!std::isnan(sc.getVariance()))
+            throw runtime_error("getVariance should be NaN");
+        if (!std::isnan(sc.getSkewness()))
+            throw runtime_error("getSkewness should be NaN");
+        if (!std::isnan(sc.getKurtosis()))
+            throw runtime_error("getKurtosis should be NaN");
+        if (std::abs(sc.getMedian()) > 1e-10)
+            throw runtime_error("Median failed");
+        if (std::abs(sc.getMode()) > 1e-10)
+            throw runtime_error("Mode failed");
         if (std::abs(sc.getEntropy() - std::log(detail::FOUR_PI)) > 1e-10)
             throw runtime_error("Entropy failed");
 
@@ -155,12 +168,15 @@ int main() {
 
         double s = c4.sample(rng);
         cout << "Single sample: " << s << "\n";
-        if (!std::isfinite(s)) throw runtime_error("Sample not finite");
+        if (!std::isfinite(s))
+            throw runtime_error("Sample not finite");
 
         auto samples = c4.sample(rng, 500);
-        if (samples.size() != 500) throw runtime_error("Sample count wrong");
+        if (samples.size() != 500)
+            throw runtime_error("Sample count wrong");
         for (double sv : samples)
-            if (!std::isfinite(sv)) throw runtime_error("Sample not finite");
+            if (!std::isfinite(sv))
+                throw runtime_error("Sample not finite");
         cout << "500 samples: all finite (PASS)\n";
 
         BasicTestFormatter::printTestSuccess("Sampling tests passed");
@@ -206,8 +222,8 @@ int main() {
         iss >> parsed;
         if (std::abs(parsed.getX0()) > 1e-8 || std::abs(parsed.getGamma() - 1.0) > 1e-8)
             throw runtime_error("Stream round-trip failed");
-        cout << "Stream round-trip: x0=" << parsed.getX0()
-             << " gamma=" << parsed.getGamma() << "\n";
+        cout << "Stream round-trip: x0=" << parsed.getX0() << " gamma=" << parsed.getGamma()
+             << "\n";
 
         BasicTestFormatter::printTestSuccess("Comparison and stream passed");
         BasicTestFormatter::printNewline();
@@ -217,9 +233,12 @@ int main() {
         BasicTestFormatter::printCompletionMessage("Cauchy");
         BasicTestFormatter::printSummaryHeader();
         BasicTestFormatter::printSummaryItem("Delegation wrapper: delegates to StudentT(nu=1)");
-        BasicTestFormatter::printSummaryItem("PDF = 1/(pi*gamma*(1+((x-x0)/gamma)^2)); symmetric about x0");
-        BasicTestFormatter::printSummaryItem("MLE: median seed, IQR/2 seed, 20 Fisher-scoring iterations");
-        BasicTestFormatter::printSummaryItem("Moments: mean/variance/skewness/kurtosis all NaN; median=mode=x0");
+        BasicTestFormatter::printSummaryItem(
+            "PDF = 1/(pi*gamma*(1+((x-x0)/gamma)^2)); symmetric about x0");
+        BasicTestFormatter::printSummaryItem(
+            "MLE: median seed, IQR/2 seed, 20 Fisher-scoring iterations");
+        BasicTestFormatter::printSummaryItem(
+            "Moments: mean/variance/skewness/kurtosis all NaN; median=mode=x0");
         BasicTestFormatter::printSummaryItem("Quantile: closed form x0+gamma*tan(pi*(p-0.5))");
 
         return 0;

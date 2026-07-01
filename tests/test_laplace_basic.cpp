@@ -1,7 +1,7 @@
 // Basic test for LaplaceDistribution (double-exponential, standalone).
 // PDF: (1/2b)*exp(-|x-mu|/b); MLE: mu=median, b=MAD; support: all reals.
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/laplace.h"
 
 #include <cmath>
@@ -16,19 +16,23 @@ int main() {
     BasicTestFormatter::printTestHeader("Laplace");
 
     stats::tests::BasicDistConfig cfg{
-        "Laplace",
-        {-3.0, -1.0, 0.0, 1.0, 3.0},
-        -5.0, 5.0,
+        "Laplace", {-3.0, -1.0, 0.0, 1.0, 3.0}, -5.0, 5.0,
         1e-10,  // pdf_tolerance (auto-vectorisable fabs; no SIMD approximation error)
         1e-10   // cdf_tolerance
     };
     cfg.invalid_scenarios = {
-        {"b = 0",  [] { return LaplaceDistribution::create(0.0, 0.0).isError(); }},
-        {"b < 0",  [] { return LaplaceDistribution::create(0.0, -1.0).isError(); }},
-        {"mu = inf", [] { return LaplaceDistribution::create(
-                               std::numeric_limits<double>::infinity(), 1.0).isError(); }},
-        {"b = NaN",  [] { return LaplaceDistribution::create(
-                               0.0, std::numeric_limits<double>::quiet_NaN()).isError(); }},
+        {"b = 0", [] { return LaplaceDistribution::create(0.0, 0.0).isError(); }},
+        {"b < 0", [] { return LaplaceDistribution::create(0.0, -1.0).isError(); }},
+        {"mu = inf",
+         [] {
+             return LaplaceDistribution::create(std::numeric_limits<double>::infinity(), 1.0)
+                 .isError();
+         }},
+        {"b = NaN",
+         [] {
+             return LaplaceDistribution::create(0.0, std::numeric_limits<double>::quiet_NaN())
+                 .isError();
+         }},
     };
 
     try {
@@ -56,9 +60,9 @@ int main() {
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
         auto l = LaplaceDistribution::create(1.0, 2.0).unwrap();
         BasicTestFormatter::printProperty("getMu()", l.getMu());
-        BasicTestFormatter::printProperty("getB()",  l.getB());
+        BasicTestFormatter::printProperty("getB()", l.getB());
         BasicTestFormatter::printProperty("getMuAtomic()", l.getMuAtomic());
-        BasicTestFormatter::printProperty("getBAtomic()",  l.getBAtomic());
+        BasicTestFormatter::printProperty("getBAtomic()", l.getBAtomic());
 
         l.setMu(-1.0);
         BasicTestFormatter::printProperty("After setMu(-1)", l.getMu());
@@ -84,25 +88,30 @@ int main() {
 
         double pdf0 = sl.getProbability(0.0);
         cout << "PDF(0) = " << pdf0 << " [expect 0.5]\n";
-        if (std::abs(pdf0 - 0.5) > 1e-12) throw runtime_error("PDF(0) failed");
+        if (std::abs(pdf0 - 0.5) > 1e-12)
+            throw runtime_error("PDF(0) failed");
 
         double lp0 = sl.getLogProbability(0.0);
         cout << "LogPDF(0) = " << lp0 << " [expect " << -std::log(2.0) << "]\n";
-        if (std::abs(lp0 - (-std::log(2.0))) > 1e-12) throw runtime_error("LogPDF(0) failed");
+        if (std::abs(lp0 - (-std::log(2.0))) > 1e-12)
+            throw runtime_error("LogPDF(0) failed");
 
         double cdf0 = sl.getCumulativeProbability(0.0);
         cout << "CDF(0) = " << cdf0 << " [expect 0.5]\n";
-        if (std::abs(cdf0 - 0.5) > 1e-12) throw runtime_error("CDF(0) failed");
+        if (std::abs(cdf0 - 0.5) > 1e-12)
+            throw runtime_error("CDF(0) failed");
 
         // CDF at x=1: 1 - 0.5*exp(-1) ≈ 0.8161
         double cdf1 = sl.getCumulativeProbability(1.0);
         double expect_cdf1 = 1.0 - 0.5 * std::exp(-1.0);
         cout << "CDF(1) = " << cdf1 << " [expect " << expect_cdf1 << "]\n";
-        if (std::abs(cdf1 - expect_cdf1) > 1e-12) throw runtime_error("CDF(1) failed");
+        if (std::abs(cdf1 - expect_cdf1) > 1e-12)
+            throw runtime_error("CDF(1) failed");
 
         // Quantile round-trip
         double q025 = sl.getQuantile(0.25);
-        cout << "Q(0.25) = " << q025 << " [expect " << std::log(0.5) << "]\n";  // log(2*0.25)=log(0.5)
+        cout << "Q(0.25) = " << q025 << " [expect " << std::log(0.5)
+             << "]\n";  // log(2*0.25)=log(0.5)
         cout << "CDF(Q(0.25)) = " << sl.getCumulativeProbability(q025) << " [expect 0.25]\n";
 
         // Moments
@@ -114,10 +123,14 @@ int main() {
         cout << "Median   = " << sl.getMedian() << " [expect 0.0]\n";
         cout << "Mode     = " << sl.getMode() << " [expect 0.0]\n";
 
-        if (std::abs(sl.getMean() - 0.0) > 1e-12) throw runtime_error("Mean failed");
-        if (std::abs(sl.getVariance() - 2.0) > 1e-12) throw runtime_error("Variance failed");
-        if (std::abs(sl.getSkewness()) > 1e-12) throw runtime_error("Skewness failed");
-        if (std::abs(sl.getKurtosis() - 3.0) > 1e-12) throw runtime_error("Kurtosis failed");
+        if (std::abs(sl.getMean() - 0.0) > 1e-12)
+            throw runtime_error("Mean failed");
+        if (std::abs(sl.getVariance() - 2.0) > 1e-12)
+            throw runtime_error("Variance failed");
+        if (std::abs(sl.getSkewness()) > 1e-12)
+            throw runtime_error("Skewness failed");
+        if (std::abs(sl.getKurtosis() - 3.0) > 1e-12)
+            throw runtime_error("Kurtosis failed");
 
         // Symmetry: PDF(mu+d) == PDF(mu-d) for any d
         auto lap = LaplaceDistribution::create(2.0, 1.5).unwrap();
@@ -140,11 +153,13 @@ int main() {
 
         double s = lap4.sample(rng);
         cout << "Single sample: " << s << "\n";
-        if (!std::isfinite(s)) throw runtime_error("Sample not finite");
+        if (!std::isfinite(s))
+            throw runtime_error("Sample not finite");
 
         auto samples = lap4.sample(rng, 500);
         double smean = 0.0;
-        for (double sv : samples) smean += sv;
+        for (double sv : samples)
+            smean += sv;
         smean /= 500.0;
         cout << "Sample mean (n=500, expect ~3.0): " << smean << "\n";
 
@@ -200,10 +215,13 @@ int main() {
 
         BasicTestFormatter::printCompletionMessage("Laplace");
         BasicTestFormatter::printSummaryHeader();
-        BasicTestFormatter::printSummaryItem("Standalone implementation: fabs + vector_exp pipeline");
+        BasicTestFormatter::printSummaryItem(
+            "Standalone implementation: fabs + vector_exp pipeline");
         BasicTestFormatter::printSummaryItem("PDF = (1/2b)*exp(-|x-mu|/b); symmetric about mu");
-        BasicTestFormatter::printSummaryItem("MLE: mu_hat=median, b_hat=MAD (closed form, O(n log n))");
-        BasicTestFormatter::printSummaryItem("Moments: mean=mode=median=mu, variance=2b^2, skewness=0, kurtosis=3");
+        BasicTestFormatter::printSummaryItem(
+            "MLE: mu_hat=median, b_hat=MAD (closed form, O(n log n))");
+        BasicTestFormatter::printSummaryItem(
+            "Moments: mean=mode=median=mu, variance=2b^2, skewness=0, kurtosis=3");
         BasicTestFormatter::printSummaryItem("Quantile: closed form, no iteration");
 
         return 0;

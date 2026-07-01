@@ -1,6 +1,6 @@
 // Focused unit test for gamma distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/gamma.h"
 
 // Standard library includes
@@ -211,15 +211,11 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Gamma",
-            {0.5, 1.2, 2.1, 0.8, 1.5},
-            0.1, 5.0,
-            1e-12,
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Gamma", {0.5, 1.2, 2.1, 0.8, 1.5}, 0.1, 5.0, 1e-12,
+                                          1e-12};
         cfg.invalid_scenarios = {
-            {"invalid params alpha=0 beta=-1", [] { return GammaDistribution::create(0.0, -1.0).isError(); }},
+            {"invalid params alpha=0 beta=-1",
+             [] { return GammaDistribution::create(0.0, -1.0).isError(); }},
         };
         auto test_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, test_dist);

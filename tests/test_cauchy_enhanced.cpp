@@ -4,12 +4,12 @@
     #pragma warning(disable : 4996)
 #endif
 
-#include "include/tests.h"
 #include "include/enhanced_test_suite.h"
+#include "include/tests.h"
 #include "libstats/distributions/cauchy.h"
 
-#include <cmath>
 #include <chrono>
+#include <cmath>
 #include <gtest/gtest.h>
 #include <limits>
 #include <random>
@@ -21,25 +21,28 @@ using namespace stats;
 
 // DistTraits specialisation for CauchyDistribution
 template <>
-struct stats::tests::DistTraits<stats::CauchyDistribution>
-    : stats::tests::DistTraitsDefaults {
+struct stats::tests::DistTraits<stats::CauchyDistribution> : stats::tests::DistTraitsDefaults {
     static stats::CauchyDistribution make() {
         return stats::CauchyDistribution::create(0.0, 1.0).unwrap();  // standard Cauchy
     }
-    static std::vector<double> domain() {
-        return {-5.0, -1.0, 0.0, 1.0, 5.0};
-    }
+    static std::vector<double> domain() { return {-5.0, -1.0, 0.0, 1.0, 5.0}; }
     static double batch_lo() { return -10.0; }
-    static double batch_hi() { return  10.0; }
+    static double batch_hi() { return 10.0; }
     // pdf_tolerance: inherited 1e-10 is fine; StudentT delegation is numerically exact
     static std::vector<std::function<bool()>> invalid_creators() {
         return {
             [] { return stats::CauchyDistribution::create(0.0, 0.0).isError(); },
             [] { return stats::CauchyDistribution::create(0.0, -1.0).isError(); },
-            [] { return stats::CauchyDistribution::create(
-                             std::numeric_limits<double>::infinity(), 1.0).isError(); },
-            [] { return stats::CauchyDistribution::create(
-                             0.0, std::numeric_limits<double>::quiet_NaN()).isError(); },
+            [] {
+                return stats::CauchyDistribution::create(std::numeric_limits<double>::infinity(),
+                                                         1.0)
+                    .isError();
+            },
+            [] {
+                return stats::CauchyDistribution::create(0.0,
+                                                         std::numeric_limits<double>::quiet_NaN())
+                    .isError();
+            },
         };
     }
 };
@@ -65,7 +68,7 @@ class CauchyEnhancedTest : public ::testing::Test {
 
 TEST_F(CauchyEnhancedTest, MomentsAreNaN) {
     // All four conventional moments are undefined for the Cauchy distribution.
-    EXPECT_TRUE(std::isnan(sc_.getMean()))     << "getMean() should return NaN";
+    EXPECT_TRUE(std::isnan(sc_.getMean())) << "getMean() should return NaN";
     EXPECT_TRUE(std::isnan(sc_.getVariance())) << "getVariance() should return NaN";
     EXPECT_TRUE(std::isnan(sc_.getSkewness())) << "getSkewness() should return NaN";
     EXPECT_TRUE(std::isnan(sc_.getKurtosis())) << "getKurtosis() should return NaN";
@@ -87,8 +90,7 @@ TEST_F(CauchyEnhancedTest, PDFFormula) {
     // PDF(x; 0, 1) = 1/(pi*(1+x²))
     for (double x : {-3.0, -1.0, 0.0, 1.0, 3.0}) {
         double expected = 1.0 / (detail::PI * (1.0 + x * x));
-        EXPECT_NEAR(sc_.getProbability(x), expected, 1e-12)
-            << "PDF formula at x=" << x;
+        EXPECT_NEAR(sc_.getProbability(x), expected, 1e-12) << "PDF formula at x=" << x;
     }
 }
 
@@ -96,8 +98,7 @@ TEST_F(CauchyEnhancedTest, LogPDFFormula) {
     // LogPDF(x; 0, 1) = -log(pi) - log(1+x²)
     for (double x : {-2.0, -0.5, 0.0, 0.5, 2.0}) {
         double expected = -std::log(detail::PI) - std::log(1.0 + x * x);
-        EXPECT_NEAR(sc_.getLogProbability(x), expected, 1e-12)
-            << "LogPDF formula at x=" << x;
+        EXPECT_NEAR(sc_.getLogProbability(x), expected, 1e-12) << "LogPDF formula at x=" << x;
     }
 }
 
@@ -105,12 +106,10 @@ TEST_F(CauchyEnhancedTest, LogPDFFormula) {
 
 TEST_F(CauchyEnhancedTest, CDFAtLocation) {
     // CDF(x0) = 0.5 for any Cauchy distribution (symmetry).
-    EXPECT_NEAR(sc_.getCumulativeProbability(0.0), 0.5, 1e-12)
-        << "CDF(x0=0) = 0.5";
+    EXPECT_NEAR(sc_.getCumulativeProbability(0.0), 0.5, 1e-12) << "CDF(x0=0) = 0.5";
 
     auto c = CauchyDistribution::create(-2.0, 3.0).unwrap();
-    EXPECT_NEAR(c.getCumulativeProbability(-2.0), 0.5, 1e-12)
-        << "CDF(x0=-2) = 0.5";
+    EXPECT_NEAR(c.getCumulativeProbability(-2.0), 0.5, 1e-12) << "CDF(x0=-2) = 0.5";
 }
 
 TEST_F(CauchyEnhancedTest, CDFFormula) {
@@ -121,13 +120,12 @@ TEST_F(CauchyEnhancedTest, CDFFormula) {
     // abandoning the delegation pattern for this one scalar path.
     for (double x : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
         double expected = 0.5 + std::atan(x) / detail::PI;
-        EXPECT_NEAR(sc_.getCumulativeProbability(x), expected, 1e-8)
-            << "CDF formula at x=" << x;
+        EXPECT_NEAR(sc_.getCumulativeProbability(x), expected, 1e-8) << "CDF formula at x=" << x;
     }
     // Symmetry: CDF(x0+d) + CDF(x0-d) = 1
     for (double d : {0.5, 1.0, 2.0, 5.0}) {
-        EXPECT_NEAR(sc_.getCumulativeProbability(d) + sc_.getCumulativeProbability(-d),
-                    1.0, 1e-8) << "Symmetry at d=" << d;
+        EXPECT_NEAR(sc_.getCumulativeProbability(d) + sc_.getCumulativeProbability(-d), 1.0, 1e-8)
+            << "Symmetry at d=" << d;
     }
 }
 
@@ -136,8 +134,7 @@ TEST_F(CauchyEnhancedTest, CDFFormula) {
 TEST_F(CauchyEnhancedTest, QuantileRoundTrip) {
     for (double p : {0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99}) {
         const double q = sc_.getQuantile(p);
-        EXPECT_NEAR(sc_.getCumulativeProbability(q), p, 1e-8)
-            << "Quantile round-trip at p=" << p;
+        EXPECT_NEAR(sc_.getCumulativeProbability(q), p, 1e-8) << "Quantile round-trip at p=" << p;
     }
 }
 
@@ -165,11 +162,11 @@ TEST_F(CauchyEnhancedTest, PDFSymmetry) {
 
 TEST_F(CauchyEnhancedTest, MedianAndMode) {
     EXPECT_NEAR(sc_.getMedian(), 0.0, 1e-12);
-    EXPECT_NEAR(sc_.getMode(),   0.0, 1e-12);
+    EXPECT_NEAR(sc_.getMode(), 0.0, 1e-12);
 
     auto c = CauchyDistribution::create(4.0, 2.0).unwrap();
     EXPECT_NEAR(c.getMedian(), 4.0, 1e-12);
-    EXPECT_NEAR(c.getMode(),   4.0, 1e-12);
+    EXPECT_NEAR(c.getMode(), 4.0, 1e-12);
 }
 
 TEST_F(CauchyEnhancedTest, Entropy) {
@@ -190,7 +187,7 @@ TEST_F(CauchyEnhancedTest, SetterPropagates) {
     EXPECT_TRUE(c.isStandard());
     c.setX0(3.0);
     EXPECT_FALSE(c.isStandard());
-    EXPECT_NEAR(c.getMedian(),        3.0, 1e-12);
+    EXPECT_NEAR(c.getMedian(), 3.0, 1e-12);
     EXPECT_NEAR(c.getProbability(3.0), 1.0 / detail::PI, 1e-12);
 
     c.setParameters(0.0, 1.0);
@@ -212,14 +209,14 @@ TEST_F(CauchyEnhancedTest, MLEFitSingleObservation) {
 TEST_F(CauchyEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
     auto source = CauchyDistribution::create(2.0, 1.5).unwrap();
-    auto data   = source.sample(rng, 2000);
+    auto data = source.sample(rng, 2000);
 
     auto fitted = CauchyDistribution::create().unwrap();
     fitted.fit(data);
 
     // Cauchy MLE converges reliably but with wider confidence intervals than
     // Gaussian MLE due to the heavy tails. Use generous tolerances.
-    EXPECT_NEAR(fitted.getX0(),    2.0, 0.3) << "Fitted x0 should be near 2.0";
+    EXPECT_NEAR(fitted.getX0(), 2.0, 0.3) << "Fitted x0 should be near 2.0";
     EXPECT_NEAR(fitted.getGamma(), 1.5, 0.4) << "Fitted gamma should be near 1.5";
 }
 
@@ -269,10 +266,10 @@ TEST_F(CauchyEnhancedTest, VectorizedSpeedup) {
     sc_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
-    const double vec_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+    const double vec_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
     const double speedup = scl_us / std::max(vec_us, 1.0);
     std::cout << "Cauchy LogPDF VECTORIZED speedup: " << speedup << "x "
               << "(VECTORIZED " << vec_us << "µs, SCALAR " << scl_us << "µs)\n";

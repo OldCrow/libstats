@@ -1,6 +1,6 @@
 // Focused unit test for Rayleigh distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/rayleigh.h"
 
 #include <cmath>
@@ -191,13 +191,8 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Rayleigh",
-            {0.5, 1.0, 2.0, 3.0, 5.0},
-            0.1, 10.0,
-            1e-12,
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Rayleigh", {0.5, 1.0, 2.0, 3.0, 5.0}, 0.1, 10.0, 1e-12,
+                                          1e-12};
         cfg.invalid_scenarios = {
             {"sigma=-1", [] { return RayleighDistribution::create(-1.0).isError(); }},
             {"sigma=0", [] { return RayleighDistribution::create(0.0).isError(); }},

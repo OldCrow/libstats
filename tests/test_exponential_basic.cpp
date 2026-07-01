@@ -1,6 +1,6 @@
 // Focused unit test for exponential distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/exponential.h"
 
 // Standard library includes
@@ -190,13 +190,8 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Exponential",
-            {0.1, 0.5, 1.0, 2.0, 5.0},
-            0.1, 5.0,
-            1e-12,
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Exponential", {0.1, 0.5, 1.0, 2.0, 5.0}, 0.1, 5.0, 1e-12,
+                                          1e-12};
         cfg.invalid_scenarios = {
             {"negative lambda", [] { return ExponentialDistribution::create(-1.0).isError(); }},
         };

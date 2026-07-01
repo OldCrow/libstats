@@ -146,9 +146,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @param x Evaluation point.
      * @return S(x) in [0, 1].
      */
-    [[nodiscard]] double getSurvival(double x) const {
-        return 1.0 - getCumulativeProbability(x);
-    }
+    [[nodiscard]] double getSurvival(double x) const { return 1.0 - getCumulativeProbability(x); }
 
     /**
      * @brief Hazard function h(x) = f(x) / S(x).
@@ -202,7 +200,6 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * @note Performs fitting with AIC/BIC calculation, residual analysis, and validation
      */
     virtual FitResults fitWithDiagnostics(const std::vector<double>& data);
-
 
    protected:
     // =============================================================================

@@ -22,11 +22,11 @@
  * deletions across the full table without per-row individual asserts.
  */
 
+#include "distribution_type.h"
+
 #include <array>
 #include <cstddef>
 #include <string_view>
-
-#include "distribution_type.h"
 
 namespace stats {
 namespace detail {
@@ -52,11 +52,11 @@ namespace detail {
  *                         calibration sweeps.
  */
 struct DistributionMeta {
-    DistributionType  type;
-    std::string_view  enum_name;
-    std::string_view  display_name;
-    bool              is_discrete;
-    bool              is_delegation_wrapper;
+    DistributionType type;
+    std::string_view enum_name;
+    std::string_view display_name;
+    bool is_discrete;
+    bool is_delegation_wrapper;
 };
 
 // ============================================================================
@@ -67,26 +67,28 @@ struct DistributionMeta {
 // ============================================================================
 inline constexpr DistributionMeta kDistributionMeta[] = {
     // type                       enum_name              display_name        discrete  delegate
-    {DistributionType::UNIFORM,           "UNIFORM",           "Uniform",           false, false},
-    {DistributionType::GAUSSIAN,          "GAUSSIAN",          "Gaussian",          false, false},
-    {DistributionType::EXPONENTIAL,       "EXPONENTIAL",       "Exponential",       false, false},
-    {DistributionType::DISCRETE,          "DISCRETE",          "Discrete",          true,  false},
-    {DistributionType::POISSON,           "POISSON",           "Poisson",           true,  false},
-    {DistributionType::GAMMA,             "GAMMA",             "Gamma",             false, false},
-    {DistributionType::STUDENT_T,         "STUDENT_T",         "StudentT",          false, false},
-    {DistributionType::BETA,              "BETA",              "Beta",              false, false},
-    {DistributionType::CHI_SQUARED,       "CHI_SQUARED",       "ChiSquared",        false, true },  // delegates to Gamma(α=ν/2, β=1/2)
-    {DistributionType::LOG_NORMAL,        "LOG_NORMAL",        "LogNormal",         false, false},
-    {DistributionType::PARETO,            "PARETO",            "Pareto",            false, false},
-    {DistributionType::WEIBULL,           "WEIBULL",           "Weibull",           false, false},
-    {DistributionType::RAYLEIGH,          "RAYLEIGH",          "Rayleigh",          false, false},
-    {DistributionType::VON_MISES,         "VON_MISES",         "VonMises",          false, false},
-    {DistributionType::BINOMIAL,          "BINOMIAL",          "Binomial",          true,  false},
-    {DistributionType::NEGATIVE_BINOMIAL, "NEGATIVE_BINOMIAL", "NegativeBinomial",  true,  false},
+    {DistributionType::UNIFORM, "UNIFORM", "Uniform", false, false},
+    {DistributionType::GAUSSIAN, "GAUSSIAN", "Gaussian", false, false},
+    {DistributionType::EXPONENTIAL, "EXPONENTIAL", "Exponential", false, false},
+    {DistributionType::DISCRETE, "DISCRETE", "Discrete", true, false},
+    {DistributionType::POISSON, "POISSON", "Poisson", true, false},
+    {DistributionType::GAMMA, "GAMMA", "Gamma", false, false},
+    {DistributionType::STUDENT_T, "STUDENT_T", "StudentT", false, false},
+    {DistributionType::BETA, "BETA", "Beta", false, false},
+    {DistributionType::CHI_SQUARED, "CHI_SQUARED", "ChiSquared", false,
+     true},  // delegates to Gamma(α=ν/2, β=1/2)
+    {DistributionType::LOG_NORMAL, "LOG_NORMAL", "LogNormal", false, false},
+    {DistributionType::PARETO, "PARETO", "Pareto", false, false},
+    {DistributionType::WEIBULL, "WEIBULL", "Weibull", false, false},
+    {DistributionType::RAYLEIGH, "RAYLEIGH", "Rayleigh", false, false},
+    {DistributionType::VON_MISES, "VON_MISES", "VonMises", false, false},
+    {DistributionType::BINOMIAL, "BINOMIAL", "Binomial", true, false},
+    {DistributionType::NEGATIVE_BINOMIAL, "NEGATIVE_BINOMIAL", "NegativeBinomial", true, false},
     // v2.0.0 additions — implemented 2026-06-28 --------------------------------
-    {DistributionType::GEOMETRIC,         "GEOMETRIC",         "Geometric",         true,  true },  // delegates to NegativeBinomial(r=1)
-    {DistributionType::LAPLACE,           "LAPLACE",           "Laplace",           false, false},
-    {DistributionType::CAUCHY,            "CAUCHY",            "Cauchy",            false, true },  // delegates to StudentT(ν=1)
+    {DistributionType::GEOMETRIC, "GEOMETRIC", "Geometric", true,
+     true},  // delegates to NegativeBinomial(r=1)
+    {DistributionType::LAPLACE, "LAPLACE", "Laplace", false, false},
+    {DistributionType::CAUCHY, "CAUCHY", "Cauchy", false, true},  // delegates to StudentT(ν=1)
 };
 
 /// Number of defined distribution types (= std::size(kDistributionMeta)).
@@ -108,17 +110,17 @@ consteval bool validateMetaOrdering() noexcept {
     return true;
 }
 static_assert(validateMetaOrdering(),
-    "kDistributionMeta row index does not match its DistributionType enum value. "
-    "Rows must be in enum order (append-only; never reorder) because values are "
-    "used as array indices and any reordering silently corrupts dispatch.");
+              "kDistributionMeta row index does not match its DistributionType enum value. "
+              "Rows must be in enum order (append-only; never reorder) because values are "
+              "used as array indices and any reordering silently corrupts dispatch.");
 
 // Belt-and-suspenders: catches accidental deletions or enum reorderings.
 // All 19 distributions are implemented. Bump to 20 only when a genuinely new
 // DistributionType enum value is appended.
 static_assert(kDistributionTypeCount >= 19,
-    "Distribution count regressed below 19 — a DistributionType entry was removed "
-    "or the enum was reordered. Values are used as array indices; never remove or "
-    "reorder entries.");
+              "Distribution count regressed below 19 — a DistributionType entry was removed "
+              "or the enum was reordered. Values are used as array indices; never remove or "
+              "reorder entries.");
 
 // ============================================================================
 // Accessor functions

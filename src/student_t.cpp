@@ -203,7 +203,8 @@ double StudentTDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const double lnc = logNormConst_, nhnpo = negHalfNuPlusOne_, inv_nu = invNu_;
         return std::exp(lnc + nhnpo * std::log1p(x * x * inv_nu));
@@ -218,7 +219,8 @@ double StudentTDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const double lnc = logNormConst_, nhnpo = negHalfNuPlusOne_, inv_nu = invNu_;
         return lnc + nhnpo * std::log1p(x * x * inv_nu);
@@ -359,20 +361,23 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
 
         for (double xi2 : x2) {
             const double nu_xi2 = nu + xi2;
-            s  -= std::log(detail::ONE + xi2 / nu);
-            s  += (nu + detail::ONE) / nu * xi2 / nu_xi2;
+            s -= std::log(detail::ONE + xi2 / nu);
+            s += (nu + detail::ONE) / nu * xi2 / nu_xi2;
             ds -= xi2 * (xi2 - nu) / (nu * nu * nu_xi2 * nu_xi2);
         }
 
-        if (std::abs(s) < tol * n) break;
-        if (std::abs(ds) < 1e-15)  break;  // Flat; can't iterate
+        if (std::abs(s) < tol * n)
+            break;
+        if (std::abs(ds) < 1e-15)
+            break;  // Flat; can't iterate
 
         double step = s / ds;
         step = std::max(step, -(nu - 0.1));  // clamp away from nu=0
         nu -= step;
         nu = std::clamp(nu, 0.1, NU_MAX);
 
-        if (std::abs(step) < tol) break;
+        if (std::abs(step) < tol)
+            break;
     }
 
     setNu(nu);
@@ -462,9 +467,13 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
                     if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
                     }
-                    lnc = dist.logNormConst_;  nhnpo = dist.negHalfNuPlusOne_;  inv_nu = dist.invNu_;
+                    lnc = dist.logNormConst_;
+                    nhnpo = dist.negHalfNuPlusOne_;
+                    inv_nu = dist.invNu_;
                 } else {
-                    lnc = dist.logNormConst_;  nhnpo = dist.negHalfNuPlusOne_;  inv_nu = dist.invNu_;
+                    lnc = dist.logNormConst_;
+                    nhnpo = dist.negHalfNuPlusOne_;
+                    inv_nu = dist.invNu_;
                 }
             }
             // std::log1p(x²/ν) avoids catastrophic cancellation when x²/ν ≈ 0;

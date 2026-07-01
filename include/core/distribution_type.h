@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>  // uint8_t for enum class underlying type
+
 /**
  * @file core/distribution_type.h
  * @brief Canonical DistributionType enum with no platform dependencies.
@@ -24,26 +26,26 @@ namespace detail {
  * without relying on dynamic dispatch or RTTI.
  */
 enum class DistributionType : uint8_t {
-    UNIFORM,           ///< Uniform distribution
-    GAUSSIAN,          ///< Gaussian (Normal) distribution
-    EXPONENTIAL,       ///< Exponential distribution
-    DISCRETE,          ///< Discrete uniform distribution
-    POISSON,           ///< Poisson distribution
-    GAMMA,             ///< Gamma distribution
-    STUDENT_T,         ///< Student's t distribution
-    BETA,              ///< Beta distribution
-    CHI_SQUARED,       ///< Chi-squared distribution (delegates to Gamma)
-    LOG_NORMAL,        ///< Log-Normal distribution
-    PARETO,            ///< Pareto distribution
-    WEIBULL,           ///< Weibull distribution
-    RAYLEIGH,          ///< Rayleigh distribution
-    VON_MISES,         ///< Von Mises distribution
-    BINOMIAL,          ///< Binomial distribution
-    NEGATIVE_BINOMIAL, ///< Negative Binomial distribution
+    UNIFORM,            ///< Uniform distribution
+    GAUSSIAN,           ///< Gaussian (Normal) distribution
+    EXPONENTIAL,        ///< Exponential distribution
+    DISCRETE,           ///< Discrete uniform distribution
+    POISSON,            ///< Poisson distribution
+    GAMMA,              ///< Gamma distribution
+    STUDENT_T,          ///< Student's t distribution
+    BETA,               ///< Beta distribution
+    CHI_SQUARED,        ///< Chi-squared distribution (delegates to Gamma)
+    LOG_NORMAL,         ///< Log-Normal distribution
+    PARETO,             ///< Pareto distribution
+    WEIBULL,            ///< Weibull distribution
+    RAYLEIGH,           ///< Rayleigh distribution
+    VON_MISES,          ///< Von Mises distribution
+    BINOMIAL,           ///< Binomial distribution
+    NEGATIVE_BINOMIAL,  ///< Negative Binomial distribution
     // --- v2.0.0 additions (append only; existing values must never change) ---
-    GEOMETRIC,         ///< Geometric distribution (delegates to NegativeBinomial with r=1)
-    LAPLACE,           ///< Laplace (double-exponential) distribution
-    CAUCHY,            ///< Cauchy distribution (delegates to StudentT with ν=1)
+    GEOMETRIC,  ///< Geometric distribution (delegates to NegativeBinomial with r=1)
+    LAPLACE,    ///< Laplace (double-exponential) distribution
+    CAUCHY,     ///< Cauchy distribution (delegates to StudentT with ν=1)
 };
 
 }  // namespace detail

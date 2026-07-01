@@ -206,9 +206,7 @@ class GeometricDistribution : public DistributionBase {
     }
 
     /** @brief Generate a single random sample — delegates. */
-    [[nodiscard]] double sample(std::mt19937& rng) const override {
-        return negbinom_.sample(rng);
-    }
+    [[nodiscard]] double sample(std::mt19937& rng) const override { return negbinom_.sample(rng); }
 
     /** @brief Generate n random samples — delegates. */
     [[nodiscard]] std::vector<double> sample(std::mt19937& rng, size_t n) const override {
@@ -347,7 +345,7 @@ class GeometricDistribution : public DistributionBase {
 
     /** @brief Atomic copy for lock-free parameter access. */
     mutable std::atomic<double> atomicP_{detail::HALF};
-    mutable std::atomic<bool>   atomicParamsValid_{false};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
     // 22. DELEGATE DISTRIBUTION

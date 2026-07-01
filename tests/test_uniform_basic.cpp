@@ -1,6 +1,6 @@
 // Focused unit test for uniform distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/uniform.h"
 
 // Standard library includes
@@ -224,12 +224,7 @@ int main() {
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
         stats::tests::BasicDistConfig cfg{
-            "Uniform",
-            {-0.5, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5},
-            -1.0, 2.0,
-            1e-12,
-            1e-12
-        };
+            "Uniform", {-0.5, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5}, -1.0, 2.0, 1e-12, 1e-12};
         cfg.invalid_scenarios = {
             {"upper < lower", [] { return UniformDistribution::create(5.0, 2.0).isError(); }},
         };

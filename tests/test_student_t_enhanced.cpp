@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/student_t.h"
 
@@ -13,7 +14,6 @@
 #include <random>
 #include <span>
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -157,9 +157,11 @@ TEST_F(StudentTEnhancedTest, InvalidParameters) {
 //==============================================================================
 // DistTraits specialization for stats::StudentTDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::StudentTDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::StudentTDistribution make() { return stats::StudentTDistribution::create(3.0).unwrap(); }
+    static stats::StudentTDistribution make() {
+        return stats::StudentTDistribution::create(3.0).unwrap();
+    }
     static std::vector<double> domain() { return {-3.0, -1.0, 0.0, 1.0, 3.0}; }
     static double batch_lo() { return -5.0; }
     static double batch_hi() { return 5.0; }
@@ -167,7 +169,10 @@ struct stats::tests::DistTraits<stats::StudentTDistribution> : stats::tests::Dis
         return {
             [] { return stats::StudentTDistribution::create(0.0).isError(); },
             [] { return stats::StudentTDistribution::create(-1.0).isError(); },
-            [] { return stats::StudentTDistribution::create(std::numeric_limits<double>::quiet_NaN()).isError(); },
+            [] {
+                return stats::StudentTDistribution::create(std::numeric_limits<double>::quiet_NaN())
+                    .isError();
+            },
         };
     }
 };

@@ -1,6 +1,6 @@
 // Focused unit test for Pareto distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/pareto.h"
 
 #include <cmath>
@@ -211,17 +211,16 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Pareto",
-            {1.0, 1.5, 2.0, 3.0, 5.0},
-            1.0, 21.0,
-            1e-12,
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Pareto", {1.0, 1.5, 2.0, 3.0, 5.0}, 1.0, 21.0, 1e-12,
+                                          1e-12};
         cfg.invalid_scenarios = {
             {"scale=-1", [] { return ParetoDistribution::create(-1.0, 1.0).isError(); }},
             {"alpha=0", [] { return ParetoDistribution::create(1.0, 0.0).isError(); }},
-            {"scale=NaN", [] { return ParetoDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError(); }},
+            {"scale=NaN",
+             [] {
+                 return ParetoDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0)
+                     .isError();
+             }},
         };
         auto batch_dist = ParetoDistribution::create(1.0, 2.0).unwrap();
         stats::tests::runBatchTests(cfg, batch_dist);

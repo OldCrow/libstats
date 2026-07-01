@@ -1,6 +1,6 @@
 // Focused unit test for gaussian distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/gaussian.h"
 
 // Standard library includes
@@ -217,13 +217,8 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Gaussian",
-            {-2.5, -1.2, 0.3, 1.8, 2.1},
-            -3.0, 3.0,
-            1e-12,
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Gaussian", {-2.5, -1.2, 0.3, 1.8, 2.1}, -3.0, 3.0, 1e-12,
+                                          1e-12};
         cfg.invalid_scenarios = {
             {"negative sigma", [] { return GaussianDistribution::create(0.0, -1.0).isError(); }},
         };

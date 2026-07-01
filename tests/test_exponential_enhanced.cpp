@@ -9,6 +9,8 @@
 #include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <cmath>      // for std::exp, std::log, std::isfinite, std::abs
 #include <gtest/gtest.h>
@@ -16,7 +18,6 @@
 #include <random>    // for std::mt19937, std::exponential_distribution, std::normal_distribution
 #include <utility>   // for std::move, std::pair
 #include <vector>    // for std::vector
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -846,9 +847,11 @@ TEST_F(ExponentialEnhancedTest, NumericalStabilityAndEdgeCases) {
 //==============================================================================
 // DistTraits specialization for stats::ExponentialDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::ExponentialDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::ExponentialDistribution make() { return stats::ExponentialDistribution::create(1.0).unwrap(); }
+    static stats::ExponentialDistribution make() {
+        return stats::ExponentialDistribution::create(1.0).unwrap();
+    }
     static std::vector<double> domain() { return {0.1, 0.5, 1.0, 2.0, 5.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 5.0; }

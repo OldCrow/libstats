@@ -67,8 +67,7 @@ namespace stats {
 class WeibullDistribution : public DistributionBase {
    public:
     // Dispatch metadata — replaces DistributionTraits<WeibullDistribution> (v2.0.0)
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::WEIBULL;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::WEIBULL;
     static constexpr bool kIsDiscrete = false;
 
    public:
@@ -178,7 +177,9 @@ class WeibullDistribution : public DistributionBase {
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Weibull"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override {
+        return "Weibull";
+    }
 
     /** @brief Weibull is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }

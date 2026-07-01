@@ -375,7 +375,8 @@ class StudentTDistribution : public DistributionBase {
     // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double nu) {
         auto v = ::stats::validateStudentTParameters(nu);
-        if (v.isError()) throw std::invalid_argument(v.message());
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================

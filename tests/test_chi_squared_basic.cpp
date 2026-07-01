@@ -1,6 +1,6 @@
 // Focused unit test for chi-squared distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/chi_squared.h"
 
 #include <cmath>
@@ -192,13 +192,9 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Chisquared",
-            {0.5, 1.0, 2.0, 4.0, 8.0},
-            0.1, 10.0,
-            1e-14, // pdf_tolerance
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Chisquared", {0.5, 1.0, 2.0, 4.0, 8.0}, 0.1, 10.0,
+                                          1e-14,  // pdf_tolerance
+                                          1e-12};
         auto chi2_batch = stats::ChiSquaredDistribution::create(3.0).unwrap();
         stats::tests::runBatchTests(cfg, chi2_batch);
 

@@ -1,7 +1,7 @@
 // Basic test for GeometricDistribution — delegates to NegativeBinomial(r=1).
 // Convention: X = number of failures before first success; support {0, 1, 2, …}.
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/geometric.h"
 
 #include <cmath>
@@ -17,20 +17,25 @@ int main() {
 
     // BasicDistConfig for Tests 6 and 8
     stats::tests::BasicDistConfig cfg{
-        "Geometric",
-        {0.0, 1.0, 2.0, 3.0, 4.0, 5.0},  // failure counts 0..5
-        0.0, 19.5,                           // large batch: integers 0..19
-        1e-12,                               // pdf_tolerance
-        1e-12                                // cdf_tolerance (discrete floor property)
+        "Geometric", {0.0, 1.0, 2.0, 3.0, 4.0, 5.0},  // failure counts 0..5
+        0.0,         19.5,                            // large batch: integers 0..19
+        1e-12,                                        // pdf_tolerance
+        1e-12                                         // cdf_tolerance (discrete floor property)
     };
     cfg.invalid_scenarios = {
-        {"p = 0 (not in (0,1])",    [] { return GeometricDistribution::create(0.0).isError(); }},
-        {"p < 0 (negative)",        [] { return GeometricDistribution::create(-0.1).isError(); }},
-        {"p > 1 (above 1)",         [] { return GeometricDistribution::create(1.1).isError(); }},
-        {"p = NaN",                 [] { return GeometricDistribution::create(
-                                          std::numeric_limits<double>::quiet_NaN()).isError(); }},
-        {"p = inf",                 [] { return GeometricDistribution::create(
-                                          std::numeric_limits<double>::infinity()).isError(); }},
+        {"p = 0 (not in (0,1])", [] { return GeometricDistribution::create(0.0).isError(); }},
+        {"p < 0 (negative)", [] { return GeometricDistribution::create(-0.1).isError(); }},
+        {"p > 1 (above 1)", [] { return GeometricDistribution::create(1.1).isError(); }},
+        {"p = NaN",
+         [] {
+             return GeometricDistribution::create(std::numeric_limits<double>::quiet_NaN())
+                 .isError();
+         }},
+        {"p = inf",
+         [] {
+             return GeometricDistribution::create(std::numeric_limits<double>::infinity())
+                 .isError();
+         }},
     };
 
     try {
@@ -50,8 +55,8 @@ int main() {
         BasicTestFormatter::printProperty("p=0.1 mean (expect 9.0)", g01.getMean());
         BasicTestFormatter::printProperty("p=1.0 mean (expect 0.0)", g10.getMean());
 
-        auto copy_g  = g05;
-        auto move_g  = std::move(copy_g);
+        auto copy_g = g05;
+        auto move_g = std::move(copy_g);
         BasicTestFormatter::printProperty("Copy/move p", move_g.getP());
         BasicTestFormatter::printTestSuccess("Constructors passed");
         BasicTestFormatter::printNewline();
@@ -120,10 +125,14 @@ int main() {
         cout << "Median = " << g3.getMedian() << " [expect 0 for p=0.5]\n";
         cout << "Mode = " << g3.getMode() << " [always 0]\n";
 
-        if (std::abs(g3.getMean() - 1.0) > 1e-10) throw std::runtime_error("Mean failed");
-        if (std::abs(g3.getVariance() - 2.0) > 1e-10) throw std::runtime_error("Variance failed");
-        if (g3.getMode() != 0.0) throw std::runtime_error("Mode should be 0");
-        if (g3.getMedian() != 0.0) throw std::runtime_error("Median failed for p=0.5");
+        if (std::abs(g3.getMean() - 1.0) > 1e-10)
+            throw std::runtime_error("Mean failed");
+        if (std::abs(g3.getVariance() - 2.0) > 1e-10)
+            throw std::runtime_error("Variance failed");
+        if (g3.getMode() != 0.0)
+            throw std::runtime_error("Mode should be 0");
+        if (g3.getMedian() != 0.0)
+            throw std::runtime_error("Median failed for p=0.5");
 
         // Out-of-support: PMF(-1) = 0
         cout << "PMF(-1) = " << g3.getProbability(-1.0) << " [expect 0]\n";
@@ -140,20 +149,25 @@ int main() {
         auto g4 = GeometricDistribution::create(0.3).unwrap();  // mean = (1-0.3)/0.3 ≈ 2.333
 
         double s = g4.sample(rng);
-        cout << "Single sample (expect >= 0): " << (s >= 0.0 ? "PASS" : "FAIL") << " (" << s << ")\n";
-        if (s < 0.0) throw std::runtime_error("Sample out of support");
+        cout << "Single sample (expect >= 0): " << (s >= 0.0 ? "PASS" : "FAIL") << " (" << s
+             << ")\n";
+        if (s < 0.0)
+            throw std::runtime_error("Sample out of support");
 
         auto samples = g4.sample(rng, 500);
         bool all_nonneg = true;
         double smean = 0.0;
         for (double sv : samples) {
             smean += sv;
-            if (sv < 0.0) { all_nonneg = false; }
+            if (sv < 0.0) {
+                all_nonneg = false;
+            }
         }
         smean /= 500.0;
         cout << "All 500 samples >= 0: " << (all_nonneg ? "PASS" : "FAIL") << "\n";
         cout << "Sample mean (n=500, expect ~2.333): " << smean << "\n";
-        if (!all_nonneg) throw std::runtime_error("Sample out of support");
+        if (!all_nonneg)
+            throw std::runtime_error("Sample out of support");
 
         BasicTestFormatter::printTestSuccess("Sampling tests passed");
         BasicTestFormatter::printNewline();
@@ -171,7 +185,8 @@ int main() {
         g5.reset();
         cout << "After reset p (expect 0.5): " << g5.getP() << "\n";
         cout << "toString: " << g5.toString() << "\n";
-        if (std::abs(g5.getP() - 0.5) > 1e-10) throw std::runtime_error("Reset failed");
+        if (std::abs(g5.getP() - 0.5) > 1e-10)
+            throw std::runtime_error("Reset failed");
 
         BasicTestFormatter::printTestSuccess("Distribution management passed");
         BasicTestFormatter::printNewline();
@@ -197,7 +212,8 @@ int main() {
         auto parsed = GeometricDistribution::create().unwrap();
         iss >> parsed;
         cout << "Stream round-trip p: " << parsed.getP() << "\n";
-        if (std::abs(parsed.getP() - 0.3) > 1e-10) throw std::runtime_error("Stream round-trip failed");
+        if (std::abs(parsed.getP() - 0.3) > 1e-10)
+            throw std::runtime_error("Stream round-trip failed");
 
         BasicTestFormatter::printTestSuccess("Comparison and stream tests passed");
         BasicTestFormatter::printNewline();
@@ -208,7 +224,8 @@ int main() {
         BasicTestFormatter::printCompletionMessage("Geometric");
         BasicTestFormatter::printSummaryHeader();
         BasicTestFormatter::printSummaryItem("Delegation to NegativeBinomial(r=1)");
-        BasicTestFormatter::printSummaryItem("PMF/LogPMF/CDF: p*(1-p)^k convention (failures before first success)");
+        BasicTestFormatter::printSummaryItem(
+            "PMF/LogPMF/CDF: p*(1-p)^k convention (failures before first success)");
         BasicTestFormatter::printSummaryItem("MLE: p_hat = 1/(1+x_bar) — closed form");
         BasicTestFormatter::printSummaryItem("Moments: mean=(1-p)/p, variance=(1-p)/p^2");
         BasicTestFormatter::printSummaryItem("Mode=0, Median=ceil(-ln2/ln(1-p))-1");

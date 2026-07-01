@@ -4,8 +4,8 @@
     #pragma warning(disable : 4996)
 #endif
 
-#include "include/tests.h"
 #include "include/enhanced_test_suite.h"
+#include "include/tests.h"
 #include "libstats/distributions/geometric.h"
 
 #include <cmath>
@@ -20,8 +20,7 @@ using namespace stats;
 
 // DistTraits specialisation for GeometricDistribution
 template <>
-struct stats::tests::DistTraits<stats::GeometricDistribution>
-    : stats::tests::DistTraitsDefaults {
+struct stats::tests::DistTraits<stats::GeometricDistribution> : stats::tests::DistTraitsDefaults {
     static stats::GeometricDistribution make() {
         return stats::GeometricDistribution::create(0.5).unwrap();  // mean = 1, var = 2
     }
@@ -36,8 +35,11 @@ struct stats::tests::DistTraits<stats::GeometricDistribution>
             [] { return stats::GeometricDistribution::create(0.0).isError(); },
             [] { return stats::GeometricDistribution::create(-0.5).isError(); },
             [] { return stats::GeometricDistribution::create(1.1).isError(); },
-            [] { return stats::GeometricDistribution::create(
-                             std::numeric_limits<double>::quiet_NaN()).isError(); },
+            [] {
+                return stats::GeometricDistribution::create(
+                           std::numeric_limits<double>::quiet_NaN())
+                    .isError();
+            },
         };
     }
 };
@@ -63,9 +65,9 @@ class GeometricEnhancedTest : public ::testing::Test {
 
 // PMF(k; p) = p*(1-p)^k  for Geometric(0.5): each PMF(k) = 0.5^(k+1)
 TEST_F(GeometricEnhancedTest, KnownPMFValues) {
-    EXPECT_NEAR(g05_.getProbability(0.0), 0.5,    1e-12) << "PMF(0) = p";
-    EXPECT_NEAR(g05_.getProbability(1.0), 0.25,   1e-12) << "PMF(1) = p*(1-p)";
-    EXPECT_NEAR(g05_.getProbability(2.0), 0.125,  1e-12) << "PMF(2) = p*(1-p)^2";
+    EXPECT_NEAR(g05_.getProbability(0.0), 0.5, 1e-12) << "PMF(0) = p";
+    EXPECT_NEAR(g05_.getProbability(1.0), 0.25, 1e-12) << "PMF(1) = p*(1-p)";
+    EXPECT_NEAR(g05_.getProbability(2.0), 0.125, 1e-12) << "PMF(2) = p*(1-p)^2";
     EXPECT_NEAR(g05_.getProbability(3.0), 0.0625, 1e-12) << "PMF(3) = p*(1-p)^3";
     // Out-of-support
     EXPECT_EQ(g05_.getProbability(-1.0), 0.0) << "PMF(-1) = 0";
@@ -73,8 +75,8 @@ TEST_F(GeometricEnhancedTest, KnownPMFValues) {
 }
 
 TEST_F(GeometricEnhancedTest, KnownLogPMFValues) {
-    EXPECT_NEAR(g05_.getLogProbability(0.0), std::log(0.5),   1e-12);
-    EXPECT_NEAR(g05_.getLogProbability(1.0), std::log(0.25),  1e-12);
+    EXPECT_NEAR(g05_.getLogProbability(0.0), std::log(0.5), 1e-12);
+    EXPECT_NEAR(g05_.getLogProbability(1.0), std::log(0.25), 1e-12);
     EXPECT_NEAR(g05_.getLogProbability(2.0), std::log(0.125), 1e-12);
     // LogPMF of -inf for out-of-support
     EXPECT_EQ(g05_.getLogProbability(-1.0), -std::numeric_limits<double>::infinity());
@@ -84,11 +86,11 @@ TEST_F(GeometricEnhancedTest, KnownLogPMFValues) {
 
 // CDF(k; p=0.5) = 1 - 0.5^(k+1)
 TEST_F(GeometricEnhancedTest, KnownCDFValues) {
-    EXPECT_NEAR(g05_.getCumulativeProbability(0.0), 0.5,    1e-12) << "CDF(0) = p";
-    EXPECT_NEAR(g05_.getCumulativeProbability(1.0), 0.75,   1e-12) << "CDF(1) = 1-(1-p)^2";
-    EXPECT_NEAR(g05_.getCumulativeProbability(2.0), 0.875,  1e-12) << "CDF(2)";
+    EXPECT_NEAR(g05_.getCumulativeProbability(0.0), 0.5, 1e-12) << "CDF(0) = p";
+    EXPECT_NEAR(g05_.getCumulativeProbability(1.0), 0.75, 1e-12) << "CDF(1) = 1-(1-p)^2";
+    EXPECT_NEAR(g05_.getCumulativeProbability(2.0), 0.875, 1e-12) << "CDF(2)";
     EXPECT_NEAR(g05_.getCumulativeProbability(3.0), 0.9375, 1e-12) << "CDF(3)";
-    EXPECT_EQ(g05_.getCumulativeProbability(-1.0), 0.0)      << "CDF(-1) = 0";
+    EXPECT_EQ(g05_.getCumulativeProbability(-1.0), 0.0) << "CDF(-1) = 0";
     EXPECT_NEAR(g05_.getCumulativeProbability(1e9), 1.0, 1e-9) << "CDF(+inf) ≈ 1";
 }
 
@@ -96,14 +98,14 @@ TEST_F(GeometricEnhancedTest, KnownCDFValues) {
 
 TEST_F(GeometricEnhancedTest, MomentFormulas) {
     // Geometric(p=0.5): mean=(1-p)/p=1, var=(1-p)/p^2=2
-    EXPECT_NEAR(g05_.getMean(),     1.0,  1e-12);
-    EXPECT_NEAR(g05_.getVariance(), 2.0,  1e-12);
+    EXPECT_NEAR(g05_.getMean(), 1.0, 1e-12);
+    EXPECT_NEAR(g05_.getVariance(), 2.0, 1e-12);
     EXPECT_NEAR(g05_.getSkewness(), (2.0 - 0.5) / std::sqrt(0.5), 1e-12);
     EXPECT_NEAR(g05_.getKurtosis(), 6.0 + 0.5 * 0.5 / 0.5, 1e-12);
 
     // Verify p=0.3
     auto g03 = GeometricDistribution::create(0.3).unwrap();
-    EXPECT_NEAR(g03.getMean(),     0.7 / 0.3,         1e-10) << "mean=(1-p)/p";
+    EXPECT_NEAR(g03.getMean(), 0.7 / 0.3, 1e-10) << "mean=(1-p)/p";
     EXPECT_NEAR(g03.getVariance(), 0.7 / (0.3 * 0.3), 1e-10) << "var=(1-p)/p^2";
 }
 
@@ -150,8 +152,7 @@ TEST_F(GeometricEnhancedTest, QuantileFloorProperty) {
     for (double p : {0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99}) {
         const double q = g05_.getQuantile(p);
         EXPECT_GE(q, 0.0) << "quantile must be non-negative";
-        EXPECT_GE(g05_.getCumulativeProbability(q), p - 1e-12)
-            << "CDF(Q(p)) >= p for p=" << p;
+        EXPECT_GE(g05_.getCumulativeProbability(q), p - 1e-12) << "CDF(Q(p)) >= p for p=" << p;
     }
 }
 
@@ -178,7 +179,7 @@ TEST_F(GeometricEnhancedTest, SetterPropagates) {
 TEST_F(GeometricEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
     auto source = GeometricDistribution::create(0.4).unwrap();  // true p = 0.4
-    auto data   = source.sample(rng, 1000);
+    auto data = source.sample(rng, 1000);
 
     auto fitted = GeometricDistribution::create(0.5).unwrap();
     fitted.fit(data);
@@ -192,7 +193,7 @@ TEST_F(GeometricEnhancedTest, MLEFit) {
 
 TEST_F(GeometricEnhancedTest, LogPMFConsistency) {
     for (double k : {0.0, 1.0, 2.0, 3.0, 5.0, 10.0}) {
-        const double pmf  = g05_.getProbability(k);
+        const double pmf = g05_.getProbability(k);
         const double lpmf = g05_.getLogProbability(k);
         EXPECT_NEAR(std::log(pmf), lpmf, 1e-10) << "at k=" << k;
     }
@@ -211,9 +212,9 @@ TEST_F(GeometricEnhancedTest, BatchMatchesScalar) {
     g05_.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
 
     for (size_t i = 0; i < N; ++i) {
-        EXPECT_NEAR(pmf_b[i],  g05_.getProbability(xs[i]),           1e-12) << "PMF i=" << i;
-        EXPECT_NEAR(lpmf_b[i], g05_.getLogProbability(xs[i]),        1e-12) << "LogPMF i=" << i;
-        EXPECT_NEAR(cdf_b[i],  g05_.getCumulativeProbability(xs[i]), 1e-12) << "CDF i=" << i;
+        EXPECT_NEAR(pmf_b[i], g05_.getProbability(xs[i]), 1e-12) << "PMF i=" << i;
+        EXPECT_NEAR(lpmf_b[i], g05_.getLogProbability(xs[i]), 1e-12) << "LogPMF i=" << i;
+        EXPECT_NEAR(cdf_b[i], g05_.getCumulativeProbability(xs[i]), 1e-12) << "CDF i=" << i;
     }
 }
 
@@ -235,10 +236,10 @@ TEST_F(GeometricEnhancedTest, VectorizedSpeedup) {
     g05_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
-    const double par_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+    const double par_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
     const double speedup = scl_us / std::max(par_us, 1.0);
     std::cout << "Geometric LogPMF PARALLEL speedup: " << speedup << "x "
               << "(PARALLEL " << par_us << "µs, SCALAR " << scl_us << "µs)\n";

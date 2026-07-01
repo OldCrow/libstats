@@ -1,7 +1,8 @@
 #pragma once
 
-#include <string_view>
 #include "libstats/common/distribution_base_common.h"
+
+#include <string_view>
 
 namespace stats {
 

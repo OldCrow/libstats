@@ -1,6 +1,6 @@
 #include "libstats/stats/analysis/poisson_analysis.h"
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/math_utils.h"
 #include "libstats/core/statistical_constants.h"
 #include "libstats/distributions/poisson.h"
@@ -17,8 +17,8 @@ namespace stats::analysis::poisson {
 // Exact rate inference
 // ---------------------------------------------------------------------------
 
-std::pair<double, double>
-confidenceIntervalRate(const std::vector<double>& data, double confidence_level) {
+std::pair<double, double> confidenceIntervalRate(const std::vector<double>& data,
+                                                 double confidence_level) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     if (confidence_level <= 0.0 || confidence_level >= 1.0)
@@ -34,9 +34,8 @@ confidenceIntervalRate(const std::vector<double>& data, double confidence_level)
     // Exact Poisson CI via the chi-squared relationship (Garwood, 1936):
     //   lower = χ²(α/2,  2T)   / (2n)  where T = Σxᵢ
     //   upper = χ²(1-α/2, 2(T+1)) / (2n)
-    const double lower = (total > 0.0)
-        ? detail::inverse_chi_squared_cdf(alpha / 2.0, 2.0 * total) / (2.0 * n)
-        : 0.0;
+    const double lower =
+        (total > 0.0) ? detail::inverse_chi_squared_cdf(alpha / 2.0, 2.0 * total) / (2.0 * n) : 0.0;
     const double upper =
         detail::inverse_chi_squared_cdf(1.0 - alpha / 2.0, 2.0 * (total + 1.0)) / (2.0 * n);
 
@@ -47,8 +46,8 @@ confidenceIntervalRate(const std::vector<double>& data, double confidence_level)
 // Dispersion tests
 // ---------------------------------------------------------------------------
 
-std::tuple<double, double, bool>
-overdispersionTest(const std::vector<double>& data, double significance_level) {
+std::tuple<double, double, bool> overdispersionTest(const std::vector<double>& data,
+                                                    double significance_level) {
     if (data.size() < 2)
         throw std::invalid_argument("At least 2 data points required for overdispersion test");
     if (significance_level <= 0.0 || significance_level >= 1.0)
@@ -65,21 +64,21 @@ overdispersionTest(const std::vector<double>& data, double significance_level) {
         throw std::invalid_argument("Sample mean must be positive for overdispersion test");
 
     double var = 0.0;
-    for (double x : data) var += (x - mean) * (x - mean);
+    for (double x : data)
+        var += (x - mean) * (x - mean);
     var /= (nd - 1.0);
 
     // Dispersion index: D = (n-1)*S²/x̄  ~ χ²(n-1) under H₀: Poisson
     const double dispersion_index = (nd - 1.0) * var / mean;
 
     // One-sided p-value: P(χ²(n-1) > D)
-    const double p_value = 1.0 - detail::chi_squared_cdf(dispersion_index,
-                                                           static_cast<int>(n - 1));
+    const double p_value = 1.0 - detail::chi_squared_cdf(dispersion_index, static_cast<int>(n - 1));
 
     return {var / mean, p_value, p_value < significance_level};
 }
 
-std::tuple<double, double, bool>
-excessZerosTest(const std::vector<double>& data, double significance_level) {
+std::tuple<double, double, bool> excessZerosTest(const std::vector<double>& data,
+                                                 double significance_level) {
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     if (significance_level <= 0.0 || significance_level >= 1.0)
@@ -96,21 +95,20 @@ excessZerosTest(const std::vector<double>& data, double significance_level) {
 
     const double exp_neg_lambda = std::exp(-lambda_hat);
     const double expected_zeros = static_cast<double>(n) * exp_neg_lambda;
-    const double variance_zeros =
-        static_cast<double>(n) * exp_neg_lambda * (1.0 - exp_neg_lambda);
+    const double variance_zeros = static_cast<double>(n) * exp_neg_lambda * (1.0 - exp_neg_lambda);
 
     if (variance_zeros <= 0.0)
         throw std::runtime_error("Variance of zero count is non-positive");
 
-    const double z = (static_cast<double>(observed_zeros) - expected_zeros) /
-                     std::sqrt(variance_zeros);
+    const double z =
+        (static_cast<double>(observed_zeros) - expected_zeros) / std::sqrt(variance_zeros);
     const double p_value = 2.0 * (1.0 - detail::normal_cdf(std::abs(z)));
 
     return {z, p_value, p_value < significance_level};
 }
 
-std::tuple<double, double, bool>
-rateStabilityTest(const std::vector<double>& data, double significance_level) {
+std::tuple<double, double, bool> rateStabilityTest(const std::vector<double>& data,
+                                                   double significance_level) {
     if (data.size() < 3)
         throw std::invalid_argument("At least 3 data points required for rate stability test");
     if (significance_level <= 0.0 || significance_level >= 1.0)
@@ -125,20 +123,20 @@ rateStabilityTest(const std::vector<double>& data, double significance_level) {
     double sum_x = 0.0, sum_y = 0.0, sum_xx = 0.0, sum_xy = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
         const double x = static_cast<double>(i + 1);
-        sum_x  += x;
-        sum_y  += data[i];
+        sum_x += x;
+        sum_y += data[i];
         sum_xx += x * x;
         sum_xy += x * data[i];
     }
 
     const double mean_x = sum_x / nd;
     const double mean_y = sum_y / nd;
-    const double denom  = sum_xx - nd * mean_x * mean_x;
+    const double denom = sum_xx - nd * mean_x * mean_x;
 
     if (std::abs(denom) < detail::DEFAULT_TOLERANCE)
         throw std::runtime_error("Cannot perform regression: denominator too small");
 
-    const double slope     = (sum_xy - nd * mean_x * mean_y) / denom;
+    const double slope = (sum_xy - nd * mean_x * mean_y) / denom;
     const double intercept = mean_y - slope * mean_x;
 
     double rss = 0.0;
@@ -147,11 +145,11 @@ rateStabilityTest(const std::vector<double>& data, double significance_level) {
         rss += res * res;
     }
 
-    const double mse      = rss / (nd - 2.0);
+    const double mse = rss / (nd - 2.0);
     const double se_slope = std::sqrt(mse / denom);
-    const double t_stat   = slope / se_slope;
-    const double p_value  = 2.0 * (1.0 - detail::t_cdf(std::abs(t_stat),
-                                                          static_cast<double>(n - 2)));
+    const double t_stat = slope / se_slope;
+    const double p_value =
+        2.0 * (1.0 - detail::t_cdf(std::abs(t_stat), static_cast<double>(n - 2)));
 
     return {t_stat, p_value, p_value >= significance_level};
 }
@@ -160,10 +158,9 @@ rateStabilityTest(const std::vector<double>& data, double significance_level) {
 // Goodness-of-fit
 // ---------------------------------------------------------------------------
 
-std::tuple<double, double, bool>
-chiSquareGoodnessOfFit(const std::vector<double>& data,
-                       const stats::PoissonDistribution& distribution,
-                       double significance_level) {
+std::tuple<double, double, bool> chiSquareGoodnessOfFit(
+    const std::vector<double>& data, const stats::PoissonDistribution& distribution,
+    double significance_level) {
     if (data.size() < 5)
         throw std::invalid_argument("At least 5 data points required for chi-square test");
     if (significance_level <= 0.0 || significance_level >= 1.0)
@@ -200,7 +197,7 @@ chiSquareGoodnessOfFit(const std::vector<double>& data,
             expected_freq.push_back(grp_exp);
 
             group_start = k + 1;
-            group_obs   = 0;
+            group_obs = 0;
 
             if (k >= max_val && grp_exp < 1e-10)
                 break;

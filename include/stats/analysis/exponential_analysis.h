@@ -28,9 +28,8 @@ namespace stats::analysis::exponential {
  * @param confidence_level CI level, e.g. 0.95.
  * @return {lower, upper} for λ.
  */
-[[nodiscard]] std::pair<double, double>
-confidenceIntervalRate(const std::vector<double>& data,
-                       double confidence_level = 0.95);
+[[nodiscard]] std::pair<double, double> confidenceIntervalRate(const std::vector<double>& data,
+                                                               double confidence_level = 0.95);
 
 /**
  * @brief Exponentiality test using the coefficient of variation.
@@ -42,8 +41,7 @@ confidenceIntervalRate(const std::vector<double>& data,
  * @param alpha Significance level (default 0.05).
  * @return {cv_statistic, p_value, reject_null}
  */
-[[nodiscard]] std::tuple<double, double, bool>
-coefficientOfVariationTest(const std::vector<double>& data,
-                           double alpha = 0.05);
+[[nodiscard]] std::tuple<double, double, bool> coefficientOfVariationTest(
+    const std::vector<double>& data, double alpha = 0.05);
 
 }  // namespace stats::analysis::exponential

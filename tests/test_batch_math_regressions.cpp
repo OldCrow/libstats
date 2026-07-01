@@ -48,8 +48,10 @@ TEST(BatchMathRegressions, BinomialBatchProbabilityHandlesBoundaryPZero) {
     EXPECT_DOUBLE_EQ(log_prob[0], 0.0);
     EXPECT_TRUE(std::isinf(log_prob[1]) && log_prob[1] < 0.0);
     EXPECT_TRUE(std::isinf(log_prob[2]) && log_prob[2] < 0.0);
-    for (double x : prob) EXPECT_FALSE(std::isnan(x));
-    for (double x : log_prob) EXPECT_FALSE(std::isnan(x));
+    for (double x : prob)
+        EXPECT_FALSE(std::isnan(x));
+    for (double x : log_prob)
+        EXPECT_FALSE(std::isnan(x));
 }
 
 TEST(BatchMathRegressions, BinomialBatchProbabilityHandlesBoundaryPOne) {
@@ -67,8 +69,10 @@ TEST(BatchMathRegressions, BinomialBatchProbabilityHandlesBoundaryPOne) {
     EXPECT_TRUE(std::isinf(log_prob[0]) && log_prob[0] < 0.0);
     EXPECT_TRUE(std::isinf(log_prob[1]) && log_prob[1] < 0.0);
     EXPECT_DOUBLE_EQ(log_prob[2], 0.0);
-    for (double x : prob) EXPECT_FALSE(std::isnan(x));
-    for (double x : log_prob) EXPECT_FALSE(std::isnan(x));
+    for (double x : prob)
+        EXPECT_FALSE(std::isnan(x));
+    for (double x : log_prob)
+        EXPECT_FALSE(std::isnan(x));
 }
 
 TEST(BatchMathRegressions, PoissonLargeLambdaQuantileFiniteAndOrdered) {
@@ -92,8 +96,7 @@ TEST(BatchMathRegressions, GammaFitRejectsNaN) {
     GammaDistribution g;
     EXPECT_THROW(g.fit({1.0, std::numeric_limits<double>::quiet_NaN(), 2.0}),
                  std::invalid_argument);
-    EXPECT_THROW(g.fit({1.0, std::numeric_limits<double>::infinity(), 2.0}),
-                 std::invalid_argument);
+    EXPECT_THROW(g.fit({1.0, std::numeric_limits<double>::infinity(), 2.0}), std::invalid_argument);
     EXPECT_THROW(g.fit({1.0, 0.0, 2.0}), std::invalid_argument);
     EXPECT_THROW(g.fit({1.0, -1.0, 2.0}), std::invalid_argument);
 }

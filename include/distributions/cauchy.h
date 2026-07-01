@@ -68,8 +68,7 @@ namespace stats {
 class CauchyDistribution : public DistributionBase {
    public:
     // Dispatch metadata
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::CAUCHY;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::CAUCHY;
     static constexpr bool kIsDiscrete = false;
 
    public:
@@ -110,7 +109,7 @@ class CauchyDistribution : public DistributionBase {
      * @param gamma Scale parameter (must be positive and finite)
      * @return Result containing a valid CauchyDistribution or error info
      */
-    [[nodiscard]] static Result<CauchyDistribution> create(double x0    = detail::ZERO_DOUBLE,
+    [[nodiscard]] static Result<CauchyDistribution> create(double x0 = detail::ZERO_DOUBLE,
                                                            double gamma = detail::ONE) {
         auto v = validateCauchyParameters(x0, gamma);
         if (v.isError())
@@ -364,7 +363,8 @@ class CauchyDistribution : public DistributionBase {
     // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double x0, double gamma) {
         auto v = ::stats::validateCauchyParameters(x0, gamma);
-        if (v.isError()) throw std::invalid_argument(v.message());
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -380,7 +380,7 @@ class CauchyDistribution : public DistributionBase {
     /** @brief Atomic copies for lock-free parameter access. */
     mutable std::atomic<double> atomicX0_{detail::ZERO_DOUBLE};
     mutable std::atomic<double> atomicGamma_{detail::ONE};
-    mutable std::atomic<bool>   atomicParamsValid_{false};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
     // 24. PERFORMANCE CACHE

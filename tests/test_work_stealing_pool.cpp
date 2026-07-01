@@ -48,12 +48,15 @@ TEST(WorkStealingPool, ParallelForConcurrentCallersWaitIndependently) {
     std::atomic<bool> slow_returned{false};
 
     std::thread slow([&]() {
-        pool.parallelFor(0, 16, [&](std::size_t) {
-            while (!release_slow.load(std::memory_order_acquire)) {
-                std::this_thread::yield();
-            }
-            slow_done.fetch_add(1, std::memory_order_release);
-        }, 1);
+        pool.parallelFor(
+            0, 16,
+            [&](std::size_t) {
+                while (!release_slow.load(std::memory_order_acquire)) {
+                    std::this_thread::yield();
+                }
+                slow_done.fetch_add(1, std::memory_order_release);
+            },
+            1);
         slow_returned.store(true, std::memory_order_release);
     });
 
@@ -61,9 +64,8 @@ TEST(WorkStealingPool, ParallelForConcurrentCallersWaitIndependently) {
     std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
     std::thread fast([&]() {
-        pool.parallelFor(0, 16, [&](std::size_t) {
-            fast_done.fetch_add(1, std::memory_order_release);
-        }, 1);
+        pool.parallelFor(
+            0, 16, [&](std::size_t) { fast_done.fetch_add(1, std::memory_order_release); }, 1);
         fast_returned.store(true, std::memory_order_release);
     });
 
@@ -228,8 +230,8 @@ TEST(WorkStealingPool, ParallelForDoesNotDeadlockOnTaskException) {
     // At least most tasks should have completed (the throwing task's whole
     // grain is aborted, but all other grains run normally).
     EXPECT_GT(completed.load(), static_cast<int>(kTasks / 2));
-    std::cout << "  parallelFor returned after task exception at index " << kThrowAt
-              << " (" << completed.load() << "/" << (kTasks - 1) << " non-throwing tasks ran)\n";
+    std::cout << "  parallelFor returned after task exception at index " << kThrowAt << " ("
+              << completed.load() << "/" << (kTasks - 1) << " non-throwing tasks ran)\n";
 }
 
 // TEST-7a: getOptimalThreadCount() must be capped at 32.
@@ -238,9 +240,8 @@ TEST(WorkStealingPool, OptimalThreadCountCappedAt32) {
     const std::size_t cap = 32u;
     const std::size_t optimal = WorkStealingPool::getOptimalThreadCount();
     EXPECT_GE(optimal, 1u);
-    EXPECT_LE(optimal, cap)
-        << "getOptimalThreadCount() returned " << optimal
-        << " which exceeds the hard cap of 32";
+    EXPECT_LE(optimal, cap) << "getOptimalThreadCount() returned " << optimal
+                            << " which exceeds the hard cap of 32";
     std::cout << "  getOptimalThreadCount()=" << optimal
               << " (hardware_concurrency=" << std::thread::hardware_concurrency() << ")\n";
 }
@@ -277,9 +278,7 @@ TEST(WorkStealingPool, ParallelForPerCallFencePreventsDataRace) {
     std::vector<int> data(1024, 0);
 
     // First pass: write 1 into every element.
-    pool.parallelFor(std::size_t{0}, data.size(), [&data](std::size_t i) {
-        data[i] = 1;
-    });
+    pool.parallelFor(std::size_t{0}, data.size(), [&data](std::size_t i) { data[i] = 1; });
     // The per-call fence guarantees all writes above are visible here.
 
     // Second pass: accumulate — relies on first pass being fully visible.
@@ -290,6 +289,6 @@ TEST(WorkStealingPool, ParallelForPerCallFencePreventsDataRace) {
 
     EXPECT_EQ(sum.load(), static_cast<int>(data.size()))
         << "Per-call fence broken: second parallelFor saw incomplete writes from first";
-    std::cout << "  Per-call fence verified: sum=" << sum.load()
-              << " (expected " << data.size() << ")\n";
+    std::cout << "  Per-call fence verified: sum=" << sum.load() << " (expected " << data.size()
+              << ")\n";
 }

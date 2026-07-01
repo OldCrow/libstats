@@ -26,8 +26,8 @@ namespace stats::analysis::binomial {
  * @param confidence_level CI level, e.g. 0.95.
  * @return {lower, upper} for the proportion p.
  */
-[[nodiscard]] std::pair<double, double>
-clopperPearsonCI(int k, int n, double confidence_level = 0.95);
+[[nodiscard]] std::pair<double, double> clopperPearsonCI(int k, int n,
+                                                         double confidence_level = 0.95);
 
 /**
  * @brief One-proportion z-test.
@@ -41,8 +41,8 @@ clopperPearsonCI(int k, int n, double confidence_level = 0.95);
  * @param alpha Significance level (default 0.05).
  * @return {z_statistic, p_value, reject_null}
  */
-[[nodiscard]] std::tuple<double, double, bool>
-proportionZTest(int k, int n, double p0, double alpha = 0.05);
+[[nodiscard]] std::tuple<double, double, bool> proportionZTest(int k, int n, double p0,
+                                                               double alpha = 0.05);
 
 /**
  * @brief Two-proportion z-test (pooled).
@@ -55,7 +55,7 @@ proportionZTest(int k, int n, double p0, double alpha = 0.05);
  * @param alpha  Significance level (default 0.05).
  * @return {z_statistic, p_value, reject_null}
  */
-[[nodiscard]] std::tuple<double, double, bool>
-twoProportionZTest(int k1, int n1, int k2, int n2, double alpha = 0.05);
+[[nodiscard]] std::tuple<double, double, bool> twoProportionZTest(int k1, int n1, int k2, int n2,
+                                                                  double alpha = 0.05);
 
 }  // namespace stats::analysis::binomial

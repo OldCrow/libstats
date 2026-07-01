@@ -169,7 +169,8 @@ double UniformDistribution::getMean() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return midpoint_;  // snapshot + early return under unique_lock
     }
     return midpoint_;
@@ -180,7 +181,8 @@ double UniformDistribution::getVariance() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return variance_;  // snapshot + early return under unique_lock
     }
     return variance_;
@@ -191,7 +193,8 @@ double UniformDistribution::getWidth() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return width_;  // snapshot + early return under unique_lock
     }
     return width_;
@@ -271,20 +274,25 @@ double UniformDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const double lo = a_, hi = b_;
         const bool is_unit = isUnitInterval_;
         const double inv_w = invWidth_;
-        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
-        if (x < lo || x > hi) return detail::ZERO_DOUBLE;
-        if (is_unit) return detail::ONE;
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        if (x < lo || x > hi)
+            return detail::ZERO_DOUBLE;
+        if (is_unit)
+            return detail::ONE;
         return inv_w;
     }
 
     // NaN must propagate before the bounds checks (both comparisons are false for NaN,
     // so NaN would silently pass through and return the density constant).
-    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
 
     // Check if x is within the support [a, b]
     if (x < a_ || x > b_) {
@@ -306,18 +314,23 @@ double UniformDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const double lo = a_, hi = b_;
         const bool is_unit = isUnitInterval_;
         const double w = width_;
-        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
-        if (x < lo || x > hi) return detail::NEGATIVE_INFINITY;
-        if (is_unit) return detail::ZERO_DOUBLE;
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        if (x < lo || x > hi)
+            return detail::NEGATIVE_INFINITY;
+        if (is_unit)
+            return detail::ZERO_DOUBLE;
         return -std::log(w);
     }
 
-    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
 
     // Check if x is within the support [a, b]
     if (x < a_ || x > b_) {
@@ -339,14 +352,18 @@ double UniformDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const double lo = a_, hi = b_;
         const bool is_unit = isUnitInterval_;
         const double inv_w = invWidth_;
-        if (x < lo) return detail::ZERO_DOUBLE;
-        if (x > hi) return detail::ONE;
-        if (is_unit) return x;
+        if (x < lo)
+            return detail::ZERO_DOUBLE;
+        if (x > hi)
+            return detail::ONE;
+        if (is_unit)
+            return x;
         return (x - lo) * inv_w;
     }
 
@@ -383,11 +400,13 @@ double UniformDistribution::getQuantile(double p) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
         const bool is_unit = isUnitInterval_;
         const double lo = a_, w = width_;
-        if (is_unit) return p;
+        if (is_unit)
+            return p;
         return lo + p * w;
     }
 
@@ -409,7 +428,8 @@ double UniformDistribution::sample(std::mt19937& rng) const {
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
+            if (!cache_valid_)
+                updateCacheUnsafe();
             cached_is_unit_interval = isUnitInterval_;
             cached_a = a_;
             cached_width = width_;
@@ -448,7 +468,8 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
+            if (!cache_valid_)
+                updateCacheUnsafe();
             cached_a = a_;
             cached_width = width_;
             cached_is_unit_interval = isUnitInterval_;

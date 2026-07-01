@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/negative_binomial.h"
 
@@ -14,7 +15,6 @@
 #include <random>
 #include <span>
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -50,7 +50,7 @@ TEST_F(NegativeBinomialEnhancedTest, KnownPMFValues) {
 // LogPMF == log(PMF) for all k in {0..10}
 TEST_F(NegativeBinomialEnhancedTest, LogPMFConsistency) {
     for (int k = 0; k <= 10; ++k) {
-        const double pmf  = nb2_05_.getProbability(static_cast<double>(k));
+        const double pmf = nb2_05_.getProbability(static_cast<double>(k));
         const double lpdf = nb2_05_.getLogProbability(static_cast<double>(k));
         EXPECT_NEAR(std::log(pmf), lpdf, 1e-12) << "at k=" << k;
     }
@@ -76,14 +76,14 @@ TEST_F(NegativeBinomialEnhancedTest, CDFMonotoneAndBoundary) {
 
 // Moments for NB(2, 0.5) and NB(3, 0.6)
 TEST_F(NegativeBinomialEnhancedTest, Moments) {
-    EXPECT_NEAR(nb2_05_.getMean(),     2.0, 1e-12);
+    EXPECT_NEAR(nb2_05_.getMean(), 2.0, 1e-12);
     EXPECT_NEAR(nb2_05_.getVariance(), 4.0, 1e-12);
     // Skewness = (2-p)/sqrt(r(1-p)) = 1.5/sqrt(1) = 1.5
     EXPECT_NEAR(nb2_05_.getSkewness(), 1.5, 1e-12);
 
     auto nb3_06 = NegativeBinomialDistribution::create(3.0, 0.6).unwrap();
     // mean = 3*0.4/0.6 = 2.0; var = 3*0.4/0.36 = 10/3 ≈ 3.333
-    EXPECT_NEAR(nb3_06.getMean(),     2.0,       1e-12);
+    EXPECT_NEAR(nb3_06.getMean(), 2.0, 1e-12);
     EXPECT_NEAR(nb3_06.getVariance(), 10.0 / 3.0, 1e-10);
 }
 
@@ -91,17 +91,17 @@ TEST_F(NegativeBinomialEnhancedTest, Moments) {
 TEST_F(NegativeBinomialEnhancedTest, BoundaryPMF) {
     EXPECT_DOUBLE_EQ(nb2_05_.getProbability(-1.0), 0.0);
     EXPECT_DOUBLE_EQ(nb2_05_.getProbability(-0.5), 0.0);
-    EXPECT_TRUE(std::isnan(nb2_05_.getProbability(std::numeric_limits<double>::quiet_NaN())));  // NaN propagates
+    EXPECT_TRUE(std::isnan(
+        nb2_05_.getProbability(std::numeric_limits<double>::quiet_NaN())));  // NaN propagates
     EXPECT_DOUBLE_EQ(nb2_05_.getProbability(std::numeric_limits<double>::infinity()), 0.0);
-    EXPECT_DOUBLE_EQ(nb2_05_.getLogProbability(-1.0),
-                     -std::numeric_limits<double>::infinity());
+    EXPECT_DOUBLE_EQ(nb2_05_.getLogProbability(-1.0), -std::numeric_limits<double>::infinity());
 }
 
 // Quantile round-trip: quantile(CDF(k)) ≈ k for k in {0..10}
 TEST_F(NegativeBinomialEnhancedTest, QuantileRoundTrip) {
     for (int k = 0; k <= 10; ++k) {
         const double cdf = nb2_05_.getCumulativeProbability(static_cast<double>(k));
-        const double q   = nb2_05_.getQuantile(cdf);
+        const double q = nb2_05_.getQuantile(cdf);
         EXPECT_NEAR(q, static_cast<double>(k), 0.5) << "at k=" << k;
     }
     EXPECT_DOUBLE_EQ(nb2_05_.getQuantile(0.0), 0.0);
@@ -119,9 +119,9 @@ TEST_F(NegativeBinomialEnhancedTest, BatchMatchesScalar) {
     nb2_05_.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
 
     for (size_t i = 0; i < N; ++i) {
-        EXPECT_NEAR(pdf_b[i],  nb2_05_.getProbability(xs[i]),           1e-12) << "i=" << i;
-        EXPECT_NEAR(lpdf_b[i], nb2_05_.getLogProbability(xs[i]),        1e-12) << "i=" << i;
-        EXPECT_NEAR(cdf_b[i],  nb2_05_.getCumulativeProbability(xs[i]), 1e-9)  << "i=" << i;
+        EXPECT_NEAR(pdf_b[i], nb2_05_.getProbability(xs[i]), 1e-12) << "i=" << i;
+        EXPECT_NEAR(lpdf_b[i], nb2_05_.getLogProbability(xs[i]), 1e-12) << "i=" << i;
+        EXPECT_NEAR(cdf_b[i], nb2_05_.getCumulativeProbability(xs[i]), 1e-9) << "i=" << i;
     }
 }
 
@@ -172,8 +172,8 @@ TEST_F(NegativeBinomialEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(NegativeBinomialDistribution::create(-1.0, 0.5).isError());
     EXPECT_TRUE(NegativeBinomialDistribution::create(2.0, 0.0).isError());
     EXPECT_TRUE(NegativeBinomialDistribution::create(2.0, 1.1).isError());
-    EXPECT_TRUE(NegativeBinomialDistribution::create(
-                    std::numeric_limits<double>::infinity(), 0.5).isError());
+    EXPECT_TRUE(NegativeBinomialDistribution::create(std::numeric_limits<double>::infinity(), 0.5)
+                    .isError());
 
     auto d = NegativeBinomialDistribution::create(2.0, 0.5).unwrap();
     EXPECT_TRUE(d.trySetR(-1.0).isError());
@@ -220,13 +220,13 @@ TEST_F(NegativeBinomialEnhancedTest, ParallelBatchCorrectness) {
     nb2_05_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     const auto t2 = chrono::high_resolution_clock::now();
 
-    const double par_us = static_cast<double>(
-        chrono::duration_cast<chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        chrono::duration_cast<chrono::microseconds>(t2 - t1).count());
+    const double par_us =
+        static_cast<double>(chrono::duration_cast<chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(chrono::duration_cast<chrono::microseconds>(t2 - t1).count());
 
-    cout << "NegBinom LogPDF PARALLEL vs SCALAR: " << par_us << "μs vs " << scl_us
-         << "μs (n=" << N << ")\n";
+    cout << "NegBinom LogPDF PARALLEL vs SCALAR: " << par_us << "μs vs " << scl_us << "μs (n=" << N
+         << ")\n";
     cout << "Note: VECTORIZED = cached scalar loop (no vector_lgamma);\n"
          << "      PARALLEL provides true multi-core throughput.\n";
 
@@ -239,9 +239,12 @@ TEST_F(NegativeBinomialEnhancedTest, ParallelBatchCorrectness) {
 //==============================================================================
 // DistTraits specialization for stats::NegativeBinomialDistribution
 //==============================================================================
-template<>
-struct stats::tests::DistTraits<stats::NegativeBinomialDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::NegativeBinomialDistribution make() { return stats::NegativeBinomialDistribution::create(5.0, 0.4).unwrap(); }
+template <>
+struct stats::tests::DistTraits<stats::NegativeBinomialDistribution>
+    : stats::tests::DistTraitsDefaults {
+    static stats::NegativeBinomialDistribution make() {
+        return stats::NegativeBinomialDistribution::create(5.0, 0.4).unwrap();
+    }
     static std::vector<double> domain() { return {0.0, 1.0, 2.0, 5.0, 10.0}; }
     static double batch_lo() { return 0.0; }
     static double batch_hi() { return 19.0; }

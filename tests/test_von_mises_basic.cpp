@@ -1,6 +1,6 @@
 // Focused unit test for Von Mises distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/von_mises.h"
 
 #include <cmath>
@@ -30,7 +30,8 @@ int main() {
         auto default_vm = stats::VonMisesDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default mu", default_vm.getMu());
         BasicTestFormatter::printProperty("Default kappa", default_vm.getKappa());
-        BasicTestFormatter::printProperty("isUniform (expect 0)", static_cast<int>(default_vm.isUniform()));
+        BasicTestFormatter::printProperty("isUniform (expect 0)",
+                                          static_cast<int>(default_vm.isUniform()));
 
         // kappa=0 → uniform
         auto vm0 = stats::VonMisesDistribution::create(0.0, 0.0).unwrap();
@@ -193,16 +194,22 @@ int main() {
         // pdf_tolerance relaxed to 1e-10: SIMD vector_cos has documented max error ~1e-10
         // vs std::cos in the scalar path; this propagates into the PDF via the exp.
         stats::tests::BasicDistConfig cfg{
-            "VonMises",
-            {-1.5, -0.5, 0.0, 0.5, 1.5},
-            -3.14159265358979, 3.14159265358979,
+            "VonMises", {-1.5, -0.5, 0.0, 0.5, 1.5}, -3.14159265358979, 3.14159265358979,
             1e-10,  // pdf_tolerance
             1e-10   // cdf_tolerance
         };
         cfg.invalid_scenarios = {
-            {"mu=inf", [] { return VonMisesDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError(); }},
+            {"mu=inf",
+             [] {
+                 return VonMisesDistribution::create(std::numeric_limits<double>::infinity(), 1.0)
+                     .isError();
+             }},
             {"kappa=-1", [] { return VonMisesDistribution::create(0.0, -1.0).isError(); }},
-            {"mu=NaN", [] { return VonMisesDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError(); }},
+            {"mu=NaN",
+             [] {
+                 return VonMisesDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0)
+                     .isError();
+             }},
         };
         auto batch_dist = VonMisesDistribution::create(0.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, batch_dist);

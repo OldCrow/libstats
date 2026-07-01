@@ -4,8 +4,8 @@
     #pragma warning(disable : 4996)
 #endif
 
-#include "include/tests.h"
 #include "include/enhanced_test_suite.h"
+#include "include/tests.h"
 #include "libstats/distributions/laplace.h"
 
 #include <cmath>
@@ -20,24 +20,27 @@ using namespace stats;
 
 // DistTraits specialisation for LaplaceDistribution
 template <>
-struct stats::tests::DistTraits<stats::LaplaceDistribution>
-    : stats::tests::DistTraitsDefaults {
+struct stats::tests::DistTraits<stats::LaplaceDistribution> : stats::tests::DistTraitsDefaults {
     static stats::LaplaceDistribution make() {
         return stats::LaplaceDistribution::create(0.0, 1.0).unwrap();  // standard Laplace
     }
-    static std::vector<double> domain() {
-        return {-3.0, -1.0, 0.0, 1.0, 3.0};
-    }
+    static std::vector<double> domain() { return {-3.0, -1.0, 0.0, 1.0, 3.0}; }
     static double batch_lo() { return -5.0; }
-    static double batch_hi() { return  5.0; }
+    static double batch_hi() { return 5.0; }
     static std::vector<std::function<bool()>> invalid_creators() {
         return {
             [] { return stats::LaplaceDistribution::create(0.0, 0.0).isError(); },
             [] { return stats::LaplaceDistribution::create(0.0, -1.0).isError(); },
-            [] { return stats::LaplaceDistribution::create(
-                             std::numeric_limits<double>::infinity(), 1.0).isError(); },
-            [] { return stats::LaplaceDistribution::create(
-                             0.0, std::numeric_limits<double>::quiet_NaN()).isError(); },
+            [] {
+                return stats::LaplaceDistribution::create(std::numeric_limits<double>::infinity(),
+                                                          1.0)
+                    .isError();
+            },
+            [] {
+                return stats::LaplaceDistribution::create(0.0,
+                                                          std::numeric_limits<double>::quiet_NaN())
+                    .isError();
+            },
         };
     }
 };
@@ -66,7 +69,7 @@ TEST_F(LaplaceEnhancedTest, PDFAtLocation) {
     EXPECT_NEAR(sl_.getProbability(0.0), 0.5, 1e-12) << "PDF(mu=0) = 1/(2*1) = 0.5";
 
     auto l = LaplaceDistribution::create(3.0, 2.0).unwrap();
-    EXPECT_NEAR(l.getProbability(3.0), 1.0/(2*2.0), 1e-12) << "PDF(mu=3, b=2) = 1/4";
+    EXPECT_NEAR(l.getProbability(3.0), 1.0 / (2 * 2.0), 1e-12) << "PDF(mu=3, b=2) = 1/4";
 }
 
 TEST_F(LaplaceEnhancedTest, PDFFormula) {
@@ -98,13 +101,13 @@ TEST_F(LaplaceEnhancedTest, CDFAtLocation) {
 TEST_F(LaplaceEnhancedTest, CDFFormula) {
     // For x > mu: CDF = 1 - 0.5*exp(-(x-mu)/b); for x <= mu: 0.5*exp((x-mu)/b)
     // Test x=1 (> mu=0): 1 - 0.5*exp(-1)
-    EXPECT_NEAR(sl_.getCumulativeProbability(1.0), 1.0 - 0.5*std::exp(-1.0), 1e-12);
+    EXPECT_NEAR(sl_.getCumulativeProbability(1.0), 1.0 - 0.5 * std::exp(-1.0), 1e-12);
     // Test x=-1 (<= mu=0): 0.5*exp(-1)
-    EXPECT_NEAR(sl_.getCumulativeProbability(-1.0), 0.5*std::exp(-1.0), 1e-12);
+    EXPECT_NEAR(sl_.getCumulativeProbability(-1.0), 0.5 * std::exp(-1.0), 1e-12);
     // Symmetry: CDF(mu+d) + CDF(mu-d) = 1
     for (double d : {0.5, 1.0, 2.0, 5.0}) {
-        EXPECT_NEAR(sl_.getCumulativeProbability(d) + sl_.getCumulativeProbability(-d),
-                    1.0, 1e-12) << "Symmetry at d=" << d;
+        EXPECT_NEAR(sl_.getCumulativeProbability(d) + sl_.getCumulativeProbability(-d), 1.0, 1e-12)
+            << "Symmetry at d=" << d;
     }
 }
 
@@ -119,8 +122,8 @@ TEST_F(LaplaceEnhancedTest, QuantileRoundTrip) {
 
 TEST_F(LaplaceEnhancedTest, QuantileFormula) {
     // Q(p; mu=0, b=1): log(2p) for p < 0.5; -log(2*(1-p)) for p > 0.5
-    EXPECT_NEAR(sl_.getQuantile(0.25), std::log(0.5),   1e-12);
-    EXPECT_NEAR(sl_.getQuantile(0.75), -std::log(0.5),  1e-12);  // = log(2)
+    EXPECT_NEAR(sl_.getQuantile(0.25), std::log(0.5), 1e-12);
+    EXPECT_NEAR(sl_.getQuantile(0.75), -std::log(0.5), 1e-12);  // = log(2)
     EXPECT_EQ(sl_.getQuantile(0.5), 0.0);
 }
 
@@ -138,19 +141,19 @@ TEST_F(LaplaceEnhancedTest, PDFSymmetry) {
 // ─── Moment formulas ─────────────────────────────────────────────────────────
 
 TEST_F(LaplaceEnhancedTest, MomentFormulas) {
-    EXPECT_NEAR(sl_.getMean(),     0.0, 1e-12);
+    EXPECT_NEAR(sl_.getMean(), 0.0, 1e-12);
     EXPECT_NEAR(sl_.getVariance(), 2.0, 1e-12);  // 2*b^2 = 2*1 = 2
     EXPECT_NEAR(sl_.getSkewness(), 0.0, 1e-12);
     EXPECT_NEAR(sl_.getKurtosis(), 3.0, 1e-12);
-    EXPECT_NEAR(sl_.getMedian(),   0.0, 1e-12);
-    EXPECT_NEAR(sl_.getMode(),     0.0, 1e-12);
-    EXPECT_NEAR(sl_.getEntropy(),  1.0 + std::log(2.0), 1e-12);
+    EXPECT_NEAR(sl_.getMedian(), 0.0, 1e-12);
+    EXPECT_NEAR(sl_.getMode(), 0.0, 1e-12);
+    EXPECT_NEAR(sl_.getEntropy(), 1.0 + std::log(2.0), 1e-12);
 
     auto l = LaplaceDistribution::create(5.0, 3.0).unwrap();
-    EXPECT_NEAR(l.getMean(),     5.0, 1e-12);
+    EXPECT_NEAR(l.getMean(), 5.0, 1e-12);
     EXPECT_NEAR(l.getVariance(), 2.0 * 9.0, 1e-12);  // 2*b^2 = 18
-    EXPECT_NEAR(l.getMedian(),   5.0, 1e-12);
-    EXPECT_NEAR(l.getEntropy(),  1.0 + std::log(6.0), 1e-12);  // 1+log(2*3)
+    EXPECT_NEAR(l.getMedian(), 5.0, 1e-12);
+    EXPECT_NEAR(l.getEntropy(), 1.0 + std::log(6.0), 1e-12);  // 1+log(2*3)
 }
 
 // ─── Setter propagates ────────────────────────────────────────────────────────
@@ -160,7 +163,7 @@ TEST_F(LaplaceEnhancedTest, SetterPropagates) {
     EXPECT_TRUE(l.isStandard());
     l.setMu(3.0);
     EXPECT_FALSE(l.isStandard());
-    EXPECT_NEAR(l.getMean(),   3.0, 1e-12);
+    EXPECT_NEAR(l.getMean(), 3.0, 1e-12);
     EXPECT_NEAR(l.getMedian(), 3.0, 1e-12);
     EXPECT_NEAR(l.getProbability(3.0), 0.5, 1e-12);
 
@@ -178,13 +181,13 @@ TEST_F(LaplaceEnhancedTest, MLEFitDegenerateIdenticalValues) {
 TEST_F(LaplaceEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
     auto source = LaplaceDistribution::create(2.0, 0.8).unwrap();
-    auto data   = source.sample(rng, 1000);
+    auto data = source.sample(rng, 1000);
 
     auto fitted = LaplaceDistribution::create().unwrap();
     fitted.fit(data);
 
     EXPECT_NEAR(fitted.getMu(), 2.0, 0.1) << "Fitted mu should be near 2.0";
-    EXPECT_NEAR(fitted.getB(),  0.8, 0.1) << "Fitted b should be near 0.8";
+    EXPECT_NEAR(fitted.getB(), 0.8, 0.1) << "Fitted b should be near 0.8";
 }
 
 // ─── Batch vs scalar ─────────────────────────────────────────────────────────
@@ -229,10 +232,10 @@ TEST_F(LaplaceEnhancedTest, VectorizedSpeedup) {
     sl_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     const auto t2 = std::chrono::high_resolution_clock::now();
 
-    const double vec_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
+    const double vec_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
     const double speedup = scl_us / std::max(vec_us, 1.0);
     std::cout << "Laplace LogPDF VECTORIZED speedup: " << speedup << "x "
               << "(VECTORIZED " << vec_us << "µs, SCALAR " << scl_us << "µs)\n";

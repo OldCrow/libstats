@@ -81,9 +81,7 @@ struct DistTraitsDefaults {
     static double quantile_tolerance() { return 1e-6; }
 
     /// Probability values used in QuantileRoundTrip.
-    static std::vector<double> quantile_probs() {
-        return {0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95};
-    }
+    static std::vector<double> quantile_probs() { return {0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95}; }
 };
 
 //==============================================================================
@@ -149,7 +147,7 @@ struct DistTraits : DistTraitsDefaults {
 
 template <typename Dist>
 class DistributionEnhancedTest : public ::testing::Test {
-  protected:
+   protected:
     void SetUp() override { dist_ = stats::tests::DistTraits<Dist>::make(); }
     Dist dist_;
 };
@@ -163,9 +161,9 @@ TYPED_TEST_P(DistributionEnhancedTest, LogPDFConsistency) {
     using Traits = stats::tests::DistTraits<TypeParam>;
     for (double x : Traits::domain()) {
         const double pdf = this->dist_.getProbability(x);
-        if (pdf <= 0.0) continue;  // skip out-of-support and zero-density points
-        EXPECT_NEAR(std::log(pdf), this->dist_.getLogProbability(x),
-                    Traits::pdf_tolerance())
+        if (pdf <= 0.0)
+            continue;  // skip out-of-support and zero-density points
+        EXPECT_NEAR(std::log(pdf), this->dist_.getLogProbability(x), Traits::pdf_tolerance())
             << "log(PDF) != LogPDF at x=" << x;
     }
 }
@@ -188,11 +186,11 @@ TYPED_TEST_P(DistributionEnhancedTest, BatchMatchesScalar) {
 
     for (std::size_t i = 0; i < N; ++i) {
         const double x = xs[i];
-        EXPECT_NEAR(pdf_b[i],   this->dist_.getProbability(x),           Traits::pdf_tolerance())
+        EXPECT_NEAR(pdf_b[i], this->dist_.getProbability(x), Traits::pdf_tolerance())
             << "PDF batch mismatch at i=" << i << " x=" << x;
-        EXPECT_NEAR(lpdf_b[i],  this->dist_.getLogProbability(x),        Traits::pdf_tolerance())
+        EXPECT_NEAR(lpdf_b[i], this->dist_.getLogProbability(x), Traits::pdf_tolerance())
             << "LogPDF batch mismatch at i=" << i << " x=" << x;
-        EXPECT_NEAR(cdf_b[i],   this->dist_.getCumulativeProbability(x), Traits::cdf_tolerance())
+        EXPECT_NEAR(cdf_b[i], this->dist_.getCumulativeProbability(x), Traits::cdf_tolerance())
             << "CDF batch mismatch at i=" << i << " x=" << x;
     }
 }
@@ -207,8 +205,7 @@ TYPED_TEST_P(DistributionEnhancedTest, QuantileRoundTrip) {
     }
     for (double p : Traits::quantile_probs()) {
         const double q = this->dist_.getQuantile(p);
-        EXPECT_NEAR(this->dist_.getCumulativeProbability(q), p,
-                    Traits::quantile_tolerance())
+        EXPECT_NEAR(this->dist_.getCumulativeProbability(q), p, Traits::quantile_tolerance())
             << "CDF(quantile(" << p << ")) != " << p;
     }
 }
@@ -221,16 +218,12 @@ TYPED_TEST_P(DistributionEnhancedTest, InvalidParameters) {
     const auto creators = Traits::invalid_creators();
     ASSERT_FALSE(creators.empty()) << "DistTraits must provide at least one invalid_creator";
     for (std::size_t i = 0; i < creators.size(); ++i) {
-        EXPECT_TRUE(creators[i]())
-            << "invalid_creators()[" << i << "] did not produce an error";
+        EXPECT_TRUE(creators[i]()) << "invalid_creators()[" << i << "] did not produce an error";
     }
 }
 
 //------------------------------------------------------------------------------
 // Register all four patterns
 //------------------------------------------------------------------------------
-REGISTER_TYPED_TEST_SUITE_P(DistributionEnhancedTest,
-    LogPDFConsistency,
-    BatchMatchesScalar,
-    QuantileRoundTrip,
-    InvalidParameters);
+REGISTER_TYPED_TEST_SUITE_P(DistributionEnhancedTest, LogPDFConsistency, BatchMatchesScalar,
+                            QuantileRoundTrip, InvalidParameters);

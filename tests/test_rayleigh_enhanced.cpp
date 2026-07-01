@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/rayleigh.h"
 
@@ -13,7 +14,6 @@
 #include <random>
 #include <span>
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -201,9 +201,11 @@ TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
 //==============================================================================
 // DistTraits specialization for stats::RayleighDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::RayleighDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::RayleighDistribution make() { return stats::RayleighDistribution::create(1.0).unwrap(); }
+    static stats::RayleighDistribution make() {
+        return stats::RayleighDistribution::create(1.0).unwrap();
+    }
     static std::vector<double> domain() { return {0.5, 1.0, 2.0, 3.0, 5.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 10.0; }

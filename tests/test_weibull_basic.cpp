@@ -1,6 +1,6 @@
 // Focused unit test for Weibull distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/weibull.h"
 
 #include <cmath>
@@ -83,7 +83,8 @@ int main() {
         w.setScale(3.0);
         BasicTestFormatter::printProperty("After setScale(3): scale", w.getScale());
         w.setParameters(1.0, 1.0);
-        BasicTestFormatter::printProperty("After reset: isExponential", static_cast<int>(w.isExponential()));
+        BasicTestFormatter::printProperty("After reset: isExponential",
+                                          static_cast<int>(w.isExponential()));
 
         auto vr = w.trySetShape(-1.0);
         cout << "trySetShape(-1) isError: " << (vr.isError() ? "YES" : "NO") << endl;
@@ -199,13 +200,8 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Weibull",
-            {0.5, 1.0, 1.5, 2.0, 3.0},
-            0.1, 10.0,
-            1e-12,
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Weibull", {0.5, 1.0, 1.5, 2.0, 3.0}, 0.1, 10.0, 1e-12,
+                                          1e-12};
         cfg.invalid_scenarios = {
             {"shape=-1", [] { return WeibullDistribution::create(-1.0, 1.0).isError(); }},
             {"scale=0", [] { return WeibullDistribution::create(1.0, 0.0).isError(); }},

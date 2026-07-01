@@ -27,8 +27,7 @@ namespace stats::analysis::gamma {
  * @param significance_level Significance level (default 0.05).
  * @return {lower_bound, upper_bound, approximation_is_valid}
  */
-[[nodiscard]] std::tuple<double, double, bool>
-normalApproximationTest(const std::vector<double>& data,
-                        double significance_level = 0.05);
+[[nodiscard]] std::tuple<double, double, bool> normalApproximationTest(
+    const std::vector<double>& data, double significance_level = 0.05);
 
 }  // namespace stats::analysis::gamma

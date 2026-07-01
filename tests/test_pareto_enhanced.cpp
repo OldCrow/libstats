@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/pareto.h"
 
@@ -13,7 +14,6 @@
 #include <random>
 #include <span>
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -149,13 +149,12 @@ TEST_F(ParetoEnhancedTest, VectorizedMatchesScalar) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "LogPDF SIMD mismatch at i=" << i;
     }
 
-    
     detail::PerformanceHint hint_vec, hint_scl;
     hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
     hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
     p12_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
     p12_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
-for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF SIMD mismatch at i=" << i;
     }
 }
@@ -239,9 +238,11 @@ TEST_F(ParetoEnhancedTest, VectorizedSpeedup) {
 //==============================================================================
 // DistTraits specialization for stats::ParetoDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::ParetoDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::ParetoDistribution make() { return stats::ParetoDistribution::create(1.0, 2.0).unwrap(); }
+    static stats::ParetoDistribution make() {
+        return stats::ParetoDistribution::create(1.0, 2.0).unwrap();
+    }
     static std::vector<double> domain() { return {1.0, 1.5, 2.0, 3.0, 5.0}; }
     static double batch_lo() { return 1.0; }
     static double batch_hi() { return 21.0; }

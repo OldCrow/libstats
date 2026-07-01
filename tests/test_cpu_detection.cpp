@@ -251,8 +251,9 @@ void test_vendor_specific(const TestOptions& opts) {
         cout << "\nIntel-Specific Analysis:" << endl;
         cout << "  Microarchitecture: " << get_intel_microarchitecture() << endl;
         cout << "  CPU Tier: "
-             << (tier == arch::CpuTier::Intel_Legacy ? "Legacy (Sandy/Ivy Bridge, AVX)" :
-                                                       "Modern (Haswell+, AVX2+FMA)") << endl;
+             << (tier == arch::CpuTier::Intel_Legacy ? "Legacy (Sandy/Ivy Bridge, AVX)"
+                                                     : "Modern (Haswell+, AVX2+FMA)")
+             << endl;
 
         if (opts.verbose) {
             cout << "  Intel Optimization Strategy: ";
@@ -447,15 +448,22 @@ void test_generation_detection(const TestOptions& opts) {
     const auto tier = arch::cpu_tier();
     const auto& features = arch::get_features();
 
-    const char* tier_name = []( arch::CpuTier t) -> const char* {
+    const char* tier_name = [](arch::CpuTier t) -> const char* {
         switch (t) {
-            case arch::CpuTier::Apple_Silicon: return "Apple_Silicon";
-            case arch::CpuTier::Intel_Legacy:  return "Intel_Legacy (Sandy/Ivy Bridge, AVX)";
-            case arch::CpuTier::Intel_Modern:  return "Intel_Modern (Haswell+, AVX2+FMA)";
-            case arch::CpuTier::AMD_Zen:       return "AMD_Zen";
-            case arch::CpuTier::ARM_Generic:   return "ARM_Generic";
-            case arch::CpuTier::x86_Generic:   return "x86_Generic (unknown vendor)";
-            default:                           return "Scalar_Only";
+            case arch::CpuTier::Apple_Silicon:
+                return "Apple_Silicon";
+            case arch::CpuTier::Intel_Legacy:
+                return "Intel_Legacy (Sandy/Ivy Bridge, AVX)";
+            case arch::CpuTier::Intel_Modern:
+                return "Intel_Modern (Haswell+, AVX2+FMA)";
+            case arch::CpuTier::AMD_Zen:
+                return "AMD_Zen";
+            case arch::CpuTier::ARM_Generic:
+                return "ARM_Generic";
+            case arch::CpuTier::x86_Generic:
+                return "x86_Generic (unknown vendor)";
+            default:
+                return "Scalar_Only";
         }
     }(tier);
 
@@ -688,14 +696,19 @@ string get_intel_microarchitecture() {
     if (tier == arch::CpuTier::Intel_Legacy)
         return "Sandy/Ivy Bridge (AVX, no FMA)";
     if (tier == arch::CpuTier::Intel_Modern) {
-        if (features.avx512f) return "Modern Intel (AVX-512)";
+        if (features.avx512f)
+            return "Modern Intel (AVX-512)";
         return "Modern Intel (Haswell+, AVX2+FMA)";
     }
     // Non-Intel or unknown
-    if (features.avx512f) return "AVX-512 capable";
-    if (features.avx2)    return "AVX2 era";
-    if (features.avx)     return "AVX era";
-    if (features.sse4_2)  return "SSE4 era";
+    if (features.avx512f)
+        return "AVX-512 capable";
+    if (features.avx2)
+        return "AVX2 era";
+    if (features.avx)
+        return "AVX era";
+    if (features.sse4_2)
+        return "SSE4 era";
     return "Legacy / Non-Intel";
 }
 

@@ -134,7 +134,8 @@ double PoissonDistribution::getSkewness() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const double sqrtL = sqrtLambda_;
         return detail::ONE / sqrtL;
@@ -147,7 +148,8 @@ double PoissonDistribution::getKurtosis() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const double invL = invLambda_;
         return invL;
@@ -211,7 +213,8 @@ double PoissonDistribution::getEntropy() const {
     for (int k = 0; k <= K_max; ++k) {
         const double log_p = static_cast<double>(k) * log_lambda - lambda - log_k_fact;
         const double p = std::exp(log_p);
-        if (p < 1e-15) break;
+        if (p < 1e-15)
+            break;
         H -= p * log_p;
         // Advance: log((k+1)!) = log(k!) + log(k+1)
         log_k_fact += std::log(static_cast<double>(k + 1));
@@ -263,7 +266,8 @@ inline VoidResult PoissonDistribution::validateCurrentParameters() const noexcep
 //==============================================================================
 
 double PoissonDistribution::getProbability(double x) const {
-    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
@@ -275,7 +279,8 @@ double PoissonDistribution::getProbability(double x) const {
 }
 
 double PoissonDistribution::getLogProbability(double x) const {
-    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE)
         return detail::MIN_LOG_PROBABILITY;
 
@@ -287,7 +292,8 @@ double PoissonDistribution::getLogProbability(double x) const {
 }
 
 double PoissonDistribution::getCumulativeProbability(double x) const {
-    if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
@@ -358,7 +364,8 @@ double PoissonDistribution::sample(std::mt19937& rng) const {
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
+            if (!cache_valid_)
+                updateCacheUnsafe();
             cached_lambda = lambda_;
             cached_is_small = isSmallLambda_;
             cached_exp_neg_lambda = expNegLambda_;
@@ -405,7 +412,8 @@ std::vector<double> PoissonDistribution::sample(std::mt19937& rng, size_t n) con
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
+            if (!cache_valid_)
+                updateCacheUnsafe();
             cached_lambda = lambda_;
             cached_is_small = isSmallLambda_;
             cached_exp_neg_lambda = expNegLambda_;
@@ -540,7 +548,8 @@ double PoissonDistribution::getProbabilityExact(int k) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const bool is_small = isSmallLambda_;
         return is_small ? computePMFSmall(k) : computePMFLarge(k);
@@ -556,7 +565,8 @@ double PoissonDistribution::getLogProbabilityExact(int k) const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         return computeLogPMF(k);
     }
@@ -602,13 +612,14 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                if (!dist.cache_valid_)
+                    dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double cached_lambda = dist.lambda_;
                 const double cached_log_lambda = dist.logLambda_;
                 const double cached_exp_neg_lambda = dist.expNegLambda_;
-                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_log_lambda,
-                                                   cached_exp_neg_lambda);
+                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda,
+                                                   cached_log_lambda, cached_exp_neg_lambda);
                 return;
             }
             // Cache hit — snapshot under shared_lock.
@@ -779,7 +790,8 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                if (!dist.cache_valid_)
+                    dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double cached_lambda = dist.lambda_;
                 const double cached_log_lambda = dist.logLambda_;
@@ -921,7 +933,8 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                if (!dist.cache_valid_)
+                    dist.updateCacheUnsafe();
                 // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
                 const double cached_lambda = dist.lambda_;
                 dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda);
@@ -1153,8 +1166,8 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             results[i] = exp_neg_lambda;
         } else if (lambda < detail::SMALL_LAMBDA_THRESHOLD &&
                    k < static_cast<int>(FACTORIAL_CACHE.size())) {
-            results[i] = std::pow(lambda, k) * exp_neg_lambda /
-                         FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+            results[i] =
+                std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
         } else {
             double log_result = k * log_lambda - lambda - logFactorial(k);
             results[i] = std::exp(log_result);
@@ -1327,8 +1340,7 @@ inline bool PoissonDistribution::isValidCount(double x) noexcept {
     // IEEE 754, so `x <= INT_MAX_as_double` accepts 2147483647.5 whose rounded
     // value overflows int. Use INT_MAX - 1 = 2147483646 (exactly representable)
     // as the safe upper bound: round(x) <= 2147483646 < INT_MAX, safe to cast.
-    constexpr double kMaxSafeCount =
-        static_cast<double>(std::numeric_limits<int>::max() - 1);
+    constexpr double kMaxSafeCount = static_cast<double>(std::numeric_limits<int>::max() - 1);
     return (std::isfinite(x) && x >= 0.0 && x <= kMaxSafeCount);
 }
 

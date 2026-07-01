@@ -1,6 +1,6 @@
 // Focused unit test for Beta distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/beta.h"
 
 #include <cmath>
@@ -30,7 +30,8 @@ int main() {
         auto default_beta = stats::BetaDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default alpha", default_beta.getAlpha());
         BasicTestFormatter::printProperty("Default beta", default_beta.getBeta());
-        BasicTestFormatter::printProperty("Default isUniform", static_cast<int>(default_beta.isUniform()));
+        BasicTestFormatter::printProperty("Default isUniform",
+                                          static_cast<int>(default_beta.isUniform()));
 
         auto b23 = stats::BetaDistribution::create(2.0, 3.0).unwrap();
         BasicTestFormatter::printProperty("Beta(2,3) alpha", b23.getAlpha());
@@ -78,7 +79,8 @@ int main() {
         b.setAlpha(4.0);
         BasicTestFormatter::printProperty("After setAlpha(4): alpha", b.getAlpha());
         b.setBeta(4.0);
-        BasicTestFormatter::printProperty("After setBeta(4): isSymmetric", static_cast<int>(b.isSymmetric()));
+        BasicTestFormatter::printProperty("After setBeta(4): isSymmetric",
+                                          static_cast<int>(b.isSymmetric()));
         b.setParameters(1.0, 1.0);
         BasicTestFormatter::printProperty("After setParameters(1,1): isUniform",
                                           static_cast<int>(b.isUniform()));
@@ -197,13 +199,8 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Beta",
-            {0.1, 0.3, 0.5, 0.7, 0.9},
-            0.01, 0.99,
-            1e-12,
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Beta", {0.1, 0.3, 0.5, 0.7, 0.9}, 0.01, 0.99, 1e-12,
+                                          1e-12};
         cfg.invalid_scenarios = {
             {"alpha=0", [] { return BetaDistribution::create(0.0, 1.0).isError(); }},
             {"alpha=-1", [] { return BetaDistribution::create(-1.0, 2.0).isError(); }},

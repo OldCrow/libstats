@@ -9,6 +9,8 @@
 #include "libstats/stats/analysis/analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <cmath>      // for std::log, std::isfinite, std::abs
 #include <gtest/gtest.h>
@@ -16,7 +18,6 @@
 #include <random>    // for std::mt19937, std::uniform_int_distribution
 #include <utility>   // for std::move, std::pair
 #include <vector>    // for std::vector
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -97,13 +98,13 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_EQ(dice.getDistributionName(), "Discrete");
 
     // Entropy: H[a,b] = log(b - a + 1) nats exactly
-    EXPECT_DOUBLE_EQ(dice.getEntropy(), std::log(6.0));          // [1,6]: log(6)
-    EXPECT_DOUBLE_EQ(binary.getEntropy(), std::log(2.0));        // [0,1]: log(2)
+    EXPECT_DOUBLE_EQ(dice.getEntropy(), std::log(6.0));    // [1,6]: log(6)
+    EXPECT_DOUBLE_EQ(binary.getEntropy(), std::log(2.0));  // [0,1]: log(2)
     auto degenerate = stats::DiscreteDistribution::create(3, 3).unwrap();
-    EXPECT_DOUBLE_EQ(degenerate.getEntropy(), 0.0);              // [3,3]: log(1) = 0
+    EXPECT_DOUBLE_EQ(degenerate.getEntropy(), 0.0);  // [3,3]: log(1) = 0
     // Entropy monotone: wider support → higher entropy
     auto d10 = stats::DiscreteDistribution::create(1, 10).unwrap();
-    EXPECT_GT(d10.getEntropy(), dice.getEntropy());              // [1,10] > [1,6]
+    EXPECT_GT(d10.getEntropy(), dice.getEntropy());  // [1,10] > [1,6]
     EXPECT_TRUE(std::isfinite(dice.getEntropy()));
 }
 
@@ -920,9 +921,11 @@ TEST_F(DiscreteEnhancedTest, NumericalStabilityAndEdgeCases) {
 //==============================================================================
 // DistTraits specialization for stats::DiscreteDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::DiscreteDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::DiscreteDistribution make() { return stats::DiscreteDistribution::create(1, 6).unwrap(); }
+    static stats::DiscreteDistribution make() {
+        return stats::DiscreteDistribution::create(1, 6).unwrap();
+    }
     static std::vector<double> domain() { return {1.0, 2.0, 3.0, 4.0, 5.0, 6.0}; }
     static double batch_lo() { return 1.0; }
     static double batch_hi() { return 6.5; }

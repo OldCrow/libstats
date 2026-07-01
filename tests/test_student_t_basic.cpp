@@ -1,6 +1,6 @@
 // Focused unit test for Student's t distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/student_t.h"
 
 #include <cmath>
@@ -30,7 +30,8 @@ int main() {
 
         auto default_t = stats::StudentTDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default nu (df)", default_t.getNu());
-        BasicTestFormatter::printProperty("Default isCauchy", static_cast<int>(default_t.isCauchy()));
+        BasicTestFormatter::printProperty("Default isCauchy",
+                                          static_cast<int>(default_t.isCauchy()));
 
         auto t3 = stats::StudentTDistribution::create(3.0).unwrap();
         BasicTestFormatter::printProperty("nu=3 created", t3.getNu());
@@ -191,13 +192,8 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{
-            "Studentt",
-            {-3.0, -1.0, 0.0, 1.0, 3.0},
-            -5.0, 5.0,
-            1e-12,
-            1e-12
-        };
+        stats::tests::BasicDistConfig cfg{"Studentt", {-3.0, -1.0, 0.0, 1.0, 3.0}, -5.0, 5.0, 1e-12,
+                                          1e-12};
         auto t_batch = StudentTDistribution::create(3.0).unwrap();
         stats::tests::runBatchTests(cfg, t_batch);
 

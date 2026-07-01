@@ -125,15 +125,15 @@ void runBatchTests(const BasicDistConfig& cfg, const Dist& dist) {
 
     bool small_ok = true;
     for (std::size_t i = 0; i < n_small; ++i) {
-        if (std::abs(pdf_b[i]  - dist.getProbability(xs[i]))           > cfg.pdf_tolerance ||
-            std::abs(lpdf_b[i] - dist.getLogProbability(xs[i]))        > cfg.pdf_tolerance ||
-            std::abs(cdf_b[i]  - dist.getCumulativeProbability(xs[i])) > cfg.cdf_tolerance) {
+        if (std::abs(pdf_b[i] - dist.getProbability(xs[i])) > cfg.pdf_tolerance ||
+            std::abs(lpdf_b[i] - dist.getLogProbability(xs[i])) > cfg.pdf_tolerance ||
+            std::abs(cdf_b[i] - dist.getCumulativeProbability(xs[i])) > cfg.cdf_tolerance) {
             small_ok = false;
             break;
         }
     }
-    cout << "Small batch matches scalar (n=" << n_small << "): "
-         << (small_ok ? "PASS" : "FAIL") << endl;
+    cout << "Small batch matches scalar (n=" << n_small << "): " << (small_ok ? "PASS" : "FAIL")
+         << endl;
 
     // ---- Large batch correctness ----
     constexpr std::size_t N = 5000;
@@ -141,7 +141,8 @@ void runBatchTests(const BasicDistConfig& cfg, const Dist& dist) {
     {
         std::mt19937 gen(42);
         std::uniform_real_distribution<double> rng(cfg.large_data_lo, cfg.large_data_hi);
-        for (auto& v : large_in) v = rng(gen);
+        for (auto& v : large_in)
+            v = rng(gen);
     }
     dist.getProbability(std::span<const double>(large_in), std::span<double>(large_out));
     for (std::size_t i = 0; i < N; ++i)
@@ -161,10 +162,8 @@ void runBatchTests(const BasicDistConfig& cfg, const Dist& dist) {
             break;
         }
     }
-    cout << "Large batch matches scalar (n=" << N << "): "
-         << (large_ok ? "PASS" : "FAIL") << endl;
-    cout << "Auto-dispatch PDF throughput (n=" << N << "): "
-         << batch_us << " μs" << endl;
+    cout << "Large batch matches scalar (n=" << N << "): " << (large_ok ? "PASS" : "FAIL") << endl;
+    cout << "Auto-dispatch PDF throughput (n=" << N << "): " << batch_us << " μs" << endl;
 
     if (!small_ok || !large_ok)
         throw std::runtime_error("Batch correctness test failed: " + cfg.name);

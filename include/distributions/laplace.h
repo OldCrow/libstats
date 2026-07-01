@@ -52,8 +52,7 @@ namespace stats {
 class LaplaceDistribution : public DistributionBase {
    public:
     // Dispatch metadata
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::LAPLACE;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::LAPLACE;
     static constexpr bool kIsDiscrete = false;
 
    public:
@@ -95,7 +94,7 @@ class LaplaceDistribution : public DistributionBase {
      * @return Result containing a valid LaplaceDistribution or error info
      */
     [[nodiscard]] static Result<LaplaceDistribution> create(double mu = detail::ZERO_DOUBLE,
-                                                            double b  = detail::ONE) {
+                                                            double b = detail::ONE) {
         auto v = validateLaplaceParameters(mu, b);
         if (v.isError())
             return Result<LaplaceDistribution>::makeError(v.errorCode(), v.message());
@@ -152,14 +151,10 @@ class LaplaceDistribution : public DistributionBase {
     }
 
     /** @brief Skewness = 0 (symmetric). */
-    [[nodiscard]] double getSkewness() const noexcept override {
-        return detail::ZERO_DOUBLE;
-    }
+    [[nodiscard]] double getSkewness() const noexcept override { return detail::ZERO_DOUBLE; }
 
     /** @brief Excess kurtosis = 3. */
-    [[nodiscard]] double getKurtosis() const noexcept override {
-        return detail::THREE;
-    }
+    [[nodiscard]] double getKurtosis() const noexcept override { return detail::THREE; }
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
@@ -342,19 +337,16 @@ class LaplaceDistribution : public DistributionBase {
      *
      * PDF: append vector_exp (Step 5).
      */
-    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                          std::size_t count,
+    void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                           double cached_mu, double cached_neg_inv_b,
                                           double cached_neg_log2b) const noexcept;
 
-    void getProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                       std::size_t count,
+    void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
                                        double cached_mu, double cached_neg_inv_b,
                                        double cached_neg_log2b) const noexcept;
 
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                 std::size_t count,
-                                                 double cached_mu,
+                                                 std::size_t count, double cached_mu,
                                                  double cached_half_inv_b) const noexcept;
 
     //==========================================================================
@@ -383,7 +375,7 @@ class LaplaceDistribution : public DistributionBase {
     /** @brief Atomic copies for lock-free parameter access. */
     mutable std::atomic<double> atomicMu_{detail::ZERO_DOUBLE};
     mutable std::atomic<double> atomicB_{detail::ONE};
-    mutable std::atomic<bool>   atomicParamsValid_{false};
+    mutable std::atomic<bool> atomicParamsValid_{false};
 
     //==========================================================================
     // 21. PERFORMANCE CACHE

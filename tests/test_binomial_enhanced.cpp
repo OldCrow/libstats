@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/binomial.h"
 
@@ -14,7 +15,6 @@
 #include <random>
 #include <span>
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -35,17 +35,17 @@ class BinomialEnhancedTest : public ::testing::Test {
 TEST_F(BinomialEnhancedTest, KnownPMFValues) {
     // C(10,k)/1024 for k=0..10
     const double pmf_expected[11] = {
-        1.0 / 1024.0,   // k=0
-        10.0 / 1024.0,  // k=1
-        45.0 / 1024.0,  // k=2
-        120.0 / 1024.0, // k=3
-        210.0 / 1024.0, // k=4
-        252.0 / 1024.0, // k=5
-        210.0 / 1024.0, // k=6
-        120.0 / 1024.0, // k=7
-        45.0 / 1024.0,  // k=8
-        10.0 / 1024.0,  // k=9
-        1.0 / 1024.0    // k=10
+        1.0 / 1024.0,    // k=0
+        10.0 / 1024.0,   // k=1
+        45.0 / 1024.0,   // k=2
+        120.0 / 1024.0,  // k=3
+        210.0 / 1024.0,  // k=4
+        252.0 / 1024.0,  // k=5
+        210.0 / 1024.0,  // k=6
+        120.0 / 1024.0,  // k=7
+        45.0 / 1024.0,   // k=8
+        10.0 / 1024.0,   // k=9
+        1.0 / 1024.0     // k=10
     };
     double total = 0.0;
     for (int k = 0; k <= 10; ++k) {
@@ -60,7 +60,7 @@ TEST_F(BinomialEnhancedTest, KnownPMFValues) {
 // LogPMF == log(PMF) for all k
 TEST_F(BinomialEnhancedTest, LogPMFConsistency) {
     for (int k = 0; k <= 10; ++k) {
-        const double pmf  = b10_05_.getProbability(static_cast<double>(k));
+        const double pmf = b10_05_.getProbability(static_cast<double>(k));
         const double lpdf = b10_05_.getLogProbability(static_cast<double>(k));
         EXPECT_NEAR(std::log(pmf), lpdf, 1e-12) << "at k=" << k;
     }
@@ -89,13 +89,13 @@ TEST_F(BinomialEnhancedTest, KnownCDFValues) {
 
 // Moments for Binomial(10, 0.5) and Binomial(20, 0.3)
 TEST_F(BinomialEnhancedTest, Moments) {
-    EXPECT_NEAR(b10_05_.getMean(),     5.0,  1e-12);
-    EXPECT_NEAR(b10_05_.getVariance(), 2.5,  1e-12);
-    EXPECT_NEAR(b10_05_.getSkewness(), 0.0,  1e-12);
+    EXPECT_NEAR(b10_05_.getMean(), 5.0, 1e-12);
+    EXPECT_NEAR(b10_05_.getVariance(), 2.5, 1e-12);
+    EXPECT_NEAR(b10_05_.getSkewness(), 0.0, 1e-12);
 
     auto b20_03 = BinomialDistribution::create(20, 0.3).unwrap();
-    EXPECT_NEAR(b20_03.getMean(),     6.0,    1e-12);
-    EXPECT_NEAR(b20_03.getVariance(), 4.2,    1e-12);
+    EXPECT_NEAR(b20_03.getMean(), 6.0, 1e-12);
+    EXPECT_NEAR(b20_03.getVariance(), 4.2, 1e-12);
     // Skewness = (1-2p)/sqrt(npq) = 0.4/sqrt(4.2)
     const double expected_skew = 0.4 / std::sqrt(4.2);
     EXPECT_NEAR(b20_03.getSkewness(), expected_skew, 1e-10);
@@ -105,17 +105,17 @@ TEST_F(BinomialEnhancedTest, Moments) {
 TEST_F(BinomialEnhancedTest, BoundaryPMF) {
     EXPECT_DOUBLE_EQ(b10_05_.getProbability(-1.0), 0.0);
     EXPECT_DOUBLE_EQ(b10_05_.getProbability(11.0), 0.0);
-    EXPECT_TRUE(std::isnan(b10_05_.getProbability(std::numeric_limits<double>::quiet_NaN())));  // NaN propagates
+    EXPECT_TRUE(std::isnan(
+        b10_05_.getProbability(std::numeric_limits<double>::quiet_NaN())));  // NaN propagates
     EXPECT_DOUBLE_EQ(b10_05_.getProbability(std::numeric_limits<double>::infinity()), 0.0);
-    EXPECT_DOUBLE_EQ(b10_05_.getLogProbability(-1.0),
-                     -std::numeric_limits<double>::infinity());
+    EXPECT_DOUBLE_EQ(b10_05_.getLogProbability(-1.0), -std::numeric_limits<double>::infinity());
 }
 
 // Quantile round-trip: quantile(CDF(k)) == k for all k in {0..10}
 TEST_F(BinomialEnhancedTest, QuantileRoundTrip) {
     for (int k = 0; k <= 10; ++k) {
         const double cdf = b10_05_.getCumulativeProbability(static_cast<double>(k));
-        const double q   = b10_05_.getQuantile(cdf);
+        const double q = b10_05_.getQuantile(cdf);
         EXPECT_NEAR(q, static_cast<double>(k), 0.5) << "at k=" << k;
     }
     EXPECT_DOUBLE_EQ(b10_05_.getQuantile(0.0), 0.0);
@@ -134,9 +134,9 @@ TEST_F(BinomialEnhancedTest, BatchMatchesScalar) {
     b10_05_.getCumulativeProbability(span<const double>(xs), span<double>(cdf_b));
 
     for (size_t i = 0; i < N; ++i) {
-        EXPECT_NEAR(pdf_b[i],  b10_05_.getProbability(xs[i]),           1e-12) << "i=" << i;
-        EXPECT_NEAR(lpdf_b[i], b10_05_.getLogProbability(xs[i]),        1e-12) << "i=" << i;
-        EXPECT_NEAR(cdf_b[i],  b10_05_.getCumulativeProbability(xs[i]), 1e-9)  << "i=" << i;
+        EXPECT_NEAR(pdf_b[i], b10_05_.getProbability(xs[i]), 1e-12) << "i=" << i;
+        EXPECT_NEAR(lpdf_b[i], b10_05_.getLogProbability(xs[i]), 1e-12) << "i=" << i;
+        EXPECT_NEAR(cdf_b[i], b10_05_.getCumulativeProbability(xs[i]), 1e-9) << "i=" << i;
     }
 }
 
@@ -161,9 +161,9 @@ TEST_F(BinomialEnhancedTest, VectorizedEqualsScalar) {
 // MLE fit recovers true p for Binomial(10, 0.7)
 TEST_F(BinomialEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source  = BinomialDistribution::create(10, 0.7).unwrap();
+    auto source = BinomialDistribution::create(10, 0.7).unwrap();
     const auto data = source.sample(rng, 1000);
-    auto fitted  = BinomialDistribution::create(10, 0.5).unwrap();
+    auto fitted = BinomialDistribution::create(10, 0.5).unwrap();
     fitted.fit(data);
     EXPECT_NEAR(fitted.getP(), 0.7, 0.05) << "Fitted p should be near 0.7";
     EXPECT_GE(fitted.getN(), 1);
@@ -175,8 +175,8 @@ TEST_F(BinomialEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(BinomialDistribution::create(-1, 0.5).isError());
     EXPECT_TRUE(BinomialDistribution::create(10, -0.1).isError());
     EXPECT_TRUE(BinomialDistribution::create(10, 1.1).isError());
-    EXPECT_TRUE(BinomialDistribution::create(10,
-                    std::numeric_limits<double>::quiet_NaN()).isError());
+    EXPECT_TRUE(
+        BinomialDistribution::create(10, std::numeric_limits<double>::quiet_NaN()).isError());
 
     auto d = BinomialDistribution::create(10, 0.5).unwrap();
     EXPECT_TRUE(d.trySetP(1.5).isError());
@@ -226,13 +226,13 @@ TEST_F(BinomialEnhancedTest, ParallelBatchCorrectness) {
     b10_05_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     const auto t2 = chrono::high_resolution_clock::now();
 
-    const double par_us = static_cast<double>(
-        chrono::duration_cast<chrono::microseconds>(t1 - t0).count());
-    const double scl_us = static_cast<double>(
-        chrono::duration_cast<chrono::microseconds>(t2 - t1).count());
+    const double par_us =
+        static_cast<double>(chrono::duration_cast<chrono::microseconds>(t1 - t0).count());
+    const double scl_us =
+        static_cast<double>(chrono::duration_cast<chrono::microseconds>(t2 - t1).count());
 
-    cout << "Binomial LogPDF PARALLEL vs SCALAR: " << par_us << "μs vs " << scl_us
-         << "μs (n=" << N << ")\n";
+    cout << "Binomial LogPDF PARALLEL vs SCALAR: " << par_us << "μs vs " << scl_us << "μs (n=" << N
+         << ")\n";
     cout << "Note: VECTORIZED = cached scalar loop (no vector_lgamma);\n"
          << "      PARALLEL provides true multi-core throughput.\n";
 
@@ -245,9 +245,11 @@ TEST_F(BinomialEnhancedTest, ParallelBatchCorrectness) {
 //==============================================================================
 // DistTraits specialization for stats::BinomialDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::BinomialDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::BinomialDistribution make() { return stats::BinomialDistribution::create(10, 0.5).unwrap(); }
+    static stats::BinomialDistribution make() {
+        return stats::BinomialDistribution::create(10, 0.5).unwrap();
+    }
     static std::vector<double> domain() { return {0.0, 2.0, 5.0, 8.0, 10.0}; }
     static double batch_lo() { return 0.0; }
     static double batch_hi() { return 10.0; }

@@ -329,7 +329,8 @@ class ParallelUtils {
         // size is a std::size_t: it is always finite; casting to double to call
         // check_finite() was semantically wrong and lost precision above 2^53.
         // A simple empty-range guard is the correct check here.
-        if (size == 0) return;
+        if (size == 0)
+            return;
 
         const std::size_t minParallelSize = arch::get_min_elements_for_parallel();
         if (size < minParallelSize) {

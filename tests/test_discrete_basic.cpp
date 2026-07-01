@@ -1,6 +1,6 @@
 // Focused unit test for discrete distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/discrete.h"
 
 // Standard library includes
@@ -226,12 +226,7 @@ int main() {
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
         stats::tests::BasicDistConfig cfg{
-            "Discrete",
-            {1.0, 2.0, 3.0, 4.0, 5.0, 6.0},
-            1.0, 6.5,
-            1e-12,
-            1e-12
-        };
+            "Discrete", {1.0, 2.0, 3.0, 4.0, 5.0, 6.0}, 1.0, 6.5, 1e-12, 1e-12};
         cfg.invalid_scenarios = {
             {"upper < lower", [] { return DiscreteDistribution::create(5, 3).isError(); }},
         };

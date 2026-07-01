@@ -14,10 +14,10 @@
  * --help/-h          Show this help
  */
 
-#include "libstats/platform/benchmark.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/laplace.h"
-#include "libstats/distributions/cauchy.h"
+#include "libstats/platform/benchmark.h"
 
 // Standard library includes
 #include <algorithm>  // for std::min, std::max

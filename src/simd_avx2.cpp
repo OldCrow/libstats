@@ -28,17 +28,17 @@ double VectorOps::dot_product_avx2(const double* a, const double* b, std::size_t
     __m256d acc2 = _mm256_setzero_pd();
     __m256d acc3 = _mm256_setzero_pd();
 
-    constexpr std::size_t W  = arch::simd::AVX2_DOUBLES;  // 4 doubles
-    constexpr std::size_t U  = 4;                          // unroll factor
-    constexpr std::size_t UW = U * W;                      // 16 doubles per iteration
+    constexpr std::size_t W = arch::simd::AVX2_DOUBLES;  // 4 doubles
+    constexpr std::size_t U = 4;                         // unroll factor
+    constexpr std::size_t UW = U * W;                    // 16 doubles per iteration
     const std::size_t unroll_end = (size / UW) * UW;
-    const std::size_t simd_end   = (size /  W) *  W;
+    const std::size_t simd_end = (size / W) * W;
 
 #ifdef __FMA__
     for (std::size_t i = 0; i < unroll_end; i += UW) {
-        acc0 = _mm256_fmadd_pd(_mm256_loadu_pd(&a[i +  0]), _mm256_loadu_pd(&b[i +  0]), acc0);
-        acc1 = _mm256_fmadd_pd(_mm256_loadu_pd(&a[i +  4]), _mm256_loadu_pd(&b[i +  4]), acc1);
-        acc2 = _mm256_fmadd_pd(_mm256_loadu_pd(&a[i +  8]), _mm256_loadu_pd(&b[i +  8]), acc2);
+        acc0 = _mm256_fmadd_pd(_mm256_loadu_pd(&a[i + 0]), _mm256_loadu_pd(&b[i + 0]), acc0);
+        acc1 = _mm256_fmadd_pd(_mm256_loadu_pd(&a[i + 4]), _mm256_loadu_pd(&b[i + 4]), acc1);
+        acc2 = _mm256_fmadd_pd(_mm256_loadu_pd(&a[i + 8]), _mm256_loadu_pd(&b[i + 8]), acc2);
         acc3 = _mm256_fmadd_pd(_mm256_loadu_pd(&a[i + 12]), _mm256_loadu_pd(&b[i + 12]), acc3);
     }
     // Drain the tail (< 16 elements) one W at a time into acc0
@@ -47,10 +47,14 @@ double VectorOps::dot_product_avx2(const double* a, const double* b, std::size_t
     }
 #else
     for (std::size_t i = 0; i < unroll_end; i += UW) {
-        acc0 = _mm256_add_pd(_mm256_mul_pd(_mm256_loadu_pd(&a[i +  0]), _mm256_loadu_pd(&b[i +  0])), acc0);
-        acc1 = _mm256_add_pd(_mm256_mul_pd(_mm256_loadu_pd(&a[i +  4]), _mm256_loadu_pd(&b[i +  4])), acc1);
-        acc2 = _mm256_add_pd(_mm256_mul_pd(_mm256_loadu_pd(&a[i +  8]), _mm256_loadu_pd(&b[i +  8])), acc2);
-        acc3 = _mm256_add_pd(_mm256_mul_pd(_mm256_loadu_pd(&a[i + 12]), _mm256_loadu_pd(&b[i + 12])), acc3);
+        acc0 = _mm256_add_pd(_mm256_mul_pd(_mm256_loadu_pd(&a[i + 0]), _mm256_loadu_pd(&b[i + 0])),
+                             acc0);
+        acc1 = _mm256_add_pd(_mm256_mul_pd(_mm256_loadu_pd(&a[i + 4]), _mm256_loadu_pd(&b[i + 4])),
+                             acc1);
+        acc2 = _mm256_add_pd(_mm256_mul_pd(_mm256_loadu_pd(&a[i + 8]), _mm256_loadu_pd(&b[i + 8])),
+                             acc2);
+        acc3 = _mm256_add_pd(
+            _mm256_mul_pd(_mm256_loadu_pd(&a[i + 12]), _mm256_loadu_pd(&b[i + 12])), acc3);
     }
     for (std::size_t i = unroll_end; i < simd_end; i += W) {
         acc0 = _mm256_add_pd(_mm256_mul_pd(_mm256_loadu_pd(&a[i]), _mm256_loadu_pd(&b[i])), acc0);
@@ -59,10 +63,10 @@ double VectorOps::dot_product_avx2(const double* a, const double* b, std::size_t
 
     // Combine accumulators and extract horizontal sum
     __m256d sum = _mm256_add_pd(_mm256_add_pd(acc0, acc1), _mm256_add_pd(acc2, acc3));
-    __m128d lo  = _mm256_castpd256_pd128(sum);
-    __m128d hi  = _mm256_extractf128_pd(sum, 1);
-    __m128d s   = _mm_add_pd(lo, hi);
-    __m128d s2  = _mm_unpackhi_pd(s, s);
+    __m128d lo = _mm256_castpd256_pd128(sum);
+    __m128d hi = _mm256_extractf128_pd(sum, 1);
+    __m128d s = _mm_add_pd(lo, hi);
+    __m128d s2 = _mm_unpackhi_pd(s, s);
     double final_sum = _mm_cvtsd_f64(_mm_add_pd(s, s2));
 
     // Handle remaining elements

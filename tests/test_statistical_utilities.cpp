@@ -67,29 +67,28 @@ TEST(StatisticalUtilities, EmpiricalCdfKnownValues) {
 TEST(StatisticalUtilities, CalculateQuantilesThrowsOnEmptyData) {
     std::vector<double> data;
     std::vector<double> qs = {0.5};
-    EXPECT_THROW((void)calculate_quantiles(std::span<const double>(data),
-                                           std::span<const double>(qs)),
-                 std::invalid_argument);
+    EXPECT_THROW(
+        (void)calculate_quantiles(std::span<const double>(data), std::span<const double>(qs)),
+        std::invalid_argument);
 }
 
 TEST(StatisticalUtilities, CalculateQuantilesThrowsOnOutOfRangeLevel) {
     std::vector<double> data = {1.0, 2.0, 3.0};
     std::vector<double> bad_qs = {-0.1};
-    EXPECT_THROW((void)calculate_quantiles(std::span<const double>(data),
-                                           std::span<const double>(bad_qs)),
-                 std::invalid_argument);
+    EXPECT_THROW(
+        (void)calculate_quantiles(std::span<const double>(data), std::span<const double>(bad_qs)),
+        std::invalid_argument);
 
     std::vector<double> bad_qs2 = {1.1};
-    EXPECT_THROW((void)calculate_quantiles(std::span<const double>(data),
-                                           std::span<const double>(bad_qs2)),
-                 std::invalid_argument);
+    EXPECT_THROW(
+        (void)calculate_quantiles(std::span<const double>(data), std::span<const double>(bad_qs2)),
+        std::invalid_argument);
 }
 
 TEST(StatisticalUtilities, CalculateQuantilesExtremes) {
     std::vector<double> data = {10.0, 20.0, 30.0, 40.0, 50.0};
     std::vector<double> qs = {0.0, 1.0};
-    auto result = calculate_quantiles(std::span<const double>(data),
-                                      std::span<const double>(qs));
+    auto result = calculate_quantiles(std::span<const double>(data), std::span<const double>(qs));
     ASSERT_EQ(result.size(), 2u);
     EXPECT_DOUBLE_EQ(result[0], 10.0);  // min
     EXPECT_DOUBLE_EQ(result[1], 50.0);  // max
@@ -99,8 +98,7 @@ TEST(StatisticalUtilities, CalculateQuantilesMedianUniform) {
     // Uniform {1,2,3,4,5}: median should be 3.0.
     std::vector<double> data = {5.0, 1.0, 3.0, 2.0, 4.0};
     std::vector<double> qs = {0.5};
-    auto result = calculate_quantiles(std::span<const double>(data),
-                                      std::span<const double>(qs));
+    auto result = calculate_quantiles(std::span<const double>(data), std::span<const double>(qs));
     ASSERT_EQ(result.size(), 1u);
     EXPECT_NEAR(result[0], 3.0, 1e-10);
 }
@@ -109,8 +107,7 @@ TEST(StatisticalUtilities, CalculateQuantilesInterpolation) {
     // Data {0,1}: 25th percentile should be 0.25 via linear interpolation.
     std::vector<double> data = {0.0, 1.0};
     std::vector<double> qs = {0.25, 0.75};
-    auto result = calculate_quantiles(std::span<const double>(data),
-                                      std::span<const double>(qs));
+    auto result = calculate_quantiles(std::span<const double>(data), std::span<const double>(qs));
     ASSERT_EQ(result.size(), 2u);
     EXPECT_NEAR(result[0], 0.25, 1e-12);
     EXPECT_NEAR(result[1], 0.75, 1e-12);
@@ -137,8 +134,8 @@ TEST(StatisticalUtilities, SampleMomentsKnownGaussian) {
     auto [mean, variance, skewness, kurtosis] = sample_moments(std::span<const double>(data));
 
     EXPECT_NEAR(mean, 5.0, 1e-12);
-    EXPECT_NEAR(variance, 2.5, 1e-12);       // Bessel-corrected: 10/4 = 2.5
-    EXPECT_NEAR(skewness, 0.0, 1e-12);       // symmetric
+    EXPECT_NEAR(variance, 2.5, 1e-12);  // Bessel-corrected: 10/4 = 2.5
+    EXPECT_NEAR(skewness, 0.0, 1e-12);  // symmetric
     // Excess kurtosis of uniform-style 5-point sample: not necessarily 0;
     // just check it's finite.
     EXPECT_TRUE(std::isfinite(kurtosis));
@@ -150,16 +147,16 @@ TEST(StatisticalUtilities, SampleMomentsConstantData) {
     auto [mean, variance, skewness, kurtosis] = sample_moments(std::span<const double>(data));
     EXPECT_NEAR(mean, 42.0, 1e-12);
     EXPECT_NEAR(variance, 0.0, 1e-12);
-    EXPECT_TRUE(std::isnan(skewness))   << "Skewness undefined for constant data";
-    EXPECT_TRUE(std::isnan(kurtosis))   << "Kurtosis undefined for constant data";
+    EXPECT_TRUE(std::isnan(skewness)) << "Skewness undefined for constant data";
+    EXPECT_TRUE(std::isnan(kurtosis)) << "Kurtosis undefined for constant data";
 }
 
 TEST(StatisticalUtilities, SampleMomentsReturnOrder) {
     // Verify [0]=mean, [1]=variance, [2]=skewness, [3]=excess_kurtosis.
     std::vector<double> data = {1.0, 2.0, 3.0};
     auto moments = sample_moments(std::span<const double>(data));
-    EXPECT_NEAR(moments[0], 2.0, 1e-12);   // mean
-    EXPECT_GT(moments[1], 0.0);            // variance > 0
+    EXPECT_NEAR(moments[0], 2.0, 1e-12);  // mean
+    EXPECT_GT(moments[1], 0.0);           // variance > 0
 }
 
 // =============================================================================

@@ -1,8 +1,9 @@
 #pragma once
 
+#include "../common/simd_policy_fwd.h"  // SIMDLevel — canonical SIMD level enum (AQ-1)
+
 #include <cstddef>
 #include <string>
-#include "../common/simd_policy_fwd.h"  // SIMDLevel — canonical SIMD level enum (AQ-1)
 
 /**
  * @file simd_policy.h

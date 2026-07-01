@@ -1,8 +1,9 @@
 #include "libstats/distributions/rayleigh.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/common/cpu_detection_fwd.h"
 #include "libstats/core/dispatch_thresholds.h"
@@ -76,7 +77,6 @@ RayleighDistribution::RayleighDistribution(RayleighDistribution&& other) noexcep
 
 RayleighDistribution& RayleighDistribution::operator=(RayleighDistribution&& other) noexcept {
     if (this != &other) {
-
         sigma_ = other.sigma_;
         logSigma_ = other.logSigma_;
         negHalfInvSigmaSquared_ = other.negHalfInvSigmaSquared_;
@@ -204,14 +204,14 @@ double RayleighDistribution::getProbability(double x) const {
         if (!cache_valid_)
             updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
-        const double lnc                 = logNormConst_;
+        const double lnc = logNormConst_;
         const double neg_half_inv_sigma2 = negHalfInvSigmaSquared_;
         return std::exp(std::log(x) + lnc + neg_half_inv_sigma2 * x * x);
     }
     // Compute inline using cached values rather than re-acquiring cache_mutex_
     // via getLogProbability(): re-entrant shared_lock deadlocks on Linux/Windows.
-    const double lnc                  = logNormConst_;
-    const double neg_half_inv_sigma2  = negHalfInvSigmaSquared_;
+    const double lnc = logNormConst_;
+    const double neg_half_inv_sigma2 = negHalfInvSigmaSquared_;
     lock.unlock();
     return std::exp(std::log(x) + lnc + neg_half_inv_sigma2 * x * x);
 }
@@ -227,7 +227,7 @@ double RayleighDistribution::getLogProbability(double x) const {
         if (!cache_valid_)
             updateCacheUnsafe();
         // Snapshot while unique_lock is still held.
-        const double lnc  = logNormConst_;
+        const double lnc = logNormConst_;
         const double nhis = negHalfInvSigmaSquared_;
         return std::log(x) + lnc + nhis * x * x;
     }
@@ -446,9 +446,11 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
+                    nhis = d.negHalfInvSigmaSquared_;
+                    lnc = d.logNormConst_;
                 } else {
-                    nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
+                    nhis = d.negHalfInvSigmaSquared_;
+                    lnc = d.logNormConst_;
                 }
             }
             if (arch::should_use_parallel(count)) {
@@ -478,9 +480,11 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
+                    nhis = d.negHalfInvSigmaSquared_;
+                    lnc = d.logNormConst_;
                 } else {
-                    nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
+                    nhis = d.negHalfInvSigmaSquared_;
+                    lnc = d.logNormConst_;
                 }
             }
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -528,9 +532,11 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
+                    nhis = d.negHalfInvSigmaSquared_;
+                    lnc = d.logNormConst_;
                 } else {
-                    nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
+                    nhis = d.negHalfInvSigmaSquared_;
+                    lnc = d.logNormConst_;
                 }
             }
             if (arch::should_use_parallel(count)) {
@@ -558,9 +564,11 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
                     std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
                     if (!d.cache_valid_)
                         d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
+                    nhis = d.negHalfInvSigmaSquared_;
+                    lnc = d.logNormConst_;
                 } else {
-                    nhis = d.negHalfInvSigmaSquared_; lnc = d.logNormConst_;
+                    nhis = d.negHalfInvSigmaSquared_;
+                    lnc = d.logNormConst_;
                 }
             }
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {

@@ -1,8 +1,9 @@
 #include "libstats/distributions/gamma.h"
+
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
+using stats::detail::validateNonNegativeParameter;
 using stats::detail::validateParameter;
 using stats::detail::validatePositiveParameter;
-using stats::detail::validateNonNegativeParameter;
 
 #include "libstats/core/parallel_batch_fit.h"
 
@@ -110,7 +111,8 @@ double GammaDistribution::getScale() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return scale_;  // snapshot + early return under unique_lock
     }
     return scale_;
@@ -121,7 +123,8 @@ double GammaDistribution::getMean() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return mean_;  // snapshot + early return under unique_lock
     }
     return mean_;
@@ -132,7 +135,8 @@ double GammaDistribution::getVariance() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return variance_;  // snapshot + early return under unique_lock
     }
     return variance_;
@@ -143,7 +147,8 @@ double GammaDistribution::getSkewness() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return detail::TWO / sqrtAlpha_;  // snapshot + early return under unique_lock
     }
     return detail::TWO / sqrtAlpha_;
@@ -296,7 +301,8 @@ double GammaDistribution::getProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot under unique_lock — eliminates TOCTOU gap.
         // Inline log-space formula instead of calling getLogProbability to
         // avoid re-entrant shared_lock acquisition on the same mutex.
@@ -330,14 +336,18 @@ double GammaDistribution::getLogProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot under unique_lock — eliminates TOCTOU gap.
         const double a = alpha_, b = beta_;
         const double lb = logBeta_, alb = alphaLogBeta_, lga = logGammaAlpha_, am1 = alphaMinusOne_;
         if (x == detail::ZERO_DOUBLE) {
-            if (a < detail::ONE) return std::numeric_limits<double>::infinity();
-            else if (a == detail::ONE) return lb;
-            else return detail::MIN_LOG_PROBABILITY;
+            if (a < detail::ONE)
+                return std::numeric_limits<double>::infinity();
+            else if (a == detail::ONE)
+                return lb;
+            else
+                return detail::MIN_LOG_PROBABILITY;
         }
         return alb - lga + am1 * std::log(x) - b * x;
     }
@@ -362,7 +372,8 @@ double GammaDistribution::getCumulativeProbability(double x) const {
         // +inf → all probability mass lies below +∞ → 1.0
         // -inf → no probability mass lies below -∞  → 0.0
         // NaN  → propagate NaN
-        if (std::isnan(x)) return std::numeric_limits<double>::quiet_NaN();
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
         return (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
     }
     if (x <= detail::ZERO_DOUBLE) {
@@ -373,7 +384,8 @@ double GammaDistribution::getCumulativeProbability(double x) const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot under unique_lock — eliminates TOCTOU gap.
         const double a = alpha_, b = beta_;
         return detail::gamma_p(a, b * x);
@@ -406,10 +418,13 @@ double GammaDistribution::sample(std::mt19937& rng) const {
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            cached_alpha = alpha_;  cached_beta = beta_;
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            cached_alpha = alpha_;
+            cached_beta = beta_;
         } else {
-            cached_alpha = alpha_;  cached_beta = beta_;
+            cached_alpha = alpha_;
+            cached_beta = beta_;
         }
     }
 
@@ -469,10 +484,13 @@ std::vector<double> GammaDistribution::sample(std::mt19937& rng, size_t n) const
         if (!cache_valid_) {
             lock.unlock();
             std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_) updateCacheUnsafe();
-            cached_alpha = alpha_;  cached_beta = beta_;  // snapshot under unique_lock
+            if (!cache_valid_)
+                updateCacheUnsafe();
+            cached_alpha = alpha_;
+            cached_beta = beta_;  // snapshot under unique_lock
         } else {
-            cached_alpha = alpha_;  cached_beta = beta_;  // snapshot under shared_lock
+            cached_alpha = alpha_;
+            cached_beta = beta_;  // snapshot under shared_lock
         }
     }
 
@@ -581,7 +599,6 @@ std::string GammaDistribution::toString() const {
 // 7. ADVANCED STATISTICAL METHODS
 //==========================================================================
 
-
 //==========================================================================
 // 8. GOODNESS-OF-FIT TESTS
 //==========================================================================
@@ -677,7 +694,8 @@ bool GammaDistribution::isExponentialDistribution() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return isExponential_;  // snapshot + early return under unique_lock
     }
     return isExponential_;
@@ -688,7 +706,8 @@ bool GammaDistribution::isChiSquaredDistribution() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return isChiSquared_;  // snapshot + early return under unique_lock
     }
     return isChiSquared_;
@@ -708,7 +727,8 @@ double GammaDistribution::getEntropy() const {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         // Snapshot under unique_lock — eliminates TOCTOU gap.
         const double a = alpha_, lb = logBeta_, lga = logGammaAlpha_, da = digammaAlpha_;
         return a - lb + lga + (detail::ONE - a) * da;
@@ -722,7 +742,8 @@ bool GammaDistribution::canUseNormalApproximation() const noexcept {
     if (!cache_valid_) {
         lock.unlock();
         std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_) updateCacheUnsafe();
+        if (!cache_valid_)
+            updateCacheUnsafe();
         return isLargeAlpha_;  // snapshot + early return under unique_lock
     }
     return isLargeAlpha_;
@@ -761,7 +782,8 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                if (!dist.cache_valid_)
+                    dist.updateCacheUnsafe();
                 // Snapshot under unique_lock.
                 const double alpha = dist.alpha_, beta = dist.beta_;
                 const double lga = dist.logGammaAlpha_, alb = dist.alphaLogBeta_;
@@ -788,23 +810,25 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
 
             // Snapshot cache fields under the appropriate lock — no TOCTOU gap.
             [[maybe_unused]] double cached_alpha;
-            double cached_beta, cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one;
+            double cached_beta, cached_log_gamma_alpha, cached_alpha_log_beta,
+                cached_alpha_minus_one;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
-                    cached_alpha          = dist.alpha_;
-                    cached_beta           = dist.beta_;
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                     cached_log_gamma_alpha = dist.logGammaAlpha_;
-                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_log_beta = dist.alphaLogBeta_;
                     cached_alpha_minus_one = dist.alphaMinusOne_;
                 } else {
-                    cached_alpha          = dist.alpha_;
-                    cached_beta           = dist.beta_;
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                     cached_log_gamma_alpha = dist.logGammaAlpha_;
-                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_log_beta = dist.alphaLogBeta_;
                     cached_alpha_minus_one = dist.alphaMinusOne_;
                 }
             }
@@ -816,17 +840,15 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                 const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
                 ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
                     const std::size_t start = ci * CHUNK;
-                    const std::size_t len   = std::min(CHUNK, count - start);
+                    const std::size_t len = std::min(CHUNK, count - start);
                     dist.getProbabilityBatchUnsafeImpl(
-                        vals.data() + start, res.data() + start, len,
-                        cached_alpha, cached_beta, cached_log_gamma_alpha,
-                        cached_alpha_log_beta, cached_alpha_minus_one);
+                        vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
+                        cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
                 });
             } else {
-                dist.getProbabilityBatchUnsafeImpl(
-                    vals.data(), res.data(), count,
-                    cached_alpha, cached_beta, cached_log_gamma_alpha,
-                    cached_alpha_log_beta, cached_alpha_minus_one);
+                dist.getProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, cached_alpha,
+                                                   cached_beta, cached_log_gamma_alpha,
+                                                   cached_alpha_log_beta, cached_alpha_minus_one);
             }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -848,17 +870,18 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
-                    cached_alpha          = dist.alpha_;
-                    cached_beta           = dist.beta_;
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                     cached_log_gamma_alpha = dist.logGammaAlpha_;
-                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_log_beta = dist.alphaLogBeta_;
                     cached_alpha_minus_one = dist.alphaMinusOne_;
                 } else {
-                    cached_alpha          = dist.alpha_;
-                    cached_beta           = dist.beta_;
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                     cached_log_gamma_alpha = dist.logGammaAlpha_;
-                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_log_beta = dist.alphaLogBeta_;
                     cached_alpha_minus_one = dist.alphaMinusOne_;
                 }
             }
@@ -868,11 +891,10 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
             pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
                 const std::size_t start = ci * CHUNK;
-                const std::size_t len   = std::min(CHUNK, count - start);
+                const std::size_t len = std::min(CHUNK, count - start);
                 dist.getProbabilityBatchUnsafeImpl(
-                    vals.data() + start, res.data() + start, len,
-                    cached_alpha, cached_beta, cached_log_gamma_alpha,
-                    cached_alpha_log_beta, cached_alpha_minus_one);
+                    vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
+                    cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
             });
             pool.waitForAll();
         });
@@ -889,7 +911,8 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                if (!dist.cache_valid_)
+                    dist.updateCacheUnsafe();
                 // Snapshot under unique_lock.
                 const double alpha = dist.alpha_, beta = dist.beta_;
                 const double lga = dist.logGammaAlpha_, alb = dist.alphaLogBeta_;
@@ -922,17 +945,18 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
-                    cached_alpha          = dist.alpha_;
-                    cached_beta           = dist.beta_;
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                     cached_log_gamma_alpha = dist.logGammaAlpha_;
-                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_log_beta = dist.alphaLogBeta_;
                     cached_alpha_minus_one = dist.alphaMinusOne_;
                 } else {
-                    cached_alpha          = dist.alpha_;
-                    cached_beta           = dist.beta_;
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                     cached_log_gamma_alpha = dist.logGammaAlpha_;
-                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_log_beta = dist.alphaLogBeta_;
                     cached_alpha_minus_one = dist.alphaMinusOne_;
                 }
             }
@@ -943,17 +967,15 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
                 ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
                     const std::size_t start = ci * CHUNK;
-                    const std::size_t len   = std::min(CHUNK, count - start);
+                    const std::size_t len = std::min(CHUNK, count - start);
                     dist.getLogProbabilityBatchUnsafeImpl(
-                        vals.data() + start, res.data() + start, len,
-                        cached_alpha, cached_beta, cached_log_gamma_alpha,
-                        cached_alpha_log_beta, cached_alpha_minus_one);
+                        vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
+                        cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
                 });
             } else {
                 dist.getLogProbabilityBatchUnsafeImpl(
-                    vals.data(), res.data(), count,
-                    cached_alpha, cached_beta, cached_log_gamma_alpha,
-                    cached_alpha_log_beta, cached_alpha_minus_one);
+                    vals.data(), res.data(), count, cached_alpha, cached_beta,
+                    cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
             }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -975,17 +997,18 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
-                    cached_alpha          = dist.alpha_;
-                    cached_beta           = dist.beta_;
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                     cached_log_gamma_alpha = dist.logGammaAlpha_;
-                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_log_beta = dist.alphaLogBeta_;
                     cached_alpha_minus_one = dist.alphaMinusOne_;
                 } else {
-                    cached_alpha          = dist.alpha_;
-                    cached_beta           = dist.beta_;
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                     cached_log_gamma_alpha = dist.logGammaAlpha_;
-                    cached_alpha_log_beta  = dist.alphaLogBeta_;
+                    cached_alpha_log_beta = dist.alphaLogBeta_;
                     cached_alpha_minus_one = dist.alphaMinusOne_;
                 }
             }
@@ -994,11 +1017,10 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
             pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
                 const std::size_t start = ci * CHUNK;
-                const std::size_t len   = std::min(CHUNK, count - start);
+                const std::size_t len = std::min(CHUNK, count - start);
                 dist.getLogProbabilityBatchUnsafeImpl(
-                    vals.data() + start, res.data() + start, len,
-                    cached_alpha, cached_beta, cached_log_gamma_alpha,
-                    cached_alpha_log_beta, cached_alpha_minus_one);
+                    vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
+                    cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
             });
             pool.waitForAll();
         });
@@ -1018,7 +1040,8 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             if (!dist.cache_valid_) {
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_) dist.updateCacheUnsafe();
+                if (!dist.cache_valid_)
+                    dist.updateCacheUnsafe();
                 // Snapshot under unique_lock.
                 const double alpha = dist.alpha_, beta = dist.beta_;
                 dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta);
@@ -1046,10 +1069,13 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
-                    cached_alpha = dist.alpha_;  cached_beta = dist.beta_;
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                 } else {
-                    cached_alpha = dist.alpha_;  cached_beta = dist.beta_;
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                 }
             }
 
@@ -1093,10 +1119,13 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) dist.updateCacheUnsafe();
-                    cached_alpha = dist.alpha_;  cached_beta = dist.beta_;
+                    if (!dist.cache_valid_)
+                        dist.updateCacheUnsafe();
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                 } else {
-                    cached_alpha = dist.alpha_;  cached_beta = dist.beta_;
+                    cached_alpha = dist.alpha_;
+                    cached_beta = dist.beta_;
                 }
             }
 
@@ -1459,13 +1488,23 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
             // PDF underflow: fall back to bisection between current x and a
             // simple upper bound so the solver doesn't stall.
             double lo = detail::NEWTON_RAPHSON_TOLERANCE, hi = x;
-            if (cdf < p) hi = x * 10.0;  // need to go higher
+            if (cdf < p)
+                hi = x * 10.0;  // need to go higher
             for (int j = 0; j < 60; ++j) {
                 double mid = (lo + hi) * detail::HALF;
                 double cmid = getCumulativeProbability(mid);
-                if (std::abs(cmid - p) < tolerance) { x = mid; break; }
-                if (cmid < p) lo = mid; else hi = mid;
-                if (hi - lo < tolerance) { x = (lo + hi) * detail::HALF; break; }
+                if (std::abs(cmid - p) < tolerance) {
+                    x = mid;
+                    break;
+                }
+                if (cmid < p)
+                    lo = mid;
+                else
+                    hi = mid;
+                if (hi - lo < tolerance) {
+                    x = (lo + hi) * detail::HALF;
+                    break;
+                }
             }
             break;
         }
@@ -1549,17 +1588,17 @@ void GammaDistribution::fitMethodOfMoments(const std::vector<double>& values) {
     // Method-of-moments estimates for Gamma(α, β): α̂ = mean²/var, β̂ = mean/var
     const std::size_t nv = values.size();
     double sum_x = std::accumulate(values.begin(), values.end(), detail::ZERO_DOUBLE);
-    double sum_x2 = std::inner_product(values.begin(), values.end(), values.begin(),
-                                        detail::ZERO_DOUBLE);
-    double mean_x  = sum_x / static_cast<double>(nv);
-    double var_x   = sum_x2 / static_cast<double>(nv) - mean_x * mean_x;
+    double sum_x2 =
+        std::inner_product(values.begin(), values.end(), values.begin(), detail::ZERO_DOUBLE);
+    double mean_x = sum_x / static_cast<double>(nv);
+    double var_x = sum_x2 / static_cast<double>(nv) - mean_x * mean_x;
     double alpha_hat = (var_x > detail::ZERO) ? (mean_x * mean_x / var_x) : detail::ONE;
-    double beta_hat  = (var_x > detail::ZERO) ? (mean_x / var_x) : detail::ONE;
+    double beta_hat = (var_x > detail::ZERO) ? (mean_x / var_x) : detail::ONE;
 
     // Update parameters using the estimates
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     alpha_ = alpha_hat;
-    beta_  = beta_hat;
+    beta_ = beta_hat;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
@@ -1592,7 +1631,7 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
     const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
 
     for (int i = 0; i < max_iterations; ++i) {
-        double digamma_alpha  = detail::digamma(alpha_est);
+        double digamma_alpha = detail::digamma(alpha_est);
         double trigamma_alpha = detail::trigamma(alpha_est);
 
         double f = std::log(alpha_est) - digamma_alpha - s;

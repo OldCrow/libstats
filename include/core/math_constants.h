@@ -261,13 +261,13 @@ inline constexpr double HIGH_CONDITION_NUMBER_THRESHOLD = 1.0e12;
 // =============================================================================
 
 /// Absolute value of x below which erf_inv uses the central rational approximation
-inline constexpr double ERF_INV_CENTRAL_CUTOFF  = 0.70;
+inline constexpr double ERF_INV_CENTRAL_CUTOFF = 0.70;
 
 /// Absolute value of x below which erf_inv uses the moderate-tail expansion
-inline constexpr double ERF_INV_TAIL_CUTOFF      = 0.99;
+inline constexpr double ERF_INV_TAIL_CUTOFF = 0.99;
 
 /// Damping factor applied to the Halley correction in the extreme-tail branch
-inline constexpr double ERF_INV_HALLEY_DAMPING   = 0.50;
+inline constexpr double ERF_INV_HALLEY_DAMPING = 0.50;
 
 // =============================================================================
 // ALGORITHM SCALE BOUNDS

@@ -575,32 +575,33 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
     // Region 5: |x| ≥ 6             — erf ≈ ±1
 
     // ---- Region 1 coefficients (rational P/Q in z = x²) ----
-    const __m256d pp0 = _mm256_set1_pd( 1.28379167095512558561e-01);
+    const __m256d pp0 = _mm256_set1_pd(1.28379167095512558561e-01);
     const __m256d pp1 = _mm256_set1_pd(-3.25042107247001499370e-01);
     const __m256d pp2 = _mm256_set1_pd(-2.84817495755985104766e-02);
     const __m256d pp3 = _mm256_set1_pd(-5.77027029648944159157e-03);
     const __m256d pp4 = _mm256_set1_pd(-2.37630166566501626084e-05);
-    const __m256d qq1 = _mm256_set1_pd( 3.97917223959155352819e-01);
-    const __m256d qq2 = _mm256_set1_pd( 6.50222499887672944485e-02);
-    const __m256d qq3 = _mm256_set1_pd( 5.08130628187576562776e-03);
-    const __m256d qq4 = _mm256_set1_pd( 1.32494738004321644526e-04);
+    const __m256d qq1 = _mm256_set1_pd(3.97917223959155352819e-01);
+    const __m256d qq2 = _mm256_set1_pd(6.50222499887672944485e-02);
+    const __m256d qq3 = _mm256_set1_pd(5.08130628187576562776e-03);
+    const __m256d qq4 = _mm256_set1_pd(1.32494738004321644526e-04);
     const __m256d qq5 = _mm256_set1_pd(-3.96022827877536812320e-06);
 
     // ---- Region 2 coefficients (rational P/Q in s = |x|-1) ----
-    const __m256d erx = _mm256_set1_pd( 8.45062911510467529297e-01); // erf(~0.84375) rounded to float24
+    const __m256d erx =
+        _mm256_set1_pd(8.45062911510467529297e-01);  // erf(~0.84375) rounded to float24
     const __m256d pa0 = _mm256_set1_pd(-2.36211856075265944077e-03);
-    const __m256d pa1 = _mm256_set1_pd( 4.14856118683748331666e-01);
+    const __m256d pa1 = _mm256_set1_pd(4.14856118683748331666e-01);
     const __m256d pa2 = _mm256_set1_pd(-3.72207876035701323847e-01);
-    const __m256d pa3 = _mm256_set1_pd( 3.18346619901161753674e-01);
+    const __m256d pa3 = _mm256_set1_pd(3.18346619901161753674e-01);
     const __m256d pa4 = _mm256_set1_pd(-1.10894694282396677476e-01);
-    const __m256d pa5 = _mm256_set1_pd( 3.54783043256182359371e-02);
+    const __m256d pa5 = _mm256_set1_pd(3.54783043256182359371e-02);
     const __m256d pa6 = _mm256_set1_pd(-2.16637559486879084300e-03);
-    const __m256d qa1 = _mm256_set1_pd( 1.06420880400844228286e-01);
-    const __m256d qa2 = _mm256_set1_pd( 5.40397917702171048937e-01);
-    const __m256d qa3 = _mm256_set1_pd( 7.18286544141962662868e-02);
-    const __m256d qa4 = _mm256_set1_pd( 1.26171219808761642112e-01);
-    const __m256d qa5 = _mm256_set1_pd( 1.36370839120290507362e-02);
-    const __m256d qa6 = _mm256_set1_pd( 1.19844998467991074170e-02);
+    const __m256d qa1 = _mm256_set1_pd(1.06420880400844228286e-01);
+    const __m256d qa2 = _mm256_set1_pd(5.40397917702171048937e-01);
+    const __m256d qa3 = _mm256_set1_pd(7.18286544141962662868e-02);
+    const __m256d qa4 = _mm256_set1_pd(1.26171219808761642112e-01);
+    const __m256d qa5 = _mm256_set1_pd(1.36370839120290507362e-02);
+    const __m256d qa6 = _mm256_set1_pd(1.19844998467991074170e-02);
 
     // ---- Region 3 coefficients (rational R/S in s = 1/x², 1.25 ≤ |x| < 2.857) ----
     const __m256d ra0 = _mm256_set1_pd(-9.86494403484714822705e-03);
@@ -611,13 +612,13 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
     const __m256d ra5 = _mm256_set1_pd(-1.84605092906711035994e+02);
     const __m256d ra6 = _mm256_set1_pd(-8.12874355063065934246e+01);
     const __m256d ra7 = _mm256_set1_pd(-9.81432934416914548592e+00);
-    const __m256d sa1 = _mm256_set1_pd( 1.96512716674392571292e+01);
-    const __m256d sa2 = _mm256_set1_pd( 1.37657754143519042600e+02);
-    const __m256d sa3 = _mm256_set1_pd( 4.34565877475229228821e+02);
-    const __m256d sa4 = _mm256_set1_pd( 6.45387271733267880336e+02);
-    const __m256d sa5 = _mm256_set1_pd( 4.29008140027567833386e+02);
-    const __m256d sa6 = _mm256_set1_pd( 1.08635005541779435134e+02);
-    const __m256d sa7 = _mm256_set1_pd( 6.57024977031928170135e+00);
+    const __m256d sa1 = _mm256_set1_pd(1.96512716674392571292e+01);
+    const __m256d sa2 = _mm256_set1_pd(1.37657754143519042600e+02);
+    const __m256d sa3 = _mm256_set1_pd(4.34565877475229228821e+02);
+    const __m256d sa4 = _mm256_set1_pd(6.45387271733267880336e+02);
+    const __m256d sa5 = _mm256_set1_pd(4.29008140027567833386e+02);
+    const __m256d sa6 = _mm256_set1_pd(1.08635005541779435134e+02);
+    const __m256d sa7 = _mm256_set1_pd(6.57024977031928170135e+00);
     const __m256d sa8 = _mm256_set1_pd(-6.04244152148580987438e-02);
 
     // ---- Region 4 coefficients (rational R/S in s = 1/x², 2.857 ≤ |x| < 6) ----
@@ -628,30 +629,30 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
     const __m256d rb4 = _mm256_set1_pd(-6.37566443368389627722e+02);
     const __m256d rb5 = _mm256_set1_pd(-1.02509513161107724954e+03);
     const __m256d rb6 = _mm256_set1_pd(-4.83519191608651397019e+02);
-    const __m256d sb1 = _mm256_set1_pd( 3.03380607434824582924e+01);
-    const __m256d sb2 = _mm256_set1_pd( 3.25792512996573918826e+02);
-    const __m256d sb3 = _mm256_set1_pd( 1.53672958608443695994e+03);
-    const __m256d sb4 = _mm256_set1_pd( 3.19985821950859553908e+03);
-    const __m256d sb5 = _mm256_set1_pd( 2.55305040643316442583e+03);
-    const __m256d sb6 = _mm256_set1_pd( 4.74528541206955367215e+02);
+    const __m256d sb1 = _mm256_set1_pd(3.03380607434824582924e+01);
+    const __m256d sb2 = _mm256_set1_pd(3.25792512996573918826e+02);
+    const __m256d sb3 = _mm256_set1_pd(1.53672958608443695994e+03);
+    const __m256d sb4 = _mm256_set1_pd(3.19985821950859553908e+03);
+    const __m256d sb5 = _mm256_set1_pd(2.55305040643316442583e+03);
+    const __m256d sb6 = _mm256_set1_pd(4.74528541206955367215e+02);
     const __m256d sb7 = _mm256_set1_pd(-2.24409524465858183362e+01);
 
-    const __m256d one       = _mm256_set1_pd(1.0);
+    const __m256d one = _mm256_set1_pd(1.0);
     const __m256d sign_mask = _mm256_set1_pd(-0.0);
-    const __m256d t1        = _mm256_set1_pd(0.84375);     // R1 / R2 boundary
-    const __m256d t2        = _mm256_set1_pd(1.25);        // R2 / R3 boundary
-    const __m256d t3        = _mm256_set1_pd(2.857142857); // R3 / R4 boundary (= 1/0.35)
-    const __m256d t5        = _mm256_set1_pd(6.0);         // R4 / R5 boundary
-    const __m256d c0p5625   = _mm256_set1_pd(0.5625);
+    const __m256d t1 = _mm256_set1_pd(0.84375);      // R1 / R2 boundary
+    const __m256d t2 = _mm256_set1_pd(1.25);         // R2 / R3 boundary
+    const __m256d t3 = _mm256_set1_pd(2.857142857);  // R3 / R4 boundary (= 1/0.35)
+    const __m256d t5 = _mm256_set1_pd(6.0);          // R4 / R5 boundary
+    const __m256d c0p5625 = _mm256_set1_pd(0.5625);
 
     constexpr std::size_t W = arch::simd::AVX_DOUBLES;
     const std::size_t simd_end = (size / W) * W;
     alignas(32) double exp_buf[W];  // temp buffer for exp(-x²-0.5625+R/S)
 
     for (std::size_t i = 0; i < simd_end; i += W) {
-        __m256d x     = _mm256_loadu_pd(&input[i]);
-        __m256d sign  = _mm256_and_pd(x, sign_mask);
-        __m256d ax    = _mm256_andnot_pd(sign_mask, x);  // |x|
+        __m256d x = _mm256_loadu_pd(&input[i]);
+        __m256d sign = _mm256_and_pd(x, sign_mask);
+        __m256d ax = _mm256_andnot_pd(sign_mask, x);  // |x|
 
         // Region masks
         __m256d m1 = _mm256_cmp_pd(ax, t1, _CMP_LT_OQ);  // |x| < 0.84375
@@ -738,12 +739,10 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
         S4 = _mm256_add_pd(one, _mm256_mul_pd(inv_x2, S4));
 
         // Blend R/S: use Region 3 coefficients where |x| < 2.857, Region 4 otherwise
-        __m256d RS = _mm256_div_pd(_mm256_blendv_pd(R4, R3, m3),
-                                   _mm256_blendv_pd(S4, S3, m3));
+        __m256d RS = _mm256_div_pd(_mm256_blendv_pd(R4, R3, m3), _mm256_blendv_pd(S4, S3, m3));
 
         // exp_arg = -x² - 0.5625 + R/S  (equivalent to musl's two-exp decomposition)
-        __m256d exp_arg = _mm256_sub_pd(_mm256_sub_pd(RS, c0p5625),
-                                        _mm256_mul_pd(sax, sax));
+        __m256d exp_arg = _mm256_sub_pd(_mm256_sub_pd(RS, c0p5625), _mm256_mul_pd(sax, sax));
         // Clamp to ≤ 0 to prevent overflow (erfc is always ≤ 1 for |x| ≥ 1.25)
         exp_arg = _mm256_min_pd(exp_arg, _mm256_setzero_pd());
 
@@ -754,12 +753,13 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
         __m256d r34 = _mm256_sub_pd(one, _mm256_div_pd(exp_val, sax));
 
         // ---- Blend regions (innermost wins) ----
-        __m256d result = one;                                          // R5: |x| >= 6 -> 1
-        result = _mm256_blendv_pd(result, r34,
-            _mm256_andnot_pd(m2, _mm256_cmp_pd(ax, t5, _CMP_LT_OQ))); // R3+R4: 1.25 <= |x| < 6
-        result = _mm256_blendv_pd(result, r2,
-            _mm256_andnot_pd(m1, m2));                                 // R2: 0.84375 <= |x| < 1.25
-        result = _mm256_blendv_pd(result, r1, m1);                    // R1: |x| < 0.84375
+        __m256d result = one;  // R5: |x| >= 6 -> 1
+        result = _mm256_blendv_pd(
+            result, r34,
+            _mm256_andnot_pd(m2, _mm256_cmp_pd(ax, t5, _CMP_LT_OQ)));  // R3+R4: 1.25 <= |x| < 6
+        result =
+            _mm256_blendv_pd(result, r2, _mm256_andnot_pd(m1, m2));  // R2: 0.84375 <= |x| < 1.25
+        result = _mm256_blendv_pd(result, r1, m1);                   // R1: |x| < 0.84375
 
         // Restore sign (erf is odd), then propagate NaN.
         // Order matters: or_pd must come first so NaN lanes are overwritten with
@@ -771,7 +771,8 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
         _mm256_storeu_pd(&output[i], result);
     }
 
-    for (std::size_t i = simd_end; i < size; ++i) output[i] = std::erf(input[i]);
+    for (std::size_t i = simd_end; i < size; ++i)
+        output[i] = std::erf(input[i]);
 }
 
 void VectorOps::vector_cos_avx(const double* input, double* output, std::size_t size) noexcept {
@@ -788,23 +789,23 @@ void VectorOps::vector_cos_avx(const double* input, double* output, std::size_t 
     constexpr std::size_t W = arch::simd::AVX_DOUBLES;
     const std::size_t simd_end = (size / W) * W;
 
-    const __m256d inv_two_pi  = _mm256_set1_pd(1.0 / (2.0 * detail::PI));
-    const __m256d two_pi      = _mm256_set1_pd(2.0 * detail::PI);
-    const __m256d pi          = _mm256_set1_pd(detail::PI);
-    const __m256d half_pi     = _mm256_set1_pd(detail::PI_OVER_2);
-    const __m256d neg_pi      = _mm256_set1_pd(-detail::PI);
+    const __m256d inv_two_pi = _mm256_set1_pd(1.0 / (2.0 * detail::PI));
+    const __m256d two_pi = _mm256_set1_pd(2.0 * detail::PI);
+    const __m256d pi = _mm256_set1_pd(detail::PI);
+    const __m256d half_pi = _mm256_set1_pd(detail::PI_OVER_2);
+    const __m256d neg_pi = _mm256_set1_pd(-detail::PI);
     const __m256d neg_half_pi = _mm256_set1_pd(-detail::PI_OVER_2);
-    const __m256d one         = _mm256_set1_pd(1.0);
-    const __m256d neg_one     = _mm256_set1_pd(-1.0);
+    const __m256d one = _mm256_set1_pd(1.0);
+    const __m256d neg_one = _mm256_set1_pd(-1.0);
 
     // Taylor coefficients: c_k = (-1)^k / (2k)!
-    const __m256d c1 = _mm256_set1_pd(-0.5);                     // -1/2!
-    const __m256d c2 = _mm256_set1_pd(4.166666666666667e-2);     //  1/4!
-    const __m256d c3 = _mm256_set1_pd(-1.388888888888889e-3);    // -1/6!
-    const __m256d c4 = _mm256_set1_pd(2.480158730158730e-5);     //  1/8!
-    const __m256d c5 = _mm256_set1_pd(-2.755731922398589e-7);    // -1/10!
-    const __m256d c6 = _mm256_set1_pd(2.087675698786810e-9);     //  1/12!
-    const __m256d c7 = _mm256_set1_pd(-1.147074559772973e-11);   // -1/14!
+    const __m256d c1 = _mm256_set1_pd(-0.5);                    // -1/2!
+    const __m256d c2 = _mm256_set1_pd(4.166666666666667e-2);    //  1/4!
+    const __m256d c3 = _mm256_set1_pd(-1.388888888888889e-3);   // -1/6!
+    const __m256d c4 = _mm256_set1_pd(2.480158730158730e-5);    //  1/8!
+    const __m256d c5 = _mm256_set1_pd(-2.755731922398589e-7);   // -1/10!
+    const __m256d c6 = _mm256_set1_pd(2.087675698786810e-9);    //  1/12!
+    const __m256d c7 = _mm256_set1_pd(-1.147074559772973e-11);  // -1/14!
 
     for (std::size_t i = 0; i < simd_end; i += W) {
         __m256d x = _mm256_loadu_pd(&input[i]);
@@ -815,17 +816,17 @@ void VectorOps::vector_cos_avx(const double* input, double* output, std::size_t 
         __m256d y = _mm256_sub_pd(x, _mm256_mul_pd(q, two_pi));
 
         // Step 2: reduce to [−π/2, π/2], tracking sign
-        __m256d sign    = one;
-        __m256d gt_hpi  = _mm256_cmp_pd(y, half_pi,     _CMP_GT_OQ);
+        __m256d sign = one;
+        __m256d gt_hpi = _mm256_cmp_pd(y, half_pi, _CMP_GT_OQ);
         __m256d lt_nhpi = _mm256_cmp_pd(y, neg_half_pi, _CMP_LT_OQ);
 
-        y    = _mm256_blendv_pd(y,    _mm256_sub_pd(pi,     y), gt_hpi);
-        sign = _mm256_blendv_pd(sign, neg_one,                  gt_hpi);
-        y    = _mm256_blendv_pd(y,    _mm256_sub_pd(neg_pi, y), lt_nhpi);
-        sign = _mm256_blendv_pd(sign, neg_one,                  lt_nhpi);
+        y = _mm256_blendv_pd(y, _mm256_sub_pd(pi, y), gt_hpi);
+        sign = _mm256_blendv_pd(sign, neg_one, gt_hpi);
+        y = _mm256_blendv_pd(y, _mm256_sub_pd(neg_pi, y), lt_nhpi);
+        sign = _mm256_blendv_pd(sign, neg_one, lt_nhpi);
 
         // Step 3: Horner evaluation  cos(y) = 1 + y²·(c₁ + y²·(… + y²·c₇))
-        __m256d y2   = _mm256_mul_pd(y, y);
+        __m256d y2 = _mm256_mul_pd(y, y);
         __m256d poly = c7;
         poly = _mm256_add_pd(c6, _mm256_mul_pd(y2, poly));
         poly = _mm256_add_pd(c5, _mm256_mul_pd(y2, poly));

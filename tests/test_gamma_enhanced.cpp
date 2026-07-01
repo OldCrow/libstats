@@ -10,6 +10,8 @@
 #include "libstats/stats/analysis/gamma_analysis.h"
 
 // Standard library includes
+#include "include/enhanced_test_suite.h"
+
 #include <algorithm>  // for std::sort, std::min, std::max
 #include <cmath>      // for std::exp, std::log, std::isfinite, std::abs
 #include <gtest/gtest.h>
@@ -17,7 +19,6 @@
 #include <random>    // for std::mt19937, std::gamma_distribution
 #include <utility>   // for std::move, std::pair
 #include <vector>    // for std::vector
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -196,8 +197,7 @@ TEST_F(GammaEnhancedTest, GoodnessOfFitTests) {
     EXPECT_GT(ks_stat_non_gamma, ks_stat_gamma) << "Non-gamma data should have higher KS statistic";
     // TC-3: EXPECT_TRUE(isfinite) assertions above already validate finiteness;
     // the < 1e15 safety guard was masking real failures. Assert unconditionally.
-    EXPECT_GT(ad_stat_non_gamma, ad_stat_gamma)
-        << "Non-gamma data should have higher AD statistic";
+    EXPECT_GT(ad_stat_non_gamma, ad_stat_gamma) << "Non-gamma data should have higher AD statistic";
     EXPECT_LT(ks_p_non_gamma, ks_p_gamma) << "Non-gamma data should have lower KS p-value";
     if (ad_p_gamma > 0.0 && ad_p_non_gamma > 0.0) {
         EXPECT_LT(ad_p_non_gamma, ad_p_gamma) << "Non-gamma data should have lower AD p-value";
@@ -851,9 +851,11 @@ int main(int argc, char** argv) {
 //==============================================================================
 // DistTraits specialization for stats::GammaDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::GammaDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::GammaDistribution make() { return stats::GammaDistribution::create(2.0, 1.0).unwrap(); }
+    static stats::GammaDistribution make() {
+        return stats::GammaDistribution::create(2.0, 1.0).unwrap();
+    }
     static std::vector<double> domain() { return {0.5, 1.0, 2.0, 3.0, 5.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 8.0; }

@@ -365,8 +365,8 @@ void test_transcendental_functions(const TestOptions& opts) {
             } else {
                 const double lo = -4.0 * M_PI, hi = 4.0 * M_PI;
                 for (size_t i = 0; i < size; ++i)
-                    cos_values[i] = lo + (hi - lo) * static_cast<double>(i) /
-                                                    static_cast<double>(size - 1);
+                    cos_values[i] =
+                        lo + (hi - lo) * static_cast<double>(i) / static_cast<double>(size - 1);
             }
             arch::simd::VectorOps::vector_cos(cos_values.data(), cos_result.data(), size);
             for (size_t i = 0; i < size; ++i)
@@ -616,7 +616,6 @@ void test_advanced_simd([[maybe_unused]] const TestOptions& opts) {
     }
 }
 
-
 /**
  * @brief Accuracy regression test for vector_erf across all five regions.
  *
@@ -644,14 +643,15 @@ void test_erf_accuracy_all_regions(const TestOptions& opts) {
     double max_err = 0.0;
     size_t failures = 0;
     for (size_t i = 0; i < N; ++i) {
-        double ref  = std::erf(xs[i]);
+        double ref = std::erf(xs[i]);
         double diff = std::abs(simd_out[i] - ref);
-        if (diff > max_err) max_err = diff;
+        if (diff > max_err)
+            max_err = diff;
         if (diff > ERF_TOL) {
             ++failures;
             if (opts.verbose && failures <= 3)
-                cout << "  FAIL x=" << xs[i] << " simd=" << simd_out[i]
-                     << " ref=" << ref << " diff=" << diff << "\n";
+                cout << "  FAIL x=" << xs[i] << " simd=" << simd_out[i] << " ref=" << ref
+                     << " diff=" << diff << "\n";
         }
     }
     cout << "  Linspace [-8,8]: max_err=" << scientific << max_err
@@ -659,41 +659,54 @@ void test_erf_accuracy_all_regions(const TestOptions& opts) {
 
     // --- Region boundary stress: triplets just below/at/above each transition ---
     // Each boundary is tested at -delta, exact, +delta to catch blending discontinuities.
-    struct BoundaryCheck { double x; const char* label; };
+    struct BoundaryCheck {
+        double x;
+        const char* label;
+    };
     const BoundaryCheck bounds[] = {
         // R1 / R2 boundary at 0.84375
-        { 0.84370, "R1/R2 just below" }, { 0.84375, "R1/R2 exact" }, { 0.84380, "R1/R2 just above" },
+        {0.84370, "R1/R2 just below"},
+        {0.84375, "R1/R2 exact"},
+        {0.84380, "R1/R2 just above"},
         // R2 / R3 boundary at 1.25
-        { 1.24990, "R2/R3 just below" }, { 1.25000, "R2/R3 exact" }, { 1.25010, "R2/R3 just above" },
+        {1.24990, "R2/R3 just below"},
+        {1.25000, "R2/R3 exact"},
+        {1.25010, "R2/R3 just above"},
         // R3 / R4 boundary at 1/0.35 = 2.857142857...
-        { 2.85700, "R3/R4 just below" }, { 2.85714, "R3/R4 exact" }, { 2.85730, "R3/R4 just above" },
+        {2.85700, "R3/R4 just below"},
+        {2.85714, "R3/R4 exact"},
+        {2.85730, "R3/R4 just above"},
         // R4 / R5 boundary at 6.0
-        { 5.99990, "R4/R5 just below" }, { 6.00000, "R4/R5 exact" }, { 6.00010, "R4/R5 just above" },
+        {5.99990, "R4/R5 just below"},
+        {6.00000, "R4/R5 exact"},
+        {6.00010, "R4/R5 just above"},
         // Negative mirror (erf is odd)
-        { -0.84375, "-R1/R2 exact" }, { -1.25000, "-R2/R3 exact" },
-        { -2.85714, "-R3/R4 exact" }, { -6.00000, "-R4/R5 exact" },
+        {-0.84375, "-R1/R2 exact"},
+        {-1.25000, "-R2/R3 exact"},
+        {-2.85714, "-R3/R4 exact"},
+        {-6.00000, "-R4/R5 exact"},
     };
 
     size_t boundary_failures = 0;
     for (const auto& b : bounds) {
-        double sv[1] = { b.x };
+        double sv[1] = {b.x};
         double rv[1];
         arch::simd::VectorOps::vector_erf(sv, rv, 1);
-        double ref  = std::erf(b.x);
+        double ref = std::erf(b.x);
         double diff = std::abs(rv[0] - ref);
         bool ok = (diff <= ERF_TOL);
-        if (!ok) ++boundary_failures;
+        if (!ok)
+            ++boundary_failures;
         if (opts.verbose || !ok)
-            cout << "  " << (ok ? "PASS" : "FAIL") << " " << b.label
-                 << " x=" << fixed << b.x << " diff=" << scientific << diff << "\n";
+            cout << "  " << (ok ? "PASS" : "FAIL") << " " << b.label << " x=" << fixed << b.x
+                 << " diff=" << scientific << diff << "\n";
     }
-    cout << "  Boundary transitions: "
-         << (boundary_failures == 0 ? "PASS" : "FAIL")
-         << " (" << boundary_failures << " failures)\n";
+    cout << "  Boundary transitions: " << (boundary_failures == 0 ? "PASS" : "FAIL") << " ("
+         << boundary_failures << " failures)\n";
 
     bool passed = (failures == 0) && (boundary_failures == 0);
-    cout << "Overall: " << (passed ? "PASS" : "FAIL")
-         << " (tolerance " << scientific << ERF_TOL << ")\n";
+    cout << "Overall: " << (passed ? "PASS" : "FAIL") << " (tolerance " << scientific << ERF_TOL
+         << ")\n";
 }
 
 }  // namespace TestSIMD

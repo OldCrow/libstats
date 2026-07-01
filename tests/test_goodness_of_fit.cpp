@@ -20,9 +20,10 @@
 // EXPECT_THROW on [[nodiscard]] functions is intentional; suppress the false-positive.
 // cppcheck-suppress unusedResult
 #ifdef _MSC_VER
-#  pragma warning(disable: 4834)  // discarding return value of [[nodiscard]] function (intentional in EXPECT_THROW)
+    #pragma warning(disable : 4834)  // discarding return value of [[nodiscard]] function
+                                     // (intentional in EXPECT_THROW)
 #else
-#  pragma GCC diagnostic ignored "-Wunused-result"
+    #pragma GCC diagnostic ignored "-Wunused-result"
 #endif
 
 using namespace stats;

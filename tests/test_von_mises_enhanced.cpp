@@ -4,6 +4,7 @@
     #pragma warning(disable : 4996)
 #endif
 
+#include "include/enhanced_test_suite.h"
 #include "include/tests.h"
 #include "libstats/distributions/von_mises.h"
 
@@ -14,7 +15,6 @@
 #include <random>
 #include <span>
 #include <vector>
-#include "include/enhanced_test_suite.h"
 
 using namespace std;
 using namespace stats;
@@ -203,12 +203,10 @@ TEST_F(VonMisesEnhancedTest, HighKappaAccuracy) {
     for (double kappa : {51.0, 100.0, 500.0}) {
         auto d = VonMisesDistribution::create(mu, kappa).unwrap();
         // P(X <= mu) = 0.5
-        EXPECT_NEAR(d.getCumulativeProbability(mu), 0.5, 1e-4)
-            << "kappa=" << kappa;
+        EXPECT_NEAR(d.getCumulativeProbability(mu), 0.5, 1e-4) << "kappa=" << kappa;
         // P(X <= mu + 1/sqrt(kappa)) ≈ Phi(1) ≈ 0.8413
         const double x1 = mu + 1.0 / std::sqrt(kappa);
-        EXPECT_NEAR(d.getCumulativeProbability(x1), 0.8413, 1e-3)
-            << "kappa=" << kappa;
+        EXPECT_NEAR(d.getCumulativeProbability(x1), 0.8413, 1e-3) << "kappa=" << kappa;
         // CDF is monotone on [-pi, pi] relative to mu
         EXPECT_GT(d.getCumulativeProbability(x1), d.getCumulativeProbability(mu))
             << "kappa=" << kappa;
@@ -220,9 +218,11 @@ TEST_F(VonMisesEnhancedTest, HighKappaAccuracy) {
 //==============================================================================
 // DistTraits specialization for stats::VonMisesDistribution
 //==============================================================================
-template<>
+template <>
 struct stats::tests::DistTraits<stats::VonMisesDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::VonMisesDistribution make() { return stats::VonMisesDistribution::create(0.0, 1.0).unwrap(); }
+    static stats::VonMisesDistribution make() {
+        return stats::VonMisesDistribution::create(0.0, 1.0).unwrap();
+    }
     static std::vector<double> domain() { return {-1.5, -0.5, 0.0, 0.5, 1.5}; }
     static double batch_lo() { return -3.14159265358979; }
     static double batch_hi() { return 3.14159265358979; }
@@ -230,7 +230,11 @@ struct stats::tests::DistTraits<stats::VonMisesDistribution> : stats::tests::Dis
     static double cdf_tolerance() { return 1e-08; }
     static std::vector<std::function<bool()>> invalid_creators() {
         return {
-            [] { return stats::VonMisesDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError(); },
+            [] {
+                return stats::VonMisesDistribution::create(std::numeric_limits<double>::infinity(),
+                                                           1.0)
+                    .isError();
+            },
             [] { return stats::VonMisesDistribution::create(0.0, -1.0).isError(); },
         };
     }

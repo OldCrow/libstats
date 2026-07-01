@@ -82,8 +82,8 @@ class NegativeBinomialDistribution : public DistributionBase {
     // 2. SAFE FACTORY METHODS (Exception-free construction)
     //==========================================================================
 
-    [[nodiscard]] static Result<NegativeBinomialDistribution> create(
-        double r = detail::ONE, double p = detail::HALF) {
+    [[nodiscard]] static Result<NegativeBinomialDistribution> create(double r = detail::ONE,
+                                                                     double p = detail::HALF) {
         auto v = validateNegativeBinomialParameters(r, p);
         if (v.isError())
             return Result<NegativeBinomialDistribution>::makeError(v.errorCode(), v.message());

@@ -1,6 +1,6 @@
 // Focused unit test for Log-Normal distribution
-#include "include/tests.h"
 #include "include/basic_test_runner.h"
+#include "include/tests.h"
 #include "libstats/distributions/lognormal.h"
 
 #include <cmath>
@@ -209,16 +209,17 @@ int main() {
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
         stats::tests::BasicDistConfig cfg{
-            "Lognormal",
-            {0.5, 1.0, 2.0, 5.0, 10.0},
-            0.1, 10.0,
-            1e-12,
+            "Lognormal", {0.5, 1.0, 2.0, 5.0, 10.0}, 0.1, 10.0, 1e-12,
             2e-7  // cdf_tolerance
         };
         cfg.invalid_scenarios = {
             {"sigma=-1", [] { return LogNormalDistribution::create(0.0, -1.0).isError(); }},
             {"sigma=0", [] { return LogNormalDistribution::create(0.0, 0.0).isError(); }},
-            {"mu=inf", [] { return LogNormalDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError(); }},
+            {"mu=inf",
+             [] {
+                 return LogNormalDistribution::create(std::numeric_limits<double>::infinity(), 1.0)
+                     .isError();
+             }},
         };
         auto batch_dist = stats::LogNormalDistribution::create(0.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, batch_dist);

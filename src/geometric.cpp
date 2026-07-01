@@ -1,4 +1,5 @@
 #include "libstats/distributions/geometric.h"
+
 #include "libstats/common/distribution_impl_common.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -32,7 +33,7 @@ GeometricDistribution::GeometricDistribution(double p)
 GeometricDistribution::GeometricDistribution(const GeometricDistribution& other)
     : DistributionBase(other) {
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
-    p_       = other.p_;
+    p_ = other.p_;
     negbinom_ = other.negbinom_;
     atomicP_.store(p_, std::memory_order_release);
     atomicParamsValid_.store(false, std::memory_order_release);
@@ -43,7 +44,7 @@ GeometricDistribution& GeometricDistribution::operator=(const GeometricDistribut
         std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
         std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
         std::lock(lock1, lock2);
-        p_        = other.p_;
+        p_ = other.p_;
         negbinom_ = other.negbinom_;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -55,9 +56,9 @@ GeometricDistribution& GeometricDistribution::operator=(const GeometricDistribut
 
 GeometricDistribution::GeometricDistribution(GeometricDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
-    p_        = other.p_;
+    p_ = other.p_;
     negbinom_ = std::move(other.negbinom_);
-    other.p_  = detail::HALF;
+    other.p_ = detail::HALF;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
     atomicP_.store(p_, std::memory_order_release);
@@ -67,9 +68,9 @@ GeometricDistribution::GeometricDistribution(GeometricDistribution&& other) noex
 
 GeometricDistribution& GeometricDistribution::operator=(GeometricDistribution&& other) noexcept {
     if (this != &other) {
-        p_        = other.p_;
+        p_ = other.p_;
         negbinom_ = std::move(other.negbinom_);
-        other.p_  = detail::HALF;
+        other.p_ = detail::HALF;
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -127,7 +128,8 @@ void GeometricDistribution::setP(double p) {
 
 VoidResult GeometricDistribution::trySetP(double p) noexcept {
     auto v = validateGeometricParameters(p);
-    if (v.isError()) return v;
+    if (v.isError())
+        return v;
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
         p_ = p;
@@ -170,9 +172,8 @@ void GeometricDistribution::fit(const std::vector<double>& values) {
     setP(std::clamp(p_hat, detail::HIGH_PRECISION_TOLERANCE, detail::ONE));
 }
 
-void GeometricDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<GeometricDistribution>& results) {
+void GeometricDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                             std::vector<GeometricDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 
@@ -225,7 +226,8 @@ double GeometricDistribution::getEntropy() const {
 //==============================================================================
 
 bool GeometricDistribution::operator==(const GeometricDistribution& other) const {
-    if (this == &other) return true;
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);

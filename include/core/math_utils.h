@@ -213,7 +213,7 @@ void vector_lbeta(std::span<const double> a_values, std::span<const double> b_va
 
 // Catalina concept-syntax fallback removed in v2.0.0 (v2.0.0 requires macOS 13+).
 #define LIBSTATS_MATHFUNC_TEMPLATE_1(name) template <MathFunction<double> name>
-#define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                             \
+#define LIBSTATS_MATHFUNC_TEMPLATE_2(name1, name2)                                                 \
     template <MathFunction<double> name1, MathFunction<double> name2>
 #define LIBSTATS_CONSTRAINED_NODISCARD [[nodiscard]]
 
@@ -570,7 +570,6 @@ LIBSTATS_CONSTRAINED_NODISCARD constexpr T safe_divide(T numerator, T denominato
 
     return log_sum_weighted - log_sum_weights;
 }
-
 
 }  // namespace detail
 }  // namespace stats
