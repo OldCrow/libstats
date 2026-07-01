@@ -246,7 +246,7 @@ class ThreadPoolTest {
 
             std::cout << "  Success result: " << (success.isOk() ? "OK" : "Error") << std::endl;
             std::cout << "  Error result: " << (error.isError() ? "Error" : "OK") << std::endl;
-            std::cout << "  Error message: " << error.message << std::endl;
+            std::cout << "  Error message: " << error.message() << std::endl;
 
             // Test error string conversion
             auto errorString = errorToString(ValidationError::InvalidParameter);

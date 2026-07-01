@@ -198,7 +198,7 @@ class SIMDVerifier {
         stats::detail::detail::subsectionHeader("Laplace Distribution (standalone)");
         // Standard Laplace(0,1): LogPDF uses fabs + vector_exp pipeline.
         // Correctness: VECTORIZED vs SCALAR should match to TOLERANCE_NORMAL.
-        auto dist = stats::LaplaceDistribution::create(0.0, 1.0).value;
+        auto dist = stats::LaplaceDistribution::create(0.0, 1.0).unwrap();
 
         std::vector<double> test_data(TEST_SIZE);
         for (size_t i = 0; i < TEST_SIZE; ++i)
@@ -240,7 +240,7 @@ class SIMDVerifier {
         stats::detail::detail::subsectionHeader("Cauchy Distribution (delegates to StudentT(nu=1))");
         // Standard Cauchy(0,1): batch ops transform input then delegate to StudentT.
         // Correctness: VECTORIZED vs SCALAR should match to TOLERANCE_NORMAL.
-        auto dist = stats::CauchyDistribution::create(0.0, 1.0).value;
+        auto dist = stats::CauchyDistribution::create(0.0, 1.0).unwrap();
 
         std::vector<double> test_data(TEST_SIZE);
         for (size_t i = 0; i < TEST_SIZE; ++i)
@@ -283,7 +283,7 @@ class SIMDVerifier {
         // Geometric(p=0.5): PMF(k) = 0.5^(k+1), inputs are non-negative integers.
         // Batch correctness: scalar vs auto-dispatch must match exactly (discrete,
         // no SIMD approximation).
-        auto dist = stats::GeometricDistribution::create(0.5).value;
+        auto dist = stats::GeometricDistribution::create(0.5).unwrap();
 
         // Generate integer test data {0, 1, 2, ..., TEST_SIZE-1} mod 20
         std::vector<double> test_data(TEST_SIZE);
@@ -504,7 +504,7 @@ class SIMDVerifier {
         // kappa=2: unimodal, exercises vector_cos in both LogPDF and PDF batch paths.
         // Uses a local RNG (seed VERIFICATION_SEED+1) so that calling this after testEdgeCases()
         // does not alter rng_ or the test data of any previously-run test.
-        auto dist = stats::VonMisesDistribution::create(0.0, 2.0).value;
+        auto dist = stats::VonMisesDistribution::create(0.0, 2.0).unwrap();
 
         std::mt19937 local_rng(VERIFICATION_SEED + 1);
         std::uniform_real_distribution<double> angle_dist(-PI, PI);
@@ -517,7 +517,7 @@ class SIMDVerifier {
 
     void testUniformDistribution() {
         stats::detail::detail::subsectionHeader("Uniform Distribution SIMD Verification");
-        auto dist = stats::UniformDistribution::create(0.0, 1.0).value;
+        auto dist = stats::UniformDistribution::create(0.0, 1.0).unwrap();
 
         // Test data around the distribution range
         auto test_data = generateTestData(-0.5, 1.5, TEST_SIZE);
@@ -527,7 +527,7 @@ class SIMDVerifier {
 
     void testGaussianDistribution() {
         stats::detail::detail::subsectionHeader("Gaussian Distribution SIMD Verification");
-        auto dist = stats::GaussianDistribution::create(0.0, 1.0).value;
+        auto dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
         // Test data with wider range for Gaussian
         auto test_data = generateTestData(-5.0, 5.0, TEST_SIZE);
@@ -537,7 +537,7 @@ class SIMDVerifier {
 
     void testExponentialDistribution() {
         stats::detail::detail::subsectionHeader("Exponential Distribution SIMD Verification");
-        auto dist = stats::ExponentialDistribution::create(1.0).value;
+        auto dist = stats::ExponentialDistribution::create(1.0).unwrap();
 
         // Test data for exponential (positive values)
         auto test_data = generateTestData(0.0, 10.0, TEST_SIZE);
@@ -547,7 +547,7 @@ class SIMDVerifier {
 
     void testDiscreteDistribution() {
         stats::detail::detail::subsectionHeader("Discrete Distribution SIMD Verification");
-        auto dist = stats::DiscreteDistribution::create(0, 10).value;
+        auto dist = stats::DiscreteDistribution::create(0, 10).unwrap();
 
         // Test data with integer and near-integer values
         auto test_data = generateIntegerTestData(-2, 12, TEST_SIZE);
@@ -557,7 +557,7 @@ class SIMDVerifier {
 
     void testPoissonDistribution() {
         stats::detail::detail::subsectionHeader("Poisson Distribution SIMD Verification");
-        auto dist = stats::PoissonDistribution::create(3.0).value;
+        auto dist = stats::PoissonDistribution::create(3.0).unwrap();
 
         // Test data with non-negative integer and near-integer values
         auto test_data = generateIntegerTestData(0, 15, TEST_SIZE);
@@ -567,7 +567,7 @@ class SIMDVerifier {
 
     void testGammaDistribution() {
         stats::detail::detail::subsectionHeader("Gamma Distribution SIMD Verification");
-        auto dist = stats::GammaDistribution::create(2.0, 1.0).value;
+        auto dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
         // Test data for gamma (positive values)
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);
@@ -578,7 +578,7 @@ class SIMDVerifier {
     void testStudentTDistribution() {
         stats::detail::detail::subsectionHeader("StudentT Distribution SIMD Verification");
         // nu=3: finite variance (3), good SIMD test — full real-line domain, no fixup needed
-        auto dist = stats::StudentTDistribution::create(3.0).value;
+        auto dist = stats::StudentTDistribution::create(3.0).unwrap();
 
         // Full real line: test data spans negative and positive values
         auto test_data = generateTestData(-10.0, 10.0, TEST_SIZE);
@@ -589,7 +589,7 @@ class SIMDVerifier {
     void testBetaDistribution() {
         stats::detail::detail::subsectionHeader("Beta Distribution SIMD Verification");
         // alpha=2, beta=3: unimodal, interior-heavy, exercises the two-log SIMD pipeline
-        auto dist = stats::BetaDistribution::create(2.0, 3.0).value;
+        auto dist = stats::BetaDistribution::create(2.0, 3.0).unwrap();
 
         // Strictly interior (0.01, 0.99): avoids boundary fixup path for a clean SIMD benchmark
         auto test_data = generateTestData(0.01, 0.99, TEST_SIZE);
@@ -600,7 +600,7 @@ class SIMDVerifier {
     void testChiSquaredDistribution() {
         stats::detail::detail::subsectionHeader("ChiSquared Distribution SIMD Verification");
         // k=2: analytically tractable (Exp(1/2)), good SIMD test case
-        auto dist = stats::ChiSquaredDistribution::create(2.0).value;
+        auto dist = stats::ChiSquaredDistribution::create(2.0).unwrap();
 
         // Positive values only; chi-squared support is (0, +inf)
         auto test_data = generateTestData(0.0, 20.0, TEST_SIZE);

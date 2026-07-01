@@ -189,9 +189,9 @@ class ParallelCorrectnessVerifier {
         auto dist_result = createTestDistribution<Dist>();
         if (dist_result.isError()) {
             throw std::runtime_error("Failed to create distribution instance: " +
-                                     dist_result.message);
+                                     dist_result.message());
         }
-        auto dist = dist_result.value;
+        auto dist = std::move(dist_result).unwrap();
         std::vector<double> results(inputs.size());
 
         for (size_t i = 0; i < inputs.size(); ++i) {
@@ -213,9 +213,9 @@ class ParallelCorrectnessVerifier {
         auto dist_result = createTestDistribution<Dist>();
         if (dist_result.isError()) {
             throw std::runtime_error("Failed to create distribution instance: " +
-                                     dist_result.message);
+                                     dist_result.message());
         }
-        auto dist = dist_result.value;
+        auto dist = std::move(dist_result).unwrap();
         std::vector<double> results(inputs.size());
 
         stats::ThreadPool pool(static_cast<std::size_t>(num_threads));
@@ -256,9 +256,9 @@ class ParallelCorrectnessVerifier {
         auto dist_result = createTestDistribution<Dist>();
         if (dist_result.isError()) {
             throw std::runtime_error("Failed to create distribution instance: " +
-                                     dist_result.message);
+                                     dist_result.message());
         }
-        auto dist = dist_result.value;
+        auto dist = std::move(dist_result).unwrap();
         std::vector<double> results(inputs.size());
 
         dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
@@ -280,7 +280,7 @@ class ParallelCorrectnessVerifier {
               if (local_dist_result.isError()) {
                   return;  // Skip this chunk if distribution creation fails
               }
-              auto local_dist = local_dist_result.value;
+              auto local_dist = std::move(local_dist_result).unwrap();
               for (size_t i = start; i < end; ++i) {
                   if (operation == "PDF") {
                       results_ptr[i] = local_dist.getProbability(inputs_ptr[i]);
@@ -307,9 +307,9 @@ class ParallelCorrectnessVerifier {
         auto dist_result = Dist::create();
         if (dist_result.isError()) {
             throw std::runtime_error("Failed to create distribution instance: " +
-                                     dist_result.message);
+                                     dist_result.message());
         }
-        auto dist = dist_result.value;
+        auto dist = std::move(dist_result).unwrap();
         std::vector<double> results(inputs.size());
 
         omp_set_num_threads(num_threads);

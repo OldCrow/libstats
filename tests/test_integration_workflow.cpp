@@ -51,24 +51,24 @@ TEST(IntegrationWorkflow, FactoryAndParameterRoundTrip) {
     // Gaussian
     auto g = GaussianDistribution::create(2.0, 0.5);
     ASSERT_TRUE(g.isOk());
-    EXPECT_NEAR(g.value.getMean(), 2.0, kTol);
-    EXPECT_NEAR(g.value.getVariance(), 0.25, kTol);
+    EXPECT_NEAR(g.unwrap().getMean(), 2.0, kTol);
+    EXPECT_NEAR(g.unwrap().getVariance(), 0.25, kTol);
 
     // Exponential
     auto e = ExponentialDistribution::create(3.0);
     ASSERT_TRUE(e.isOk());
-    EXPECT_NEAR(e.value.getMean(), 1.0 / 3.0, kTol);
+    EXPECT_NEAR(e.unwrap().getMean(), 1.0 / 3.0, kTol);
 
     // Gamma
     auto gam = GammaDistribution::create(2.0, 1.0);
     ASSERT_TRUE(gam.isOk());
-    EXPECT_NEAR(gam.value.getMean(), 2.0, kTol);
-    EXPECT_NEAR(gam.value.getVariance(), 2.0, kTol);
+    EXPECT_NEAR(gam.unwrap().getMean(), 2.0, kTol);
+    EXPECT_NEAR(gam.unwrap().getVariance(), 2.0, kTol);
 
     // Beta
     auto b = BetaDistribution::create(2.0, 3.0);
     ASSERT_TRUE(b.isOk());
-    EXPECT_NEAR(b.value.getMean(), 2.0 / 5.0, 1e-8);
+    EXPECT_NEAR(b.unwrap().getMean(), 2.0 / 5.0, 1e-8);
 
     // Invalid parameters are rejected
     EXPECT_TRUE(GaussianDistribution::create(0.0, -1.0).isError());
@@ -85,7 +85,7 @@ TEST(IntegrationWorkflow, MLEFitting) {
 
     // Gaussian: fit to N(5, 2) samples
     {
-        auto true_dist = GaussianDistribution::create(5.0, 2.0).value;
+        auto true_dist = GaussianDistribution::create(5.0, 2.0).unwrap();
         auto data = generate_samples(true_dist, 2000, 123);
         GaussianDistribution fitted;
         ASSERT_NO_THROW(fitted.fit(data));
@@ -95,7 +95,7 @@ TEST(IntegrationWorkflow, MLEFitting) {
 
     // Exponential: fit to Exp(2) samples
     {
-        auto true_dist = ExponentialDistribution::create(2.0).value;
+        auto true_dist = ExponentialDistribution::create(2.0).unwrap();
         auto data = generate_samples(true_dist, 2000, 456);
         ExponentialDistribution fitted;
         ASSERT_NO_THROW(fitted.fit(data));
@@ -104,7 +104,7 @@ TEST(IntegrationWorkflow, MLEFitting) {
 
     // Poisson: fit to Poisson(4) samples
     {
-        auto true_dist = PoissonDistribution::create(4.0).value;
+        auto true_dist = PoissonDistribution::create(4.0).unwrap();
         auto data = generate_samples(true_dist, 2000, 789);
         PoissonDistribution fitted;
         ASSERT_NO_THROW(fitted.fit(data));
@@ -117,8 +117,8 @@ TEST(IntegrationWorkflow, MLEFitting) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 TEST(IntegrationWorkflow, SurvivalAndHazardFunctions) {
-    auto exp_dist = ExponentialDistribution::create(1.0).value;
-    auto weibull_dist = WeibullDistribution::create(2.0, 1.0).value;
+    auto exp_dist = ExponentialDistribution::create(1.0).unwrap();
+    auto weibull_dist = WeibullDistribution::create(2.0, 1.0).unwrap();
 
     // Exponential: S(x) = exp(-lambda*x), H(x) = lambda (constant)
     for (double x : {0.5, 1.0, 2.0}) {
@@ -145,7 +145,7 @@ TEST(IntegrationWorkflow, SurvivalAndHazardFunctions) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 TEST(IntegrationWorkflow, BatchMatchesScalar) {
-    auto dist = GaussianDistribution::create(0.0, 1.0).value;
+    auto dist = GaussianDistribution::create(0.0, 1.0).unwrap();
 
     const std::size_t N = 100;
     std::vector<double> xs(N), pdf_batch(N), cdf_batch(N), logpdf_batch(N);
@@ -182,25 +182,25 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
             << name << "::getLogProbability(NaN) should return NaN";
     };
 
-    auto gaussian     = GaussianDistribution::create(0.0, 1.0).value;
-    auto exponential  = ExponentialDistribution::create(1.0).value;
-    auto uniform      = UniformDistribution::create(0.0, 1.0).value;
-    auto gamma        = GammaDistribution::create(2.0, 1.0).value;
-    auto chisquared   = ChiSquaredDistribution::create(3.0).value;
-    auto student      = StudentTDistribution::create(5.0).value;
-    auto beta         = BetaDistribution::create(2.0, 2.0).value;
-    auto lognormal    = LogNormalDistribution::create(0.0, 1.0).value;
-    auto pareto       = ParetoDistribution::create(1.0, 2.0).value;
-    auto weibull      = WeibullDistribution::create(2.0, 1.0).value;
-    auto rayleigh     = RayleighDistribution::create(1.0).value;
-    auto vonmises     = VonMisesDistribution::create(0.0, 1.0).value;
-    auto binomial     = BinomialDistribution::create(10, 0.5).value;
-    auto negbinomial  = NegativeBinomialDistribution::create(3.0, 0.5).value;
-    auto geometric    = GeometricDistribution::create(0.5).value;
-    auto laplace      = LaplaceDistribution::create(0.0, 1.0).value;
-    auto cauchy       = CauchyDistribution::create(0.0, 1.0).value;
-    auto poisson      = PoissonDistribution::create(3.0).value;
-    auto discrete     = DiscreteDistribution::create(0, 9).value;
+    auto gaussian     = GaussianDistribution::create(0.0, 1.0).unwrap();
+    auto exponential  = ExponentialDistribution::create(1.0).unwrap();
+    auto uniform      = UniformDistribution::create(0.0, 1.0).unwrap();
+    auto gamma        = GammaDistribution::create(2.0, 1.0).unwrap();
+    auto chisquared   = ChiSquaredDistribution::create(3.0).unwrap();
+    auto student      = StudentTDistribution::create(5.0).unwrap();
+    auto beta         = BetaDistribution::create(2.0, 2.0).unwrap();
+    auto lognormal    = LogNormalDistribution::create(0.0, 1.0).unwrap();
+    auto pareto       = ParetoDistribution::create(1.0, 2.0).unwrap();
+    auto weibull      = WeibullDistribution::create(2.0, 1.0).unwrap();
+    auto rayleigh     = RayleighDistribution::create(1.0).unwrap();
+    auto vonmises     = VonMisesDistribution::create(0.0, 1.0).unwrap();
+    auto binomial     = BinomialDistribution::create(10, 0.5).unwrap();
+    auto negbinomial  = NegativeBinomialDistribution::create(3.0, 0.5).unwrap();
+    auto geometric    = GeometricDistribution::create(0.5).unwrap();
+    auto laplace      = LaplaceDistribution::create(0.0, 1.0).unwrap();
+    auto cauchy       = CauchyDistribution::create(0.0, 1.0).unwrap();
+    auto poisson      = PoissonDistribution::create(3.0).unwrap();
+    auto discrete     = DiscreteDistribution::create(0, 9).unwrap();
 
     check("Gaussian",         gaussian);
     check("Exponential",      exponential);
@@ -232,7 +232,7 @@ TEST(IntegrationWorkflow, GeometricWorkflow) {
     // Delegation: wraps NegativeBinomial(r=1, p)
     auto r = GeometricDistribution::create(0.4);
     ASSERT_TRUE(r.isOk());
-    auto g = std::move(r.value);
+    auto g = std::move(r.unwrap());
 
     // Moment formulas
     EXPECT_NEAR(g.getMean(),     0.6 / 0.4,          1e-10);
@@ -272,7 +272,7 @@ TEST(IntegrationWorkflow, GeometricWorkflow) {
 TEST(IntegrationWorkflow, LaplaceWorkflow) {
     auto r = LaplaceDistribution::create(1.0, 2.0);
     ASSERT_TRUE(r.isOk());
-    auto l = std::move(r.value);
+    auto l = std::move(r.unwrap());
 
     // Moments
     EXPECT_NEAR(l.getMean(),     1.0, 1e-10);
@@ -316,7 +316,7 @@ TEST(IntegrationWorkflow, CauchyWorkflow) {
     // Delegation: wraps StudentT(nu=1); moments are all NaN
     auto r = CauchyDistribution::create(2.0, 3.0);
     ASSERT_TRUE(r.isOk());
-    auto c = std::move(r.value);
+    auto c = std::move(r.unwrap());
 
     // Moments: all undefined (NaN)
     EXPECT_TRUE(std::isnan(c.getMean()))     << "Cauchy mean should be NaN";
@@ -370,12 +370,12 @@ TEST(IntegrationWorkflow, CDFBoundaryValues) {
             << name << "::CDF(+inf) should be 1";
     };
 
-    auto gaussian  = GaussianDistribution::create(0.0, 1.0).value;
-    auto gamma     = GammaDistribution::create(2.0, 1.0).value;
-    auto student   = StudentTDistribution::create(5.0).value;
-    auto weibull   = WeibullDistribution::create(2.0, 1.0).value;
-    auto pareto    = ParetoDistribution::create(1.0, 2.0).value;
-    auto exponential = ExponentialDistribution::create(1.0).value;
+    auto gaussian  = GaussianDistribution::create(0.0, 1.0).unwrap();
+    auto gamma     = GammaDistribution::create(2.0, 1.0).unwrap();
+    auto student   = StudentTDistribution::create(5.0).unwrap();
+    auto weibull   = WeibullDistribution::create(2.0, 1.0).unwrap();
+    auto pareto    = ParetoDistribution::create(1.0, 2.0).unwrap();
+    auto exponential = ExponentialDistribution::create(1.0).unwrap();
 
     check_cdf("Gaussian",     gaussian);
     check_cdf("Gamma",        gamma);
@@ -391,7 +391,7 @@ TEST(IntegrationWorkflow, CDFBoundaryValues) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 TEST(IntegrationWorkflow, KSTestOnOwnSamples) {
-    auto dist = GaussianDistribution::create(0.0, 1.0).value;
+    auto dist = GaussianDistribution::create(0.0, 1.0).unwrap();
     auto data = generate_samples(dist, 500, 999);
 
     // KS test: samples from N(0,1) vs N(0,1) should not reject H0
@@ -411,7 +411,7 @@ TEST(IntegrationWorkflow, KSTestOnOwnSamples) {
 
 TEST(IntegrationWorkflow, BootstrapCIContainsTrueParameter) {
     // Generate data from Exponential(2) — true mean = 0.5
-    auto true_dist = ExponentialDistribution::create(2.0).value;
+    auto true_dist = ExponentialDistribution::create(2.0).unwrap();
     auto data = generate_samples(true_dist, 2000, 777);  // large n for stability
 
     ExponentialDistribution fitted;
@@ -441,7 +441,7 @@ TEST(IntegrationWorkflow, ResetAndRefit) {
 
     std::mt19937 rng(42);
     // Fit to N(10, 3) data
-    auto target = GaussianDistribution::create(10.0, 3.0).value;
+    auto target = GaussianDistribution::create(10.0, 3.0).unwrap();
     auto data = generate_samples(target, 1000, 42);
     dist.fit(data);
     EXPECT_NEAR(dist.getMean(), 10.0, 0.5);
@@ -450,7 +450,7 @@ TEST(IntegrationWorkflow, ResetAndRefit) {
     dist.reset();
     EXPECT_NEAR(dist.getMean(), 0.0, kTol);
 
-    auto target2 = GaussianDistribution::create(-5.0, 0.5).value;
+    auto target2 = GaussianDistribution::create(-5.0, 0.5).unwrap();
     auto data2 = generate_samples(target2, 1000, 99);
     dist.fit(data2);
     EXPECT_NEAR(dist.getMean(), -5.0, 0.2);

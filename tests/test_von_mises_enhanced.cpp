@@ -26,14 +26,14 @@ class VonMisesEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::VonMisesDistribution::create(0.0, 1.0);
         ASSERT_TRUE(r.isOk());
-        vm01_ = std::move(r.value);
+        vm01_ = std::move(r).unwrap();
     }
     VonMisesDistribution vm01_;  // VM(μ=0, κ=1)
 };
 
 // kappa=0 → uniform: PDF = 1/(2π) everywhere
 TEST_F(VonMisesEnhancedTest, UniformCase) {
-    auto u = VonMisesDistribution::create(0.0, 0.0).value;
+    auto u = VonMisesDistribution::create(0.0, 0.0).unwrap();
     EXPECT_TRUE(u.isUniform());
     const double inv2pi = 1.0 / (2.0 * M_PI);
     for (double x : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
@@ -46,7 +46,7 @@ TEST_F(VonMisesEnhancedTest, UniformCase) {
 // PDF is maximised at mu, minimised at mu+pi
 TEST_F(VonMisesEnhancedTest, ModeAtMu) {
     for (double mu : {-1.5, 0.0, 1.0}) {
-        auto d = VonMisesDistribution::create(mu, 3.0).value;
+        auto d = VonMisesDistribution::create(mu, 3.0).unwrap();
         EXPECT_NEAR(d.getMean(), mu, 1e-14) << "getMean() != mu for mu=" << mu;
         EXPECT_GT(d.getProbability(mu),
                   d.getProbability(mu + M_PI > M_PI ? mu + M_PI - 2.0 * M_PI : mu + M_PI))
@@ -56,10 +56,10 @@ TEST_F(VonMisesEnhancedTest, ModeAtMu) {
 
 // Circular variance in [0,1]; increases as kappa decreases
 TEST_F(VonMisesEnhancedTest, CircularVarianceMonotone) {
-    const auto d0 = VonMisesDistribution::create(0.0, 0.0).value;
-    const auto d1 = VonMisesDistribution::create(0.0, 1.0).value;
-    const auto d5 = VonMisesDistribution::create(0.0, 5.0).value;
-    const auto d20 = VonMisesDistribution::create(0.0, 20.0).value;
+    const auto d0 = VonMisesDistribution::create(0.0, 0.0).unwrap();
+    const auto d1 = VonMisesDistribution::create(0.0, 1.0).unwrap();
+    const auto d5 = VonMisesDistribution::create(0.0, 5.0).unwrap();
+    const auto d20 = VonMisesDistribution::create(0.0, 20.0).unwrap();
     EXPECT_NEAR(d0.getVariance(), 1.0, 1e-10);
     EXPECT_GT(d0.getVariance(), d1.getVariance());
     EXPECT_GT(d1.getVariance(), d5.getVariance());
@@ -79,7 +79,7 @@ TEST_F(VonMisesEnhancedTest, LogPDFConsistency) {
 // Mu wrapping: stored value always in (-pi, pi]
 TEST_F(VonMisesEnhancedTest, AngleWrapping) {
     for (double mu : {-10.0, -4.0, 4.0, 7.0, 100.0}) {
-        auto d = VonMisesDistribution::create(mu, 1.0).value;
+        auto d = VonMisesDistribution::create(mu, 1.0).unwrap();
         EXPECT_GT(d.getMu(), -M_PI) << "Mu below -pi for input=" << mu;
         EXPECT_LE(d.getMu(), M_PI) << "Mu above +pi for input=" << mu;
     }
@@ -131,9 +131,9 @@ TEST_F(VonMisesEnhancedTest, QuantileRoundTrip) {
 // MLE recovers true parameters from samples
 TEST_F(VonMisesEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source = VonMisesDistribution::create(1.2, 3.0).value;
+    auto source = VonMisesDistribution::create(1.2, 3.0).unwrap();
     const auto data = source.sample(rng, 500);
-    auto fitted = VonMisesDistribution::create(0.0, 1.0).value;
+    auto fitted = VonMisesDistribution::create(0.0, 1.0).unwrap();
     fitted.fit(data);
     EXPECT_NEAR(fitted.getMu(), 1.2, 0.3) << "Fitted mu should be near 1.2";
     EXPECT_NEAR(fitted.getKappa(), 3.0, 1.0) << "Fitted kappa should be near 3.0";
@@ -141,7 +141,7 @@ TEST_F(VonMisesEnhancedTest, MLEFit) {
 
 // Setter propagates to cache
 TEST_F(VonMisesEnhancedTest, SetterPropagates) {
-    auto d = VonMisesDistribution::create(0.0, 0.0).value;
+    auto d = VonMisesDistribution::create(0.0, 0.0).unwrap();
     EXPECT_TRUE(d.isUniform());
     d.setKappa(2.0);
     EXPECT_FALSE(d.isUniform());
@@ -159,7 +159,7 @@ TEST_F(VonMisesEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(VonMisesDistribution::create(0.0, -1.0).isError());
     EXPECT_FALSE(VonMisesDistribution::create(0.0, 0.0).isError());  // kappa=0 is valid
 
-    auto d = VonMisesDistribution::create(0.0, 1.0).value;
+    auto d = VonMisesDistribution::create(0.0, 1.0).unwrap();
     EXPECT_TRUE(d.trySetKappa(-0.1).isError());
     EXPECT_DOUBLE_EQ(d.getKappa(), 1.0);
 }
@@ -201,7 +201,7 @@ TEST_F(VonMisesEnhancedTest, HighKappaAccuracy) {
     // CDF(mu) = 0.5 by symmetry; CDF(mu + z/sqrt(kappa)) ≈ Phi(z).
     constexpr double mu = 0.5;
     for (double kappa : {51.0, 100.0, 500.0}) {
-        auto d = VonMisesDistribution::create(mu, kappa).value;
+        auto d = VonMisesDistribution::create(mu, kappa).unwrap();
         // P(X <= mu) = 0.5
         EXPECT_NEAR(d.getCumulativeProbability(mu), 0.5, 1e-4)
             << "kappa=" << kappa;
@@ -222,7 +222,7 @@ TEST_F(VonMisesEnhancedTest, HighKappaAccuracy) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::VonMisesDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::VonMisesDistribution make() { return stats::VonMisesDistribution::create(0.0, 1.0).value; }
+    static stats::VonMisesDistribution make() { return stats::VonMisesDistribution::create(0.0, 1.0).unwrap(); }
     static std::vector<double> domain() { return {-1.5, -0.5, 0.0, 0.5, 1.5}; }
     static double batch_lo() { return -3.14159265358979; }
     static double batch_hi() { return 3.14159265358979; }

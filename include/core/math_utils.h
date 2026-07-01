@@ -435,16 +435,13 @@ namespace detail {
  * @return log(1 + exp(x))
  */
 [[nodiscard]] inline double log1pexp(double x) noexcept {
-    if (x > detail::LOG1PEXP_LARGE_THRESHOLD)
-        LIBSTATS_LIKELY {
-            return x;  // exp(x) dominates
-        }
-    else if (x > detail::LOG1PEXP_SMALL_THRESHOLD) {
+    if (x > detail::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
+        return x;  // exp(x) dominates
+    } else if (x > detail::LOG1PEXP_SMALL_THRESHOLD) {
         return std::log1p(std::exp(x));
-    } else
-        LIBSTATS_UNLIKELY {
-            return std::exp(x);  // 1 + exp(x) ≈ 1
-        }
+    } else [[unlikely]] {
+        return std::exp(x);  // 1 + exp(x) ≈ 1
+    }
 }
 
 /**
@@ -453,11 +450,9 @@ namespace detail {
  * @return log(exp(x) - 1)
  */
 [[nodiscard]] inline double logexpm1(double x) noexcept {
-    if (x > detail::LOG1PEXP_LARGE_THRESHOLD)
-        LIBSTATS_LIKELY {
-            return x;  // exp(x) dominates
-        }
-    else {
+    if (x > detail::LOG1PEXP_LARGE_THRESHOLD) [[likely]] {
+        return x;  // exp(x) dominates
+    } else {
         return std::log(std::expm1(x));
     }
 }
@@ -469,11 +464,9 @@ namespace detail {
  * @return log(x + y)
  */
 [[nodiscard]] inline double log_sum_exp(double log_x, double log_y) noexcept {
-    if (log_x > log_y)
-        LIBSTATS_LIKELY {
-            return log_x + std::log1p(std::exp(log_y - log_x));
-        }
-    else {
+    if (log_x > log_y) [[likely]] {
+        return log_x + std::log1p(std::exp(log_y - log_x));
+    } else {
         return log_y + std::log1p(std::exp(log_x - log_y));
     }
 }
@@ -499,10 +492,9 @@ LIBSTATS_CONSTRAINED_NODISCARD constexpr bool is_safe_float(T x) noexcept {
 template <typename T>
     requires FloatingPoint<T>
 LIBSTATS_CONSTRAINED_NODISCARD constexpr T clamp_safe(T x, T min_val, T max_val) noexcept {
-    if (std::isnan(x))
-        LIBSTATS_UNLIKELY {
-            return min_val;
-        }
+    if (std::isnan(x)) [[unlikely]] {
+        return min_val;
+    }
     return std::clamp(x, min_val, max_val);
 }
 

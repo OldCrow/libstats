@@ -414,7 +414,7 @@ TEST(BenchmarkInfrastructure, StressConditions) {
 //==============================================================================
 
 TEST(DistributionBenchmark, GeometricPDFLogPDFCDF) {
-    auto dist = GeometricDistribution::create(0.3).value;
+    auto dist = GeometricDistribution::create(0.3).unwrap();
     constexpr size_t N = 10000;
     std::vector<double> xs(N);
     for (size_t i = 0; i < N; ++i)
@@ -443,7 +443,7 @@ TEST(DistributionBenchmark, GeometricPDFLogPDFCDF) {
 }
 
 TEST(DistributionBenchmark, LaplacePDFLogPDFCDF) {
-    auto dist = LaplaceDistribution::create(0.0, 1.0).value;
+    auto dist = LaplaceDistribution::create(0.0, 1.0).unwrap();
     constexpr size_t N = 10000;
     std::vector<double> xs(N);
     for (size_t i = 0; i < N; ++i)
@@ -472,7 +472,7 @@ TEST(DistributionBenchmark, LaplacePDFLogPDFCDF) {
 }
 
 TEST(DistributionBenchmark, CauchyPDFLogPDFCDF) {
-    auto dist = CauchyDistribution::create(0.0, 1.0).value;
+    auto dist = CauchyDistribution::create(0.0, 1.0).unwrap();
     constexpr size_t N = 10000;
     std::vector<double> xs(N);
     for (size_t i = 0; i < N; ++i)

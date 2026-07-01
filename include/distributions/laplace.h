@@ -98,7 +98,7 @@ class LaplaceDistribution : public DistributionBase {
                                                             double b  = detail::ONE) {
         auto v = validateLaplaceParameters(mu, b);
         if (v.isError())
-            return Result<LaplaceDistribution>::makeError(v.error_code, v.message);
+            return Result<LaplaceDistribution>::makeError(v.errorCode(), v.message());
         return Result<LaplaceDistribution>::ok(createUnchecked(mu, b));
     }
 
@@ -166,7 +166,7 @@ class LaplaceDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "LaplaceDistribution";
+        return "Laplace";
     }
 
     /** @brief Laplace is continuous. */

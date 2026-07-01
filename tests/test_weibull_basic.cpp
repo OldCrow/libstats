@@ -27,26 +27,26 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Default (1,1) = Exponential(rate=1). Support: x >= 0." << endl;
 
-        auto default_w = stats::WeibullDistribution::create().value;
+        auto default_w = stats::WeibullDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default shape", default_w.getShape());
         BasicTestFormatter::printProperty("Default scale", default_w.getScale());
         BasicTestFormatter::printProperty("isExponential (expect 1)",
                                           static_cast<int>(default_w.isExponential()));
 
-        auto w22 = stats::WeibullDistribution::create(2.0, 2.0).value;
+        auto w22 = stats::WeibullDistribution::create(2.0, 2.0).unwrap();
         BasicTestFormatter::printProperty("W(2,2) shape", w22.getShape());
         BasicTestFormatter::printProperty("W(2,2) scale", w22.getScale());
 
         auto copy_w = w22;
         BasicTestFormatter::printProperty("Copy shape", copy_w.getShape());
 
-        auto temp = stats::WeibullDistribution::create(3.0, 1.5).value;
+        auto temp = stats::WeibullDistribution::create(3.0, 1.5).unwrap();
         auto move_w = std::move(temp);
         BasicTestFormatter::printProperty("Move shape", move_w.getShape());
 
         auto result = WeibullDistribution::create(0.5, 2.0);
         if (result.isOk()) {
-            BasicTestFormatter::printProperty("Factory scale", result.value.getScale());
+            BasicTestFormatter::printProperty("Factory scale", (*result).getScale());
         }
 
         BasicTestFormatter::printTestSuccess("All constructor tests passed");
@@ -58,7 +58,7 @@ int main() {
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
         // Weibull(1,1) = Exponential(rate=1): mean=1, variance=1
-        auto w = stats::WeibullDistribution::create(1.0, 1.0).value;
+        auto w = stats::WeibullDistribution::create(1.0, 1.0).unwrap();
         BasicTestFormatter::printProperty("shape", w.getShape());
         BasicTestFormatter::printProperty("scale", w.getScale());
         BasicTestFormatter::printProperty("Mean (expect 1.0)", w.getMean());
@@ -73,7 +73,7 @@ int main() {
         cout << "Variance == 1.0: " << (var_ok ? "PASS" : "FAIL") << endl;
 
         // Weibull(2,1): mean = Γ(1.5) = √π/2 ≈ 0.8862
-        auto w21 = WeibullDistribution::create(2.0, 1.0).value;
+        auto w21 = WeibullDistribution::create(2.0, 1.0).unwrap();
         const double expected_mean_21 = std::exp(std::lgamma(1.5));
         const bool mean21_ok = std::abs(w21.getMean() - expected_mean_21) < 1e-10;
         cout << "W(2,1) mean == Gamma(1.5) ≈ 0.8862: " << (mean21_ok ? "PASS" : "FAIL") << endl;
@@ -103,7 +103,7 @@ int main() {
         cout << "  CDF(1) = 1 - exp(-1) ≈ 0.6321" << endl;
         cout << "  Quantile(0.5) = ln(2) ≈ 0.6931" << endl;
 
-        auto w11 = WeibullDistribution::create(1.0, 1.0).value;
+        auto w11 = WeibullDistribution::create(1.0, 1.0).unwrap();
 
         const double pdf_11_1 = w11.getProbability(1.0);
         const double exp_neg1 = std::exp(-1.0);
@@ -117,7 +117,7 @@ int main() {
         cout << "CDF(1) == 1-exp(-1): " << (cdf_ok ? "PASS" : "FAIL") << endl;
 
         // CDF at x=scale for any Weibull(k,λ): 1 - exp(-1) regardless of k
-        auto w31 = WeibullDistribution::create(3.0, 1.0).value;
+        auto w31 = WeibullDistribution::create(3.0, 1.0).unwrap();
         const double cdf_at_scale = w31.getCumulativeProbability(1.0);
         BasicTestFormatter::printProperty("CDF(scale=1;any k) expect 1-1/e", cdf_at_scale);
         cout << "CDF(scale) == 1-1/e: "
@@ -158,7 +158,7 @@ int main() {
         cout << "All samples from Weibull(1,1) must be > 0." << endl;
 
         mt19937 rng(42);
-        auto sample_dist = WeibullDistribution::create(1.0, 1.0).value;
+        auto sample_dist = WeibullDistribution::create(1.0, 1.0).unwrap();
         double s = sample_dist.sample(rng);
         cout << "Single sample > 0: " << (s > 0.0 ? "PASS" : "FAIL") << endl;
 
@@ -180,8 +180,8 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: Newton-Raphson on profile score for k; closed-form for λ." << endl;
 
-        auto fit_dist = WeibullDistribution::create(1.0, 1.0).value;
-        auto source = WeibullDistribution::create(2.0, 3.0).value;
+        auto fit_dist = WeibullDistribution::create(1.0, 1.0).unwrap();
+        auto source = WeibullDistribution::create(2.0, 3.0).unwrap();
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted shape (from W(2,3), expect ~2)",
@@ -210,20 +210,20 @@ int main() {
             {"shape=-1", [] { return WeibullDistribution::create(-1.0, 1.0).isError(); }},
             {"scale=0", [] { return WeibullDistribution::create(1.0, 0.0).isError(); }},
         };
-        auto batch_dist = WeibullDistribution::create(2.0, 1.0).value;
+        auto batch_dist = WeibullDistribution::create(2.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, batch_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = WeibullDistribution::create(2.0, 1.0).value;
-        auto d2 = WeibullDistribution::create(2.0, 1.0).value;
-        auto d3 = WeibullDistribution::create(3.0, 2.0).value;
+        auto d1 = WeibullDistribution::create(2.0, 1.0).unwrap();
+        auto d2 = WeibullDistribution::create(2.0, 1.0).unwrap();
+        auto d3 = WeibullDistribution::create(3.0, 2.0).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << endl;
         cout << "d1 == d3: " << (d1 == d3 ? "true" : "false") << endl;
         stringstream ss;
         ss << d1;
         cout << "Stream output: " << ss.str() << endl;
-        auto in_dist = WeibullDistribution::create().value;
+        auto in_dist = WeibullDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
             cout << "Stream round-trip shape: " << in_dist.getShape() << endl;

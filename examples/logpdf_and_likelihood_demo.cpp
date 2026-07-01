@@ -94,8 +94,8 @@ int main() {
     // ─────────────────────────────────────────────────────────────────────────
     section("1. Scalar Log-Probability");
 
-    auto normal  = stats::GaussianDistribution::create(0.0, 1.0).value;
-    auto exp_dist = stats::ExponentialDistribution::create(2.0).value;
+    auto normal  = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+    auto exp_dist = stats::ExponentialDistribution::create(2.0).unwrap();
 
     std::cout << std::fixed << std::setprecision(6);
     std::cout << "Gaussian N(0,1) at x = 0.0:\n";
@@ -140,14 +140,14 @@ int main() {
 
     // Generate 500 observations from the true Gaussian N(1.5, 0.8)
     const double true_mu = 1.5, true_sigma = 0.8;
-    auto true_dist = stats::GaussianDistribution::create(true_mu, true_sigma).value;
+    auto true_dist = stats::GaussianDistribution::create(true_mu, true_sigma).unwrap();
     auto observations = true_dist.sample(rng, 500);
     std::cout << "Generated 500 observations from Gaussian N(μ=1.5, σ=0.8).\n\n";
 
     // Evaluate log-likelihood under several candidate models
-    auto m1 = stats::GaussianDistribution::create(0.0, 1.0).value;  // wrong params
-    auto m2 = stats::GaussianDistribution::create(1.5, 0.8).value;  // correct params
-    auto m3 = stats::GaussianDistribution::create(1.5, 2.0).value;  // wrong sigma
+    auto m1 = stats::GaussianDistribution::create(0.0, 1.0).unwrap();  // wrong params
+    auto m2 = stats::GaussianDistribution::create(1.5, 0.8).unwrap();  // correct params
+    auto m3 = stats::GaussianDistribution::create(1.5, 2.0).unwrap();  // wrong sigma
 
     const double ll_m1 = log_likelihood(m1, observations);
     const double ll_m2 = log_likelihood(m2, observations);
@@ -199,13 +199,13 @@ int main() {
     section("5. Model Comparison via Log-Likelihood");
 
     // Generate positive-valued latency data from an Exponential distribution
-    auto latency_src = stats::ExponentialDistribution::create(0.5).value;  // mean = 2s
+    auto latency_src = stats::ExponentialDistribution::create(0.5).unwrap();  // mean = 2s
     auto latency_obs = latency_src.sample(rng, 300);
     std::cout << "Generated 300 latency observations from Exponential(λ=0.5, mean=2s).\n\n";
 
     // Fit both models to the data
-    auto gauss_fitted = stats::GaussianDistribution::create(1.0, 1.0).value;
-    auto exp_fitted   = stats::ExponentialDistribution::create(1.0).value;
+    auto gauss_fitted = stats::GaussianDistribution::create(1.0, 1.0).unwrap();
+    auto exp_fitted   = stats::ExponentialDistribution::create(1.0).unwrap();
     gauss_fitted.fit(latency_obs);
     exp_fitted.fit(latency_obs);
 
@@ -233,10 +233,10 @@ int main() {
 
     // Fit a model to training data, score test observations.
     // A low log-probability signals an anomalous (unlikely) observation.
-    auto training_src = stats::GaussianDistribution::create(10.0, 2.0).value;
+    auto training_src = stats::GaussianDistribution::create(10.0, 2.0).unwrap();
     auto training_data = training_src.sample(rng, 500);
 
-    auto scoring_model = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto scoring_model = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
     scoring_model.fit(training_data);
 
     std::cout << "Training: 500 observations from N(μ=10, σ=2).\n";

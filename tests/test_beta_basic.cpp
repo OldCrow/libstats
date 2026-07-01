@@ -27,25 +27,25 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Beta(1,1) = Uniform(0,1). Beta(alpha,beta): support [0,1]." << endl;
 
-        auto default_beta = stats::BetaDistribution::create().value;
+        auto default_beta = stats::BetaDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default alpha", default_beta.getAlpha());
         BasicTestFormatter::printProperty("Default beta", default_beta.getBeta());
         BasicTestFormatter::printProperty("Default isUniform", static_cast<int>(default_beta.isUniform()));
 
-        auto b23 = stats::BetaDistribution::create(2.0, 3.0).value;
+        auto b23 = stats::BetaDistribution::create(2.0, 3.0).unwrap();
         BasicTestFormatter::printProperty("Beta(2,3) alpha", b23.getAlpha());
         BasicTestFormatter::printProperty("Beta(2,3) beta", b23.getBeta());
 
         auto copy_b = b23;
         BasicTestFormatter::printProperty("Copy alpha", copy_b.getAlpha());
 
-        auto temp = stats::BetaDistribution::create(5.0, 2.0).value;
+        auto temp = stats::BetaDistribution::create(5.0, 2.0).unwrap();
         auto move_b = std::move(temp);
         BasicTestFormatter::printProperty("Move alpha", move_b.getAlpha());
 
         auto result = BetaDistribution::create(3.0, 4.0);
         if (result.isOk()) {
-            BasicTestFormatter::printProperty("Factory alpha", result.value.getAlpha());
+            BasicTestFormatter::printProperty("Factory alpha", result->getAlpha());
         }
 
         BasicTestFormatter::printTestSuccess("All constructor tests passed");
@@ -56,7 +56,7 @@ int main() {
         // =====================================================================
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
-        auto b = stats::BetaDistribution::create(2.0, 5.0).value;
+        auto b = stats::BetaDistribution::create(2.0, 5.0).unwrap();
         // Beta(2,5): mean=2/7, variance=10/(49*8)=10/392
         const double expected_mean = 2.0 / 7.0;
         const double expected_var = 2.0 * 5.0 / (49.0 * 8.0);
@@ -102,14 +102,14 @@ int main() {
         cout << "  Beta(a,b) CDF(0.5) = 0.5 when a=b  [symmetry]" << endl;
 
         // Uniform case
-        auto b11 = BetaDistribution::create(1.0, 1.0).value;
+        auto b11 = BetaDistribution::create(1.0, 1.0).unwrap();
         const double pdf_11_05 = b11.getProbability(0.5);
         BasicTestFormatter::printProperty("Beta(1,1) PDF(0.5) expect 1", pdf_11_05);
         const bool unif_ok = std::abs(pdf_11_05 - 1.0) < 1e-10;
         cout << "Uniform PDF: " << (unif_ok ? "PASS" : "FAIL") << endl;
 
         // Beta(2,2) analytical value
-        auto b22 = BetaDistribution::create(2.0, 2.0).value;
+        auto b22 = BetaDistribution::create(2.0, 2.0).unwrap();
         const double pdf_22_05 = b22.getProbability(0.5);
         BasicTestFormatter::printProperty("Beta(2,2) PDF(0.5) expect 1.5", pdf_22_05);
         const bool b22_ok = std::abs(pdf_22_05 - 1.5) < 1e-10;
@@ -117,7 +117,7 @@ int main() {
 
         // CDF symmetry
         for (double a : {1.0, 2.0, 3.0, 5.0}) {
-            auto bd = BetaDistribution::create(a, a).value;
+            auto bd = BetaDistribution::create(a, a).unwrap();
             double cdf_half = bd.getCumulativeProbability(0.5);
             bool sym_ok = std::abs(cdf_half - 0.5) < 1e-8;
             cout << "CDF(0.5, " << a << "," << a << ")=0.5: " << (sym_ok ? "PASS" : "FAIL")
@@ -153,7 +153,7 @@ int main() {
         cout << "X/(X+Y) with Gamma samples. Mean should ≈ alpha/(alpha+beta)." << endl;
 
         mt19937 rng(42);
-        auto b35 = BetaDistribution::create(3.0, 5.0).value;  // mean = 3/8 = 0.375
+        auto b35 = BetaDistribution::create(3.0, 5.0).unwrap();  // mean = 3/8 = 0.375
 
         const auto samples = b35.sample(rng, 500);
         const double smean = TestDataGenerators::computeSampleMean(samples);
@@ -178,7 +178,7 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: MoM initial estimate + Newton-Raphson on score equations." << endl;
 
-        auto b_fit = BetaDistribution::create(1.0, 1.0).value;
+        auto b_fit = BetaDistribution::create(1.0, 1.0).unwrap();
         const auto fit_data = b35.sample(rng, 300);
         b_fit.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted alpha (from Beta(3,5), expect ~3)",
@@ -209,14 +209,14 @@ int main() {
             {"alpha=-1", [] { return BetaDistribution::create(-1.0, 2.0).isError(); }},
             {"beta=0", [] { return BetaDistribution::create(2.0, 0.0).isError(); }},
         };
-        auto b_batch = BetaDistribution::create(2.0, 3.0).value;
+        auto b_batch = BetaDistribution::create(2.0, 3.0).unwrap();
         stats::tests::runBatchTests(cfg, b_batch);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto a1 = BetaDistribution::create(2.0, 3.0).value;
-        auto a2 = BetaDistribution::create(2.0, 3.0).value;
-        auto a3 = BetaDistribution::create(3.0, 2.0).value;
+        auto a1 = BetaDistribution::create(2.0, 3.0).unwrap();
+        auto a2 = BetaDistribution::create(2.0, 3.0).unwrap();
+        auto a3 = BetaDistribution::create(3.0, 2.0).unwrap();
         cout << "a1==a2 (2,3 vs 2,3): " << (a1 == a2 ? "true" : "false") << endl;
         cout << "a1!=a3 (2,3 vs 3,2): " << (a1 != a3 ? "true" : "false") << endl;
 
@@ -225,7 +225,7 @@ int main() {
         cout << "Stream output: " << oss.str() << endl;
 
         istringstream iss("BetaDistribution(alpha=4, beta=6)");
-        auto parsed = BetaDistribution::create().value;
+        auto parsed = BetaDistribution::create().unwrap();
         iss >> parsed;
         BasicTestFormatter::printProperty("Parsed alpha (expect 4)", parsed.getAlpha());
         BasicTestFormatter::printProperty("Parsed beta  (expect 6)", parsed.getBeta());

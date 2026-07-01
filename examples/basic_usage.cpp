@@ -47,8 +47,8 @@ int main() {
               << "  - Exponential(λ=2.0): Rate parameter controls decay speed\n"
               << std::endl;
 
-    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;     // Standard normal
-    auto exponential = stats::ExponentialDistribution::create(2.0).value;  // Rate parameter = 2.0
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();     // Standard normal
+    auto exponential = stats::ExponentialDistribution::create(2.0).unwrap();  // Rate parameter = 2.0
 
     std::cout << "✓ Gaussian N(0,1) created" << std::endl;
     std::cout << "✓ Exponential(λ=2.0) created" << std::endl;
@@ -218,12 +218,12 @@ int main() {
               << std::endl;
 
     // Step 1: generate some "observed" latency data (in ms) from an Exponential process
-    auto true_latency = stats::ExponentialDistribution::create(0.1).value;  // mean 10 ms
+    auto true_latency = stats::ExponentialDistribution::create(0.1).unwrap();  // mean 10 ms
     auto observed = true_latency.sample(rng, 200);
     std::cout << "📊 200 latency observations (simulated, mean ~ 10 ms)" << std::endl;
 
     // Step 2: fit
-    auto latency_model = stats::ExponentialDistribution::create(1.0).value;
+    auto latency_model = stats::ExponentialDistribution::create(1.0).unwrap();
     latency_model.fit(observed);
     std::cout << "🔧 Fitted Exponential(λ = " << std::setprecision(4) << latency_model.getLambda()
               << ")  mean = " << latency_model.getMean() << " ms" << std::endl;

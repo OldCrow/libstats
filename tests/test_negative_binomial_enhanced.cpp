@@ -26,7 +26,7 @@ class NegativeBinomialEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::NegativeBinomialDistribution::create(2.0, 0.5);
         ASSERT_TRUE(r.isOk());
-        nb2_05_ = std::move(r.value);
+        nb2_05_ = std::move(r).unwrap();
     }
     NegativeBinomialDistribution nb2_05_;  // NB(r=2, p=0.5)
 };
@@ -81,7 +81,7 @@ TEST_F(NegativeBinomialEnhancedTest, Moments) {
     // Skewness = (2-p)/sqrt(r(1-p)) = 1.5/sqrt(1) = 1.5
     EXPECT_NEAR(nb2_05_.getSkewness(), 1.5, 1e-12);
 
-    auto nb3_06 = NegativeBinomialDistribution::create(3.0, 0.6).value;
+    auto nb3_06 = NegativeBinomialDistribution::create(3.0, 0.6).unwrap();
     // mean = 3*0.4/0.6 = 2.0; var = 3*0.4/0.36 = 10/3 ≈ 3.333
     EXPECT_NEAR(nb3_06.getMean(),     2.0,       1e-12);
     EXPECT_NEAR(nb3_06.getVariance(), 10.0 / 3.0, 1e-10);
@@ -146,9 +146,9 @@ TEST_F(NegativeBinomialEnhancedTest, VectorizedEqualsScalar) {
 // MLE fit recovers true parameters from NB(3, 0.6)
 TEST_F(NegativeBinomialEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source = NegativeBinomialDistribution::create(3.0, 0.6).value;
+    auto source = NegativeBinomialDistribution::create(3.0, 0.6).unwrap();
     const auto data = source.sample(rng, 1000);
-    auto fitted = NegativeBinomialDistribution::create(1.0, 0.5).value;
+    auto fitted = NegativeBinomialDistribution::create(1.0, 0.5).unwrap();
     fitted.fit(data);
     EXPECT_NEAR(fitted.getR(), 3.0, 1.0) << "Fitted r should be near 3.0";
     EXPECT_NEAR(fitted.getP(), 0.6, 0.1) << "Fitted p should be near 0.6";
@@ -157,9 +157,9 @@ TEST_F(NegativeBinomialEnhancedTest, MLEFit) {
 // MLE with real-valued r
 TEST_F(NegativeBinomialEnhancedTest, MLERealR) {
     mt19937 rng(99);
-    auto source = NegativeBinomialDistribution::create(1.5, 0.7).value;
+    auto source = NegativeBinomialDistribution::create(1.5, 0.7).unwrap();
     const auto data = source.sample(rng, 800);
-    auto fitted = NegativeBinomialDistribution::create(1.0, 0.5).value;
+    auto fitted = NegativeBinomialDistribution::create(1.0, 0.5).unwrap();
     fitted.fit(data);
     EXPECT_GT(fitted.getR(), 0.0);
     EXPECT_GT(fitted.getP(), 0.0);
@@ -175,7 +175,7 @@ TEST_F(NegativeBinomialEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(NegativeBinomialDistribution::create(
                     std::numeric_limits<double>::infinity(), 0.5).isError());
 
-    auto d = NegativeBinomialDistribution::create(2.0, 0.5).value;
+    auto d = NegativeBinomialDistribution::create(2.0, 0.5).unwrap();
     EXPECT_TRUE(d.trySetR(-1.0).isError());
     EXPECT_TRUE(d.trySetP(0.0).isError());
     EXPECT_DOUBLE_EQ(d.getR(), 2.0);
@@ -184,7 +184,7 @@ TEST_F(NegativeBinomialEnhancedTest, InvalidParameters) {
 
 // Setter propagates: setR and setP change moments
 TEST_F(NegativeBinomialEnhancedTest, SetterPropagates) {
-    auto d = NegativeBinomialDistribution::create(2.0, 0.5).value;
+    auto d = NegativeBinomialDistribution::create(2.0, 0.5).unwrap();
     EXPECT_NEAR(d.getMean(), 2.0, 1e-12);
     d.setP(0.4);
     // mean = 2 * 0.6 / 0.4 = 3.0
@@ -197,7 +197,7 @@ TEST_F(NegativeBinomialEnhancedTest, SetterPropagates) {
 // p=1 edge case: all mass at k=0 (geometric series sum = p^r / (1 - (1-p)) = p^r when p=1)
 // NB(r, p=1): PMF(0) = 1, PMF(k>0) = 0
 TEST_F(NegativeBinomialEnhancedTest, PEqualsOneEdgeCase) {
-    auto nb_p1 = NegativeBinomialDistribution::create(2.0, 1.0).value;
+    auto nb_p1 = NegativeBinomialDistribution::create(2.0, 1.0).unwrap();
     EXPECT_NEAR(nb_p1.getProbability(0.0), 1.0, 1e-12);
     EXPECT_DOUBLE_EQ(nb_p1.getProbability(1.0), 0.0);
     EXPECT_NEAR(nb_p1.getCumulativeProbability(0.0), 1.0, 1e-10);
@@ -241,7 +241,7 @@ TEST_F(NegativeBinomialEnhancedTest, ParallelBatchCorrectness) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::NegativeBinomialDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::NegativeBinomialDistribution make() { return stats::NegativeBinomialDistribution::create(5.0, 0.4).value; }
+    static stats::NegativeBinomialDistribution make() { return stats::NegativeBinomialDistribution::create(5.0, 0.4).unwrap(); }
     static std::vector<double> domain() { return {0.0, 1.0, 2.0, 5.0, 10.0}; }
     static double batch_lo() { return 0.0; }
     static double batch_hi() { return 19.0; }

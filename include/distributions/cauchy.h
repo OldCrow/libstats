@@ -114,7 +114,7 @@ class CauchyDistribution : public DistributionBase {
                                                            double gamma = detail::ONE) {
         auto v = validateCauchyParameters(x0, gamma);
         if (v.isError())
-            return Result<CauchyDistribution>::makeError(v.error_code, v.message);
+            return Result<CauchyDistribution>::makeError(v.errorCode(), v.message());
         return Result<CauchyDistribution>::ok(createUnchecked(x0, gamma));
     }
 
@@ -180,7 +180,7 @@ class CauchyDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "CauchyDistribution";
+        return "Cauchy";
     }
 
     /** @brief Cauchy is continuous. */
@@ -364,7 +364,7 @@ class CauchyDistribution : public DistributionBase {
     // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double x0, double gamma) {
         auto v = ::stats::validateCauchyParameters(x0, gamma);
-        if (v.isError()) throw std::invalid_argument(v.message);
+        if (v.isError()) throw std::invalid_argument(v.message());
     }
 
     //==========================================================================

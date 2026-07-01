@@ -62,12 +62,12 @@ namespace stats {
  * // Reliability analysis: equipment lifetime (shape=2, rate=0.5)
  * auto result = GammaDistribution::create(2.0, 0.5);
  * if (result.isOk()) {
- *     auto lifetime = std::move(result.value);
+ *     auto lifetime = std::move(result.unwrap());
  *
  *     // Bayesian analysis: prior for Poisson rate (shape=1, rate=1)
  *     auto priorResult = GammaDistribution::create(1.0, 1.0);
  *     if (priorResult.isOk()) {
- *         auto prior = std::move(priorResult.value);
+ *         auto prior = std::move(priorResult.unwrap());
  *
  *         // Fit to observed positive data
  *         std::vector<double> lifetimes = {1.2, 2.1, 0.8, 3.4, 1.9, 2.7};
@@ -209,10 +209,10 @@ class GammaDistribution : public DistributionBase {
      * @code
      * auto result = GammaDistribution::create(2.0, 0.5);
      * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
+     *     auto distribution = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
@@ -220,7 +220,7 @@ class GammaDistribution : public DistributionBase {
                                                           double beta = 1.0) {
         auto validation = validateGammaParameters(alpha, beta);
         if (validation.isError()) {
-            return Result<GammaDistribution>::makeError(validation.error_code, validation.message);
+            return Result<GammaDistribution>::makeError(validation.errorCode(), validation.message());
         }
 
         // Use private factory to bypass validation

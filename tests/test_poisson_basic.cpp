@@ -33,11 +33,11 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_poisson = stats::PoissonDistribution::create().value;
+        auto default_poisson = stats::PoissonDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default Lambda", default_poisson.getLambda());
 
         // Parameterized constructor test
-        auto param_poisson = stats::PoissonDistribution::create(3.0).value;
+        auto param_poisson = stats::PoissonDistribution::create(3.0).unwrap();
         BasicTestFormatter::printProperty("Param Lambda", param_poisson.getLambda());
 
         // Copy constructor test
@@ -45,14 +45,14 @@ int main() {
         BasicTestFormatter::printProperty("Copy Lambda", copy_poisson.getLambda());
 
         // Move constructor test
-        auto temp_poisson = stats::PoissonDistribution::create(5.0).value;
+        auto temp_poisson = stats::PoissonDistribution::create(5.0).unwrap();
         auto move_poisson = std::move(temp_poisson);
         BasicTestFormatter::printProperty("Move Lambda", move_poisson.getLambda());
 
         // Safe factory method test
         auto result = PoissonDistribution::create(3.0);
         if (result.isOk()) {
-            auto factory_poisson = std::move(result.value);
+            auto factory_poisson = std::move(result).unwrap();
             BasicTestFormatter::printProperty("Factory Lambda", factory_poisson.getLambda());
         }
 
@@ -71,7 +71,7 @@ int main() {
                 "variance=3)."
              << endl;
 
-        auto poisson_dist = stats::PoissonDistribution::create(3.0).value;
+        auto poisson_dist = stats::PoissonDistribution::create(3.0).unwrap();
 
         // Test getters
         BasicTestFormatter::printProperty("Initial Lambda", poisson_dist.getLambda());
@@ -108,7 +108,7 @@ int main() {
         cout << "Expected: For Poisson(3.0): PMF(3)≈0.224, CDF(3)≈0.647, mode=3 for symmetric case."
              << endl;
 
-        auto test_poisson = stats::PoissonDistribution::create(3.0).value;
+        auto test_poisson = stats::PoissonDistribution::create(3.0).unwrap();
         int k = 3;
 
         BasicTestFormatter::printProperty("PMF(3)", test_poisson.getProbability(k));
@@ -184,7 +184,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = TestDataGenerators::generatePoissonTestData();
-        auto fitted_dist = stats::PoissonDistribution::create().value;
+        auto fitted_dist = stats::PoissonDistribution::create().unwrap();
         fitted_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted Lambda", fitted_dist.getLambda());
 
@@ -211,7 +211,7 @@ int main() {
         cfg.invalid_scenarios = {
             {"negative lambda", [] { return PoissonDistribution::create(-1.0).isError(); }},
         };
-        auto test_dist = stats::PoissonDistribution::create(3.0).value;
+        auto test_dist = stats::PoissonDistribution::create(3.0).unwrap();
         stats::tests::runBatchTests(cfg, test_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
@@ -219,9 +219,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = stats::PoissonDistribution::create(3.0).value;
-        auto dist2 = stats::PoissonDistribution::create(3.0).value;
-        auto dist3 = stats::PoissonDistribution::create(5.0).value;
+        auto dist1 = stats::PoissonDistribution::create(3.0).unwrap();
+        auto dist2 = stats::PoissonDistribution::create(3.0).unwrap();
+        auto dist3 = stats::PoissonDistribution::create(5.0).unwrap();
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -234,7 +234,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = stats::PoissonDistribution::create().value;
+        auto input_dist = stats::PoissonDistribution::create().unwrap();
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;

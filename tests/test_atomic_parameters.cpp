@@ -26,7 +26,7 @@ constexpr int kConcurrentReaderOps = 20000;
 TEST(AtomicParameters, ExponentialAtomicGetter) {
     auto result = ExponentialDistribution::create(2.5);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     double lambda_regular = exp_dist.getLambda();
     double lambda_atomic = exp_dist.getLambdaAtomic();
@@ -40,7 +40,7 @@ TEST(AtomicParameters, ExponentialAtomicGetter) {
 TEST(AtomicParameters, AtomicGetterConsistency) {
     auto result = ExponentialDistribution::create(1.0);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(exp_dist.getLambdaAtomic(), 1.0, 1e-15);
 
@@ -57,7 +57,7 @@ TEST(AtomicParameters, AtomicGetterConsistency) {
 TEST(AtomicParameters, GaussianAtomicGetters) {
     auto result = GaussianDistribution::create(5.0, 2.0);
     ASSERT_TRUE(result.isOk());
-    auto gauss_dist = std::move(result.value);
+    auto gauss_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(gauss_dist.getMean(), gauss_dist.getMeanAtomic(), 1e-15);
     EXPECT_NEAR(gauss_dist.getStandardDeviation(), gauss_dist.getStandardDeviationAtomic(), 1e-15);
@@ -68,7 +68,7 @@ TEST(AtomicParameters, GaussianAtomicGetters) {
 TEST(AtomicParameters, DiscreteAtomicGetters) {
     auto result = DiscreteDistribution::create(1, 10);
     ASSERT_TRUE(result.isOk());
-    auto discrete_dist = std::move(result.value);
+    auto discrete_dist = std::move(result).unwrap();
 
     EXPECT_EQ(discrete_dist.getLowerBound(), discrete_dist.getLowerBoundAtomic());
     EXPECT_EQ(discrete_dist.getUpperBound(), discrete_dist.getUpperBoundAtomic());
@@ -79,7 +79,7 @@ TEST(AtomicParameters, DiscreteAtomicGetters) {
 TEST(AtomicParameters, GaussianAtomicInvalidation) {
     auto result = GaussianDistribution::create(1.0, 1.0);
     ASSERT_TRUE(result.isOk());
-    auto gauss_dist = std::move(result.value);
+    auto gauss_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(gauss_dist.getMeanAtomic(), 1.0, 1e-15);
     EXPECT_NEAR(gauss_dist.getStandardDeviationAtomic(), 1.0, 1e-15);
@@ -102,7 +102,7 @@ TEST(AtomicParameters, GaussianAtomicInvalidation) {
 TEST(AtomicParameters, ExponentialAtomicInvalidation) {
     auto result = ExponentialDistribution::create(1.0);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(exp_dist.getLambdaAtomic(), 1.0, 1e-15);
 
@@ -122,7 +122,7 @@ TEST(AtomicParameters, ExponentialAtomicInvalidation) {
 TEST(AtomicParameters, PoissonAtomicInvalidation) {
     auto result = PoissonDistribution::create(2.0);
     ASSERT_TRUE(result.isOk());
-    auto poisson_dist = std::move(result.value);
+    auto poisson_dist = std::move(result).unwrap();
 
     EXPECT_NEAR(poisson_dist.getLambdaAtomic(), 2.0, 1e-15);
 
@@ -142,7 +142,7 @@ TEST(AtomicParameters, PoissonAtomicInvalidation) {
 TEST(AtomicParameters, DiscreteAtomicInvalidation) {
     auto result = DiscreteDistribution::create(1, 5);
     ASSERT_TRUE(result.isOk());
-    auto discrete_dist = std::move(result.value);
+    auto discrete_dist = std::move(result).unwrap();
 
     EXPECT_EQ(discrete_dist.getLowerBoundAtomic(), 1);
     EXPECT_EQ(discrete_dist.getUpperBoundAtomic(), 5);
@@ -168,7 +168,7 @@ TEST(AtomicParameters, DiscreteAtomicInvalidation) {
 TEST(AtomicParameters, PerformanceComparison) {
     auto result = ExponentialDistribution::create(1.5);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     const int iterations = 100000;
     for (int i = 0; i < 1000; ++i)
@@ -197,7 +197,7 @@ TEST(AtomicParameters, PerformanceComparison) {
 TEST(AtomicParameters, ThreadSafety) {
     auto result = ExponentialDistribution::create(2.0);
     ASSERT_TRUE(result.isOk());
-    auto exp_dist = std::move(result.value);
+    auto exp_dist = std::move(result).unwrap();
 
     const int num_threads = 4;
     const int ops = 10000;
@@ -229,7 +229,7 @@ TEST(AtomicParameters, ThreadSafety) {
 TEST(AtomicParameters, ConcurrentWriteReadPoisson) {
     // One writer alternates lambda between two values; readers use the atomic
     // getter and verify the returned value is always a valid lambda (> 0).
-    auto dist = PoissonDistribution::create(1.0).value;
+    auto dist = PoissonDistribution::create(1.0).unwrap();
     std::atomic<bool> stop{false};
     std::atomic<bool> corrupt{false};
 
@@ -262,7 +262,7 @@ TEST(AtomicParameters, ConcurrentWriteReadPoisson) {
 }
 
 TEST(AtomicParameters, ConcurrentWriteReadExponential) {
-    auto dist = ExponentialDistribution::create(1.0).value;
+    auto dist = ExponentialDistribution::create(1.0).unwrap();
     std::atomic<bool> stop{false};
     std::atomic<bool> corrupt{false};
 
@@ -295,7 +295,7 @@ TEST(AtomicParameters, ConcurrentWriteReadExponential) {
 }
 
 TEST(AtomicParameters, BinomialAtomicGetters) {
-    auto dist = BinomialDistribution::create(10, 0.4).value;
+    auto dist = BinomialDistribution::create(10, 0.4).unwrap();
     EXPECT_EQ(dist.getNAtomic(), 10);
     EXPECT_NEAR(dist.getPAtomic(), 0.4, 1e-15);
     EXPECT_EQ(dist.getN(), dist.getNAtomic());
@@ -303,7 +303,7 @@ TEST(AtomicParameters, BinomialAtomicGetters) {
 }
 
 TEST(AtomicParameters, BinomialAtomicInvalidation) {
-    auto dist = BinomialDistribution::create(5, 0.3).value;
+    auto dist = BinomialDistribution::create(5, 0.3).unwrap();
     EXPECT_EQ(dist.getNAtomic(), 5);
     EXPECT_NEAR(dist.getPAtomic(), 0.3, 1e-15);
 

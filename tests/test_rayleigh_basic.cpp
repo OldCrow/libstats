@@ -27,22 +27,22 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Default σ=1 is the standard Rayleigh. Support: x >= 0." << endl;
 
-        auto default_r = stats::RayleighDistribution::create().value;
+        auto default_r = stats::RayleighDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default sigma", default_r.getSigma());
 
-        auto r2 = stats::RayleighDistribution::create(2.0).value;
+        auto r2 = stats::RayleighDistribution::create(2.0).unwrap();
         BasicTestFormatter::printProperty("R(2) sigma", r2.getSigma());
 
         auto copy_r = r2;
         BasicTestFormatter::printProperty("Copy sigma", copy_r.getSigma());
 
-        auto temp = stats::RayleighDistribution::create(3.0).value;
+        auto temp = stats::RayleighDistribution::create(3.0).unwrap();
         auto move_r = std::move(temp);
         BasicTestFormatter::printProperty("Move sigma", move_r.getSigma());
 
         auto result = RayleighDistribution::create(0.5);
         if (result.isOk()) {
-            BasicTestFormatter::printProperty("Factory sigma", result.value.getSigma());
+            BasicTestFormatter::printProperty("Factory sigma", (*result).getSigma());
         }
 
         BasicTestFormatter::printTestSuccess("All constructor tests passed");
@@ -54,7 +54,7 @@ int main() {
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
         // Rayleigh(1): mean = √(π/2) ≈ 1.2533, variance = (4−π)/2 ≈ 0.4292
-        auto r = stats::RayleighDistribution::create(1.0).value;
+        auto r = stats::RayleighDistribution::create(1.0).unwrap();
         const double expected_mean = std::sqrt(M_PI / 2.0);
         const double expected_var = (4.0 - M_PI) / 2.0;
 
@@ -94,7 +94,7 @@ int main() {
         cout << "  Median = √(2·ln 2) ≈ 1.1774" << endl;
         cout << "  Mode = σ = 1" << endl;
 
-        auto r1 = RayleighDistribution::create(1.0).value;
+        auto r1 = RayleighDistribution::create(1.0).unwrap();
 
         // PDF(x=σ=1) = (1/σ²)·exp(-σ²/(2σ²)) = exp(-0.5)
         const double pdf_at_sigma = r1.getProbability(1.0);
@@ -111,7 +111,7 @@ int main() {
 
         // CDF(σ) independent of σ
         for (double sigma : {0.5, 1.0, 2.0, 5.0}) {
-            auto rd = RayleighDistribution::create(sigma).value;
+            auto rd = RayleighDistribution::create(sigma).unwrap();
             const bool cdf_sigma_ok =
                 std::abs(rd.getCumulativeProbability(sigma) - (1.0 - exp_neg_half)) < 1e-12;
             cout << "CDF(sigma=" << sigma
@@ -153,7 +153,7 @@ int main() {
         BasicTestFormatter::printTestStart(4, "Random Sampling");
 
         mt19937 rng(42);
-        auto sample_dist = RayleighDistribution::create(1.0).value;
+        auto sample_dist = RayleighDistribution::create(1.0).unwrap();
         double s = sample_dist.sample(rng);
         cout << "Single sample > 0: " << (s > 0.0 ? "PASS" : "FAIL") << endl;
 
@@ -175,8 +175,8 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: σ̂ = √(Σxᵢ²/(2n)). Single pass, no iteration." << endl;
 
-        auto fit_dist = RayleighDistribution::create(1.0).value;
-        auto source = RayleighDistribution::create(3.0).value;
+        auto fit_dist = RayleighDistribution::create(1.0).unwrap();
+        auto source = RayleighDistribution::create(3.0).unwrap();
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted sigma (from R(3), expect ~3)",
@@ -202,20 +202,20 @@ int main() {
             {"sigma=-1", [] { return RayleighDistribution::create(-1.0).isError(); }},
             {"sigma=0", [] { return RayleighDistribution::create(0.0).isError(); }},
         };
-        auto batch_dist = RayleighDistribution::create(1.0).value;
+        auto batch_dist = RayleighDistribution::create(1.0).unwrap();
         stats::tests::runBatchTests(cfg, batch_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = RayleighDistribution::create(2.0).value;
-        auto d2 = RayleighDistribution::create(2.0).value;
-        auto d3 = RayleighDistribution::create(3.0).value;
+        auto d1 = RayleighDistribution::create(2.0).unwrap();
+        auto d2 = RayleighDistribution::create(2.0).unwrap();
+        auto d3 = RayleighDistribution::create(3.0).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << endl;
         cout << "d1 == d3: " << (d1 == d3 ? "true" : "false") << endl;
         stringstream ss;
         ss << d1;
         cout << "Stream output: " << ss.str() << endl;
-        auto in_dist = RayleighDistribution::create().value;
+        auto in_dist = RayleighDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
             cout << "Stream round-trip sigma: " << in_dist.getSigma() << endl;

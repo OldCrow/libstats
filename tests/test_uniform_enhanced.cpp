@@ -58,7 +58,7 @@ class UniformEnhancedTest : public ::testing::Test {
 
         auto result = stats::UniformDistribution::create(test_a_, test_b_);
         if (result.isOk()) {
-            test_distribution_ = std::move(result.value);
+            test_distribution_ = std::move(result).unwrap();
         };
     }
 
@@ -75,7 +75,7 @@ class UniformEnhancedTest : public ::testing::Test {
 
 TEST_F(UniformEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard uniform distribution properties
-    auto stdUniform = stats::UniformDistribution::create(0.0, 1.0).value;
+    auto stdUniform = stats::UniformDistribution::create(0.0, 1.0).unwrap();
 
     EXPECT_DOUBLE_EQ(stdUniform.getLowerBound(), 0.0);
     EXPECT_DOUBLE_EQ(stdUniform.getUpperBound(), 1.0);
@@ -92,7 +92,7 @@ TEST_F(UniformEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_DOUBLE_EQ(cdf_at_mid, 0.5);  // CDF at midpoint
 
     // Test custom distribution
-    auto custom = stats::UniformDistribution::create(-2.0, 4.0).value;
+    auto custom = stats::UniformDistribution::create(-2.0, 4.0).unwrap();
     EXPECT_DOUBLE_EQ(custom.getLowerBound(), -2.0);
     EXPECT_DOUBLE_EQ(custom.getUpperBound(), 4.0);
     EXPECT_DOUBLE_EQ(custom.getMean(), 1.0);
@@ -155,7 +155,7 @@ TEST_F(UniformEnhancedTest, InformationCriteriaTests) {
     std::cout << "\n=== Information Criteria Tests ===\n";
 
     // Fit distribution to data
-    auto fitted_dist = stats::UniformDistribution::create().value;
+    auto fitted_dist = stats::UniformDistribution::create().unwrap();
     fitted_dist.fit(uniform_data_);
 
     auto [aic, bic, aicc, log_likelihood] =
@@ -228,7 +228,7 @@ TEST_F(UniformEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdUniform = stats::UniformDistribution::create(0.0, 1.0).value;
+    auto stdUniform = stats::UniformDistribution::create(0.0, 1.0).unwrap();
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -364,7 +364,7 @@ TEST_F(UniformEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto uniform_dist = stats::UniformDistribution::create(0.0, 1.0).value;
+    auto uniform_dist = stats::UniformDistribution::create(0.0, 1.0).unwrap();
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -420,7 +420,7 @@ TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
-    auto uniform_dist = stats::UniformDistribution::create(0.0, 1.0).value;
+    auto uniform_dist = stats::UniformDistribution::create(0.0, 1.0).unwrap();
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -542,7 +542,7 @@ TEST_F(UniformEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto stdUniform = stats::UniformDistribution::create(0.0, 1.0).value;
+    auto stdUniform = stats::UniformDistribution::create(0.0, 1.0).unwrap();
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     // Generate test data
@@ -717,7 +717,7 @@ TEST_F(UniformEnhancedTest, ParallelBatchFittingTests) {
         }
 
         datasets.push_back(std::move(dataset));
-        expected_distributions.push_back(UniformDistribution::create(a, b).value);
+        expected_distributions.push_back(UniformDistribution::create(a, b).unwrap());
     }
 
     std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
@@ -847,7 +847,7 @@ TEST_F(UniformEnhancedTest, ParallelBatchFittingTests) {
 //==============================================================================
 
 TEST_F(UniformEnhancedTest, NumericalStabilityAndEdgeCases) {
-    auto uniform = stats::UniformDistribution::create(0.0, 1.0).value;
+    auto uniform = stats::UniformDistribution::create(0.0, 1.0).unwrap();
 
     fixtures::EdgeCaseTester<UniformDistribution>::testExtremeValues(uniform, "Uniform");
     fixtures::EdgeCaseTester<UniformDistribution>::testEmptyBatchOperations(uniform, "Uniform");
@@ -864,7 +864,7 @@ TEST_F(UniformEnhancedTest, NumericalStabilityAndEdgeCases) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::UniformDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::UniformDistribution make() { return stats::UniformDistribution::create(0.0, 1.0).value; }
+    static stats::UniformDistribution make() { return stats::UniformDistribution::create(0.0, 1.0).unwrap(); }
     static std::vector<double> domain() { return {0.05, 0.25, 0.5, 0.75, 0.95}; }
     static double batch_lo() { return 0.0; }
     static double batch_hi() { return 1.0; }

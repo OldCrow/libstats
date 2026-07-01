@@ -25,7 +25,7 @@ class RayleighEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::RayleighDistribution::create(1.0);
         ASSERT_TRUE(r.isOk());
-        r1_ = std::move(r.value);
+        r1_ = std::move(r).unwrap();
     }
     RayleighDistribution r1_;  // standard Rayleigh (σ=1)
 };
@@ -33,7 +33,7 @@ class RayleighEnhancedTest : public ::testing::Test {
 // PDF(x=σ) = exp(-0.5) for any σ
 TEST_F(RayleighEnhancedTest, PDFAtSigma) {
     for (double sigma : {0.5, 1.0, 2.0, 5.0}) {
-        auto d = RayleighDistribution::create(sigma).value;
+        auto d = RayleighDistribution::create(sigma).unwrap();
         EXPECT_NEAR(d.getProbability(sigma), std::exp(-0.5) / sigma, 1e-12)
             << "PDF(σ) != exp(-0.5)/σ for σ=" << sigma;
     }
@@ -42,7 +42,7 @@ TEST_F(RayleighEnhancedTest, PDFAtSigma) {
 // CDF(σ) = 1 - exp(-0.5) for any σ
 TEST_F(RayleighEnhancedTest, CDFAtSigma) {
     for (double sigma : {0.5, 1.0, 2.0, 5.0}) {
-        auto d = RayleighDistribution::create(sigma).value;
+        auto d = RayleighDistribution::create(sigma).unwrap();
         EXPECT_NEAR(d.getCumulativeProbability(sigma), 1.0 - std::exp(-0.5), 1e-12)
             << "CDF(σ) != 1-exp(-0.5) for σ=" << sigma;
     }
@@ -66,7 +66,7 @@ TEST_F(RayleighEnhancedTest, ConstantSkewnessKurtosis) {
     EXPECT_NEAR(r1_.getKurtosis(), expected_kurt, 1e-10);
 
     // Must be σ-independent
-    auto r2 = RayleighDistribution::create(5.0).value;
+    auto r2 = RayleighDistribution::create(5.0).unwrap();
     EXPECT_NEAR(r2.getSkewness(), expected_skew, 1e-10);
     EXPECT_NEAR(r2.getKurtosis(), expected_kurt, 1e-10);
 }
@@ -138,16 +138,16 @@ TEST_F(RayleighEnhancedTest, VectorizedMatchesScalar) {
 // MLE from samples
 TEST_F(RayleighEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source = RayleighDistribution::create(2.5).value;
+    auto source = RayleighDistribution::create(2.5).unwrap();
     const auto data = source.sample(rng, 500);
-    auto fitted = RayleighDistribution::create(1.0).value;
+    auto fitted = RayleighDistribution::create(1.0).unwrap();
     fitted.fit(data);
     EXPECT_NEAR(fitted.getSigma(), 2.5, 0.3) << "Fitted sigma should be near 2.5";
 }
 
 // Setter propagates
 TEST_F(RayleighEnhancedTest, SetterPropagates) {
-    auto d = RayleighDistribution::create(1.0).value;
+    auto d = RayleighDistribution::create(1.0).unwrap();
     EXPECT_NEAR(d.getMean(), std::sqrt(M_PI / 2.0), 1e-12);
     d.setSigma(2.0);
     EXPECT_NEAR(d.getMean(), 2.0 * std::sqrt(M_PI / 2.0), 1e-12);
@@ -161,7 +161,7 @@ TEST_F(RayleighEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(RayleighDistribution::create(0.0).isError());
     EXPECT_TRUE(RayleighDistribution::create(std::numeric_limits<double>::quiet_NaN()).isError());
 
-    auto d = RayleighDistribution::create(1.0).value;
+    auto d = RayleighDistribution::create(1.0).unwrap();
     EXPECT_TRUE(d.trySetSigma(-1.0).isError());
     EXPECT_DOUBLE_EQ(d.getSigma(), 1.0);
 }
@@ -203,7 +203,7 @@ TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::RayleighDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::RayleighDistribution make() { return stats::RayleighDistribution::create(1.0).value; }
+    static stats::RayleighDistribution make() { return stats::RayleighDistribution::create(1.0).unwrap(); }
     static std::vector<double> domain() { return {0.5, 1.0, 2.0, 3.0, 5.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 10.0; }

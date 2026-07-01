@@ -4,7 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <string>
-#include <variant>  // for std::monostate (VoidResult sentinel)
+#include <variant>  // std::variant (Result<T> storage) + std::monostate (VoidResult)
 
 namespace stats {
 
@@ -26,61 +26,119 @@ enum class ValidationError {
 /**
  * @brief Result type for operations that may fail.
  *
- * **v2.0.0 trajectory decision** (June 2026):
- * In v1.x, Result<T> was introduced as an ABI workaround: exceptions thrown
- * from the library compiled with Homebrew LLVM libc++ could not be safely
- * caught by applications linked against Apple libc++, causing segfaults during
- * stack unwinding. Removing Homebrew LLVM in v2.0.0 eliminates that constraint.
+ * Implemented as a discriminated union (`std::variant<T, ErrorInfo>`) so that
+ * the success and error paths are mutually exclusive and `makeError()` never
+ * constructs `T`. This is the C++20 equivalent of C++23 `std::expected<T, E>`.
  *
- * Result<T> is **retained** in v2.0.0 as a deliberate design choice:
- * - Explicit error handling is easier to audit than hidden exception paths.
- * - Factory functions that validate parameters are naturally expressed as
- *   Result<Distribution>, keeping the hot-path constructors noexcept.
- * - No dependency on compiler exception-handling ABI.
+ * **Migration from the v2.0.0-pre aggregate struct:**
+ * | Old call site          | New call site               |
+ * |------------------------|-----------------------------|
+ * | `result.value`         | `*result`                   |
+ * | `std::move(r.value)`   | `std::move(r).unwrap()`     |
+ * | `result.error_code`    | `result.errorCode()`        |
+ * | `result.message`       | `result.message()`          |
  *
- * **v2.x decision point**: `std::expected<T, E>` (C++23) is available on
- * AppleClang 16 (Xcode 16, macOS 14 Sonoma) and GCC 12 / Clang 16.
- * When the project minimum is raised to macOS 14, a v2.x minor may introduce
- * `using Result = std::expected<T, std::string>` as a drop-in typedef —
- * the public API surface is already compatible with that substitution.
- * Do NOT migrate to std::expected in v2.0.0; validate baseline availability
- * first.
+ * **v2.x decision point**: when the project minimum is raised to macOS 14
+ * (AppleClang 16), `Result<T>` can become a thin alias over
+ * `std::expected<T, std::string>` with minimal call-site changes.
  *
- * @tparam T The type of the result value on success.
+ * @tparam T The type of the success value.
  */
 template <typename T>
-struct Result {
-    T value;
-    ValidationError error_code;
-    std::string message;
+class Result {
+    struct ErrorInfo {
+        ValidationError code;
+        std::string     message;
+        // Explicit constructor required: std::in_place_type uses direct-init,
+        // which doesn't work for aggregates without a constructor.
+        ErrorInfo(ValidationError c, std::string m) noexcept
+            : code(c), message(std::move(m)) {}
+    };
+
+    std::variant<T, ErrorInfo> data_;
+
+    // Private constructors — use the static factory methods.
+    explicit Result(T val)
+        : data_(std::in_place_type<T>, std::move(val)) {}
+    explicit Result(ValidationError code, const std::string& msg)
+        : data_(std::in_place_type<ErrorInfo>, code, msg) {}
+
+public:
+    // -------------------------------------------------------------------------
+    // Factory methods
+    // -------------------------------------------------------------------------
+
+    /** @brief Create a successful result containing @p val. */
+    [[nodiscard]] static Result ok(T val) noexcept {
+        return Result(std::move(val));
+    }
 
     /**
-     * @brief Check if the result represents success
-     * @return true if no error occurred
+     * @brief Create an error result. T is **never** constructed.
+     * @param code  Error category.
+     * @param msg   Human-readable description.
      */
-    bool isOk() const noexcept { return error_code == ValidationError::None; }
+    [[nodiscard]] static Result makeError(ValidationError code,
+                                          const std::string& msg) noexcept {
+        return Result(code, msg);
+    }
+
+    // -------------------------------------------------------------------------
+    // Status queries
+    // -------------------------------------------------------------------------
+
+    [[nodiscard]] bool isOk()    const noexcept { return std::holds_alternative<T>(data_); }
+    [[nodiscard]] bool isError() const noexcept { return !isOk(); }
+
+    // -------------------------------------------------------------------------
+    // Value access (only valid when isOk())
+    // -------------------------------------------------------------------------
+
+    /** @brief Dereference to the success value (lvalue ref). */
+    [[nodiscard]] T&       operator*() &      { return std::get<T>(data_); }
+    /** @brief Dereference to the success value (const lvalue ref). */
+    [[nodiscard]] const T& operator*() const& { return std::get<T>(data_); }
+    /** @brief Dereference to the success value (rvalue ref). */
+    [[nodiscard]] T&&      operator*() &&     { return std::get<T>(std::move(data_)); }
+
+    /** @brief Arrow access to the success value's members. */
+    [[nodiscard]] T*       operator->()       { return &std::get<T>(data_); }
+    /** @brief Arrow access to the success value's members (const). */
+    [[nodiscard]] const T* operator->() const { return &std::get<T>(data_); }
 
     /**
-     * @brief Check if the result represents an error
-     * @return true if an error occurred
+     * @brief Access or move the success value out.
+     *
+     * Three overloads cover all call patterns produced by the `.value` migration:
+     * - `result.unwrap()` (lvalue) — returns T& (same as `*result`)
+     * - `std::move(result).unwrap()` — returns T&& (moves value out of variant)
+     * - `std::move(result.unwrap())` — lvalue overload returns T&, std::move produces T&&
+     *
+     * Undefined (std::bad_variant_access) if isError().
      */
-    bool isError() const noexcept { return error_code != ValidationError::None; }
+    [[nodiscard]] T&       unwrap() &      { return std::get<T>(data_); }
+    [[nodiscard]] const T& unwrap() const& { return std::get<T>(data_); }
+    [[nodiscard]] T&&      unwrap() &&     { return std::get<T>(std::move(data_)); }
+
+    // -------------------------------------------------------------------------
+    // Error access (only meaningful when isError())
+    // -------------------------------------------------------------------------
+
+    /** @brief Returns the error code, or ValidationError::None on success. */
+    [[nodiscard]] ValidationError errorCode() const noexcept {
+        if (const auto* e = std::get_if<ErrorInfo>(&data_)) return e->code;
+        return ValidationError::None;
+    }
 
     /**
-     * @brief Create a successful result
-     * @param val The success value
-     * @return Result representing success
+     * @brief Returns the error message, or an empty string on success.
+     *
+     * The returned reference is stable for the lifetime of this Result.
      */
-    static Result<T> ok(T val) noexcept { return {std::move(val), ValidationError::None, ""}; }
-
-    /**
-     * @brief Create an error result
-     * @param err The error code
-     * @param msg Error message
-     * @return Result representing an error
-     */
-    static Result<T> makeError(ValidationError err, const std::string& msg) noexcept {
-        return {T{}, err, msg};
+    [[nodiscard]] const std::string& message() const noexcept {
+        if (const auto* e = std::get_if<ErrorInfo>(&data_)) return e->message;
+        static const std::string empty;
+        return empty;
     }
 };
 

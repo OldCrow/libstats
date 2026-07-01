@@ -123,7 +123,7 @@ TEST(PoissonAnalysis, RateStabilityTestTooFewThrows) {
 
 TEST(PoissonAnalysis, ChiSquareGoodFit) {
     auto data = poissonSample(300, 3.0, 44);
-    auto dist = PoissonDistribution::create(3.0).value;
+    auto dist = PoissonDistribution::create(3.0).unwrap();
     auto [chi2, p, reject] = stats::analysis::poisson::chiSquareGoodnessOfFit(data, dist);
     EXPECT_GE(chi2, 0.0);
     EXPECT_GE(p, 0.0);
@@ -138,13 +138,13 @@ TEST(PoissonAnalysis, ChiSquareBadFit) {
     std::vector<double> data(300);
     for (auto& x : data)
         x = std::max(0.0, nd(rng));
-    auto dist = PoissonDistribution::create(3.0).value;
+    auto dist = PoissonDistribution::create(3.0).unwrap();
     auto [chi2, p, reject] = stats::analysis::poisson::chiSquareGoodnessOfFit(data, dist);
     EXPECT_TRUE(reject);
 }
 
 TEST(PoissonAnalysis, ChiSquareTooFewThrows) {
-    auto dist = PoissonDistribution::create(2.0).value;
+    auto dist = PoissonDistribution::create(2.0).unwrap();
     EXPECT_THROW(stats::analysis::poisson::chiSquareGoodnessOfFit({1.0, 2.0}, dist),
                  std::invalid_argument);
 }

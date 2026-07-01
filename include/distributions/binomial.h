@@ -87,7 +87,7 @@ class BinomialDistribution : public DistributionBase {
                                                              double p = detail::HALF) {
         auto v = validateBinomialParameters(n, p);
         if (v.isError())
-            return Result<BinomialDistribution>::makeError(v.error_code, v.message);
+            return Result<BinomialDistribution>::makeError(v.errorCode(), v.message());
         return Result<BinomialDistribution>::ok(createUnchecked(n, p));
     }
 
@@ -147,7 +147,7 @@ class BinomialDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "BinomialDistribution";
+        return "Binomial";
     }
 
     /** @brief Binomial is discrete. */

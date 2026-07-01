@@ -59,7 +59,7 @@ class PoissonEnhancedTest : public ::testing::Test {
 
         auto result = stats::PoissonDistribution::create(test_lambda_);
         if (result.isOk()) {
-            test_distribution_ = std::move(result.value);
+            test_distribution_ = std::move(result).unwrap();
         };
     }
 
@@ -75,7 +75,7 @@ class PoissonEnhancedTest : public ::testing::Test {
 
 TEST_F(PoissonEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard Poisson distribution properties
-    auto stdPoisson = stats::PoissonDistribution::create(1.0).value;
+    auto stdPoisson = stats::PoissonDistribution::create(1.0).unwrap();
 
     EXPECT_DOUBLE_EQ(stdPoisson.getMean(), 1.0);
     EXPECT_DOUBLE_EQ(stdPoisson.getVariance(), 1.0);
@@ -93,7 +93,7 @@ TEST_F(PoissonEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_1, 2.0 * std::exp(-1.0), 1e-9);  // P(X≤1) = P(X=0) + P(X=1)
 
     // Test custom distribution
-    auto custom = stats::PoissonDistribution::create(5.0).value;
+    auto custom = stats::PoissonDistribution::create(5.0).unwrap();
     EXPECT_DOUBLE_EQ(custom.getMean(), 5.0);
     EXPECT_DOUBLE_EQ(custom.getVariance(), 5.0);
     EXPECT_NEAR(custom.getSkewness(), 1.0 / std::sqrt(5.0), 1e-10);
@@ -102,8 +102,8 @@ TEST_F(PoissonEnhancedTest, BasicEnhancedFunctionality) {
     // Entropy: H > 0 for all valid λ; monotone increasing in λ
     const double H1   = stdPoisson.getEntropy();
     const double H5   = custom.getEntropy();
-    auto p50  = stats::PoissonDistribution::create(50.0).value;
-    auto p200 = stats::PoissonDistribution::create(200.0).value;
+    auto p50  = stats::PoissonDistribution::create(50.0).unwrap();
+    auto p200 = stats::PoissonDistribution::create(200.0).unwrap();
     EXPECT_TRUE(std::isfinite(H1));
     EXPECT_GT(H1, 0.0);                    // entropy is positive
     EXPECT_GT(H5, H1);                     // higher λ → higher entropy
@@ -230,7 +230,7 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdPoisson = stats::PoissonDistribution::create(2.0).value;
+    auto stdPoisson = stats::PoissonDistribution::create(2.0).unwrap();
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -366,7 +366,7 @@ TEST_F(PoissonEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(PoissonEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto poisson_dist = stats::PoissonDistribution::create(4.0).value;
+    auto poisson_dist = stats::PoissonDistribution::create(4.0).unwrap();
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -422,7 +422,7 @@ TEST_F(PoissonEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
-    auto poisson_dist = stats::PoissonDistribution::create(3.0).value;
+    auto poisson_dist = stats::PoissonDistribution::create(3.0).unwrap();
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -539,7 +539,7 @@ TEST_F(PoissonEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto stdPoisson = stats::PoissonDistribution::create(3.0).value;
+    auto stdPoisson = stats::PoissonDistribution::create(3.0).unwrap();
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     // Generate test data (discrete values 0-15)
@@ -713,7 +713,7 @@ TEST_F(PoissonEnhancedTest, ParallelBatchFittingTests) {
         }
 
         datasets.push_back(std::move(dataset));
-        expected_distributions.push_back(PoissonDistribution::create(lambda).value);
+        expected_distributions.push_back(PoissonDistribution::create(lambda).unwrap());
     }
 
     std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
@@ -834,7 +834,7 @@ TEST_F(PoissonEnhancedTest, ParallelBatchFittingTests) {
 //==============================================================================
 
 TEST_F(PoissonEnhancedTest, NumericalStabilityAndEdgeCases) {
-    auto poisson = stats::PoissonDistribution::create(5.0).value;
+    auto poisson = stats::PoissonDistribution::create(5.0).unwrap();
 
     fixtures::EdgeCaseTester<PoissonDistribution>::testExtremeValues(poisson, "Poisson");
     fixtures::EdgeCaseTester<PoissonDistribution>::testEmptyBatchOperations(poisson, "Poisson");
@@ -851,7 +851,7 @@ TEST_F(PoissonEnhancedTest, NumericalStabilityAndEdgeCases) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::PoissonDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::PoissonDistribution make() { return stats::PoissonDistribution::create(3.0).value; }
+    static stats::PoissonDistribution make() { return stats::PoissonDistribution::create(3.0).unwrap(); }
     static std::vector<double> domain() { return {0.0, 1.0, 2.0, 3.0, 4.0, 5.0}; }
     static double batch_lo() { return 0.0; }
     static double batch_hi() { return 10.5; }

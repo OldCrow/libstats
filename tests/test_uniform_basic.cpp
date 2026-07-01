@@ -33,12 +33,12 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_uniform = stats::UniformDistribution::create().value;
+        auto default_uniform = stats::UniformDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default Lower Bound", default_uniform.getLowerBound());
         BasicTestFormatter::printProperty("Default Upper Bound", default_uniform.getUpperBound());
 
         // Parameterized constructor test
-        auto param_uniform = stats::UniformDistribution::create(2.0, 5.0).value;
+        auto param_uniform = stats::UniformDistribution::create(2.0, 5.0).unwrap();
         BasicTestFormatter::printProperty("Param Lower Bound", param_uniform.getLowerBound());
         BasicTestFormatter::printProperty("Param Upper Bound", param_uniform.getUpperBound());
 
@@ -48,7 +48,7 @@ int main() {
         BasicTestFormatter::printProperty("Copy Upper Bound", copy_uniform.getUpperBound());
 
         // Move constructor test
-        auto temp_uniform = stats::UniformDistribution::create(-1.0, 3.0).value;
+        auto temp_uniform = stats::UniformDistribution::create(-1.0, 3.0).unwrap();
         auto move_uniform = std::move(temp_uniform);
         BasicTestFormatter::printProperty("Move Lower Bound", move_uniform.getLowerBound());
         BasicTestFormatter::printProperty("Move Upper Bound", move_uniform.getUpperBound());
@@ -56,7 +56,7 @@ int main() {
         // Safe factory method test
         auto result = UniformDistribution::create(0.0, 1.0);
         if (result.isOk()) {
-            auto factory_uniform = std::move(result.value);
+            auto factory_uniform = std::move(result).unwrap();
             BasicTestFormatter::printProperty("Factory Lower Bound",
                                               factory_uniform.getLowerBound());
             BasicTestFormatter::printProperty("Factory Upper Bound",
@@ -78,7 +78,7 @@ int main() {
                 "variance=1/12)."
              << endl;
 
-        auto uniform_dist = stats::UniformDistribution::create(0.0, 1.0).value;
+        auto uniform_dist = stats::UniformDistribution::create(0.0, 1.0).unwrap();
 
         // Test getters
         BasicTestFormatter::printProperty("Initial Lower Bound", uniform_dist.getLowerBound());
@@ -134,7 +134,7 @@ int main() {
         cout << "Expected: For Uniform(0,1): PDF=1 inside [0,1], CDF(0.5)=0.5, quantile(0.5)=0.5."
              << endl;
 
-        auto test_uniform = stats::UniformDistribution::create(0.0, 1.0).value;
+        auto test_uniform = stats::UniformDistribution::create(0.0, 1.0).unwrap();
         double x = 0.5;
 
         BasicTestFormatter::printProperty("PDF(0.5)", test_uniform.getProbability(x));
@@ -204,7 +204,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = TestDataGenerators::generateUniformTestData();
-        auto fitted_dist = stats::UniformDistribution::create().value;
+        auto fitted_dist = stats::UniformDistribution::create().unwrap();
         fitted_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted Lower Bound", fitted_dist.getLowerBound());
         BasicTestFormatter::printProperty("Fitted Upper Bound", fitted_dist.getUpperBound());
@@ -233,7 +233,7 @@ int main() {
         cfg.invalid_scenarios = {
             {"upper < lower", [] { return UniformDistribution::create(5.0, 2.0).isError(); }},
         };
-        auto test_dist = stats::UniformDistribution::create(0.0, 1.0).value;
+        auto test_dist = stats::UniformDistribution::create(0.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, test_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
@@ -241,9 +241,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = stats::UniformDistribution::create(0.0, 1.0).value;
-        auto dist2 = stats::UniformDistribution::create(0.0, 1.0).value;
-        auto dist3 = stats::UniformDistribution::create(2.0, 5.0).value;
+        auto dist1 = stats::UniformDistribution::create(0.0, 1.0).unwrap();
+        auto dist2 = stats::UniformDistribution::create(0.0, 1.0).unwrap();
+        auto dist3 = stats::UniformDistribution::create(2.0, 5.0).unwrap();
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -256,7 +256,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = stats::UniformDistribution::create().value;
+        auto input_dist = stats::UniformDistribution::create().unwrap();
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;

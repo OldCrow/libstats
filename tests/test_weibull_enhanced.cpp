@@ -25,14 +25,14 @@ class WeibullEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::WeibullDistribution::create(2.0, 1.0);
         ASSERT_TRUE(r.isOk());
-        w21_ = std::move(r.value);  // Weibull(k=2, λ=1)
+        w21_ = std::move(r).unwrap();  // Weibull(k=2, λ=1)
     }
     WeibullDistribution w21_;
 };
 
 // Weibull(1,1) = Exponential(rate=1): PDF(1) = exp(-1)
 TEST_F(WeibullEnhancedTest, ExponentialSpecialCase) {
-    auto w11 = WeibullDistribution::create(1.0, 1.0).value;
+    auto w11 = WeibullDistribution::create(1.0, 1.0).unwrap();
     EXPECT_TRUE(w11.isExponential());
     EXPECT_NEAR(w11.getProbability(1.0), std::exp(-1.0), 1e-12);
     EXPECT_NEAR(w11.getCumulativeProbability(1.0), 1.0 - std::exp(-1.0), 1e-12);
@@ -51,7 +51,7 @@ TEST_F(WeibullEnhancedTest, KnownValues) {
 TEST_F(WeibullEnhancedTest, CDFAtScale) {
     for (double k : {0.5, 1.0, 2.0, 3.0, 5.0}) {
         for (double lam : {0.5, 1.0, 2.0}) {
-            auto d = WeibullDistribution::create(k, lam).value;
+            auto d = WeibullDistribution::create(k, lam).unwrap();
             EXPECT_NEAR(d.getCumulativeProbability(lam), 1.0 - std::exp(-1.0), 1e-12)
                 << "CDF(λ) != 1-1/e for k=" << k << " λ=" << lam;
         }
@@ -133,9 +133,9 @@ TEST_F(WeibullEnhancedTest, VectorizedMatchesScalar) {
 // MLE from samples
 TEST_F(WeibullEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source = WeibullDistribution::create(2.5, 3.0).value;
+    auto source = WeibullDistribution::create(2.5, 3.0).unwrap();
     const auto data = source.sample(rng, 500);
-    auto fitted = WeibullDistribution::create(1.0, 1.0).value;
+    auto fitted = WeibullDistribution::create(1.0, 1.0).unwrap();
     fitted.fit(data);
     EXPECT_NEAR(fitted.getShape(), 2.5, 0.5) << "Fitted shape should be near 2.5";
     EXPECT_NEAR(fitted.getScale(), 3.0, 1.0) << "Fitted scale should be near 3.0";
@@ -143,7 +143,7 @@ TEST_F(WeibullEnhancedTest, MLEFit) {
 
 // Setter propagates
 TEST_F(WeibullEnhancedTest, SetterPropagates) {
-    auto d = WeibullDistribution::create(1.0, 1.0).value;
+    auto d = WeibullDistribution::create(1.0, 1.0).unwrap();
     EXPECT_TRUE(d.isExponential());
     d.setShape(2.0);
     EXPECT_FALSE(d.isExponential());
@@ -159,7 +159,7 @@ TEST_F(WeibullEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(
         WeibullDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
 
-    auto d = WeibullDistribution::create(2.0, 1.0).value;
+    auto d = WeibullDistribution::create(2.0, 1.0).unwrap();
     EXPECT_TRUE(d.trySetShape(-1.0).isError());
     EXPECT_TRUE(d.trySetScale(0.0).isError());
     EXPECT_DOUBLE_EQ(d.getShape(), 2.0);
@@ -203,7 +203,7 @@ TEST_F(WeibullEnhancedTest, VectorizedSpeedup) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::WeibullDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::WeibullDistribution make() { return stats::WeibullDistribution::create(2.0, 1.0).value; }
+    static stats::WeibullDistribution make() { return stats::WeibullDistribution::create(2.0, 1.0).unwrap(); }
     static std::vector<double> domain() { return {0.5, 1.0, 1.5, 2.0, 3.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 5.0; }

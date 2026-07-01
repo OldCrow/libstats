@@ -36,12 +36,12 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Laplace(mu, b): double-exponential, symmetric about mu.\n";
 
-        auto def = LaplaceDistribution::create().value;
+        auto def = LaplaceDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default mu (expect 0)", def.getMu());
         BasicTestFormatter::printProperty("Default b  (expect 1)", def.getB());
 
-        auto std_lap = LaplaceDistribution::create(0.0, 1.0).value;
-        auto lap_5_2 = LaplaceDistribution::create(5.0, 2.0).value;
+        auto std_lap = LaplaceDistribution::create(0.0, 1.0).unwrap();
+        auto lap_5_2 = LaplaceDistribution::create(5.0, 2.0).unwrap();
         BasicTestFormatter::printProperty("Lap(5,2) mean (expect 5)", lap_5_2.getMean());
         BasicTestFormatter::printProperty("Lap(5,2) isStandard (expect 0)", lap_5_2.isStandard());
         BasicTestFormatter::printProperty("Lap(0,1) isStandard (expect 1)", std_lap.isStandard());
@@ -54,7 +54,7 @@ int main() {
 
         // Test 2: Parameter getters and setters
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
-        auto l = LaplaceDistribution::create(1.0, 2.0).value;
+        auto l = LaplaceDistribution::create(1.0, 2.0).unwrap();
         BasicTestFormatter::printProperty("getMu()", l.getMu());
         BasicTestFormatter::printProperty("getB()",  l.getB());
         BasicTestFormatter::printProperty("getMuAtomic()", l.getMuAtomic());
@@ -80,7 +80,7 @@ int main() {
         cout << "Standard Laplace(mu=0, b=1):\n";
         cout << "  PDF(0) = 1/(2*1) = 0.5; LogPDF(0) = -log(2) ≈ -0.6931\n";
         cout << "  CDF(0) = 0.5 (exactly, by symmetry)\n";
-        auto sl = LaplaceDistribution::create(0.0, 1.0).value;
+        auto sl = LaplaceDistribution::create(0.0, 1.0).unwrap();
 
         double pdf0 = sl.getProbability(0.0);
         cout << "PDF(0) = " << pdf0 << " [expect 0.5]\n";
@@ -120,7 +120,7 @@ int main() {
         if (std::abs(sl.getKurtosis() - 3.0) > 1e-12) throw runtime_error("Kurtosis failed");
 
         // Symmetry: PDF(mu+d) == PDF(mu-d) for any d
-        auto lap = LaplaceDistribution::create(2.0, 1.5).value;
+        auto lap = LaplaceDistribution::create(2.0, 1.5).unwrap();
         for (double d : {0.5, 1.0, 2.5}) {
             double lo = lap.getProbability(2.0 - d);
             double hi = lap.getProbability(2.0 + d);
@@ -136,7 +136,7 @@ int main() {
         // Test 4: Random Sampling
         BasicTestFormatter::printTestStart(4, "Random Sampling");
         mt19937 rng(42);
-        auto lap4 = LaplaceDistribution::create(3.0, 2.0).value;  // mean=3
+        auto lap4 = LaplaceDistribution::create(3.0, 2.0).unwrap();  // mean=3
 
         double s = lap4.sample(rng);
         cout << "Single sample: " << s << "\n";
@@ -155,9 +155,9 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: mu_hat = median, b_hat = mean|xi - mu_hat|  (O(n log n))\n";
 
-        auto source = LaplaceDistribution::create(2.0, 0.5).value;
+        auto source = LaplaceDistribution::create(2.0, 0.5).unwrap();
         auto fit_data = source.sample(rng, 500);
-        auto l5 = LaplaceDistribution::create().value;
+        auto l5 = LaplaceDistribution::create().unwrap();
         l5.fit(fit_data);
         cout << "Fitted mu (from Lap(2, 0.5), expect ~2): " << l5.getMu() << "\n";
         cout << "Fitted b  (from Lap(2, 0.5), expect ~0.5): " << l5.getB() << "\n";
@@ -172,14 +172,14 @@ int main() {
         BasicTestFormatter::printNewline();
 
         // Tests 6 and 8
-        auto l6 = LaplaceDistribution::create(0.0, 1.0).value;
+        auto l6 = LaplaceDistribution::create(0.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, l6);
 
         // Test 7: Comparison and Stream Operators
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
-        auto d1 = LaplaceDistribution::create(0.0, 1.0).value;
-        auto d2 = LaplaceDistribution::create(0.0, 1.0).value;
-        auto d3 = LaplaceDistribution::create(1.0, 2.0).value;
+        auto d1 = LaplaceDistribution::create(0.0, 1.0).unwrap();
+        auto d2 = LaplaceDistribution::create(0.0, 1.0).unwrap();
+        auto d3 = LaplaceDistribution::create(1.0, 2.0).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << "\n";
         cout << "d1 != d3: " << (d1 != d3 ? "true" : "false") << "\n";
 
@@ -187,7 +187,7 @@ int main() {
         oss << d1;
         cout << "Stream: " << oss.str() << "\n";
         istringstream iss(oss.str());
-        auto parsed = LaplaceDistribution::create().value;
+        auto parsed = LaplaceDistribution::create().unwrap();
         iss >> parsed;
         if (std::abs(parsed.getMu()) > 1e-10 || std::abs(parsed.getB() - 1.0) > 1e-10)
             throw runtime_error("Stream round-trip failed");

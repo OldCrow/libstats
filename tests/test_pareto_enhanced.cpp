@@ -25,7 +25,7 @@ class ParetoEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::ParetoDistribution::create(1.0, 2.0);
         ASSERT_TRUE(r.isOk());
-        p12_ = std::move(r.value);
+        p12_ = std::move(r).unwrap();
     }
     ParetoDistribution p12_;  // Pareto(scale=1, alpha=2)
 };
@@ -44,7 +44,7 @@ TEST_F(ParetoEnhancedTest, KnownCDFValue) {
 TEST_F(ParetoEnhancedTest, CDFAtScale) {
     for (double sc : {0.5, 1.0, 2.0, 5.0}) {
         for (double al : {1.0, 2.0, 3.5}) {
-            auto d = ParetoDistribution::create(sc, al).value;
+            auto d = ParetoDistribution::create(sc, al).unwrap();
             EXPECT_EQ(d.getCumulativeProbability(sc), 0.0)
                 << "CDF(scale) != 0 for scale=" << sc << " alpha=" << al;
         }
@@ -54,12 +54,12 @@ TEST_F(ParetoEnhancedTest, CDFAtScale) {
 // Mean formula: α·x_m/(α−1) for α > 1
 TEST_F(ParetoEnhancedTest, MeanFormula) {
     // α=3, x_m=2: mean = 3*2/(3-1) = 3
-    auto d = ParetoDistribution::create(2.0, 3.0).value;
+    auto d = ParetoDistribution::create(2.0, 3.0).unwrap();
     EXPECT_NEAR(d.getMean(), 3.0, 1e-12);
     EXPECT_TRUE(d.hasFiniteMean());
 
     // α ≤ 1: infinite mean
-    auto d2 = ParetoDistribution::create(1.0, 0.5).value;
+    auto d2 = ParetoDistribution::create(1.0, 0.5).unwrap();
     EXPECT_TRUE(std::isinf(d2.getMean()));
     EXPECT_FALSE(d2.hasFiniteMean());
 }
@@ -67,7 +67,7 @@ TEST_F(ParetoEnhancedTest, MeanFormula) {
 // Variance formula: x_m²·α/((α−1)²·(α−2)) for α > 2
 TEST_F(ParetoEnhancedTest, VarianceFormula) {
     // α=3, x_m=1: variance = 1*3/(4*1) = 0.75
-    auto d = ParetoDistribution::create(1.0, 3.0).value;
+    auto d = ParetoDistribution::create(1.0, 3.0).unwrap();
     EXPECT_NEAR(d.getVariance(), 0.75, 1e-12);
     EXPECT_TRUE(d.hasFiniteVariance());
 
@@ -108,14 +108,14 @@ TEST_F(ParetoEnhancedTest, MedianFormula) {
     // Pareto(1, 2): median = 1*2^0.5 ≈ 1.4142
     EXPECT_NEAR(p12_.getMedian(), std::sqrt(2.0), 1e-12);
     // Pareto(2, 4): median = 2*2^(1/4) ≈ 2.3784
-    auto d = ParetoDistribution::create(2.0, 4.0).value;
+    auto d = ParetoDistribution::create(2.0, 4.0).unwrap();
     EXPECT_NEAR(d.getMedian(), 2.0 * std::pow(2.0, 0.25), 1e-12);
 }
 
 // Mode always equals scale
 TEST_F(ParetoEnhancedTest, ModeEqualsScale) {
     for (double sc : {0.5, 1.0, 2.0, 5.0}) {
-        auto d = ParetoDistribution::create(sc, 2.0).value;
+        auto d = ParetoDistribution::create(sc, 2.0).unwrap();
         EXPECT_DOUBLE_EQ(d.getMode(), sc);
     }
 }
@@ -163,10 +163,10 @@ for (size_t i = 0; i < N; ++i) {
 // MLE fit from Pareto(x_m, α) samples
 TEST_F(ParetoEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source = ParetoDistribution::create(2.0, 3.0).value;
+    auto source = ParetoDistribution::create(2.0, 3.0).unwrap();
     const auto data = source.sample(rng, 500);
 
-    auto fitted = ParetoDistribution::create(1.0, 1.0).value;
+    auto fitted = ParetoDistribution::create(1.0, 1.0).unwrap();
     fitted.fit(data);
 
     // scale_hat = min(data) ≈ 2.0 (exact for large n)
@@ -176,7 +176,7 @@ TEST_F(ParetoEnhancedTest, MLEFit) {
 
 // Setter propagates to cache (hasFiniteMean/Variance update correctly)
 TEST_F(ParetoEnhancedTest, SetterPropagates) {
-    auto d = ParetoDistribution::create(1.0, 2.0).value;
+    auto d = ParetoDistribution::create(1.0, 2.0).unwrap();
     EXPECT_FALSE(d.hasFiniteVariance());
     d.setAlpha(3.0);
     EXPECT_TRUE(d.hasFiniteVariance());
@@ -194,7 +194,7 @@ TEST_F(ParetoEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(
         ParetoDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
 
-    auto d = ParetoDistribution::create(1.0, 2.0).value;
+    auto d = ParetoDistribution::create(1.0, 2.0).unwrap();
     EXPECT_TRUE(d.trySetAlpha(-1.0).isError());
     EXPECT_TRUE(d.trySetScale(0.0).isError());
     EXPECT_DOUBLE_EQ(d.getScale(), 1.0);
@@ -241,7 +241,7 @@ TEST_F(ParetoEnhancedTest, VectorizedSpeedup) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::ParetoDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::ParetoDistribution make() { return stats::ParetoDistribution::create(1.0, 2.0).value; }
+    static stats::ParetoDistribution make() { return stats::ParetoDistribution::create(1.0, 2.0).unwrap(); }
     static std::vector<double> domain() { return {1.0, 1.5, 2.0, 3.0, 5.0}; }
     static double batch_lo() { return 1.0; }
     static double batch_hi() { return 21.0; }

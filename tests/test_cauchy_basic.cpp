@@ -37,12 +37,12 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Cauchy(x0, gamma): delegates to StudentT(nu=1) with transform z=(x-x0)/gamma.\n";
 
-        auto def = CauchyDistribution::create().value;
+        auto def = CauchyDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default x0 (expect 0)", def.getX0());
         BasicTestFormatter::printProperty("Default gamma (expect 1)", def.getGamma());
 
-        auto std_c = CauchyDistribution::create(0.0, 1.0).value;
-        auto c5_2  = CauchyDistribution::create(5.0, 2.0).value;
+        auto std_c = CauchyDistribution::create(0.0, 1.0).unwrap();
+        auto c5_2  = CauchyDistribution::create(5.0, 2.0).unwrap();
         BasicTestFormatter::printProperty("Cauchy(5,2) x0 (expect 5)", c5_2.getX0());
         BasicTestFormatter::printProperty("Cauchy(5,2) isStandard (expect 0)", c5_2.isStandard());
         BasicTestFormatter::printProperty("Cauchy(0,1) isStandard (expect 1)", std_c.isStandard());
@@ -56,7 +56,7 @@ int main() {
 
         // Test 2: Parameter getters and setters
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
-        auto c = CauchyDistribution::create(1.0, 2.0).value;
+        auto c = CauchyDistribution::create(1.0, 2.0).unwrap();
         BasicTestFormatter::printProperty("getX0()", c.getX0());
         BasicTestFormatter::printProperty("getGamma()", c.getGamma());
         BasicTestFormatter::printProperty("getX0Atomic()", c.getX0Atomic());
@@ -81,7 +81,7 @@ int main() {
         BasicTestFormatter::printTestStart(3, "Core Probability Methods");
         cout << "Standard Cauchy(x0=0, gamma=1):\n";
         cout << "  PDF(0) = 1/pi ≈ 0.3183; CDF(0) = 0.5 (exactly)\n";
-        auto sc = CauchyDistribution::create(0.0, 1.0).value;
+        auto sc = CauchyDistribution::create(0.0, 1.0).unwrap();
 
         const double expected_pdf0 = 1.0 / detail::PI;
         double pdf0 = sc.getProbability(0.0);
@@ -126,7 +126,7 @@ int main() {
             throw runtime_error("Entropy failed");
 
         // Symmetry: PDF(x0+d) == PDF(x0-d) for any d
-        auto cshift = CauchyDistribution::create(2.0, 1.5).value;
+        auto cshift = CauchyDistribution::create(2.0, 1.5).unwrap();
         for (double d : {0.5, 1.0, 2.5, 5.0}) {
             double lo = cshift.getProbability(2.0 - d);
             double hi = cshift.getProbability(2.0 + d);
@@ -151,7 +151,7 @@ int main() {
         // Test 4: Random Sampling
         BasicTestFormatter::printTestStart(4, "Random Sampling");
         mt19937 rng(42);
-        auto c4 = CauchyDistribution::create(1.0, 2.0).value;
+        auto c4 = CauchyDistribution::create(1.0, 2.0).unwrap();
 
         double s = c4.sample(rng);
         cout << "Single sample: " << s << "\n";
@@ -170,9 +170,9 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: median seed, IQR/2 seed, Fisher-scoring iterations\n";
 
-        auto source = CauchyDistribution::create(3.0, 1.5).value;
+        auto source = CauchyDistribution::create(3.0, 1.5).unwrap();
         auto fit_data = source.sample(rng, 1000);
-        auto c5 = CauchyDistribution::create().value;
+        auto c5 = CauchyDistribution::create().unwrap();
         c5.fit(fit_data);
         cout << "Fitted x0 (from Cauchy(3,1.5), expect ~3): " << c5.getX0() << "\n";
         cout << "Fitted gamma (from Cauchy(3,1.5), expect ~1.5): " << c5.getGamma() << "\n";
@@ -187,14 +187,14 @@ int main() {
         BasicTestFormatter::printNewline();
 
         // Tests 6 and 8
-        auto c6 = CauchyDistribution::create(0.0, 1.0).value;
+        auto c6 = CauchyDistribution::create(0.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, c6);
 
         // Test 7: Comparison and Stream Operators
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
-        auto d1 = CauchyDistribution::create(0.0, 1.0).value;
-        auto d2 = CauchyDistribution::create(0.0, 1.0).value;
-        auto d3 = CauchyDistribution::create(1.0, 2.0).value;
+        auto d1 = CauchyDistribution::create(0.0, 1.0).unwrap();
+        auto d2 = CauchyDistribution::create(0.0, 1.0).unwrap();
+        auto d3 = CauchyDistribution::create(1.0, 2.0).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << "\n";
         cout << "d1 != d3: " << (d1 != d3 ? "true" : "false") << "\n";
 
@@ -202,7 +202,7 @@ int main() {
         oss << d1;
         cout << "Stream: " << oss.str() << "\n";
         istringstream iss(oss.str());
-        auto parsed = CauchyDistribution::create().value;
+        auto parsed = CauchyDistribution::create().unwrap();
         iss >> parsed;
         if (std::abs(parsed.getX0()) > 1e-8 || std::abs(parsed.getGamma() - 1.0) > 1e-8)
             throw runtime_error("Stream round-trip failed");

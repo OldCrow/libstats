@@ -55,12 +55,12 @@ namespace stats {
  * // Customer arrivals (average 3 per hour)
  * auto result = PoissonDistribution::create(3.0);
  * if (result.isOk()) {
- *     auto arrivals = std::move(result.value);
+ *     auto arrivals = std::move(result.unwrap());
  *
  *     // Network packet errors (average 0.1 per second)
  *     auto errorResult = PoissonDistribution::create(0.1);
  *     if (errorResult.isOk()) {
- *         auto errors = std::move(errorResult.value);
+ *         auto errors = std::move(errorResult.unwrap());
  *
  *         // Fit to observed count data
  *         std::vector<double> counts = {2, 1, 4, 3, 2, 5, 1, 3, 2, 4};
@@ -202,18 +202,18 @@ class PoissonDistribution : public DistributionBase {
      * @code
      * auto result = PoissonDistribution::create(2.5);
      * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
+     *     auto distribution = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
     [[nodiscard]] static Result<PoissonDistribution> create(double lambda = detail::ONE) {
         auto validation = validatePoissonParameters(lambda);
         if (validation.isError()) {
-            return Result<PoissonDistribution>::makeError(validation.error_code,
-                                                          validation.message);
+            return Result<PoissonDistribution>::makeError(validation.errorCode(),
+                                                          validation.message());
         }
 
         // Use private factory to bypass validation

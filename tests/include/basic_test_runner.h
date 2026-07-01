@@ -23,7 +23,7 @@
  *       -3.0, 3.0,
  *       {{"negative sigma", [] { return GaussianDistribution::create(0.0,-1.0).isError(); }}}
  *   };
- *   auto dist = GaussianDistribution::create(0.0, 1.0).value;
+ *   auto dist = GaussianDistribution::create(0.0, 1.0).unwrap();
  *   runBatchTests(cfg, dist);   // Test 6
  *   // ... Test 7 (per-distribution) ...
  *   runErrorTests(cfg);         // Test 8

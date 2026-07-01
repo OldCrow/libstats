@@ -251,17 +251,17 @@ void demonstrate_parallel_batch_fit() {
         std::uniform_real_distribution<double> mu_gen(-5.0, 5.0);
         std::uniform_real_distribution<double> sigma_gen(0.5, 3.0);
         std::vector<stats::GaussianDistribution> true_params(N_DATASETS,
-            stats::GaussianDistribution::create(0.0, 1.0).value);
+            stats::GaussianDistribution::create(0.0, 1.0).unwrap());
 
         for (size_t i = 0; i < N_DATASETS; ++i) {
-            auto src = stats::GaussianDistribution::create(mu_gen(rng), sigma_gen(rng)).value;
+            auto src = stats::GaussianDistribution::create(mu_gen(rng), sigma_gen(rng)).unwrap();
             true_params[i] = src;
             datasets[i] = src.sample(rng, N_OBS);
         }
 
         // Sequential fit for timing comparison
         std::vector<stats::GaussianDistribution> seq_results(N_DATASETS,
-            stats::GaussianDistribution::create(0.0, 1.0).value);
+            stats::GaussianDistribution::create(0.0, 1.0).unwrap());
         auto t0 = std::chrono::high_resolution_clock::now();
         for (size_t i = 0; i < N_DATASETS; ++i)
             seq_results[i].fit(datasets[i]);
@@ -270,7 +270,7 @@ void demonstrate_parallel_batch_fit() {
 
         // Parallel fit
         std::vector<stats::GaussianDistribution> par_results(N_DATASETS,
-            stats::GaussianDistribution::create(0.0, 1.0).value);
+            stats::GaussianDistribution::create(0.0, 1.0).unwrap());
         t0 = std::chrono::high_resolution_clock::now();
         stats::GaussianDistribution::parallelBatchFit(datasets, par_results);
         std::int64_t t_par = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -296,12 +296,12 @@ void demonstrate_parallel_batch_fit() {
         std::vector<std::vector<double>> datasets(N_DATASETS);
         std::uniform_real_distribution<double> lambda_gen(0.5, 5.0);
         for (size_t i = 0; i < N_DATASETS; ++i) {
-            auto src = stats::ExponentialDistribution::create(lambda_gen(rng)).value;
+            auto src = stats::ExponentialDistribution::create(lambda_gen(rng)).unwrap();
             datasets[i] = src.sample(rng, N_OBS);
         }
 
         std::vector<stats::ExponentialDistribution> par_results(N_DATASETS,
-            stats::ExponentialDistribution::create(1.0).value);
+            stats::ExponentialDistribution::create(1.0).unwrap());
         auto t0 = std::chrono::high_resolution_clock::now();
         stats::ExponentialDistribution::parallelBatchFit(datasets, par_results);
         std::int64_t t_par = std::chrono::duration_cast<std::chrono::microseconds>(

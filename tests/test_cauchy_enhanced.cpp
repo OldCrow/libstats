@@ -24,7 +24,7 @@ template <>
 struct stats::tests::DistTraits<stats::CauchyDistribution>
     : stats::tests::DistTraitsDefaults {
     static stats::CauchyDistribution make() {
-        return stats::CauchyDistribution::create(0.0, 1.0).value;  // standard Cauchy
+        return stats::CauchyDistribution::create(0.0, 1.0).unwrap();  // standard Cauchy
     }
     static std::vector<double> domain() {
         return {-5.0, -1.0, 0.0, 1.0, 5.0};
@@ -56,7 +56,7 @@ class CauchyEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = CauchyDistribution::create(0.0, 1.0);
         ASSERT_TRUE(r.isOk());
-        sc_ = std::move(r.value);  // standard Cauchy(0,1)
+        sc_ = std::move(r).unwrap();  // standard Cauchy(0,1)
     }
     CauchyDistribution sc_;
 };
@@ -78,7 +78,7 @@ TEST_F(CauchyEnhancedTest, PDFAtLocation) {
     EXPECT_NEAR(sc_.getProbability(0.0), 1.0 / detail::PI, 1e-12)
         << "PDF(x0=0; x0=0, gamma=1) = 1/pi";
 
-    auto c = CauchyDistribution::create(3.0, 2.0).value;
+    auto c = CauchyDistribution::create(3.0, 2.0).unwrap();
     EXPECT_NEAR(c.getProbability(3.0), 1.0 / (detail::PI * 2.0), 1e-12)
         << "PDF(x0=3; x0=3, gamma=2) = 1/(2*pi)";
 }
@@ -108,7 +108,7 @@ TEST_F(CauchyEnhancedTest, CDFAtLocation) {
     EXPECT_NEAR(sc_.getCumulativeProbability(0.0), 0.5, 1e-12)
         << "CDF(x0=0) = 0.5";
 
-    auto c = CauchyDistribution::create(-2.0, 3.0).value;
+    auto c = CauchyDistribution::create(-2.0, 3.0).unwrap();
     EXPECT_NEAR(c.getCumulativeProbability(-2.0), 0.5, 1e-12)
         << "CDF(x0=-2) = 0.5";
 }
@@ -154,7 +154,7 @@ TEST_F(CauchyEnhancedTest, QuantileFormula) {
 
 TEST_F(CauchyEnhancedTest, PDFSymmetry) {
     // Cauchy is symmetric about x0: f(x0+d) == f(x0-d)
-    auto c = CauchyDistribution::create(2.5, 1.5).value;
+    auto c = CauchyDistribution::create(2.5, 1.5).unwrap();
     for (double d : {0.1, 0.5, 1.0, 3.0, 10.0}) {
         EXPECT_NEAR(c.getProbability(2.5 + d), c.getProbability(2.5 - d), 1e-12)
             << "symmetry at d=" << d;
@@ -167,7 +167,7 @@ TEST_F(CauchyEnhancedTest, MedianAndMode) {
     EXPECT_NEAR(sc_.getMedian(), 0.0, 1e-12);
     EXPECT_NEAR(sc_.getMode(),   0.0, 1e-12);
 
-    auto c = CauchyDistribution::create(4.0, 2.0).value;
+    auto c = CauchyDistribution::create(4.0, 2.0).unwrap();
     EXPECT_NEAR(c.getMedian(), 4.0, 1e-12);
     EXPECT_NEAR(c.getMode(),   4.0, 1e-12);
 }
@@ -177,8 +177,8 @@ TEST_F(CauchyEnhancedTest, Entropy) {
     EXPECT_NEAR(sc_.getEntropy(), std::log(detail::FOUR_PI), 1e-12);
 
     // H(Cauchy(x0, gamma)) = log(4*pi*gamma) — independent of x0
-    auto c1 = CauchyDistribution::create(0.0, 2.0).value;
-    auto c2 = CauchyDistribution::create(5.0, 2.0).value;
+    auto c1 = CauchyDistribution::create(0.0, 2.0).unwrap();
+    auto c2 = CauchyDistribution::create(5.0, 2.0).unwrap();
     EXPECT_NEAR(c1.getEntropy(), std::log(detail::FOUR_PI * 2.0), 1e-12);
     EXPECT_NEAR(c1.getEntropy(), c2.getEntropy(), 1e-12) << "entropy depends only on gamma";
 }
@@ -186,7 +186,7 @@ TEST_F(CauchyEnhancedTest, Entropy) {
 // ─── Setter propagates ────────────────────────────────────────────────────────
 
 TEST_F(CauchyEnhancedTest, SetterPropagates) {
-    auto c = CauchyDistribution::create(0.0, 1.0).value;
+    auto c = CauchyDistribution::create(0.0, 1.0).unwrap();
     EXPECT_TRUE(c.isStandard());
     c.setX0(3.0);
     EXPECT_FALSE(c.isStandard());
@@ -200,7 +200,7 @@ TEST_F(CauchyEnhancedTest, SetterPropagates) {
 // ─── MLE fit ─────────────────────────────────────────────────────────────────
 
 TEST_F(CauchyEnhancedTest, MLEFitSingleObservation) {
-    auto c = CauchyDistribution::create().value;
+    auto c = CauchyDistribution::create().unwrap();
     // Single observation: x0_hat should equal the observation; gamma falls to default.
     EXPECT_NO_THROW(c.fit({5.0}));
     EXPECT_NEAR(c.getX0(), 5.0, 1e-6);
@@ -211,10 +211,10 @@ TEST_F(CauchyEnhancedTest, MLEFitSingleObservation) {
 
 TEST_F(CauchyEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
-    auto source = CauchyDistribution::create(2.0, 1.5).value;
+    auto source = CauchyDistribution::create(2.0, 1.5).unwrap();
     auto data   = source.sample(rng, 2000);
 
-    auto fitted = CauchyDistribution::create().value;
+    auto fitted = CauchyDistribution::create().unwrap();
     fitted.fit(data);
 
     // Cauchy MLE converges reliably but with wider confidence intervals than

@@ -159,152 +159,152 @@ StressResult run_stress(
 StressResult stress_gaussian(int dur, int nt) {
     return run_stress<GaussianDistribution>([](int t) {
         return std::make_pair(
-            GaussianDistribution::create(t * 1.0,      1.0).value,
-            GaussianDistribution::create(t * 1.0 + 10, 2.0).value);
+            GaussianDistribution::create(t * 1.0,      1.0).unwrap(),
+            GaussianDistribution::create(t * 1.0 + 10, 2.0).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_exponential(int dur, int nt) {
     return run_stress<ExponentialDistribution>([](int t) {
         return std::make_pair(
-            ExponentialDistribution::create(t + 1.0).value,
-            ExponentialDistribution::create(t + 2.0).value);
+            ExponentialDistribution::create(t + 1.0).unwrap(),
+            ExponentialDistribution::create(t + 2.0).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_uniform(int dur, int nt) {
     return run_stress<UniformDistribution>([](int t) {
         return std::make_pair(
-            UniformDistribution::create(t * 10.0, t * 10.0 + 5.0).value,
-            UniformDistribution::create(0.0, 1.0).value);
+            UniformDistribution::create(t * 10.0, t * 10.0 + 5.0).unwrap(),
+            UniformDistribution::create(0.0, 1.0).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_poisson(int dur, int nt) {
     return run_stress<PoissonDistribution>([](int t) {
         return std::make_pair(
-            PoissonDistribution::create(t + 1.0).value,
-            PoissonDistribution::create(t + 3.0).value);
+            PoissonDistribution::create(t + 1.0).unwrap(),
+            PoissonDistribution::create(t + 3.0).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_gamma(int dur, int nt) {
     return run_stress<GammaDistribution>([](int t) {
         return std::make_pair(
-            GammaDistribution::create(2.0, t + 0.5).value,
-            GammaDistribution::create(3.0, t + 1.0).value);
+            GammaDistribution::create(2.0, t + 0.5).unwrap(),
+            GammaDistribution::create(3.0, t + 1.0).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_discrete(int dur, int nt) {
     return run_stress<DiscreteDistribution>([](int t) {
         return std::make_pair(
-            DiscreteDistribution::create(1, t + 6).value,
-            DiscreteDistribution::create(0, t + 4).value);
+            DiscreteDistribution::create(1, t + 6).unwrap(),
+            DiscreteDistribution::create(0, t + 4).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_beta(int dur, int nt) {
     return run_stress<BetaDistribution>([](int t) {
         return std::make_pair(
-            BetaDistribution::create(1.5 + t * 0.001, 2.5).value,
-            BetaDistribution::create(2.5, 1.5 + t * 0.001).value);
+            BetaDistribution::create(1.5 + t * 0.001, 2.5).unwrap(),
+            BetaDistribution::create(2.5, 1.5 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_binomial(int dur, int nt) {
     return run_stress<BinomialDistribution>([](int t) {
         return std::make_pair(
-            BinomialDistribution::create(t % 20 + 5, 0.3).value,
-            BinomialDistribution::create(t % 15 + 8, 0.6).value);
+            BinomialDistribution::create(t % 20 + 5, 0.3).unwrap(),
+            BinomialDistribution::create(t % 15 + 8, 0.6).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_chi_squared(int dur, int nt) {
     return run_stress<ChiSquaredDistribution>([](int t) {
         return std::make_pair(
-            ChiSquaredDistribution::create(2.0 + t * 0.001).value,
-            ChiSquaredDistribution::create(5.0 + t * 0.001).value);
+            ChiSquaredDistribution::create(2.0 + t * 0.001).unwrap(),
+            ChiSquaredDistribution::create(5.0 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_lognormal(int dur, int nt) {
     return run_stress<LogNormalDistribution>([](int t) {
         return std::make_pair(
-            LogNormalDistribution::create(0.0, 0.5 + t * 0.001).value,
-            LogNormalDistribution::create(0.5, 0.5 + t * 0.001).value);
+            LogNormalDistribution::create(0.0, 0.5 + t * 0.001).unwrap(),
+            LogNormalDistribution::create(0.5, 0.5 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_negative_binomial(int dur, int nt) {
     return run_stress<NegativeBinomialDistribution>([](int t) {
         return std::make_pair(
-            NegativeBinomialDistribution::create(3.0 + t * 0.001, 0.4).value,
-            NegativeBinomialDistribution::create(5.0 + t * 0.001, 0.6).value);
+            NegativeBinomialDistribution::create(3.0 + t * 0.001, 0.4).unwrap(),
+            NegativeBinomialDistribution::create(5.0 + t * 0.001, 0.6).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_pareto(int dur, int nt) {
     return run_stress<ParetoDistribution>([](int t) {
         return std::make_pair(
-            ParetoDistribution::create(1.0, 2.0 + t * 0.001).value,
-            ParetoDistribution::create(1.0, 3.0 + t * 0.001).value);
+            ParetoDistribution::create(1.0, 2.0 + t * 0.001).unwrap(),
+            ParetoDistribution::create(1.0, 3.0 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_rayleigh(int dur, int nt) {
     return run_stress<RayleighDistribution>([](int t) {
         return std::make_pair(
-            RayleighDistribution::create(1.0 + t * 0.001).value,
-            RayleighDistribution::create(2.0 + t * 0.001).value);
+            RayleighDistribution::create(1.0 + t * 0.001).unwrap(),
+            RayleighDistribution::create(2.0 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_student_t(int dur, int nt) {
     return run_stress<StudentTDistribution>([](int t) {
         return std::make_pair(
-            StudentTDistribution::create(3.0 + t * 0.001).value,
-            StudentTDistribution::create(5.0 + t * 0.001).value);
+            StudentTDistribution::create(3.0 + t * 0.001).unwrap(),
+            StudentTDistribution::create(5.0 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_von_mises(int dur, int nt) {
     return run_stress<VonMisesDistribution>([](int t) {
         return std::make_pair(
-            VonMisesDistribution::create(0.0, 1.0 + t * 0.001).value,
-            VonMisesDistribution::create(1.0, 2.0 + t * 0.001).value);
+            VonMisesDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+            VonMisesDistribution::create(1.0, 2.0 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_weibull(int dur, int nt) {
     return run_stress<WeibullDistribution>([](int t) {
         return std::make_pair(
-            WeibullDistribution::create(1.5 + t * 0.001, 1.0).value,
-            WeibullDistribution::create(2.5 + t * 0.001, 1.0).value);
+            WeibullDistribution::create(1.5 + t * 0.001, 1.0).unwrap(),
+            WeibullDistribution::create(2.5 + t * 0.001, 1.0).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_geometric(int dur, int nt) {
     return run_stress<GeometricDistribution>([](int t) {
         return std::make_pair(
-            GeometricDistribution::create(0.2 + t * 0.001).value,
-            GeometricDistribution::create(0.5 + t * 0.001).value);
+            GeometricDistribution::create(0.2 + t * 0.001).unwrap(),
+            GeometricDistribution::create(0.5 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_laplace(int dur, int nt) {
     return run_stress<LaplaceDistribution>([](int t) {
         return std::make_pair(
-            LaplaceDistribution::create(0.0, 1.0 + t * 0.001).value,
-            LaplaceDistribution::create(1.0, 0.5 + t * 0.001).value);
+            LaplaceDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+            LaplaceDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
     }, dur, nt);
 }
 
 StressResult stress_cauchy(int dur, int nt) {
     return run_stress<CauchyDistribution>([](int t) {
         return std::make_pair(
-            CauchyDistribution::create(0.0, 1.0 + t * 0.001).value,
-            CauchyDistribution::create(1.0, 0.5 + t * 0.001).value);
+            CauchyDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+            CauchyDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
     }, dur, nt);
 }
 

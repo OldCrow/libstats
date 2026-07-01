@@ -11,6 +11,10 @@ option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 # Threading system preference control
 option(LIBSTATS_FORCE_TBB
        "Force TBB usage even on platforms with native threading (e.g., GCD on macOS)" OFF)
+option(LIBSTATS_PREFER_PLATFORM_THREADING
+       "Disable OpenMP when a platform-native threading system (GCD on macOS, Windows Thread Pool \
+on Windows) is available, preventing over-subscription from two independent thread pools. \
+Default OFF preserves the existing behaviour." OFF)
 
 # Automatic parallel job detection for optimal build performance
 include(ProcessorCount)
@@ -247,6 +251,22 @@ function(detect_threading_systems)
         set(LIBSTATS_HAS_WIN32_THREADS
             FALSE
             CACHE BOOL "Win32 threads not available")
+    endif()
+
+    # ── Platform-threading preference: suppress OpenMP when GCD/WTP is active ──
+    # When LIBSTATS_PREFER_PLATFORM_THREADING is ON and a platform-native pool
+    # (GCD on macOS, Windows Thread Pool on Windows) is detected, disable OpenMP
+    # to prevent two independent thread pools from over-subscribing the CPU.
+    if(LIBSTATS_PREFER_PLATFORM_THREADING)
+        if((APPLE AND LIBSTATS_HAS_GCD) OR (WIN32 AND LIBSTATS_HAS_WIN_THREADPOOL))
+            if(LIBSTATS_HAS_OPENMP)
+                set(LIBSTATS_HAS_OPENMP FALSE CACHE BOOL
+                    "OpenMP disabled: platform threading preferred (LIBSTATS_PREFER_PLATFORM_THREADING=ON)"
+                    FORCE)
+                message(STATUS
+                    "  LIBSTATS_PREFER_PLATFORM_THREADING=ON: OpenMP suppressed in favour of platform threading")
+            endif()
+        endif()
     endif()
 
     set(LIBSTATS_THREADING_DETECTION_COMPLETE

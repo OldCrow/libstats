@@ -25,14 +25,14 @@ class BetaEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::BetaDistribution::create(2.0, 3.0);
         ASSERT_TRUE(r.isOk());
-        dist23_ = std::move(r.value);  // mean=0.4, mode=0.25
+        dist23_ = std::move(r).unwrap();  // mean=0.4, mode=0.25
     }
     BetaDistribution dist23_;
 };
 
 // Beta(1,1)=Uniform: PDF=1 everywhere in (0,1)
 TEST_F(BetaEnhancedTest, UniformCase) {
-    auto b11 = BetaDistribution::create(1.0, 1.0).value;
+    auto b11 = BetaDistribution::create(1.0, 1.0).unwrap();
     EXPECT_TRUE(b11.isUniform());
     EXPECT_NEAR(b11.getProbability(0.1), 1.0, 1e-10);
     EXPECT_NEAR(b11.getProbability(0.5), 1.0, 1e-10);
@@ -43,7 +43,7 @@ TEST_F(BetaEnhancedTest, UniformCase) {
 
 // Analytical PDF values for Beta(2,2): f(x)=6x(1-x)
 TEST_F(BetaEnhancedTest, KnownValuesBeta22) {
-    auto b22 = BetaDistribution::create(2.0, 2.0).value;
+    auto b22 = BetaDistribution::create(2.0, 2.0).unwrap();
     EXPECT_TRUE(b22.isSymmetric());
     EXPECT_NEAR(b22.getProbability(0.5), 1.5, 1e-10);  // 6*0.5*0.5
     EXPECT_NEAR(b22.getProbability(0.25), 6.0 * 0.25 * 0.75, 1e-10);
@@ -55,12 +55,12 @@ TEST_F(BetaEnhancedTest, KnownValuesBeta22) {
 // CDF symmetry: Beta(a,b) CDF(0.5) = 0.5 when a=b; CDF(-x) complement
 TEST_F(BetaEnhancedTest, CDFSymmetry) {
     for (double a : {0.5, 1.0, 2.0, 3.0, 5.0}) {
-        auto bd = BetaDistribution::create(a, a).value;
+        auto bd = BetaDistribution::create(a, a).unwrap();
         EXPECT_NEAR(bd.getCumulativeProbability(0.5), 0.5, 1e-8) << "CDF(0.5) != 0.5 for a=b=" << a;
     }
     // CDF(x, a, b) + CDF(1-x, b, a) = 1
-    auto b23 = BetaDistribution::create(2.0, 3.0).value;
-    auto b32 = BetaDistribution::create(3.0, 2.0).value;
+    auto b23 = BetaDistribution::create(2.0, 3.0).unwrap();
+    auto b32 = BetaDistribution::create(3.0, 2.0).unwrap();
     for (double x : {0.1, 0.3, 0.5, 0.7, 0.9}) {
         EXPECT_NEAR(b23.getCumulativeProbability(x) + b32.getCumulativeProbability(1.0 - x), 1.0,
                     1e-8)
@@ -119,7 +119,7 @@ TEST_F(BetaEnhancedTest, QuantileRoundTrip) {
 
 // Setter propagates to cache
 TEST_F(BetaEnhancedTest, SetterPropagates) {
-    auto b = BetaDistribution::create(2.0, 2.0).value;
+    auto b = BetaDistribution::create(2.0, 2.0).unwrap();
     EXPECT_TRUE(b.isSymmetric());
     EXPECT_NEAR(b.getMean(), 0.5, 1e-14);
     b.setAlpha(3.0);
@@ -132,10 +132,10 @@ TEST_F(BetaEnhancedTest, SetterPropagates) {
 // MLE fit from Beta(3,5) samples
 TEST_F(BetaEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source = BetaDistribution::create(3.0, 5.0).value;
+    auto source = BetaDistribution::create(3.0, 5.0).unwrap();
     const auto data = source.sample(rng, 500);
 
-    auto fitted = BetaDistribution::create(1.0, 1.0).value;
+    auto fitted = BetaDistribution::create(1.0, 1.0).unwrap();
     fitted.fit(data);
 
     EXPECT_NEAR(fitted.getAlpha(), 3.0, 1.5) << "Fitted alpha should be near 3";
@@ -150,7 +150,7 @@ TEST_F(BetaEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(BetaDistribution::create(1.0, -1.0).isError());
     EXPECT_TRUE(BetaDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
 
-    auto b = BetaDistribution::create(2.0, 3.0).value;
+    auto b = BetaDistribution::create(2.0, 3.0).unwrap();
     EXPECT_TRUE(b.trySetAlpha(-1.0).isError());
     EXPECT_TRUE(b.trySetBeta(-1.0).isError());
     EXPECT_DOUBLE_EQ(b.getAlpha(), 2.0);
@@ -172,7 +172,7 @@ TEST_F(BetaEnhancedTest, OutOfSupport) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::BetaDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::BetaDistribution make() { return stats::BetaDistribution::create(2.0, 3.0).value; }
+    static stats::BetaDistribution make() { return stats::BetaDistribution::create(2.0, 3.0).unwrap(); }
     static std::vector<double> domain() { return {0.1, 0.3, 0.5, 0.7, 0.9}; }
     static double batch_lo() { return 0.01; }
     static double batch_hi() { return 0.99; }

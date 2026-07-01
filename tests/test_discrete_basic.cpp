@@ -33,14 +33,14 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_discrete = stats::DiscreteDistribution::create().value;
+        auto default_discrete = stats::DiscreteDistribution::create().unwrap();
         BasicTestFormatter::printPropertyInt("Default Lower bound",
                                              default_discrete.getLowerBound());
         BasicTestFormatter::printPropertyInt("Default Upper bound",
                                              default_discrete.getUpperBound());
 
         // Parameterized constructor test
-        auto param_discrete = stats::DiscreteDistribution::create(0, 1).value;
+        auto param_discrete = stats::DiscreteDistribution::create(0, 1).unwrap();
         BasicTestFormatter::printPropertyInt("Param Lower bound", param_discrete.getLowerBound());
         BasicTestFormatter::printPropertyInt("Param Upper bound", param_discrete.getUpperBound());
 
@@ -50,7 +50,7 @@ int main() {
         BasicTestFormatter::printPropertyInt("Copy Upper bound", copy_discrete.getUpperBound());
 
         // Move constructor test
-        auto temp_discrete = stats::DiscreteDistribution::create(10, 15).value;
+        auto temp_discrete = stats::DiscreteDistribution::create(10, 15).unwrap();
         auto move_discrete = std::move(temp_discrete);
         BasicTestFormatter::printPropertyInt("Move Lower bound", move_discrete.getLowerBound());
         BasicTestFormatter::printPropertyInt("Move Upper bound", move_discrete.getUpperBound());
@@ -58,7 +58,7 @@ int main() {
         // Safe factory method test
         auto result = DiscreteDistribution::create(1, 6);
         if (result.isOk()) {
-            auto factory_discrete = std::move(result.value);
+            auto factory_discrete = std::move(result).unwrap();
             BasicTestFormatter::printPropertyInt("Factory Lower bound",
                                                  factory_discrete.getLowerBound());
             BasicTestFormatter::printPropertyInt("Factory Upper bound",
@@ -80,7 +80,7 @@ int main() {
                 "variance=2.916)."
              << endl;
 
-        auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
+        auto discrete_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
 
         // Test getters
         BasicTestFormatter::printPropertyInt("Initial Lower bound", discrete_dist.getLowerBound());
@@ -138,7 +138,7 @@ int main() {
                 "standard die."
              << endl;
 
-        auto dice_dist = stats::DiscreteDistribution::create(1, 6).value;
+        auto dice_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
         double x = 3.0;
 
         BasicTestFormatter::printProperty("PMF(3.0)", dice_dist.getProbability(x));
@@ -204,7 +204,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = TestDataGenerators::generateDiscreteTestData();
-        auto fitted_dist = stats::DiscreteDistribution::create().value;
+        auto fitted_dist = stats::DiscreteDistribution::create().unwrap();
         fitted_dist.fit(fit_data);
         BasicTestFormatter::printPropertyInt("Fitted Lower bound", fitted_dist.getLowerBound());
         BasicTestFormatter::printPropertyInt("Fitted Upper bound", fitted_dist.getUpperBound());
@@ -235,7 +235,7 @@ int main() {
         cfg.invalid_scenarios = {
             {"upper < lower", [] { return DiscreteDistribution::create(5, 3).isError(); }},
         };
-        auto test_dist = stats::DiscreteDistribution::create(1, 6).value;
+        auto test_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
         stats::tests::runBatchTests(cfg, test_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
@@ -243,9 +243,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = stats::DiscreteDistribution::create(1, 6).value;
-        auto dist2 = stats::DiscreteDistribution::create(1, 6).value;
-        auto dist3 = stats::DiscreteDistribution::create(0, 10).value;
+        auto dist1 = stats::DiscreteDistribution::create(1, 6).unwrap();
+        auto dist2 = stats::DiscreteDistribution::create(1, 6).unwrap();
+        auto dist3 = stats::DiscreteDistribution::create(0, 10).unwrap();
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -258,7 +258,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = stats::DiscreteDistribution::create().value;
+        auto input_dist = stats::DiscreteDistribution::create().unwrap();
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;

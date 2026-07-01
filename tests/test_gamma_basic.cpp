@@ -33,12 +33,12 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_gamma = stats::GammaDistribution::create().value;
+        auto default_gamma = stats::GammaDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default Alpha (shape)", default_gamma.getAlpha());
         BasicTestFormatter::printProperty("Default Beta (rate)", default_gamma.getBeta());
 
         // Parameterized constructor test
-        auto param_gamma = stats::GammaDistribution::create(2.0, 3.0).value;
+        auto param_gamma = stats::GammaDistribution::create(2.0, 3.0).unwrap();
         BasicTestFormatter::printProperty("Param Alpha", param_gamma.getAlpha());
         BasicTestFormatter::printProperty("Param Beta", param_gamma.getBeta());
 
@@ -48,7 +48,7 @@ int main() {
         BasicTestFormatter::printProperty("Copy Beta", copy_gamma.getBeta());
 
         // Move constructor test
-        auto temp_gamma = stats::GammaDistribution::create(5.0, 0.5).value;
+        auto temp_gamma = stats::GammaDistribution::create(5.0, 0.5).unwrap();
         auto move_gamma = std::move(temp_gamma);
         BasicTestFormatter::printProperty("Move Alpha", move_gamma.getAlpha());
         BasicTestFormatter::printProperty("Move Beta", move_gamma.getBeta());
@@ -56,7 +56,7 @@ int main() {
         // Safe factory method test
         auto result = GammaDistribution::create(1.0, 1.0);
         if (result.isOk()) {
-            auto factory_gamma = std::move(result.value);
+            auto factory_gamma = std::move(result).unwrap();
             BasicTestFormatter::printProperty("Factory Alpha", factory_gamma.getAlpha());
             BasicTestFormatter::printProperty("Factory Beta", factory_gamma.getBeta());
         }
@@ -76,7 +76,7 @@ int main() {
                 "variance=2)."
              << endl;
 
-        auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+        auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
         // Test getters
         BasicTestFormatter::printProperty("Initial Alpha", gamma_dist.getAlpha());
@@ -126,7 +126,7 @@ int main() {
         cout << "Expected: For Gamma(2,1): mean=2, mode=1, relatively skewed right distribution."
              << endl;
 
-        auto test_gamma = stats::GammaDistribution::create(2.0, 1.0).value;
+        auto test_gamma = stats::GammaDistribution::create(2.0, 1.0).unwrap();
         double x = 1.5;
 
         BasicTestFormatter::printProperty("PDF(1.5)", test_gamma.getProbability(x));
@@ -192,7 +192,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = TestDataGenerators::generateGammaTestData();
-        auto fitted_dist = stats::GammaDistribution::create().value;
+        auto fitted_dist = stats::GammaDistribution::create().unwrap();
         fitted_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted Alpha", fitted_dist.getAlpha());
         BasicTestFormatter::printProperty("Fitted Beta", fitted_dist.getBeta());
@@ -221,7 +221,7 @@ int main() {
         cfg.invalid_scenarios = {
             {"invalid params alpha=0 beta=-1", [] { return GammaDistribution::create(0.0, -1.0).isError(); }},
         };
-        auto test_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+        auto test_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, test_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
@@ -229,9 +229,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = stats::GammaDistribution::create(2.0, 1.0).value;
-        auto dist2 = stats::GammaDistribution::create(2.0, 1.0).value;
-        auto dist3 = stats::GammaDistribution::create(3.0, 2.0).value;
+        auto dist1 = stats::GammaDistribution::create(2.0, 1.0).unwrap();
+        auto dist2 = stats::GammaDistribution::create(2.0, 1.0).unwrap();
+        auto dist3 = stats::GammaDistribution::create(3.0, 2.0).unwrap();
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -244,7 +244,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = stats::GammaDistribution::create().value;
+        auto input_dist = stats::GammaDistribution::create().unwrap();
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;

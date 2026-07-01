@@ -63,8 +63,8 @@ void demonstrate_smart_dispatch() {
         << std::endl;
 
     // Create distributions
-    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
-    auto exponential = stats::ExponentialDistribution::create(2.0).value;
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+    auto exponential = stats::ExponentialDistribution::create(2.0).unwrap();
 
     // Create test data of various sizes
     std::vector<size_t> data_sizes = {100, 1000, 10000, 100000};
@@ -165,7 +165,7 @@ void demonstrate_forced_strategies() {
         << "Caution: forced strategies bypass the dispatch threshold logic and can\n"
         << "be slower than auto-dispatch for the given batch size.\n\n";
 
-    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
     constexpr size_t N = 50000;
     std::vector<double> xs(N), out_scalar(N), out_vectorized(N), out_parallel(N);
     std::mt19937 rng(42);

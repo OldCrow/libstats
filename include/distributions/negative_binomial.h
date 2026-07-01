@@ -86,7 +86,7 @@ class NegativeBinomialDistribution : public DistributionBase {
         double r = detail::ONE, double p = detail::HALF) {
         auto v = validateNegativeBinomialParameters(r, p);
         if (v.isError())
-            return Result<NegativeBinomialDistribution>::makeError(v.error_code, v.message);
+            return Result<NegativeBinomialDistribution>::makeError(v.errorCode(), v.message());
         return Result<NegativeBinomialDistribution>::ok(createUnchecked(r, p));
     }
 
@@ -146,7 +146,7 @@ class NegativeBinomialDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "NegativeBinomialDistribution";
+        return "NegativeBinomial";
     }
 
     /** @brief Negative Binomial is discrete. */

@@ -27,22 +27,22 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Default (r=1, p=0.5). Discrete support {0, 1, 2, ...}." << endl;
 
-        auto default_nb = NegativeBinomialDistribution::create().value;
+        auto default_nb = NegativeBinomialDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default r (expect 1)", default_nb.getR());
         BasicTestFormatter::printProperty("Default p (expect 0.5)", default_nb.getP());
 
-        auto nb1 = NegativeBinomialDistribution::create(3.0, 0.4).value;
+        auto nb1 = NegativeBinomialDistribution::create(3.0, 0.4).unwrap();
         BasicTestFormatter::printProperty("r=3.0", nb1.getR());
         BasicTestFormatter::printProperty("p=0.4", nb1.getP());
 
         // Real-valued r (key feature over std::negative_binomial_distribution)
-        auto nb_real = NegativeBinomialDistribution::create(1.5, 0.6).value;
+        auto nb_real = NegativeBinomialDistribution::create(1.5, 0.6).unwrap();
         BasicTestFormatter::printProperty("r=1.5 (real)", nb_real.getR());
 
         auto copy_nb = nb1;
         BasicTestFormatter::printProperty("Copy r", copy_nb.getR());
 
-        auto temp = NegativeBinomialDistribution::create(2.0, 0.7).value;
+        auto temp = NegativeBinomialDistribution::create(2.0, 0.7).unwrap();
         auto move_nb = std::move(temp);
         BasicTestFormatter::printProperty("Move r (expect 2)", move_nb.getR());
 
@@ -67,7 +67,7 @@ int main() {
         // =====================================================================
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
-        auto nb = NegativeBinomialDistribution::create(2.0, 0.5).value;
+        auto nb = NegativeBinomialDistribution::create(2.0, 0.5).unwrap();
         BasicTestFormatter::printProperty("r", nb.getR());
         BasicTestFormatter::printProperty("p", nb.getP());
         BasicTestFormatter::printPropertyInt("Num parameters (expect 2)", nb.getNumParameters());
@@ -115,7 +115,7 @@ int main() {
         BasicTestFormatter::printTestStart(3, "Core Probability Methods");
         cout << "NB(2, 0.5): PMF(0)=0.25, PMF(1)=0.25, CDF(0)=0.25, CDF(1)=0.5" << endl;
 
-        auto b = NegativeBinomialDistribution::create(2.0, 0.5).value;
+        auto b = NegativeBinomialDistribution::create(2.0, 0.5).unwrap();
 
         // PMF(0) = p^r = 0.5^2 = 0.25
         const double pmf0 = b.getProbability(0.0);
@@ -177,7 +177,7 @@ int main() {
         cout << "Gamma(r,(1-p)/p)-Poisson mixture. Supports real r." << endl;
 
         mt19937 rng(42);
-        auto sample_nb = NegativeBinomialDistribution::create(2.0, 0.5).value;
+        auto sample_nb = NegativeBinomialDistribution::create(2.0, 0.5).unwrap();
         const double s = sample_nb.sample(rng);
         cout << "Single sample ≥ 0: " << (s >= 0.0 ? "PASS" : "FAIL") << endl;
 
@@ -195,7 +195,7 @@ int main() {
         cout << "Sample mean ≈ 2.0: " << (sample_mean_ok ? "PASS" : "FAIL") << endl;
 
         // Real-valued r sampling
-        auto sample_real = NegativeBinomialDistribution::create(1.5, 0.6).value;
+        auto sample_real = NegativeBinomialDistribution::create(1.5, 0.6).unwrap();
         const double sr = sample_real.sample(rng);
         cout << "Real r=1.5 sample ≥ 0: " << (sr >= 0.0 ? "PASS" : "FAIL") << endl;
 
@@ -211,9 +211,9 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: MoM seed + Newton-Raphson on profile score (digamma/trigamma)." << endl;
 
-        auto fit_dist = NegativeBinomialDistribution::create(1.0, 0.5).value;
+        auto fit_dist = NegativeBinomialDistribution::create(1.0, 0.5).unwrap();
         // Fit to NB(3, 0.6) samples
-        auto source = NegativeBinomialDistribution::create(3.0, 0.6).value;
+        auto source = NegativeBinomialDistribution::create(3.0, 0.6).unwrap();
         const auto fit_data = source.sample(rng, 500);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted r (from NB(3,0.6), expect ~3)", fit_dist.getR());
@@ -245,14 +245,14 @@ int main() {
             {"p=0", [] { return NegativeBinomialDistribution::create(1.0, 0.0).isError(); }},
             {"p=1.1", [] { return NegativeBinomialDistribution::create(1.0, 1.1).isError(); }},
         };
-        auto batch_nb = NegativeBinomialDistribution::create(5.0, 0.4).value;
+        auto batch_nb = NegativeBinomialDistribution::create(5.0, 0.4).unwrap();
         stats::tests::runBatchTests(cfg, batch_nb);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = NegativeBinomialDistribution::create(2.0, 0.5).value;
-        auto d2 = NegativeBinomialDistribution::create(2.0, 0.5).value;
-        auto d3 = NegativeBinomialDistribution::create(3.0, 0.5).value;
+        auto d1 = NegativeBinomialDistribution::create(2.0, 0.5).unwrap();
+        auto d2 = NegativeBinomialDistribution::create(2.0, 0.5).unwrap();
+        auto d3 = NegativeBinomialDistribution::create(3.0, 0.5).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << endl;
         cout << "d1 == d3: " << (d1 == d3 ? "true" : "false") << endl;
         cout << "d1 != d3: " << (d1 != d3 ? "true" : "false") << endl;
@@ -260,7 +260,7 @@ int main() {
         stringstream ss;
         ss << d1;
         cout << "Stream output: " << ss.str() << endl;
-        auto in_dist = NegativeBinomialDistribution::create().value;
+        auto in_dist = NegativeBinomialDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
             cout << "Stream round-trip r=" << in_dist.getR()

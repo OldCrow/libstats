@@ -73,7 +73,7 @@ namespace stats {
  * // Goodness-of-fit test: compare test statistic to chi-squared critical value
  * auto result = ChiSquaredDistribution::create(5.0);  // 5 degrees of freedom
  * if (result.isOk()) {
- *     auto& chi2 = result.value;
+ *     auto& chi2 = result.unwrap();
  *
  *     double test_statistic = 11.07;
  *     double p_value = 1.0 - chi2.getCumulativeProbability(test_statistic);
@@ -168,8 +168,8 @@ class ChiSquaredDistribution : public DistributionBase {
     [[nodiscard]] static Result<ChiSquaredDistribution> create(double k = detail::ONE) {
         auto validation = validateChiSquaredParameters(k);
         if (validation.isError()) {
-            return Result<ChiSquaredDistribution>::makeError(validation.error_code,
-                                                             validation.message);
+            return Result<ChiSquaredDistribution>::makeError(validation.errorCode(),
+                                                             validation.message());
         }
         return Result<ChiSquaredDistribution>::ok(createUnchecked(k));
     }
@@ -245,7 +245,7 @@ class ChiSquaredDistribution : public DistributionBase {
      * @brief Get the distribution name.
      */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "ChiSquaredDistribution";
+        return "ChiSquared";
     }
 
     /**
@@ -490,7 +490,7 @@ class ChiSquaredDistribution : public DistributionBase {
     // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double k) {
         auto v = ::stats::validateChiSquaredParameters(k);
-        if (v.isError()) throw std::invalid_argument(v.message);
+        if (v.isError()) throw std::invalid_argument(v.message());
     }
 
     //==========================================================================

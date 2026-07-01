@@ -110,8 +110,8 @@ class RayleighDistribution : public DistributionBase {
     [[nodiscard]] static Result<RayleighDistribution> create(double sigma = detail::ONE) {
         auto validation = validateRayleighParameters(sigma);
         if (validation.isError()) {
-            return Result<RayleighDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<RayleighDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
         return Result<RayleighDistribution>::ok(createUnchecked(sigma));
     }
@@ -155,7 +155,7 @@ class RayleighDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "RayleighDistribution";
+        return "Rayleigh";
     }
 
     /** @brief Rayleigh is continuous. */

@@ -110,7 +110,7 @@ class BetaDistribution : public DistributionBase {
                                                          double beta = detail::ONE) {
         auto validation = validateBetaParameters(alpha, beta);
         if (validation.isError()) {
-            return Result<BetaDistribution>::makeError(validation.error_code, validation.message);
+            return Result<BetaDistribution>::makeError(validation.errorCode(), validation.message());
         }
         return Result<BetaDistribution>::ok(createUnchecked(alpha, beta));
     }
@@ -165,7 +165,7 @@ class BetaDistribution : public DistributionBase {
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "BetaDistribution"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Beta"; }
 
     /** @brief Beta is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }
@@ -368,7 +368,7 @@ class BetaDistribution : public DistributionBase {
     // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double alpha, double beta) {
         auto v = ::stats::validateBetaParameters(alpha, beta);
-        if (v.isError()) throw std::invalid_argument(v.message);
+        if (v.isError()) throw std::invalid_argument(v.message());
     }
 
     //==========================================================================

@@ -77,7 +77,7 @@ std::tuple<double, double, bool> frequencyTest(const std::vector<double>& data, 
     auto dist_result = DiscreteDistribution::create(lo, hi);
     if (!dist_result.isOk())
         throw std::invalid_argument("Invalid range for DiscreteDistribution: " +
-                                    dist_result.message);
+                                    dist_result.message());
 
     // Retain only values within the expected support.
     std::vector<double> filtered;
@@ -92,7 +92,7 @@ std::tuple<double, double, bool> frequencyTest(const std::vector<double>& data, 
         throw std::invalid_argument("Fewer than 5 data values fall within [lo, hi]");
 
     // lo and hi are given (not estimated from data) so estimated_params = 0.
-    return chiSquaredGoodnessOfFit(filtered, dist_result.value, alpha, 0);
+    return chiSquaredGoodnessOfFit(filtered, *dist_result, alpha, 0);
 }
 
 }  // namespace stats::analysis::discrete

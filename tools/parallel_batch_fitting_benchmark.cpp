@@ -285,7 +285,7 @@ class DatasetGenerator {
             size_t count, size_t size, std::mt19937& rng, Args&&... args) {
         std::vector<std::vector<double>> datasets;
         for (size_t i = 0; i < count; ++i) {
-            auto dist = Dist::create(std::forward<Args>(args)...).value;
+            auto dist = Dist::create(std::forward<Args>(args)...).unwrap();
             datasets.push_back(dist.sample(rng, size));
         }
         return datasets;
@@ -297,7 +297,7 @@ class DatasetGenerator {
         std::uniform_real_distribution<double> mu_dist(-1.0, 2.0);
         std::uniform_real_distribution<double> sigma_dist(0.3, 1.5);
         for (size_t i = 0; i < count; ++i) {
-            auto src = LogNormalDistribution::create(mu_dist(rng), sigma_dist(rng)).value;
+            auto src = LogNormalDistribution::create(mu_dist(rng), sigma_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -309,7 +309,7 @@ class DatasetGenerator {
         std::uniform_real_distribution<double> scale_dist(0.5, 3.0);
         std::uniform_real_distribution<double> alpha_dist(1.5, 5.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = ParetoDistribution::create(scale_dist(rng), alpha_dist(rng)).value;
+            auto src = ParetoDistribution::create(scale_dist(rng), alpha_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -321,7 +321,7 @@ class DatasetGenerator {
         std::uniform_real_distribution<double> k_dist(0.8, 4.0);
         std::uniform_real_distribution<double> lambda_dist(0.5, 3.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = WeibullDistribution::create(k_dist(rng), lambda_dist(rng)).value;
+            auto src = WeibullDistribution::create(k_dist(rng), lambda_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -332,7 +332,7 @@ class DatasetGenerator {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> sigma_dist(0.5, 3.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = RayleighDistribution::create(sigma_dist(rng)).value;
+            auto src = RayleighDistribution::create(sigma_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -344,7 +344,7 @@ class DatasetGenerator {
         std::uniform_real_distribution<double> mu_dist(-2.0, 2.0);
         std::uniform_real_distribution<double> kappa_dist(0.5, 5.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = VonMisesDistribution::create(mu_dist(rng), kappa_dist(rng)).value;
+            auto src = VonMisesDistribution::create(mu_dist(rng), kappa_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -356,7 +356,7 @@ class DatasetGenerator {
         std::uniform_real_distribution<double> p_dist(0.2, 0.8);
         // Fixed n=20 across all datasets so fit() recovers a stable n estimate.
         for (size_t i = 0; i < count; ++i) {
-            auto src = BinomialDistribution::create(20, p_dist(rng)).value;
+            auto src = BinomialDistribution::create(20, p_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -368,7 +368,7 @@ class DatasetGenerator {
         std::uniform_real_distribution<double> r_dist(2.0, 8.0);
         std::uniform_real_distribution<double> p_dist(0.3, 0.7);
         for (size_t i = 0; i < count; ++i) {
-            auto src = NegativeBinomialDistribution::create(r_dist(rng), p_dist(rng)).value;
+            auto src = NegativeBinomialDistribution::create(r_dist(rng), p_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -379,7 +379,7 @@ class DatasetGenerator {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> p_dist(0.2, 0.8);
         for (size_t i = 0; i < count; ++i) {
-            auto src = GeometricDistribution::create(p_dist(rng)).value;
+            auto src = GeometricDistribution::create(p_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -391,7 +391,7 @@ class DatasetGenerator {
         std::uniform_real_distribution<double> mu_dist(-5.0, 5.0);
         std::uniform_real_distribution<double> b_dist(0.5, 3.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = LaplaceDistribution::create(mu_dist(rng), b_dist(rng)).value;
+            auto src = LaplaceDistribution::create(mu_dist(rng), b_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -403,7 +403,7 @@ class DatasetGenerator {
         std::uniform_real_distribution<double> x0_dist(-5.0, 5.0);
         std::uniform_real_distribution<double> gamma_dist(0.5, 3.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = CauchyDistribution::create(x0_dist(rng), gamma_dist(rng)).value;
+            auto src = CauchyDistribution::create(x0_dist(rng), gamma_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -414,7 +414,7 @@ class DatasetGenerator {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> param_dist(0.5, 5.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = BetaDistribution::create(param_dist(rng), param_dist(rng)).value;
+            auto src = BetaDistribution::create(param_dist(rng), param_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -425,7 +425,7 @@ class DatasetGenerator {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> k_dist(2.0, 10.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = ChiSquaredDistribution::create(k_dist(rng)).value;
+            auto src = ChiSquaredDistribution::create(k_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;
@@ -436,7 +436,7 @@ class DatasetGenerator {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> nu_dist(3.0, 20.0);
         for (size_t i = 0; i < count; ++i) {
-            auto src = StudentTDistribution::create(nu_dist(rng)).value;
+            auto src = StudentTDistribution::create(nu_dist(rng)).unwrap();
             datasets.push_back(src.sample(rng, size));
         }
         return datasets;

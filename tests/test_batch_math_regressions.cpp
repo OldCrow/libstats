@@ -20,7 +20,7 @@
 using namespace stats;
 
 TEST(BatchMathRegressions, GammaBatchCDFLargeAlphaMatchesScalar) {
-    auto gamma = GammaDistribution::create(200.0, 1.5).value;
+    auto gamma = GammaDistribution::create(200.0, 1.5).unwrap();
     std::vector<double> values = {100.0, 120.0, 140.0, 160.0};
     std::vector<double> batch(values.size());
 
@@ -34,7 +34,7 @@ TEST(BatchMathRegressions, GammaBatchCDFLargeAlphaMatchesScalar) {
 }
 
 TEST(BatchMathRegressions, BinomialBatchProbabilityHandlesBoundaryPZero) {
-    auto binom = BinomialDistribution::create(10, 0.0).value;
+    auto binom = BinomialDistribution::create(10, 0.0).unwrap();
     std::vector<double> values = {0.0, 1.0, 10.0};
     std::vector<double> prob(values.size());
     std::vector<double> log_prob(values.size());
@@ -53,7 +53,7 @@ TEST(BatchMathRegressions, BinomialBatchProbabilityHandlesBoundaryPZero) {
 }
 
 TEST(BatchMathRegressions, BinomialBatchProbabilityHandlesBoundaryPOne) {
-    auto binom = BinomialDistribution::create(10, 1.0).value;
+    auto binom = BinomialDistribution::create(10, 1.0).unwrap();
     std::vector<double> values = {0.0, 9.0, 10.0};
     std::vector<double> prob(values.size());
     std::vector<double> log_prob(values.size());
@@ -72,7 +72,7 @@ TEST(BatchMathRegressions, BinomialBatchProbabilityHandlesBoundaryPOne) {
 }
 
 TEST(BatchMathRegressions, PoissonLargeLambdaQuantileFiniteAndOrdered) {
-    auto poisson = PoissonDistribution::create(1'000'000.0).value;
+    auto poisson = PoissonDistribution::create(1'000'000.0).unwrap();
     const double q50 = poisson.getQuantile(0.50);
     const double q95 = poisson.getQuantile(0.95);
 
@@ -115,7 +115,7 @@ TEST(BatchMathRegressions, NegativeBinomialFitRejectsNegative) {
 }
 
 TEST(BatchMathRegressions, GaussianStandardizedValueRebuildsCacheAfterReset) {
-    auto gaussian = GaussianDistribution::create(10.0, 2.0).value;
+    auto gaussian = GaussianDistribution::create(10.0, 2.0).unwrap();
     EXPECT_NEAR(gaussian.getStandardizedValue(14.0), 2.0, 1e-15);
 
     gaussian.reset();

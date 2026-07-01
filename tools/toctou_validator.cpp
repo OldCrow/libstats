@@ -224,10 +224,10 @@ make_checker(double test_x, double pdf_p1, double pdf_p2, double cdf_test_x)
 
 RaceResult race_gaussian(int dur, int nr) {
     // P1: N(0,1), P2: N(0,0.2) — PDF(0) differs by 5×
-    auto d = GaussianDistribution::create(0.0, 1.0).value;
-    const double pdf_p1 = GaussianDistribution::create(0.0, 1.0) .value.getProbability(0.0);
-    const double pdf_p2 = GaussianDistribution::create(0.0, 0.2) .value.getProbability(0.0);
-    const double cdf_p1 = GaussianDistribution::create(0.0, 1.0) .value.getCumulativeProbability(0.0);
+    auto d = GaussianDistribution::create(0.0, 1.0).unwrap();
+    const double pdf_p1 = GaussianDistribution::create(0.0, 1.0) .unwrap().getProbability(0.0);
+    const double pdf_p2 = GaussianDistribution::create(0.0, 0.2) .unwrap().getProbability(0.0);
+    const double cdf_p1 = GaussianDistribution::create(0.0, 1.0) .unwrap().getCumulativeProbability(0.0);
     auto check = make_checker<GaussianDistribution>(0.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<GaussianDistribution>(
         d,
@@ -238,10 +238,10 @@ RaceResult race_gaussian(int dur, int nr) {
 
 RaceResult race_exponential(int dur, int nr) {
     // P1: Exp(1), P2: Exp(10) — PDF(0.5) differs by ~11×
-    auto d = ExponentialDistribution::create(1.0).value;
-    const double pdf_p1 = ExponentialDistribution::create(1.0) .value.getProbability(0.5);
-    const double pdf_p2 = ExponentialDistribution::create(10.0).value.getProbability(0.5);
-    const double cdf_p1 = ExponentialDistribution::create(1.0) .value.getCumulativeProbability(0.5);
+    auto d = ExponentialDistribution::create(1.0).unwrap();
+    const double pdf_p1 = ExponentialDistribution::create(1.0) .unwrap().getProbability(0.5);
+    const double pdf_p2 = ExponentialDistribution::create(10.0).unwrap().getProbability(0.5);
+    const double cdf_p1 = ExponentialDistribution::create(1.0) .unwrap().getCumulativeProbability(0.5);
     auto check = make_checker<ExponentialDistribution>(0.5, pdf_p1, pdf_p2, cdf_p1);
     return run_race<ExponentialDistribution>(
         d,
@@ -252,10 +252,10 @@ RaceResult race_exponential(int dur, int nr) {
 
 RaceResult race_uniform(int dur, int nr) {
     // P1: U(0,1), P2: U(0,10) — PDF(0.5) differs by 10×
-    auto d = UniformDistribution::create(0.0, 1.0).value;
-    const double pdf_p1 = UniformDistribution::create(0.0, 1.0) .value.getProbability(0.5);
-    const double pdf_p2 = UniformDistribution::create(0.0, 10.0).value.getProbability(0.5);
-    const double cdf_p1 = UniformDistribution::create(0.0, 1.0) .value.getCumulativeProbability(0.5);
+    auto d = UniformDistribution::create(0.0, 1.0).unwrap();
+    const double pdf_p1 = UniformDistribution::create(0.0, 1.0) .unwrap().getProbability(0.5);
+    const double pdf_p2 = UniformDistribution::create(0.0, 10.0).unwrap().getProbability(0.5);
+    const double cdf_p1 = UniformDistribution::create(0.0, 1.0) .unwrap().getCumulativeProbability(0.5);
     auto check = make_checker<UniformDistribution>(0.5, pdf_p1, pdf_p2, cdf_p1);
     return run_race<UniformDistribution>(
         d,
@@ -266,10 +266,10 @@ RaceResult race_uniform(int dur, int nr) {
 
 RaceResult race_gamma(int dur, int nr) {
     // P1: Gamma(1,1)=Exp(1), P2: Gamma(8,1) — PDF(1) differs by ~5000×
-    auto d = GammaDistribution::create(1.0, 1.0).value;
-    const double pdf_p1 = GammaDistribution::create(1.0, 1.0).value.getProbability(1.0);
-    const double pdf_p2 = GammaDistribution::create(8.0, 1.0).value.getProbability(1.0);
-    const double cdf_p1 = GammaDistribution::create(1.0, 1.0).value.getCumulativeProbability(1.0);
+    auto d = GammaDistribution::create(1.0, 1.0).unwrap();
+    const double pdf_p1 = GammaDistribution::create(1.0, 1.0).unwrap().getProbability(1.0);
+    const double pdf_p2 = GammaDistribution::create(8.0, 1.0).unwrap().getProbability(1.0);
+    const double cdf_p1 = GammaDistribution::create(1.0, 1.0).unwrap().getCumulativeProbability(1.0);
     auto check = make_checker<GammaDistribution>(1.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<GammaDistribution>(
         d,
@@ -280,10 +280,10 @@ RaceResult race_gamma(int dur, int nr) {
 
 RaceResult race_beta(int dur, int nr) {
     // P1: Beta(1,1)=Uniform, P2: Beta(5,2) — PDF(0.1) differs by ~370×
-    auto d = BetaDistribution::create(1.0, 1.0).value;
-    const double pdf_p1 = BetaDistribution::create(1.0, 1.0).value.getProbability(0.1);
-    const double pdf_p2 = BetaDistribution::create(5.0, 2.0).value.getProbability(0.1);
-    const double cdf_p1 = BetaDistribution::create(1.0, 1.0).value.getCumulativeProbability(0.1);
+    auto d = BetaDistribution::create(1.0, 1.0).unwrap();
+    const double pdf_p1 = BetaDistribution::create(1.0, 1.0).unwrap().getProbability(0.1);
+    const double pdf_p2 = BetaDistribution::create(5.0, 2.0).unwrap().getProbability(0.1);
+    const double cdf_p1 = BetaDistribution::create(1.0, 1.0).unwrap().getCumulativeProbability(0.1);
     auto check = make_checker<BetaDistribution>(0.1, pdf_p1, pdf_p2, cdf_p1);
     return run_race<BetaDistribution>(
         d,
@@ -294,10 +294,10 @@ RaceResult race_beta(int dur, int nr) {
 
 RaceResult race_lognormal(int dur, int nr) {
     // P1: LN(0,1), P2: LN(0,0.1) — PDF(1) differs by 10×
-    auto d = LogNormalDistribution::create(0.0, 1.0).value;
-    const double pdf_p1 = LogNormalDistribution::create(0.0, 1.0) .value.getProbability(1.0);
-    const double pdf_p2 = LogNormalDistribution::create(0.0, 0.1) .value.getProbability(1.0);
-    const double cdf_p1 = LogNormalDistribution::create(0.0, 1.0) .value.getCumulativeProbability(1.0);
+    auto d = LogNormalDistribution::create(0.0, 1.0).unwrap();
+    const double pdf_p1 = LogNormalDistribution::create(0.0, 1.0) .unwrap().getProbability(1.0);
+    const double pdf_p2 = LogNormalDistribution::create(0.0, 0.1) .unwrap().getProbability(1.0);
+    const double cdf_p1 = LogNormalDistribution::create(0.0, 1.0) .unwrap().getCumulativeProbability(1.0);
     auto check = make_checker<LogNormalDistribution>(1.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<LogNormalDistribution>(
         d,
@@ -308,10 +308,10 @@ RaceResult race_lognormal(int dur, int nr) {
 
 RaceResult race_pareto(int dur, int nr) {
     // P1: Pareto(1,2), P2: Pareto(1,10) — PDF(2) differs by ~51×
-    auto d = ParetoDistribution::create(1.0, 2.0).value;
-    const double pdf_p1 = ParetoDistribution::create(1.0, 2.0) .value.getProbability(2.0);
-    const double pdf_p2 = ParetoDistribution::create(1.0, 10.0).value.getProbability(2.0);
-    const double cdf_p1 = ParetoDistribution::create(1.0, 2.0) .value.getCumulativeProbability(2.0);
+    auto d = ParetoDistribution::create(1.0, 2.0).unwrap();
+    const double pdf_p1 = ParetoDistribution::create(1.0, 2.0) .unwrap().getProbability(2.0);
+    const double pdf_p2 = ParetoDistribution::create(1.0, 10.0).unwrap().getProbability(2.0);
+    const double cdf_p1 = ParetoDistribution::create(1.0, 2.0) .unwrap().getCumulativeProbability(2.0);
     auto check = make_checker<ParetoDistribution>(2.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<ParetoDistribution>(
         d,
@@ -322,10 +322,10 @@ RaceResult race_pareto(int dur, int nr) {
 
 RaceResult race_weibull(int dur, int nr) {
     // P1: Weibull(1,1)=Exp(1), P2: Weibull(10,1) — PDF(0.5) differs by ~31×
-    auto d = WeibullDistribution::create(1.0, 1.0).value;
-    const double pdf_p1 = WeibullDistribution::create(1.0,  1.0).value.getProbability(0.5);
-    const double pdf_p2 = WeibullDistribution::create(10.0, 1.0).value.getProbability(0.5);
-    const double cdf_p1 = WeibullDistribution::create(1.0,  1.0).value.getCumulativeProbability(0.5);
+    auto d = WeibullDistribution::create(1.0, 1.0).unwrap();
+    const double pdf_p1 = WeibullDistribution::create(1.0,  1.0).unwrap().getProbability(0.5);
+    const double pdf_p2 = WeibullDistribution::create(10.0, 1.0).unwrap().getProbability(0.5);
+    const double cdf_p1 = WeibullDistribution::create(1.0,  1.0).unwrap().getCumulativeProbability(0.5);
     auto check = make_checker<WeibullDistribution>(0.5, pdf_p1, pdf_p2, cdf_p1);
     return run_race<WeibullDistribution>(
         d,
@@ -336,10 +336,10 @@ RaceResult race_weibull(int dur, int nr) {
 
 RaceResult race_rayleigh(int dur, int nr) {
     // P1: Rayleigh(1), P2: Rayleigh(3) — PDF(0.5) differs by ~8×
-    auto d = RayleighDistribution::create(1.0).value;
-    const double pdf_p1 = RayleighDistribution::create(1.0).value.getProbability(0.5);
-    const double pdf_p2 = RayleighDistribution::create(3.0).value.getProbability(0.5);
-    const double cdf_p1 = RayleighDistribution::create(1.0).value.getCumulativeProbability(0.5);
+    auto d = RayleighDistribution::create(1.0).unwrap();
+    const double pdf_p1 = RayleighDistribution::create(1.0).unwrap().getProbability(0.5);
+    const double pdf_p2 = RayleighDistribution::create(3.0).unwrap().getProbability(0.5);
+    const double cdf_p1 = RayleighDistribution::create(1.0).unwrap().getCumulativeProbability(0.5);
     auto check = make_checker<RayleighDistribution>(0.5, pdf_p1, pdf_p2, cdf_p1);
     return run_race<RayleighDistribution>(
         d,
@@ -350,10 +350,10 @@ RaceResult race_rayleigh(int dur, int nr) {
 
 RaceResult race_von_mises(int dur, int nr) {
     // P1: VM(0,0.1)≈uniform, P2: VM(0,10) — PDF(0) differs by ~8×
-    auto d = VonMisesDistribution::create(0.0, 0.1).value;
-    const double pdf_p1 = VonMisesDistribution::create(0.0, 0.1) .value.getProbability(0.0);
-    const double pdf_p2 = VonMisesDistribution::create(0.0, 10.0).value.getProbability(0.0);
-    const double cdf_p1 = VonMisesDistribution::create(0.0, 0.1) .value.getCumulativeProbability(0.0);
+    auto d = VonMisesDistribution::create(0.0, 0.1).unwrap();
+    const double pdf_p1 = VonMisesDistribution::create(0.0, 0.1) .unwrap().getProbability(0.0);
+    const double pdf_p2 = VonMisesDistribution::create(0.0, 10.0).unwrap().getProbability(0.0);
+    const double cdf_p1 = VonMisesDistribution::create(0.0, 0.1) .unwrap().getCumulativeProbability(0.0);
     auto check = make_checker<VonMisesDistribution>(0.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<VonMisesDistribution>(
         d,
@@ -364,10 +364,10 @@ RaceResult race_von_mises(int dur, int nr) {
 
 RaceResult race_student_t(int dur, int nr) {
     // P1: t(1)=Cauchy, P2: t(100)≈Normal — PDF(5) differs by ~8000×
-    auto d = StudentTDistribution::create(1.0).value;
-    const double pdf_p1 = StudentTDistribution::create(1.0)  .value.getProbability(5.0);
-    const double pdf_p2 = StudentTDistribution::create(100.0).value.getProbability(5.0);
-    const double cdf_p1 = StudentTDistribution::create(1.0)  .value.getCumulativeProbability(5.0);
+    auto d = StudentTDistribution::create(1.0).unwrap();
+    const double pdf_p1 = StudentTDistribution::create(1.0)  .unwrap().getProbability(5.0);
+    const double pdf_p2 = StudentTDistribution::create(100.0).unwrap().getProbability(5.0);
+    const double cdf_p1 = StudentTDistribution::create(1.0)  .unwrap().getCumulativeProbability(5.0);
     auto check = make_checker<StudentTDistribution>(5.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<StudentTDistribution>(
         d,
@@ -378,10 +378,10 @@ RaceResult race_student_t(int dur, int nr) {
 
 RaceResult race_chi_squared(int dur, int nr) {
     // P1: χ²(2), P2: χ²(20) — PDF(2) differs substantially
-    auto d = ChiSquaredDistribution::create(2.0).value;
-    const double pdf_p1 = ChiSquaredDistribution::create(2.0) .value.getProbability(2.0);
-    const double pdf_p2 = ChiSquaredDistribution::create(20.0).value.getProbability(2.0);
-    const double cdf_p1 = ChiSquaredDistribution::create(2.0) .value.getCumulativeProbability(2.0);
+    auto d = ChiSquaredDistribution::create(2.0).unwrap();
+    const double pdf_p1 = ChiSquaredDistribution::create(2.0) .unwrap().getProbability(2.0);
+    const double pdf_p2 = ChiSquaredDistribution::create(20.0).unwrap().getProbability(2.0);
+    const double cdf_p1 = ChiSquaredDistribution::create(2.0) .unwrap().getCumulativeProbability(2.0);
     auto check = make_checker<ChiSquaredDistribution>(2.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<ChiSquaredDistribution>(
         d,
@@ -392,10 +392,10 @@ RaceResult race_chi_squared(int dur, int nr) {
 
 RaceResult race_poisson(int dur, int nr) {
     // P1: Poisson(0.1), P2: Poisson(5) — P(0) differs by e^{4.9}≈134×
-    auto d = PoissonDistribution::create(0.1).value;
-    const double pdf_p1 = PoissonDistribution::create(0.1).value.getProbability(0.0);
-    const double pdf_p2 = PoissonDistribution::create(5.0).value.getProbability(0.0);
-    const double cdf_p1 = PoissonDistribution::create(0.1).value.getCumulativeProbability(0.0);
+    auto d = PoissonDistribution::create(0.1).unwrap();
+    const double pdf_p1 = PoissonDistribution::create(0.1).unwrap().getProbability(0.0);
+    const double pdf_p2 = PoissonDistribution::create(5.0).unwrap().getProbability(0.0);
+    const double cdf_p1 = PoissonDistribution::create(0.1).unwrap().getCumulativeProbability(0.0);
     auto check = make_checker<PoissonDistribution>(0.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<PoissonDistribution>(
         d,
@@ -406,10 +406,10 @@ RaceResult race_poisson(int dur, int nr) {
 
 RaceResult race_discrete(int dur, int nr) {
     // P1: Disc[1,2] P(1)=0.5, P2: Disc[1,10] P(1)=0.1 — 5× difference
-    auto d = DiscreteDistribution::create(1, 2).value;
-    const double pdf_p1 = DiscreteDistribution::create(1, 2) .value.getProbability(1.0);
-    const double pdf_p2 = DiscreteDistribution::create(1, 10).value.getProbability(1.0);
-    const double cdf_p1 = DiscreteDistribution::create(1, 2) .value.getCumulativeProbability(1.0);
+    auto d = DiscreteDistribution::create(1, 2).unwrap();
+    const double pdf_p1 = DiscreteDistribution::create(1, 2) .unwrap().getProbability(1.0);
+    const double pdf_p2 = DiscreteDistribution::create(1, 10).unwrap().getProbability(1.0);
+    const double cdf_p1 = DiscreteDistribution::create(1, 2) .unwrap().getCumulativeProbability(1.0);
     auto check = make_checker<DiscreteDistribution>(1.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<DiscreteDistribution>(
         d,
@@ -420,10 +420,10 @@ RaceResult race_discrete(int dur, int nr) {
 
 RaceResult race_binomial(int dur, int nr) {
     // P1: B(10,0.1) P(0)=(0.9)^10≈0.349, P2: B(10,0.9) P(0)=(0.1)^10≈1e-10 — huge ratio
-    auto d = BinomialDistribution::create(10, 0.1).value;
-    const double pdf_p1 = BinomialDistribution::create(10, 0.1).value.getProbability(0.0);
-    const double pdf_p2 = BinomialDistribution::create(10, 0.9).value.getProbability(0.0);
-    const double cdf_p1 = BinomialDistribution::create(10, 0.1).value.getCumulativeProbability(0.0);
+    auto d = BinomialDistribution::create(10, 0.1).unwrap();
+    const double pdf_p1 = BinomialDistribution::create(10, 0.1).unwrap().getProbability(0.0);
+    const double pdf_p2 = BinomialDistribution::create(10, 0.9).unwrap().getProbability(0.0);
+    const double cdf_p1 = BinomialDistribution::create(10, 0.1).unwrap().getCumulativeProbability(0.0);
     auto check = make_checker<BinomialDistribution>(0.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<BinomialDistribution>(
         d,
@@ -434,10 +434,10 @@ RaceResult race_binomial(int dur, int nr) {
 
 RaceResult race_negative_binomial(int dur, int nr) {
     // P1: NB(1,0.1) P(0)=0.1, P2: NB(1,0.9) P(0)=0.9 — 9× ratio
-    auto d = NegativeBinomialDistribution::create(1.0, 0.1).value;
-    const double pdf_p1 = NegativeBinomialDistribution::create(1.0, 0.1).value.getProbability(0.0);
-    const double pdf_p2 = NegativeBinomialDistribution::create(1.0, 0.9).value.getProbability(0.0);
-    const double cdf_p1 = NegativeBinomialDistribution::create(1.0, 0.1).value.getCumulativeProbability(0.0);
+    auto d = NegativeBinomialDistribution::create(1.0, 0.1).unwrap();
+    const double pdf_p1 = NegativeBinomialDistribution::create(1.0, 0.1).unwrap().getProbability(0.0);
+    const double pdf_p2 = NegativeBinomialDistribution::create(1.0, 0.9).unwrap().getProbability(0.0);
+    const double cdf_p1 = NegativeBinomialDistribution::create(1.0, 0.1).unwrap().getCumulativeProbability(0.0);
     auto check = make_checker<NegativeBinomialDistribution>(0.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<NegativeBinomialDistribution>(
         d,
@@ -448,10 +448,10 @@ RaceResult race_negative_binomial(int dur, int nr) {
 
 RaceResult race_geometric(int dur, int nr) {
     // P1: Geo(0.1) P(0)=0.1, P2: Geo(0.9) P(0)=0.9 — 9× ratio
-    auto d = GeometricDistribution::create(0.1).value;
-    const double pdf_p1 = GeometricDistribution::create(0.1).value.getProbability(0.0);
-    const double pdf_p2 = GeometricDistribution::create(0.9).value.getProbability(0.0);
-    const double cdf_p1 = GeometricDistribution::create(0.1).value.getCumulativeProbability(0.0);
+    auto d = GeometricDistribution::create(0.1).unwrap();
+    const double pdf_p1 = GeometricDistribution::create(0.1).unwrap().getProbability(0.0);
+    const double pdf_p2 = GeometricDistribution::create(0.9).unwrap().getProbability(0.0);
+    const double cdf_p1 = GeometricDistribution::create(0.1).unwrap().getCumulativeProbability(0.0);
     auto check = make_checker<GeometricDistribution>(0.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<GeometricDistribution>(
         d,
@@ -462,10 +462,10 @@ RaceResult race_geometric(int dur, int nr) {
 
 RaceResult race_laplace(int dur, int nr) {
     // P1: Laplace(0,1), P2: Laplace(0,0.2) — PDF(0) differs by 5×
-    auto d = LaplaceDistribution::create(0.0, 1.0).value;
-    const double pdf_p1 = LaplaceDistribution::create(0.0, 1.0).value.getProbability(0.0);
-    const double pdf_p2 = LaplaceDistribution::create(0.0, 0.2).value.getProbability(0.0);
-    const double cdf_p1 = LaplaceDistribution::create(0.0, 1.0).value.getCumulativeProbability(0.0);
+    auto d = LaplaceDistribution::create(0.0, 1.0).unwrap();
+    const double pdf_p1 = LaplaceDistribution::create(0.0, 1.0).unwrap().getProbability(0.0);
+    const double pdf_p2 = LaplaceDistribution::create(0.0, 0.2).unwrap().getProbability(0.0);
+    const double cdf_p1 = LaplaceDistribution::create(0.0, 1.0).unwrap().getCumulativeProbability(0.0);
     auto check = make_checker<LaplaceDistribution>(0.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<LaplaceDistribution>(
         d,
@@ -476,10 +476,10 @@ RaceResult race_laplace(int dur, int nr) {
 
 RaceResult race_cauchy(int dur, int nr) {
     // P1: Cauchy(0,1), P2: Cauchy(0,0.2) — PDF(0) differs by 5×
-    auto d = CauchyDistribution::create(0.0, 1.0).value;
-    const double pdf_p1 = CauchyDistribution::create(0.0, 1.0).value.getProbability(0.0);
-    const double pdf_p2 = CauchyDistribution::create(0.0, 0.2).value.getProbability(0.0);
-    const double cdf_p1 = CauchyDistribution::create(0.0, 1.0).value.getCumulativeProbability(0.0);
+    auto d = CauchyDistribution::create(0.0, 1.0).unwrap();
+    const double pdf_p1 = CauchyDistribution::create(0.0, 1.0).unwrap().getProbability(0.0);
+    const double pdf_p2 = CauchyDistribution::create(0.0, 0.2).unwrap().getProbability(0.0);
+    const double cdf_p1 = CauchyDistribution::create(0.0, 1.0).unwrap().getCumulativeProbability(0.0);
     auto check = make_checker<CauchyDistribution>(0.0, pdf_p1, pdf_p2, cdf_p1);
     return run_race<CauchyDistribution>(
         d,

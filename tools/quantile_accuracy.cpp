@@ -246,96 +246,96 @@ int main(int argc, char* argv[]) {
 
         // Gaussian: closed-form erf inverse; should be highly accurate
         results.push_back(
-            test_continuous("Gaussian", "N(0,1)", GaussianDistribution::create(0.0, 1.0).value));
+            test_continuous("Gaussian", "N(0,1)", GaussianDistribution::create(0.0, 1.0).unwrap()));
         results.push_back(
-            test_continuous("Gaussian", "N(5,2)", GaussianDistribution::create(5.0, 2.0).value));
+            test_continuous("Gaussian", "N(5,2)", GaussianDistribution::create(5.0, 2.0).unwrap()));
 
         // Exponential: closed-form -log(1-p)/lambda; exact to machine precision
         results.push_back(
-            test_continuous("Exponential", "Exp(1)", ExponentialDistribution::create(1.0).value));
+            test_continuous("Exponential", "Exp(1)", ExponentialDistribution::create(1.0).unwrap()));
         results.push_back(
-            test_continuous("Exponential", "Exp(0.1)", ExponentialDistribution::create(0.1).value));
+            test_continuous("Exponential", "Exp(0.1)", ExponentialDistribution::create(0.1).unwrap()));
 
         // Gamma: numerical Newton-Raphson inverse
         results.push_back(
-            test_continuous("Gamma", "G(2,1)", GammaDistribution::create(2.0, 1.0).value));
+            test_continuous("Gamma", "G(2,1)", GammaDistribution::create(2.0, 1.0).unwrap()));
         results.push_back(
-            test_continuous("Gamma", "G(0.5,1)", GammaDistribution::create(0.5, 1.0).value, 1e-5));
+            test_continuous("Gamma", "G(0.5,1)", GammaDistribution::create(0.5, 1.0).unwrap(), 1e-5));
 
         // Chi-squared: delegates to Gamma
         results.push_back(
-            test_continuous("ChiSquared", "chi2(4)", ChiSquaredDistribution::create(4.0).value));
+            test_continuous("ChiSquared", "chi2(4)", ChiSquaredDistribution::create(4.0).unwrap()));
         results.push_back(test_continuous("ChiSquared", "chi2(1)",
-                                          ChiSquaredDistribution::create(1.0).value, 1e-5));
+                                          ChiSquaredDistribution::create(1.0).unwrap(), 1e-5));
 
         // Student-t: numerical; heavier tails make boundary hard
         results.push_back(
-            test_continuous("StudentT", "t(3)", StudentTDistribution::create(3.0).value, 1e-5));
+            test_continuous("StudentT", "t(3)", StudentTDistribution::create(3.0).unwrap(), 1e-5));
         results.push_back(
-            test_continuous("StudentT", "t(30)", StudentTDistribution::create(30.0).value));
+            test_continuous("StudentT", "t(30)", StudentTDistribution::create(30.0).unwrap()));
 
         // Uniform: linear; exact
         results.push_back(
-            test_continuous("Uniform", "U(0,1)", UniformDistribution::create(0.0, 1.0).value));
+            test_continuous("Uniform", "U(0,1)", UniformDistribution::create(0.0, 1.0).unwrap()));
         results.push_back(
-            test_continuous("Uniform", "U(-3,5)", UniformDistribution::create(-3.0, 5.0).value));
+            test_continuous("Uniform", "U(-3,5)", UniformDistribution::create(-3.0, 5.0).unwrap()));
 
         // Beta: numerical; avoid very small alpha/beta which stress the solver
         results.push_back(
-            test_continuous("Beta", "B(2,3)", BetaDistribution::create(2.0, 3.0).value));
+            test_continuous("Beta", "B(2,3)", BetaDistribution::create(2.0, 3.0).unwrap()));
         results.push_back(
-            test_continuous("Beta", "B(0.5,0.5)", BetaDistribution::create(0.5, 0.5).value, 1e-5));
+            test_continuous("Beta", "B(0.5,0.5)", BetaDistribution::create(0.5, 0.5).unwrap(), 1e-5));
 
         // LogNormal: closed-form via Gaussian inverse
         results.push_back(
-            test_continuous("LogNormal", "LN(0,1)", LogNormalDistribution::create(0.0, 1.0).value));
+            test_continuous("LogNormal", "LN(0,1)", LogNormalDistribution::create(0.0, 1.0).unwrap()));
         results.push_back(test_continuous("LogNormal", "LN(2,0.5)",
-                                          LogNormalDistribution::create(2.0, 0.5).value));
+                                          LogNormalDistribution::create(2.0, 0.5).unwrap()));
 
         // Pareto: closed-form power-law; avoid p→1 (unbounded)
         results.push_back(
-            test_continuous("Laplace", "Lap(0,1)", LaplaceDistribution::create(0.0, 1.0).value));
+            test_continuous("Laplace", "Lap(0,1)", LaplaceDistribution::create(0.0, 1.0).unwrap()));
         results.push_back(
-            test_continuous("Laplace", "Lap(2,0.5)", LaplaceDistribution::create(2.0, 0.5).value));
+            test_continuous("Laplace", "Lap(2,0.5)", LaplaceDistribution::create(2.0, 0.5).unwrap()));
 
         // Cauchy: closed-form tan() quantile; very accurate
         results.push_back(
-            test_continuous("Cauchy", "C(0,1)", CauchyDistribution::create(0.0, 1.0).value));
+            test_continuous("Cauchy", "C(0,1)", CauchyDistribution::create(0.0, 1.0).unwrap()));
         results.push_back(
-            test_continuous("Cauchy", "C(3,2)", CauchyDistribution::create(3.0, 2.0).value));
+            test_continuous("Cauchy", "C(3,2)", CauchyDistribution::create(3.0, 2.0).unwrap()));
 
         results.push_back(
-            test_continuous("Pareto", "Pa(1,2)", ParetoDistribution::create(1.0, 2.0).value));
+            test_continuous("Pareto", "Pa(1,2)", ParetoDistribution::create(1.0, 2.0).unwrap()));
 
         // Weibull: closed-form via exp inverse
         results.push_back(
-            test_continuous("Weibull", "W(2,1)", WeibullDistribution::create(2.0, 1.0).value));
+            test_continuous("Weibull", "W(2,1)", WeibullDistribution::create(2.0, 1.0).unwrap()));
         results.push_back(
-            test_continuous("Weibull", "W(0.7,1)", WeibullDistribution::create(0.7, 1.0).value));
+            test_continuous("Weibull", "W(0.7,1)", WeibullDistribution::create(0.7, 1.0).unwrap()));
 
         // Rayleigh: closed-form
         results.push_back(
-            test_continuous("Rayleigh", "R(1)", RayleighDistribution::create(1.0).value));
+            test_continuous("Rayleigh", "R(1)", RayleighDistribution::create(1.0).unwrap()));
 
         // VonMises: circular domain [-pi, pi]; numerical
         results.push_back(test_continuous("VonMises", "VM(0,2)",
-                                          VonMisesDistribution::create(0.0, 2.0).value, 1e-5));
+                                          VonMisesDistribution::create(0.0, 2.0).unwrap(), 1e-5));
 
         // ── Discrete distributions ────────────────────────────────────────────
         results.push_back(
-            test_discrete("Poisson", "Pois(3)", PoissonDistribution::create(3.0).value));
+            test_discrete("Poisson", "Pois(3)", PoissonDistribution::create(3.0).unwrap()));
         results.push_back(
-            test_discrete("Poisson", "Pois(20)", PoissonDistribution::create(20.0).value));
+            test_discrete("Poisson", "Pois(20)", PoissonDistribution::create(20.0).unwrap()));
         results.push_back(
-            test_discrete("Discrete", "D[1,6]", DiscreteDistribution::create(1, 6).value));
+            test_discrete("Discrete", "D[1,6]", DiscreteDistribution::create(1, 6).unwrap()));
         results.push_back(
-            test_discrete("Binomial", "B(10,0.5)", BinomialDistribution::create(10, 0.5).value));
+            test_discrete("Binomial", "B(10,0.5)", BinomialDistribution::create(10, 0.5).unwrap()));
         results.push_back(test_discrete("NegBinomial", "NB(5,0.4)",
-                                        NegativeBinomialDistribution::create(5.0, 0.4).value));
+                                        NegativeBinomialDistribution::create(5.0, 0.4).unwrap()));
         results.push_back(
-            test_discrete("Geometric", "Geo(0.5)", GeometricDistribution::create(0.5).value));
+            test_discrete("Geometric", "Geo(0.5)", GeometricDistribution::create(0.5).unwrap()));
         results.push_back(
-            test_discrete("Geometric", "Geo(0.3)", GeometricDistribution::create(0.3).value));
+            test_discrete("Geometric", "Geo(0.3)", GeometricDistribution::create(0.3).unwrap()));
 
         printResults(results);
 

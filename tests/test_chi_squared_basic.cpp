@@ -28,23 +28,23 @@ int main() {
         cout << "Chi-squared is a delegation wrapper: ChiSquared(k) = Gamma(k/2, 0.5)." << endl;
         cout << "All probability methods forward to an internal GammaDistribution." << endl;
 
-        auto default_chi2 = stats::ChiSquaredDistribution::create().value;
+        auto default_chi2 = stats::ChiSquaredDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default k (df)", default_chi2.getK());
         BasicTestFormatter::printProperty("Default mean (should be 1)", default_chi2.getMean());
 
-        auto chi2_k2 = stats::ChiSquaredDistribution::create(2.0).value;
+        auto chi2_k2 = stats::ChiSquaredDistribution::create(2.0).unwrap();
         BasicTestFormatter::printProperty("k=2 distribution created", chi2_k2.getK());
 
         auto copy_chi2 = chi2_k2;
         BasicTestFormatter::printProperty("Copy k", copy_chi2.getK());
 
-        auto temp = stats::ChiSquaredDistribution::create(5.0).value;
+        auto temp = stats::ChiSquaredDistribution::create(5.0).unwrap();
         auto move_chi2 = std::move(temp);
         BasicTestFormatter::printProperty("Move k", move_chi2.getK());
 
         auto result = ChiSquaredDistribution::create(3.0);
         if (result.isOk()) {
-            BasicTestFormatter::printProperty("Factory k=3", result.value.getK());
+            BasicTestFormatter::printProperty("Factory k=3", (*result).getK());
         }
 
         BasicTestFormatter::printTestSuccess("All constructor tests passed");
@@ -57,7 +57,7 @@ int main() {
         cout << "Tests getK/getDegreesOfFreedom, setK/setDegreesOfFreedom," << endl;
         cout << "and the safe trySetK/trySetParameters Result-based API." << endl;
 
-        auto chi2 = stats::ChiSquaredDistribution::create(4.0).value;
+        auto chi2 = stats::ChiSquaredDistribution::create(4.0).unwrap();
 
         BasicTestFormatter::printProperty("Initial k (df)", chi2.getK());
         BasicTestFormatter::printProperty("getDegreesOfFreedom()", chi2.getDegreesOfFreedom());
@@ -85,7 +85,7 @@ int main() {
         }
 
         auto bad_result = chi2.trySetK(-1.0);
-        cout << "trySetK(-1) error (expected): " << bad_result.message << endl;
+        cout << "trySetK(-1) error (expected): " << bad_result.message() << endl;
 
         BasicTestFormatter::printTestSuccess("All setter/getter tests passed");
         BasicTestFormatter::printNewline();
@@ -100,7 +100,7 @@ int main() {
         cout << "ChiSquared(k=2): CDF(2)   = 1 - exp(-1)   ≈ 0.63212" << endl;
         cout << "ChiSquared(k=2): CDF(5.99) ≈ 0.95 (critical value)" << endl;
 
-        auto chi2_2 = stats::ChiSquaredDistribution::create(2.0).value;
+        auto chi2_2 = stats::ChiSquaredDistribution::create(2.0).unwrap();
 
         const double pdf_at_1 = chi2_2.getProbability(1.0);
         const double expected_pdf_at_1 = 0.5 * std::exp(-0.5);
@@ -154,7 +154,7 @@ int main() {
         cout << "Samples delegated to Gamma(k/2, 0.5). Sample mean should ≈ k." << endl;
 
         mt19937 rng(42);
-        auto chi2_4 = stats::ChiSquaredDistribution::create(4.0).value;
+        auto chi2_4 = stats::ChiSquaredDistribution::create(4.0).unwrap();
 
         const double single = chi2_4.sample(rng);
         BasicTestFormatter::printProperty("Single sample (k=4)", single);
@@ -174,7 +174,7 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE for chi-squared: k_hat = sample_mean. No solver required." << endl;
 
-        auto chi2_fit = stats::ChiSquaredDistribution::create(1.0).value;
+        auto chi2_fit = stats::ChiSquaredDistribution::create(1.0).unwrap();
 
         // Fit to samples generated from ChiSquared(4) — expect k_hat ≈ 4
         const auto fit_data = chi2_4.sample(rng, 200);
@@ -199,14 +199,14 @@ int main() {
             1e-14, // pdf_tolerance
             1e-12
         };
-        auto chi2_batch = stats::ChiSquaredDistribution::create(3.0).value;
+        auto chi2_batch = stats::ChiSquaredDistribution::create(3.0).unwrap();
         stats::tests::runBatchTests(cfg, chi2_batch);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto a = stats::ChiSquaredDistribution::create(3.0).value;
-        auto b = stats::ChiSquaredDistribution::create(3.0).value;
-        auto c = stats::ChiSquaredDistribution::create(5.0).value;
+        auto a = stats::ChiSquaredDistribution::create(3.0).unwrap();
+        auto b = stats::ChiSquaredDistribution::create(3.0).unwrap();
+        auto c = stats::ChiSquaredDistribution::create(5.0).unwrap();
 
         cout << "a==b (k=3 vs k=3): " << (a == b ? "true" : "false") << endl;
         cout << "a!=c (k=3 vs k=5): " << (a != c ? "true" : "false") << endl;
@@ -216,7 +216,7 @@ int main() {
         cout << "Stream output: " << oss.str() << endl;
 
         istringstream iss("ChiSquaredDistribution(k=7)");
-        ChiSquaredDistribution parsed = stats::ChiSquaredDistribution::create().value;
+        ChiSquaredDistribution parsed = stats::ChiSquaredDistribution::create().unwrap();
         iss >> parsed;
         BasicTestFormatter::printProperty("Parsed from stream: k (expect 7)", parsed.getK());
 
@@ -247,7 +247,7 @@ int main() {
         cout << "create(inf)  isError(): " << (err_inf.isError() ? "YES" : "NO") << endl;
 
         // trySetK also uses the Result-based path
-        auto chi2_err = ChiSquaredDistribution::create(3.0).value;
+        auto chi2_err = ChiSquaredDistribution::create(3.0).unwrap();
         auto vr = chi2_err.trySetK(-5.0);
         cout << "trySetK(-5)  isError(): " << (vr.isError() ? "YES" : "NO") << endl;
         BasicTestFormatter::printProperty("k unchanged after failed trySetK (expect 3)",

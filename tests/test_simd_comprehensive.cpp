@@ -389,7 +389,7 @@ void test_gaussian_integration(const TestOptions& opts) {
     cout << "\n=== GAUSSIAN DISTRIBUTION SIMD INTEGRATION ===" << endl;
 
     try {
-        auto gauss = GaussianDistribution::create(0.0, 1.0).value;
+        auto gauss = GaussianDistribution::create(0.0, 1.0).unwrap();
 
         const size_t size = 10000;
         vector<double> values(size);

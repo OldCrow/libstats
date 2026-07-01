@@ -98,7 +98,7 @@ class GeometricDistribution : public DistributionBase {
     [[nodiscard]] static Result<GeometricDistribution> create(double p = detail::HALF) {
         auto v = validateGeometricParameters(p);
         if (v.isError())
-            return Result<GeometricDistribution>::makeError(v.error_code, v.message);
+            return Result<GeometricDistribution>::makeError(v.errorCode(), v.message());
         return Result<GeometricDistribution>::ok(createUnchecked(p));
     }
 
@@ -154,7 +154,7 @@ class GeometricDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "GeometricDistribution";
+        return "Geometric";
     }
 
     /** @brief Geometric is discrete. */

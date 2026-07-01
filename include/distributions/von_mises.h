@@ -119,8 +119,8 @@ class VonMisesDistribution : public DistributionBase {
                                                              double kappa = detail::ONE) {
         auto validation = validateVonMisesParameters(mu, kappa);
         if (validation.isError()) {
-            return Result<VonMisesDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<VonMisesDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
         return Result<VonMisesDistribution>::ok(createUnchecked(mu, kappa));
     }
@@ -192,7 +192,7 @@ class VonMisesDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "VonMisesDistribution";
+        return "VonMises";
     }
 
     /** @brief Von Mises is continuous. */

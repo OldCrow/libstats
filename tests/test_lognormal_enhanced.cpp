@@ -25,7 +25,7 @@ class LogNormalEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::LogNormalDistribution::create(0.0, 1.0);
         ASSERT_TRUE(r.isOk());
-        std_ln_ = std::move(r.value);
+        std_ln_ = std::move(r.unwrap());
     }
     LogNormalDistribution std_ln_;  // standard log-normal μ=0, σ=1
 };
@@ -44,7 +44,7 @@ TEST_F(LogNormalEnhancedTest, StandardCDFAtOne) {
 // Quantile(0.5) for LogNormal(μ, σ) = exp(μ) regardless of σ
 TEST_F(LogNormalEnhancedTest, MedianEqualsExpMu) {
     for (double mu : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
-        auto d = LogNormalDistribution::create(mu, 1.0).value;
+        auto d = LogNormalDistribution::create(mu, 1.0).unwrap();
         EXPECT_NEAR(d.getQuantile(0.5), std::exp(mu), 1e-8) << "median != exp(mu) for mu=" << mu;
         EXPECT_NEAR(d.getMedian(), std::exp(mu), 1e-12) << "getMedian() != exp(mu) for mu=" << mu;
     }
@@ -53,21 +53,21 @@ TEST_F(LogNormalEnhancedTest, MedianEqualsExpMu) {
 // Mode = exp(μ - σ²)
 TEST_F(LogNormalEnhancedTest, ModeFormula) {
     const double mu = 2.0, sigma = 0.5;
-    auto d = LogNormalDistribution::create(mu, sigma).value;
+    auto d = LogNormalDistribution::create(mu, sigma).unwrap();
     EXPECT_NEAR(d.getMode(), std::exp(mu - sigma * sigma), 1e-12);
 }
 
 // Mean = exp(μ + σ²/2)
 TEST_F(LogNormalEnhancedTest, MeanFormula) {
     const double mu = 1.0, sigma = 0.5;
-    auto d = LogNormalDistribution::create(mu, sigma).value;
+    auto d = LogNormalDistribution::create(mu, sigma).unwrap();
     EXPECT_NEAR(d.getMean(), std::exp(mu + 0.5 * sigma * sigma), 1e-12);
 }
 
 // Variance = (exp(σ²) - 1) * exp(2μ + σ²)
 TEST_F(LogNormalEnhancedTest, VarianceFormula) {
     const double mu = 0.5, sigma = 0.3;
-    auto d = LogNormalDistribution::create(mu, sigma).value;
+    auto d = LogNormalDistribution::create(mu, sigma).unwrap();
     const double s2 = sigma * sigma;
     const double expected = (std::exp(s2) - 1.0) * std::exp(2.0 * mu + s2);
     EXPECT_NEAR(d.getVariance(), expected, 1e-10);
@@ -148,10 +148,10 @@ TEST_F(LogNormalEnhancedTest, VectorizedMatchesScalar) {
 // MLE fit from LogNormal(μ, σ) samples
 TEST_F(LogNormalEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source = LogNormalDistribution::create(1.5, 0.4).value;
+    auto source = LogNormalDistribution::create(1.5, 0.4).unwrap();
     const auto data = source.sample(rng, 500);
 
-    auto fitted = LogNormalDistribution::create(0.0, 1.0).value;
+    auto fitted = LogNormalDistribution::create(0.0, 1.0).unwrap();
     fitted.fit(data);
 
     EXPECT_NEAR(fitted.getMu(), 1.5, 0.2) << "Fitted mu should be near 1.5";
@@ -160,7 +160,7 @@ TEST_F(LogNormalEnhancedTest, MLEFit) {
 
 // Setter propagates to cache
 TEST_F(LogNormalEnhancedTest, SetterPropagates) {
-    auto d = LogNormalDistribution::create(0.0, 1.0).value;
+    auto d = LogNormalDistribution::create(0.0, 1.0).unwrap();
     EXPECT_TRUE(d.isStandard());
     d.setMu(1.0);
     EXPECT_FALSE(d.isStandard());
@@ -178,7 +178,7 @@ TEST_F(LogNormalEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(
         LogNormalDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
 
-    auto d = LogNormalDistribution::create(0.0, 1.0).value;
+    auto d = LogNormalDistribution::create(0.0, 1.0).unwrap();
     EXPECT_TRUE(d.trySetSigma(-1.0).isError());
     EXPECT_TRUE(d.trySetMu(std::numeric_limits<double>::infinity()).isError());
     EXPECT_DOUBLE_EQ(d.getMu(), 0.0);
@@ -229,7 +229,7 @@ TEST_F(LogNormalEnhancedTest, VectorizedSpeedup) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::LogNormalDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::LogNormalDistribution make() { return stats::LogNormalDistribution::create(0.0, 1.0).value; }
+    static stats::LogNormalDistribution make() { return stats::LogNormalDistribution::create(0.0, 1.0).unwrap(); }
     static std::vector<double> domain() { return {0.5, 1.0, 2.0, 5.0, 10.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 10.0; }

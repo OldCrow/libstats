@@ -23,7 +23,7 @@ template <>
 struct stats::tests::DistTraits<stats::LaplaceDistribution>
     : stats::tests::DistTraitsDefaults {
     static stats::LaplaceDistribution make() {
-        return stats::LaplaceDistribution::create(0.0, 1.0).value;  // standard Laplace
+        return stats::LaplaceDistribution::create(0.0, 1.0).unwrap();  // standard Laplace
     }
     static std::vector<double> domain() {
         return {-3.0, -1.0, 0.0, 1.0, 3.0};
@@ -54,7 +54,7 @@ class LaplaceEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = LaplaceDistribution::create(0.0, 1.0);
         ASSERT_TRUE(r.isOk());
-        sl_ = std::move(r.value);  // standard Laplace(0,1)
+        sl_ = std::move(r.unwrap());  // standard Laplace(0,1)
     }
     LaplaceDistribution sl_;
 };
@@ -65,7 +65,7 @@ TEST_F(LaplaceEnhancedTest, PDFAtLocation) {
     // PDF(mu) = 1/(2b) — maximum at the location parameter
     EXPECT_NEAR(sl_.getProbability(0.0), 0.5, 1e-12) << "PDF(mu=0) = 1/(2*1) = 0.5";
 
-    auto l = LaplaceDistribution::create(3.0, 2.0).value;
+    auto l = LaplaceDistribution::create(3.0, 2.0).unwrap();
     EXPECT_NEAR(l.getProbability(3.0), 1.0/(2*2.0), 1e-12) << "PDF(mu=3, b=2) = 1/4";
 }
 
@@ -91,7 +91,7 @@ TEST_F(LaplaceEnhancedTest, CDFAtLocation) {
     // CDF(mu) = 0.5 exactly for any Laplace distribution
     EXPECT_NEAR(sl_.getCumulativeProbability(0.0), 0.5, 1e-12) << "CDF(mu=0) = 0.5";
 
-    auto l = LaplaceDistribution::create(-2.0, 3.0).value;
+    auto l = LaplaceDistribution::create(-2.0, 3.0).unwrap();
     EXPECT_NEAR(l.getCumulativeProbability(-2.0), 0.5, 1e-12) << "CDF(mu=-2) = 0.5";
 }
 
@@ -128,7 +128,7 @@ TEST_F(LaplaceEnhancedTest, QuantileFormula) {
 
 TEST_F(LaplaceEnhancedTest, PDFSymmetry) {
     // Laplace is symmetric about mu: f(mu+d) == f(mu-d)
-    auto l = LaplaceDistribution::create(2.5, 1.5).value;
+    auto l = LaplaceDistribution::create(2.5, 1.5).unwrap();
     for (double d : {0.1, 0.5, 1.0, 3.0}) {
         EXPECT_NEAR(l.getProbability(2.5 + d), l.getProbability(2.5 - d), 1e-12)
             << "symmetry at d=" << d;
@@ -146,7 +146,7 @@ TEST_F(LaplaceEnhancedTest, MomentFormulas) {
     EXPECT_NEAR(sl_.getMode(),     0.0, 1e-12);
     EXPECT_NEAR(sl_.getEntropy(),  1.0 + std::log(2.0), 1e-12);
 
-    auto l = LaplaceDistribution::create(5.0, 3.0).value;
+    auto l = LaplaceDistribution::create(5.0, 3.0).unwrap();
     EXPECT_NEAR(l.getMean(),     5.0, 1e-12);
     EXPECT_NEAR(l.getVariance(), 2.0 * 9.0, 1e-12);  // 2*b^2 = 18
     EXPECT_NEAR(l.getMedian(),   5.0, 1e-12);
@@ -156,7 +156,7 @@ TEST_F(LaplaceEnhancedTest, MomentFormulas) {
 // ─── Setter propagates ────────────────────────────────────────────────────────
 
 TEST_F(LaplaceEnhancedTest, SetterPropagates) {
-    auto l = LaplaceDistribution::create(0.0, 1.0).value;
+    auto l = LaplaceDistribution::create(0.0, 1.0).unwrap();
     EXPECT_TRUE(l.isStandard());
     l.setMu(3.0);
     EXPECT_FALSE(l.isStandard());
@@ -171,16 +171,16 @@ TEST_F(LaplaceEnhancedTest, SetterPropagates) {
 // ─── MLE fit ─────────────────────────────────────────────────────────────────
 
 TEST_F(LaplaceEnhancedTest, MLEFitDegenerateIdenticalValues) {
-    auto l = LaplaceDistribution::create().value;
+    auto l = LaplaceDistribution::create().unwrap();
     EXPECT_THROW(l.fit({3.0, 3.0, 3.0}), std::invalid_argument);
 }
 
 TEST_F(LaplaceEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
-    auto source = LaplaceDistribution::create(2.0, 0.8).value;
+    auto source = LaplaceDistribution::create(2.0, 0.8).unwrap();
     auto data   = source.sample(rng, 1000);
 
-    auto fitted = LaplaceDistribution::create().value;
+    auto fitted = LaplaceDistribution::create().unwrap();
     fitted.fit(data);
 
     EXPECT_NEAR(fitted.getMu(), 2.0, 0.1) << "Fitted mu should be near 2.0";

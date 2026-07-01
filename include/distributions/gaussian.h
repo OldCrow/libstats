@@ -49,7 +49,7 @@ namespace stats {
  * // Create standard normal distribution via factory (exception-free)
  * auto result = GaussianDistribution::create(0.0, 1.0);
  * if (result.isOk()) {
- *     auto& stdNormal = result.value;
+ *     auto& stdNormal = result.unwrap();
  *
  *     // Evaluate probability density
  *     double pdf = stdNormal.getProbability(1.0);
@@ -151,10 +151,10 @@ class GaussianDistribution : public DistributionBase {
      * @code
      * auto result = GaussianDistribution::create(0.0, 1.0);
      * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
+     *     auto distribution = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
@@ -162,8 +162,8 @@ class GaussianDistribution : public DistributionBase {
         double mean = 0.0, double standardDeviation = 1.0) {
         auto validation = validateGaussianParameters(mean, standardDeviation);
         if (validation.isError()) {
-            return Result<GaussianDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<GaussianDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
 
         // Use private factory to bypass validation

@@ -136,132 +136,132 @@ int main(int argc, char* argv[]) {
 
         // Gaussian N(2, 1.5)
         {
-            auto true_d = GaussianDistribution::create(2.0, 1.5).value;
+            auto true_d = GaussianDistribution::create(2.0, 1.5).unwrap();
             std::cout << "\n--- Gaussian N(2, 1.5)  true mean=2, var=2.25 ---\n";
             print_header();
             run_recovery<GaussianDistribution>("Gaussian", "N(2,1.5)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return GaussianDistribution::create(0.0, 1.0).value; },
+                [] { return GaussianDistribution::create(0.0, 1.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // Exponential Exp(0.5) — mean=2, var=4
         {
-            auto true_d = ExponentialDistribution::create(0.5).value;
+            auto true_d = ExponentialDistribution::create(0.5).unwrap();
             std::cout << "\n--- Exponential Exp(0.5)  true mean=2, var=4 ---\n";
             print_header();
             run_recovery<ExponentialDistribution>("Exponential", "Exp(0.5)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return ExponentialDistribution::create(1.0).value; },
+                [] { return ExponentialDistribution::create(1.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // Gamma G(3, 1) — mean=3, var=3
         {
-            auto true_d = GammaDistribution::create(3.0, 1.0).value;
+            auto true_d = GammaDistribution::create(3.0, 1.0).unwrap();
             std::cout << "\n--- Gamma G(3,1)  true mean=3, var=3 ---\n";
             print_header();
             run_recovery<GammaDistribution>("Gamma", "G(3,1)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return GammaDistribution::create(1.0, 1.0).value; },
+                [] { return GammaDistribution::create(1.0, 1.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // Beta B(2,3) — mean=0.4, var≈0.032
         {
-            auto true_d = BetaDistribution::create(2.0, 3.0).value;
+            auto true_d = BetaDistribution::create(2.0, 3.0).unwrap();
             std::cout << "\n--- Beta B(2,3)  true mean=0.4, var≈0.032 ---\n";
             print_header();
             run_recovery<BetaDistribution>("Beta", "B(2,3)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return BetaDistribution::create(1.0, 1.0).value; },
+                [] { return BetaDistribution::create(1.0, 1.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // LogNormal LN(1, 0.5)
         {
-            auto true_d = LogNormalDistribution::create(1.0, 0.5).value;
+            auto true_d = LogNormalDistribution::create(1.0, 0.5).unwrap();
             std::cout << "\n--- LogNormal LN(1,0.5)  true mean≈3.08, var≈2.72 ---\n";
             print_header();
             run_recovery<LogNormalDistribution>("LogNormal", "LN(1,0.5)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return LogNormalDistribution::create(0.0, 1.0).value; },
+                [] { return LogNormalDistribution::create(0.0, 1.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // Weibull W(2, 1) — mean≈0.886, var≈0.215
         {
-            auto true_d = WeibullDistribution::create(2.0, 1.0).value;
+            auto true_d = WeibullDistribution::create(2.0, 1.0).unwrap();
             std::cout << "\n--- Weibull W(2,1)  true mean≈0.886, var≈0.215 ---\n";
             print_header();
             run_recovery<WeibullDistribution>("Weibull", "W(2,1)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return WeibullDistribution::create(1.0, 1.0).value; },
+                [] { return WeibullDistribution::create(1.0, 1.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // Pareto Pa(1, 3) — mean=1.5, var=0.75
         {
-            auto true_d = ParetoDistribution::create(1.0, 3.0).value;
+            auto true_d = ParetoDistribution::create(1.0, 3.0).unwrap();
             std::cout << "\n--- Pareto Pa(1,3)  true mean=1.5, var=0.75 ---\n";
             print_header();
             run_recovery<ParetoDistribution>("Pareto", "Pa(1,3)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return ParetoDistribution::create(1.0, 1.5).value; },
+                [] { return ParetoDistribution::create(1.0, 1.5).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // StudentT t(5)
         {
-            auto true_d = StudentTDistribution::create(5.0).value;
+            auto true_d = StudentTDistribution::create(5.0).unwrap();
             std::cout << "\n--- StudentT t(5)  true mean=0, var=1.667 ---\n";
             print_header();
             run_recovery<StudentTDistribution>("StudentT", "t(5)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return StudentTDistribution::create(3.0).value; },
+                [] { return StudentTDistribution::create(3.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // Poisson Pois(5)
         {
-            auto true_d = PoissonDistribution::create(5.0).value;
+            auto true_d = PoissonDistribution::create(5.0).unwrap();
             std::cout << "\n--- Poisson Pois(5)  true mean=5, var=5 ---\n";
             print_header();
             run_recovery<PoissonDistribution>("Poisson", "Pois(5)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return PoissonDistribution::create(1.0).value; },
+                [] { return PoissonDistribution::create(1.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // Binomial B(20, 0.4)
         {
-            auto true_d = BinomialDistribution::create(20, 0.4).value;
+            auto true_d = BinomialDistribution::create(20, 0.4).unwrap();
             std::cout << "\n--- Binomial B(20,0.4)  true mean=8, var=4.8 ---\n";
             print_header();
             run_recovery<BinomialDistribution>("Binomial", "B(20,0.4)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return BinomialDistribution::create(20, 0.5).value; },
+                [] { return BinomialDistribution::create(20, 0.5).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
 
         // Laplace Lap(1.5, 0.7) — mean=1.5, var=2*0.49=0.98
         {
-            auto true_d = LaplaceDistribution::create(1.5, 0.7).value;
+            auto true_d = LaplaceDistribution::create(1.5, 0.7).unwrap();
             std::cout << "\n--- Laplace Lap(1.5,0.7)  true mean=1.5, var≈0.98 ---\n";
             print_header();
             run_recovery<LaplaceDistribution>("Laplace", "Lap(1.5,0.7)",
                 [&](std::mt19937& rng, size_t n) { return true_d.sample(rng, n); },
-                [] { return LaplaceDistribution::create(0.0, 1.0).value; },
+                [] { return LaplaceDistribution::create(0.0, 1.0).unwrap(); },
                 true_d.getMean(), true_d.getVariance(),
                 sample_sizes, n_reps, fmt);
         }
@@ -269,7 +269,7 @@ int main(int argc, char* argv[]) {
         // Cauchy C(2, 1.5) — mean and variance are undefined (NaN).
         // Proxy metrics: bias/RMSE of getMedian() (= x0) and getGamma().
         {
-            auto true_d = CauchyDistribution::create(2.0, 1.5).value;
+            auto true_d = CauchyDistribution::create(2.0, 1.5).unwrap();
             const double true_x0    = true_d.getMedian();
             const double true_gamma = true_d.getGamma();
             std::cout << "\n--- Cauchy C(2,1.5)  true x0=2, gamma=1.5 (moments undefined) ---\n";
@@ -285,7 +285,7 @@ int main(int argc, char* argv[]) {
 
                 for (int rep = 0; rep < n_reps; ++rep) {
                     auto data = true_d.sample(rng, n);
-                    auto fitted = CauchyDistribution::create(0.0, 1.0).value;
+                    auto fitted = CauchyDistribution::create(0.0, 1.0).unwrap();
                     try {
                         fitted.fit(data);
                         double fx0 = fitted.getMedian();

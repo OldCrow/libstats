@@ -35,18 +35,6 @@
 // was permanently 0 on all supported compilers. Downstream #if blocks in
 // math_utils.h removed alongside this definition.
 
-// C++20 branch-prediction attributes: [[likely]] and [[unlikely]].
-// AppleClang 12 (Catalina) does not implement these attributes and emits
-// -Wunknown-attributes. Use __has_cpp_attribute for a standard, portable check
-// rather than a compiler-version guard so that any future compiler that adds
-// support gets the attributes automatically.
-#if __has_cpp_attribute(likely)
-    #define LIBSTATS_LIKELY [[likely]]
-    #define LIBSTATS_UNLIKELY [[unlikely]]
-#else
-    #define LIBSTATS_LIKELY
-    #define LIBSTATS_UNLIKELY
-#endif
 #include <functional>
 #include <span>
 #include <stdexcept>  // Exception types

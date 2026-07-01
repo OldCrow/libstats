@@ -37,7 +37,7 @@ namespace stats {
 GammaDistribution::GammaDistribution(double alpha, double beta) {
     auto validation = validateGammaParameters(alpha, beta);
     if (validation.isError()) {
-        throw std::invalid_argument(validation.message);
+        throw std::invalid_argument(validation.message());
     }
     alpha_ = alpha;
     beta_ = beta;

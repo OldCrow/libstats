@@ -27,18 +27,18 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Default (n=10, p=0.5). Discrete support {0, ..., n}." << endl;
 
-        auto default_b = BinomialDistribution::create().value;
+        auto default_b = BinomialDistribution::create().unwrap();
         BasicTestFormatter::printPropertyInt("Default n (expect 10)", default_b.getN());
         BasicTestFormatter::printProperty("Default p (expect 0.5)", default_b.getP());
 
-        auto b1 = BinomialDistribution::create(20, 0.3).value;
+        auto b1 = BinomialDistribution::create(20, 0.3).unwrap();
         BasicTestFormatter::printPropertyInt("n=20 trials", b1.getN());
         BasicTestFormatter::printProperty("p=0.3", b1.getP());
 
         auto copy_b = b1;
         BasicTestFormatter::printPropertyInt("Copy n", copy_b.getN());
 
-        auto temp = BinomialDistribution::create(5, 0.7).value;
+        auto temp = BinomialDistribution::create(5, 0.7).unwrap();
         auto move_b = std::move(temp);
         BasicTestFormatter::printPropertyInt("Move n (expect 5)", move_b.getN());
 
@@ -58,7 +58,7 @@ int main() {
         // =====================================================================
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
-        auto binom = BinomialDistribution::create(10, 0.5).value;
+        auto binom = BinomialDistribution::create(10, 0.5).unwrap();
         BasicTestFormatter::printPropertyInt("n", binom.getN());
         BasicTestFormatter::printProperty("p", binom.getP());
         BasicTestFormatter::printPropertyInt("Num parameters (expect 2)", binom.getNumParameters());
@@ -104,7 +104,7 @@ int main() {
         BasicTestFormatter::printTestStart(3, "Core Probability Methods");
         cout << "Binomial(10, 0.5): PMF(5)=C(10,5)*(0.5)^10=252/1024≈0.24609375" << endl;
 
-        auto b = BinomialDistribution::create(10, 0.5).value;
+        auto b = BinomialDistribution::create(10, 0.5).unwrap();
 
         // PMF(5) = 252/1024 = 0.24609375
         const double pmf5 = b.getProbability(5.0);
@@ -162,7 +162,7 @@ int main() {
         cout << "std::binomial_distribution<int>(n, p). Samples in {0, ..., n}." << endl;
 
         mt19937 rng(42);
-        auto sample_b = BinomialDistribution::create(10, 0.5).value;
+        auto sample_b = BinomialDistribution::create(10, 0.5).unwrap();
         const double s = sample_b.sample(rng);
         cout << "Single sample in {0..10}: " << (s >= 0.0 && s <= 10.0 ? "PASS" : "FAIL") << endl;
 
@@ -191,9 +191,9 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: n̂ = max(round(xᵢ)), p̂ = k̄/n̂." << endl;
 
-        auto fit_dist = BinomialDistribution::create(10, 0.5).value;
+        auto fit_dist = BinomialDistribution::create(10, 0.5).unwrap();
         // Fit to Binomial(8, 0.6) samples
-        auto source = BinomialDistribution::create(8, 0.6).value;
+        auto source = BinomialDistribution::create(8, 0.6).unwrap();
         const auto fit_data = source.sample(rng, 400);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printPropertyInt("Fitted n (from Bin(8,0.6), expect ~8)", fit_dist.getN());
@@ -225,14 +225,14 @@ int main() {
             {"p=-0.1", [] { return BinomialDistribution::create(10, -0.1).isError(); }},
             {"p=1.1", [] { return BinomialDistribution::create(10, 1.1).isError(); }},
         };
-        auto batch_b = BinomialDistribution::create(10, 0.5).value;
+        auto batch_b = BinomialDistribution::create(10, 0.5).unwrap();
         stats::tests::runBatchTests(cfg, batch_b);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = BinomialDistribution::create(10, 0.5).value;
-        auto d2 = BinomialDistribution::create(10, 0.5).value;
-        auto d3 = BinomialDistribution::create(10, 0.3).value;
+        auto d1 = BinomialDistribution::create(10, 0.5).unwrap();
+        auto d2 = BinomialDistribution::create(10, 0.5).unwrap();
+        auto d3 = BinomialDistribution::create(10, 0.3).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << endl;
         cout << "d1 == d3: " << (d1 == d3 ? "true" : "false") << endl;
         cout << "d1 != d3: " << (d1 != d3 ? "true" : "false") << endl;
@@ -240,7 +240,7 @@ int main() {
         stringstream ss;
         ss << d1;
         cout << "Stream output: " << ss.str() << endl;
-        auto in_dist = BinomialDistribution::create().value;
+        auto in_dist = BinomialDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
             cout << "Stream round-trip n=" << in_dist.getN()

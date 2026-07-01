@@ -252,10 +252,6 @@ void test_log_space_operations() {
     cout << "\n=== Testing Log-Space Operations ===" << endl;
     TestStats stats;
 
-    // Initialize log-space operations
-    LogSpaceOps::initialize();
-    stats.record(true, "LogSpaceOps initialized");
-
     // Test basic logSumExp
     {
         double result = LogSpaceOps::logSumExp(log(2.0), log(3.0));

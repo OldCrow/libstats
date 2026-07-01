@@ -39,12 +39,12 @@ int main() {
         cout << "Convention: X = failures before first success (support {0,1,2,...}).\n";
         cout << "Delegation: GeometricDistribution wraps NegativeBinomial(r=1, p).\n";
 
-        auto default_geom = GeometricDistribution::create().value;
+        auto default_geom = GeometricDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default p", default_geom.getP());
 
-        auto g05 = GeometricDistribution::create(0.5).value;
-        auto g01 = GeometricDistribution::create(0.1).value;
-        auto g10 = GeometricDistribution::create(1.0).value;
+        auto g05 = GeometricDistribution::create(0.5).unwrap();
+        auto g01 = GeometricDistribution::create(0.1).unwrap();
+        auto g10 = GeometricDistribution::create(1.0).unwrap();
 
         BasicTestFormatter::printProperty("p=0.5 mean (expect 1.0)", g05.getMean());
         BasicTestFormatter::printProperty("p=0.1 mean (expect 9.0)", g01.getMean());
@@ -58,7 +58,7 @@ int main() {
 
         // Test 2: Parameter getters and setters
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
-        auto g = GeometricDistribution::create(0.3).value;
+        auto g = GeometricDistribution::create(0.3).unwrap();
         BasicTestFormatter::printProperty("getP()", g.getP());
         BasicTestFormatter::printProperty("getPAtomic()", g.getPAtomic());
 
@@ -79,7 +79,7 @@ int main() {
         // Test 3: Core probability methods
         BasicTestFormatter::printTestStart(3, "Core Probability Methods");
         cout << "Geometric(p=0.5): PMF(k) = 0.5 * 0.5^k\n";
-        auto g3 = GeometricDistribution::create(0.5).value;
+        auto g3 = GeometricDistribution::create(0.5).unwrap();
 
         // PMF(0) = p = 0.5
         double pmf0 = g3.getProbability(0.0);
@@ -137,7 +137,7 @@ int main() {
         // Test 4: Random Sampling
         BasicTestFormatter::printTestStart(4, "Random Sampling");
         std::mt19937 rng(42);
-        auto g4 = GeometricDistribution::create(0.3).value;  // mean = (1-0.3)/0.3 ≈ 2.333
+        auto g4 = GeometricDistribution::create(0.3).unwrap();  // mean = (1-0.3)/0.3 ≈ 2.333
 
         double s = g4.sample(rng);
         cout << "Single sample (expect >= 0): " << (s >= 0.0 ? "PASS" : "FAIL") << " (" << s << ")\n";
@@ -162,9 +162,9 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: p_hat = 1/(1 + x_bar)  (closed form)\n";
 
-        auto source = GeometricDistribution::create(0.4).value;  // true p=0.4
+        auto source = GeometricDistribution::create(0.4).unwrap();  // true p=0.4
         auto fit_data = source.sample(rng, 300);
-        auto g5 = GeometricDistribution::create().value;
+        auto g5 = GeometricDistribution::create().unwrap();
         g5.fit(fit_data);
         cout << "Fitted p from Geo(0.4) data (expect ~0.4): " << g5.getP() << "\n";
 
@@ -177,15 +177,15 @@ int main() {
         BasicTestFormatter::printNewline();
 
         // Test 6: Batch + Test 7: Comparison/Stream
-        auto g6 = GeometricDistribution::create(0.5).value;
+        auto g6 = GeometricDistribution::create(0.5).unwrap();
         stats::tests::runBatchTests(cfg, g6);  // Test 6
 
         // Test 7: Comparison and Stream Operators
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = GeometricDistribution::create(0.3).value;
-        auto d2 = GeometricDistribution::create(0.3).value;
-        auto d3 = GeometricDistribution::create(0.7).value;
+        auto d1 = GeometricDistribution::create(0.3).unwrap();
+        auto d2 = GeometricDistribution::create(0.3).unwrap();
+        auto d3 = GeometricDistribution::create(0.7).unwrap();
         cout << "d1 == d2 (p=0.3 vs p=0.3): " << (d1 == d2 ? "true" : "false") << "\n";
         cout << "d1 == d3 (p=0.3 vs p=0.7): " << (d1 == d3 ? "true" : "false") << "\n";
         cout << "d1 != d3: " << (d1 != d3 ? "true" : "false") << "\n";
@@ -194,7 +194,7 @@ int main() {
         oss << d1;
         cout << "Stream output: " << oss.str() << "\n";
         istringstream iss(oss.str());
-        auto parsed = GeometricDistribution::create().value;
+        auto parsed = GeometricDistribution::create().unwrap();
         iss >> parsed;
         cout << "Stream round-trip p: " << parsed.getP() << "\n";
         if (std::abs(parsed.getP() - 0.3) > 1e-10) throw std::runtime_error("Stream round-trip failed");

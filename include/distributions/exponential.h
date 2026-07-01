@@ -49,12 +49,12 @@ namespace stats {
  * // Standard exponential distribution (λ=1, mean=1)
  * auto result = ExponentialDistribution::create(1.0);
  * if (result.isOk()) {
- *     auto standard = std::move(result.value);
+ *     auto standard = std::move(result.unwrap());
  *
  *     // Fast decay process (λ=5, mean=0.2)
  *     auto fastResult = ExponentialDistribution::create(5.0);
  *     if (fastResult.isOk()) {
- *         auto fastDecay = std::move(fastResult.value);
+ *         auto fastDecay = std::move(fastResult.unwrap());
  *
  *         // Fit to inter-arrival time data
  *         std::vector<double> waitTimes = {0.1, 0.3, 0.7, 0.2, 0.5};
@@ -171,18 +171,18 @@ class ExponentialDistribution : public DistributionBase {
      * @code
      * auto result = ExponentialDistribution::create(2.0);
      * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
+     *     auto distribution = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
     [[nodiscard]] static Result<ExponentialDistribution> create(double lambda = 1.0) {
         auto validation = validateExponentialParameters(lambda);
         if (validation.isError()) {
-            return Result<ExponentialDistribution>::makeError(validation.error_code,
-                                                              validation.message);
+            return Result<ExponentialDistribution>::makeError(validation.errorCode(),
+                                                              validation.message());
         }
 
         // Use private factory to bypass validation

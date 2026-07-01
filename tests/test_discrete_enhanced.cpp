@@ -50,7 +50,7 @@ class DiscreteEnhancedTest : public ::testing::Test {
 
         auto result = stats::DiscreteDistribution::create(test_lower_, test_upper_);
         if (result.isOk()) {
-            test_distribution_ = std::move(result.value);
+            test_distribution_ = std::move(result).unwrap();
         };
     }
 
@@ -67,7 +67,7 @@ class DiscreteEnhancedTest : public ::testing::Test {
 
 TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard six-sided die
-    auto dice = stats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     EXPECT_EQ(dice.getLowerBound(), 1);
     EXPECT_EQ(dice.getUpperBound(), 6);
@@ -85,7 +85,7 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_NEAR(cdf_at_3, 3.0 / 6.0, 1e-10);
 
     // Test binary distribution
-    auto binary = stats::DiscreteDistribution::create(0, 1).value;
+    auto binary = stats::DiscreteDistribution::create(0, 1).unwrap();
     EXPECT_DOUBLE_EQ(binary.getMean(), 0.5);
     EXPECT_DOUBLE_EQ(binary.getVariance(), 0.25);  // (1-0)(1-0+2)/12 = 1*3/12 = 0.25
     EXPECT_NEAR(binary.getCumulativeProbability(0.5), 0.5, 1e-10);  // P(X<=0.5)=P(X=0)=0.5
@@ -94,15 +94,15 @@ TEST_F(DiscreteEnhancedTest, BasicEnhancedFunctionality) {
     EXPECT_TRUE(dice.isInSupport(3.0));
     EXPECT_FALSE(dice.isInSupport(3.5));  // Non-integers not in discrete support
     EXPECT_TRUE(dice.isDiscrete());
-    EXPECT_EQ(dice.getDistributionName(), "DiscreteUniform");
+    EXPECT_EQ(dice.getDistributionName(), "Discrete");
 
     // Entropy: H[a,b] = log(b - a + 1) nats exactly
     EXPECT_DOUBLE_EQ(dice.getEntropy(), std::log(6.0));          // [1,6]: log(6)
     EXPECT_DOUBLE_EQ(binary.getEntropy(), std::log(2.0));        // [0,1]: log(2)
-    auto degenerate = stats::DiscreteDistribution::create(3, 3).value;
+    auto degenerate = stats::DiscreteDistribution::create(3, 3).unwrap();
     EXPECT_DOUBLE_EQ(degenerate.getEntropy(), 0.0);              // [3,3]: log(1) = 0
     // Entropy monotone: wider support → higher entropy
-    auto d10 = stats::DiscreteDistribution::create(1, 10).value;
+    auto d10 = stats::DiscreteDistribution::create(1, 10).unwrap();
     EXPECT_GT(d10.getEntropy(), dice.getEntropy());              // [1,10] > [1,6]
     EXPECT_TRUE(std::isfinite(dice.getEntropy()));
 }
@@ -232,7 +232,7 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdDiscrete = stats::DiscreteDistribution::create(1, 6).value;
+    auto stdDiscrete = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -367,7 +367,7 @@ TEST_F(DiscreteEnhancedTest, AdvancedStatisticalMethods) {
 TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
+    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -430,7 +430,7 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
-    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).value;
+    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     // Test data for different batch sizes to trigger different strategies
     std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
@@ -547,7 +547,7 @@ TEST_F(DiscreteEnhancedTest, AutoDispatchAssessment) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto dice = stats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).unwrap();
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     // Generate test data
@@ -905,7 +905,7 @@ TEST_F(DiscreteEnhancedTest, ParallelBatchFittingTests) {
 //==============================================================================
 
 TEST_F(DiscreteEnhancedTest, NumericalStabilityAndEdgeCases) {
-    auto dice = stats::DiscreteDistribution::create(1, 6).value;
+    auto dice = stats::DiscreteDistribution::create(1, 6).unwrap();
 
     fixtures::EdgeCaseTester<DiscreteDistribution>::testExtremeValues(dice, "Discrete");
     fixtures::EdgeCaseTester<DiscreteDistribution>::testEmptyBatchOperations(dice, "Discrete");
@@ -922,7 +922,7 @@ TEST_F(DiscreteEnhancedTest, NumericalStabilityAndEdgeCases) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::DiscreteDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::DiscreteDistribution make() { return stats::DiscreteDistribution::create(1, 6).value; }
+    static stats::DiscreteDistribution make() { return stats::DiscreteDistribution::create(1, 6).unwrap(); }
     static std::vector<double> domain() { return {1.0, 2.0, 3.0, 4.0, 5.0, 6.0}; }
     static double batch_lo() { return 1.0; }
     static double batch_hi() { return 6.5; }

@@ -107,8 +107,8 @@ class LogNormalDistribution : public DistributionBase {
                                                               double sigma = detail::ONE) {
         auto validation = validateLogNormalParameters(mu, sigma);
         if (validation.isError()) {
-            return Result<LogNormalDistribution>::makeError(validation.error_code,
-                                                            validation.message);
+            return Result<LogNormalDistribution>::makeError(validation.errorCode(),
+                                                            validation.message());
         }
         return Result<LogNormalDistribution>::ok(createUnchecked(mu, sigma));
     }
@@ -176,7 +176,7 @@ class LogNormalDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "LogNormalDistribution";
+        return "LogNormal";
     }
 
     /** @brief Log-normal is continuous. */

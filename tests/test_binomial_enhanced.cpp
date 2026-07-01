@@ -26,7 +26,7 @@ class BinomialEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = stats::BinomialDistribution::create(10, 0.5);
         ASSERT_TRUE(r.isOk());
-        b10_05_ = std::move(r.value);
+        b10_05_ = std::move(r).unwrap();
     }
     BinomialDistribution b10_05_;  // Binomial(n=10, p=0.5)
 };
@@ -93,7 +93,7 @@ TEST_F(BinomialEnhancedTest, Moments) {
     EXPECT_NEAR(b10_05_.getVariance(), 2.5,  1e-12);
     EXPECT_NEAR(b10_05_.getSkewness(), 0.0,  1e-12);
 
-    auto b20_03 = BinomialDistribution::create(20, 0.3).value;
+    auto b20_03 = BinomialDistribution::create(20, 0.3).unwrap();
     EXPECT_NEAR(b20_03.getMean(),     6.0,    1e-12);
     EXPECT_NEAR(b20_03.getVariance(), 4.2,    1e-12);
     // Skewness = (1-2p)/sqrt(npq) = 0.4/sqrt(4.2)
@@ -161,9 +161,9 @@ TEST_F(BinomialEnhancedTest, VectorizedEqualsScalar) {
 // MLE fit recovers true p for Binomial(10, 0.7)
 TEST_F(BinomialEnhancedTest, MLEFit) {
     mt19937 rng(42);
-    auto source  = BinomialDistribution::create(10, 0.7).value;
+    auto source  = BinomialDistribution::create(10, 0.7).unwrap();
     const auto data = source.sample(rng, 1000);
-    auto fitted  = BinomialDistribution::create(10, 0.5).value;
+    auto fitted  = BinomialDistribution::create(10, 0.5).unwrap();
     fitted.fit(data);
     EXPECT_NEAR(fitted.getP(), 0.7, 0.05) << "Fitted p should be near 0.7";
     EXPECT_GE(fitted.getN(), 1);
@@ -178,7 +178,7 @@ TEST_F(BinomialEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(BinomialDistribution::create(10,
                     std::numeric_limits<double>::quiet_NaN()).isError());
 
-    auto d = BinomialDistribution::create(10, 0.5).value;
+    auto d = BinomialDistribution::create(10, 0.5).unwrap();
     EXPECT_TRUE(d.trySetP(1.5).isError());
     EXPECT_TRUE(d.trySetN(0).isError());
     EXPECT_DOUBLE_EQ(d.getP(), 0.5);
@@ -187,7 +187,7 @@ TEST_F(BinomialEnhancedTest, InvalidParameters) {
 
 // Setter propagates: setP changes mean, variance, skewness
 TEST_F(BinomialEnhancedTest, SetterPropagates) {
-    auto d = BinomialDistribution::create(10, 0.5).value;
+    auto d = BinomialDistribution::create(10, 0.5).unwrap();
     EXPECT_NEAR(d.getMean(), 5.0, 1e-12);
     d.setP(0.3);
     EXPECT_NEAR(d.getMean(), 3.0, 1e-12);
@@ -198,13 +198,13 @@ TEST_F(BinomialEnhancedTest, SetterPropagates) {
 
 // p=0 and p=1 edge cases
 TEST_F(BinomialEnhancedTest, ProbabilityEdgeCases) {
-    auto b_p0 = BinomialDistribution::create(10, 0.0).value;
+    auto b_p0 = BinomialDistribution::create(10, 0.0).unwrap();
     EXPECT_NEAR(b_p0.getProbability(0.0), 1.0, 1e-12);
     EXPECT_DOUBLE_EQ(b_p0.getProbability(1.0), 0.0);
     EXPECT_DOUBLE_EQ(b_p0.getCumulativeProbability(-0.5), 0.0);
     EXPECT_DOUBLE_EQ(b_p0.getCumulativeProbability(0.0), 1.0);
 
-    auto b_p1 = BinomialDistribution::create(10, 1.0).value;
+    auto b_p1 = BinomialDistribution::create(10, 1.0).unwrap();
     EXPECT_NEAR(b_p1.getProbability(10.0), 1.0, 1e-12);
     EXPECT_DOUBLE_EQ(b_p1.getProbability(9.0), 0.0);
 }
@@ -247,7 +247,7 @@ TEST_F(BinomialEnhancedTest, ParallelBatchCorrectness) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::BinomialDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::BinomialDistribution make() { return stats::BinomialDistribution::create(10, 0.5).value; }
+    static stats::BinomialDistribution make() { return stats::BinomialDistribution::create(10, 0.5).unwrap(); }
     static std::vector<double> domain() { return {0.0, 2.0, 5.0, 8.0, 10.0}; }
     static double batch_lo() { return 0.0; }
     static double batch_hi() { return 10.0; }

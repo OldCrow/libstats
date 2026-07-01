@@ -34,12 +34,12 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_gauss = stats::GaussianDistribution::create().value;
+        auto default_gauss = stats::GaussianDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default Mean", default_gauss.getMean());
         BasicTestFormatter::printProperty("Default Std Dev", default_gauss.getStandardDeviation());
 
         // Parameterized constructor test
-        auto param_gauss = stats::GaussianDistribution::create(5.0, 2.0).value;
+        auto param_gauss = stats::GaussianDistribution::create(5.0, 2.0).unwrap();
         BasicTestFormatter::printProperty("Param Mean", param_gauss.getMean());
         BasicTestFormatter::printProperty("Param Std Dev", param_gauss.getStandardDeviation());
 
@@ -49,7 +49,7 @@ int main() {
         BasicTestFormatter::printProperty("Copy Std Dev", copy_gauss.getStandardDeviation());
 
         // Move constructor test
-        auto temp_gauss = stats::GaussianDistribution::create(10.0, 3.0).value;
+        auto temp_gauss = stats::GaussianDistribution::create(10.0, 3.0).unwrap();
         auto move_gauss = std::move(temp_gauss);
         BasicTestFormatter::printProperty("Move Mean", move_gauss.getMean());
         BasicTestFormatter::printProperty("Move Std Dev", move_gauss.getStandardDeviation());
@@ -57,7 +57,7 @@ int main() {
         // Safe factory method test
         auto result = GaussianDistribution::create(0.0, 1.0);
         if (result.isOk()) {
-            auto factory_gauss = std::move(result.value);
+            auto factory_gauss = std::move(result.unwrap());
             BasicTestFormatter::printProperty("Factory Mean", factory_gauss.getMean());
             BasicTestFormatter::printProperty("Factory Std Dev",
                                               factory_gauss.getStandardDeviation());
@@ -77,7 +77,7 @@ int main() {
         cout << "Using a Standard Normal (0.0, 1.0) distribution as the results are well known."
              << endl;
 
-        auto gauss_dist = stats::GaussianDistribution::create(0.0, 1.0).value;
+        auto gauss_dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
         // Test getters
         BasicTestFormatter::printProperty("Initial Mean", gauss_dist.getMean());
@@ -131,7 +131,7 @@ int main() {
                 "Normal (0, 1)."
              << endl;
 
-        auto std_normal = stats::GaussianDistribution::create(0.0, 1.0).value;
+        auto std_normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
         double x = 1.0;
 
         BasicTestFormatter::printProperty("PDF(1.0)", std_normal.getProbability(x));
@@ -197,7 +197,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = TestDataGenerators::generateGaussianTestData();
-        auto fitted_dist = stats::GaussianDistribution::create().value;
+        auto fitted_dist = stats::GaussianDistribution::create().unwrap();
         fitted_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted Mean", fitted_dist.getMean());
         BasicTestFormatter::printProperty("Fitted Std Dev", fitted_dist.getStandardDeviation());
@@ -227,7 +227,7 @@ int main() {
         cfg.invalid_scenarios = {
             {"negative sigma", [] { return GaussianDistribution::create(0.0, -1.0).isError(); }},
         };
-        auto test_dist = stats::GaussianDistribution::create(0.0, 1.0).value;
+        auto test_dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, test_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
@@ -235,9 +235,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = stats::GaussianDistribution::create(0.0, 1.0).value;
-        auto dist2 = stats::GaussianDistribution::create(0.0, 1.0).value;
-        auto dist3 = stats::GaussianDistribution::create(1.0, 2.0).value;
+        auto dist1 = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+        auto dist2 = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+        auto dist3 = stats::GaussianDistribution::create(1.0, 2.0).unwrap();
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -250,7 +250,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = stats::GaussianDistribution::create().value;
+        auto input_dist = stats::GaussianDistribution::create().unwrap();
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;

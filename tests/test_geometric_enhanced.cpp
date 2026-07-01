@@ -23,7 +23,7 @@ template <>
 struct stats::tests::DistTraits<stats::GeometricDistribution>
     : stats::tests::DistTraitsDefaults {
     static stats::GeometricDistribution make() {
-        return stats::GeometricDistribution::create(0.5).value;  // mean = 1, var = 2
+        return stats::GeometricDistribution::create(0.5).unwrap();  // mean = 1, var = 2
     }
     static std::vector<double> domain() {
         return {0.0, 1.0, 2.0, 3.0, 4.0};  // non-negative integer inputs
@@ -54,7 +54,7 @@ class GeometricEnhancedTest : public ::testing::Test {
     void SetUp() override {
         auto r = GeometricDistribution::create(0.5);
         ASSERT_TRUE(r.isOk());
-        g05_ = std::move(r.value);  // Geometric(0.5): mean=1, var=2
+        g05_ = std::move(r.unwrap());  // Geometric(0.5): mean=1, var=2
     }
     GeometricDistribution g05_;
 };
@@ -102,7 +102,7 @@ TEST_F(GeometricEnhancedTest, MomentFormulas) {
     EXPECT_NEAR(g05_.getKurtosis(), 6.0 + 0.5 * 0.5 / 0.5, 1e-12);
 
     // Verify p=0.3
-    auto g03 = GeometricDistribution::create(0.3).value;
+    auto g03 = GeometricDistribution::create(0.3).unwrap();
     EXPECT_NEAR(g03.getMean(),     0.7 / 0.3,         1e-10) << "mean=(1-p)/p";
     EXPECT_NEAR(g03.getVariance(), 0.7 / (0.3 * 0.3), 1e-10) << "var=(1-p)/p^2";
 }
@@ -111,7 +111,7 @@ TEST_F(GeometricEnhancedTest, MomentFormulas) {
 
 TEST_F(GeometricEnhancedTest, ModeIsAlwaysZero) {
     EXPECT_EQ(g05_.getMode(), 0.0);
-    auto g09 = GeometricDistribution::create(0.9).value;
+    auto g09 = GeometricDistribution::create(0.9).unwrap();
     EXPECT_EQ(g09.getMode(), 0.0);  // still 0 even for high p
 }
 
@@ -121,11 +121,11 @@ TEST_F(GeometricEnhancedTest, MedianFormula) {
     EXPECT_EQ(g05_.getMedian(), 0.0);
 
     // p=0.3: ceil(ln2 / (-ln(0.7))) - 1 = ceil(0.693/0.357) - 1 = ceil(1.942) - 1 = 1
-    auto g03 = GeometricDistribution::create(0.3).value;
+    auto g03 = GeometricDistribution::create(0.3).unwrap();
     EXPECT_EQ(g03.getMedian(), 1.0);
 
     // p=1.0: degenerate, all mass at 0, median = 0
-    auto g10 = GeometricDistribution::create(1.0).value;
+    auto g10 = GeometricDistribution::create(1.0).unwrap();
     EXPECT_EQ(g10.getMedian(), 0.0);
 }
 
@@ -139,7 +139,7 @@ TEST_F(GeometricEnhancedTest, EntropyFormula) {
     EXPECT_NEAR(g05_.getEntropy(), expected, 1e-12);
 
     // p=1.0: degenerate, H=0
-    auto g10 = GeometricDistribution::create(1.0).value;
+    auto g10 = GeometricDistribution::create(1.0).unwrap();
     EXPECT_EQ(g10.getEntropy(), 0.0);
 }
 
@@ -158,7 +158,7 @@ TEST_F(GeometricEnhancedTest, QuantileFloorProperty) {
 // ─── Setter propagates to delegate ───────────────────────────────────────────
 
 TEST_F(GeometricEnhancedTest, SetterPropagates) {
-    auto g = GeometricDistribution::create(0.5).value;
+    auto g = GeometricDistribution::create(0.5).unwrap();
     EXPECT_NEAR(g.getMean(), 1.0, 1e-12);
 
     g.setP(0.25);
@@ -177,10 +177,10 @@ TEST_F(GeometricEnhancedTest, SetterPropagates) {
 
 TEST_F(GeometricEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
-    auto source = GeometricDistribution::create(0.4).value;  // true p = 0.4
+    auto source = GeometricDistribution::create(0.4).unwrap();  // true p = 0.4
     auto data   = source.sample(rng, 1000);
 
-    auto fitted = GeometricDistribution::create(0.5).value;
+    auto fitted = GeometricDistribution::create(0.5).unwrap();
     fitted.fit(data);
 
     // MLE p_hat = 1/(1+x_bar). For Geometric(0.4), mean = (1-0.4)/0.4 = 1.5.

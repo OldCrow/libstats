@@ -22,7 +22,7 @@
  * 2. Specialise DistTraits<T> before INSTANTIATE_TYPED_TEST_SUITE_P:
  *    @code
  *    template<> struct stats::tests::DistTraits<MyDistribution> {
- *        static MyDistribution make() { return MyDistribution::create(p1, p2).value; }
+ *        static MyDistribution make() { return MyDistribution::create(p1, p2).unwrap(); }
  *        static std::vector<double> domain() { return {x1, x2, x3, x4, x5}; }
  *        static double batch_lo() { return lo; }
  *        static double batch_hi() { return hi; }
@@ -103,7 +103,7 @@ struct DistTraitsDefaults {
  * @code
  * template<> struct stats::tests::DistTraits<MyDist>
  *     : stats::tests::DistTraitsDefaults {
- *     static MyDist make() { return MyDist::create(...).value; }
+ *     static MyDist make() { return MyDist::create(...).unwrap(); }
  *     static std::vector<double> domain()         { return {...}; }
  *     static double batch_lo()                    { return lo; }
  *     static double batch_hi()                    { return hi; }

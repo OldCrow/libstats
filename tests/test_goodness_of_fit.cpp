@@ -48,7 +48,7 @@ static std::vector<double> expSample(std::size_t n, double lam = 1, unsigned see
 // ── KS test ─────────────────────────────────────────────────────────────────
 TEST(GoodnessOfFit, KS_GoodFit) {
     auto data = normalSample(200);
-    auto g = GaussianDistribution::create(0.0, 1.0).value;
+    auto g = GaussianDistribution::create(0.0, 1.0).unwrap();
     auto [stat, p, reject] = stats::analysis::kolmogorovSmirnovTest(data, g);
     EXPECT_GT(stat, 0.0);
     EXPECT_GE(p, 0.0);
@@ -57,26 +57,26 @@ TEST(GoodnessOfFit, KS_GoodFit) {
 }
 TEST(GoodnessOfFit, KS_BadFit) {
     auto data = expSample(500);
-    auto g = GaussianDistribution::create(1.0, 1.0).value;
+    auto g = GaussianDistribution::create(1.0, 1.0).unwrap();
     auto [stat, p, reject] = stats::analysis::kolmogorovSmirnovTest(data, g);
     EXPECT_TRUE(reject);
 }
 TEST(GoodnessOfFit, KS_EmptyDataThrows) {
-    auto g = GaussianDistribution::create(0.0, 1.0).value;
+    auto g = GaussianDistribution::create(0.0, 1.0).unwrap();
     EXPECT_THROW(stats::analysis::kolmogorovSmirnovTest({}, g), std::invalid_argument);
 }
 
 // ── AD test ──────────────────────────────────────────────────────────────────
 TEST(GoodnessOfFit, AD_GoodFit) {
     auto data = normalSample(200);
-    auto g = GaussianDistribution::create(0.0, 1.0).value;
+    auto g = GaussianDistribution::create(0.0, 1.0).unwrap();
     auto [stat, p, reject] = stats::analysis::andersonDarlingTest(data, g);
     EXPECT_GT(stat, 0.0);
     EXPECT_FALSE(reject);
 }
 TEST(GoodnessOfFit, AD_BadFit) {
     auto data = expSample(500);
-    auto g = GaussianDistribution::create(1.0, 1.0).value;
+    auto g = GaussianDistribution::create(1.0, 1.0).unwrap();
     EXPECT_TRUE(std::get<2>(stats::analysis::andersonDarlingTest(data, g)));
 }
 
@@ -84,8 +84,8 @@ TEST(GoodnessOfFit, AD_BadFit) {
 TEST(GoodnessOfFit, LR_RejectsWrongModel) {
     // Joint test on μ and σ²: both parameters differ → df = 2.
     auto data = normalSample(100, 5.0, 2.0);
-    auto restricted = GaussianDistribution::create(0.0, 1.0).value;
-    auto unrestricted = GaussianDistribution::create(5.0, 2.0).value;
+    auto restricted = GaussianDistribution::create(0.0, 1.0).unwrap();
+    auto unrestricted = GaussianDistribution::create(5.0, 2.0).unwrap();
     auto [lr, p, reject] = stats::analysis::likelihoodRatioTest(data, restricted, unrestricted, 2);
     EXPECT_GT(lr, 0.0);
     EXPECT_TRUE(reject);
@@ -94,7 +94,7 @@ TEST(GoodnessOfFit, LR_EqualParamsReturnsValid) {
     // Identical models: lr_stat = 0 → valid result {0, 1.0, false} (ANA-4).
     // Model equivalence is a valid test outcome, not an error condition.
     auto data = normalSample(50);
-    auto g = GaussianDistribution::create(0.0, 1.0).value;
+    auto g = GaussianDistribution::create(0.0, 1.0).unwrap();
     auto [lr, p, reject] = stats::analysis::likelihoodRatioTest(data, g, g, 2);
     EXPECT_DOUBLE_EQ(lr, 0.0);
     EXPECT_DOUBLE_EQ(p, 1.0);
@@ -103,16 +103,16 @@ TEST(GoodnessOfFit, LR_EqualParamsReturnsValid) {
 TEST(GoodnessOfFit, LR_InvalidDfThrows) {
     // df = 0 must throw before any computation.
     auto data = normalSample(50);
-    auto g0 = GaussianDistribution::create(0.0, 1.0).value;
-    auto g1 = GaussianDistribution::create(1.0, 1.0).value;
+    auto g0 = GaussianDistribution::create(0.0, 1.0).unwrap();
+    auto g1 = GaussianDistribution::create(1.0, 1.0).unwrap();
     EXPECT_THROW(stats::analysis::likelihoodRatioTest(data, g0, g1, 0), std::invalid_argument);
 }
 
 // ── Information criteria ─────────────────────────────────────────────────────
 TEST(InformationCriteria, BetterFitHasLowerAIC) {
     auto data = normalSample(200, 5.0, 2.0);
-    auto good = GaussianDistribution::create(5.0, 2.0).value;
-    auto bad = GaussianDistribution::create(0.0, 1.0).value;
+    auto good = GaussianDistribution::create(5.0, 2.0).unwrap();
+    auto bad = GaussianDistribution::create(0.0, 1.0).unwrap();
     auto [ag, bg, ag2, llg] = stats::analysis::informationCriteria(data, good);
     auto [ab, bb, ab2, llb] = stats::analysis::informationCriteria(data, bad);
     EXPECT_LT(ag, ab);
@@ -166,7 +166,7 @@ TEST(AndersonDarling, PValueContinuityNearStatSix) {
     //   (c) p must be non-increasing (weaker: allow equal since p can saturate at 0).
     // These checks don't depend on p-value ratios (which grow naturally for
     // a consistently bad fit) and so are robust against the actual MC-6 regression.
-    auto gaussian = GaussianDistribution::create(0.5, 1.0).value;
+    auto gaussian = GaussianDistribution::create(0.5, 1.0).unwrap();
 
     std::mt19937 rng(999);
     std::exponential_distribution<double> ed(1.0);

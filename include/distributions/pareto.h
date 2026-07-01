@@ -104,7 +104,7 @@ class ParetoDistribution : public DistributionBase {
                                                            double alpha = detail::ONE) {
         auto validation = validateParetoParameters(scale, alpha);
         if (validation.isError()) {
-            return Result<ParetoDistribution>::makeError(validation.error_code, validation.message);
+            return Result<ParetoDistribution>::makeError(validation.errorCode(), validation.message());
         }
         return Result<ParetoDistribution>::ok(createUnchecked(scale, alpha));
     }
@@ -179,7 +179,7 @@ class ParetoDistribution : public DistributionBase {
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "ParetoDistribution"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Pareto"; }
 
     /** @brief Pareto is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }

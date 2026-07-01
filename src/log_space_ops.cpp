@@ -9,27 +9,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <mutex>
 #include <vector>
 
 namespace stats {
-
-// =============================================================================
-// INITIALIZATION (no-op — lookup table removed)
-// =============================================================================
-
-void LogSpaceOps::initialize() {
-    // call_once guard makes repeated calls idempotent and safe under concurrent
-    // initialization from multiple TUs, each of which instantiates the static
-    // globalLogSpaceInit from the header. Currently this function is a no-op,
-    // but the guard prevents any future content from running multiple times.
-    static std::once_flag initFlag;
-    std::call_once(initFlag, []() {
-        // No-op: lookup table removed (1024-point interpolation over [-50,0]
-        // achieved only ~6e-5 accuracy, insufficient for 1e-9 tolerances).
-        // Retaining the guard for future expansion.
-    });
-}
 
 // =============================================================================
 // CORE LOG-SPACE OPERATIONS

@@ -116,8 +116,8 @@ class WeibullDistribution : public DistributionBase {
                                                             double scale = detail::ONE) {
         auto validation = validateWeibullParameters(shape, scale);
         if (validation.isError()) {
-            return Result<WeibullDistribution>::makeError(validation.error_code,
-                                                          validation.message);
+            return Result<WeibullDistribution>::makeError(validation.errorCode(),
+                                                          validation.message());
         }
         return Result<WeibullDistribution>::ok(createUnchecked(shape, scale));
     }
@@ -178,7 +178,7 @@ class WeibullDistribution : public DistributionBase {
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
 
     /** @brief Distribution name. */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "WeibullDistribution"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Weibull"; }
 
     /** @brief Weibull is continuous. */
     [[nodiscard]] bool isDiscrete() const noexcept override { return false; }

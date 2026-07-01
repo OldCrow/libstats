@@ -50,7 +50,7 @@ namespace stats {
  * // Two-sample t-test: t(ν=18) with ν = n1+n2-2 degrees of freedom
  * auto result = StudentTDistribution::create(18.0);
  * if (result.isOk()) {
- *     auto& t_dist = result.value;
+ *     auto& t_dist = result.unwrap();
  *
  *     double t_stat = 2.8;
  *     double p_value = 2.0 * (1.0 - t_dist.getCumulativeProbability(std::abs(t_stat)));
@@ -120,8 +120,8 @@ class StudentTDistribution : public DistributionBase {
     [[nodiscard]] static Result<StudentTDistribution> create(double nu = detail::ONE) {
         auto validation = validateStudentTParameters(nu);
         if (validation.isError()) {
-            return Result<StudentTDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<StudentTDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
         return Result<StudentTDistribution>::ok(createUnchecked(nu));
     }
@@ -168,7 +168,7 @@ class StudentTDistribution : public DistributionBase {
 
     /** @brief Distribution name. */
     [[nodiscard]] std::string_view getDistributionName() const noexcept override {
-        return "StudentTDistribution";
+        return "StudentT";
     }
 
     /** @brief Student's t is continuous. */
@@ -375,7 +375,7 @@ class StudentTDistribution : public DistributionBase {
     // AR-5: delegate to the free function in error_handling.h — no duplicate logic.
     static void validateParameters(double nu) {
         auto v = ::stats::validateStudentTParameters(nu);
-        if (v.isError()) throw std::invalid_argument(v.message);
+        if (v.isError()) throw std::invalid_argument(v.message());
     }
 
     //==========================================================================

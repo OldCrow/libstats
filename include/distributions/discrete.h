@@ -52,12 +52,12 @@ namespace stats {
  * // Standard six-sided die [1,6]
  * auto diceResult = DiscreteDistribution::create(1, 6);
  * if (diceResult.isOk()) {
- *     auto dice = std::move(diceResult.value);
+ *     auto dice = std::move(diceResult.unwrap());
  *
  *     // Playing card ranks [1,13] (Ace to King)
  *     auto cardResult = DiscreteDistribution::create(1, 13);
  *     if (cardResult.isOk()) {
- *         auto cards = std::move(cardResult.value);
+ *         auto cards = std::move(cardResult.unwrap());
  *
  *         // Fit to observed roll data
  *         std::vector<double> rolls = {1, 3, 6, 2, 4, 5, 1, 6, 3, 2};
@@ -196,18 +196,18 @@ class DiscreteDistribution : public DistributionBase {
      * @code
      * auto result = DiscreteDistribution::create(1, 6);  // Standard die
      * if (result.isOk()) {
-     *     auto dice = std::move(result.value);
+     *     auto dice = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
     [[nodiscard]] static Result<DiscreteDistribution> create(int a = 0, int b = 1) {
         auto validation = validateDiscreteParameters(a, b);
         if (validation.isError()) {
-            return Result<DiscreteDistribution>::makeError(validation.error_code,
-                                                           validation.message);
+            return Result<DiscreteDistribution>::makeError(validation.errorCode(),
+                                                           validation.message());
         }
 
         // Use private factory to bypass validation
@@ -378,7 +378,7 @@ class DiscreteDistribution : public DistributionBase {
      *
      * @return Distribution name
      */
-    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "DiscreteUniform"; }
+    [[nodiscard]] std::string_view getDistributionName() const noexcept override { return "Discrete"; }
 
     /**
      * @brief Checks if the distribution is discrete.

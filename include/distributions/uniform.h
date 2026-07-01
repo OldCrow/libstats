@@ -50,12 +50,12 @@ namespace stats {
  * // Unit interval uniform distribution [0,1]
  * auto result = UniformDistribution::create(0.0, 1.0);
  * if (result.isOk()) {
- *     auto unit = std::move(result.value);
+ *     auto unit = std::move(result.unwrap());
  *
  *     // Temperature measurement with uncertainty [19.5, 20.5]°C
  *     auto tempResult = UniformDistribution::create(19.5, 20.5);
  *     if (tempResult.isOk()) {
- *         auto temperature = std::move(tempResult.value);
+ *         auto temperature = std::move(tempResult.unwrap());
  *
  *         // Fit to observed data (finds min/max bounds)
  *         std::vector<double> measurements = {19.7, 20.1, 19.9, 20.3, 19.8};
@@ -188,10 +188,10 @@ class UniformDistribution : public DistributionBase {
      * @code
      * auto result = UniformDistribution::create(-2.0, 3.0);
      * if (result.isOk()) {
-     *     auto distribution = std::move(result.value);
+     *     auto distribution = std::move(result.unwrap());
      *     // Use distribution safely...
      * } else {
-     *     std::cout << "Error: " << result.message << std::endl;
+     *     std::cout << "Error: " << result.message() << std::endl;
      * }
      * @endcode
      */
@@ -199,8 +199,8 @@ class UniformDistribution : public DistributionBase {
                                                             double b = 1.0) {
         auto validation = validateUniformParameters(a, b);
         if (validation.isError()) {
-            return Result<UniformDistribution>::makeError(validation.error_code,
-                                                          validation.message);
+            return Result<UniformDistribution>::makeError(validation.errorCode(),
+                                                          validation.message());
         }
 
         // Use private factory to bypass validation

@@ -28,13 +28,13 @@ int main() {
         cout << "Default (0,1) is the standard log-normal. Support: x > 0." << endl;
 
         // Default constructor: μ=0, σ=1
-        auto default_ln = stats::LogNormalDistribution::create().value;
+        auto default_ln = stats::LogNormalDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default mu", default_ln.getMu());
         BasicTestFormatter::printProperty("Default sigma", default_ln.getSigma());
         BasicTestFormatter::printProperty("isStandard", static_cast<int>(default_ln.isStandard()));
 
         // Parameterized
-        auto ln23 = stats::LogNormalDistribution::create(2.0, 3.0).value;
+        auto ln23 = stats::LogNormalDistribution::create(2.0, 3.0).unwrap();
         BasicTestFormatter::printProperty("LN(2,3) mu", ln23.getMu());
         BasicTestFormatter::printProperty("LN(2,3) sigma", ln23.getSigma());
 
@@ -43,14 +43,14 @@ int main() {
         BasicTestFormatter::printProperty("Copy mu", copy_ln.getMu());
 
         // Move
-        auto temp = stats::LogNormalDistribution::create(1.0, 0.5).value;
+        auto temp = stats::LogNormalDistribution::create(1.0, 0.5).unwrap();
         auto move_ln = std::move(temp);
         BasicTestFormatter::printProperty("Move mu", move_ln.getMu());
 
         // Factory
         auto result = LogNormalDistribution::create(0.5, 2.0);
         if (result.isOk()) {
-            BasicTestFormatter::printProperty("Factory sigma", result.value.getSigma());
+            BasicTestFormatter::printProperty("Factory sigma", result.unwrap().getSigma());
         }
 
         BasicTestFormatter::printTestSuccess("All constructor tests passed");
@@ -62,7 +62,7 @@ int main() {
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
 
         // LogNormal(0, 1): mean = exp(0.5) ≈ 1.6487, median = exp(0) = 1
-        auto ln = stats::LogNormalDistribution::create(0.0, 1.0).value;
+        auto ln = stats::LogNormalDistribution::create(0.0, 1.0).unwrap();
         const double expected_mean = std::exp(0.5);
         const double expected_var = (std::exp(1.0) - 1.0) * std::exp(1.0);
 
@@ -108,7 +108,7 @@ int main() {
         cout << "  CDF(1) = 0.5 (median at exp(0)=1)" << endl;
         cout << "  Quantile(0.5) = exp(0) = 1" << endl;
 
-        auto std_ln = LogNormalDistribution::create(0.0, 1.0).value;
+        auto std_ln = LogNormalDistribution::create(0.0, 1.0).unwrap();
 
         // PDF(1): f(1;0,1) = exp(-(log1-0)^2/2)/(1*1*sqrt(2pi)) = 1/sqrt(2pi)
         const double pdf_at_1 = std_ln.getProbability(1.0);
@@ -158,7 +158,7 @@ int main() {
         cout << "Sample from LogNormal(0,1); all values must be positive." << endl;
 
         mt19937 rng(42);
-        auto sample_dist = LogNormalDistribution::create(0.0, 1.0).value;
+        auto sample_dist = LogNormalDistribution::create(0.0, 1.0).unwrap();
 
         // Single sample
         double s = sample_dist.sample(rng);
@@ -187,9 +187,9 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: μ̂=mean(log xᵢ), σ̂=std(log xᵢ). Closed-form." << endl;
 
-        auto fit_dist = LogNormalDistribution::create(0.0, 1.0).value;
+        auto fit_dist = LogNormalDistribution::create(0.0, 1.0).unwrap();
         // Sample from a known distribution and fit back
-        auto source = LogNormalDistribution::create(1.0, 0.5).value;
+        auto source = LogNormalDistribution::create(1.0, 0.5).unwrap();
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted mu   (from LN(1, 0.5), expect ~1)",
@@ -220,14 +220,14 @@ int main() {
             {"sigma=0", [] { return LogNormalDistribution::create(0.0, 0.0).isError(); }},
             {"mu=inf", [] { return LogNormalDistribution::create(std::numeric_limits<double>::infinity(), 1.0).isError(); }},
         };
-        auto batch_dist = stats::LogNormalDistribution::create(0.0, 1.0).value;
+        auto batch_dist = stats::LogNormalDistribution::create(0.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, batch_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = LogNormalDistribution::create(0.0, 1.0).value;
-        auto d2 = LogNormalDistribution::create(0.0, 1.0).value;
-        auto d3 = LogNormalDistribution::create(1.0, 2.0).value;
+        auto d1 = LogNormalDistribution::create(0.0, 1.0).unwrap();
+        auto d2 = LogNormalDistribution::create(0.0, 1.0).unwrap();
+        auto d3 = LogNormalDistribution::create(1.0, 2.0).unwrap();
 
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << endl;
         cout << "d1 == d3: " << (d1 == d3 ? "true" : "false") << endl;
@@ -237,7 +237,7 @@ int main() {
         ss << d1;
         cout << "Stream output: " << ss.str() << endl;
 
-        auto input_dist = LogNormalDistribution::create().value;
+        auto input_dist = LogNormalDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> input_dist) {
             cout << "Stream round-trip mu: " << input_dist.getMu() << endl;

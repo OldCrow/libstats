@@ -125,7 +125,7 @@ void NegativeBinomialDistribution::setR(double r) {
     // no concurrent setP() can change p_ between the validation and the write.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateNegativeBinomialParameters(r, p_);
-    if (v.isError()) throw std::invalid_argument(v.message);
+    if (v.isError()) throw std::invalid_argument(v.message());
     r_ = r;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -138,7 +138,7 @@ void NegativeBinomialDistribution::setP(double p) {
     // no concurrent setR() can change r_ between the validation and the write.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateNegativeBinomialParameters(r_, p);
-    if (v.isError()) throw std::invalid_argument(v.message);
+    if (v.isError()) throw std::invalid_argument(v.message());
     p_ = p;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);

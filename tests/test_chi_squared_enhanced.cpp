@@ -30,7 +30,7 @@ class ChiSquaredEnhancedTest : public ::testing::Test {
         // ChiSquared(k=4): mean=4, variance=8, mode=2
         auto result = stats::ChiSquaredDistribution::create(4.0);
         ASSERT_TRUE(result.isOk());
-        dist4_ = std::move(result.value);
+        dist4_ = std::move(result).unwrap();
     }
 
     ChiSquaredDistribution dist4_;
@@ -43,7 +43,7 @@ class ChiSquaredEnhancedTest : public ::testing::Test {
 TEST_F(ChiSquaredEnhancedTest, DelegationMatchesGamma) {
     // ChiSquared(k) == Gamma(k/2, 0.5) by construction
     const double k = 4.0;
-    auto gamma = GammaDistribution::create(k / 2.0, 0.5).value;
+    auto gamma = GammaDistribution::create(k / 2.0, 0.5).unwrap();
 
     const std::vector<double> xs = {0.01, 0.5, 1.0, 2.0, 4.0, 8.0, 15.0, 50.0};
     for (double x : xs) {
@@ -63,7 +63,7 @@ TEST_F(ChiSquaredEnhancedTest, DelegationMatchesGamma) {
 TEST_F(ChiSquaredEnhancedTest, KnownValuesK2) {
     // ChiSquared(k=2) is Exp(1/2): PDF(x) = 0.5*exp(-x/2) for x > 0
     // CDF(x) = 1 - exp(-x/2)
-    auto chi2 = ChiSquaredDistribution::create(2.0).value;
+    auto chi2 = ChiSquaredDistribution::create(2.0).unwrap();
 
     EXPECT_NEAR(chi2.getMean(), 2.0, 1e-14);
     EXPECT_NEAR(chi2.getVariance(), 4.0, 1e-14);
@@ -103,7 +103,7 @@ TEST_F(ChiSquaredEnhancedTest, MomentProperties) {
 
 TEST_F(ChiSquaredEnhancedTest, SetterPropagates) {
     // After setK, the internal gamma_ must reflect the new value immediately
-    auto chi2 = ChiSquaredDistribution::create(2.0).value;
+    auto chi2 = ChiSquaredDistribution::create(2.0).unwrap();
     EXPECT_NEAR(chi2.getMean(), 2.0, 1e-14);
 
     chi2.setK(6.0);
@@ -111,7 +111,7 @@ TEST_F(ChiSquaredEnhancedTest, SetterPropagates) {
     EXPECT_NEAR(chi2.getVariance(), 12.0, 1e-14);
 
     // PDF should correspond to Gamma(3, 0.5) now
-    auto gamma6 = GammaDistribution::create(3.0, 0.5).value;
+    auto gamma6 = GammaDistribution::create(3.0, 0.5).unwrap();
     EXPECT_NEAR(chi2.getProbability(2.0), gamma6.getProbability(2.0), 1e-12);
 }
 
@@ -149,10 +149,10 @@ TEST_F(ChiSquaredEnhancedTest, MLEFit) {
     std::mt19937 rng(42);
 
     // Generate data from ChiSquared(5) and fit
-    auto source = ChiSquaredDistribution::create(5.0).value;
+    auto source = ChiSquaredDistribution::create(5.0).unwrap();
     const auto data = source.sample(rng, 500);
 
-    auto fitted = ChiSquaredDistribution::create(1.0).value;
+    auto fitted = ChiSquaredDistribution::create(1.0).unwrap();
     fitted.fit(data);
 
     // With 500 samples, sample mean should be within 10% of 5
@@ -180,7 +180,7 @@ TEST_F(ChiSquaredEnhancedTest, InvalidParameters) {
     auto r3 = ChiSquaredDistribution::create(std::numeric_limits<double>::quiet_NaN());
     EXPECT_TRUE(r3.isError());
 
-    auto chi2 = ChiSquaredDistribution::create(3.0).value;
+    auto chi2 = ChiSquaredDistribution::create(3.0).unwrap();
     auto vr = chi2.trySetK(-1.0);
     EXPECT_TRUE(vr.isError());
     EXPECT_DOUBLE_EQ(chi2.getK(), 3.0);  // unchanged
@@ -205,7 +205,7 @@ TEST_F(ChiSquaredEnhancedTest, SupportBoundaries) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::ChiSquaredDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::ChiSquaredDistribution make() { return stats::ChiSquaredDistribution::create(3.0).value; }
+    static stats::ChiSquaredDistribution make() { return stats::ChiSquaredDistribution::create(3.0).unwrap(); }
     static std::vector<double> domain() { return {0.5, 1.0, 2.0, 4.0, 8.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 10.0; }

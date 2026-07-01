@@ -33,11 +33,11 @@ int main() {
              << endl;
 
         // Default constructor test
-        auto default_exp = stats::ExponentialDistribution::create().value;
+        auto default_exp = stats::ExponentialDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default Lambda", default_exp.getLambda());
 
         // Parameterized constructor test
-        auto param_exp = stats::ExponentialDistribution::create(2.0).value;
+        auto param_exp = stats::ExponentialDistribution::create(2.0).unwrap();
         BasicTestFormatter::printProperty("Param Lambda", param_exp.getLambda());
 
         // Copy constructor test
@@ -45,14 +45,14 @@ int main() {
         BasicTestFormatter::printProperty("Copy Lambda", copy_exp.getLambda());
 
         // Move constructor test
-        auto temp_exp = stats::ExponentialDistribution::create(0.5).value;
+        auto temp_exp = stats::ExponentialDistribution::create(0.5).unwrap();
         auto move_exp = std::move(temp_exp);
         BasicTestFormatter::printProperty("Move Lambda", move_exp.getLambda());
 
         // Safe factory method test
         auto result = ExponentialDistribution::create(1.0);
         if (result.isOk()) {
-            auto factory_exp = std::move(result.value);
+            auto factory_exp = std::move(result).unwrap();
             BasicTestFormatter::printProperty("Factory Lambda", factory_exp.getLambda());
         }
 
@@ -71,7 +71,7 @@ int main() {
                 "variance=1)."
              << endl;
 
-        auto exp_dist = stats::ExponentialDistribution::create(1.0).value;
+        auto exp_dist = stats::ExponentialDistribution::create(1.0).unwrap();
 
         // Test getters
         BasicTestFormatter::printProperty("Initial Lambda", exp_dist.getLambda());
@@ -107,7 +107,7 @@ int main() {
         cout << "Expected: For Exponential(1.0): PDF(1)≈0.368, CDF(1)≈0.632, quantile(0.5)≈0.693."
              << endl;
 
-        auto test_exp = stats::ExponentialDistribution::create(1.0).value;
+        auto test_exp = stats::ExponentialDistribution::create(1.0).unwrap();
         double x = 1.0;
 
         BasicTestFormatter::printProperty("PDF(1.0)", test_exp.getProbability(x));
@@ -173,7 +173,7 @@ int main() {
 
         // Test fitting
         vector<double> fit_data = TestDataGenerators::generateExponentialTestData();
-        auto fitted_dist = stats::ExponentialDistribution::create().value;
+        auto fitted_dist = stats::ExponentialDistribution::create().unwrap();
         fitted_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted Lambda", fitted_dist.getLambda());
 
@@ -200,7 +200,7 @@ int main() {
         cfg.invalid_scenarios = {
             {"negative lambda", [] { return ExponentialDistribution::create(-1.0).isError(); }},
         };
-        auto test_dist = stats::ExponentialDistribution::create(1.0).value;
+        auto test_dist = stats::ExponentialDistribution::create(1.0).unwrap();
         stats::tests::runBatchTests(cfg, test_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
@@ -208,9 +208,9 @@ int main() {
         cout << "and stream I/O operators for serialization/deserialization of distributions."
              << endl;
 
-        auto dist1 = stats::ExponentialDistribution::create(1.0).value;
-        auto dist2 = stats::ExponentialDistribution::create(1.0).value;
-        auto dist3 = stats::ExponentialDistribution::create(2.0).value;
+        auto dist1 = stats::ExponentialDistribution::create(1.0).unwrap();
+        auto dist2 = stats::ExponentialDistribution::create(1.0).unwrap();
+        auto dist3 = stats::ExponentialDistribution::create(2.0).unwrap();
 
         // Test equality
         cout << "dist1 == dist2: " << (dist1 == dist2 ? "true" : "false") << endl;
@@ -223,7 +223,7 @@ int main() {
         cout << "Stream output: " << ss.str() << endl;
 
         // Test stream input (using proper format from output)
-        auto input_dist = stats::ExponentialDistribution::create().value;
+        auto input_dist = stats::ExponentialDistribution::create().unwrap();
         ss.seekg(0);  // Reset to beginning to read the output we just wrote
         if (ss >> input_dist) {
             cout << "Stream input successful: " << input_dist.toString() << endl;

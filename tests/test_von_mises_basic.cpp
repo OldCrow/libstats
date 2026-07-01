@@ -27,25 +27,25 @@ int main() {
         BasicTestFormatter::printTestStart(1, "Constructors and Destructor");
         cout << "Default (mu=0, kappa=1). Support: (-pi, pi]." << endl;
 
-        auto default_vm = stats::VonMisesDistribution::create().value;
+        auto default_vm = stats::VonMisesDistribution::create().unwrap();
         BasicTestFormatter::printProperty("Default mu", default_vm.getMu());
         BasicTestFormatter::printProperty("Default kappa", default_vm.getKappa());
         BasicTestFormatter::printProperty("isUniform (expect 0)", static_cast<int>(default_vm.isUniform()));
 
         // kappa=0 → uniform
-        auto vm0 = stats::VonMisesDistribution::create(0.0, 0.0).value;
+        auto vm0 = stats::VonMisesDistribution::create(0.0, 0.0).unwrap();
         BasicTestFormatter::printProperty("kappa=0 isUniform", static_cast<int>(vm0.isUniform()));
 
         auto copy_vm = vm0;
         BasicTestFormatter::printProperty("Copy kappa", copy_vm.getKappa());
 
-        auto temp = stats::VonMisesDistribution::create(1.0, 2.0).value;
+        auto temp = stats::VonMisesDistribution::create(1.0, 2.0).unwrap();
         auto move_vm = std::move(temp);
         BasicTestFormatter::printProperty("Move kappa", move_vm.getKappa());
 
         auto result = VonMisesDistribution::create(0.5, 3.0);
         if (result.isOk()) {
-            BasicTestFormatter::printProperty("Factory kappa", result.value.getKappa());
+            BasicTestFormatter::printProperty("Factory kappa", (*result).getKappa());
         }
 
         BasicTestFormatter::printTestSuccess("All constructor tests passed");
@@ -57,7 +57,7 @@ int main() {
         BasicTestFormatter::printTestStart(2, "Parameter Getters and Setters");
         cout << "Angle wrapping: mu is always stored in (-pi, pi]." << endl;
 
-        auto vm = stats::VonMisesDistribution::create(0.0, 1.0).value;
+        auto vm = stats::VonMisesDistribution::create(0.0, 1.0).unwrap();
         BasicTestFormatter::printProperty("mu", vm.getMu());
         BasicTestFormatter::printProperty("kappa", vm.getKappa());
         BasicTestFormatter::printPropertyInt("Num parameters (expect 2)", vm.getNumParameters());
@@ -77,8 +77,8 @@ int main() {
                                           static_cast<int>(vm.isUniform()));
 
         // Variance (circular): at kappa=0 → 1.0; at kappa→∞ → 0
-        auto vm_uniform = VonMisesDistribution::create(0.0, 0.0).value;
-        auto vm_conc = VonMisesDistribution::create(0.0, 10.0).value;
+        auto vm_uniform = VonMisesDistribution::create(0.0, 0.0).unwrap();
+        auto vm_conc = VonMisesDistribution::create(0.0, 10.0).unwrap();
         const double var_uniform = vm_uniform.getVariance();
         const double var_conc = vm_conc.getVariance();
         BasicTestFormatter::printProperty("Circ variance (kappa=0, expect 1)", var_uniform);
@@ -104,7 +104,7 @@ int main() {
 
         // kappa=0: uniform, PDF = 1/(2π)
         const double inv_2pi = 1.0 / (2.0 * M_PI);
-        auto vm_unif = VonMisesDistribution::create(0.0, 0.0).value;
+        auto vm_unif = VonMisesDistribution::create(0.0, 0.0).unwrap();
         const double pdf_unif = vm_unif.getProbability(1.5);
         BasicTestFormatter::printProperty("PDF(1.5; kappa=0) expect 1/(2pi)≈0.1592", pdf_unif);
         const bool pdf_unif_ok = std::abs(pdf_unif - inv_2pi) < 1e-8;
@@ -118,7 +118,7 @@ int main() {
         cout << "CDF(-pi/2) ≈ 0.25: " << (cdf_quarter_ok ? "PASS" : "FAIL") << endl;
 
         // kappa=1, mu=0: PDF(0) > PDF(pi) (mode at mu)
-        auto vm1 = VonMisesDistribution::create(0.0, 1.0).value;
+        auto vm1 = VonMisesDistribution::create(0.0, 1.0).unwrap();
         const double pdf_at_mu = vm1.getProbability(0.0);
         const double pdf_at_opp = vm1.getProbability(M_PI);
         BasicTestFormatter::printProperty("PDF(0; kappa=1) mode", pdf_at_mu);
@@ -149,7 +149,7 @@ int main() {
         cout << "Best (1979) rejection sampler. Samples must be in (-pi, pi]." << endl;
 
         mt19937 rng(42);
-        auto sample_dist = VonMisesDistribution::create(0.0, 2.0).value;
+        auto sample_dist = VonMisesDistribution::create(0.0, 2.0).unwrap();
         double s = sample_dist.sample(rng);
         cout << "Sample in (-pi, pi]: " << (s > -M_PI && s <= M_PI ? "PASS" : "FAIL") << endl;
 
@@ -171,8 +171,8 @@ int main() {
         BasicTestFormatter::printTestStart(5, "Distribution Management");
         cout << "MLE: mu = atan2(S,C); kappa via Mardia-Jupp + Newton-Raphson." << endl;
 
-        auto fit_dist = VonMisesDistribution::create(0.0, 1.0).value;
-        auto source = VonMisesDistribution::create(1.0, 3.0).value;
+        auto fit_dist = VonMisesDistribution::create(0.0, 1.0).unwrap();
+        auto source = VonMisesDistribution::create(1.0, 3.0).unwrap();
         const auto fit_data = source.sample(rng, 300);
         fit_dist.fit(fit_data);
         BasicTestFormatter::printProperty("Fitted mu    (from VM(1,3), expect ~1)",
@@ -204,20 +204,20 @@ int main() {
             {"kappa=-1", [] { return VonMisesDistribution::create(0.0, -1.0).isError(); }},
             {"mu=NaN", [] { return VonMisesDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError(); }},
         };
-        auto batch_dist = VonMisesDistribution::create(0.0, 1.0).value;
+        auto batch_dist = VonMisesDistribution::create(0.0, 1.0).unwrap();
         stats::tests::runBatchTests(cfg, batch_dist);
 
         BasicTestFormatter::printTestStart(7, "Comparison and Stream Operators");
 
-        auto d1 = VonMisesDistribution::create(0.0, 2.0).value;
-        auto d2 = VonMisesDistribution::create(0.0, 2.0).value;
-        auto d3 = VonMisesDistribution::create(1.0, 3.0).value;
+        auto d1 = VonMisesDistribution::create(0.0, 2.0).unwrap();
+        auto d2 = VonMisesDistribution::create(0.0, 2.0).unwrap();
+        auto d3 = VonMisesDistribution::create(1.0, 3.0).unwrap();
         cout << "d1 == d2: " << (d1 == d2 ? "true" : "false") << endl;
         cout << "d1 == d3: " << (d1 == d3 ? "true" : "false") << endl;
         stringstream ss;
         ss << d1;
         cout << "Stream output: " << ss.str() << endl;
-        auto in_dist = VonMisesDistribution::create().value;
+        auto in_dist = VonMisesDistribution::create().unwrap();
         ss.seekg(0);
         if (ss >> in_dist)
             cout << "Stream round-trip kappa: " << in_dist.getKappa() << endl;

@@ -43,7 +43,7 @@ class GammaEnhancedTest : public ::testing::Test {
 
         auto result = stats::GammaDistribution::create(test_alpha_, test_beta_);
         if (result.isOk()) {
-            test_distribution_ = std::move(result.value);
+            test_distribution_ = std::move(result).unwrap();
         };
     }
 
@@ -60,7 +60,7 @@ class GammaEnhancedTest : public ::testing::Test {
 TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
     // Test standard gamma distribution properties
     auto gamma1 =
-        stats::GammaDistribution::create(2.0, 1.0).value;  // shape=2, rate=1 -> mean=2, var=2
+        stats::GammaDistribution::create(2.0, 1.0).unwrap();  // shape=2, rate=1 -> mean=2, var=2
 
     EXPECT_DOUBLE_EQ(gamma1.getAlpha(), 2.0);
     EXPECT_DOUBLE_EQ(gamma1.getBeta(), 1.0);
@@ -71,7 +71,7 @@ TEST_F(GammaEnhancedTest, BasicEnhancedFunctionality) {
 
     // Test another gamma distribution
     auto gamma2 = stats::GammaDistribution::create(1.0, 0.5)
-                      .value;  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
+                      .unwrap();  // shape=1, rate=0.5 -> mean=2, var=4 (exponential)
     EXPECT_DOUBLE_EQ(gamma2.getAlpha(), 1.0);
     EXPECT_DOUBLE_EQ(gamma2.getBeta(), 0.5);
     EXPECT_DOUBLE_EQ(gamma2.getMean(), 2.0);
@@ -325,7 +325,7 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
-    auto stdGamma = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto stdGamma = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
     std::cout << "\n=== SIMD and Parallel Batch Implementations ===\n";
 
@@ -442,7 +442,7 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
-    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
     std::cout << "\n=== Auto-Dispatch Strategy Assessment ===\n";
 
@@ -529,7 +529,7 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
 TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";
 
-    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
     // First call - cache miss
     auto start = std::chrono::high_resolution_clock::now();
@@ -585,7 +585,7 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
 //==============================================================================
 
 TEST_F(GammaEnhancedTest, ParallelBatchPerformanceBenchmark) {
-    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
     constexpr size_t BENCHMARK_SIZE = 50000;
 
     std::vector<double> test_values(BENCHMARK_SIZE);
@@ -651,7 +651,7 @@ TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
         }
 
         datasets.push_back(std::move(dataset));
-        expected_distributions.push_back(GammaDistribution::create(alpha, beta).value);
+        expected_distributions.push_back(GammaDistribution::create(alpha, beta).unwrap());
     }
 
     std::cout << "  Generated " << datasets.size() << " datasets with known parameters\n";
@@ -783,7 +783,7 @@ TEST_F(GammaEnhancedTest, ParallelBatchFittingTests) {
 TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "\n=== Numerical Stability and Edge Cases ===\n";
 
-    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).value;
+    auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
     // Test extreme values (Gamma distribution support is [0, ∞))
     std::vector<double> extreme_values = {1e-10, 0.001, 0.1, 10.0, 100.0, 1000.0};
@@ -853,7 +853,7 @@ int main(int argc, char** argv) {
 //==============================================================================
 template<>
 struct stats::tests::DistTraits<stats::GammaDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::GammaDistribution make() { return stats::GammaDistribution::create(2.0, 1.0).value; }
+    static stats::GammaDistribution make() { return stats::GammaDistribution::create(2.0, 1.0).unwrap(); }
     static std::vector<double> domain() { return {0.5, 1.0, 2.0, 3.0, 5.0}; }
     static double batch_lo() { return 0.1; }
     static double batch_hi() { return 8.0; }
