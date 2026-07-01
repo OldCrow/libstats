@@ -825,7 +825,7 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 ulock.unlock();
                 lock.lock();
@@ -859,7 +859,7 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 ulock.unlock();
                 lock.lock();
@@ -917,7 +917,7 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 ulock.unlock();
                 lock.lock();
@@ -961,7 +961,7 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 ulock.unlock();
                 lock.lock();
@@ -993,7 +993,7 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 ulock.unlock();
                 lock.lock();
@@ -1046,7 +1046,7 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                 lock.unlock();
                 std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
-                    const_cast<GaussianDistribution&>(dist).updateCacheUnsafe();
+                    dist.updateCacheUnsafe();
                 }
                 ulock.unlock();
                 lock.lock();
