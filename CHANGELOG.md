@@ -1,4 +1,4 @@
-## [2.0.0] - 2026-06-21 (updated 2026-06-28)
+## [2.0.0] - 2026-07-01
 
 ### Breaking changes
 
@@ -86,7 +86,7 @@
   `test_discrete_analysis` added; 9 enhanced test files updated to span+PerformanceHint API;
   stale NaN/kurtosis/Bootstrap assertions corrected.
 
-### Fixed (post-2026-06-21)
+### Fixed (continued)
 
 **Quantile inversion bugs** — found by the new `quantile_accuracy` tool; all pre-existing:
 - **`erf_inv` Moro central-region variable substitution** (`math_utils.cpp`): the polynomial was
@@ -148,7 +148,7 @@
 - `parallel_correctness_verification`: same 10 distributions added with explicit `create()` params
   and domain-appropriate input ranges for each distribution type.
 
-### Added (post-2026-06-21)
+### Added
 
 **New distributions (Geometric, Laplace, Cauchy — 2026-06-28):**
 - **GeometricDistribution** — Geo(p), discrete, support {0,1,2,...}; delegates to
@@ -208,7 +208,7 @@
   parallel comparison on 50 Gaussian and 50 Exponential datasets. Previously the file never called
   any distribution batch operation despite its name.
 
-### Changed (post-2026-06-21)
+### Changed (continued)
 
 - **v2 architecture audit cleanup** (`DistributionBase::validate()`): KS/AD tests now skip for
   discrete distributions (returning NaN stats + recommendation to use `chiSquaredGoodnessOfFitTest`).
@@ -233,7 +233,7 @@
 - `quantile_accuracy` tool: 26/26 test cases PASS across all 16 distributions (0 FAIL);
   three pre-existing quantile inversion bugs fixed as a result of first tool run.
 
-### Fixed (post-2026-06-28, audit remediation — 2026-07-01)
+### Fixed (audit remediation)
 
 **Thread safety — TOCTOU (time-of-check to time-of-use) in cache locking:**
 - All 19 distributions' scalar probability methods (`getProbability`, `getLogProbability`,
@@ -270,7 +270,7 @@
 - `ParetoDistribution::getQuantile`: pre-lock early exit for `p == 0.0` read `scale_` without
   holding any lock. Shared lock now acquired before member access.
 
-### Added (post-2026-06-28)
+### Added (audit remediation)
 
 **`Result<T>` redesigned as discriminated union:**
 - `Result<T>` changed from aggregate struct to `class` backed by `std::variant<T, ErrorInfo>`.
@@ -308,7 +308,7 @@
 - `forward_declarations.h`: Geometric/Laplace/Cauchy forward declarations and type aliases added;
   stale `LibDistributionType` tombstone comment removed.
 
-### Validation (post-2026-07-01)
+### Validation
 
 - 46/46 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON.
   (Test count reduced from 47: `test_copy_move_stress` retired; `test_copy_move_fix` extended
