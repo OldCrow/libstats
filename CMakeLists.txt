@@ -318,6 +318,9 @@ function(detect_tbb_unified)
             pkg_check_modules(TBB QUIET tbb)
             if(TBB_FOUND)
                 # LP-2: propagate to parent scope; target_include_directories added after targets.
+                # Also add global dirs for transitive-link compatibility (v1.5.3_1 hotfix).
+                include_directories(${TBB_INCLUDE_DIRS})
+                link_directories(${TBB_LIBRARY_DIRS})
                 set(LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL
                     "${TBB_INCLUDE_DIRS}"
                     PARENT_SCOPE)
@@ -1084,6 +1087,31 @@ if(LIBSTATS_HAS_TBB)
     if(DEFINED LIBSTATS_TBB_CFLAGS_INTERNAL AND NOT "${LIBSTATS_TBB_CFLAGS_INTERNAL}" STREQUAL "")
         target_compile_options(libstats_static PRIVATE ${LIBSTATS_TBB_CFLAGS_INTERNAL})
         target_compile_options(libstats_shared PRIVATE ${LIBSTATS_TBB_CFLAGS_INTERNAL})
+    endif()
+endif()
+
+# Linux/GCC parallel STL can route execution-policy algorithms through TBB.  Link TBB through the
+# final library targets PUBLICLY so libstats consumers inherit the dependency transitively.
+# Modern find_package(TBB) exports TBB::tbb; pkg-config libraries are retained as fallback.
+if(LIBSTATS_HAS_TBB)
+    if(TARGET TBB::tbb)
+        target_link_libraries(libstats_static PUBLIC TBB::tbb)
+        target_link_libraries(libstats_shared PUBLIC TBB::tbb)
+    else()
+        if(DEFINED LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL)
+            target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
+            target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
+        endif()
+        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}"
+                                                          STREQUAL "")
+            target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+            target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+        endif()
+        if(DEFINED LIBSTATS_TBB_LIBRARIES_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARIES_INTERNAL}"
+                                                       STREQUAL "")
+            target_link_libraries(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
+            target_link_libraries(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
+        endif()
     endif()
 endif()
 

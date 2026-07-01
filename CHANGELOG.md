@@ -318,6 +318,24 @@
 
 ---
 
+## [1.5.3_1] - 2026-06-30
+
+### Fixed
+- **Linux/TBB transitive linkage hotfix**: `libstats_static` and `libstats_shared`
+  now link TBB publicly when `LIBSTATS_HAS_TBB` is enabled. GCC/libstdc++ parallel
+  STL backends can route `std::execution` algorithms through TBB, so consumers that
+  call parallel algorithms need the TBB dependency propagated transitively. Modern
+  CMake `TBB::tbb` is preferred; pkg-config libraries remain a fallback.
+- Removed the broken test-only `${TBB_LIBRARIES}` link path. Tests now inherit TBB
+  through `libstats_static`, matching downstream consumers.
+
+### Validation
+- v1.5.3 smoke build: `cmake -S . -B build-v153-smoke -DLIBSTATS_BUILD_TESTS=OFF
+  -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_EXAMPLES=OFF` and
+  `cmake --build build-v153-smoke --target libstats_static --parallel`.
+
+---
+
 ## [1.5.3] - 2026-06-20
 
 ### Fixed
