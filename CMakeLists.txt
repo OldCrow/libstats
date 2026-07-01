@@ -304,6 +304,9 @@ function(detect_tbb_unified)
                 set(LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
                     "${TBB_LIBRARY_DIRS}"
                     PARENT_SCOPE)
+                set(LIBSTATS_TBB_LIBRARIES_INTERNAL
+                    "${TBB_LIBRARIES}"
+                    PARENT_SCOPE)
                 # BS-4: accumulate TBB compile flags in a scoped variable instead of mutating the
                 # global CMAKE_CXX_FLAGS string.
                 set(LIBSTATS_TBB_CFLAGS_INTERNAL
@@ -1030,15 +1033,32 @@ endif()
 # Platform-specific library linking: rpath and signing are handled per-target above. -stdlib=libc++
 # is set via add_compile_options/add_link_options in the platform block.
 
-# LP-2 / BS-4: target-scope TBB includes, link-dirs, and compile flags.
-if(LIBSTATS_HAS_TBB AND DEFINED LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL)
-    target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
-    target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
-    if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}"
-                                                      STREQUAL "")
-        target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
-        target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+# LP-2 / BS-4: target-scope TBB includes, link-dirs, compile flags, and transitive linkage.
+# C++20 parallel STL implementations on GCC/Linux route execution-policy algorithms through TBB's
+# backend.  Link TBB through the final library targets PUBLICLY so every libstats consumer receives
+# the required TBB dependency transitively.  Modern find_package(TBB) provides TBB::tbb; pkg-config is
+# retained as a fallback for package managers that do not ship CMake config files.
+if(LIBSTATS_HAS_TBB)
+    if(TARGET TBB::tbb)
+        target_link_libraries(libstats_static PUBLIC TBB::tbb)
+        target_link_libraries(libstats_shared PUBLIC TBB::tbb)
+    else()
+        if(DEFINED LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL)
+            target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
+            target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
+        endif()
+        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}"
+                                                          STREQUAL "")
+            target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+            target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+        endif()
+        if(DEFINED LIBSTATS_TBB_LIBRARIES_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARIES_INTERNAL}"
+                                                       STREQUAL "")
+            target_link_libraries(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
+            target_link_libraries(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
+        endif()
     endif()
+
     # BS-4: apply any pkg-config compile flags (e.g. -DTBB_USE_GCC_BUILTINS) to the library targets
     # only, not globally via CMAKE_CXX_FLAGS.
     if(DEFINED LIBSTATS_TBB_CFLAGS_INTERNAL AND NOT "${LIBSTATS_TBB_CFLAGS_INTERNAL}" STREQUAL "")
@@ -1154,10 +1174,7 @@ if(LIBSTATS_BUILD_TESTS)
         # Link against static library by default for tests
         target_link_libraries(${TEST_NAME} PRIVATE libstats_static)
 
-        # Link TBB if available
-        if(LIBSTATS_HAS_TBB)
-            target_link_libraries(${TEST_NAME} PRIVATE ${TBB_LIBRARIES})
-        endif()
+        # TBB, when enabled, is linked transitively through libstats_static.
 
         # Apply common test settings
         configure_common_test_settings(${TEST_NAME})
