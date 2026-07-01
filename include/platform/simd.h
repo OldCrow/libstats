@@ -6,6 +6,7 @@
 // Additional includes specific to SIMD operations
 #include "simd_policy.h"
 
+#include <cstdint>  // SIZE_MAX, uintptr_t (required explicitly on libstdc++)
 #include <new>
 
 /**

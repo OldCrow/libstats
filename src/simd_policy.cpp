@@ -4,7 +4,8 @@
 #include "libstats/platform/cpu_detection.h"
 
 #include <atomic>
-#include <cstddef>  // for SIZE_MAX
+#include <cstddef>  // size_t, std::size_t
+#include <cstdint>  // SIZE_MAX, uintptr_t (required explicitly on libstdc++)
 #include <mutex>
 
 /**

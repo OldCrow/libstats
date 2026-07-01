@@ -13,6 +13,7 @@
 #include "libstats/platform/simd_policy.h"
 
 #include <algorithm>
+#include <cstdint>  // uintptr_t (required explicitly on libstdc++)
 #include <cstring>
 #include <string>
 

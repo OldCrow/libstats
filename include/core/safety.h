@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>  // SIZE_MAX, uintptr_t (required explicitly on libstdc++)
 #include <deque>
 #include <limits>
 #include <span>
