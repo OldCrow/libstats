@@ -8,8 +8,10 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v1.5.2 on `main` (validated on all four machines); v1.5.2 is the final v1.x release.
-16 distributions across 6 families. v1.5.2: June 2026 architectural audit remediation —
+**Current Status**: v1.5.3_1 on `main`; v1.5.3 is the final v1.x feature release.
+v1.5.3_1 is a Linux/TBB transitive-linkage hotfix for v1.5.3.
+16 distributions across 6 families. v1.5.3: final v1.x bugfix/deprecation sweep and validation pass.
+v1.5.2: June 2026 architectural audit remediation —
 critical bug fixes (`gammaQ` recursion, `bayesianCredibleInterval`, `safe_log`/`safe_exp`
 boundary semantics), thread-safety fixes (`recordPerformance` CAS, `WorkStealingPool`
 destructor drain, copy-ctor lock ordering), code quality (`ConvergenceDetector` deque,

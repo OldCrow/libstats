@@ -161,7 +161,7 @@ endif()
 
 project(
     libstats
-    VERSION 1.5.3
+    VERSION 1.5.3.1
     LANGUAGES CXX)
 
 # Build examples by default only for top-level builds.
