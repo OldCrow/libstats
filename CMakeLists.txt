@@ -11,10 +11,12 @@ option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 # Threading system preference control
 option(LIBSTATS_FORCE_TBB
        "Force TBB usage even on platforms with native threading (e.g., GCD on macOS)" OFF)
-option(LIBSTATS_PREFER_PLATFORM_THREADING
-       "Disable OpenMP when a platform-native threading system (GCD on macOS, Windows Thread Pool \
+option(
+    LIBSTATS_PREFER_PLATFORM_THREADING
+    "Disable OpenMP when a platform-native threading system (GCD on macOS, Windows Thread Pool \
 on Windows) is available, preventing over-subscription from two independent thread pools. \
-Default OFF preserves the existing behaviour." OFF)
+Default OFF preserves the existing behaviour."
+    OFF)
 
 # Automatic parallel job detection for optimal build performance
 include(ProcessorCount)
@@ -68,7 +70,7 @@ endif()
 
 project(
     libstats
-    VERSION 2.0.0
+    VERSION 2.0.1
     LANGUAGES CXX)
 
 # v2.x compiler baseline. Fail early with actionable messages.
@@ -253,18 +255,23 @@ function(detect_threading_systems)
             CACHE BOOL "Win32 threads not available")
     endif()
 
-    # ── Platform-threading preference: suppress OpenMP when GCD/WTP is active ──
-    # When LIBSTATS_PREFER_PLATFORM_THREADING is ON and a platform-native pool
-    # (GCD on macOS, Windows Thread Pool on Windows) is detected, disable OpenMP
-    # to prevent two independent thread pools from over-subscribing the CPU.
+    # ── Platform-threading preference: suppress OpenMP when GCD/WTP is active ── When
+    # LIBSTATS_PREFER_PLATFORM_THREADING is ON and a platform-native pool (GCD on macOS, Windows
+    # Thread Pool on Windows) is detected, disable OpenMP to prevent two independent thread pools
+    # from over-subscribing the CPU.
     if(LIBSTATS_PREFER_PLATFORM_THREADING)
         if((APPLE AND LIBSTATS_HAS_GCD) OR (WIN32 AND LIBSTATS_HAS_WIN_THREADPOOL))
             if(LIBSTATS_HAS_OPENMP)
-                set(LIBSTATS_HAS_OPENMP FALSE CACHE BOOL
-                    "OpenMP disabled: platform threading preferred (LIBSTATS_PREFER_PLATFORM_THREADING=ON)"
-                    FORCE)
-                message(STATUS
-                    "  LIBSTATS_PREFER_PLATFORM_THREADING=ON: OpenMP suppressed in favour of platform threading")
+                set(LIBSTATS_HAS_OPENMP
+                    FALSE
+                    CACHE
+                        BOOL
+                        "OpenMP disabled: platform threading preferred (LIBSTATS_PREFER_PLATFORM_THREADING=ON)"
+                        FORCE)
+                message(
+                    STATUS
+                        "  LIBSTATS_PREFER_PLATFORM_THREADING=ON: OpenMP suppressed in favour of platform threading"
+                )
             endif()
         endif()
     endif()
@@ -820,9 +827,9 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/rayleigh.cpp # Rayleigh distribution (x² pipeline, signal processing)
     src/von_mises.cpp # Von Mises distribution (circular, cos kernel; Bessel functions)
     src/binomial.cpp # Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
-    src/geometric.cpp          # Geometric distribution (discrete delegation wrapper over NegBinomial(r=1))
-    src/laplace.cpp            # Laplace distribution (double-exponential, standalone)
-    src/cauchy.cpp             # Cauchy distribution (delegation wrapper over StudentT(nu=1))
+    src/geometric.cpp # Geometric distribution (discrete delegation wrapper over NegBinomial(r=1))
+    src/laplace.cpp # Laplace distribution (double-exponential, standalone)
+    src/cauchy.cpp # Cauchy distribution (delegation wrapper over StudentT(nu=1))
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
@@ -1056,10 +1063,10 @@ endif()
 # Platform-specific library linking: rpath and signing are handled per-target above. -stdlib=libc++
 # is set via add_compile_options/add_link_options in the platform block.
 
-# LP-2 / BS-4: target-scope TBB includes, link-dirs, compile flags, and transitive linkage.
-# C++20 parallel STL implementations on GCC/Linux route execution-policy algorithms through TBB's
-# backend.  Link TBB through the final library targets PUBLICLY so every libstats consumer receives
-# the required TBB dependency transitively.  Modern find_package(TBB) provides TBB::tbb; pkg-config is
+# LP-2 / BS-4: target-scope TBB includes, link-dirs, compile flags, and transitive linkage. C++20
+# parallel STL implementations on GCC/Linux route execution-policy algorithms through TBB's backend.
+# Link TBB through the final library targets PUBLICLY so every libstats consumer receives the
+# required TBB dependency transitively.  Modern find_package(TBB) provides TBB::tbb; pkg-config is
 # retained as a fallback for package managers that do not ship CMake config files.
 if(LIBSTATS_HAS_TBB)
     if(TARGET TBB::tbb)
@@ -1070,8 +1077,8 @@ if(LIBSTATS_HAS_TBB)
             target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
             target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
         endif()
-        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}"
-                                                          STREQUAL "")
+        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
+           AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}" STREQUAL "")
             target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
             target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
         endif()
@@ -1091,8 +1098,8 @@ if(LIBSTATS_HAS_TBB)
 endif()
 
 # Linux/GCC parallel STL can route execution-policy algorithms through TBB.  Link TBB through the
-# final library targets PUBLICLY so libstats consumers inherit the dependency transitively.
-# Modern find_package(TBB) exports TBB::tbb; pkg-config libraries are retained as fallback.
+# final library targets PUBLICLY so libstats consumers inherit the dependency transitively. Modern
+# find_package(TBB) exports TBB::tbb; pkg-config libraries are retained as fallback.
 if(LIBSTATS_HAS_TBB)
     if(TARGET TBB::tbb)
         target_link_libraries(libstats_static PUBLIC TBB::tbb)
@@ -1102,8 +1109,8 @@ if(LIBSTATS_HAS_TBB)
             target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
             target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
         endif()
-        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}"
-                                                          STREQUAL "")
+        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
+           AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}" STREQUAL "")
             target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
             target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
         endif()
@@ -1525,10 +1532,16 @@ if(LIBSTATS_BUILD_TESTS)
             test_performance_dispatcher
             test_system_capabilities
             PROPERTIES LABELS "timing")
-        set_tests_properties(test_exponential_enhanced test_uniform_enhanced test_poisson_enhanced
-                             test_discrete_enhanced test_gamma_enhanced
-                             test_geometric_enhanced test_laplace_enhanced
-                             test_cauchy_enhanced PROPERTIES LABELS "timing")
+        set_tests_properties(
+            test_exponential_enhanced
+            test_uniform_enhanced
+            test_poisson_enhanced
+            test_discrete_enhanced
+            test_gamma_enhanced
+            test_geometric_enhanced
+            test_laplace_enhanced
+            test_cauchy_enhanced
+            PROPERTIES LABELS "timing")
     endif()
     set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 

@@ -245,11 +245,17 @@ double DiscreteDistribution::getKurtosis() const {
             updateCacheUnsafe();
         // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
         const double n = static_cast<double>(range_);
+        // Degenerate distribution (n=1): kurtosis is undefined (0/0); return NaN.
+        if (n <= 1.0)
+            return std::numeric_limits<double>::quiet_NaN();
         return -detail::SIX * (n * n + detail::ONE) / (detail::FIVE * (n * n - detail::ONE));
     }
     const double n = static_cast<double>(range_);  // b - a + 1
     // Exact excess kurtosis for discrete uniform: -6(n²+1) / (5(n²-1))
     // Approximates -1.2 for large n; gives exact -2.0 for binary (n=2).
+    // Degenerate distribution (n=1): undefined (0/0); return NaN.
+    if (n <= 1.0)
+        return std::numeric_limits<double>::quiet_NaN();
     return -detail::SIX * (n * n + detail::ONE) / (detail::FIVE * (n * n - detail::ONE));
 }
 
@@ -1520,9 +1526,8 @@ void DiscreteDistribution::updateCacheUnsafe() const noexcept {
 
 // Static validation method moved from header for better compile times
 void DiscreteDistribution::validateParameters(int a, int b) {
-    if (a >= b) {
-        throw std::invalid_argument(
-            "Upper bound (b) must be strictly greater than lower bound (a)");
+    if (a > b) {
+        throw std::invalid_argument("Upper bound (b) must be >= lower bound (a)");
     }
     // Check for integer overflow in range calculation
     if (b > INT_MAX - 1 || a < INT_MIN + 1) {

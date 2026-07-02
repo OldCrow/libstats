@@ -197,14 +197,17 @@ double PoissonDistribution::getEntropy() const {
         lambda = lambda_;
     }
 
-    if (lambda > 100.0) {
-        // Stirling-based asymptotic: H ≈ ½ log(2πeλ) − 1/(12λ)
-        // = detail::HALF_LN_2PI + ½·log(λ) + ½ − 1/(12λ)
+    // Stirling-based asymptotic: H ≈ ½ log(2πeλ) − 1/(12λ)
+    // Used for λ > 20: the approximation error is < 0.001 nats at λ=20, and the
+    // exact-summation loop below fires its early-exit guard at k=0 for λ ≳ 34.5
+    // (because P(0) = e^{-λ} < 1e-15 there), returning 0 incorrectly.
+    if (lambda > 20.0) {
         return detail::HALF_LN_2PI + detail::HALF * std::log(lambda) + detail::HALF -
                detail::ONE / (12.0 * lambda);
     }
 
     // Exact: H = −Σ P(k) · log P(k),  where log P(k) = k·log(λ) − λ − log(k!)
+    // Safe for λ ≤ 20: P(0) = e^{-20} ≈ 2e-9 > 1e-15, so the loop runs correctly.
     const double log_lambda = std::log(lambda);
     double H = 0.0;
     double log_k_fact = 0.0;  // log(0!) = 0

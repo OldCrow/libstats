@@ -8,8 +8,8 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v2.0.0 on `feat/v2-architecture` — 46/46 correctness tests pass on Kaby Lake
-AVX2+FMA and Mac Mini M1 NEON; Asus TUF A16 AVX-512 re-validation pending.
+**Current Status**: v2.0.1 on `main` — 46/46 correctness + 22/22 timing tests pass on
+Mac Mini M1 NEON; Kaby Lake AVX2+FMA and Asus TUF A16 AVX-512 validated via CI.
 v1.5.3 is the final v1.x release.
 
 19 distributions implemented across 7 families (Geometric, Laplace, Cauchy added 2026-06-28).
@@ -90,6 +90,14 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
 ### Current Validation Matrix
+
+**v2.0.1 — current release (three machines)**
+
+| Machine | SIMD | Correctness | Timing | Notes |
+|---|---|---|---|---|
+| Mac Mini M1 | NEON | 46/46 ✅ | 22/22 ✅ | Validated 2026-07-02 |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 46/46 ✅ | — | CI validated; local timing re-run pending |
+| Asus TUF A16 (Windows) | AVX-512 | 46/46 ✅ | — | CI validated; local timing re-run pending |
 
 **v2.0.0 — validation target (three machines)**
 
@@ -182,6 +190,13 @@ Selected per-distribution speedups:
   (`GlobalThreadPool`, `GlobalWorkStealingPool`) instead of calling `getOptimalThreadCount()`.
 - **R7 test fixes**: `std::max<long>(1,...)` guard on `simd_time`/`parallel_time`/`work_stealing_time`
   in four enhanced tests; kNeon changelog comment gap (`UNIFORM PDF: 64→NEVER`) filled.
+### Changes in v2.0.1
+- **`PoissonDistribution::getEntropy()` bug** (`src/poisson.cpp`): exact-summation loop
+  exits at k=0 for λ ≳ 34.5 because `exp(−λ) < 1e-15`, returning 0. Stirling branch
+  threshold lowered from `λ > 100` to `λ > 20` (error < 0.001 nats at λ=20).
+- **`DiscreteDistribution` degenerate-distribution rejection** (`include/core/error_handling.h`,
+  `src/discrete.cpp`): `a >= b` guard incorrectly rejected `create(a, a)`. Relaxed to `a > b`;
+  `getKurtosis()` returns NaN for n=1 (undefined 0/0 singularity).
 ### Changes in v2.0.0
 - **Distribution metadata table** (`include/core/distribution_meta.h`): canonical
   `kDistributionMeta[]` constexpr array with enum name, display name, `is_discrete`, and

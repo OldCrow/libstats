@@ -1,3 +1,16 @@
+## [2.0.1] - 2026-07-02
+
+### Fixed
+
+- **`PoissonDistribution::getEntropy()` returns 0 for λ ∈ (20, 100]**: The exact-summation loop
+  exits early when `P(k=0) = exp(−λ) < 1e-15`, which triggers at λ ≳ 34.5. The Stirling
+  branch threshold lowered from `λ > 100` to `λ > 20` (approximation error < 0.001 nats
+  at λ = 20); the exact loop now only runs for λ ≤ 20 where `exp(−λ) ≫ 1e-15`.
+- **`DiscreteDistribution` rejects degenerate distributions (a == b)**: `validateDiscreteParameters`
+  (in `error_handling.h`) and `validateParameters` (in `discrete.cpp`) used `a >= b`, incorrectly
+  refusing the valid degenerate case (H = log(1) = 0). Relaxed to `a > b`. `getKurtosis()` gains
+  a NaN guard for n = 1 to avoid division by zero in the formula −6(n²+1)/(5(n²−1)).
+
 ## [2.0.0] - 2026-07-01
 
 ### Breaking changes
