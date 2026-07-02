@@ -125,8 +125,9 @@ void test_factory_methods() {
         auto badResult = DiscreteDistribution::create(6, 1);
         stats.record(badResult.isError(), "Discrete rejects reversed bounds");
 
+        // a == b is valid: degenerate distribution with P(a)=1 and H = log(1) = 0.
         auto sameResult = DiscreteDistribution::create(5, 5);
-        stats.record(sameResult.isError(), "Discrete rejects equal bounds");
+        stats.record(sameResult.isOk(), "Discrete accepts equal bounds (degenerate distribution)");
     }
 
     // Test Gamma factory
