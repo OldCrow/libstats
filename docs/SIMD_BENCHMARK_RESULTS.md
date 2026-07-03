@@ -14,6 +14,77 @@ Current release validation targets:
 
 Record new release measurements here after each real-machine validation pass.
 
+## v2.0.2 scipy comparison benchmark
+
+Cross-library throughput and accuracy comparison run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, scipy 1.18.0, numpy 2.4.4). Results capture the state after the `perf/dispatch-threshold-recalibration` threshold updates.
+
+### Machines
+
+| Machine | CPU | SIMD | OS | Python |
+|---|---|---|---|---|
+| Asus TUF A16 | AMD Ryzen 7 7445HS (Zen 4) | AVX-512 | Windows 11 | 3.12.10 |
+| MacBook Pro 14,1 (2017) | Intel Core i7-7820HQ (Kaby Lake) | AVX2+FMA | macOS Tahoe | 3.14.6 |
+
+### Peak throughput highlights (pylibstats absolute, at optimal batch size)
+
+| Distribution / Op | Zen4 AVX-512 | Kaby Lake AVX2+FMA | Zen4 peak N |
+|---|---|---|---|
+| Exponential log_PDF | 2.2G/s | 490M/s | 30k |
+| Uniform log_PDF | 1.5G/s | 1.1G/s | 20–30k |
+| Gaussian log_PDF | 2.1G/s | 760M/s | 25k |
+| Exponential PDF | 993M/s | 303M/s | 30k |
+| Uniform PDF | 1.5G/s | 966M/s | 20–30k |
+
+All peak measurements were taken at sizes below the L2→L3 boundary (~50k elements on Zen4; see `SIMD_OPTIMIZATION_REFERENCE.md §Cache hierarchy effects`).
+
+### Throughput ratios vs scipy (selected, at N=100k)
+
+Speedup ratios vary with N. N=100k is representative for sustained throughput above the L3 cache fill threshold on both machines.
+
+| Distribution | Op | Zen4 | Kaby Lake |
+|---|---|---|---|
+| Exponential | log_PDF | 29× | 11× |
+| Gaussian | log_PDF | 6× | 22× |
+| Gamma | log_PDF | 18× | 9× |
+| VonMises | log_PDF | 25× | 24× |
+| StudentT | PDF | 35× | 23× |
+| Uniform | PDF | 19× | 25× |
+| Cauchy | CDF | 0.2× | 1.1× | |
+| VonMises | CDF | 0.1× | 0.1× |
+| Binomial | CDF | 0.9× | 0.4× |
+
+Negative ratios (<1×) indicate distributions with structural algorithm limitations; see `SIMD_OPTIMIZATION_REFERENCE.md §Known structural performance ceilings`.
+
+### Accuracy vs scipy (max relative error, N=50k uniform grid)
+
+All values are bit-identical between Zen4 and Kaby Lake **except VonMises PDF/LogPDF**, which differ due to the Bessel function Tier 1/Tier 2 selection:
+
+| Distribution | pdf | log_pdf | cdf |
+|---|---|---|---|
+| Gaussian | 1.0×10⁻¹⁵ | 4.4×10⁻¹⁶ | 9.7×10⁻¹⁵ |
+| Exponential | 2.2×10⁻¹⁶ | 0 | 1.5×10⁻¹⁴ |
+| Laplace | 0 | 1.4×10⁻¹³ | 0 |
+| Uniform | 0 | 0 | 2.2×10⁻¹⁶ |
+| StudentT | 1.5×10⁻¹⁵ | 5.4×10⁻¹⁶ | 2.7×10⁻⁹ |
+| Gamma | 2.0×10⁻¹⁵ | 3.3×10⁻¹⁶ | 1.8×10⁻⁹ |
+| LogNormal | 7.3×10⁻¹⁵ | 2.7×10⁻¹⁵ | 2.6×10⁻⁷ |
+| VonMises (Zen4/MSVC) | 8.4×10⁻¹⁶ | 4.9×10⁻¹¹ | 4.6×10⁻⁶ |
+| VonMises (Kaby Lake/AppleClang) | 2.3×10⁻⁹ | 3.3×10⁻⁹ | 4.6×10⁻⁶ |
+
+The StudentT/Gamma CDF errors (~10⁻⁹) and LogNormal CDF error (~10⁻⁷) are consistent between machines and reflect approximation limits in the regularised incomplete-beta and erfc paths, not SIMD errors. See issues #49 and related.
+
+### Benchmark command
+
+```bash
+# From the pylibstats repository root:
+python benchmarks/scipy_comparison.py --sizes 1000,10000,100000,1000000
+
+# Fine-grained sweep to detect dispatch threshold issues (issue #50 methodology):
+python benchmarks/scipy_comparison.py --sizes 1000,5000,10000,20000,30000,40000,50000,60000,70000,80000,90000,100000
+```
+
+---
+
 ## v1.5.x historical summary
 
 v1.5.0 introduced native transcendentals on AVX2, NEON, and AVX-512 and changed `simd_verification` to report per-operation-type geometric means rather than one composite number.
