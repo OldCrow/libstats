@@ -62,6 +62,17 @@ A threshold of 64 in `kAvx512` or any architecture table is a strong signal that
 
 In the v2.0.2 recalibration, `kAvx512` Laplace PDF/LogPDF thresholds of 64 were both documented as profiler floor artefacts and confirmed by the external benchmark trough at N=10k.
 
+### L1 data cache boundary on NEON/M1
+
+The M1 performance core has a 64KB L1 data cache. The two-array footprint (input + output doubles) crosses the L1→L2 boundary at N ≈ 64KB ÷ 16 bytes = 4096 elements. Throughput sweeps on M1 show a systematic drop at N ≈ 5k regardless of dispatch threshold — this mimics a dispatch trough but is cache-driven and cannot be fixed by raising thresholds.
+
+Two indicators distinguish L1 cache effects from dispatch troughs:
+
+- **Trough position**: L1 boundary troughs are pinned at N ≈ 5k on M1 regardless of threshold. A genuine dispatch trough minimum shifts to match the threshold value.
+- **NEVER test**: set the threshold to NEVER and re-sweep. A dispatch trough disappears; an L1 cache trough persists.
+
+Operations with `kNeon` threshold=64 (profiler floor artefact) have parallel always active; their N=5k throughput drop is entirely the L1→L2 transition and does not warrant recalibration. See `SIMD_BENCHMARK_RESULTS.md §NEON threshold recalibration sweep` for a worked example.
+
 ### NEVER thresholds for trivial SIMD operations
 
 Distributions whose per-element SIMD cost is very low (Uniform, Laplace at small N) may show that parallel never sustains an advantage within practical batch sizes. For these, NEVER is correct regardless of what the profiler reports at its measurement ceiling. Indicators:
@@ -71,6 +82,20 @@ Distributions whose per-element SIMD cost is very low (Uniform, Laplace at small
 - The trough-at-threshold depth exceeds 50% throughput loss.
 
 For AVX-512 v2.0.2, Uniform PDF, Uniform LogPDF, and Uniform CDF are all NEVER.
+
+### Clean-entry criterion for iterative calibration
+
+When iterating threshold values, the target state is a parallel entry that exceeds the last VECTORIZED point in the sweep. If the first benchmark measurement at the new threshold T falls below the VECTORIZED level just below T, the parallel path has not yet amortised its threading overhead — raise the threshold further.
+
+Example from the NEON Laplace PDF recalibration (perf/dispatch-threshold-recalibration, M1):
+
+| Threshold | Last VECTORIZED | Parallel entry (N=T) | Entry delta |
+|---|---|---|---|
+| 25k | 327M/s at N=20k | 316M/s | −3% (parallel losing — raise threshold) |
+| 30k | 385M/s at N=25k | 363M/s | −6% (parallel losing — raise threshold) |
+| 35k | 383M/s at N=30k | 460M/s | +20% (parallel winning — correct threshold) |
+
+At 25k and 30k the parallel entry was below VECTORIZED, meaning the threshold fired before overhead amortised. At 35k parallel immediately exceeded VECTORIZED; 35k is the encoded value.
 
 ---
 

@@ -162,11 +162,16 @@ constexpr ArchTable kNeon = {{
     /* BETA(7)               */ {NEVER, NEVER, 256},  // PDF/LogPDF: BEST=VECTORIZED all 3 runs at
                                                       // 2M
     /* CHI_SQUARED(8)        */ {512, 128, 64},
-    /* LOG_NORMAL(9)         */ {10000, 64, 256},
+    /* LOG_NORMAL(9)         */ {25000, 64, 256},  // PDF: 10000→25000 (pylibstats sweep: trough at
+                                                   // N=10k–15k; parallel beats VECTORIZED reliably
+                                                   // from N=20k; 25k is conservative safe zone)
     /* PARETO(10)            */ {75000, 50000, 50000},
     /* WEIBULL(11)           */ {25000, 50000, 50000},
-    /* RAYLEIGH(12)          */ {10000, 25000, 25000},  // LogPDF: bimodal {25k,25k,64}; upper
-                                                        // pair→25k
+    /* RAYLEIGH(12)          */ {20000, 25000, 25000},  // PDF: 10000→20000 (pylibstats sweep:
+                                                        // trough at N=10k; parallel beats
+                                                        // VECTORIZED at N=15k; 20k is conservative
+                                                        // safe zone). LogPDF: bimodal {25k,25k,64};
+                                                        // upper pair→25k
     /* VON_MISES(13)         */ {100000, 500000, 128},
     /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},  // CDF: prior 64 reversed;
                                                         // BEST=VECTORIZED/SCALAR
@@ -174,8 +179,11 @@ constexpr ArchTable kNeon = {{
                                                         // BEST=VECTORIZED/SCALAR
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // PDF/LogPDF VECTORIZED; CDF SCALAR all 3
                                                         // runs
-    /* LAPLACE(17)           */ {6144, 64, 256},  // new: PDF upper pair {6k,6k}; LogPDF floor; CDF
-                                                  // consistent
+    /* LAPLACE(17)           */ {35000, 64, 256},  // PDF: 6144→25000→30000→35000 (pylibstats sweep:
+                                                   // trough at N=10k; oscillatory recovery; 30k
+                                                   // entry dip 363M vs VECTORIZED 385M (6%); 35k
+                                                   // trial to see if entry dip clears further).
+                                                   // LogPDF: floor artefact (64); CDF: consistent
     /* CAUCHY(18)            */ {25000, 50000, 512},  // new: PDF {10k,10k,25k}→25k; LogPDF
                                                       // {25k,25k,50k}→50k
 }};
@@ -381,12 +389,13 @@ constexpr ArchTable kAvx2 = {{
 //     combined {64,NEVER,NEVER,NEVER,64,256}; 50/50 finite/NEVER split with
 //     anti-correlated pool state — conservative = NEVER)
 constexpr ArchTable kAvx512 = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},     // PDF/LogPDF: NEVER (trivial SIMD path;
-                                                           // parallel never recovers to SIMD throughput
-                                                           // in 1k-100k sweep; see issue #50).
-                                                           // CDF: 128→50k→NEVER (50k still too early:
-                                                           // 960M at N=45k drops to 463M at N=50k and
-                                                           // does not recover within measured range)
+    /* UNIFORM(0)            */ {NEVER, NEVER,
+                                 NEVER},  // PDF/LogPDF: NEVER (trivial SIMD path;
+                                          // parallel never recovers to SIMD throughput
+                                          // in 1k-100k sweep; see issue #50).
+                                          // CDF: 128→50k→NEVER (50k still too early:
+                                          // 960M at N=45k drops to 463M at N=50k and
+                                          // does not recover within measured range)
     /* GAUSSIAN(1)           */ {1000000, 400000, 25000},  // LogPDF bimodal override; CDF: 50k→25k
     /* EXPONENTIAL(2)        */ {250000, 400000, 250000},  // LogPDF: NEVER→400k; PDF/CDF reduced
     /* DISCRETE(3)           */ {150000, 150000, NEVER},   // PDF: held 150000 (512 was
@@ -407,13 +416,13 @@ constexpr ArchTable kAvx512 = {{
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},  // CDF: 2048→512
     /* GEOMETRIC(16)         */ {NEVER, NEVER, 512},  // new: PDF/LogPDF NEVER; CDF 512 (6-run set
                                                       // with NegBinomial; max of lower cluster)
-    /* LAPLACE(17)           */ {35000, 50000, 20000},  // PDF: 64→25k→35k (mild N=25k dip 233M→184M;
-                                                          // recovers by N=30k; 35k clears it).
-                                                          // LogPDF: 64→25k→50k (severe N=25k dip
-                                                          // 433M→170M; only amortises at N=45-50k;
-                                                          // see issue #50).
-                                                          // CDF: 1024→20k (minor; threshold fires at
-                                                          // N=20k but overhead amortises by N=30k)
+    /* LAPLACE(17)           */ {35000, 50000, 20000},  // PDF: 64→25k→35k (mild N=25k dip
+                                                        // 233M→184M; recovers by N=30k; 35k clears
+                                                        // it). LogPDF: 64→25k→50k (severe N=25k dip
+                                                        // 433M→170M; only amortises at N=45-50k;
+                                                        // see issue #50).
+                                                        // CDF: 1024→20k (minor; threshold fires at
+                                                        // N=20k but overhead amortises by N=30k)
     /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER
                                                            // (6-run set with StudentT CDF; 50/50
                                                            // split → conservative)

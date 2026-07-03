@@ -85,6 +85,43 @@ python benchmarks/scipy_comparison.py --sizes 1000,5000,10000,20000,30000,40000,
 
 ---
 
+## NEON threshold recalibration sweep
+
+Sweep run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, scipy 1.17.1, numpy 2.4.4) to identify and resolve `kNeon` dispatch threshold floor artefacts. Branch: `perf/dispatch-threshold-recalibration`.
+
+### Machine
+
+| Machine | CPU | SIMD | OS | Python |
+|---|---|---|---|---|
+| MacBook Pro (14,1, 2017) | Apple M1 | NEON | macOS | 3.14.6 |
+
+### Key finding: L1 cache boundary at N ≈ 5k
+
+M1 L1 data cache is 64KB per performance core. Two-array footprint (input + output doubles) exceeds L1 at N ≈ 4096 elements, producing a systematic throughput trough at N ≈ 5k across all operations regardless of threshold. Operations with `kNeon` threshold=64 (profiler floor) have parallel always active; their N=5k troughs are entirely cache-driven. See `SIMD_OPTIMIZATION_REFERENCE.md §L1 data cache boundary on NEON/M1`.
+
+### Threshold corrections
+
+Three operations showed genuine dispatch troughs with minimum at N=10k (above the L1 boundary):
+
+| Distribution / Op | Old kNeon | New kNeon | Evidence |
+|---|---|---|---|
+| Laplace PDF | 6144 (floor artefact) | 35000 | Trough at N=10k (268M/s vs 330M/s VECTORIZED); parallel entry first exceeds VECTORIZED at N=35k (+20%) |
+| Rayleigh PDF | 10000 | 20000 | Trough at N=10k (179M/s vs 214M/s VECTORIZED); recovery at N=15k; 20k conservative safe zone |
+| LogNormal PDF | 10000 | 25000 | Trough extends N=10k–15k (180M/s vs 207M/s VECTORIZED); recovery at N=20k; 25k conservative safe zone |
+
+### Benchmark commands
+
+```bash
+# From the pylibstats repository root:
+# Standard sweep to identify candidates:
+python benchmarks/scipy_comparison.py --sizes 1000,5000,10000,20000,30000,40000,50000,60000,70000,80000,90000,100000
+
+# Focused 5k-resolution sweep for trough pinpointing and threshold verification:
+python benchmarks/scipy_comparison.py --sizes 1000,5000,10000,15000,20000,25000,30000,35000,40000,45000,50000
+```
+
+---
+
 ## v1.5.x historical summary
 
 v1.5.0 introduced native transcendentals on AVX2, NEON, and AVX-512 and changed `simd_verification` to report per-operation-type geometric means rather than one composite number.
