@@ -711,19 +711,6 @@ void vector_erf(std::span<const double> input, std::span<double> output) noexcep
     }
 }
 
-void vector_erfc(std::span<const double> input, std::span<double> output) noexcept {
-    if (input.size() != output.size() || input.empty()) {
-        return;
-    }
-
-    const std::size_t size = input.size();
-
-    // Use scalar loop for now - SIMD erfc would require implementation
-    for (std::size_t i = 0; i < size; ++i) {
-        output[i] = erfc(input[i]);
-    }
-}
-
 void vector_gamma_p(double a, std::span<const double> x_values, std::span<double> output) noexcept {
     if (x_values.size() != output.size() || x_values.empty()) {
         return;

@@ -145,23 +145,8 @@ TEST_F(MathUtilsTest, VectorizedErf) {
 
     EXPECT_TRUE(accurate) << "Max error: " << max_error << " (limit: " << ERF_VECTORIZED_TOLERANCE
                           << ")";
-
-    // Test vector_erfc — same accuracy as vector_erf since erfc(x) = 1 - erf(x)
-    stats::detail::vector_erfc(input, output);
-
-    accurate = true;
-    max_error = 0.0;
-    for (size_t i = 0; i < size; ++i) {
-        expected[i] = stats::detail::erfc(input[i]);
-        double error = std::abs(output[i] - expected[i]);
-        max_error = std::max(max_error, error);
-        if (error > ERF_VECTORIZED_TOLERANCE) {
-            accurate = false;
-        }
-    }
-
-    EXPECT_TRUE(accurate) << "Max error: " << max_error << " (limit: " << ERF_VECTORIZED_TOLERANCE
-                          << ")";
+    // Note: vector_erfc is intentionally removed. The Gaussian CDF uses
+    // 0.5*(1 + vector_erf(x)) directly; no batch path calls erfc.
 }
 
 TEST_F(MathUtilsTest, VectorizedGamma) {
@@ -255,7 +240,6 @@ TEST_F(MathUtilsTest, VectorizedEdgeCases) {
 
     // Should handle without crashing
     stats::detail::vector_erf(special_in, special_out);
-    stats::detail::vector_erfc(special_in, special_out);
 }
 
 //==============================================================================
