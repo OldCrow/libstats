@@ -381,7 +381,12 @@ constexpr ArchTable kAvx2 = {{
 //     combined {64,NEVER,NEVER,NEVER,64,256}; 50/50 finite/NEVER split with
 //     anti-correlated pool state — conservative = NEVER)
 constexpr ArchTable kAvx512 = {{
-    /* UNIFORM(0)            */ {50000, 50000, 128},       // CDF: 256→128
+    /* UNIFORM(0)            */ {NEVER, NEVER, 50000},     // PDF/LogPDF: 50k→NEVER (bimodal override
+                                                           // artefact; trivial SIMD path; parallel
+                                                           // never recovers pre-cliff throughput in
+                                                           // 1k-100k sweep — see issue #50);
+                                                           // CDF: 128→50000 (N=10k cliff: 833M→109M;
+                                                           // recovery stable at N=40-50k)
     /* GAUSSIAN(1)           */ {1000000, 400000, 25000},  // LogPDF bimodal override; CDF: 50k→25k
     /* EXPONENTIAL(2)        */ {250000, 400000, 250000},  // LogPDF: NEVER→400k; PDF/CDF reduced
     /* DISCRETE(3)           */ {150000, 150000, NEVER},   // PDF: held 150000 (512 was
@@ -402,7 +407,11 @@ constexpr ArchTable kAvx512 = {{
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},  // CDF: 2048→512
     /* GEOMETRIC(16)         */ {NEVER, NEVER, 512},  // new: PDF/LogPDF NEVER; CDF 512 (6-run set
                                                       // with NegBinomial; max of lower cluster)
-    /* LAPLACE(17)           */ {64, 64, 1024},       // new: PDF/LogPDF at floor; CDF 1024
+    /* LAPLACE(17)           */ {25000, 25000, 20000},  // PDF/LogPDF: 64→25000 (profiler floor
+                                                          // artefact; N=10k trough confirmed by
+                                                          // pylibstats scipy benchmark sweep;
+                                                          // recovery stable at N=20-30k — see
+                                                          // issue #50); CDF: 1024→20000 (same)
     /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER
                                                            // (6-run set with StudentT CDF; 50/50
                                                            // split → conservative)
