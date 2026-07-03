@@ -141,7 +141,14 @@ inline double getSIMDValidationThreshold(std::size_t batch_size,
     // because the scalar portion occupies a larger fraction of the wider pipeline.
     if (is_complex_distribution) {
 #if defined(__AVX512F__)
-        base *= 0.7;  // Scalar bottlenecks (lgamma, factorial) dominate wide pipeline
+        // AMD Zen4+ double-pumps AVX-512 through 256-bit execution units:
+        // the wider pipeline yields less benefit for lgamma/factorial-heavy
+        // distributions than Intel true-512 hardware.
+        if (stats::arch::cpu::is_amd_cpu()) {
+            base *= 0.62;  // Zen4 double-pumped: calibrated from observed Poisson speedup
+        } else {
+            base *= 0.70;  // Intel true-512: scalar bottleneck is better amortised
+        }
 #else
         base *= 1.15;  // Moderate SIMD still hides some scalar cost
 #endif
