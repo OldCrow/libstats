@@ -381,12 +381,12 @@ constexpr ArchTable kAvx2 = {{
 //     combined {64,NEVER,NEVER,NEVER,64,256}; 50/50 finite/NEVER split with
 //     anti-correlated pool state — conservative = NEVER)
 constexpr ArchTable kAvx512 = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, 50000},     // PDF/LogPDF: 50k→NEVER (bimodal override
-                                                           // artefact; trivial SIMD path; parallel
-                                                           // never recovers pre-cliff throughput in
-                                                           // 1k-100k sweep — see issue #50);
-                                                           // CDF: 128→50000 (N=10k cliff: 833M→109M;
-                                                           // recovery stable at N=40-50k)
+    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},     // PDF/LogPDF: NEVER (trivial SIMD path;
+                                                           // parallel never recovers to SIMD throughput
+                                                           // in 1k-100k sweep; see issue #50).
+                                                           // CDF: 128→50k→NEVER (50k still too early:
+                                                           // 960M at N=45k drops to 463M at N=50k and
+                                                           // does not recover within measured range)
     /* GAUSSIAN(1)           */ {1000000, 400000, 25000},  // LogPDF bimodal override; CDF: 50k→25k
     /* EXPONENTIAL(2)        */ {250000, 400000, 250000},  // LogPDF: NEVER→400k; PDF/CDF reduced
     /* DISCRETE(3)           */ {150000, 150000, NEVER},   // PDF: held 150000 (512 was
@@ -407,11 +407,13 @@ constexpr ArchTable kAvx512 = {{
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},  // CDF: 2048→512
     /* GEOMETRIC(16)         */ {NEVER, NEVER, 512},  // new: PDF/LogPDF NEVER; CDF 512 (6-run set
                                                       // with NegBinomial; max of lower cluster)
-    /* LAPLACE(17)           */ {25000, 25000, 20000},  // PDF/LogPDF: 64→25000 (profiler floor
-                                                          // artefact; N=10k trough confirmed by
-                                                          // pylibstats scipy benchmark sweep;
-                                                          // recovery stable at N=20-30k — see
-                                                          // issue #50); CDF: 1024→20000 (same)
+    /* LAPLACE(17)           */ {35000, 50000, 20000},  // PDF: 64→25k→35k (mild N=25k dip 233M→184M;
+                                                          // recovers by N=30k; 35k clears it).
+                                                          // LogPDF: 64→25k→50k (severe N=25k dip
+                                                          // 433M→170M; only amortises at N=45-50k;
+                                                          // see issue #50).
+                                                          // CDF: 1024→20k (minor; threshold fires at
+                                                          // N=20k but overhead amortises by N=30k)
     /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER
                                                            // (6-run set with StudentT CDF; 50/50
                                                            // split → conservative)
