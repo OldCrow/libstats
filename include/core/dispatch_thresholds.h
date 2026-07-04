@@ -226,9 +226,19 @@ constexpr ArchTable kNeon = {{
 //   Note: Binomial/NegBinomial/Geometric PDF/LogPDF remain NEVER.
 // SSE2 delegates to kAvx; both updated together.
 constexpr ArchTable kAvx = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, 64},
-    /* GAUSSIAN(1)           */ {25000, 64, 4096},    // CDF: 10000→4096 (kAvx2=8192÷2)
-    /* EXPONENTIAL(2)        */ {12500, 64, 12500},   // PDF/CDF: 25000→12500 (kAvx2=25k÷2)
+    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},    // CDF: 64→NEVER (kAvx2=NEVER)
+    /* GAUSSIAN(1)           */ {65000, 13000, 4096},     // PDF: 25k→65k (kAvx2=130k÷2;
+                                                          // exp-heavy, ÷2 correct).
+                                                          // LogPDF: 64→13k (kAvx2=20k÷1.5;
+                                                          // polynomial-only, FMA delta small;
+                                                          // same L1/L2 boundaries as kAvx2).
+                                                          // CDF: unchanged (kAvx2=8192÷2)
+    /* EXPONENTIAL(2)        */ {60000, 17000, 50000},    // PDF: 12.5k→60k (kAvx2=120k÷2;
+                                                          // exp-heavy, ÷2 correct).
+                                                          // LogPDF: 64→17k (kAvx2=25k÷1.5;
+                                                          // linear only, FMA delta small).
+                                                          // CDF: 12.5k→50k (kAvx2=100k÷2;
+                                                          // exp-heavy, ÷2 correct)
     /* DISCRETE(3)           */ {50000, 50000, 512},  // PDF: kAvx2=50k; CDF: 1024÷2=512
     /* POISSON(4)            */ {128, 128, 128},
     /* GAMMA(5)              */ {12500, 256, 64},       // PDF: 10000→12500; LogPDF: kAvx2=512÷2
@@ -243,7 +253,11 @@ constexpr ArchTable kAvx = {{
     /* BINOMIAL(14)          */ {NEVER, NEVER, 128},    // CDF: held from kAvx512=128
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 256},    // CDF: held; kNeon/kAvx2=NEVER
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},
-    /* LAPLACE(17)           */ {64, 64, 128},       // CDF: kAvx2=256÷2=128
+    /* LAPLACE(17)           */ {64, 17000, 128},  // LogPDF: 64→17k (kAvx2=25k÷1.5;
+                                                   // fabs+linear, no transcendental;
+                                                   // FMA delta small; same L1/L2
+                                                   // boundaries as kAvx2).
+                                                   // CDF: kAvx2=256÷2=128
     /* CAUCHY(18)            */ {37500, 37500, 64},  // PDF/LogPDF: kAvx2=75k÷2
 }};
 
@@ -296,9 +310,27 @@ constexpr ArchTable kAvx = {{
 //   - VonMises LogPDF:  500000 → 400000  ({400k,250k,250k} → max=400k)
 //   - VonMises CDF:        128 → 256     ({64,64,256} → max=256)
 constexpr ArchTable kAvx2 = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, 128},
-    /* GAUSSIAN(1)           */ {50000, 64, 8192},
-    /* EXPONENTIAL(2)        */ {25000, 64, 25000},
+    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},   // CDF: 128→NEVER (pylibstats sweep:
+                                                         // trough at N=5k 105M vs 292M;
+                                                         // parallel never recovers within
+                                                         // practical range; see issue #50)
+    /* GAUSSIAN(1)           */ {130000, 20000, 8192},   // PDF: 50k→100k→130k (trough N=50k-75k
+                                                         // 341M→240M; parallel first exceeds
+                                                         // VECTORIZED at N=130k 368M;
+                                                         // sweep 2 confirmed; see issue #50).
+                                                         // LogPDF: 64→20k (floor artefact;
+                                                         // trough N=7.5k 140M; clean entry
+                                                         // at N=20k 404M; see issue #50)
+    /* EXPONENTIAL(2)        */ {120000, 25000, 100000},  // PDF: 25k→75k→120k (trough N=25k-35k;
+                                                          // 267M→151M; first clean entry at
+                                                          // N=120k 280M > 240M VECTORIZED;
+                                                          // sweep 2 confirmed; see issue #50).
+                                                         // LogPDF: 64→25k (floor artefact;
+                                                         // trough N=5k 117M; clean entry
+                                                         // from N=25k-30k).
+                                                         // CDF: 25k→100k (trough N=25k-30k;
+                                                         // 249M→139M; clean entry confirmed
+                                                         // at N=100k 277M; see issue #50)
     /* DISCRETE(3)           */ {50000, 50000, 1024},
     /* POISSON(4)            */ {128, 128, 256},
     /* GAMMA(5)              */ {25000, 512, 64},  // PDF: warm-pool override; see note above
@@ -313,7 +345,9 @@ constexpr ArchTable kAvx2 = {{
     /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},
-    /* LAPLACE(17)           */ {64, 64, 256},
+    /* LAPLACE(17)           */ {64, 25000, 256},   // LogPDF: 64→25k (floor artefact;
+                                                    // trough N=5k 107M; clean entry from
+                                                    // N=25k; see issue #50)
     /* CAUCHY(18)            */ {75000, 75000, 128},
 }};
 
@@ -485,12 +519,21 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
 //     NegBinomial, VonMises (cos + cached Bessel Z).
 //
 //   T2 — 8192: elementary transcendental distributions.  Per-element cost
-//     ~20–50 ns (exp, log, erf).  Amortises at ~80000 elements; 8192 is the
-//     L1d cache boundary and a conservative lower bound.
+//     ~20–50 ns (exp, log, erf).  Amortises at ~80000 elements; 8192 is within
+//     the L2 cache range for double-precision two-array operations (L1d boundary
+//     is at N ≈ 2048 = 32KB ÷ 16B; L2→L3 boundary is at N ≈ 16384 = 256KB ÷ 16B).
+//     8192 is therefore a conservative lower bound, set below the true amortisation
+//     point (~80k elements) but in a well-cached regime (L2-resident).
 //     Distributions: Gaussian, Exponential, LogNormal, Weibull, Rayleigh, Pareto.
 //
 //   T3 — 16384: arithmetic/bandwidth-limited distributions.  Per-element cost
-//     ~2–5 ns.  Amortises at ~800000 elements; 16384 is conservative.
+//     ~2–5 ns.  The true parallel amortisation point is ~800k+ elements; 16384 is
+//     a placeholder only.  Note: 16384 sits at the L2→L3 cache boundary (two-array
+//     footprint = 256KB = L2 capacity), which compounds dispatch overhead with a
+//     cache-tier transition — the same failure mode seen on kAvx512 Uniform (issue
+//     #50).  On SIMD-capable hardware, Uniform and Discrete are NEVER in kAvx2 and
+//     kAvx512 for this reason.  T3 should likely be NEVER for no-SIMD builds too;
+//     update if strategy_profile on no-SIMD hardware confirms.
 //     Distributions: Uniform, Discrete.
 //
 // GEOMETRIC: T1 (delegates to NegBinomial — lgamma + incomplete beta).
