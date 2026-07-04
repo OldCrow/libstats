@@ -2,14 +2,14 @@
 
 ---
 
-### v2.0.2 released
+### v2.0.3 released
 
-**v2.0.2 is the current release.** v1.5.3 was the final v1.x release.
+**v2.0.3 is the current release.** v1.5.3 was the final v1.x release.
 See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade instructions.
 
 ---
 
-[![Version](https://img.shields.io/badge/version-v2.0.2-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.0.2)
+[![Version](https://img.shields.io/badge/version-v2.0.3-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.0.3)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)

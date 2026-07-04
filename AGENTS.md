@@ -8,7 +8,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v2.0.1 on `main` — 46/46 correctness + 22/22 timing tests pass on
+**Current Status**: v2.0.3 on `main` — 46/46 correctness + 22/22 timing tests pass on
 Mac Mini M1 NEON; Kaby Lake AVX2+FMA and Asus TUF A16 AVX-512 validated via CI.
 v1.5.3 is the final v1.x release.
 

@@ -1,3 +1,39 @@
+## [2.0.3] - 2026-07-04
+
+### Performance
+
+- **Parallel dispatch threshold recalibration (all four SIMD tiers)**: Full sweep of
+  `dispatch_thresholds.h` across kAvx512 (Zen4), kNeon (M1), kAvx2 (Kaby Lake), and kAvx
+  using `pylibstats/benchmarks/scipy_comparison.py --sizes` fine-grained sweeps.
+  Trough-at-threshold diagnostic identified profiler floor artefacts (64 thresholds) and
+  premature dispatch entries; NEVER set where parallel never recovers to SIMD throughput.
+  See `docs/SIMD_OPTIMIZATION_REFERENCE.md` for methodology.
+  Key kAvx512 changes: Laplace PDF/LogPDF/CDF raised from floor artefacts; Uniform
+  PDF/LogPDF/CDF set to NEVER (trivial arithmetic; L2→L3 boundary confirmed with NEVER test).
+  Key kNeon changes: Laplace PDF, Rayleigh PDF, LogNormal PDF raised; Binomial/NegBinomial
+  CDF set to NEVER.
+  Key kAvx2 changes: Uniform CDF NEVER; Gaussian PDF/LogPDF, Exponential PDF/LogPDF/CDF,
+  Laplace LogPDF thresholds raised from floor artefacts.
+  kAvx re-derived from kAvx2 via ÷2 or ÷1.5 scaling (FMA delta for polynomial-only ops).
+- **AMD Precision Boost 2 / TDP interaction documented**: Zen4 Ryzen 7 7445HS frequency
+  steps down from boost (~4.5–5 GHz) to TDP-limited sustained frequency under sustained
+  100% CPU load. Verified as thermal-stable (≤50°C) power constraint, not thermal throttle.
+  Gaussian PDF/LogPDF (1M/400k) and Exponential PDF (250k) thresholds confirmed correct;
+  apparent N=90k cliffs in loaded-machine runs are Precision Boost expiry, not dispatch.
+  Documented in kAvx512 section header with cold-machine validation data (2026-07-04).
+
+### Documentation
+
+- **`docs/SIMD_OPTIMIZATION_REFERENCE.md`**: new sections covering the trough-at-threshold
+  diagnostic, dispatch vs cache boundary distinction (NEVER test), profiler floor artefacts,
+  NEVER threshold criteria for trivial SIMD ops, Zen4 cache hierarchy (L2/L3/DRAM) with
+  observed boundaries, cross-architecture accuracy differences (Bessel Tier 1 vs Tier 2),
+  VonMises accuracy implication, scipy version independence ruling, and known structural
+  performance ceilings (VonMises CDF, Cauchy CDF, Binomial).
+- **`docs/SIMD_BENCHMARK_RESULTS.md`**: v2.0.2 cross-machine results section added (Zen4
+  AVX-512 and Kaby Lake AVX2+FMA), covering peak throughput table, scipy speedup ratios
+  at N=100k, full accuracy table with Bessel-tier split for VonMises, and benchmark commands.
+
 ## [2.0.2] - 2026-07-02
 
 ### Tests
