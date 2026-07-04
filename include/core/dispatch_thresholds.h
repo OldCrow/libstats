@@ -422,6 +422,28 @@ constexpr ArchTable kAvx2 = {{
 //   - Cauchy CDF:           NEVER  → NEVER    (new; 6-run set with StudentT CDF:
 //     combined {64,NEVER,NEVER,NEVER,64,256}; 50/50 finite/NEVER split with
 //     anti-correlated pool state — conservative = NEVER)
+//
+// AMD Precision Boost 2 / TDP interaction with multi-distribution sweeps:
+//   The Zen4 Ryzen 7 7445HS boosts to ~4.5-5.0 GHz for short workloads and steps
+//   down to a TDP-limited sustained frequency (~3.0-3.5 GHz) once package power
+//   (PPT) budget is exhausted under sustained 100% CPU load. This is a power
+//   constraint, not thermal: CPU temperature during benchmark runs was measured at
+//   ≤50°C (far below the ~90°C throttle threshold), but CPU utilisation pinned to
+//   100% repeatedly, exhausting the PPT budget. PB2 frequency reduction is abrupt
+//   and non-deterministic in timing, so whichever distribution happens to be
+//   measured when PB2 steps down receives anomalously low throughput.
+//   This was investigated for Gaussian PDF/LogPDF (observed cliff at N=90k in a
+//   loaded run) and Exponential PDF (shallow valley at N=40-50k).
+//   Targeted sweeps on an idle machine (overnight sleep, single open session) show:
+//     Gaussian PDF    N=90k: 658M/s  (loaded run: 186M/s)  — no cliff
+//     Gaussian LogPDF N=90k: 1.7G/s  (loaded run: 212M/s)  — no cliff
+//     Exponential PDF N=90k: 539M/s  — no sustained valley
+//   Random per-run dips at different N values (75k, 95k, 110k etc.) within a
+//   single sweep confirm non-deterministic PB2 step-down, not dispatch effects.
+//   Conclusion: Gaussian PDF/LogPDF thresholds (1M/400k) and Exponential PDF
+//   threshold (250k) are correct; no changes required. Confirmed 2026-07-04.
+//   Mitigation for future sweeps: use targeted single-distribution --sizes runs
+//   rather than full-suite runs to keep sustained CPU load below PPT threshold.
 constexpr ArchTable kAvx512 = {{
     /* UNIFORM(0)            */ {NEVER, NEVER,
                                  NEVER},  // PDF/LogPDF: NEVER (trivial SIMD path;
@@ -430,8 +452,17 @@ constexpr ArchTable kAvx512 = {{
                                           // CDF: 128→50k→NEVER (50k still too early:
                                           // 960M at N=45k drops to 463M at N=50k and
                                           // does not recover within measured range)
-    /* GAUSSIAN(1)           */ {1000000, 400000, 25000},  // LogPDF bimodal override; CDF: 50k→25k
-    /* EXPONENTIAL(2)        */ {250000, 400000, 250000},  // LogPDF: NEVER→400k; PDF/CDF reduced
+    /* GAUSSIAN(1)           */ {1000000, 400000, 25000},  // LogPDF bimodal override; CDF: 50k→25k.
+                                                           // PDF/LogPDF thresholds confirmed correct
+                                                           // via cold-machine targeted sweep
+                                                           // (2026-07-04): N=90k cliff in loaded runs
+                                                           // is AMD Precision Boost expiry, not
+                                                           // dispatch — see section header note above.
+    /* EXPONENTIAL(2)        */ {250000, 400000, 250000},  // LogPDF: NEVER→400k; PDF/CDF reduced.
+                                                           // PDF threshold confirmed correct via
+                                                           // cold-machine sweep (2026-07-04): shallow
+                                                           // N=40-50k valley in loaded runs is
+                                                           // Precision Boost expiry — see above.
     /* DISCRETE(3)           */ {150000, 150000, NEVER},   // PDF: held 150000 (512 was
                                                            // profiling-order warm-pool; aligns with
                                                            // LogPDF same runs); CDF: 75k→NEVER
