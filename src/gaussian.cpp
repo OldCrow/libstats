@@ -701,30 +701,14 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
         *this, values, results, hint, detail::OperationType::PDF,
         [](const GaussianDistribution& dist, double value) { return dist.getProbability(value); },
         [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_norm_constant, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_norm_constant = dist.normalizationConstant_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_norm_constant = dist.normalizationConstant_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_norm_constant = dist.normalizationConstant_;
+                cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Call private implementation directly
             dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_mean, cached_norm_constant,
@@ -740,30 +724,14 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
             if (count == 0)
                 return;
 
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_norm_constant, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_norm_constant = dist.normalizationConstant_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_norm_constant = dist.normalizationConstant_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_norm_constant = dist.normalizationConstant_;
+                cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -802,30 +770,14 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
             if (count == 0)
                 return;
 
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_norm_constant, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_norm_constant = dist.normalizationConstant_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_norm_constant = dist.normalizationConstant_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_norm_constant = dist.normalizationConstant_;
+                cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -851,30 +803,14 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
             return dist.getLogProbability(value);
         },
         [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_log_std, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_log_std = dist.logStandardDeviation_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_log_std = dist.logStandardDeviation_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_log_std = dist.logStandardDeviation_;
+                cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Call private implementation directly
             dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_mean, cached_log_std,
@@ -891,30 +827,14 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_log_std, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_log_std = dist.logStandardDeviation_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_log_std = dist.logStandardDeviation_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_log_std = dist.logStandardDeviation_;
+                cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -955,30 +875,14 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_log_std, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_log_std = dist.logStandardDeviation_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_log_std = dist.logStandardDeviation_;
-                    cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_log_std = dist.logStandardDeviation_;
+                cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -1005,28 +909,13 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
             return dist.getCumulativeProbability(value);
         },
         [](const GaussianDistribution& dist, const double* vals, double* res, size_t count) {
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_sigma_sqrt2;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_sigma_sqrt2 = dist.sigmaSqrt2_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_sigma_sqrt2 = dist.sigmaSqrt2_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_sigma_sqrt2 = dist.sigmaSqrt2_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Call private implementation directly
             dist.getCumulativeProbabilityBatchUnsafeImpl(
@@ -1042,28 +931,13 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
             if (count == 0)
                 return;
 
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_sigma_sqrt2;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_sigma_sqrt2 = dist.sigmaSqrt2_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_sigma_sqrt2 = dist.sigmaSqrt2_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_sigma_sqrt2 = dist.sigmaSqrt2_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
@@ -1100,28 +974,13 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
             if (count == 0)
                 return;
 
-            // Ensure cache is valid and snapshot atomically — no TOCTOU gap.
             double cached_mean, cached_sigma_sqrt2;
             bool cached_is_standard_normal;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_) {
-                        dist.updateCacheUnsafe();
-                    }
-                    // Snapshot while unique_lock is still held — no TOCTOU gap.
-                    cached_mean = dist.mean_;
-                    cached_sigma_sqrt2 = dist.sigmaSqrt2_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                } else {
-                    // Snapshot under shared_lock.
-                    cached_mean = dist.mean_;
-                    cached_sigma_sqrt2 = dist.sigmaSqrt2_;
-                    cached_is_standard_normal = dist.isStandardNormal_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                cached_mean = dist.mean_;
+                cached_sigma_sqrt2 = dist.sigmaSqrt2_;
+                cached_is_standard_normal = dist.isStandardNormal_;
+            });
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {

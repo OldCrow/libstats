@@ -504,22 +504,11 @@ double BinomialDistribution::getMode() const {
 double BinomialDistribution::getEntropy() const {
     int n;
     double p, lnf;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            n = n_;
-            p = p_;
-            lnf = logNFact_;  // snapshot under unique_lock
-        } else {
-            n = n_;
-            p = p_;
-            lnf = logNFact_;  // snapshot under shared_lock
-        }
-    }
+    withCacheSnapshot([&] {
+        n = n_;
+        p = p_;
+        lnf = logNFact_;
+    });
 
     // Entropy is returned in nats (natural units; std::log = log base e).
     //
