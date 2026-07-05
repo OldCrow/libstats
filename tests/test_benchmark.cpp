@@ -190,7 +190,8 @@ void test_benchmark_class() {
         EXPECT_TRUE(results.size() == 1);
         EXPECT_TRUE(results[0].name == "simple_add");
         EXPECT_TRUE(results[0].stats.samples > 0);
-        EXPECT_TRUE(results[0].stats.mean > 0.0);
+        EXPECT_TRUE(results[0].stats.mean >=
+                    0.0);  // >= 0: mean=0 on fast machines where op is below timer resolution
 
         std::cout << "   ✓ Basic benchmark functionality passed\n";
     }

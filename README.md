@@ -327,7 +327,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.0.2 is released. v1.5.3 was the final v1.x release.
+v2.0.3 is released. v1.5.3 was the final v1.x release.
 
 **19 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`

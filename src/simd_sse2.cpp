@@ -1,9 +1,9 @@
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 // SSE2-specific SIMD implementations
 // This file is compiled ONLY with SSE2 flags to ensure safety
 
 #include "libstats/common/cpu_detection_fwd.h"       // Use lightweight forward declarations
 #include "libstats/common/platform_constants_fwd.h"  // Use lightweight forward declarations
+#include "libstats/common/simd_implementation_common.h"  // VectorOps class + cpu_detection_fwd + platform_constants_fwd
 #include "libstats/core/math_constants.h"
 #include "libstats/core/statistical_constants.h"
 #include "libstats/platform/simd.h"
