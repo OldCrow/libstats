@@ -7,6 +7,16 @@ endif()
 
 # Verbose messaging control
 option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
+# LIBSTATS_PORTABLE: skip the global /arch:AVX512 / /arch:AVX2 flag on Windows MSVC / Clang-cl
+# builds so that the binary is safe to distribute across machines with different ISA capabilities.
+# Per-file ISA flags on the SIMD kernel TUs (applied by
+# cmake/SIMDDetection.cmake:apply_simd_source_flags) remain active and unaffected.  Default OFF
+# (native performance build). Recommended ON for pylibstats wheel builds.  See libstats issue
+# tracker for the long-term plan to extend per-file flags to all TUs on Windows.
+option(
+    LIBSTATS_PORTABLE
+    "Skip global /arch: SIMD flag on Windows builds (safe for distributable wheels; OFF by default)"
+    OFF)
 
 # Threading system preference control
 option(LIBSTATS_FORCE_TBB
@@ -682,28 +692,33 @@ endif()
 # source-file-specific flags (cmake/SIMDDetection.cmake) - All platforms: Definitions are set by
 # SIMDDetection.cmake based on detection
 
-# Windows compilers: Use highest detected SIMD level as global flag. SIMDDetection.cmake has already
-# run by this point and set LIBSTATS_HAS_AVX512 etc.
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    if(LIBSTATS_HAS_AVX512)
-        add_compile_options(/arch:AVX512)
-        message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX512")
-    else()
-        add_compile_options(/arch:AVX2)
-        message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+# Windows compilers: apply the build-machine SIMD level as a global flag. LIBSTATS_PORTABLE=ON skips
+# this block so the binary is distributable to machines with lower ISA than the build host. Per-file
+# flags from cmake/SIMDDetection.cmake:apply_simd_source_flags() remain active.
+if(NOT LIBSTATS_PORTABLE)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+        if(LIBSTATS_HAS_AVX512)
+            add_compile_options(/arch:AVX512)
+            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX512")
+        else()
+            add_compile_options(/arch:AVX2)
+            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+        endif()
+    elseif(
+        CMAKE_CXX_COMPILER_ID MATCHES "Clang"
+        AND WIN32
+        AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+        if(LIBSTATS_HAS_AVX512)
+            add_compile_options(-mavx512f)
+            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx512f")
+        else()
+            add_compile_options(-mavx2)
+            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
+        endif()
     endif()
-
-elseif(
-    CMAKE_CXX_COMPILER_ID MATCHES "Clang"
-    AND WIN32
-    AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-    if(LIBSTATS_HAS_AVX512)
-        add_compile_options(-mavx512f)
-        message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx512f")
-    else()
-        add_compile_options(-mavx2)
-        message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
-    endif()
+else()
+    message(STATUS "LIBSTATS_PORTABLE=ON: skipping global Windows /arch: flag "
+                   "(SIMD kernel TUs still use per-file flags from SIMDDetection.cmake)")
 endif()
 
 # IMPORTANT: SIMD compile definitions are handled by cmake/SIMDDetection.cmake That system detects
