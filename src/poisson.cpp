@@ -130,31 +130,15 @@ double PoissonDistribution::getVariance() const {
 }
 
 double PoissonDistribution::getSkewness() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double sqrtL = sqrtLambda_;
-        return detail::ONE / sqrtL;
-    }
-    return detail::ONE / sqrtLambda_;  // 1/√λ
+    double sqrtL;
+    withCacheSnapshot([&] { sqrtL = sqrtLambda_; });
+    return detail::ONE / sqrtL;
 }
 
 double PoissonDistribution::getKurtosis() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double invL = invLambda_;
-        return invL;
-    }
-    return invLambda_;  // 1/λ (excess kurtosis)
+    double invL;
+    withCacheSnapshot([&] { invL = invLambda_; });
+    return invL;
 }
 
 double PoissonDistribution::getLambdaAtomic() const noexcept {
@@ -358,27 +342,13 @@ double PoissonDistribution::getQuantile(double p) const {
 }
 
 double PoissonDistribution::sample(std::mt19937& rng) const {
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
-    double cached_lambda;
+    double cached_lambda, cached_exp_neg_lambda;
     bool cached_is_small;
-    double cached_exp_neg_lambda;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            cached_lambda = lambda_;
-            cached_is_small = isSmallLambda_;
-            cached_exp_neg_lambda = expNegLambda_;
-        } else {
-            cached_lambda = lambda_;
-            cached_is_small = isSmallLambda_;
-            cached_exp_neg_lambda = expNegLambda_;
-        }
-    }
-
+    withCacheSnapshot([&] {
+        cached_lambda = lambda_;
+        cached_is_small = isSmallLambda_;
+        cached_exp_neg_lambda = expNegLambda_;
+    });
     if (cached_is_small) {
         // Knuth's algorithm for small lambda
         double L = cached_exp_neg_lambda;
@@ -406,28 +376,13 @@ std::vector<double> PoissonDistribution::sample(std::mt19937& rng, size_t n) con
     std::vector<double> samples;
     samples.reserve(n);
 
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
-    double cached_lambda;
+    double cached_lambda, cached_exp_neg_lambda;
     bool cached_is_small;
-    double cached_exp_neg_lambda;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            cached_lambda = lambda_;
-            cached_is_small = isSmallLambda_;
-            cached_exp_neg_lambda = expNegLambda_;
-        } else {
-            cached_lambda = lambda_;
-            cached_is_small = isSmallLambda_;
-            cached_exp_neg_lambda = expNegLambda_;
-        }
-    }
-
-    // Generate batch samples using the appropriate method
+    withCacheSnapshot([&] {
+        cached_lambda = lambda_;
+        cached_is_small = isSmallLambda_;
+        cached_exp_neg_lambda = expNegLambda_;
+    });
     if (cached_is_small) {
         // Knuth's algorithm for small lambda - optimized for batch
         double L = cached_exp_neg_lambda;
@@ -547,32 +502,16 @@ double PoissonDistribution::getProbabilityExact(int k) const {
     if (k < 0)
         return detail::ZERO_DOUBLE;
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const bool is_small = isSmallLambda_;
-        return is_small ? computePMFSmall(k) : computePMFLarge(k);
-    }
-    return isSmallLambda_ ? computePMFSmall(k) : computePMFLarge(k);
+    bool is_small;
+    withCacheSnapshot([&] { is_small = isSmallLambda_; });
+    return is_small ? computePMFSmall(k) : computePMFLarge(k);
 }
 
 double PoissonDistribution::getLogProbabilityExact(int k) const noexcept {
     if (k < 0)
         return detail::MIN_LOG_PROBABILITY;
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        return computeLogPMF(k);
-    }
+    withCacheSnapshot([&] {});  // ensure cache valid; computeLogPMF reads cached members
     return computeLogPMF(k);
 }
 
@@ -611,28 +550,13 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
         *this, values, results, hint, detail::OperationType::PDF,
         [](const PoissonDistribution& dist, double value) { return dist.getProbability(value); },
         [](const PoissonDistribution& dist, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    dist.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-                const double cached_lambda = dist.lambda_;
-                const double cached_log_lambda = dist.logLambda_;
-                const double cached_exp_neg_lambda = dist.expNegLambda_;
-                dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda,
-                                                   cached_log_lambda, cached_exp_neg_lambda);
-                return;
-            }
-            // Cache hit — snapshot under shared_lock.
-            const double cached_lambda = dist.lambda_;
-            const double cached_log_lambda = dist.logLambda_;
-            const double cached_exp_neg_lambda = dist.expNegLambda_;
-            lock.unlock();
-            // Call private implementation directly
-            dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda, cached_log_lambda,
-                                               cached_exp_neg_lambda);
+            double lam, loglam, enl;
+            dist.withCacheSnapshot([&] {
+                lam = dist.lambda_;
+                loglam = dist.logLambda_;
+                enl = dist.expNegLambda_;
+            });
+            dist.getProbabilityBatchUnsafeImpl(vals, res, count, lam, loglam, enl);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
             // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
@@ -644,29 +568,12 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
 
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double cached_lambda, cached_log_lambda, cached_exp_neg_lambda;
-            [[maybe_unused]] bool cached_is_small_lambda;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
-                        dist.updateCacheUnsafe();
-                    cached_lambda = dist.lambda_;
-                    cached_log_lambda = dist.logLambda_;
-                    cached_exp_neg_lambda = dist.expNegLambda_;
-                    cached_is_small_lambda = dist.isSmallLambda_;
-                } else {
-                    cached_lambda = dist.lambda_;
-                    cached_log_lambda = dist.logLambda_;
-                    cached_exp_neg_lambda = dist.expNegLambda_;
-                    cached_is_small_lambda = dist.isSmallLambda_;
-                }
-            }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
+            dist.withCacheSnapshot([&] {
+                cached_lambda = dist.lambda_;
+                cached_log_lambda = dist.logLambda_;
+                cached_exp_neg_lambda = dist.expNegLambda_;
+            });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     if (vals[i] < detail::ZERO_DOUBLE) {
@@ -732,29 +639,12 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
 
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double cached_lambda, cached_log_lambda, cached_exp_neg_lambda;
-            [[maybe_unused]] bool cached_is_small_lambda;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
-                        dist.updateCacheUnsafe();
-                    cached_lambda = dist.lambda_;
-                    cached_log_lambda = dist.logLambda_;
-                    cached_exp_neg_lambda = dist.expNegLambda_;
-                    cached_is_small_lambda = dist.isSmallLambda_;
-                } else {
-                    cached_lambda = dist.lambda_;
-                    cached_log_lambda = dist.logLambda_;
-                    cached_exp_neg_lambda = dist.expNegLambda_;
-                    cached_is_small_lambda = dist.isSmallLambda_;
-                }
-            }
-
-            // Use work-stealing pool for dynamic load balancing
+            dist.withCacheSnapshot([&] {
+                cached_lambda = dist.lambda_;
+                cached_log_lambda = dist.logLambda_;
+                cached_exp_neg_lambda = dist.expNegLambda_;
+            });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (vals[i] < detail::ZERO_DOUBLE) {
                     res[i] = detail::ZERO_DOUBLE;

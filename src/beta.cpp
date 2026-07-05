@@ -544,24 +544,12 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
         *this, values, results, hint, detail::OperationType::PDF,
         [](const BetaDistribution& dist, double value) { return dist.getProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    dist.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held.
-                const double lnc = dist.logNormConst_;
-                const double am1 = dist.alphaMinus1_;
-                const double bm1 = dist.betaMinus1_;
-                dist.getProbabilityBatchUnsafeImpl(vals, res, count, lnc, am1, bm1);
-                return;
-            }
-            // Cache hit — snapshot under shared_lock.
-            const double lnc = dist.logNormConst_;
-            const double am1 = dist.alphaMinus1_;
-            const double bm1 = dist.betaMinus1_;
-            lock.unlock();
+            double lnc, am1, bm1;
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                am1 = dist.alphaMinus1_;
+                bm1 = dist.betaMinus1_;
+            });
             dist.getProbabilityBatchUnsafeImpl(vals, res, count, lnc, am1, bm1);
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res) {
@@ -571,24 +559,11 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
             if (count == 0)
                 return;
             double lnc, am1, bm1;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
-                        dist.updateCacheUnsafe();
-                    lnc = dist.logNormConst_;
-                    am1 = dist.alphaMinus1_;
-                    bm1 = dist.betaMinus1_;
-                } else {
-                    lnc = dist.logNormConst_;
-                    am1 = dist.alphaMinus1_;
-                    bm1 = dist.betaMinus1_;
-                }
-            }
-            // Chunk the batch so each parallel task uses the SIMD pipeline
-            // (vector_log / vector_exp) instead of per-element scalar math.
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                am1 = dist.alphaMinus1_;
+                bm1 = dist.betaMinus1_;
+            });
             constexpr std::size_t CHUNK = 1024;
             if (arch::should_use_parallel(count)) {
                 const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
@@ -610,22 +585,11 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
             if (count == 0)
                 return;
             double lnc, am1, bm1;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
-                        dist.updateCacheUnsafe();
-                    lnc = dist.logNormConst_;
-                    am1 = dist.alphaMinus1_;
-                    bm1 = dist.betaMinus1_;
-                } else {
-                    lnc = dist.logNormConst_;
-                    am1 = dist.alphaMinus1_;
-                    bm1 = dist.betaMinus1_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                am1 = dist.alphaMinus1_;
+                bm1 = dist.betaMinus1_;
+            });
             constexpr std::size_t CHUNK = 1024;
             const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
             pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
@@ -644,24 +608,12 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
         *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const BetaDistribution& dist, double value) { return dist.getLogProbability(value); },
         [](const BetaDistribution& dist, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            if (!dist.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                if (!dist.cache_valid_)
-                    dist.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held.
-                const double lnc = dist.logNormConst_;
-                const double am1 = dist.alphaMinus1_;
-                const double bm1 = dist.betaMinus1_;
-                dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, lnc, am1, bm1);
-                return;
-            }
-            // Cache hit — snapshot under shared_lock.
-            const double lnc = dist.logNormConst_;
-            const double am1 = dist.alphaMinus1_;
-            const double bm1 = dist.betaMinus1_;
-            lock.unlock();
+            double lnc, am1, bm1;
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                am1 = dist.alphaMinus1_;
+                bm1 = dist.betaMinus1_;
+            });
             dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, lnc, am1, bm1);
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res) {
@@ -671,24 +623,11 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
             double lnc, am1, bm1;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
-                        dist.updateCacheUnsafe();
-                    lnc = dist.logNormConst_;
-                    am1 = dist.alphaMinus1_;
-                    bm1 = dist.betaMinus1_;
-                } else {
-                    lnc = dist.logNormConst_;
-                    am1 = dist.alphaMinus1_;
-                    bm1 = dist.betaMinus1_;
-                }
-            }
-            // Chunk the batch so each parallel task uses the SIMD pipeline
-            // (vector_log) instead of per-element scalar math.
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                am1 = dist.alphaMinus1_;
+                bm1 = dist.betaMinus1_;
+            });
             constexpr std::size_t CHUNK = 1024;
             if (arch::should_use_parallel(count)) {
                 const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
@@ -711,22 +650,11 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
             double lnc, am1, bm1;
-            {
-                std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-                if (!dist.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
-                        dist.updateCacheUnsafe();
-                    lnc = dist.logNormConst_;
-                    am1 = dist.alphaMinus1_;
-                    bm1 = dist.betaMinus1_;
-                } else {
-                    lnc = dist.logNormConst_;
-                    am1 = dist.alphaMinus1_;
-                    bm1 = dist.betaMinus1_;
-                }
-            }
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                am1 = dist.alphaMinus1_;
+                bm1 = dist.betaMinus1_;
+            });
             constexpr std::size_t CHUNK = 1024;
             const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
             pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {

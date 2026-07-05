@@ -223,17 +223,9 @@ double VonMisesDistribution::getMean() const {
 }
 
 double VonMisesDistribution::getVariance() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double cv = circularVariance_;
-        return cv;
-    }
-    return circularVariance_;
+    double cv;
+    withCacheSnapshot([&] { cv = circularVariance_; });
+    return cv;
 }
 
 //==============================================================================
@@ -295,17 +287,13 @@ double VonMisesDistribution::getProbability(double x) const {
     if (!std::isfinite(x))
         return detail::ZERO_DOUBLE;  // ±inf → PDF is 0
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double k = kappa_, mu = mu_, lnorm = logNormaliser_;
-        return std::exp(k * std::cos(x - mu) - lnorm);
-    }
-    return std::exp(kappa_ * std::cos(x - mu_) - logNormaliser_);
+    double k, mu, lnorm;
+    withCacheSnapshot([&] {
+        k = kappa_;
+        mu = mu_;
+        lnorm = logNormaliser_;
+    });
+    return std::exp(k * std::cos(x - mu) - lnorm);
 }
 
 double VonMisesDistribution::getLogProbability(double x) const {
@@ -314,17 +302,13 @@ double VonMisesDistribution::getLogProbability(double x) const {
     if (!std::isfinite(x))
         return detail::NEGATIVE_INFINITY;  // ±inf → log PDF is -∞
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double k = kappa_, mu = mu_, lnorm = logNormaliser_;
-        return k * std::cos(x - mu) - lnorm;
-    }
-    return kappa_ * std::cos(x - mu_) - logNormaliser_;
+    double k, mu, lnorm;
+    withCacheSnapshot([&] {
+        k = kappa_;
+        mu = mu_;
+        lnorm = logNormaliser_;
+    });
+    return k * std::cos(x - mu) - lnorm;
 }
 
 double VonMisesDistribution::getCumulativeProbability(double x) const {
@@ -336,24 +320,12 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
 
     const double v = wrapAngle(x);
 
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     double kappa, mu, lnorm;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            kappa = kappa_;
-            mu = mu_;
-            lnorm = logNormaliser_;
-        } else {
-            kappa = kappa_;
-            mu = mu_;
-            lnorm = logNormaliser_;
-        }
-    }
+    withCacheSnapshot([&] {
+        kappa = kappa_;
+        mu = mu_;
+        lnorm = logNormaliser_;
+    });
 
     // For large κ, VM(μ, κ) ≈ N(μ, 1/κ) on the circle — use the wrapped normal CDF.
     // Approximation error is O(1/κ²); < 1e-4 for κ > 50.
@@ -461,22 +433,11 @@ double VonMisesDistribution::getQuantile(double p) const {
 }
 
 double VonMisesDistribution::sample(std::mt19937& rng) const {
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     double kappa, mu;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            kappa = kappa_;
-            mu = mu_;
-        } else {
-            kappa = kappa_;
-            mu = mu_;
-        }
-    }
+    withCacheSnapshot([&] {
+        kappa = kappa_;
+        mu = mu_;
+    });
 
     // Near-uniform case (κ ≈ 0): sample uniformly on the circle.
     if (kappa < 1e-9) {
@@ -516,22 +477,11 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> VonMisesDistribution::sample(std::mt19937& rng, size_t n) const {
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     double kappa, mu;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            kappa = kappa_;
-            mu = mu_;
-        } else {
-            kappa = kappa_;
-            mu = mu_;
-        }
-    }
+    withCacheSnapshot([&] {
+        kappa = kappa_;
+        mu = mu_;
+    });
 
     std::vector<double> samples;
     samples.reserve(n);
@@ -644,32 +594,21 @@ double VonMisesDistribution::getMode() const {
 }
 
 double VonMisesDistribution::getEntropy() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const bool is_uniform = isUniform_;
-        const double k = kappa_;
-        if (is_uniform)
-            return detail::LN_2PI;
-        const double log_i0 = detail::log_bessel_i0(k);
-        const double i0 = detail::bessel_i0(k);
-        const double i1 = detail::bessel_i1(k);
-        const double A1 = (i0 > 0.0) ? i1 / i0 : 0.0;
-        return detail::LN_2PI - log_i0 + k * A1;
-    }
+    bool is_uniform;
+    double k;
+    withCacheSnapshot([&] {
+        is_uniform = isUniform_;
+        k = kappa_;
+    });
     // H = log(2π) − log I₀(κ) + κ·I₁(κ)/I₀(κ)
     // At κ=0: H = log(2π) − log(1) + 0 = log(2π) ✓ (uniform on the circle)
-    if (isUniform_)
+    if (is_uniform)
         return detail::LN_2PI;
-    const double log_i0 = detail::log_bessel_i0(kappa_);
-    const double i0 = detail::bessel_i0(kappa_);
-    const double i1 = detail::bessel_i1(kappa_);
+    const double log_i0 = detail::log_bessel_i0(k);
+    const double i0 = detail::bessel_i0(k);
+    const double i1 = detail::bessel_i1(k);
     const double A1 = (i0 > 0.0) ? i1 / i0 : 0.0;
-    return detail::LN_2PI - log_i0 + kappa_ * A1;
+    return detail::LN_2PI - log_i0 + k * A1;
 }
 
 //==============================================================================
@@ -682,20 +621,12 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
         *this, values, results, hint, detail::OperationType::PDF,
         [](const VonMisesDistribution& d, double x) { return d.getProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    d.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-                const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
-                d.getProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
-                return;
-            }
-            // Cache hit — snapshot under shared_lock.
-            const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
-            lock.unlock();
+            double k, mu, lnorm;
+            d.withCacheSnapshot([&] {
+                k = d.kappa_;
+                mu = d.mu_;
+                lnorm = d.logNormaliser_;
+            });
             d.getProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
@@ -704,24 +635,12 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double k, mu, lnorm;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    k = d.kappa_;
-                    mu = d.mu_;
-                    lnorm = d.logNormaliser_;
-                } else {
-                    k = d.kappa_;
-                    mu = d.mu_;
-                    lnorm = d.logNormaliser_;
-                }
-            }
+            d.withCacheSnapshot([&] {
+                k = d.kappa_;
+                mu = d.mu_;
+                lnorm = d.logNormaliser_;
+            });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -739,24 +658,12 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double k, mu, lnorm;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    k = d.kappa_;
-                    mu = d.mu_;
-                    lnorm = d.logNormaliser_;
-                } else {
-                    k = d.kappa_;
-                    mu = d.mu_;
-                    lnorm = d.logNormaliser_;
-                }
-            }
+            d.withCacheSnapshot([&] {
+                k = d.kappa_;
+                mu = d.mu_;
+                lnorm = d.logNormaliser_;
+            });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] =
@@ -773,20 +680,12 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
         *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const VonMisesDistribution& d, double x) { return d.getLogProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    d.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-                const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
-                d.getLogProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
-                return;
-            }
-            // Cache hit — snapshot under shared_lock.
-            const double k = d.kappa_, mu = d.mu_, lnorm = d.logNormaliser_;
-            lock.unlock();
+            double k, mu, lnorm;
+            d.withCacheSnapshot([&] {
+                k = d.kappa_;
+                mu = d.mu_;
+                lnorm = d.logNormaliser_;
+            });
             d.getLogProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
@@ -795,24 +694,12 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double k, mu, lnorm;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    k = d.kappa_;
-                    mu = d.mu_;
-                    lnorm = d.logNormaliser_;
-                } else {
-                    k = d.kappa_;
-                    mu = d.mu_;
-                    lnorm = d.logNormaliser_;
-                }
-            }
+            d.withCacheSnapshot([&] {
+                k = d.kappa_;
+                mu = d.mu_;
+                lnorm = d.logNormaliser_;
+            });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -830,24 +717,12 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double k, mu, lnorm;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    k = d.kappa_;
-                    mu = d.mu_;
-                    lnorm = d.logNormaliser_;
-                } else {
-                    k = d.kappa_;
-                    mu = d.mu_;
-                    lnorm = d.logNormaliser_;
-                }
-            }
+            d.withCacheSnapshot([&] {
+                k = d.kappa_;
+                mu = d.mu_;
+                lnorm = d.logNormaliser_;
+            });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] =

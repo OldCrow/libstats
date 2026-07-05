@@ -87,6 +87,45 @@ class ThreadSafeCacheManager {
      */
     template <typename Func>
     auto getCachedValue(Func&& accessor) const -> decltype(accessor());
+
+    /**
+     * @brief Acquire the correct lock, ensure the cache is valid, then call
+     *        @p snapFn to copy cached members into the caller's local variables.
+     *
+     * Encapsulates the double-checked locking pattern repeated in the
+     * VECTORIZED / PARALLEL / WORK_STEALING batch lambdas of every distribution:
+     * @code
+     *   // Before
+     *   double a, b;
+     *   { shared_lock ...; if (!valid) { unlock; unique_lock...; if (!valid) update; a=a_; b=b_; }
+     * else { a=a_; b=b_; } }
+     *   // After
+     *   double a, b;
+     *   dist.withCacheSnapshot([&]{ a = dist.a_; b = dist.b_; });
+     * @endcode
+     *
+     * The snapshot lambda is called while an appropriate lock is held —
+     * shared_lock when the cache was already valid, unique_lock otherwise —
+     * so there is no TOCTOU gap between the validity check and the reads.
+     *
+     * @tparam SnapshotFn  Callable void() that assigns from this object's
+     *                     mutable cached members into caller-owned variables.
+     */
+    template <typename SnapshotFn>
+    void withCacheSnapshot(SnapshotFn&& snapFn) const {
+        {
+            std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+            if (cache_valid_) {
+                std::forward<SnapshotFn>(snapFn)();
+                return;
+            }
+        }  // release shared_lock before acquiring exclusive
+        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
+        if (!cache_valid_) {
+            updateCacheUnsafe();
+        }
+        std::forward<SnapshotFn>(snapFn)();
+    }
 };
 
 }  // namespace stats

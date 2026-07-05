@@ -270,118 +270,59 @@ VoidResult UniformDistribution::trySetParameters(double a, double b) noexcept {
 
 double UniformDistribution::getProbability(double x) const {
     // Ensure cache is valid once before using - using the same pattern as other methods
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const double lo = a_, hi = b_;
-        const bool is_unit = isUnitInterval_;
-        const double inv_w = invWidth_;
-        if (std::isnan(x))
-            return std::numeric_limits<double>::quiet_NaN();
-        if (x < lo || x > hi)
-            return detail::ZERO_DOUBLE;
-        if (is_unit)
-            return detail::ONE;
-        return inv_w;
-    }
-
-    // NaN must propagate before the bounds checks (both comparisons are false for NaN,
-    // so NaN would silently pass through and return the density constant).
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-
-    // Check if x is within the support [a, b]
-    if (x < a_ || x > b_) {
+    double lo, hi, inv_w;
+    bool is_unit;
+    withCacheSnapshot([&] {
+        lo = a_;
+        hi = b_;
+        is_unit = isUnitInterval_;
+        inv_w = invWidth_;
+    });
+    if (x < lo || x > hi)
         return detail::ZERO_DOUBLE;
-    }
-
-    // Fast path for unit interval [0,1]
-    if (isUnitInterval_) {
+    if (is_unit)
         return detail::ONE;
-    }
-
-    // General case: PDF = 1/(b-a) for x in [a,b]
-    return invWidth_;
+    return inv_w;
 }
 
 double UniformDistribution::getLogProbability(double x) const {
     // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const double lo = a_, hi = b_;
-        const bool is_unit = isUnitInterval_;
-        const double w = width_;
-        if (std::isnan(x))
-            return std::numeric_limits<double>::quiet_NaN();
-        if (x < lo || x > hi)
-            return detail::NEGATIVE_INFINITY;
-        if (is_unit)
-            return detail::ZERO_DOUBLE;
-        return -std::log(w);
-    }
-
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-
-    // Check if x is within the support [a, b]
-    if (x < a_ || x > b_) {
+    double lo, hi, w;
+    bool is_unit;
+    withCacheSnapshot([&] {
+        lo = a_;
+        hi = b_;
+        is_unit = isUnitInterval_;
+        w = width_;
+    });
+    if (x < lo || x > hi)
         return detail::NEGATIVE_INFINITY;
-    }
-
-    // Fast path for unit interval [0,1]
-    if (isUnitInterval_) {
-        return detail::ZERO_DOUBLE;  // log(1) = 0
-    }
-
-    // General case: log(PDF) = log(1/(b-a)) = -log(b-a)
-    return -std::log(width_);
+    if (is_unit)
+        return detail::ZERO_DOUBLE;
+    return -std::log(w);
 }
 
 double UniformDistribution::getCumulativeProbability(double x) const {
     // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const double lo = a_, hi = b_;
-        const bool is_unit = isUnitInterval_;
-        const double inv_w = invWidth_;
-        if (x < lo)
-            return detail::ZERO_DOUBLE;
-        if (x > hi)
-            return detail::ONE;
-        if (is_unit)
-            return x;
-        return (x - lo) * inv_w;
-    }
-
-    // CDF for uniform distribution
-    if (x < a_) {
+    double lo, hi, inv_w;
+    bool is_unit;
+    withCacheSnapshot([&] {
+        lo = a_;
+        hi = b_;
+        is_unit = isUnitInterval_;
+        inv_w = invWidth_;
+    });
+    if (x < lo)
         return detail::ZERO_DOUBLE;
-    }
-    if (x > b_) {
+    if (x > hi)
         return detail::ONE;
-    }
-
-    // Fast path for unit interval [0,1]
-    if (isUnitInterval_) {
-        return x;  // CDF(x) = x for U(0,1)
-    }
-
-    // General case: CDF(x) = (x-a)/(b-a)
-    return (x - a_) * invWidth_;
+    if (is_unit)
+        return x;
+    return (x - lo) * inv_w;
 }
 
 double UniformDistribution::getQuantile(double p) const {
@@ -396,49 +337,26 @@ double UniformDistribution::getQuantile(double p) const {
         return b_;
     }
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const bool is_unit = isUnitInterval_;
-        const double lo = a_, w = width_;
-        if (is_unit)
-            return p;
-        return lo + p * w;
-    }
-
-    // Fast path for unit interval [0,1]
-    if (isUnitInterval_) {
-        return p;  // Quantile(p) = p for U(0,1)
-    }
-
-    // General case: Quantile(p) = a + p*(b-a)
-    return a_ + p * width_;
+    double lo, w;
+    bool is_unit;
+    withCacheSnapshot([&] {
+        lo = a_;
+        is_unit = isUnitInterval_;
+        w = width_;
+    });
+    if (is_unit)
+        return p;
+    return lo + p * w;
 }
 
 double UniformDistribution::sample(std::mt19937& rng) const {
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     bool cached_is_unit_interval;
     double cached_a, cached_width;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            cached_is_unit_interval = isUnitInterval_;
-            cached_a = a_;
-            cached_width = width_;
-        } else {
-            cached_is_unit_interval = isUnitInterval_;
-            cached_a = a_;
-            cached_width = width_;
-        }
-    }
+    withCacheSnapshot([&] {
+        cached_is_unit_interval = isUnitInterval_;
+        cached_a = a_;
+        cached_width = width_;
+    });
 
     // Use high-quality uniform distribution
     std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);

@@ -197,59 +197,33 @@ double RayleighDistribution::getProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const double lnc = logNormConst_;
-        const double neg_half_inv_sigma2 = negHalfInvSigmaSquared_;
-        return std::exp(std::log(x) + lnc + neg_half_inv_sigma2 * x * x);
-    }
-    // Compute inline using cached values rather than re-acquiring cache_mutex_
-    // via getLogProbability(): re-entrant shared_lock deadlocks on Linux/Windows.
-    const double lnc = logNormConst_;
-    const double neg_half_inv_sigma2 = negHalfInvSigmaSquared_;
-    lock.unlock();
-    return std::exp(std::log(x) + lnc + neg_half_inv_sigma2 * x * x);
+    double lnc, nhis;
+    withCacheSnapshot([&] {
+        lnc = logNormConst_;
+        nhis = negHalfInvSigmaSquared_;
+    });
+    return std::exp(std::log(x) + lnc + nhis * x * x);
 }
 
 double RayleighDistribution::getLogProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::NEGATIVE_INFINITY;
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const double lnc = logNormConst_;
-        const double nhis = negHalfInvSigmaSquared_;
-        return std::log(x) + lnc + nhis * x * x;
-    }
-    // log(x) + logNormConst_ + negHalfInvSigmaSquared_ * x²
-    return std::log(x) + logNormConst_ + negHalfInvSigmaSquared_ * x * x;
+    double lnc, nhis;
+    withCacheSnapshot([&] {
+        lnc = logNormConst_;
+        nhis = negHalfInvSigmaSquared_;
+    });
+    return std::log(x) + lnc + nhis * x * x;
 }
 
 double RayleighDistribution::getCumulativeProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const double nhis = negHalfInvSigmaSquared_;
-        return detail::ONE - std::exp(nhis * x * x);
-    }
-    return detail::ONE - std::exp(negHalfInvSigmaSquared_ * x * x);
+    double nhis;
+    withCacheSnapshot([&] { nhis = negHalfInvSigmaSquared_; });
+    return detail::ONE - std::exp(nhis * x * x);
 }
 
 double RayleighDistribution::getQuantile(double p) const {
@@ -261,35 +235,14 @@ double RayleighDistribution::getQuantile(double p) const {
     if (p == detail::ONE)
         return std::numeric_limits<double>::infinity();
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const double s = sigma_;
-        return s * std::sqrt(-detail::TWO * std::log(detail::ONE - p));
-    }
-    // σ·√(−2·log(1−p))
-    return sigma_ * std::sqrt(-detail::TWO * std::log(detail::ONE - p));
+    double s;
+    withCacheSnapshot([&] { s = sigma_; });
+    return s * std::sqrt(-detail::TWO * std::log(detail::ONE - p));
 }
 
 double RayleighDistribution::sample(std::mt19937& rng) const {
     double s;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            s = sigma_;
-        } else {
-            s = sigma_;
-        }
-    }
-    // Inverse-CDF: x = σ·√(−2·log(U)), U ~ Uniform(0,1)
+    withCacheSnapshot([&] { s = sigma_; });
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
     return s * std::sqrt(-detail::TWO * std::log(uniform(rng)));
 }
@@ -299,19 +252,7 @@ std::vector<double> RayleighDistribution::sample(std::mt19937& rng, size_t n) co
     samples.reserve(n);
 
     double s;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            s = sigma_;
-        } else {
-            s = sigma_;
-        }
-    }
-
+    withCacheSnapshot([&] { s = sigma_; });
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
     for (size_t i = 0; i < n; ++i) {
         samples.push_back(s * std::sqrt(-detail::TWO * std::log(uniform(rng))));
@@ -391,20 +332,9 @@ double RayleighDistribution::getMedian() const {
 }
 
 double RayleighDistribution::getEntropy() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const double ls = logSigma_;
-        return detail::ONE + ls - detail::HALF * detail::LN2 +
-               detail::HALF * detail::EULER_MASCHERONI;
-    }
-    // H = 1 + log(σ/√2) + γ/2 = 1 + log(σ) − ½·log(2) + γ/2
-    return detail::ONE + logSigma_ - detail::HALF * detail::LN2 +
-           detail::HALF * detail::EULER_MASCHERONI;
+    double ls;
+    withCacheSnapshot([&] { ls = logSigma_; });
+    return detail::ONE + ls - detail::HALF * detail::LN2 + detail::HALF * detail::EULER_MASCHERONI;
 }
 
 //==============================================================================
@@ -417,19 +347,11 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
         *this, values, results, hint, detail::OperationType::PDF,
         [](const RayleighDistribution& d, double x) { return d.getProbability(x); },
         [](const RayleighDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    d.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held.
-                const double nhis = d.negHalfInvSigmaSquared_, lnc = d.logNormConst_;
-                d.getProbabilityBatchUnsafeImpl(vals, res, count, nhis, lnc);
-                return;
-            }
-            const double nhis = d.negHalfInvSigmaSquared_, lnc = d.logNormConst_;
-            lock.unlock();
+            double nhis, lnc;
+            d.withCacheSnapshot([&] {
+                nhis = d.negHalfInvSigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             d.getProbabilityBatchUnsafeImpl(vals, res, count, nhis, lnc);
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res) {
@@ -439,20 +361,10 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
             if (count == 0)
                 return;
             double nhis, lnc;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_;
-                    lnc = d.logNormConst_;
-                } else {
-                    nhis = d.negHalfInvSigmaSquared_;
-                    lnc = d.logNormConst_;
-                }
-            }
+            d.withCacheSnapshot([&] {
+                nhis = d.negHalfInvSigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -473,20 +385,10 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             double nhis, lnc;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_;
-                    lnc = d.logNormConst_;
-                } else {
-                    nhis = d.negHalfInvSigmaSquared_;
-                    lnc = d.logNormConst_;
-                }
-            }
+            d.withCacheSnapshot([&] {
+                nhis = d.negHalfInvSigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
@@ -503,19 +405,11 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
         *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const RayleighDistribution& d, double x) { return d.getLogProbability(x); },
         [](const RayleighDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    d.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held.
-                const double nhis = d.negHalfInvSigmaSquared_, lnc = d.logNormConst_;
-                d.getLogProbabilityBatchUnsafeImpl(vals, res, count, nhis, lnc);
-                return;
-            }
-            const double nhis = d.negHalfInvSigmaSquared_, lnc = d.logNormConst_;
-            lock.unlock();
+            double nhis, lnc;
+            d.withCacheSnapshot([&] {
+                nhis = d.negHalfInvSigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             d.getLogProbabilityBatchUnsafeImpl(vals, res, count, nhis, lnc);
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res) {
@@ -525,20 +419,10 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
             double nhis, lnc;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_;
-                    lnc = d.logNormConst_;
-                } else {
-                    nhis = d.negHalfInvSigmaSquared_;
-                    lnc = d.logNormConst_;
-                }
-            }
+            d.withCacheSnapshot([&] {
+                nhis = d.negHalfInvSigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -557,20 +441,10 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             double nhis, lnc;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_;
-                    lnc = d.logNormConst_;
-                } else {
-                    nhis = d.negHalfInvSigmaSquared_;
-                    lnc = d.logNormConst_;
-                }
-            }
+            d.withCacheSnapshot([&] {
+                nhis = d.negHalfInvSigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] = (x <= detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
@@ -587,19 +461,8 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
         *this, values, results, hint, detail::OperationType::CDF,
         [](const RayleighDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const RayleighDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    d.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held.
-                const double nhis = d.negHalfInvSigmaSquared_;
-                d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, nhis);
-                return;
-            }
-            const double nhis = d.negHalfInvSigmaSquared_;
-            lock.unlock();
+            double nhis;
+            d.withCacheSnapshot([&] { nhis = d.negHalfInvSigmaSquared_; });
             d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, nhis);
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res) {
@@ -609,18 +472,7 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
             if (count == 0)
                 return;
             double nhis;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_;
-                } else {
-                    nhis = d.negHalfInvSigmaSquared_;
-                }
-            }
+            d.withCacheSnapshot([&] { nhis = d.negHalfInvSigmaSquared_; });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -639,18 +491,7 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
            WorkStealingPool& pool) {
             const std::size_t count = vals.size();
             double nhis;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    nhis = d.negHalfInvSigmaSquared_;
-                } else {
-                    nhis = d.negHalfInvSigmaSquared_;
-                }
-            }
+            d.withCacheSnapshot([&] { nhis = d.negHalfInvSigmaSquared_; });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
