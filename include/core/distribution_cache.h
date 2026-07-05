@@ -21,11 +21,23 @@ namespace stats {
  *
  * ### Dual-flag pattern (cache_valid_ + cacheValidAtomic_)
  * Two flags represent the same state deliberately:
- * - cacheValidAtomic_ enables a lock-free fast path in getCachedValue(). An
- *   acquire load synchronizes-with the release store in updateCacheUnsafe(),
- *   ensuring cache_valid_ and the cached values are visible before the atomic
- *   is seen as true.
- * - cache_valid_ is the plain bool read under shared_lock in the slow path.
+ * - cacheValidAtomic_ enables a contention-reduced fast path in
+ *   getCachedValue(): the atomic load (acquire) avoids a lock entirely when
+ *   the cache is stale (proceeding directly to the unique-lock slow path);
+ *   when valid it still acquires shared_lock before reading values.  This is
+ *   NOT a fully lock-free read — it is a contention-reduced path that avoids
+ *   the exclusive (write) lock on the hot path.
+ * - cache_valid_ is the plain bool read under shared_lock; it serves as the
+ *   ground-truth flag for code paths that already hold cache_mutex_.
+ *
+ * ### Per-parameter atomic fast paths (derived classes)
+ * Some derived classes (e.g. GaussianDistribution) expose individual
+ * parameter atomics (atomicMean_, atomicStdDev_) for lock-free
+ * getMean()/getStdDev() calls.  Each value is individually consistent, but
+ * reading two atomics across separate calls does not form an atomic pair:
+ * a concurrent setParameters() between the two reads yields a torn snapshot.
+ * Callers that need a consistent pair of parameters should use the snapshot
+ * pattern (shared_lock, read both under the same lock).
  *
  * v2.0.0 removed the old derived-class cacheValidAtomic_ shadows; this base
  * member is now the single atomic cache-validity flag for all distributions.
@@ -75,43 +87,6 @@ class ThreadSafeCacheManager {
      */
     template <typename Func>
     auto getCachedValue(Func&& accessor) const -> decltype(accessor());
-};
-
-// =============================================================================
-// CACHED PROPERTY TEMPLATE
-// =============================================================================
-
-/**
- * @brief Template helper for cached statistical properties
- * @tparam PropertyType Type of cached property
- *
- * @warning **Not thread-safe.** This class has no synchronisation of its own.
- * Use it only within a scope that already holds an appropriate lock from
- * ThreadSafeCacheManager (e.g. under cache_mutex_ unique_lock). Concurrent
- * access from multiple threads without external locking is a data race.
- * Full per-property atomic protection can be considered in a future v2.x
- * cache redesign. v2.0.0 guarantees noexcept moves by not moving mutex/cache
- * state and by invalidating/rebuilding caches after moves.
- */
-template <typename PropertyType>
-class CachedProperty {
-   private:
-    mutable PropertyType value_;
-    mutable bool valid_{false};
-
-   public:
-    template <typename ComputeFunc>
-    PropertyType get(ComputeFunc&& compute_func) const {
-        if (!valid_) {
-            value_ = compute_func();
-            valid_ = true;
-        }
-        return value_;
-    }
-
-    void invalidate() noexcept { valid_ = false; }
-
-    bool isValid() const noexcept { return valid_; }
 };
 
 }  // namespace stats
