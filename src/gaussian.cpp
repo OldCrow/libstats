@@ -241,81 +241,46 @@ double GaussianDistribution::getSupportUpperBound() const noexcept {
 //==============================================================================
 
 double GaussianDistribution::getProbability(double x) const {
-    // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const bool is_std = isStandardNormal_;
-        const double m = mean_, norm = normalizationConstant_;
-        const double neg_half = negHalfSigmaSquaredInv_;
-        if (is_std)
-            return detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * x * x);
-        const double diff = x - m;
-        return norm * std::exp(neg_half * diff * diff);
-    }
-    // Fast path for standard normal
-    if (isStandardNormal_) {
-        const double sq_diff = x * x;
-        return detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
-    }
-    // General case
-    const double diff = x - mean_;
-    const double sq_diff = diff * diff;
-    return normalizationConstant_ * std::exp(negHalfSigmaSquaredInv_ * sq_diff);
+    bool is_std;
+    double m, norm, neg_half;
+    withCacheSnapshot([&] {
+        is_std = isStandardNormal_;
+        m = mean_;
+        norm = normalizationConstant_;
+        neg_half = negHalfSigmaSquaredInv_;
+    });
+    if (is_std)
+        return detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * x * x);
+    const double diff = x - m;
+    return norm * std::exp(neg_half * diff * diff);
 }
 
 double GaussianDistribution::getLogProbability(double x) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const bool is_std = isStandardNormal_;
-        const double m = mean_, log_sd = logStandardDeviation_;
-        const double neg_half = negHalfSigmaSquaredInv_;
-        if (is_std)
-            return detail::NEG_HALF_LN_2PI + detail::NEG_HALF * x * x;
-        const double diff = x - m;
-        return detail::NEG_HALF_LN_2PI - log_sd + neg_half * diff * diff;
-    }
-    // Fast path for standard normal
-    if (isStandardNormal_) {
-        const double sq_diff = x * x;
-        return detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
-    }
-    // General case
-    const double diff = x - mean_;
-    const double sq_diff = diff * diff;
-    return detail::NEG_HALF_LN_2PI - logStandardDeviation_ + negHalfSigmaSquaredInv_ * sq_diff;
+    bool is_std;
+    double m, log_sd, neg_half;
+    withCacheSnapshot([&] {
+        is_std = isStandardNormal_;
+        m = mean_;
+        log_sd = logStandardDeviation_;
+        neg_half = negHalfSigmaSquaredInv_;
+    });
+    if (is_std)
+        return detail::NEG_HALF_LN_2PI + detail::NEG_HALF * x * x;
+    const double diff = x - m;
+    return detail::NEG_HALF_LN_2PI - log_sd + neg_half * diff * diff;
 }
 
 double GaussianDistribution::getCumulativeProbability(double x) const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const bool is_std = isStandardNormal_;
-        const double m = mean_, sigma_sqrt2 = sigmaSqrt2_;
-        if (is_std)
-            return detail::HALF * (detail::ONE + std::erf(x * detail::INV_SQRT_2));
-        return detail::HALF * (detail::ONE + std::erf((x - m) / sigma_sqrt2));
-    }
-    // Fast path for standard normal
-    if (isStandardNormal_) {
+    bool is_std;
+    double m, sigma_sqrt2;
+    withCacheSnapshot([&] {
+        is_std = isStandardNormal_;
+        m = mean_;
+        sigma_sqrt2 = sigmaSqrt2_;
+    });
+    if (is_std)
         return detail::HALF * (detail::ONE + std::erf(x * detail::INV_SQRT_2));
-    }
-    // General case
-    const double normalized = (x - mean_) / sigmaSqrt2_;
-    return detail::HALF * (detail::ONE + std::erf(normalized));
+    return detail::HALF * (detail::ONE + std::erf((x - m) / sigma_sqrt2));
 }
 
 double GaussianDistribution::getQuantile(double p) const {
@@ -344,22 +309,11 @@ double GaussianDistribution::getQuantile(double p) const {
 }
 
 double GaussianDistribution::sample(std::mt19937& rng) const {
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     double cached_mean, cached_sigma;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            cached_mean = mean_;
-            cached_sigma = standardDeviation_;
-        } else {
-            cached_mean = mean_;
-            cached_sigma = standardDeviation_;
-        }
-    }
+    withCacheSnapshot([&] {
+        cached_mean = mean_;
+        cached_sigma = standardDeviation_;
+    });
 
     // Optimized Box-Muller transform with enhanced numerical stability
     static thread_local bool has_spare = false;

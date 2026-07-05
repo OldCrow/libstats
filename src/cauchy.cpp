@@ -207,20 +207,11 @@ double CauchyDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double x0 = x0_, ig = inv_gamma_;
-        const double z = (x - x0) * ig;
-        return student_t_.getProbability(z) * ig;
-    }
-    const double x0 = x0_, ig = inv_gamma_;
-    lock.unlock();
-    // PDF_Cauchy(x) = PDF_StudentT(1)((x-x0)/gamma) / gamma
+    double x0, ig;
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        ig = inv_gamma_;
+    });
     const double z = (x - x0) * ig;
     return student_t_.getProbability(z) * ig;
 }
@@ -229,20 +220,12 @@ double CauchyDistribution::getLogProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double x0 = x0_, ig = inv_gamma_, lg = log_gamma_;
-        const double z = (x - x0) * ig;
-        return student_t_.getLogProbability(z) - lg;
-    }
-    const double x0 = x0_, ig = inv_gamma_, lg = log_gamma_;
-    lock.unlock();
-    // LogPDF_Cauchy(x) = LogPDF_StudentT(1)((x-x0)/gamma) - log(gamma)
+    double x0, ig, lg;
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        ig = inv_gamma_;
+        lg = log_gamma_;
+    });
     const double z = (x - x0) * ig;
     return student_t_.getLogProbability(z) - lg;
 }
@@ -251,20 +234,11 @@ double CauchyDistribution::getCumulativeProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double x0 = x0_, ig = inv_gamma_;
-        const double z = (x - x0) * ig;
-        return student_t_.getCumulativeProbability(z);
-    }
-    const double x0 = x0_, ig = inv_gamma_;
-    lock.unlock();
-    // CDF_Cauchy(x) = CDF_StudentT(1)((x-x0)/gamma)  [exact, no output scaling]
+    double x0, ig;
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        ig = inv_gamma_;
+    });
     const double z = (x - x0) * ig;
     return student_t_.getCumulativeProbability(z);
 }
@@ -277,40 +251,20 @@ double CauchyDistribution::getQuantile(double p) const {
     if (p == detail::ONE)
         return std::numeric_limits<double>::infinity();
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double x0 = x0_, g = gamma_;
-        return x0 + g * std::tan(detail::PI * (p - detail::HALF));
-    }
-    const double x0 = x0_, g = gamma_;
-    lock.unlock();
-    // Closed form: x0 + gamma * tan(pi * (p - 0.5))
+    double x0, g;
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        g = gamma_;
+    });
     return x0 + g * std::tan(detail::PI * (p - detail::HALF));
 }
 
 double CauchyDistribution::sample(std::mt19937& rng) const {
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     double x0, g;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            x0 = x0_;
-            g = gamma_;
-        } else {
-            x0 = x0_;
-            g = gamma_;
-        }
-    }
-    // X = x0 + gamma * Z  where Z ~ StudentT(1) ~ Cauchy(0,1)
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        g = gamma_;
+    });
     return x0 + g * student_t_.sample(rng);
 }
 
@@ -318,23 +272,11 @@ std::vector<double> CauchyDistribution::sample(std::mt19937& rng, size_t n) cons
     std::vector<double> samples;
     samples.reserve(n);
 
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     double x0, g;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            x0 = x0_;
-            g = gamma_;
-        } else {
-            x0 = x0_;
-            g = gamma_;
-        }
-    }
-
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        g = gamma_;
+    });
     auto z_samples = student_t_.sample(rng, n);
     for (double z : z_samples)
         samples.push_back(x0 + g * z);
@@ -451,18 +393,9 @@ std::string CauchyDistribution::toString() const {
 //==============================================================================
 
 double CauchyDistribution::getEntropy() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — eliminates TOCTOU gap.
-        const double g = gamma_;
-        return std::log(detail::FOUR_PI * g);
-    }
-    // H = log(4πγ)
-    return std::log(detail::FOUR_PI * gamma_);
+    double g;
+    withCacheSnapshot([&] { g = gamma_; });
+    return std::log(detail::FOUR_PI * g);
 }
 
 //==============================================================================
@@ -495,22 +428,11 @@ void CauchyDistribution::getProbability(std::span<const double> values, std::spa
     if (n != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
 
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     double x0, ig;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            x0 = x0_;
-            ig = inv_gamma_;
-        } else {
-            x0 = x0_;
-            ig = inv_gamma_;
-        }
-    }
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        ig = inv_gamma_;
+    });
 
     // Transform inputs: z[i] = (x[i] - x0) / gamma
     std::vector<double, arch::simd::aligned_allocator<double>> z(n);
@@ -534,24 +456,12 @@ void CauchyDistribution::getLogProbability(std::span<const double> values,
     if (n != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
 
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     double x0, ig, lg;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            x0 = x0_;
-            ig = inv_gamma_;
-            lg = log_gamma_;
-        } else {
-            x0 = x0_;
-            ig = inv_gamma_;
-            lg = log_gamma_;
-        }
-    }
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        ig = inv_gamma_;
+        lg = log_gamma_;
+    });
 
     std::vector<double, arch::simd::aligned_allocator<double>> z(n);
     using VectorOps = arch::simd::VectorOps;

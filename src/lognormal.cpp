@@ -165,56 +165,28 @@ void LogNormalDistribution::setParameters(double mu, double sigma) {
 }
 
 double LogNormalDistribution::getMean() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        return mean_;  // snapshot while unique_lock still held — no TOCTOU gap
-    }
-    return mean_;
+    double m;
+    withCacheSnapshot([&] { m = mean_; });
+    return m;
 }
 
 double LogNormalDistribution::getVariance() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        return variance_;  // snapshot while unique_lock still held — no TOCTOU gap
-    }
-    return variance_;
+    double v;
+    withCacheSnapshot([&] { v = variance_; });
+    return v;
 }
 
 double LogNormalDistribution::getSkewness() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        const double sigma = sigma_;  // snapshot while unique_lock still held
-        const double esigma2 = std::exp(sigma * sigma);
-        return (esigma2 + detail::TWO) * std::sqrt(esigma2 - detail::ONE);
-    }
-    const double esigma2 = std::exp(sigma_ * sigma_);
+    double sigma;
+    withCacheSnapshot([&] { sigma = sigma_; });
+    const double esigma2 = std::exp(sigma * sigma);
     return (esigma2 + detail::TWO) * std::sqrt(esigma2 - detail::ONE);
 }
 
 double LogNormalDistribution::getKurtosis() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        const double s2 = sigma_ * sigma_;  // snapshot while unique_lock still held
-        return std::exp(detail::FOUR * s2) + detail::TWO * std::exp(detail::THREE * s2) +
-               detail::THREE * std::exp(detail::TWO * s2) - detail::SIX;
-    }
-    const double s2 = sigma_ * sigma_;
+    double sigma;
+    withCacheSnapshot([&] { sigma = sigma_; });
+    const double s2 = sigma * sigma;
     return std::exp(detail::FOUR * s2) + detail::TWO * std::exp(detail::THREE * s2) +
            detail::THREE * std::exp(detail::TWO * s2) - detail::SIX;
 }
@@ -278,69 +250,41 @@ double LogNormalDistribution::getProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — no TOCTOU gap.
-        const double mu = mu_;
-        const double neg_inv_2sigma2 = negInv2SigmaSquared_;
-        const double lnc = logNormConst_;
-        const double log_x = std::log(x);
-        const double z = log_x - mu;
-        return std::exp(neg_inv_2sigma2 * z * z - log_x + lnc);
-    }
-    // Cache hit — read directly under shared_lock (no gap possible)
-    const double mu = mu_;
-    const double neg_inv_2sigma2 = negInv2SigmaSquared_;
-    const double lnc = logNormConst_;
-    lock.unlock();
+    double mu, ni2s2, lnc;
+    withCacheSnapshot([&] {
+        mu = mu_;
+        ni2s2 = negInv2SigmaSquared_;
+        lnc = logNormConst_;
+    });
     const double log_x = std::log(x);
     const double z = log_x - mu;
-    return std::exp(neg_inv_2sigma2 * z * z - log_x + lnc);
+    return std::exp(ni2s2 * z * z - log_x + lnc);
 }
 
 double LogNormalDistribution::getLogProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::NEGATIVE_INFINITY;
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — no TOCTOU gap.
-        const double mu = mu_;
-        const double neg_inv_2sigma2 = negInv2SigmaSquared_;
-        const double lnc = logNormConst_;
-        const double z = std::log(x) - mu;
-        return neg_inv_2sigma2 * z * z - std::log(x) + lnc;
-    }
-    // Cache hit — read directly under shared_lock (no gap possible)
-    const double z = std::log(x) - mu_;
-    return negInv2SigmaSquared_ * z * z - std::log(x) + logNormConst_;
+    double mu, ni2s2, lnc;
+    withCacheSnapshot([&] {
+        mu = mu_;
+        ni2s2 = negInv2SigmaSquared_;
+        lnc = logNormConst_;
+    });
+    const double z = std::log(x) - mu;
+    return ni2s2 * z * z - std::log(x) + lnc;
 }
 
 double LogNormalDistribution::getCumulativeProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — no TOCTOU gap.
-        const double mu = mu_;
-        const double sigma = sigma_;
-        return detail::normal_cdf((std::log(x) - mu) / sigma);
-    }
-    // Cache hit — read directly under shared_lock (no gap possible)
-    return detail::normal_cdf((std::log(x) - mu_) / sigma_);
+    double mu, sigma;
+    withCacheSnapshot([&] {
+        mu = mu_;
+        sigma = sigma_;
+    });
+    return detail::normal_cdf((std::log(x) - mu) / sigma);
 }
 
 double LogNormalDistribution::getQuantile(double p) const {
@@ -352,37 +296,20 @@ double LogNormalDistribution::getQuantile(double p) const {
     if (p == detail::ONE)
         return std::numeric_limits<double>::infinity();
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — no TOCTOU gap.
-        const double mu = mu_;
-        const double sigma = sigma_;
-        return std::exp(mu + sigma * detail::inverse_normal_cdf(p));
-    }
-    // Cache hit — read directly under shared_lock (no gap possible)
-    return std::exp(mu_ + sigma_ * detail::inverse_normal_cdf(p));
+    double mu, sigma;
+    withCacheSnapshot([&] {
+        mu = mu_;
+        sigma = sigma_;
+    });
+    return std::exp(mu + sigma * detail::inverse_normal_cdf(p));
 }
 
 double LogNormalDistribution::sample(std::mt19937& rng) const {
     double cached_mu, cached_sigma;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            cached_mu = mu_;  // snapshot while unique_lock still held
-            cached_sigma = sigma_;
-        } else {
-            cached_mu = mu_;  // snapshot while shared_lock still held
-            cached_sigma = sigma_;
-        }
-    }
+    withCacheSnapshot([&] {
+        cached_mu = mu_;
+        cached_sigma = sigma_;
+    });
     std::normal_distribution<double> norm(cached_mu, cached_sigma);
     return std::exp(norm(rng));
 }
@@ -392,21 +319,10 @@ std::vector<double> LogNormalDistribution::sample(std::mt19937& rng, size_t n) c
     samples.reserve(n);
 
     double cached_mu, cached_sigma;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            cached_mu = mu_;  // snapshot while unique_lock still held
-            cached_sigma = sigma_;
-        } else {
-            cached_mu = mu_;  // snapshot while shared_lock still held
-            cached_sigma = sigma_;
-        }
-    }
-
+    withCacheSnapshot([&] {
+        cached_mu = mu_;
+        cached_sigma = sigma_;
+    });
     std::normal_distribution<double> norm(cached_mu, cached_sigma);
     for (size_t i = 0; i < n; ++i) {
         samples.push_back(std::exp(norm(rng)));
@@ -488,17 +404,12 @@ double LogNormalDistribution::getSigmaAtomic() const noexcept {
 }
 
 double LogNormalDistribution::getMode() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        const double mu = mu_;  // snapshot while unique_lock still held
-        const double sigma = sigma_;
-        return std::exp(mu - sigma * sigma);
-    }
-    return std::exp(mu_ - sigma_ * sigma_);
+    double mu, sigma;
+    withCacheSnapshot([&] {
+        mu = mu_;
+        sigma = sigma_;
+    });
+    return std::exp(mu - sigma * sigma);
 }
 
 double LogNormalDistribution::getMedian() const {
@@ -507,18 +418,12 @@ double LogNormalDistribution::getMedian() const {
 }
 
 double LogNormalDistribution::getEntropy() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held — no TOCTOU gap.
-        // H = log(σ) + μ + ½(1 + log(2π))
-        return logSigma_ + mu_ + detail::HALF * (detail::ONE + detail::LN_2PI);
-    }
-    // H = log(σ) + μ + ½(1 + log(2π))
-    return logSigma_ + mu_ + detail::HALF * (detail::ONE + detail::LN_2PI);
+    double ls, mu;
+    withCacheSnapshot([&] {
+        ls = logSigma_;
+        mu = mu_;
+    });
+    return ls + mu + detail::HALF * (detail::ONE + detail::LN_2PI);
 }
 
 //==============================================================================
@@ -532,26 +437,13 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
         *this, values, results, hint, detail::OperationType::PDF,
         [](const LogNormalDistribution& d, double x) { return d.getProbability(x); },
         [](const LogNormalDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    d.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held — no TOCTOU gap.
-                const double mu = d.mu_;
-                const double neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                const double log_norm_const = d.logNormConst_;
-                d.getProbabilityBatchUnsafeImpl(vals, res, count, mu, neg_inv_2sigma2,
-                                                log_norm_const);
-                return;
-            }
-            // Cache hit — read directly under shared_lock (no gap possible)
-            const double mu = d.mu_;
-            const double neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-            const double log_norm_const = d.logNormConst_;
-            lock.unlock();
-            d.getProbabilityBatchUnsafeImpl(vals, res, count, mu, neg_inv_2sigma2, log_norm_const);
+            double mu, ni2s2, lnc;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                ni2s2 = d.negInv2SigmaSquared_;
+                lnc = d.logNormConst_;
+            });
+            d.getProbabilityBatchUnsafeImpl(vals, res, count, mu, ni2s2, lnc);
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -560,24 +452,12 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            double mu, neg_inv_2sigma2, log_norm_const;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    mu = d.mu_;  // snapshot while unique_lock still held
-                    neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                    log_norm_const = d.logNormConst_;
-                } else {
-                    mu = d.mu_;  // snapshot while shared_lock still held
-                    neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                    log_norm_const = d.logNormConst_;
-                }
-            }
-
+            double mu, ni2s2, lnc;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                ni2s2 = d.negInv2SigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -586,7 +466,7 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                     } else {
                         const double log_x = std::log(x);
                         const double z = log_x - mu;
-                        res[i] = std::exp(neg_inv_2sigma2 * z * z - log_x + log_norm_const);
+                        res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
                     }
                 });
             } else {
@@ -597,7 +477,7 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                     } else {
                         const double log_x = std::log(x);
                         const double z = log_x - mu;
-                        res[i] = std::exp(neg_inv_2sigma2 * z * z - log_x + log_norm_const);
+                        res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
                     }
                 }
             }
@@ -610,24 +490,12 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            double mu, neg_inv_2sigma2, log_norm_const;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    mu = d.mu_;  // snapshot while unique_lock still held
-                    neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                    log_norm_const = d.logNormConst_;
-                } else {
-                    mu = d.mu_;  // snapshot while shared_lock still held
-                    neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                    log_norm_const = d.logNormConst_;
-                }
-            }
-
+            double mu, ni2s2, lnc;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                ni2s2 = d.negInv2SigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= detail::ZERO_DOUBLE) {
@@ -635,7 +503,7 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
                 } else {
                     const double log_x = std::log(x);
                     const double z = log_x - mu;
-                    res[i] = std::exp(neg_inv_2sigma2 * z * z - log_x + log_norm_const);
+                    res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
                 }
             });
             pool.waitForAll();
@@ -649,27 +517,13 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
         *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const LogNormalDistribution& d, double x) { return d.getLogProbability(x); },
         [](const LogNormalDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    d.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held — no TOCTOU gap.
-                const double mu = d.mu_;
-                const double neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                const double log_norm_const = d.logNormConst_;
-                d.getLogProbabilityBatchUnsafeImpl(vals, res, count, mu, neg_inv_2sigma2,
-                                                   log_norm_const);
-                return;
-            }
-            // Cache hit — read directly under shared_lock (no gap possible)
-            const double mu = d.mu_;
-            const double neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-            const double log_norm_const = d.logNormConst_;
-            lock.unlock();
-            d.getLogProbabilityBatchUnsafeImpl(vals, res, count, mu, neg_inv_2sigma2,
-                                               log_norm_const);
+            double mu, ni2s2, lnc;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                ni2s2 = d.negInv2SigmaSquared_;
+                lnc = d.logNormConst_;
+            });
+            d.getLogProbabilityBatchUnsafeImpl(vals, res, count, mu, ni2s2, lnc);
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -678,24 +532,12 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            double mu, neg_inv_2sigma2, log_norm_const;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    mu = d.mu_;  // snapshot while unique_lock still held
-                    neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                    log_norm_const = d.logNormConst_;
-                } else {
-                    mu = d.mu_;  // snapshot while shared_lock still held
-                    neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                    log_norm_const = d.logNormConst_;
-                }
-            }
-
+            double mu, ni2s2, lnc;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                ni2s2 = d.negInv2SigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -704,7 +546,7 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                     } else {
                         const double log_x = std::log(x);
                         const double z = log_x - mu;
-                        res[i] = neg_inv_2sigma2 * z * z - log_x + log_norm_const;
+                        res[i] = ni2s2 * z * z - log_x + lnc;
                     }
                 });
             } else {
@@ -715,7 +557,7 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                     } else {
                         const double log_x = std::log(x);
                         const double z = log_x - mu;
-                        res[i] = neg_inv_2sigma2 * z * z - log_x + log_norm_const;
+                        res[i] = ni2s2 * z * z - log_x + lnc;
                     }
                 }
             }
@@ -728,24 +570,12 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
             if (count == 0)
                 return;
 
-            double mu, neg_inv_2sigma2, log_norm_const;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    mu = d.mu_;  // snapshot while unique_lock still held
-                    neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                    log_norm_const = d.logNormConst_;
-                } else {
-                    mu = d.mu_;  // snapshot while shared_lock still held
-                    neg_inv_2sigma2 = d.negInv2SigmaSquared_;
-                    log_norm_const = d.logNormConst_;
-                }
-            }
-
+            double mu, ni2s2, lnc;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                ni2s2 = d.negInv2SigmaSquared_;
+                lnc = d.logNormConst_;
+            });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= detail::ZERO_DOUBLE) {
@@ -753,7 +583,7 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
                 } else {
                     const double log_x = std::log(x);
                     const double z = log_x - mu;
-                    res[i] = neg_inv_2sigma2 * z * z - log_x + log_norm_const;
+                    res[i] = ni2s2 * z * z - log_x + lnc;
                 }
             });
             pool.waitForAll();
@@ -767,23 +597,12 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
         *this, values, results, hint, detail::OperationType::CDF,
         [](const LogNormalDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const LogNormalDistribution& d, const double* vals, double* res, size_t count) {
-            std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-            if (!d.cache_valid_) {
-                lock.unlock();
-                std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                if (!d.cache_valid_)
-                    d.updateCacheUnsafe();
-                // Snapshot while unique_lock is still held — no TOCTOU gap.
-                const double mu = d.mu_;
-                const double inv_sigma_sqrt2 = d.invSigmaSqrt2_;
-                d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, mu, inv_sigma_sqrt2);
-                return;
-            }
-            // Cache hit — read directly under shared_lock (no gap possible)
-            const double mu = d.mu_;
-            const double inv_sigma_sqrt2 = d.invSigmaSqrt2_;
-            lock.unlock();
-            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, mu, inv_sigma_sqrt2);
+            double mu, iss2;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                iss2 = d.invSigmaSqrt2_;
+            });
+            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, mu, iss2);
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -792,36 +611,22 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
             if (count == 0)
                 return;
 
-            double mu, inv_sigma_sqrt2;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    mu = d.mu_;  // snapshot while unique_lock still held
-                    inv_sigma_sqrt2 = d.invSigmaSqrt2_;
-                } else {
-                    mu = d.mu_;  // snapshot while shared_lock still held
-                    inv_sigma_sqrt2 = d.invSigmaSqrt2_;
-                }
-            }
-
-            // Chunk so each task runs the vector_erf SIMD pipeline rather than
-            // calling scalar detail::normal_cdf per element.
+            double mu, iss2;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                iss2 = d.invSigmaSqrt2_;
+            });
             constexpr std::size_t CHUNK = 1024;
             if (arch::should_use_parallel(count)) {
                 const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
                 ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
                     const std::size_t start = ci * CHUNK;
                     const std::size_t len = std::min(CHUNK, count - start);
-                    d.getCumulativeProbabilityBatchUnsafeImpl(
-                        vals.data() + start, res.data() + start, len, mu, inv_sigma_sqrt2);
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, mu, iss2);
                 });
             } else {
-                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, mu,
-                                                          inv_sigma_sqrt2);
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, mu, iss2);
             }
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res,
@@ -832,29 +637,18 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
             if (count == 0)
                 return;
 
-            double mu, inv_sigma_sqrt2;
-            {
-                std::shared_lock<std::shared_mutex> lock(d.cache_mutex_);
-                if (!d.cache_valid_) {
-                    lock.unlock();
-                    std::unique_lock<std::shared_mutex> ulock(d.cache_mutex_);
-                    if (!d.cache_valid_)
-                        d.updateCacheUnsafe();
-                    mu = d.mu_;  // snapshot while unique_lock still held
-                    inv_sigma_sqrt2 = d.invSigmaSqrt2_;
-                } else {
-                    mu = d.mu_;  // snapshot while shared_lock still held
-                    inv_sigma_sqrt2 = d.invSigmaSqrt2_;
-                }
-            }
-
+            double mu, iss2;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                iss2 = d.invSigmaSqrt2_;
+            });
             constexpr std::size_t CHUNK = 1024;
             const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
             pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
                 const std::size_t start = ci * CHUNK;
                 const std::size_t len = std::min(CHUNK, count - start);
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
-                                                          len, mu, inv_sigma_sqrt2);
+                                                          len, mu, iss2);
             });
             pool.waitForAll();
         });

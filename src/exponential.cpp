@@ -185,28 +185,16 @@ double ExponentialDistribution::getProbability(double x) const {
         return detail::ZERO_DOUBLE;
     }
 
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const bool is_unit = isUnitRate_;
-        const double lam = lambda_, neg_lam = negLambda_;
-        if (is_unit)
-            return std::exp(-x);
-        return lam * std::exp(neg_lam * x);
-    }
-
-    // Fast path for unit exponential (λ = 1)
-    if (isUnitRate_) {
+    bool is_unit;
+    double lam, neg_lam;
+    withCacheSnapshot([&] {
+        is_unit = isUnitRate_;
+        lam = lambda_;
+        neg_lam = negLambda_;
+    });
+    if (is_unit)
         return std::exp(-x);
-    }
-
-    // General case: f(x) = λ * exp(-λx)
-    return lambda_ * std::exp(negLambda_ * x);
+    return lam * std::exp(neg_lam * x);
 }
 
 double ExponentialDistribution::getLogProbability(double x) const {
@@ -215,28 +203,16 @@ double ExponentialDistribution::getLogProbability(double x) const {
         return detail::NEGATIVE_INFINITY;
     }
 
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const bool is_unit = isUnitRate_;
-        const double log_lam = logLambda_, neg_lam = negLambda_;
-        if (is_unit)
-            return -x;
-        return log_lam + neg_lam * x;
-    }
-
-    // Fast path for unit exponential (λ = 1)
-    if (isUnitRate_) {
+    bool is_unit;
+    double log_lam, neg_lam;
+    withCacheSnapshot([&] {
+        is_unit = isUnitRate_;
+        log_lam = logLambda_;
+        neg_lam = negLambda_;
+    });
+    if (is_unit)
         return -x;
-    }
-
-    // General case: log(f(x)) = log(λ) - λx
-    return logLambda_ + negLambda_ * x;
+    return log_lam + neg_lam * x;
 }
 
 double ExponentialDistribution::getCumulativeProbability(double x) const {
@@ -245,28 +221,15 @@ double ExponentialDistribution::getCumulativeProbability(double x) const {
         return detail::ZERO_DOUBLE;
     }
 
-    // Ensure cache is valid
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const bool is_unit = isUnitRate_;
-        const double neg_lam = negLambda_;
-        if (is_unit)
-            return detail::ONE - std::exp(-x);
-        return detail::ONE - std::exp(neg_lam * x);
-    }
-
-    // Fast path for unit exponential (λ = 1)
-    if (isUnitRate_) {
+    bool is_unit;
+    double neg_lam;
+    withCacheSnapshot([&] {
+        is_unit = isUnitRate_;
+        neg_lam = negLambda_;
+    });
+    if (is_unit)
         return detail::ONE - std::exp(-x);
-    }
-
-    // General case: F(x) = 1 - exp(-λx)
-    return detail::ONE - std::exp(negLambda_ * x);
+    return detail::ONE - std::exp(neg_lam * x);
 }
 
 double ExponentialDistribution::getQuantile(double p) const {
@@ -281,60 +244,28 @@ double ExponentialDistribution::getQuantile(double p) const {
         return std::numeric_limits<double>::infinity();
     }
 
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    if (!cache_valid_) {
-        lock.unlock();
-        std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        // Snapshot while unique_lock is still held.
-        const bool is_unit = isUnitRate_;
-        const double inv_lam = invLambda_;
-        if (is_unit)
-            return -std::log(detail::ONE - p);
-        return -std::log(detail::ONE - p) * inv_lam;
-    }
-
-    // Fast path for unit exponential (λ = 1)
-    if (isUnitRate_) {
+    bool is_unit;
+    double inv_lam;
+    withCacheSnapshot([&] {
+        is_unit = isUnitRate_;
+        inv_lam = invLambda_;
+    });
+    if (is_unit)
         return -std::log(detail::ONE - p);
-    }
-
-    // General case: F^(-1)(p) = -ln(1-p)/λ
-    return -std::log(detail::ONE - p) * invLambda_;
+    return -std::log(detail::ONE - p) * inv_lam;
 }
 
 double ExponentialDistribution::sample(std::mt19937& rng) const {
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
     bool cached_is_unit_rate;
     double cached_inv_lambda;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            cached_is_unit_rate = isUnitRate_;
-            cached_inv_lambda = invLambda_;
-        } else {
-            cached_is_unit_rate = isUnitRate_;
-            cached_inv_lambda = invLambda_;
-        }
-    }
-
-    // Use high-quality uniform distribution
+    withCacheSnapshot([&] {
+        cached_is_unit_rate = isUnitRate_;
+        cached_inv_lambda = invLambda_;
+    });
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
-
-    double u = uniform(rng);
-
-    // Fast path for unit exponential (λ = 1)
-    if (cached_is_unit_rate) {
+    const double u = uniform(rng);
+    if (cached_is_unit_rate)
         return -std::log(u);
-    }
-
-    // General case: inverse transform sampling
-    // X = -ln(U)/λ where U ~ Uniform(0,1)
     return -std::log(u) * cached_inv_lambda;
 }
 
@@ -342,23 +273,12 @@ std::vector<double> ExponentialDistribution::sample(std::mt19937& rng, size_t n)
     std::vector<double> samples;
     samples.reserve(n);
 
-    // Snapshot cached fields; no re-acquire = no TOCTOU gap.
     bool cached_is_unit_rate;
     double cached_inv_lambda;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            cached_is_unit_rate = isUnitRate_;
-            cached_inv_lambda = invLambda_;
-        } else {
-            cached_is_unit_rate = isUnitRate_;
-            cached_inv_lambda = invLambda_;
-        }
-    }
+    withCacheSnapshot([&] {
+        cached_is_unit_rate = isUnitRate_;
+        cached_inv_lambda = invLambda_;
+    });
 
     // Use high-quality uniform distribution for batch generation
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
