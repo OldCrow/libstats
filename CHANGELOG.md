@@ -1,3 +1,15 @@
+## [2.0.4] - 2026-07-05
+
+### Refactoring
+
+- **Unified DCL snapshot pattern (`withCacheSnapshot`)**: Extracted the
+  double-checked locking + cache snapshot protocol used in every distribution
+  into a single `ThreadSafeCacheManager::withCacheSnapshot(SnapshotFn&&)` helper
+  (`include/core/distribution_cache.h`). All Pattern A (scalar methods) and
+  Pattern B (batch lambda) DCL blocks across 17 distribution source files replaced
+  with the unified helper. ~200 occurrences eliminated; no API or behavioural
+  change. 69/69 tests pass.
+
 ## [2.0.3] - 2026-07-04
 
 ### Performance

@@ -70,7 +70,7 @@ endif()
 
 project(
     libstats
-    VERSION 2.0.3
+    VERSION 2.0.4
     LANGUAGES CXX)
 
 # v2.x compiler baseline. Fail early with actionable messages.
