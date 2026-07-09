@@ -2,28 +2,23 @@
 
 This file provides project-scoped guidance to AI agents and contributors working in this repository.
 
-# libstats - Modern C++20 Statistical Distributions Library
-
 ## Project Overview
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current Status**: v2.0.4 on `main` — 46/46 correctness + 22/22 timing tests pass on
-Mac Mini M1 NEON; Kaby Lake AVX2+FMA and Asus TUF A16 AVX-512 validated via CI.
-v1.5.3 is the final v1.x release.
+**Current status**: v2.0.4 on `main` — 19 distributions across 7 families, 46/46 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON; Asus TUF A16 AVX-512 re-validation pending after audit remediation. v1.5.3 is the final v1.x release.
 
-19 distributions implemented across 7 families (Geometric, Laplace, Cauchy added 2026-06-28).
-v2.0.0 breaking changes (relative to v1.5.3):
+For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
+
+**v2.0.0 breaking changes** (relative to v1.5.3 — see `MIGRATION_GUIDE.md` for the complete old→new call mapping):
 - Platform baseline raised to macOS 13 Ventura; AppleClang 15+, GCC 13+, Clang 17+, MSVC 19.38+.
 - Alternate Homebrew LLVM compiler path removed; system AppleClang only on macOS.
-- All statistical analysis methods extracted from distribution classes to `stats::analysis` namespace
-  (see `MIGRATION_GUIDE.md` for the complete old→new call mapping).
+- All statistical analysis methods extracted from distribution classes to `stats::analysis` namespace.
 - `likelihoodRatioTest` requires explicit `df` parameter (position 4, before `alpha`).
 - `kolmogorovSmirnovTest`/`andersonDarlingTest` constrained to `ContinuousDistribution` concept.
 - `VoidResult = Result<std::monostate>`; success path is `VoidResult::ok({})` not `ok(true)`.
 - `validateBetaParameters`, `validateChiSquaredParameters`, `validateStudentTParameters` are now
-  free functions in `error_handling.h`; they are no longer private static members of their
-  respective distribution classes.
+  free functions in `error_handling.h`; no longer private static members of their distribution classes.
 - `FittableDistribution` concept enforces `std::default_initializable<D>` + `fit()` on bootstrap
   and cross-validation templates.
 - `AnyDistribution` concept now requires `getSkewness()` and `getKurtosis()`.
@@ -32,18 +27,9 @@ v2.0.0 breaking changes (relative to v1.5.3):
 - `WorkStealingPool::getOptimalThreadCount()` capped at 32 workers.
 - Strategy-suffix batch methods, vector-returning batch helpers, `LibDistributionType`,
   `CROSS_PLATFORM` build type, and `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` removed.
-- `noexcept` move constructors across all 19 distributions.
-- `WorkStealingPool::parallelFor` per-call fence.
 - Legacy `validation.cpp` / `validation.h` ecosystem deleted; use `stats::analysis` instead.
-- `BinomialDistribution::getEntropy()` now uses exact PMF summation for n ≤ 1000 (nats).
-- `PoissonDistribution::sample()` large-lambda path uses `std::poisson_distribution<int>` (exact).
-- Include shim uses directory symlink on macOS/Linux; header edits are live without cmake re-run.
-- `include/core/distribution_meta.h` (new): canonical `kDistributionMeta[]` table is the single
-  registration point for all distribution metadata; `include/core/distribution_type.h` holds the enum.
 
-Three-machine validation ecosystem: Kaby Lake AVX2+FMA, Mac Mini M1 NEON, Asus TUF A16 AVX-512.
-
-## Session Start Baseline Workflow (Required)
+## Session Start
 
 At the start of every session, perform these steps in order:
 
@@ -67,7 +53,7 @@ sysctl -n machdep.cpu.brand_string 2>/dev/null || true
 $env:PROCESSOR_IDENTIFIER
 ```
 
-### Why SIMD Detection Matters
+### Why SIMD detection matters
 
 The active SIMD tier changes fundamentally between machines. SIMD code paths, performance thresholds, and test results are architecture-dependent. If the machine has changed since the last session:
 - Note the change explicitly.
@@ -85,13 +71,11 @@ The active SIMD tier changes fundamentally between machines. SIMD code paths, pe
 The machines in the Development Ecosystem table are examples; any CPU with the same SIMD capabilities follows the same code paths.
 
 Platform routing rules (OS/toolchain selection — SIMD tier is determined automatically at compile time by CPU feature detection):
-- **macOS (Ventura 13+ required):** Use the standard CMake flow in the `Essential Build Commands` section.
-- **Windows/MSVC:** Follow `Windows Session Setup` below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
+- **macOS (Ventura 13+ required):** Use the standard CMake flow in the Build Commands section.
+- **Windows/MSVC:** Follow Platform-Specific Notes below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current Validation Matrix
-
-**v2.0.4 — current release (three machines)**
+### Current validation matrix (v2.0.4)
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
@@ -99,296 +83,117 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 | Kaby Lake (2017 MBP) | AVX2+FMA | 46/46 ✅ | — | CI validated |
 | Asus TUF A16 (Windows) | AVX-512 | 46/46 ✅ | — | CI validated |
 
-**v2.0.0 — validation target (three machines)**
+For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
 
-Ivy Bridge / macOS Catalina dropped from the ecosystem in v2.0.0 (Catalina EOL;
-minimum macOS raised to 13 Ventura).
+## Build Commands
 
-| Machine | SIMD | Target | Notes |
-|---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 46/46 ✅ | Audit remediation complete (2026-07-01) |
-||| Mac Mini M1 | NEON | 46/46 ✅ | Audit remediation complete (2026-07-01) |
-| Asus TUF A16 (Windows) | AVX-512 | 46/46 ✅ | Re-validation required after audit remediation |
+### Quick Build
+```bash
+# macOS/Linux — standard development build (default 'Dev' build type)
+cmake -B build
+cmake --build build --parallel   # equivalent to make -j$(nproc)
+ctest --test-dir build --output-on-failure
+```
 
-**v1.5.2 — final v1.x release (four machines)**
+Windows: use the commands in Platform-Specific Notes below.
 
-| Machine | SIMD | Correctness | Notes |
-|---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | |
-| Ivy Bridge (2012 MBP) | AVX | 38/38 ✅ | (last version with Catalina) |
-| Mac Mini M1 | NEON | 39/39 ✅ | |
-| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | |
+### Common Build Configurations
+```bash
+# Development (default) - light optimization with debug info
+cmake ..
 
-**v1.5.1 — validated on all four machines**
+# Production release - maximum optimization
+cmake -DCMAKE_BUILD_TYPE=Release ..
 
-`simd_verification` reports **geometric mean speedups** per operation type (PDF/LogPDF/CDF)
-and per primitive vector op, not a single composite. See `tools/simd_verification.cpp` for rationale.
+# Full debugging support
+cmake -DCMAKE_BUILD_TYPE=Debug ..
 
-| Machine | SIMD | Correctness | Total suite | simd_verification | PDF geomean | LogPDF geomean | CDF geomean |
-|---|---|---|---|---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | 61 | 61/61 ✅ | 8.0x | 9.6x | 3.3x |
-| Mac Mini M1 | NEON | 39/39 ✅ | 61 | 61/61 ✅ | 5.9x | 7.3x | 3.1x |
-| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 61 | 61/61 ✅ | 4.8x | 5.1x | 2.2x |
+# Strict compiler warnings as errors (for compatibility testing)
+cmake -DCMAKE_BUILD_TYPE=Strict ..   # v2.0.0: unified Strict mode replaces legacy compiler-specific strict aliases
+```
 
-Kaby Lake primitive vector op speedups (v1.5.0 Phase 1+2): VectorExp 3.4x, VectorLog 1.7x, VectorErf 2.5x, VectorCos 4.9x.
-Mac Mini M1 primitive vector op speedups (v1.5.0 Phase 3): VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
-Asus TUF A16 primitive vector op speedups (v1.5.0 Phase 4): VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
+### CMake Options
+```bash
+# Enable verbose build messages for debugging
+cmake -DLIBSTATS_VERBOSE_BUILD=ON ..
 
-**v1.4.0 baseline — all four machines**
+# Force TBB usage over platform-native threading
+cmake -DLIBSTATS_FORCE_TBB=ON ..
 
-| Machine | SIMD | Correctness | Total suite | simd_verification | Overall |
-|---|---|---|---|---|---|
-| Kaby Lake (2017 MBP) | AVX2 | 39/39 ✅ | 59 | 54/54 ✅ | 3.35x |
-| Mac Mini M1 | NEON | 39/39 ✅ | 59 | 54/54 ✅ | 2.31x |
-| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 59 | 54/54 ✅ | 1.64x |
+# Disable tools or tests
+cmake -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF ..
+```
 
-**Total suite counts differ by machine (v1.5.0):**
-- Kaby Lake (61): v1.5.0 adds VonMises distribution rows + 4 primitive vector op rows to `simd_verification`.
-- Mac Mini M1 (61): Phase 3 validated ✅.
-- Asus TUF A16 (61): Phase 4 validated ✅.
+The build system supports cross-compiler compatibility testing with specialized build types that enable consistent warning levels across GCC, Clang, and MSVC.
 
-> **v2.0.0:** macOS minimum raised to 13 Ventura. Ivy Bridge / Catalina support dropped.
-> `CROSS_PLATFORM` build type and `LIBSTATS_HAS_REQUIRES_EXPRESSIONS` removed.
-> Alternate LLVM compiler infrastructure removed; use system AppleClang.
+### Build System Features
+- **Automatic parallel detection**: Detects CPU cores and configures optimal builds
+- **Compiler detection**: System AppleClang on macOS (Ventura 13+); GCC 13+ / Clang 17+ on Linux
+- **SIMD optimization**: Runtime CPU feature detection with fallbacks
+- **Cross-platform**: Native Windows, macOS, Linux support
 
-### SIMD Batch Operation Speedups (Ivy Bridge AVX — v1.5.0, historical)
-v1.5.0 results on Ivy Bridge AVX (61/61 simd_verification ✅): PDF geomean 5.6x, LogPDF 6.0x, CDF 2.6x.
-Primitive ops: VectorExp 2.2x, VectorLog 1.3x, VectorErf 1.7x, VectorCos 11.0x.
+### Important Build Directories
+- **Executables**: `build/tools/` (never `bin/` - this doesn't exist)
+- **Tests**: `build/tests/`
+- **Examples**: `build/` (built by examples/CMakeLists.txt)
 
-Selected per-distribution speedups:
+### Development Tools
+```bash
+# System analysis and diagnostics
+./build/tools/system_inspector --full
+./build/tools/cpp20_features_inspector
 
-| Distribution | Op | Speedup |
-|---|---|---|
-| Uniform | PDF | 122.4x |
-| Uniform | LogPDF | 118.4x |
-| Uniform | CDF | 27.0x |
-| Gaussian | LogPDF | 44.1x |
-| Exponential | LogPDF | 35.4x |
-| VonMises | LogPDF | 18.2x |
-| Exponential | PDF | 14.5x |
-| Exponential | CDF | 7.5x |
-| Gamma | PDF | 8.2x |
+# Performance analysis
+./build/tools/strategy_profile
+./build/tools/simd_verification
 
-### Post-completion fixes (2026-06-24 to 2026-06-25, still on feat/v2-architecture)
-- **kNeon recalibration** (2026-06-24, fb8e8b6 bundles): Prior kNeon table used a profiler grid
-  starting at 8 elements; timer jitter at sub-64 sizes produced false parallel-wins clamped to 64.
-  New 64-element grid floor reveals true crossovers of 128–75 000 for ~12 affected entries.
-  Notable changes: Gaussian PDF 64→25 000; Exponential PDF/CDF 64→50 000/25 000; Gamma PDF 64→50 000;
-  Beta/Binomial CDF/NegBinomial CDF gained new crossovers (previously NEVER).
-  Measurement artifacts and warm-state bias documented in `scripts/PROFILING_METHOD.md`.
-- **Dispatch correctness fixes**: `MAXIMIZE_THROUGHPUT` hint now routes through
-  `selectMultiThreadedStrategy()` (was hardcoded to WORK_STEALING; Windows gets PARALLEL, 3.3:1 win).
-  `MINIMIZE_LATENCY` cutoff now uses `SIMDPolicy::getMinThreshold()` (was hardcoded 8).
-  `WorkStealingPool::parallelFor` grain size cap of 1024 removed (was overriding the 4x-tasks-per-
-  thread calculation; e.g., 1M/8 workers/4=31 250 was capped to 1024).
-  `thread_local PerformanceDispatcher` changed to `static` (all threads make identical decisions).
-- **Vestigial v1 performance infrastructure removed**: `PerformanceHistory` class (adaptive learning
-  never wired into dispatch), `PerformanceDispatcher::Thresholds` struct and 6 profile factory
-  methods (never consulted by `selectStrategy()`), `SystemCapabilities::benchmarkPerformance()`
-  (3 microbenchmarks including 16 MB bandwidth test ran at cold-start; results never read by
-  dispatch path). `initialize_performance_systems()` now warms up actual thread pool singletons
-  (`GlobalThreadPool`, `GlobalWorkStealingPool`) instead of calling `getOptimalThreadCount()`.
-- **R7 test fixes**: `std::max<long>(1,...)` guard on `simd_time`/`parallel_time`/`work_stealing_time`
-  in four enhanced tests; kNeon changelog comment gap (`UNIFORM PDF: 64→NEVER`) filled.
-### Changes in v2.0.1
-- **`PoissonDistribution::getEntropy()` bug** (`src/poisson.cpp`): exact-summation loop
-  exits at k=0 for λ ≳ 34.5 because `exp(−λ) < 1e-15`, returning 0. Stirling branch
-  threshold lowered from `λ > 100` to `λ > 20` (error < 0.001 nats at λ=20).
-- **`DiscreteDistribution` degenerate-distribution rejection** (`include/core/error_handling.h`,
-  `src/discrete.cpp`): `a >= b` guard incorrectly rejected `create(a, a)`. Relaxed to `a > b`;
-  `getKurtosis()` returns NaN for n=1 (undefined 0/0 singularity).
-### Changes in v2.0.0
-- **Distribution metadata table** (`include/core/distribution_meta.h`): canonical
-  `kDistributionMeta[]` constexpr array with enum name, display name, `is_discrete`, and
-  `is_delegation_wrapper` fields for all 19 registered types. `consteval validateMetaOrdering()`
-  enforces index == enum value at compile time. Accessors: `distributionMeta()`,
-  `distributionMetaSafe()`, `distributionEnumName()`, `distributionDisplayName()`.
-- **`DistributionType` enum extended**: GEOMETRIC(16), LAPLACE(17), CAUCHY(18) appended;
-  all three implemented 2026-06-28; NEVER dispatch thresholds remain until profiled on all machines.
-- **`dispatch_thresholds.h` refactored**: `ArchTable` changed from a named-field struct to
-  `using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>`. `parallelThresholdFromTable`
-  replaces a 15-case switch with a 3-line array index lookup. Adding a distribution now requires
-  only an enum append, a metadata row, and a ThresholdRow per table — no switch edits.
-- **Registration drift fixed**: `performance_history.cpp::distributionTypeToString` (was 6/16 cases,
-  silent key collision) and `tool_utils.h::distributionTypeToString` (was 9/16 cases) replaced with
-  `distributionEnumName()` / `distributionDisplayName()` lookups. `system_inspector.cpp` hardcoded
-  5-type list replaced with `kDistributionMeta` iteration.
-- **Dispatch profiling infrastructure**: `summarize_dispatcher_profile.py` V→P crossover corrected
-  to `min(PARALLEL, WORK_STEALING) < VECTORIZED`; `strategy_profile.cpp` batch grid updated;
-  `capture_dispatcher_profile.sh` rewritten; `scripts/PROFILING_METHOD.md` added as canonical
-  profiling procedure. kNeon (6 entries), kAvx2 (9 entries), and kAvx (inferences) recalibrated;
-  16 pre-v2.0.0 profile bundles removed.
-- **`strategy_profile.cpp` `STRATEGIES` array** documented with a registration comment pointing to
-  the compiler-enforced `executeStrategy` switch as the completeness counterpart.
-- **API rationalization (Parts 1–4)**: `CpuTier` enum collapses 24 vendor-string cascades in
-  `platform_constants_impl.cpp`; Intel classifier functions and redundant cache getters removed
-  from `cpu_detection.h`. `empirical_cdf`, `calculate_quantiles`, `sample_moments`,
-  `validate_fitting_data` promoted from `stats::detail::` to `stats::analysis::` with tests.
-  Deferred SIMD/quantile stubs documented in `math_utils.h` and `safety.h`.
-  `fitWithDiagnostics()` delegates AIC/BIC/log-likelihood to a file-local helper (same formula
-  as `informationCriteria`; bug fix: removed erroneous `isfinite` guard on accumulation).
-  `getEntropy()` promoted from `DistributionBase` to `DistributionInterface`; added to
-  `AnyDistribution` concept. `numericalIntegration`, `newtonRaphsonQuantile`,
-  `adaptiveSimpsonIntegration`, `betaI_continued_fraction` removed from `DistributionBase`
-  (no derived-class callers). `isApproximatelyEqual()` parameter fixed from `const
-  DistributionBase&` to `const DistributionInterface&`. `DistributionValidator` abstract class,
-  `ExtendedValidationError` enum, and 9 dead `detail::` utility functions removed from
-  `distribution_validation.h`; `ValidationResult` and `FitResults` retained. Three orphaned
-  performance constants, `ComputationComplexity` enum, and `complexityToString()` removed.
-  `stats::analysis::discrete::runsTest` and `frequencyTest` now have GTest coverage.
-- **v2.0.0 API migration test debt cleared**: 9 enhanced test files updated to use the
-  span+`PerformanceHint` API; stale NaN/kurtosis/Bootstrap assertions corrected.
+# Dispatcher profiling bundle capture
+./scripts/capture_dispatcher_profile.sh
 
-46/46 correctness tests pass on Kaby Lake AVX2+FMA and Mac Mini M1 NEON (44/44 at v2.0.0;
-Geometric, Laplace, Cauchy added 2026-06-28). Asus TUF A16 (AVX-512): re-run correctness
-suite before PR merge.
+# Cross-compiler compatibility testing
+./scripts/test-cross-compiler.sh --clean
+```
 
-### Deferred Items
-- `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
-  branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
-  (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
-- `vector_lgamma` — too complex, low immediate distribution impact; indefinitely deferred
-- SVE (AArch64 beyond NEON) — no hardware in the ecosystem
-- SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
+### Ad Hoc Compilation Outside CMake
 
-### Changes in v1.5.2
-- **Critical bug fixes (June 2026 audit)**: `gammaQ` infinite recursion fixed with Legendre CF;
-  `bayesianCredibleInterval` now reads `credibility_level` and uses exact Gamma posterior
-  quantiles; `safe_log(+inf)` returns `+inf`; `safe_exp` underflow returns `0.0`.
-- **Thread-safety fixes**: `recordPerformance` min/max updated with CAS loops;
-  `WorkStealingPool` destructor drains tasks before shutdown; `GaussianDistribution`
-  copy constructor acquires source lock before base-class copy; `GammaDistribution`
-  copy constructor uses `shared_lock` on source.
-- **Numerical quality**: `betaI_continued_fraction` near-zero guard fires before division;
-  `ConvergenceDetector` uses `std::deque` for O(1) `pop_front()`; Newton-Raphson
-  near-zero derivative triggers a hard `return x` instead of `break`.
-- **Structural**: `result_of_t` consolidated to `include/platform/internal/type_traits.h`;
-  `RecoveryStrategy` converted to `enum class`; dead `using std::shared_lock` declarations
-  removed from `distribution_common.h`; `PerformanceDispatcher::SIMDArchitecture` and
-  unused `Thresholds` distribution-specific fields deprecated; `LibDistributionType` removed.
-- **Documentation**: `CachedProperty<T>` and `ThreadSafeCacheManager` dual-flag pattern
-  documented; `LogSpaceOps::initialize()` guarded with `call_once`.
+For quick diagnostics and testing, compile directly without CMake. Use the system compiler on
+macOS (Ventura 13+); alternate LLVM compiler setup is not required and not supported in v2.0.0.
 
-Full three-machine validation (v1.5.2): identical correctness to v1.5.1.
-- 39/39 correctness on Kaby Lake, M1, Asus TUF A16
+```bash
+# macOS — system AppleClang (recommended)
+clang++ -std=c++20 -stdlib=libc++ \
+  -I./include \
+  -L./build \
+  your_test.cpp -o test_output ./build/libstats.a
 
-### Changes in v1.5.1
-- **Dispatch table expanded to all 16 distributions**: `kNeon`, `kAvx`, `kAvx2`, `kAvx512` now
-  include calibrated entries for LogNormal, Pareto, Weibull, Rayleigh, VonMises, Binomial, and
-  NegativeBinomial. Two Release-mode profiling bundles per architecture.
-- **Correctness fixes**: `#include <pair>` → `<utility>`; `shouldUseSIMDBatch` delegates to
-  `SIMDPolicy::shouldUseSIMD()`; dead `withCachedParameters` removed; `arch::simd` aliases
-  formalized; `/utf-8` MSVC flag added.
-- **`simd_verification`**: relative error reported for VectorExp/VectorLog (`max_rel=`);
-  absolute diff is meaningless at exp(500)~5e+217 magnitudes.
-- **Test fixes**: dispatcher threshold-aware assertion; `minimal_latency()` thread-count
-  corrected; VonMises tolerance relaxed to 1e-10 for AVX-512 `vector_cos` error floor.
+# Linux — GCC 13+ or Clang 17+
+g++ -std=c++20 -Wall -Wextra -O2 \
+  -I./include \
+  -L./build \
+  your_test.cpp -o test_output -lstats
+```
 
-Full four-machine validation (v1.5.1): identical SIMD performance to v1.5.0.
-- 39/39 correctness, 61/61 `simd_verification` on Kaby Lake, M1, Asus TUF A16
-- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge (last Catalina validation)
+Quick test template:
+```cpp
+#include "libstats.h"
+#include <iostream>
 
-### Changes in v1.5.0
-- **AVX2+FMA native transcendentals**: `vector_exp_avx2` and `vector_log_avx2` replaced
-  AVX-delegation stubs with FMA Horner polynomial (SLEEF-inspired, < 1 ULP). `vector_cos_avx2`
-  replaced AVX delegation with native FMA Horner. Measured: VectorExp 3.6x → 3.4x average
-  (was 1.7x delegating); VectorLog 1.7x (was 1.4x).
-- **High-accuracy `vector_erf`** (all x86 backends): replaced A&S 7.1.26 (~1.5×10⁻⁷) with
-  musl libc four-region rational polynomial (< 1 ULP; measured max error 2.22×10⁻¹⁶).
-  `vector_erf_avx` uses mul+add (−mavx only); `vector_erf_avx2` uses FMA; `vector_erf_sse2`
-  uses `__m128d` with SSE2 and/andnot/or blending. Gaussian CDF SIMD error: 6.97×10⁻⁸ → ~0.
-- **`simd_verification` coverage and reporting**: added VonMises distribution rows and
-  primitive vector op rows (VectorExp/Log/Erf/Cos); 54 → 61 tests. Replaced the single
-  wall-clock composite speedup with per-op-type geometric means (PDF/LogPDF/CDF) and
-  per-primitive individual rows.
-- **NEON native transcendentals** (Phase 3, M1): `vector_exp_neon` (SLEEF FMA Horner,
-  < 1 ULP), `vector_log_neon` (SLEEF atanh series, < 1 ULP), `vector_erf_neon`
-  (ARM glibc table+Taylor, ~2.29 ULP) — validated ✅. 39/39 correctness, 61/61
-  simd_verification. Distribution geomeans: PDF 5.9x, LogPDF 7.3x, CDF 3.1x.
-  Primitive ops: VectorExp 2.1x, VectorLog 1.8x, VectorErf 8.0x, VectorCos 3.0x.
-  `vector_erf_neon` uses a 769-entry precomputed table (`src/neon_erf_data.inc`,
-  12,304 bytes) rather than the musl rational polynomial used by all x86 backends;
-  the table approach eliminates the recursive exp call and achieves 8.0x vs 0.9x
-  for the pure-polynomial version. See Issue #33 for a proposed cross-architecture
-  experiment to evaluate the table approach on exp and log as well.
-- **AVX-512 native transcendentals** (Phase 4, Asus TUF A16): `vector_exp_avx512`,
-  `vector_log_avx512`, `vector_erf_avx512` — validated ✅. 39/39 correctness, 61/61
-  simd_verification. Distribution geomeans: PDF 4.8x, LogPDF 5.1x, CDF 2.2x.
-  Primitive ops: VectorExp 5.0x, VectorLog 3.9x, VectorErf 1.3x, VectorCos 8.5x.
+int main() {
+    auto result = stats::GaussianDistribution::create(0.0, 1.0);
+    if (result.isOk()) {
+        auto& g = *result;  // operator* returns T& (Result<T> redesigned 2026-07-01)
+        std::cout << "PDF at 0: " << g.getProbability(0.0) << "\n";
+        std::cout << "CDF at 1: " << g.getCumulativeProbability(1.0) << "\n";
+    }
+}
+```
 
-Phase 5 (dispatch threshold recalibration):
-- All four `ArchTable` entries in `dispatch_thresholds.h` updated from v1.5.0 bundles.
-- NEON Gaussian CDF: NEVER (table erf unbeatable up to 500k).
-- AVX2 Gaussian PDF: 100000; StudentT PDF: 250000 (FMA exp improvements).
-- AVX-512 Exponential PDF / StudentT PDF+LogPDF: NEVER (8-wide native exp).
+Troubleshooting:
+- **Library not found**: Use static linking (`./build/libstats.a`) instead of `-lstats`.
+- **Header not found**: Verify `-I./include` path is correct relative to the project root.
+- **C++20 features not available**: Ensure compiler version meets minimum (AppleClang 15, GCC 13, Clang 17).
 
-Full four-machine validation (v1.5.0):
-- 39/39 correctness, 61/61 `simd_verification` on Kaby Lake, M1, Asus TUF A16
-- 38/38 correctness, 61/61 `simd_verification` on Ivy Bridge/Catalina
-
-### Changes in v1.4.0
-- **`vector_cos`** added to `VectorOps` across all five SIMD backends (AVX/AVX2/SSE2/NEON/AVX-512).
-  Two-step range reduction + 7-term Horner polynomial; max error ≈ 1×10⁻¹⁰.
-  AVX-512 uses native 8-wide path (`_mm512_roundscale_pd`); SSE2 uses magic-number rounding.
-- **VonMises LogPDF/PDF batch** now SIMD-accelerated via the 4-step pipeline:
-  `scalar_add(−μ)` → `vector_cos` → `scalar_multiply(κ)` → `scalar_add(−ln Z)`.
-- **SIMD dispatch table** (Issue #22): `VectorOps::DispatchTable` replaces 11 repeated
-  5-tier dispatch chains in `simd_dispatch.cpp`; adding a new SIMD tier now requires
-  editing one function (`makeDispatchTable`).
-- Code-review fixes (Findings 1–7): domain constant decoupling, `erf_inv` `static constexpr`,
-  `FeaturesSingleton` Rule of Five, named magic literals, namespace style, clang-tidy config.
-
-Validation (v1.4.0, Kaby Lake AVX2 primary):
-- correctness suite: 39/39 PASS
-- `simd_verification`: 54/54 PASS, overall 3.35x
-
-### Distributions Added in v1.3.0
-New distributions added in v1.3.0:
-- **Binomial** — B(n, p); PMF via lgamma log-space; CDF via I_{1−p}(n−k, k+1);
-  MLE closed-form p̂ = k̄/n̂. VECTORIZED = cached scalar loop.
-- **Negative Binomial** — NB(r, p); real-valued r; PMF via lgamma; CDF via I_p(r, k+1);
-  MLE: MoM seed + Newton–Raphson profile score using digamma/trigamma.
-  Sampling: Gamma(r,(1−p)/p)-Poisson mixture.
-
-Shared utility additions:
-- `detail::trigamma(x)` added to `math_utils`: A&S §6.4.12, accuracy < 2×10⁻¹⁴.
-
-Validation (v1.3.0, Kaby Lake AVX2 primary):
-- correctness suite: 39/39 PASS
-- `simd_verification`: 54/54 PASS, overall 4.10x (unchanged — discrete distributions use scalar loops)
-
-### Distributions Added in v1.0.0
-New distributions added in v1.0.0:
-- **Student's t** — standalone implementation with SIMD log-space PDF/LogPDF and CDF via incomplete beta
-- **Chi-squared** — delegation wrapper over Gamma(α=ν/2, β=1/2)
-- **Beta** — standalone bounded-support distribution with two-log SIMD PDF/LogPDF and CDF via regularized incomplete beta
-
-Shared utility additions:
-- `detail::digamma(x)` promoted into `math_utils`
-- `detail::inverse_beta_i(p, a, b)` added for Beta quantiles
-
-Validation (v1.0.0):
-
-Ivy Bridge AVX (historical — Catalina support dropped in v2.0.0):
-- correctness suite: 34/34 PASS
-- `simd_verification`: 54/54 PASS, overall 4.10x
-- new-distribution speedups: Chi-squared PDF 9.5x/LogPDF 7.0x, Student's t PDF 7.3x/LogPDF 7.6x,
-  Beta PDF 4.6x/LogPDF 4.4x
-
-Asus TUF A16 (Windows, AVX-512 — first AVX-512 validation):
-- correctness suite: 33/33 PASS (GTest available via vcpkg gtest:x64-windows 1.17.0)
-- `simd_verification`: 54/54 PASS, overall 1.64x
-- AVX-512 arithmetic/log-space paths: Gaussian LogPDF 21.9x, Exponential LogPDF 11.8x,
-  Uniform LogPDF 7.5x — strong where transcendentals are not involved
-- Overall speedup limited by transcendental delegation to AVX (see Deferred Items)
-
-Kaby Lake AVX2 (2017 MBP):
-- correctness suite: 33/33 PASS
-- `simd_verification`: 54/54 PASS, overall 3.49x
-- new-distribution speedups: Chi-squared PDF 13.8x/LogPDF 10.5x, Student's t PDF 6.3x/LogPDF 18.4x,
-  Beta PDF 5.3x/LogPDF 4.1x
-
-All four machines validated at v1.0.0 (Ivy Bridge/Catalina dropped in v2.0.0).
+## Platform-Specific Notes
 
 ### Development Ecosystem
 
@@ -398,15 +203,11 @@ All four machines validated at v1.0.0 (Ivy Bridge/Catalina dropped in v2.0.0).
 | Mac Mini M1 | macOS Tahoe | Apple Silicon M1 | NEON only | ARM/NEON path validation |
 | Asus TUF A16 (2025) | Windows 11 Pro | AMD Ryzen 7 7445 (Zen 4) | SSE2 + AVX + AVX2 + **AVX-512** | Windows/MSVC + first AVX-512 machine |
 
-**Note:** The Asus TUF A16 (Ryzen 7 7445, Zen 4) is the first machine in this ecosystem with AVX-512 support.
-`simd_avx512.cpp` was first exercised there at v1.0.0; 54/54 SIMD tests pass.
-The `test_simd_policy` AVX-512 string (`"AVX-512"`) was confirmed correct.
-
-**Note:** If setting up a fresh Windows machine, the build environment must be configured from scratch; see the one-time setup notes below.
+The Asus TUF A16 (Ryzen 7 7445, Zen 4) is the first machine in this ecosystem with AVX-512 support. AMD Precision Boost 2 steps down from boost (~4.5–5 GHz) to TDP-limited sustained frequency under sustained 100% CPU load — this is a thermal-stable power constraint, not thermal throttling, and can look like a dispatch-threshold anomaly if not accounted for (see `docs/VALIDATION_HISTORY.md` v2.0.3 notes).
 
 ### Windows Session Setup
 
-> **Windows tool paths vary** by installation method (direct installer, `winget`, `chocolatey`, Microsoft Store, etc.). The paths below are common defaults — adjust for your installation. VS Build Tools and full VS editions use different default directories; see the one-time setup notes below for alternatives and auto-detection.
+> **Windows tool paths vary** by installation method (direct installer, `winget`, `chocolatey`, Microsoft Store, etc.). The paths below are common defaults — adjust for your installation. VS Build Tools and full VS editions use different default directories; see One-time setup notes below for alternatives and auto-detection.
 
 Before building or running tests in a new PowerShell session on Windows:
 
@@ -460,102 +261,7 @@ flag cleans Release artifacts but leaves existing Debug EXEs untouched if their 
 - Build: `cmake --build . --config Release --parallel`
 - GTest installed via vcpkg (`gtest:x64-windows 1.17.0`) — all 33 correctness tests pass
 
-## Essential Build Commands
-
-### Quick Build
-```bash
-# macOS/Linux — standard development build (default 'Dev' build type)
-cmake -B build
-cmake --build build --parallel   # equivalent to make -j$(nproc)
-ctest --test-dir build --output-on-failure
-```
-
-Windows: use the commands in the `Windows Session Setup` section above.
-
-### Common Build Configurations
-```bash
-# Development (default) - light optimization with debug info
-cmake ..
-
-# Production release - maximum optimization
-cmake -DCMAKE_BUILD_TYPE=Release ..
-
-# Full debugging support
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-
-# Strict compiler warnings as errors (for compatibility testing)
-cmake -DCMAKE_BUILD_TYPE=Strict ..   # v2.0.0: unified Strict mode replaces legacy compiler-specific strict aliases
-```
-
-### Build System Features
-- **Automatic parallel detection**: Detects CPU cores and configures optimal builds
-- **Compiler detection**: System AppleClang on macOS (Ventura 13+); GCC 13+ / Clang 17+ on Linux
-- **SIMD optimization**: Runtime CPU feature detection with fallbacks
-- **Cross-platform**: Native Windows, macOS, Linux support
-
-### Important Build Directories
-- **Executables**: `build/tools/` (never `bin/` - this doesn't exist)
-- **Tests**: `build/tests/`
-- **Examples**: `build/` (built by examples/CMakeLists.txt)
-
-### Development Tools
-```bash
-# System analysis and diagnostics
-./build/tools/system_inspector --full
-./build/tools/cpp20_features_inspector
-
-# Performance analysis
-./build/tools/strategy_profile
-./build/tools/simd_verification
-
-# Dispatcher profiling bundle capture
-./scripts/capture_dispatcher_profile.sh
-
-# Cross-compiler compatibility testing
-./scripts/test-cross-compiler.sh --clean
-```
-
-## Ad Hoc Compilation Outside CMake
-
-For quick diagnostics and testing, compile directly without CMake. Use the system compiler on
-macOS (Ventura 13+); alternate LLVM compiler setup is not required and not supported in v2.0.0.
-
-### macOS / Linux
-```bash
-# macOS — system AppleClang (recommended)
-clang++ -std=c++20 -stdlib=libc++ \
-  -I./include \
-  -L./build \
-  your_test.cpp -o test_output ./build/libstats.a
-
-# Linux — GCC 13+ or Clang 17+
-g++ -std=c++20 -Wall -Wextra -O2 \
-  -I./include \
-  -L./build \
-  your_test.cpp -o test_output -lstats
-```
-
-#### Quick Test Template
-```cpp
-#include "libstats.h"
-#include <iostream>
-
-int main() {
-    auto result = stats::GaussianDistribution::create(0.0, 1.0);
-    if (result.isOk()) {
-        auto& g = *result;  // operator* returns T& (Result<T> redesigned 2026-07-01)
-        std::cout << "PDF at 0: " << g.getProbability(0.0) << "\n";
-        std::cout << "CDF at 1: " << g.getCumulativeProbability(1.0) << "\n";
-    }
-}
-```
-
-### Troubleshooting
-- **Library not found**: Use static linking (`./build/libstats.a`) instead of `-lstats`.
-- **Header not found**: Verify `-I./include` path is correct relative to the project root.
-- **C++20 features not available**: Ensure compiler version meets minimum (AppleClang 15, GCC 13, Clang 17).
-
-## Project Architecture
+## Architecture
 
 ### High-Level Structure
 
@@ -617,9 +323,9 @@ Each implemented distribution provides: PDF/CDF/Quantiles, Statistical Moments, 
 - **Threading Systems**: Comprehensive detection (TBB, OpenMP, pthreads, GCD, Windows Thread Pool)
 - **Memory Management**: SIMD-aligned allocations and cache-aware algorithms
 
-## Code Organization
+### Code Organization
 
-### Header Architecture
+Header architecture:
 ```
 include/
 ├── libstats.h              # Complete library (single include)
@@ -639,7 +345,7 @@ include/
 └── platform/              # SIMD, threading, parallel execution
 ```
 
-### Source Organization
+Source organization:
 ```
 src/
 ├── [Level 0-1] Foundation and utilities (cpu_detection.cpp, safety.cpp)
@@ -649,20 +355,33 @@ src/
 └── [Level 5] Distributions (gaussian.cpp, exponential.cpp, etc.)
 ```
 
-### Object Library Architecture
-The CMake system uses dependency-aware object libraries for parallel compilation:
-- `libstats_foundation_obj` → `libstats_core_utilities_obj` → `libstats_infrastructure_obj` → `libstats_framework_obj` → `libstats_distributions_obj`
-- Enables optimal incremental builds and clear architectural boundaries
+Object library architecture: the CMake system uses dependency-aware object libraries for parallel compilation — `libstats_foundation_obj` → `libstats_core_utilities_obj` → `libstats_infrastructure_obj` → `libstats_framework_obj` → `libstats_distributions_obj`. Enables optimal incremental builds and clear architectural boundaries.
+
+## Coding Conventions
+
+### Code Standards
+- **C++20 Required**: Modern features (concepts, spans, execution policies)
+- **Header Guards**: Use `#pragma once` (codebase convention)
+- **Naming**: CamelCase classes, snake_case functions/variables
+- **Memory Management**: Smart pointers, RAII, no raw pointers
+- **Error Handling**: Dual API (Result<T> for factories, exceptions for setters)
+
+### Performance Considerations
+- Always rebuild after source changes before running tests
+- Use `initialize_performance_systems()` for optimal batch performance
+- SIMD operations require 16-byte aligned data (handled automatically)
+- Large batch operations (>1000 elements) benefit significantly from parallel execution
+
+### Platform-Specific Conventions
+- **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
+- **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`
+- **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
 
 ## Common Development Tasks
 
-### Working with Distributions
+### Creating New Distributions
 
-#### Creating New Distributions
-The registration checklist is authoritative in `include/core/distribution_meta.h`.
-
-**Geometric (16), Laplace (17), and Cauchy (18) are fully implemented** (2026-06-28).
-For any future distribution (N+1), follow all 6 steps below starting from step 1.
+The registration checklist is authoritative in `include/core/distribution_meta.h`. Geometric (16), Laplace (17), and Cauchy (18) are the most recently implemented (2026-06-28); for any future distribution (N+1), follow all 6 steps below.
 
 **Steps for any future distribution (N+1):**
 
@@ -744,65 +463,18 @@ For any future distribution (N+1), follow all 6 steps below starting from step 1
 The `consteval validateMetaOrdering()` in `distribution_meta.h` enforces step 1↔2 alignment at
 compile time. A clean build after any enum or table change verifies consistency.
 
-#### Testing Strategy
-- **All levels**: GTest-based tests registered with CTest
-- Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
-- Timing tests: run `ctest -j1 -L timing` on a quiet machine
-- **Coverage**: 50 CTest targets (each basic and enhanced test file registers as one target;
-  each enhanced binary runs additional typed test cases from the shared `DistributionEnhancedTest` suite)
-
-### Performance Optimization
-
-#### SIMD Development
+### SIMD Development
 - Use `libstats::simd::*` namespace for vectorized operations
 - Runtime dispatch automatically selects best available instruction set
 - Test with `./build/tools/simd_verification`
 
-#### Parallel Processing
+### Parallel Processing
 - Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`
 - Explicit control: span-based batch APIs with `detail::PerformanceHint`
 - Dispatch thresholds are per-(architecture, distribution, operation) in `dispatch_thresholds.h`
 - Thresholds derived from four-architecture profiling data in `data/profiles/dispatcher/`
 
-### Build System Customization
-
-#### CMake Options
-```bash
-# Enable verbose build messages for debugging
-cmake -DLIBSTATS_VERBOSE_BUILD=ON ..
-
-# Force TBB usage over platform-native threading
-cmake -DLIBSTATS_FORCE_TBB=ON ..
-
-
-# Disable tools or tests
-cmake -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF ..
-```
-
-#### Compiler-Specific Builds
-The build system supports cross-compiler compatibility testing with specialized build types that enable consistent warning levels across GCC, Clang, and MSVC.
-
-## Important Guidelines
-
-### Code Standards
-- **C++20 Required**: Modern features (concepts, spans, execution policies)
-- **Header Guards**: Use `#pragma once` (codebase convention)
-- **Naming**: CamelCase classes, snake_case functions/variables
-- **Memory Management**: Smart pointers, RAII, no raw pointers
-- **Error Handling**: Dual API (Result<T> for factories, exceptions for setters)
-
-### Performance Considerations
-- Always rebuild after source changes before running tests
-- Use `initialize_performance_systems()` for optimal batch performance
-- SIMD operations require 16-byte aligned data (handled automatically)
-- Large batch operations (>1000 elements) benefit significantly from parallel execution
-
-### Platform-Specific Notes
-- **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
-- **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`
-- **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
-
-## Testing and Validation
+## CI / Validation
 
 ### Running Tests
 ```bash
@@ -837,6 +509,13 @@ ctest --test-dir build -R test_gaussian_enhanced  # Contains timing assertions
 Timing tests fail under CPU contention because parallel strategies show less speedup
 when the machine is loaded. This is a measurement problem, not a correctness problem.
 
+### Testing Strategy
+- **All levels**: GTest-based tests registered with CTest
+- Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
+- Timing tests: run `ctest -j1 -L timing` on a quiet machine
+- **Coverage**: 50 CTest targets (each basic and enhanced test file registers as one target;
+  each enhanced binary runs additional typed test cases from the shared `DistributionEnhancedTest` suite)
+
 ### Performance Validation
 ```bash
 # Verify SIMD operations and performance
@@ -849,7 +528,14 @@ when the machine is loaded. This is a measurement problem, not a correctness pro
 ./build/tools/system_inspector --performance
 ```
 
-The testing infrastructure ensures correctness across all optimization levels and provides regression detection for performance-critical paths.
+## Deferred Items
+
+- `vector_floor` + `vector_blend` primitives across all SIMD backends to enable
+  branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing batch-path speedups
+  (Discrete 8–15x, Uniform 39–54x) already achieved through amortization
+- `vector_lgamma` — too complex, low immediate distribution impact; indefinitely deferred
+- SVE (AArch64 beyond NEON) — no hardware in the ecosystem
+- SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
 
 ## Warp Terminal Saved Workflows (warp.dev only)
 
