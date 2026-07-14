@@ -88,6 +88,20 @@ Last reconciled against live GitHub state: 2026-07-14.
   `vector_erfc` SIMD stub since no distribution batch path actually calls
   `erfc()` (Gaussian CDF batch path uses `vector_erf` directly). Scalar
   `erfc()` is retained (used by `distribution_base.cpp`). Not yet merged.
+- Local backup branch `backup/wip-sleef-avx2-gather-bench` (1 commit ahead
+  of its recovered stash base, local-only as of 2026-07-14): recovered from
+  stash originally on `simd-architecture-repair`. Adds opt-in SLEEF/SIMD
+  development benchmark tooling for the #33 AVX2 gather-based exp/log vs.
+  current SLEEF polynomial experiment. Not yet validated or merged.
+- Local backup branch `backup/wip-dispatch-thresholds-tuning` (1 commit
+  ahead of its recovered stash base, local-only as of 2026-07-14): recovered
+  from stash originally on `feat/v2-architecture`. Refines
+  `include/core/dispatch_thresholds.h` entries/comments for
+  Geometric/Laplace/Cauchy. Not yet validated or merged.
+- Housekeeping completed 2026-07-14: stale fully merged local branches were
+  deleted, empty stash state was dropped, useful stash state was promoted to
+  backup branches above, and prunable orchestration worktrees plus their
+  leftover `worktree-agent-*` branches were removed.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to
@@ -100,8 +114,10 @@ Last reconciled against live GitHub state: 2026-07-14.
   question whether this generalizes to exp/log on other architectures).
 
 ## Next Steps
-- Decide whether to merge `fix/remove-stale-vector-erfc-stub` (open a PR)
-  or fold it into other in-flight work.
+- Assess the three unmerged branches now on deck:
+  `fix/remove-stale-vector-erfc-stub`,
+  `backup/wip-sleef-avx2-gather-bench`, and
+  `backup/wip-dispatch-thresholds-tuning`.
 - Work through the v2.1.0 — Accuracy & Performance backlog (6 issues,
   mostly SIMD accuracy/perf gaps) before starting the new-distribution
   milestones (v2.2.0, v2.3.0) or the v3.0.0 architecture refactor.
