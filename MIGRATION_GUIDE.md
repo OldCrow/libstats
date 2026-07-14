@@ -197,6 +197,135 @@ if (result.isOk()) {
 `makeError()` no longer constructs the value type on the error path.
 `isOk()` and `isError()` are unchanged.
 
+### `VoidResult` success sentinel
+
+v1.x used `Result<bool>` with `ok(true)` as the sentinel for void-returning
+operations. v2.0.0 introduces `VoidResult = Result<std::monostate>` to make
+the absence of a meaningful value explicit.
+
+```cpp
+// v1.x
+Result<bool> validateFoo(double x) {
+    if (bad) return Result<bool>::makeError(code, msg);
+    return Result<bool>::ok(true);
+}
+
+// v2.0.0
+VoidResult validateFoo(double x) {
+    if (bad) return VoidResult::makeError(code, msg);
+    return VoidResult::ok({});
+}
+```
+
+---
+
+## Parameter validators moved to free functions
+
+`validateBetaParameters`, `validateChiSquaredParameters`, `validateStudentTParameters`
+(and all other `validate*Parameters` functions) are no longer private static
+members of their distribution classes. They are now free functions returning
+`VoidResult`, defined in `include/core/error_handling.h`, `namespace stats`.
+
+```cpp
+// v1.x
+BetaDistribution::validateBetaParameters(alpha, beta);  // private, class-internal use only
+
+// v2.0.0
+#include "libstats/core/error_handling.h"
+stats::VoidResult r = stats::validateBetaParameters(alpha, beta);
+if (r.isError()) { /* ... */ }
+```
+
+If you were relying on these as private implementation details (uncommon —
+they weren't part of the public API in v1.x), switch to calling the free
+function directly.
+
+---
+
+## Distribution concepts replace `DistributionTraits<D>` SFINAE
+
+v1.x used `DistributionTraits<D>` template specializations (SFINAE) to
+constrain generic code to valid distribution types. v2.0.0 replaces this with
+C++20 concepts in `stats::concepts` (`include/core/distribution_concepts.h`):
+
+| Concept | Requirement |
+|---|---|
+| `AnyDistribution<D>` | Base contract: scalar PDF/CDF/quantile, span-based batch `getProbability`, `getMean`/`getVariance`/`getSkewness`/`getKurtosis`, `sample()`, identity queries, `getEntropy()`, and the `kDistributionType`/`kIsDiscrete` static members |
+| `ContinuousDistribution<D>` | `AnyDistribution<D> && !D::kIsDiscrete` |
+| `DiscreteDistribution<D>` | `AnyDistribution<D> && D::kIsDiscrete` |
+| `FittableDistribution<D>` | `AnyDistribution<D>` + `std::default_initializable<D>` + `fit(const std::vector<double>&)` — required by the bootstrap and cross-validation templates |
+
+Two practical consequences for custom distributions:
+- **`getSkewness()`/`getKurtosis()` are now required** by `AnyDistribution` —
+  they weren't part of the earlier trait contract. A custom distribution
+  missing either method will now fail to satisfy the concept (clearer
+  compile error than a SFINAE substitution failure) rather than silently
+  compiling with reduced trait support.
+- Passing a custom distribution to `stats::analysis` templates now produces a
+  concept-based compile error (naming the unsatisfied requirement) instead of
+  an opaque SFINAE failure, if it doesn't satisfy the relevant concept.
+
+---
+
+## `SIMDPolicy::Level` unified with `SIMDLevel`
+
+v1.x had two parallel enums for the same concept: a standalone `SIMDLevel`
+and `SIMDPolicy`'s own nested level enum. v2.0.0 makes `SIMDPolicy::Level` a
+type alias for the canonical `SIMDLevel` (`include/platform/simd_policy.h`):
+
+```cpp
+using Level = SIMDLevel;  // was a separate nested enum in v1.x
+```
+
+Code that only used `SIMDPolicy::Level::X` values is unaffected; code that
+compared or converted between the two former enum types no longer needs to,
+since there is only one type now.
+
+---
+
+## `DistributionType` relocated and renamed
+
+v1.x declared the distribution-kind enum as `LibDistributionType` in
+`include/core/performance_dispatcher.h`. v2.0.0 extracts it to its own header
+as the canonical `detail::DistributionType`:
+
+```cpp
+// v1.x
+#include "libstats/core/performance_dispatcher.h"
+libstats::LibDistributionType t = ...;
+
+// v2.0.0
+#include "libstats/core/distribution_type.h"
+stats::detail::DistributionType t = ...;
+```
+
+See also "Removed symbols" below — `LibDistributionType` itself is gone, not
+just relocated; `detail::DistributionType` is a distinct (richer) enum, not
+a renamed alias of the old one.
+
+---
+
+## Legacy `validation.h`/`validation.cpp` deleted
+
+v1.x shipped a free-function validation module (`include/core/validation.h`,
+`stats::detail` namespace, snake_case names) alongside the distribution-class
+static methods covered above — two parallel APIs for the same goodness-of-fit
+tests. v2.0.0 deletes this module entirely; both v1.x paths converge on the
+single `stats::analysis` API:
+
+```cpp
+// v1.x — free-function path (validation.h)
+#include "libstats/core/validation.h"
+stats::detail::KSTestResult r = stats::detail::kolmogorov_smirnov_test(data, dist);
+
+// v1.x — distribution-class static-method path (see Analysis utilities above)
+GaussianDistribution::kolmogorovSmirnovTest(data, dist, alpha);
+
+// v2.0.0 — single path
+#include "libstats/stats/analysis/goodness_of_fit.h"
+stats::analysis::kolmogorovSmirnovTest(data, dist, alpha);
+```
+
 ---
 
 ## Factory method Doxygen updated
