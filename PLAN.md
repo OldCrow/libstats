@@ -79,7 +79,7 @@ Last reconciled against live GitHub state: 2026-07-14.
 
 ## GitHub Issues Without Milestone [DERIVED]
 - Open issues without milestone:
-  - #33 OPEN — v1.5.x: Evaluate table+Taylor approach for NEON transcendentals — cross-architecture experiment (see Known Gaps).
+  - #33 OPEN — v1.5.x: Evaluate table+Taylor approach for NEON transcendentals — cross-architecture experiment (see Known Gaps; Kaby Lake AVX2 sub-experiment closed null 2026-07-18, AVX-512/A16 sub-experiment open).
 - Closed issues without milestone: 9 as of 2026-07-14.
 
 ## In Progress [OPEN]
@@ -102,6 +102,48 @@ Last reconciled against live GitHub state: 2026-07-14.
   base commit `1b564ec`, superseded by later issue #50 profiling commits on
   `main`.
 
+## Issue #33 Experiment — AVX2 gather exp/log [CLOSED: null result; AVX-512 sub-experiment OPEN]
+Decisions locked 2026-07-18; Kaby Lake AVX2 sub-experiment run and closed the
+same day. Internal plan artifact: `8370d3c6-66f5-4814-be66-cf4b996f85fa`. Full
+write-up: `docs/SIMD_BENCHMARK_RESULTS.md` "Issue #33 — gather-vs-polynomial
+exp/log experiment".
+
+### Kaby Lake AVX2 result: null, closed
+- Goal was: test whether table + short-polynomial via hardware gather
+  (`_mm256_i32gather_pd`) beats the current SLEEF polynomial `vector_exp_avx2`
+  (src/simd_avx2.cpp:190) / `vector_log_avx2` (src/simd_avx2.cpp:264). Both
+  baselines are already <1 ULP and >1x (~3.4x exp), a higher bar than the NEON
+  erf win that motivated the issue.
+- First kill-gate (`tools/gather_throughput_probe.cpp`, Stage 1-2): warm
+  gather already costs 7.0x a single FMA op, interleave (the agreed gate)
+  8.6x, cold 1406x — more than the ~7 polynomial terms a 3-term table
+  replacement would save. This is a floor, not a ceiling: index computation,
+  range reduction, and edge-case handling in a real kernel only add cost on
+  top of the isolated gather.
+- Per the fail-forward-fast policy, this is a definitive null result: AVX2
+  gather-based exp/log does not beat the current polynomial on this hardware.
+  Stages 3-6 (table port, benchmarking, log, consolidation) skipped as moot.
+  No further AVX2 work planned; production kernels unchanged.
+
+### AVX-512 Zen 4 (A16) sub-experiment: OPEN, narrows remaining Q2 scope
+- Q2 is narrowed going forward to the untested half: AVX-512 8-wide gather
+  (`_mm512_i64gather_pd`) on Zen 4. AMD's AVX-512 gather implementation is
+  architecturally unrelated to Intel's Skylake-derived gather unit (no native
+  AVX-512 on Zen 3; Zen 4 gather/scatter is a distinct implementation), so the
+  Kaby Lake result does not generalize — this remains genuinely open.
+- Same governance carries over: same gates (accuracy <1 ULP floor, ≥20% at
+  interleave), same fail-forward-fast authority, same scope (exp+log only,
+  erf still deferred pending an exp win).
+- Harness: by agreement, extend `tools/gather_throughput_probe.cpp` with an
+  AVX-512 path (`LIBSTATS_HAS_AVX512` guard, mirroring the existing AVX2
+  functions) directly on the A16 rather than writing it blind here — this box
+  cannot compile or run AVX-512 to validate it. Use
+  `experiment/issue-33-gather-transcendentals` (rebase on `main` first) or a
+  fresh branch cut from it.
+- Model/effort: harness extension is Sonnet 5 tier (rote, mirrors existing
+  AVX2 code); SWITCH UP to Opus 4.8 only if the AVX-512 kill-gate clears and
+  Stage 3 (actual table port) becomes relevant.
+
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to
   enable branchless Discrete CDF and Uniform PDF/LogPDF — low priority
@@ -109,13 +151,22 @@ Last reconciled against live GitHub state: 2026-07-14.
   amortization, not rejected.
 - Issue #33: cross-architecture experiment evaluating table-lookup vs.
   polynomial approach for exp/log (NEON's table-based `vector_erf`
-  achieves 8.0x vs ~0.9x for the pure-polynomial equivalent — open
-  question whether this generalizes to exp/log on other architectures).
+  achieves 8.0x vs ~0.9x for the pure-polynomial equivalent). Kaby Lake AVX2
+  sub-experiment closed null 2026-07-18 (gather too expensive on this
+  hardware even warm — see "Issue #33 Experiment" section). AVX-512 (Zen4/
+  A16) sub-experiment remains open — untested, architecturally distinct
+  gather implementation from Intel's.
 
 ## Next Steps
-- Assess the two unmerged branches now on deck:
-  `fix/remove-stale-vector-erfc-stub` and
-  `backup/wip-sleef-avx2-gather-bench`.
+- Issue #33 AVX2 sub-experiment is closed (null result; see "Issue #33
+  Experiment" section and `docs/SIMD_BENCHMARK_RESULTS.md`); no follow-up
+  needed on this machine. `backup/wip-sleef-avx2-gather-bench` remains
+  salvage-reference only, not a branch to assess for merge.
+- Issue #33 AVX-512 sub-experiment remains open: on the A16, extend
+  `tools/gather_throughput_probe.cpp` with an AVX-512 gather path and re-run
+  the same warm/interleave/cold kill-gate.
+- Still assess `fix/remove-stale-vector-erfc-stub` (unrelated stale erfc-stub
+  removal) for merge.
 - Work through the v2.1.0 — Accuracy & Performance backlog (6 issues,
   mostly SIMD accuracy/perf gaps) before starting the new-distribution
   milestones (v2.2.0, v2.3.0) or the v3.0.0 architecture refactor.

@@ -142,6 +142,44 @@ Primitive speedups from the v1.5.x validation cycle:
 | NEON | 2.1x | 1.8x | 8.0x | 3.0x |
 | AVX-512 | 5.0x | 3.9x | 1.3x | 8.5x |
 
+## Issue #33 — gather-vs-polynomial exp/log experiment
+
+Evaluates whether a table-lookup + short-polynomial transcendental using
+hardware gather can beat the current SLEEF-derived polynomial
+`vector_exp`/`vector_log` (see PLAN.md "Issue #33 Experiment" for full gates
+and governance). Tool: `tools/gather_throughput_probe.cpp` (opt-in,
+`LIBSTATS_BUILD_SIMD_DEV_TOOLS=ON`).
+
+### Kaby Lake AVX2 result (2026-07-18): null result, closed
+
+Machine: Intel Core i7-7820HQ (Kaby Lake), AVX2+FMA. Measured
+`_mm256_i32gather_pd` throughput (ns per 4-wide op) against an FMA-only
+baseline under three cache regimes:
+
+| Regime | ns/op | vs FMA baseline |
+|---|---:|---:|
+| FMA-only baseline | 0.33 | 1x |
+| Warm (table resident in L1) | 2.30 | 7.0x |
+| Interleave (realistic cache pressure, the gate) | 2.81 | 8.6x |
+| Cold (clflush before every gather) | 458.9 | 1406x (flush-only: 306 ns) |
+
+Even the best case (warm) costs ~7x a single FMA -- more than the ~7
+polynomial terms a 3-term table replacement would save relative to the
+current 10-term `vector_exp_avx2`. This is a floor, not a ceiling: index
+computation, range reduction, and edge-case handling in a real kernel only
+add cost on top of the isolated gather. AVX2 gather-based exp/log does not
+beat the current polynomial on this hardware. No further AVX2 work planned;
+production kernels unchanged.
+
+### AVX-512 Zen 4 (Asus TUF A16): pending
+
+Not yet measured. AMD's AVX-512 gather (`_mm512_i64gather_pd`) implementation
+is architecturally unrelated to Intel's Skylake-derived gather unit, so the
+Kaby Lake result does not generalize -- this remains the open half of Issue
+#33 Q2. Extend `tools/gather_throughput_probe.cpp` with an AVX-512 gather
+path when next on that machine and re-run the same warm/interleave/cold
+kill-gate.
+
 ## Running benchmarks
 
 Use Release builds for performance numbers:
