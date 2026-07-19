@@ -19,6 +19,12 @@ Affected file:
 calls to the AVX implementation above and contain no additional SLEEF-derived
 code of their own.
 
+The NEON `vector_log_neon` (`src/simd_neon.cpp`), which previously carried the
+SLEEF `xlog_u1` coefficients via a port of the AVX2 kernel, was replaced
+2026-07-19 with a clean-room table+series kernel carrying **no third-party
+source** (see `docs/NEON_LOG_DERIVATION.md` and
+`docs/NEON_LOG_DIVERGENCE_AUDIT.md`).
+
 ### SLEEF License (Boost Software License - Version 1.0)
 
 ```
@@ -78,9 +84,18 @@ Affected files:
   gather port; opt-in dev tool only, not part of the shipped library)
 - `scripts/gen_neon_log_table.py` — embeds ARM's `__log_data.tab` (N=128)
   verbatim and cross-checks every entry against an independently computed
-  `log(1/invc)` reference (dev tool only -- log was not productionized)
+  `log(1/invc)` reference (dev tool only -- the ARM-port log was not
+  productionized)
 - `src/neon_log_data.inc` — the generated NEON log table (`kLogNeonTable`; dev
   tool only)
+
+Note (2026-07-19): the **production** NEON `vector_log_neon` was subsequently
+replaced with an independently derived clean-room kernel
+(`src/neon_log_cleanroom_data.inc`, `scripts/gen_neon_log_cleanroom_table.py`)
+that carries **no third-party source** and supersedes the Q1 "performance
+null" verdict for log (better on both accuracy and speed axes); see
+`docs/NEON_LOG_DERIVATION.md` and `docs/NEON_LOG_DIVERGENCE_AUDIT.md`. The
+ARM-derived dev-tool files above are unchanged and remain MIT-attributed.
 - `tools/neon_table_transcendental_probe.cpp` — `vectorExpNeonGather` (the
   prototype that became the production kernel above) and `vectorLogNeonGather`
   (still opt-in dev tool only, not part of the shipped library)
