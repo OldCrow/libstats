@@ -45,8 +45,11 @@ Last reconciled against live GitHub state: 2026-07-19.
   the #33 Q1 exp/log work for the same class of issue (that work is clean --
   MIT ARM optimized-routines). No MIT equivalent of the table+Taylor erf
   algorithm exists upstream, so this needs a dedicated remediation decision,
-  not a quick citation fix. `THIRD_PARTY_NOTICES.md` now has a flagged
-  "KNOWN ISSUE" section pending resolution. Out of scope for the #33 branch.
+  not a quick citation fix.
+- 2026-07-19: closed **#67** (`vector_erf_neon` LGPL-2.1+ provenance) as resolved
+  — see "Issue #67" section below. Posted a comment on **#49** recording that
+  the erf accuracy fix disconfirms "erf precision" as that issue's cause (see
+  the updated #49 line below and the Issue #67 section).
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -69,7 +72,12 @@ Last reconciled against live GitHub state: 2026-07-19.
   - #46 OPEN — Benchmark: SIMD accuracy characterization vs arbitrary-precision reference (mpmath).
   - #47 OPEN — bessel.h Tier 2 fallback (A&S polynomial) limits VonMises accuracy to ~10⁻⁷ on macOS/AppleClang.
   - #48 OPEN — CauchyDistribution::getCumulativeProbability delegates to StudentT incomplete-beta; should use closed-form arctan.
-  - #49 OPEN — LogNormalDistribution CDF accuracy 2.62×10⁻⁷ — likely scalar erfc vs vector_erf path divergence.
+  - #49 OPEN — LogNormalDistribution CDF accuracy 2.62×10⁻⁷. **"erf precision"
+    disconfirmed as the cause (2026-07-19, see Issue #67 section)**: after
+    replacing `vector_erf_neon` with a max-1-ULP implementation (was ~2.29
+    ULP), the LogNormal CDF error vs scipy is unchanged at 2.62e-07. Root
+    cause is elsewhere — likely the CDF's `(ln x − μ)/σ` argument transform
+    and/or the `erfc`-tail cancellation path, not the `vector_erf` primitive.
   - #51 OPEN — VonMisesDistribution CDF has no SIMD/batch path — scalar integration loop is 5–10× slower than scipy.
   - #52 OPEN — BinomialDistribution CDF slower than scipy; PDF near-parity — PMF summation and scalar lgamma are limiting factors.
 - v2.2.0 — New Distributions (Foundation) (open, #2): 4 open / 0 closed.
@@ -335,6 +343,52 @@ dispatched.
   commit/push/PR, per SOP. Regenerating any table needs mpmath in a throwaway
   venv (`python3 -m venv /tmp/v && /tmp/v/bin/pip install mpmath`).
 
+## Issue #67 — `vector_erf_neon` LGPL provenance [RESOLVED 2026-07-19]
+Branch `fix/issue-67-erf-neon-cleanroom` (off `main`, pushed to origin, commit
+`5297298`), unrelated to the Issue #33 branch above.
+- **Problem**: `vector_erf_neon` (shipped since v1.5.0 Phase 3, commit
+  `5455778`) was found to be a near-verbatim port of glibc's LGPL-2.1+
+  `sysdeps/aarch64/fpu/erf_advsimd.c` — confirmed by direct diff against the
+  actual glibc source (identical hex constants, table size/shift-trick,
+  gather pattern). No MIT-licensed equivalent algorithm exists upstream (ARM
+  optimized-routines' `erf.c` is a different, non-table, rational/minimax
+  algorithm), so this needed a genuine re-derivation, not a citation fix.
+- **Process**: resolved via a clean-room methodology — a single isolated
+  child agent (`erf-cleanroom`) authored a replacement in a scratch
+  directory with zero access to `src/simd_neon.cpp`, `neon_erf_data.inc`,
+  `gen_neon_erf_table.py`, or any existing erf implementation, working
+  purely from a functional/mathematical specification. The orchestrator
+  (who had read the actual glibc source) performed the divergence audit and
+  integration afterward, not the authorship — structural separation rather
+  than a promise not to reuse what was already seen.
+- **Result**: local Taylor expansion about a uniform grid (h = 1/256) using
+  the Hermite-polynomial structure of `exp(-x²)`'s derivatives, with a
+  compensated (hi+lo) table for accuracy. Strictly better than the code it
+  replaced: **max 1 ULP** (was ~2.29 ULP), **7.1–7.4x** in
+  `simd_verification` (on par with the former ~8.0x). Full validation: 46/46
+  `ctest`, `simd_verification` all-PASS across all 22 distributions, and an
+  end-to-end `pylibstats` vs `scipy` rebuild+benchmark with no throughput or
+  accuracy regression (Gaussian CDF 9.42e-15 vs scipy).
+- **Provenance record**: `docs/NEON_ERF_DERIVATION.md` (the derivation,
+  symbolically + numerically verified) and
+  `docs/NEON_ERF_DIVERGENCE_AUDIT.md` (point-by-point comparison vs the
+  actual glibc source — every free/expressive choice differs; only
+  mathematically forced coefficient values and the generic method/NEON
+  idiom coincide). `THIRD_PARTY_NOTICES.md` updated to record the
+  resolution.
+- **Side finding**: disconfirms "erf precision" as the cause of #49 (see
+  that line above) — the more accurate erf did not change LogNormal CDF's
+  error vs scipy.
+- **Containment (separate from the code fix)**: the `libstats` and
+  `pylibstats` GitHub repos were made private, and affected `pylibstats`
+  PyPI releases (≥0.2.4) were yanked, to limit ongoing exposure from
+  already-tagged releases (v1.5.3–v2.0.4) that shipped the superseded code.
+  Those tags are not amended — this is a forward fix only.
+- **Status**: PR #69 opened 2026-07-19. The anticipated reconciliation of
+  this branch's `PLAN.md` / `THIRD_PARTY_NOTICES.md` edits against the
+  Issue #33 branch's edits was performed during the 2026-07-19 rebase onto
+  post-#70/#72 `main`.
+
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to
   enable branchless Discrete CDF and Uniform PDF/LogPDF — low priority
@@ -388,9 +442,10 @@ dispatched.
   Q1"). Next concrete step: await review/merge. Q3 dispatch-threshold
   reprofiling deferred to a follow-up. Log is not productionized
   (accuracy-only note lives on #46).
-- #67 (vector_erf_neon LGPL provenance) needs a remediation decision before
-  its resolution can be scheduled; not blocking other work, but should not
-  be forgotten given it affects already-shipped, dispatched production code.
+- Issue #67 is resolved on branch `fix/issue-67-erf-neon-cleanroom`
+  (**PR #69**); the `PLAN.md` / `THIRD_PARTY_NOTICES.md` reconciliation
+  against the Issue #33 branch's independent edits was performed during the
+  2026-07-19 rebase onto post-#70/#72 `main`.
 - Still assess `fix/remove-stale-vector-erfc-stub` (unrelated stale erfc-stub
   removal) for merge.
 - Work through the v2.1.0 — Accuracy & Performance backlog (6 issues,
