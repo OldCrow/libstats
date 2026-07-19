@@ -248,7 +248,9 @@ void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
     // vector_erf_neon: float64x2_t + vfmaq_f64 (v1.5.0 Phase 3);
     // erf independently re-derived 2026-07-19 (Issue #67) -- see
     // docs/NEON_ERF_DERIVATION.md and docs/NEON_ERF_DIVERGENCE_AUDIT.md.
-    // vector_cos_neon: native SIMD since v1.4.0 (unchanged here).
+    // vector_cos_neon: clean-room quadrant-reduction kernel (2026-07-19,
+    // replaces the v1.4.0 Taylor kernel) -- see docs/NEON_TRIG_DERIVATION.md
+    // and docs/NEON_TRIG_DIVERGENCE_AUDIT.md.
 
     // N=128 tail-corrected table, Array-of-Structs {tail_bits, sbits}, re-interleaved
     // from ARM optimized-routines' exp_data.c so one vld1q_u64 pulls both per lane
@@ -628,60 +630,122 @@ void VectorOps::vector_erf_neon(const double* a, double* result, std::size_t siz
     }
 }
 
+    // Clean-room derived constants for vector_cos_neon: 4-part exact-product
+    // pi/2 split, degree-6 minimax sin/cos cores. Independently derived
+    // 2026-07-19; replaces the v1.4.0 Taylor kernel whose measured error was
+    // ~6e8 ULP inside [-2pi, 2pi] (7-term Taylor truncation ~6.5e-11 absolute)
+    // with sign errors near k*pi/2 for |x| in the thousands. See
+    // docs/NEON_TRIG_DERIVATION.md, docs/NEON_TRIG_DIVERGENCE_AUDIT.md and
+    // scripts/gen_neon_trig_cleanroom_table.py. No third-party source.
+    #include "neon_trig_cleanroom_data.inc"
+
 void VectorOps::vector_cos_neon(const double* input, double* output, std::size_t size) noexcept {
     if (!stats::arch::supports_neon()) {
         return vector_cos_fallback(input, output, size);
     }
 
-    constexpr std::size_t W = stats::arch::simd::NEON_DOUBLES;
-    const std::size_t simd_end = (size / W) * W;
+    // Clean-room quadrant-reduction cos(x), max 0.78 ULP uniform / 0.50 ULP on
+    // the near-k*pi/2 stress set (where the old kernel had sign errors), for
+    // |x| <= 2^23; scalar fixup beyond (and for inf; NaN self-propagates).
+    //   x = n*(pi/2) + r, n = round(x*2/pi), |r| <= pi/4 (compensated (r, rlo):
+    //     every n*p_k product is exact by construction, and each inexact
+    //     subtraction's rounding error is recovered into rlo)
+    //   parity cores  sin(r) = r + r*(u*P(u)),  cos(r) = 1 + u*Q(u),  u = r^2,
+    //     with cos's leading 1 - u/2 kept as an exact head+tail pair
+    //   quadrant q = n mod 4: cos(x) = +cos r, -sin r, -cos r, +sin r
+    //     -> swap cores on bit0, flip sign on bit1 XOR bit0 (branch-free)
 
-    const float64x2_t inv_two_pi = vdupq_n_f64(1.0 / (2.0 * detail::PI));
-    const float64x2_t two_pi = vdupq_n_f64(2.0 * detail::PI);
-    const float64x2_t pi = vdupq_n_f64(detail::PI);
-    const float64x2_t half_pi = vdupq_n_f64(detail::PI_OVER_2);
-    const float64x2_t neg_pi = vdupq_n_f64(-detail::PI);
-    const float64x2_t neg_half_pi = vdupq_n_f64(-detail::PI_OVER_2);
-    const float64x2_t one = vdupq_n_f64(1.0);
-    const float64x2_t neg_one = vdupq_n_f64(-1.0);
+    const auto cosCore = [](float64x2_t x) -> float64x2_t {
+        // reduction: n = round(x * 2/pi); r = x - n*pi/2 via exact split parts.
+        // Step 1 is always exact (exact product + Sterbenz); steps 2..4 are
+        // compensated: when a step rounds, cancellation was small, so
+        // (r_prev - r_new) is exact and e recovers the rounding error exactly.
+        const float64x2_t nf = vrndnq_f64(vmulq_f64(x, vdupq_n_f64(kTrigNeonTwoOverPi)));
+        const int64x2_t n = vcvtq_s64_f64(nf);  // nf is integral; conversion exact
+        float64x2_t r = vfmsq_f64(x, nf, vdupq_n_f64(kTrigNeonPio2[0]));
+        float64x2_t rlo = vdupq_n_f64(0.0);
+        for (int k = 1; k < 4; ++k) {
+            const float64x2_t pk = vdupq_n_f64(kTrigNeonPio2[k]);
+            const float64x2_t rk = vfmsq_f64(r, nf, pk);
+            const float64x2_t e = vfmsq_f64(vsubq_f64(r, rk), nf, pk);
+            rlo = vaddq_f64(rlo, e);
+            r = rk;
+        }
 
-    const float64x2_t c1 = vdupq_n_f64(-0.5);
-    const float64x2_t c2 = vdupq_n_f64(4.166666666666667e-2);
-    const float64x2_t c3 = vdupq_n_f64(-1.388888888888889e-3);
-    const float64x2_t c4 = vdupq_n_f64(2.480158730158730e-5);
-    const float64x2_t c5 = vdupq_n_f64(-2.755731922398589e-7);
-    const float64x2_t c6 = vdupq_n_f64(2.087675698786810e-9);
-    const float64x2_t c7 = vdupq_n_f64(-1.147074559772973e-11);
+        const float64x2_t u = vmulq_f64(r, r);
 
-    for (std::size_t i = 0; i < simd_end; i += W) {
-        float64x2_t x = vld1q_f64(&input[i]);
+        // sin core: s = r + (r*u*P(u) + rlo)
+        float64x2_t ps = vdupq_n_f64(kTrigNeonSinC[6]);
+        for (int i = 5; i >= 0; --i)
+            ps = vfmaq_f64(vdupq_n_f64(kTrigNeonSinC[i]), ps, u);
+        const float64x2_t s_core = vaddq_f64(r, vfmaq_f64(rlo, vmulq_f64(r, u), ps));
 
-        float64x2_t q = vrndnq_f64(vmulq_f64(x, inv_two_pi));
-        float64x2_t y = vsubq_f64(x, vmulq_f64(q, two_pi));
+        // cos core: split the leading 1 - u/2 into an exact head+tail pair
+        // (h = fl(1 - u/2); hl = (1 - h) - u/2, both steps exact by Sterbenz/
+        // cancellation), accumulate every correction at ~2^-54 magnitude, and
+        // pay only the final add's rounding. Q[0] == -1/2 exactly (generator-
+        // asserted), so no c0 remainder term is needed. The -r*rlo term is the
+        // first-order effect of the compensated reduction on cos.
+        float64x2_t pc = vdupq_n_f64(kTrigNeonCosC[6]);
+        for (int i = 5; i >= 1; --i)
+            pc = vfmaq_f64(vdupq_n_f64(kTrigNeonCosC[i]), pc, u);
+        const float64x2_t one = vdupq_n_f64(1.0);
+        const float64x2_t half = vdupq_n_f64(0.5);
+        const float64x2_t h = vfmsq_f64(one, u, half);
+        const float64x2_t hl = vfmsq_f64(vsubq_f64(one, h), u, half);
+        float64x2_t mc = vfmaq_f64(hl, vmulq_f64(u, u), pc);
+        mc = vfmsq_f64(mc, r, rlo);
+        const float64x2_t c_core = vaddq_f64(h, mc);
 
-        float64x2_t sign = one;
-        uint64x2_t gt_hpi = vcgtq_f64(y, half_pi);
-        uint64x2_t lt_nhpi = vcltq_f64(y, neg_half_pi);
+        // quadrant recombination (two's-complement low bits give n mod 4):
+        // cos: q=0:+c 1:-s 2:-c 3:+s -> swap on bit0, negate on bit1 XOR bit0
+        const uint64x2_t qu = vreinterpretq_u64_s64(n);
+        const uint64x2_t swap = vtstq_u64(qu, vdupq_n_u64(1));
+        const uint64x2_t sgn_c =
+            vshlq_n_u64(vandq_u64(veorq_u64(vshrq_n_u64(qu, 1), qu), vdupq_n_u64(1)), 63);
+        const float64x2_t cv = vbslq_f64(swap, s_core, c_core);
+        return vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(cv), sgn_c));
+    };
 
-        y = vbslq_f64(gt_hpi, vsubq_f64(pi, y), y);
-        sign = vbslq_f64(gt_hpi, neg_one, sign);
-        y = vbslq_f64(lt_nhpi, vsubq_f64(neg_pi, y), y);
-        sign = vbslq_f64(lt_nhpi, neg_one, sign);
+    // Out-of-domain / inf lanes: ordered compare is false for NaN, but NaN
+    // propagates to NaN through the polynomial path already (vcvtq of NaN is
+    // defined on aarch64), which is the correct result. Decided from the
+    // pre-store REGISTER values so the function stays correct when called
+    // with output aliasing input (same discipline as vector_exp_neon).
+    const float64x2_t domain_bound = vdupq_n_f64(kTrigNeonDMax);
+    const auto fixupSpecial = [&](std::size_t base, float64x2_t xv, uint64x2_t mask) {
+        if (vgetq_lane_u64(mask, 0))
+            output[base + 0] = std::cos(vgetq_lane_f64(xv, 0));
+        if (vgetq_lane_u64(mask, 1))
+            output[base + 1] = std::cos(vgetq_lane_f64(xv, 1));
+    };
 
-        float64x2_t y2 = vmulq_f64(y, y);
-        float64x2_t poly = c7;
-        poly = vfmaq_f64(c6, y2, poly);
-        poly = vfmaq_f64(c5, y2, poly);
-        poly = vfmaq_f64(c4, y2, poly);
-        poly = vfmaq_f64(c3, y2, poly);
-        poly = vfmaq_f64(c2, y2, poly);
-        poly = vfmaq_f64(c1, y2, poly);
-        poly = vfmaq_f64(one, y2, poly);
+    const std::size_t unroll_end = (size / 4) * 4;  // 2 vectors (4 doubles) per iteration
+    const std::size_t simd_end = (size / 2) * 2;
 
-        vst1q_f64(&output[i], vmulq_f64(poly, sign));
+    std::size_t i = 0;
+    for (; i < unroll_end; i += 4) {
+        float64x2_t x0 = vld1q_f64(&input[i]);
+        float64x2_t x1 = vld1q_f64(&input[i + 2]);
+        vst1q_f64(&output[i], cosCore(x0));
+        vst1q_f64(&output[i + 2], cosCore(x1));
+
+        uint64x2_t mask0 = vcgtq_f64(vabsq_f64(x0), domain_bound);
+        uint64x2_t mask1 = vcgtq_f64(vabsq_f64(x1), domain_bound);
+        uint64x2_t any = vorrq_u64(mask0, mask1);
+        if (vgetq_lane_u64(any, 0) | vgetq_lane_u64(any, 1)) {
+            fixupSpecial(i, x0, mask0);
+            fixupSpecial(i + 2, x1, mask1);
+        }
     }
-
-    for (std::size_t i = simd_end; i < size; ++i) {
+    for (; i < simd_end; i += 2) {
+        float64x2_t x = vld1q_f64(&input[i]);
+        vst1q_f64(&output[i], cosCore(x));
+        uint64x2_t mask = vcgtq_f64(vabsq_f64(x), domain_bound);
+        if (vgetq_lane_u64(mask, 0) | vgetq_lane_u64(mask, 1))
+            fixupSpecial(i, x, mask);
+    }
+    for (; i < size; ++i) {
         output[i] = std::cos(input[i]);
     }
 }
