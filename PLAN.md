@@ -91,7 +91,7 @@ Last reconciled against live GitHub state: 2026-07-19.
 
 ## GitHub Issues Without Milestone [DERIVED]
 - Open issues without milestone:
-  - #33 OPEN — v1.5.x: Evaluate table+Taylor approach for NEON transcendentals — cross-architecture experiment (see Known Gaps). x86 half of Q2 fully closed null (AVX2/Kaby Lake 2026-07-18; AVX-512/Zen 4 Stage 3 2026-07-19). NEON Q1 prototyped 2026-07-19 on branch `experiment/issue-33-neon-table-transcendentals` (Mac Mini M1): **exp is a borderline win** (<1 ULP, ~+20% stream / ~+21% hot), **log is a perf null** (1 ULP — better than current's 2 ULP — but ~tied at stream). **exp productionized 2026-07-19** (47/47 ctest, `simd_verification` VectorExp 2.5-2.6x); an in-place-aliasing bug was found and fixed in the process (see "NEON Q1" below). Not yet committed/pushed — awaiting user approval before commit/PR; issue stays OPEN until the PR merges.
+  - #33 OPEN — v1.5.x: Evaluate table+Taylor approach for NEON transcendentals — cross-architecture experiment (see Known Gaps). x86 half of Q2 fully closed null (AVX2/Kaby Lake 2026-07-18; AVX-512/Zen 4 Stage 3 2026-07-19). NEON Q1 prototyped 2026-07-19 on branch `experiment/issue-33-neon-table-transcendentals` (Mac Mini M1): **exp is a borderline win** (<1 ULP, ~+20% stream / ~+21% hot), **log is a perf null** (1 ULP — better than current's 2 ULP — but ~tied at stream). **exp productionized 2026-07-19** (47/47 ctest, `simd_verification` VectorExp 2.5-2.6x); an in-place-aliasing bug was found and fixed in the process (see "NEON Q1" below). **PR #70 opened 2026-07-19** (https://github.com/OldCrow/libstats/pull/70); issue stays OPEN until the PR merges.
   - #67 OPEN (created 2026-07-19) — `vector_erf_neon` derived from glibc's
     LGPL-2.1+ `erf_advsimd.c`, not a permissively-licensed source. No MIT
     equivalent algorithm exists upstream; needs a dedicated remediation
@@ -99,10 +99,10 @@ Last reconciled against live GitHub state: 2026-07-19.
 - Closed issues without milestone: 9 as of 2026-07-14.
 
 ## In Progress [OPEN]
-- Local branch `experiment/issue-33-neon-table-transcendentals` (cut from
-  `main`, on the Mac Mini M1, not yet pushed): Issue #33 Q1. **Prototype
-  complete (2026-07-19) + exp productionized (2026-07-19)** — see "Issue #33
-  Experiment -> NEON Q1" for full numbers. `vector_exp_neon`
+- Local branch `experiment/issue-33-neon-table-transcendentals` (pushed,
+  PR #70 open against `main`): Issue #33 Q1. **Prototype complete
+  (2026-07-19) + exp productionized (2026-07-19), PR opened (2026-07-19)** —
+  see "Issue #33 Experiment -> NEON Q1" for full numbers. `vector_exp_neon`
   (`src/simd_neon.cpp`) now runs the table+Taylor kernel in production;
   `src/exp_ulp_vectors.inc` (renamed from `avx512_exp_ulp_vectors.inc`) backs
   a new production regression test, `tests/test_simd_neon_exp_accuracy.cpp`.
@@ -110,9 +110,8 @@ Last reconciled against live GitHub state: 2026-07-19.
   in-place-aliasing bug in the ported kernel's edge-fixup logic (surfaced by
   `NumericalSafety.LogSpaceOperations`, which calls `vector_exp` in-place via
   `LogSpaceOps::logSumExpArrayFallback`). `vector_log_neon` unchanged
-  (perf-null, not productionized). Nothing committed yet — presenting diff +
-  validation to the user for approval before commit/push/PR, per SOP. Internal
-  plan artifact `8370d3c6-66f5-4814-be66-cf4b996f85fa`.
+  (perf-null, not productionized). PR: https://github.com/OldCrow/libstats/pull/70.
+  Internal plan artifact `8370d3c6-66f5-4814-be66-cf4b996f85fa`.
 - Local/pushed branch `fix/remove-stale-vector-erfc-stub` (1 commit ahead
   of `main`, also on `origin`, no open PR yet): removes the unused
   `vector_erfc` SIMD stub since no distribution batch path actually calls
@@ -346,13 +345,13 @@ dispatched.
   `backup/wip-sleef-avx2-gather-bench` remains salvage-reference only. The
   `experiment/issue-33-gather-transcendentals` branch holds the probe, the
   Stage 3 kernel, and the generators as reference.
-- Issue #33 Q1 (NEON): exp productionization COMPLETE on
+- Issue #33 Q1 (NEON): exp productionization COMPLETE, **PR #70 open**
+  (https://github.com/OldCrow/libstats/pull/70) against `main` from
   `experiment/issue-33-neon-table-transcendentals` (47/47 ctest,
   `simd_verification` VectorExp 2.5-2.6x; see "Issue #33 Experiment -> NEON
-  Q1"). Next concrete step: present the diff + validation summary to the user
-  for approval, then commit/push/open a PR (mirroring the #67 PR pattern).
-  Q3 dispatch-threshold reprofiling deferred to a follow-up. Log is not
-  productionized (accuracy-only note lives on #46).
+  Q1"). Next concrete step: await review/merge. Q3 dispatch-threshold
+  reprofiling deferred to a follow-up. Log is not productionized
+  (accuracy-only note lives on #46).
 - #67 (vector_erf_neon LGPL provenance) needs a remediation decision before
   its resolution can be scheduled; not blocking other work, but should not
   be forgotten given it affects already-shipped, dispatched production code.
