@@ -237,82 +237,146 @@ void VectorOps::scalar_add_neon(const double* a, double scalar, double* result,
     }
 }
 
-// Native SIMD transcendental implementations for NEON (aarch64).
-// vector_exp_neon, vector_log_neon, vector_erf_neon: float64x2_t + vfmaq_f64 (v1.5.0 Phase 3).
-// vector_cos_neon: native SIMD since v1.4.0 (unchanged here).
+    // Native SIMD transcendental implementations for NEON (aarch64).
+    // vector_exp_neon: float64x2_t + vfmaq_f64; N=128 tail-corrected table + order-5
+    // polynomial, derived from ARM optimized-routines' MIT-licensed scalar exp
+    // (math/exp.c + exp_data.c) -- see Issue #33 Q1 (docs/SIMD_BENCHMARK_RESULTS.md).
+    // Replaces the v1.5.0 Phase 3 SLEEF polynomial (kept as the scalar fallback).
+    // vector_log_neon, vector_erf_neon: float64x2_t + vfmaq_f64 (v1.5.0 Phase 3);
+    // erf independently re-derived 2026-07-19 (Issue #67) -- see
+    // docs/NEON_ERF_DERIVATION.md and docs/NEON_ERF_DIVERGENCE_AUDIT.md.
+    // vector_cos_neon: native SIMD since v1.4.0 (unchanged here).
+
+    // N=128 tail-corrected table, Array-of-Structs {tail_bits, sbits}, re-interleaved
+    // from ARM optimized-routines' exp_data.c so one vld1q_u64 pulls both per lane
+    // (the NEON software-gather pattern). See scripts/gen_neon_exp_table.py and
+    // THIRD_PARTY_NOTICES.md.
+    #include "neon_exp_data.inc"  // kExpNeonTable[128]
+
+namespace {
+// ARM AOR exp constants (math/exp_data.c, N=128 block); the algorithm is
+// architecture-independent (shared with the AVX-512 Stage 3 experiment kernel).
+constexpr double kExpNeonInvLn2N = 0x1.71547652b82fep0 * 128.0;  // N/ln2
+constexpr double kExpNeonNegLn2hiN = -0x1.62e42fefa0000p-8;      // -ln2/N (hi)
+constexpr double kExpNeonNegLn2loN = -0x1.cf79abc9e3b3ap-47;     // -ln2/N (lo)
+constexpr double kExpNeonShift = 0x1.8p52;
+constexpr double kExpNeonC2 = 0x1.ffffffffffdbdp-2;
+constexpr double kExpNeonC3 = 0x1.555555555543cp-3;
+constexpr double kExpNeonC4 = 0x1.55555cf172b91p-5;
+constexpr double kExpNeonC5 = 0x1.1111167a4d017p-7;
+constexpr double kExpNeonSpecialBound = 704.0;  // |x| beyond this: exact scalar fixup
+}  // namespace
+
 void VectorOps::vector_exp_neon(const double* a, double* result, std::size_t size) noexcept {
     if (!stats::arch::supports_neon()) {
         return vector_exp_fallback(a, result, size);
     }
 
-    // SLEEF-inspired FMA Horner exp(x) on float64x2_t, < 1 ULP error.
-    // Ported from vector_exp_avx2 (simd_avx2.cpp). Range reduction: x = n·ln2 + r,
-    // n = round(x/ln2). Reconstructs exp(x) = exp(r)·2^n via IEEE 754 exponent bit
-    // manipulation. aarch64 vcvtq_s64_f64 converts directly to int64 without the
-    // 32-bit round-trip required in the AVX/AVX2 implementation.
+    const float64x2_t invln2N = vdupq_n_f64(kExpNeonInvLn2N);
+    const float64x2_t shift = vdupq_n_f64(kExpNeonShift);
+    const float64x2_t negln2hiN = vdupq_n_f64(kExpNeonNegLn2hiN);
+    const float64x2_t negln2loN = vdupq_n_f64(kExpNeonNegLn2loN);
+    const float64x2_t c2 = vdupq_n_f64(kExpNeonC2);
+    const float64x2_t c3 = vdupq_n_f64(kExpNeonC3);
+    const float64x2_t c4 = vdupq_n_f64(kExpNeonC4);
+    const float64x2_t c5 = vdupq_n_f64(kExpNeonC5);
+    const uint64x2_t idx_mask = vdupq_n_u64(127);
+    const float64x2_t special_bound = vdupq_n_f64(kExpNeonSpecialBound);
 
-    const float64x2_t ln2_inv = vdupq_n_f64(1.4426950408889634073599246810019);
-    const float64x2_t ln2_hi = vdupq_n_f64(0.693147180369123816490e+00);
-    const float64x2_t ln2_lo = vdupq_n_f64(1.90821492927058770002e-10);
-    const float64x2_t exp_max = vdupq_n_f64(709.782712893383996732223);
-    const float64x2_t exp_min = vdupq_n_f64(-708.0);
-    const float64x2_t half = vdupq_n_f64(0.5);
-    const float64x2_t one = vdupq_n_f64(1.0);
+    // Per-vector core: shift-trick range reduction + software gather + tail-
+    // corrected order-5 polynomial. Inlined in Release, so the loop-invariant
+    // const vectors above are hoisted and the unrolled + remainder paths share
+    // one definition (no code duplication).
+    const auto expCore = [&](float64x2_t x) -> float64x2_t {
+        // n = round(x * N/ln2) via the shift trick; ki = bits(z), kd = n as double.
+        float64x2_t z = vfmaq_f64(shift, x, invln2N);  // shift + x*invln2N (fused)
+        uint64x2_t ki = vreinterpretq_u64_f64(z);
+        float64x2_t kd = vsubq_f64(z, shift);
 
-    // SLEEF polynomial coefficients for exp(r), |r| < ln2/2, < 1 ULP
-    const float64x2_t c1 = vdupq_n_f64(0.1666666666666669072e+0);
-    const float64x2_t c2 = vdupq_n_f64(0.4166666666666602598e-1);
-    const float64x2_t c3 = vdupq_n_f64(0.8333333333314938210e-2);
-    const float64x2_t c4 = vdupq_n_f64(0.1388888888914497797e-2);
-    const float64x2_t c5 = vdupq_n_f64(0.1984126989855865850e-3);
-    const float64x2_t c6 = vdupq_n_f64(0.2480158687479686264e-4);
-    const float64x2_t c7 = vdupq_n_f64(0.2755723402025388239e-5);
-    const float64x2_t c8 = vdupq_n_f64(0.2755762628169491192e-6);
-    const float64x2_t c9 = vdupq_n_f64(0.2511210703042288022e-7);
-    const float64x2_t c10 = vdupq_n_f64(0.2081276378237164457e-8);
+        // r = x - n*ln2/N (two-part reduction; the NegLn2*N constants are negative).
+        float64x2_t r = vfmaq_f64(x, kd, negln2hiN);  // x + kd*negln2hiN
+        r = vfmaq_f64(r, kd, negln2loN);              // r + kd*negln2loN
 
-    constexpr std::size_t W = stats::arch::simd::NEON_DOUBLES;  // 2
-    const std::size_t simd_end = (size / W) * W;
+        // Table index and exponent injection derived at RUNTIME (no hardcoded bits).
+        uint64x2_t idx = vandq_u64(ki, idx_mask);
+        uint64x2_t top = vshlq_n_u64(ki, 45);  // 52 - EXP_TABLE_BITS(7)
 
-    for (std::size_t i = 0; i < simd_end; i += W) {
-        float64x2_t x = vld1q_f64(&a[i]);
-        x = vminq_f64(x, exp_max);
-        x = vmaxq_f64(x, exp_min);
+        // Software gather: one 128-bit load per lane pulls the WHOLE {tail, sbits}
+        // pair; vuzp deinterleaves. Costs a single load per lane because the pair
+        // is 16 bytes = one vld1q (this is why the tail correction is affordable
+        // on NEON where it was not on x86's hardware-gather AVX-512 experiment).
+        uint64x2_t e0 = vld1q_u64(
+            reinterpret_cast<const std::uint64_t*>(&kExpNeonTable[vgetq_lane_u64(idx, 0)]));
+        uint64x2_t e1 = vld1q_u64(
+            reinterpret_cast<const std::uint64_t*>(&kExpNeonTable[vgetq_lane_u64(idx, 1)]));
+        uint64x2_t tail_bits = vuzp1q_u64(e0, e1);  // {tail0, tail1}
+        uint64x2_t sbits = vuzp2q_u64(e0, e1);      // {sbits0, sbits1}
 
-        // n = round(x/ln2); r = x - n·ln2 via two-part ln2 for precision
-        float64x2_t n_float = vrndnq_f64(vmulq_f64(x, ln2_inv));
-        float64x2_t r = vfmsq_f64(x, n_float, ln2_hi);  // x - n·ln2_hi
-        r = vfmsq_f64(r, n_float, ln2_lo);              // r - n·ln2_lo
+        float64x2_t tail = vreinterpretq_f64_u64(tail_bits);
+        float64x2_t scale = vreinterpretq_f64_u64(vaddq_u64(sbits, top));  // 2^(n/N)
 
-        // FMA Horner: P(r) — each step: poly = c_k + poly·r
+        // tmp = tail + r + r^2*(C2 + r*C3) + r^4*(C4 + r*C5) ~= (exp(r) - 1) + tail
         float64x2_t r2 = vmulq_f64(r, r);
-        float64x2_t poly = c10;
-        poly = vfmaq_f64(c9, poly, r);
-        poly = vfmaq_f64(c8, poly, r);
-        poly = vfmaq_f64(c7, poly, r);
-        poly = vfmaq_f64(c6, poly, r);
-        poly = vfmaq_f64(c5, poly, r);
-        poly = vfmaq_f64(c4, poly, r);
-        poly = vfmaq_f64(c3, poly, r);
-        poly = vfmaq_f64(c2, poly, r);
-        poly = vfmaq_f64(c1, poly, r);
+        float64x2_t r4 = vmulq_f64(r2, r2);
+        float64x2_t plo = vfmaq_f64(c2, r, c3);  // C2 + r*C3
+        float64x2_t phi = vfmaq_f64(c4, r, c5);  // C4 + r*C5
+        float64x2_t tmp = vaddq_f64(tail, r);
+        tmp = vfmaq_f64(tmp, r2, plo);  // tmp + r2*plo
+        tmp = vfmaq_f64(tmp, r4, phi);  // tmp + r4*phi
 
-        // Complete: exp(r) = 1 + r + r²·(0.5 + r·P(r))
-        poly = vfmaq_f64(half, poly, r);  // 0.5 + r·P(r)
-        poly = vfmaq_f64(r, poly, r2);    // r + r²·(0.5 + r·P(r))
-        poly = vaddq_f64(poly, one);      // 1 + r + r²·(0.5 + r·P(r))
+        // exp(x) = scale + scale*tmp = 2^(n/N) * (1 + (exp(r) - 1)).
+        return vfmaq_f64(scale, scale, tmp);
+    };
 
-        // Scale by 2^n: biased exponent = n + 1023, placed at IEEE 754 bit 52.
-        // aarch64 vcvtq_s64_f64 converts directly; no 32-bit round-trip needed.
-        int64x2_t n_int = vcvtq_s64_f64(n_float);
-        int64x2_t exp_bits = vshlq_n_s64(vaddq_s64(n_int, vdupq_n_s64(1023)), 52);
-        float64x2_t scale = vreinterpretq_f64_s64(exp_bits);
-        vst1q_f64(&result[i], vmulq_f64(poly, scale));
+    // Scalar edge fixup for lanes with |x| >= 704 (also catches +/-inf). NaN is not
+    // caught by the ordered compare, but propagates to NaN through the polynomial
+    // path already, which is the correct result.
+    //
+    // IMPORTANT (aliasing): this takes the already-loaded register `xv` and a
+    // precomputed per-lane `mask`, and never re-reads `a[]`. vector_exp is called
+    // in-place in production (e.g. LogSpaceOps::logSumExpArrayFallback passes the
+    // same buffer as both `a` and `result`), so by the time this runs, `a[base..]`
+    // may already have been overwritten by the vst1q_f64 stores above. Deciding
+    // the fixup from the original register value (not a[]) is what makes this
+    // correct regardless of aliasing.
+    const auto fixupSpecial = [&](std::size_t base, float64x2_t xv, uint64x2_t mask) {
+        if (vgetq_lane_u64(mask, 0))
+            result[base + 0] = std::exp(vgetq_lane_f64(xv, 0));
+        if (vgetq_lane_u64(mask, 1))
+            result[base + 1] = std::exp(vgetq_lane_f64(xv, 1));
+    };
+
+    const std::size_t unroll_end = (size / 4) * 4;  // 2 vectors (4 doubles) per iteration
+    const std::size_t simd_end = (size / 2) * 2;
+
+    std::size_t i = 0;
+    for (; i < unroll_end; i += 4) {
+        float64x2_t x0 = vld1q_f64(&a[i]);
+        float64x2_t x1 = vld1q_f64(&a[i + 2]);
+        vst1q_f64(&result[i], expCore(x0));
+        vst1q_f64(&result[i + 2], expCore(x1));
+
+        // Hoisted edge check computed from the registers (pre-store); the branch
+        // is not taken for in-range batches.
+        uint64x2_t mask0 = vcgeq_f64(vabsq_f64(x0), special_bound);
+        uint64x2_t mask1 = vcgeq_f64(vabsq_f64(x1), special_bound);
+        uint64x2_t any = vorrq_u64(mask0, mask1);
+        if (vgetq_lane_u64(any, 0) | vgetq_lane_u64(any, 1)) {
+            fixupSpecial(i, x0, mask0);
+            fixupSpecial(i + 2, x1, mask1);
+        }
     }
-
-    for (std::size_t i = simd_end; i < size; ++i) {
+    for (; i < simd_end; i += 2) {
+        float64x2_t x = vld1q_f64(&a[i]);
+        vst1q_f64(&result[i], expCore(x));
+        uint64x2_t mask = vcgeq_f64(vabsq_f64(x), special_bound);
+        if (vgetq_lane_u64(mask, 0) | vgetq_lane_u64(mask, 1))
+            fixupSpecial(i, x, mask);
+    }
+    // Scalar tail: disjoint from the SIMD range above, so a[i] is always still the
+    // original input here regardless of aliasing.
+    for (; i < size; ++i)
         result[i] = std::exp(a[i]);
-    }
 }
 
 void VectorOps::vector_log_neon(const double* a, double* result, std::size_t size) noexcept {

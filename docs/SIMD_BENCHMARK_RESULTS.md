@@ -245,6 +245,56 @@ meet the accuracy floor, so only the full < 1 ULP kernel could settle the
 question. With this, the entire x86 half of Issue #33 Q2 is closed null (AVX2
 and AVX-512); only the NEON Q1 path (needs the M1) remains open.
 
+### NEON (Mac Mini M1) Q1 result (2026-07-19): exp productionized
+
+Following the Q1 prototype win (exp <1 ULP, ~+20% stream / ~+21% hot; see
+PLAN.md "Issue #33 Experiment -> NEON Q1" for the full prototype numbers),
+`vector_exp_neon` (`src/simd_neon.cpp`) was productionized on branch
+`experiment/issue-33-neon-table-transcendentals`: the 10-term SLEEF
+polynomial body was replaced with the validated 2x-unrolled, tail-corrected
+N=128 table + order-5 polynomial kernel (software `vld1q` gather -- NEON has
+no hardware gather instruction). `vector_log_neon` is unchanged (perf-null,
+per the productionize-exp-only decision).
+
+Accuracy vs the arch-neutral 1018-point mpmath correctly-rounded reference
+(`src/exp_ulp_vectors.inc`, renamed from `avx512_exp_ulp_vectors.inc` now that
+it backs a production regression test, `tests/test_simd_neon_exp_accuracy.cpp`):
+
+| Kernel | core (abs x ≤ 700) max | mean | IEEE edges |
+|---|---:|---:|---|
+| table-gather exp (production) | ≤1 ULP | <0.01 ULP | correct (±inf/NaN/±0) |
+
+Throughput (`./build/tools/simd_verification`, Release, Mac Mini M1):
+
+| Metric | Old (SLEEF poly, v1.5.x baseline) | New (table+Taylor, production) |
+|---|---:|---:|
+| VectorExp speedup vs scalar | 2.1x | 2.5-2.6x |
+
+Full-suite correctness: **47/47** (`ctest -LE "timing|benchmark"`, 46 existing
++ the new `test_simd_neon_exp_accuracy`). Distribution suite geomeans healthy
+(PDF 6.8x, LogPDF 8.2x, CDF 3.1x). The 5 exp-heavy timing-labelled enhanced
+tests (Gamma, LogNormal, Pareto, Weibull, Rayleigh) all pass.
+
+**Finding -- in-place aliasing bug caught by `ctest`:** the ported kernel's
+edge-fixup logic initially re-read the input array *after* the SIMD store
+into the output, matching the prototype (which was only ever benchmarked
+out-of-place). `LogSpaceOps::logSumExpArrayFallback`
+(`src/log_space_ops.cpp:141-161`) legitimately calls `vector_exp` in-place
+(`a == result`); for `-inf` input this caused the store to overwrite the
+input with an internally-computed `NaN` before the fixup check read it back,
+so `fabs(NaN) >= 704` (an unordered compare) never fired and the wrong `NaN`
+was kept instead of the correct `exp(-inf) = 0`. This broke
+`NumericalSafety.LogSpaceOperations`. Fix: compute the edge-fixup mask from
+the already-loaded input register *before* the store, not from a post-store
+re-read of the array. General lesson for NEON/SIMD kernel authors in this
+codebase: never re-read the input array after the corresponding store when
+in-place calls (`a == result`) are possible -- decide fixups only from
+already-loaded registers.
+
+With this, Issue #33 Q1 is complete: exp is production on NEON; log remains
+un-productionized (accuracy-only finding tracked on #46). The entire Issue
+#33 experiment (x86 Q2 null, NEON Q1 exp win) is closed pending PR merge.
+
 ## Running benchmarks
 
 Use Release builds for performance numbers:

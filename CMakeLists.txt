@@ -1325,6 +1325,10 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_gtest(test_platform_optimizations tests/test_platform_optimizations.cpp)
     create_libstats_gtest(test_simd_policy tests/test_simd_policy.cpp)
 
+    # NEON vector_exp accuracy regression (Issue #33 Q1) -- guards the table+poly kernel's <1 ULP
+    # floor. Self-skips (not fails) on non-NEON builds/machines.
+    create_libstats_gtest(test_simd_neon_exp_accuracy tests/test_simd_neon_exp_accuracy.cpp)
+
     # SIMD benchmark test (on-demand only, not in regular test suite due to runtime)
     create_libstats_test(benchmark_simd_all tests/benchmark_simd_all.cpp)
 
@@ -1571,6 +1575,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_simd_comprehensive
                 test_platform_optimizations
                 test_simd_policy
+                test_simd_neon_exp_accuracy
                 # Level 1: Core infrastructure tests
                 test_error_handling_comprehensive
                 test_numerical_safety
@@ -1666,9 +1671,9 @@ endif()
 # Tools and utilities
 option(LIBSTATS_BUILD_TOOLS "Build utility tools" ON)
 
-# Issue #33: opt-in SIMD experimentation tools (gather-vs-polynomial benchmarks etc.).
-# Default OFF -- these are ad hoc research tools, not part of the production build.
-# Requires LIBSTATS_BUILD_TOOLS=ON (the add_libstats_tool helper is defined in that scope).
+# Issue #33: opt-in SIMD experimentation tools (gather-vs-polynomial benchmarks etc.). Default OFF
+# -- these are ad hoc research tools, not part of the production build. Requires
+# LIBSTATS_BUILD_TOOLS=ON (the add_libstats_tool helper is defined in that scope).
 option(
     LIBSTATS_BUILD_SIMD_DEV_TOOLS
     "Build opt-in SIMD experimentation/dev tools for Issue #33 (requires LIBSTATS_BUILD_TOOLS=ON)"
@@ -1717,23 +1722,23 @@ if(LIBSTATS_BUILD_TOOLS)
     add_libstats_tool(toctou_validator toctou_validator.cpp)
     add_libstats_tool(copy_move_stress copy_move_stress.cpp)
 
-    # Issue #33 opt-in dev tools -- gated separately since these are research/experiment
-    # tools, not part of the standard tool set built by every developer.
+    # Issue #33 opt-in dev tools -- gated separately since these are research/experiment tools, not
+    # part of the standard tool set built by every developer.
     if(LIBSTATS_BUILD_SIMD_DEV_TOOLS)
         add_libstats_tool(gather_throughput_probe gather_throughput_probe.cpp)
 
         # gather_throughput_probe needs the same per-TU ISA flags as the SIMD kernels
-        # (src/simd_avx2.cpp, src/simd_avx512.cpp) so gather/FMA intrinsics are permitted
-        # by the compiler; the libstats::simd interface (linked by add_libstats_tool) only
-        # supplies the LIBSTATS_HAS_AVX2/LIBSTATS_HAS_AVX512 compile *definitions*, not the
-        # ISA flags themselves. AVX-512 is a superset of AVX2/FMA on MSVC (only a single
-        # /arch: flag is accepted), so prefer it over AVX2 rather than passing both.
+        # (src/simd_avx2.cpp, src/simd_avx512.cpp) so gather/FMA intrinsics are permitted by the
+        # compiler; the libstats::simd interface (linked by add_libstats_tool) only supplies the
+        # LIBSTATS_HAS_AVX2/LIBSTATS_HAS_AVX512 compile *definitions*, not the ISA flags themselves.
+        # AVX-512 is a superset of AVX2/FMA on MSVC (only a single /arch: flag is accepted), so
+        # prefer it over AVX2 rather than passing both.
         if(LIBSTATS_HAS_AVX512)
             if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
                 target_compile_options(gather_throughput_probe PRIVATE /arch:AVX512)
             else()
-                target_compile_options(gather_throughput_probe PRIVATE -mavx512f -mavx512dq
-                                                                       -mavx2 -mfma)
+                target_compile_options(gather_throughput_probe PRIVATE -mavx512f -mavx512dq -mavx2
+                                                                       -mfma)
             endif()
         elseif(LIBSTATS_HAS_AVX2)
             if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
@@ -1743,10 +1748,20 @@ if(LIBSTATS_BUILD_TOOLS)
             endif()
         endif()
 
+        # NEON table-gather exp/log probe (Issue #33 Q1). NEON is baseline on AArch64, so -- unlike
+        # the AVX2/AVX-512 probe above -- no per-target ISA flag is needed; the arm_neon.h
+        # intrinsics are always available. On non-NEON builds the tool compiles to a "not
+        # applicable" stub (guarded internally).
+        add_libstats_tool(neon_table_transcendental_probe neon_table_transcendental_probe.cpp)
+
         message(STATUS "SIMD dev tools enabled:")
         message(
             STATUS
                 "  - gather_throughput_probe: Issue #33 Stage 1-2 first kill-gate -- AVX2/AVX-512 gather vs FMA-only throughput (warm/cold/interleave)"
+        )
+        message(
+            STATUS
+                "  - neon_table_transcendental_probe: Issue #33 Q1 -- NEON table-gather exp/log vs current SLEEF polynomials (accuracy + throughput gates)"
         )
     elseif(DEFINED LIBSTATS_BUILD_SIMD_DEV_TOOLS)
         message(STATUS "SIMD dev tools disabled (LIBSTATS_BUILD_SIMD_DEV_TOOLS=OFF)")
