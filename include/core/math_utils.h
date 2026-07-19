@@ -157,12 +157,10 @@ namespace detail {
  */
 void vector_erf(std::span<const double> input, std::span<double> output) noexcept;
 
-// DEFERRED: vector_erfc
-// Target: Gaussian CDF error-function-complement SIMD path; would eliminate
-//   the scalar fallback for erfc() in the Gaussian CDF batch kernel.
-// Prerequisite: an erfc SIMD primitive (currently only vector_erf exists).
-//   Low priority: erf is the dominant operation; erfc is a derived quantity.
-void vector_erfc(std::span<const double> input, std::span<double> output) noexcept;
+// NOTE: vector_erfc is intentionally absent.
+// The Gaussian CDF batch path uses 0.5*(1 + erf(x/√2)) via vector_erf directly
+// (see gaussian.cpp getCumulativeProbabilityBatchUnsafeImpl). No distribution
+// batch path calls erfc, so a SIMD erfc primitive has no hot-path target.
 
 // DEFERRED: vector_gamma_p / vector_gamma_q
 // Target: Gamma/ChiSquared/Poisson CDF batch SIMD acceleration.
