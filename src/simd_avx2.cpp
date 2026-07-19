@@ -208,6 +208,7 @@ void VectorOps::vector_exp_avx2(const double* input, double* output, std::size_t
     const __m256d exp_min = _mm256_set1_pd(-746.0);
     const __m256d half = _mm256_set1_pd(0.5);
     const __m256d one = _mm256_set1_pd(1.0);
+    const __m256d pos_inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
 
     const __m256d c1 = _mm256_set1_pd(0.1666666666666669072e+0);
     const __m256d c2 = _mm256_set1_pd(0.4166666666666602598e-1);
@@ -224,8 +225,8 @@ void VectorOps::vector_exp_avx2(const double* input, double* output, std::size_t
     const std::size_t simd_end = (size / W) * W;
 
     for (std::size_t i = 0; i < simd_end; i += W) {
-        __m256d x = _mm256_loadu_pd(&input[i]);
-        x = _mm256_min_pd(x, exp_max);
+        __m256d x_orig = _mm256_loadu_pd(&input[i]);
+        __m256d x = _mm256_min_pd(x_orig, exp_max);
         x = _mm256_max_pd(x, exp_min);
 
         // Range reduction: x = n*ln2 + r
@@ -268,7 +269,16 @@ void VectorOps::vector_exp_avx2(const double* input, double* output, std::size_t
         __m128i e2_hi = _mm_slli_epi64(_mm_cvtepi32_epi64(_mm_shuffle_epi32(eb2, 0x0E)), 52);
         __m256d scale1 = _mm256_set_m128d(_mm_castsi128_pd(e1_hi), _mm_castsi128_pd(e1_lo));
         __m256d scale2 = _mm256_set_m128d(_mm_castsi128_pd(e2_hi), _mm_castsi128_pd(e2_lo));
-        _mm256_storeu_pd(&output[i], _mm256_mul_pd(_mm256_mul_pd(poly, scale1), scale2));
+        __m256d result = _mm256_mul_pd(_mm256_mul_pd(poly, scale1), scale2);
+
+        // Match std::exp at the non-finite/overflow edges (the clamp above only
+        // guarantees the finite in-range path): x > exp_max (incl. +inf) -> +inf,
+        // NaN -> NaN. Underflow/-inf already flush to +0 via exp_min + two-step
+        // scaling, so no low-side fixup is needed. Keeps the SIMD body consistent
+        // with the scalar remainder loop below (std::exp) and the NEON kernel.
+        result = _mm256_blendv_pd(result, pos_inf, _mm256_cmp_pd(x_orig, exp_max, _CMP_GT_OQ));
+        result = _mm256_blendv_pd(result, x_orig, _mm256_cmp_pd(x_orig, x_orig, _CMP_UNORD_Q));
+        _mm256_storeu_pd(&output[i], result);
     }
 
     for (std::size_t i = simd_end; i < size; ++i)

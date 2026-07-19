@@ -198,6 +198,79 @@ function(apply_cross_compilation_overrides)
         CACHE INTERNAL "List of SIMD compile definitions" FORCE)
 endfunction()
 
+# Cap the highest *compiled* x86 SIMD tier (LIBSTATS_MAX_SIMD_TIER). Runtime
+# dispatch always selects the highest tier the CPU supports, so lower-tier
+# kernels (e.g. AVX or SSE2 on an AVX2 box) otherwise never execute and cannot
+# be validated natively. This disables every x86 tier strictly above the cap and
+# removes its source + compile definition. Because it only ever removes from the
+# top, the downward dependency (AVX2 needs AVX needs SSE2) stays satisfied. Runs
+# after apply_cross_compilation_overrides(), so an explicit cap overrides any
+# LIBSTATS_FORCE_* that raised a tier. NEON is unaffected (ARM-only).
+function(apply_simd_tier_cap)
+    if(NOT DEFINED LIBSTATS_MAX_SIMD_TIER
+       OR LIBSTATS_MAX_SIMD_TIER STREQUAL ""
+       OR LIBSTATS_MAX_SIMD_TIER STREQUAL "NONE")
+        return()
+    endif()
+
+    string(TOUPPER "${LIBSTATS_MAX_SIMD_TIER}" _cap)
+    set(_tier_order SSE2 AVX AVX2 AVX512)
+    list(FIND _tier_order "${_cap}" _cap_rank)
+    if(_cap_rank EQUAL -1)
+        message(
+            FATAL_ERROR
+                "LIBSTATS_MAX_SIMD_TIER='${LIBSTATS_MAX_SIMD_TIER}' is invalid; "
+                "use one of: SSE2 AVX AVX2 AVX512 (or empty/NONE for no cap)")
+    endif()
+
+    get_property(
+        _sources
+        CACHE LIBSTATS_SIMD_SOURCES
+        PROPERTY VALUE)
+    get_property(
+        _definitions
+        CACHE LIBSTATS_SIMD_DEFINITIONS
+        PROPERTY VALUE)
+
+    set(_disabled "")
+    foreach(_tier IN LISTS _tier_order)
+        list(FIND _tier_order "${_tier}" _rank)
+        if(_rank GREATER _cap_rank)
+            get_property(
+                _was
+                CACHE LIBSTATS_HAS_${_tier}
+                PROPERTY VALUE)
+            set(LIBSTATS_HAS_${_tier}
+                FALSE
+                CACHE BOOL "${_tier} disabled by LIBSTATS_MAX_SIMD_TIER=${_cap}" FORCE)
+            # Source file name mirrors the tier: SSE2 -> src/simd_sse2.cpp, etc.
+            string(TOLOWER "${_tier}" _tier_lc)
+            list(REMOVE_ITEM _sources "src/simd_${_tier_lc}.cpp")
+            list(REMOVE_ITEM _definitions "LIBSTATS_HAS_${_tier}=1")
+            if(_was)
+                list(APPEND _disabled "${_tier}")
+            endif()
+        endif()
+    endforeach()
+
+    set(LIBSTATS_SIMD_SOURCES
+        "${_sources}"
+        CACHE INTERNAL "List of SIMD source files to compile" FORCE)
+    set(LIBSTATS_SIMD_DEFINITIONS
+        "${_definitions}"
+        CACHE INTERNAL "List of SIMD compile definitions" FORCE)
+
+    if(_disabled)
+        string(JOIN ", " _disabled_str ${_disabled})
+        message(STATUS "SIMD: capped at ${_cap} via LIBSTATS_MAX_SIMD_TIER; disabled: ${_disabled_str}")
+    else()
+        message(
+            STATUS
+                "SIMD: LIBSTATS_MAX_SIMD_TIER=${_cap} is at or above the detected top tier; no tiers removed"
+        )
+    endif()
+endfunction()
+
 # Main function to detect all SIMD features
 function(detect_simd_features)
     message(STATUS "Detecting SIMD features...")
@@ -243,9 +316,10 @@ function(detect_simd_features)
             set(LIBSTATS_SIMD_DEFINITIONS
                 "LIBSTATS_HAS_SSE2=1"
                 CACHE INTERNAL "List of SIMD compile definitions" FORCE)
-            message(STATUS "SIMD: SSE2 enabled (compiler only - cross-compiling)")
+        message(STATUS "SIMD: SSE2 enabled (compiler only - cross-compiling)")
         endif()
         apply_cross_compilation_overrides()
+        apply_simd_tier_cap()
         # Always include fallback implementation
         get_property(
             _sources
@@ -676,6 +750,9 @@ bool test_neon() {
     # Apply any environment variable overrides
     apply_cross_compilation_overrides()
 
+    # Cap the compiled tier if requested (must run after overrides so an explicit
+    # cap wins over any LIBSTATS_FORCE_* that raised a tier).
+    apply_simd_tier_cap()
 
     # Always include fallback implementation
     get_property(

@@ -154,6 +154,80 @@ TEST(BatchMathRegressions, VectorExpDeepUnderflowMatchesStdExp) {
     }
 }
 
+TEST(BatchMathRegressions, VectorExpEdgeCasesMatchStdExp) {
+    // Companion to VectorExpDeepUnderflowMatchesStdExp. The SIMD exp kernels
+    // clamp inputs into [exp_min, exp_max] for the finite path, so non-finite
+    // and overflow inputs need an explicit fixup to track std::exp. Guards the
+    // 2026-07-19 AVX2/AVX audit findings: +inf/overflow -> +inf, NaN -> NaN,
+    // -inf -> +0, and the SIMD body must agree with the scalar remainder loop
+    // (also std::exp). Before the fix these lanes returned ~DBL_MAX (a finite
+    // value), silently swallowing NaN and +inf.
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double points[] = {inf, -inf, nan, 710.0, 720.0, 1.0e6, -1.0, 2.5, -37.0, 0.0};
+    // Repeat each value 8x so every SIMD width (2/4/8 doubles) hits the vector
+    // kernel rather than the scalar remainder loop.
+    std::vector<double> values;
+    for (double p : points)
+        values.insert(values.end(), 8, p);
+    std::vector<double> out(values.size());
+
+    arch::simd::VectorOps::vector_exp(values.data(), out.data(), values.size());
+
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        const double x = values[i];
+        const double ref = std::exp(x);
+        if (std::isnan(ref)) {
+            EXPECT_TRUE(std::isnan(out[i])) << "x=" << x << " simd=" << out[i];
+        } else if (std::isinf(ref)) {
+            EXPECT_TRUE(std::isinf(out[i]) && out[i] > 0.0) << "x=" << x << " simd=" << out[i];
+        } else {
+            // Finite: exp(x) >= +0, so bit patterns are ordered and their
+            // difference is the ULP distance.
+            const auto ulp =
+                std::abs(std::bit_cast<std::int64_t>(out[i]) - std::bit_cast<std::int64_t>(ref));
+            EXPECT_LE(ulp, 4) << "x=" << x << " simd=" << out[i] << " ref=" << ref;
+            if (ref == 0.0)
+                EXPECT_FALSE(std::signbit(out[i])) << "x=" << x << " returned -0";
+        }
+    }
+}
+
+TEST(BatchMathRegressions, VectorLogSubnormalMatchesStdLog) {
+    // vector_log_avx/avx2/avx512 scale subnormal inputs by 2^54 before the
+    // bit-level exponent/mantissa extraction (subnormals have no implicit
+    // leading mantissa bit, so the trick is only valid for normalized
+    // doubles). vector_log_sse2 was missing this scaling entirely, so
+    // log(subnormal) was silently wrong by up to ~35 natural-log-units (e.g.
+    // log(denorm_min()) returned -709.09 instead of -744.44). Found
+    // 2026-07-19 via native SSE2 testing (LIBSTATS_MAX_SIMD_TIER=SSE2), which
+    // surfaced this for the first time -- SSE2 had previously only run under
+    // Rosetta 2. Guards the fix across whichever tier is dispatched.
+    const double points[] = {
+        std::numeric_limits<double>::denorm_min(),  // smallest subnormal, ~4.94e-324
+        1.0e-310,                                   // subnormal
+        1.0e-320,                                   // subnormal
+        std::numeric_limits<double>::min(),         // smallest normal, ~2.22e-308 (boundary)
+        1.0,
+        1.0e100,
+        std::numeric_limits<double>::max(),
+    };
+    // Repeat each value 8x so every SIMD width (2/4/8 doubles) hits the vector
+    // kernel rather than the scalar remainder loop.
+    std::vector<double> values;
+    for (double p : points)
+        values.insert(values.end(), 8, p);
+    std::vector<double> out(values.size());
+
+    arch::simd::VectorOps::vector_log(values.data(), out.data(), values.size());
+
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        const double ref = std::log(values[i]);
+        EXPECT_NEAR(out[i], ref, std::abs(ref) * 1e-9 + 1e-12)
+            << "x=" << values[i] << " simd=" << out[i] << " ref=" << ref;
+    }
+}
+
 TEST(BatchMathRegressions, GaussianStandardizedValueRebuildsCacheAfterReset) {
     auto gaussian = GaussianDistribution::create(10.0, 2.0).unwrap();
     EXPECT_NEAR(gaussian.getStandardizedValue(14.0), 2.0, 1e-15);
