@@ -171,14 +171,42 @@ add cost on top of the isolated gather. AVX2 gather-based exp/log does not
 beat the current polynomial on this hardware. No further AVX2 work planned;
 production kernels unchanged.
 
-### AVX-512 Zen 4 (Asus TUF A16): pending
+### AVX-512 Zen 4 (Asus TUF A16) result (2026-07-18): kill-gate clears for exp
 
-Not yet measured. AMD's AVX-512 gather (`_mm512_i64gather_pd`) implementation
-is architecturally unrelated to Intel's Skylake-derived gather unit, so the
-Kaby Lake result does not generalize -- this remains the open half of Issue
-#33 Q2. Extend `tools/gather_throughput_probe.cpp` with an AVX-512 gather
-path when next on that machine and re-run the same warm/interleave/cold
-kill-gate.
+Machine: AMD Ryzen 7 7445HS (Zen 4), AVX-512. Measured `_mm512_i64gather_pd`
+(8-wide) throughput against an FMA-only baseline under the same three cache
+regimes, alongside the AVX2 (4-wide) path re-measured on this same box for
+direct comparison:
+
+| Regime | AVX2 ns/op | AVX2 vs FMA | AVX-512 ns/op | AVX-512 vs FMA |
+|---|---:|---:|---:|---:|
+| FMA-only baseline | 0.709 | 1x | 0.404 | 1x |
+| Warm (table resident in L1) | 0.699 | 0.99x | 0.493 | 1.22x |
+| Interleave (realistic cache pressure, the gate) | 1.027 | 1.45x | 0.688 | 1.70x |
+| Cold (clflush before every gather) | 248.3 | 350x | 268.3 | 664x (flush-only: 86.7 ns) |
+
+Contrast with the closed Kaby Lake result (AVX2 interleave 8.6x the FMA
+baseline): even the AVX2 path on this Zen 4 machine costs only 1.45x, and
+native AVX-512 gather costs 1.70x. This confirms AMD's Zen 4 gather unit is
+substantially cheaper than Intel's Skylake-derived one, not just
+architecturally different.
+
+Gate math (the FMA baseline measures a 3-term Horner chain, ≈2 FMAs, so
+treat it as one "3-term-poly unit"): `vector_exp_avx512` is 10-term: a
+3-term table replacement saves 7 terms ≈ 2.33 units, comfortably above the
+1.70-unit gather cost -- **the kill-gate clears for exp**, the opposite
+outcome from Kaby Lake. `vector_log_avx512` is 7-term: a 5-term ARM-glibc-
+style replacement saves only 2 terms ≈ 0.67 units, below the 1.70-unit
+gather cost on this simple term-count model -- log does not clear on the
+same model alone, though real range-reduction savings (not captured by a
+term count) could shift this and are not measured here. As with Kaby Lake,
+this is a floor, not a ceiling: a real kernel adds index computation, range
+reduction, and edge-case handling on top of the isolated gather.
+
+**Next step: Stage 3 (actual table kernel port + <1 ULP accuracy
+validation) for exp**, not yet started -- this is a genuinely different
+model/effort tier (Opus 4.8) than the Stage 1-2 harness extension. See
+PLAN.md "Issue #33 Experiment" for full governance.
 
 ## Running benchmarks
 

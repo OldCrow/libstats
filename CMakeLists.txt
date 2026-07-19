@@ -1722,11 +1722,20 @@ if(LIBSTATS_BUILD_TOOLS)
     if(LIBSTATS_BUILD_SIMD_DEV_TOOLS)
         add_libstats_tool(gather_throughput_probe gather_throughput_probe.cpp)
 
-        # gather_throughput_probe needs the same per-TU AVX2/FMA ISA flags as
-        # src/simd_avx2.cpp so _mm256_i32gather_pd/_mm256_fmadd_pd are permitted by the
-        # compiler; the libstats::simd interface (linked by add_libstats_tool) only
-        # supplies the LIBSTATS_HAS_AVX2 compile *definition*, not the ISA flag itself.
-        if(LIBSTATS_HAS_AVX2)
+        # gather_throughput_probe needs the same per-TU ISA flags as the SIMD kernels
+        # (src/simd_avx2.cpp, src/simd_avx512.cpp) so gather/FMA intrinsics are permitted
+        # by the compiler; the libstats::simd interface (linked by add_libstats_tool) only
+        # supplies the LIBSTATS_HAS_AVX2/LIBSTATS_HAS_AVX512 compile *definitions*, not the
+        # ISA flags themselves. AVX-512 is a superset of AVX2/FMA on MSVC (only a single
+        # /arch: flag is accepted), so prefer it over AVX2 rather than passing both.
+        if(LIBSTATS_HAS_AVX512)
+            if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+                target_compile_options(gather_throughput_probe PRIVATE /arch:AVX512)
+            else()
+                target_compile_options(gather_throughput_probe PRIVATE -mavx512f -mavx512dq
+                                                                       -mavx2 -mfma)
+            endif()
+        elseif(LIBSTATS_HAS_AVX2)
             if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
                 target_compile_options(gather_throughput_probe PRIVATE /arch:AVX2)
             else()
@@ -1737,7 +1746,7 @@ if(LIBSTATS_BUILD_TOOLS)
         message(STATUS "SIMD dev tools enabled:")
         message(
             STATUS
-                "  - gather_throughput_probe: Issue #33 Stage 1-2 first kill-gate -- AVX2 gather vs FMA-only throughput (warm/cold/interleave)"
+                "  - gather_throughput_probe: Issue #33 Stage 1-2 first kill-gate -- AVX2/AVX-512 gather vs FMA-only throughput (warm/cold/interleave)"
         )
     elseif(DEFINED LIBSTATS_BUILD_SIMD_DEV_TOOLS)
         message(STATUS "SIMD dev tools disabled (LIBSTATS_BUILD_SIMD_DEV_TOOLS=OFF)")

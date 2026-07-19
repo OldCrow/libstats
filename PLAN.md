@@ -79,7 +79,7 @@ Last reconciled against live GitHub state: 2026-07-14.
 
 ## GitHub Issues Without Milestone [DERIVED]
 - Open issues without milestone:
-  - #33 OPEN — v1.5.x: Evaluate table+Taylor approach for NEON transcendentals — cross-architecture experiment (see Known Gaps; Kaby Lake AVX2 sub-experiment closed null 2026-07-18, AVX-512/A16 sub-experiment open).
+  - #33 OPEN — v1.5.x: Evaluate table+Taylor approach for NEON transcendentals — cross-architecture experiment (see Known Gaps; Kaby Lake AVX2 sub-experiment closed null 2026-07-18, AVX-512/A16 Stage 1-2 kill-gate cleared 2026-07-18 — Stage 3 table port pending, not yet started).
 - Closed issues without milestone: 9 as of 2026-07-14.
 
 ## In Progress [OPEN]
@@ -125,24 +125,42 @@ exp/log experiment".
   Stages 3-6 (table port, benchmarking, log, consolidation) skipped as moot.
   No further AVX2 work planned; production kernels unchanged.
 
-### AVX-512 Zen 4 (A16) sub-experiment: OPEN, narrows remaining Q2 scope
-- Q2 is narrowed going forward to the untested half: AVX-512 8-wide gather
-  (`_mm512_i64gather_pd`) on Zen 4. AMD's AVX-512 gather implementation is
-  architecturally unrelated to Intel's Skylake-derived gather unit (no native
-  AVX-512 on Zen 3; Zen 4 gather/scatter is a distinct implementation), so the
-  Kaby Lake result does not generalize — this remains genuinely open.
-- Same governance carries over: same gates (accuracy <1 ULP floor, ≥20% at
-  interleave), same fail-forward-fast authority, same scope (exp+log only,
-  erf still deferred pending an exp win).
-- Harness: by agreement, extend `tools/gather_throughput_probe.cpp` with an
-  AVX-512 path (`LIBSTATS_HAS_AVX512` guard, mirroring the existing AVX2
-  functions) directly on the A16 rather than writing it blind here — this box
-  cannot compile or run AVX-512 to validate it. Use
-  `experiment/issue-33-gather-transcendentals` (rebase on `main` first) or a
-  fresh branch cut from it.
-- Model/effort: harness extension is Sonnet 5 tier (rote, mirrors existing
-  AVX2 code); SWITCH UP to Opus 4.8 only if the AVX-512 kill-gate clears and
-  Stage 3 (actual table port) becomes relevant.
+### AVX-512 Zen 4 (A16) Stage 1-2 result: kill-gate CLEARED for exp, marginal for log
+- Harness extension done 2026-07-18 on `experiment/issue-33-gather-transcendentals`
+  (already current with `main`, no rebase needed): added an AVX-512 path to
+  `tools/gather_throughput_probe.cpp` (`_mm512_i64gather_pd`, 8-wide, guarded
+  by `LIBSTATS_HAS_AVX512` + runtime `supports_avx512()`), plus a matching
+  CMake dev-tool flag block. Environment note: build tree was stale against a
+  since-uninstalled VS 2022 Build Tools; reconfigured clean against the
+  now-installed Visual Studio 2026 Community (`Visual Studio 18 2026`
+  generator) — unrelated to the SIMD experiment itself.
+- Measured (ns per op, this machine, Zen 4 / A16):
+  | Path | FMA baseline | Warm | Interleave (gate) | Cold |
+  |---|---:|---:|---:|---:|
+  | AVX2 (4-wide, same box) | 0.709 ns | 0.699 ns (0.99x) | 1.027 ns (1.45x) | 248.3 ns (350x) |
+  | AVX-512 (8-wide) | 0.404 ns | 0.493 ns (1.22x) | 0.688 ns (1.70x) | 268.3 ns (664x) |
+- Contrast with the closed Kaby Lake result (AVX2 interleave 8.6x FMA
+  baseline): even AVX2 gather on Zen 4 costs only 1.45x, and native AVX-512
+  gather costs 1.70x — confirms AMD's Zen 4 gather unit is not just
+  "different" from Intel's Skylake-derived one but substantially cheaper.
+- Gate math (FMA baseline ≈ one 3-term-Horner-chain unit, i.e. ~2 FMAs):
+  exp saves 7 terms (10→3) ≈ 2.33 baseline-units; gather costs 1.70 units —
+  **cheaper than the projected savings, gate clears for exp.** log saves
+  only 2 terms (7→5) ≈ 0.67 baseline-units; gather costs 1.70 units — gate
+  does NOT clear for log on this simple term-count model (real range-
+  reduction savings could shift this; not measured here). Same floor-not-
+  ceiling caveat as Kaby Lake applies: a real kernel adds index computation,
+  range reduction, and edge-case handling on top of the isolated gather.
+- **Verdict: Stage 1-2 kill-gate CLEARS for exp** (unlike the Kaby Lake
+  null). Per the fail-forward-fast policy this is the opposite outcome —
+  proceed toward Stage 3 (actual table kernel port + ULP validation) for
+  exp; log is marginal and needs empirical validation, not the term-count
+  model alone. Not yet started — stopped here by agreement pending a model
+  tier switch.
+- Model/effort: per the plan, Stage 3 (actual table port + accuracy
+  validation) should SWITCH UP to Opus 4.8 now that the kill-gate has
+  cleared; this Stage 1-2 harness extension was done at Sonnet 5 tier
+  (rote, mirrored existing AVX2 code).
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to
@@ -153,18 +171,21 @@ exp/log experiment".
   polynomial approach for exp/log (NEON's table-based `vector_erf`
   achieves 8.0x vs ~0.9x for the pure-polynomial equivalent). Kaby Lake AVX2
   sub-experiment closed null 2026-07-18 (gather too expensive on this
-  hardware even warm — see "Issue #33 Experiment" section). AVX-512 (Zen4/
-  A16) sub-experiment remains open — untested, architecturally distinct
-  gather implementation from Intel's.
+  hardware even warm). AVX-512 (Zen4/A16) Stage 1-2 kill-gate cleared for
+  exp 2026-07-18 (gather substantially cheaper than on Kaby Lake — see
+  "Issue #33 Experiment" section); Stage 3 table port not yet started,
+  pending a model tier switch to Opus 4.8.
 
 ## Next Steps
 - Issue #33 AVX2 sub-experiment is closed (null result; see "Issue #33
   Experiment" section and `docs/SIMD_BENCHMARK_RESULTS.md`); no follow-up
   needed on this machine. `backup/wip-sleef-avx2-gather-bench` remains
   salvage-reference only, not a branch to assess for merge.
-- Issue #33 AVX-512 sub-experiment remains open: on the A16, extend
-  `tools/gather_throughput_probe.cpp` with an AVX-512 gather path and re-run
-  the same warm/interleave/cold kill-gate.
+- Issue #33 AVX-512 sub-experiment: Stage 1-2 kill-gate cleared for exp
+  2026-07-18 (see "Issue #33 Experiment" section and
+  `docs/SIMD_BENCHMARK_RESULTS.md`). Stage 3 (actual table kernel port +
+  <1 ULP accuracy validation) is the next step, deliberately not started
+  this session — switch to Opus 4.8 tier before attempting it.
 - Still assess `fix/remove-stale-vector-erfc-stub` (unrelated stale erfc-stub
   removal) for merge.
 - Work through the v2.1.0 — Accuracy & Performance backlog (6 issues,
