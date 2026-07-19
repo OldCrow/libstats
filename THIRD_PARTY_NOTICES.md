@@ -53,6 +53,55 @@ MIT License used by libstats.
 
 ---
 
+## ARM optimized-routines
+
+**Project**: https://github.com/ARM-software/optimized-routines  
+**License**: MIT OR Apache-2.0 WITH LLVM-exception (used here under MIT)  
+**Usage**: The experimental AVX-512 table-based `exp` (Issue #33 Stage 3)
+reproduces the N=128 lookup table (`H[k]`/tail split) and the argument-reduction
+constants and minimax polynomial coefficients from ARM optimized-routines
+`math/exp_data.c` and the algorithm from `math/exp.c`.
+
+Affected files:
+- `scripts/gen_avx512_exp_table.py` — regenerates the table and cross-checks it
+  bit-exactly against ARM's published values
+- `src/avx512_exp_data.inc` — the generated table (`kExpSbitsAvx512`,
+  `kExpTailAvx512`)
+- `tools/gather_throughput_probe.cpp` — `vectorExpAvx512Gather` (the 8-wide
+  gather port; opt-in dev tool only, not part of the shipped library)
+
+This deliberately derives from the permissively licensed ARM optimized-routines
+source (MIT), **not** the LGPL-2.1+ glibc copy in `sysdeps/aarch64/fpu/`, to keep
+libstats' MIT licensing clean.
+
+### MIT License (ARM optimized-routines)
+
+```
+MIT License
+
+Copyright (c) 1999-2024, Arm Limited.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
 ## Abramowitz & Stegun
 
 **Reference**: Abramowitz, M. and Stegun, I.A. (eds.), *Handbook of Mathematical

@@ -203,10 +203,47 @@ term count) could shift this and are not measured here. As with Kaby Lake,
 this is a floor, not a ceiling: a real kernel adds index computation, range
 reduction, and edge-case handling on top of the isolated gather.
 
-**Next step: Stage 3 (actual table kernel port + <1 ULP accuracy
-validation) for exp**, not yet started -- this is a genuinely different
-model/effort tier (Opus 4.8) than the Stage 1-2 harness extension. See
-PLAN.md "Issue #33 Experiment" for full governance.
+### AVX-512 Zen 4 (Asus TUF A16) Stage 3 result (2026-07-19): null result
+
+The Stage 1-2 kill-gate cleared exp on the cost of a *single* gather, but the
+single-gather ARM `exp_advsimd` variant is only ~1.9 ULP and fails libstats'
+accuracy floor. Reaching < 1 ULP requires ARM's `tail` correction -- a *second*
+gathered value per element. The Stage 3 kernel is a faithful two-gather port of
+ARM optimized-routines' scalar `exp` (MIT source, N=128 tail-corrected table,
+order-5 polynomial), built as an opt-in dev-tool kernel only; production
+`vector_exp_avx512` is untouched.
+
+Accuracy vs a 1018-point mpmath correctly-rounded reference (per issue #46):
+
+| Kernel | core (abs x ≤ 700) max | mean | IEEE edges (±inf/NaN/over/underflow) |
+|---|---:|---:|---|
+| table-gather exp (experimental) | 1 ULP | 0.001 ULP | correct |
+| current polynomial exp | 1 ULP | — | clamps beyond ±708 |
+
+Accuracy gate **PASS** -- the table kernel matches the current kernel's 1 ULP
+and is additionally correct at the edges the current kernel clamps.
+
+Throughput (ns per element, AMD Ryzen 7 7445HS, lower is better):
+
+| Regime | current poly | table-gather | speedup |
+|---|---:|---:|---:|
+| hot (8K elems, cache-resident) | 2.04 | 1.95 | +4.3% |
+| stream (256K elems, ~L3, realistic) | 0.55 | 0.99 | −44.5% |
+
+Performance gate **FAIL** (needed ≥20% at the realistic regime). Two 8-wide
+gathers cost more than the current 10-term SLEEF polynomial, which touches no
+memory; and the current kernel is already memory-bandwidth-bound (~0.55
+ns/elem) when streaming, so the extra gather traffic only makes the table
+kernel slower.
+
+**Verdict: null result.** The accurate (< 1 ULP) table-exp does not beat the
+current polynomial on Zen 4 -- tied at best when cache-resident, ~1.8× slower
+under realistic memory pressure. The exp table port is abandoned; production
+kernels are unchanged. Methodological note: the Stage 1-2 throughput probe was
+necessary but not sufficient -- it modeled a single-gather variant that cannot
+meet the accuracy floor, so only the full < 1 ULP kernel could settle the
+question. With this, the entire x86 half of Issue #33 Q2 is closed null (AVX2
+and AVX-512); only the NEON Q1 path (needs the M1) remains open.
 
 ## Running benchmarks
 

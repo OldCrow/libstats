@@ -35,10 +35,14 @@
 // Use consolidated tool utilities header which includes libstats.h
 #include "tool_utils.h"
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <vector>
@@ -401,6 +405,226 @@ void runProbeAvx512() {
                  "    proceed to Stage 3 (table port) under the <1 ULP accuracy floor.\n";
 }
 
+// ============================================================================
+// Issue #33 Stage 3: experimental table-gather exp kernel (non-dispatched)
+// ============================================================================
+// Faithful two-gather port of ARM optimized-routines' scalar exp (math/exp.c +
+// math/exp_data.c, SPDX: MIT OR Apache-2.0 WITH LLVM-exception), vectorized to
+// 8-wide AVX-512. The tail-corrected N=128 table is what holds < 1 ULP; the
+// ~1.9 ULP single-table exp_advsimd variant does not meet libstats' accuracy
+// floor. This kernel lives in the opt-in dev tool ONLY -- production
+// vector_exp_avx512 is untouched and this symbol is never added to the dispatch
+// table. See PLAN.md "Issue #33 Experiment" and THIRD_PARTY_NOTICES.md.
+#include "avx512_exp_data.inc"         // kExpSbitsAvx512[128], kExpTailAvx512[128]
+#include "avx512_exp_ulp_vectors.inc"  // kExpUlpVectors[], struct ExpUlpVector
+
+// ARM AOR exp constants (math/exp_data.c, N=128 block).
+constexpr double kExpInvLn2N = 0x1.71547652b82fep0 * 128.0;  // N/ln2
+constexpr double kExpNegLn2hiN = -0x1.62e42fefa0000p-8;      // -ln2/N (hi)
+constexpr double kExpNegLn2loN = -0x1.cf79abc9e3b3ap-47;     // -ln2/N (lo)
+constexpr double kExpShift = 0x1.8p52;
+constexpr double kExpC2 = 0x1.ffffffffffdbdp-2;
+constexpr double kExpC3 = 0x1.555555555543cp-3;
+constexpr double kExpC4 = 0x1.55555cf172b91p-5;
+constexpr double kExpC5 = 0x1.1111167a4d017p-7;
+constexpr double kExpSpecialBound = 704.0;  // |x| beyond this: exact scalar fixup
+
+// Experimental 8-wide table-gather exp. NOT wired into the dispatch table.
+void vectorExpAvx512Gather(const double* values, double* results, std::size_t size) {
+    const __m512d invln2N = _mm512_set1_pd(kExpInvLn2N);
+    const __m512d shift = _mm512_set1_pd(kExpShift);
+    const __m512d negln2hiN = _mm512_set1_pd(kExpNegLn2hiN);
+    const __m512d negln2loN = _mm512_set1_pd(kExpNegLn2loN);
+    const __m512d c2 = _mm512_set1_pd(kExpC2);
+    const __m512d c3 = _mm512_set1_pd(kExpC3);
+    const __m512d c4 = _mm512_set1_pd(kExpC4);
+    const __m512d c5 = _mm512_set1_pd(kExpC5);
+    const __m512d special_bound = _mm512_set1_pd(kExpSpecialBound);
+    const __m512d abs_mask = _mm512_set1_pd(-0.0);
+    const __m512i idx_mask = _mm512_set1_epi64(127);
+
+    constexpr std::size_t W = 8;
+    const std::size_t simd_end = (size / W) * W;
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m512d x = _mm512_loadu_pd(&values[i]);
+
+        // n = round(x * N/ln2) via the shift trick; ki = bits(z), kd = n as double.
+        __m512d z = _mm512_fmadd_pd(x, invln2N, shift);
+        __m512i ki = _mm512_castpd_si512(z);
+        __m512d kd = _mm512_sub_pd(z, shift);
+
+        // r = x - n*ln2/N  (two-part reduction; the NegLn2*N constants are negative).
+        __m512d r = _mm512_fmadd_pd(kd, negln2hiN, x);
+        r = _mm512_fmadd_pd(kd, negln2loN, r);
+
+        // Table index and exponent injection derived at RUNTIME (no hardcoded bits).
+        __m512i idx = _mm512_and_si512(ki, idx_mask);
+        __m512i top = _mm512_slli_epi64(ki, 45);  // 52 - EXP_TABLE_BITS(7)
+
+        // Two 8-wide gathers: scale base (uint64) and tail residual (double).
+        __m512i sbits = _mm512_i64gather_epi64(idx, kExpSbitsAvx512, 8);
+        __m512d tail = _mm512_i64gather_pd(idx, kExpTailAvx512, 8);
+        __m512d scale = _mm512_castsi512_pd(_mm512_add_epi64(sbits, top));  // 2^(n/N)
+
+        // tmp = tail + r + r^2*(C2 + r*C3) + r^4*(C4 + r*C5)  ~= exp(r) - 1 + tail
+        __m512d r2 = _mm512_mul_pd(r, r);
+        __m512d r4 = _mm512_mul_pd(r2, r2);
+        __m512d plo = _mm512_fmadd_pd(r, c3, c2);
+        __m512d phi = _mm512_fmadd_pd(r, c5, c4);
+        __m512d tmp = _mm512_add_pd(tail, r);
+        tmp = _mm512_fmadd_pd(r2, plo, tmp);
+        tmp = _mm512_fmadd_pd(r4, phi, tmp);
+
+        // exp(x) = scale + scale*tmp = 2^(n/N) * (1 + (exp(r) - 1)).
+        __m512d res = _mm512_fmadd_pd(scale, tmp, scale);
+        _mm512_storeu_pd(&results[i], res);
+
+        // Edge lanes (|x| >= 704, +/-inf, NaN): exact scalar std::exp fixup.
+        __m512d ax = _mm512_andnot_pd(abs_mask, x);
+        __mmask8 special = _mm512_cmp_pd_mask(ax, special_bound, _CMP_NLT_UQ);
+        if (special) {
+            alignas(64) double xb[W];
+            _mm512_store_pd(xb, x);
+            for (std::size_t l = 0; l < W; ++l) {
+                if (special & static_cast<__mmask8>(1u << l))
+                    results[i + l] = std::exp(xb[l]);
+            }
+        }
+    }
+    for (std::size_t i = simd_end; i < size; ++i)
+        results[i] = std::exp(values[i]);
+}
+
+inline double bitsToF64(std::uint64_t b) {
+    double d;
+    std::memcpy(&d, &b, sizeof d);
+    return d;
+}
+
+inline std::uint64_t f64ToBits(double d) {
+    std::uint64_t b;
+    std::memcpy(&b, &d, sizeof b);
+    return b;
+}
+
+// ULP distance for nonnegative exp results; inf/NaN handled explicitly.
+double expUlpError(double got, double ref) {
+    if (std::isnan(ref))
+        return std::isnan(got) ? 0.0 : 1e18;
+    if (std::isinf(ref))
+        return (got == ref) ? 0.0 : 1e18;
+    if (!std::isfinite(got))
+        return 1e18;
+    const std::uint64_t g = f64ToBits(got), r = f64ToBits(ref);
+    return static_cast<double>(g > r ? g - r : r - g);
+}
+
+template <typename Fn>
+double benchExpNsPerElem(Fn&& fn, const double* in, double* out, std::size_t n,
+                         std::size_t iters) {
+    fn(in, out, n);  // warmup + populate caches
+    const auto start = std::chrono::steady_clock::now();
+    for (std::size_t it = 0; it < iters; ++it)
+        fn(in, out, n);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    volatile double keep = out[n - 1];
+    (void)keep;
+    return nsPerOp512(elapsed, n * iters);
+}
+
+void runExpExperimentAvx512() {
+    stats::detail::detail::subsectionHeader(
+        "Issue #33 Stage 3: table-gather exp vs current polynomial exp (AVX-512)");
+
+    auto current = [](const double* in, double* out, std::size_t n) {
+        stats::arch::simd::VectorOps::vector_exp(in, out, n);
+    };
+    auto gather = [](const double* in, double* out, std::size_t n) {
+        vectorExpAvx512Gather(in, out, n);
+    };
+
+    // ---- Accuracy gate: ULP vs correctly-rounded mpmath reference ----
+    constexpr std::size_t NV = sizeof(kExpUlpVectors) / sizeof(kExpUlpVectors[0]);
+    std::vector<double> xin(NV), yg(NV), yc(NV);
+    for (std::size_t i = 0; i < NV; ++i)
+        xin[i] = bitsToF64(kExpUlpVectors[i].x_bits);
+    gather(xin.data(), yg.data(), NV);
+    current(xin.data(), yc.data(), NV);
+
+    // Head-to-head over the core range |x| <= 700, where both kernels run their
+    // polynomial path. The table kernel routes |x| >= 704 to exact scalar exp, so
+    // it is additionally correct at the edges the current kernel clamps (+/-708);
+    // those edge points are therefore not a fair precision comparison and are
+    // excluded from the current-kernel max.
+    double g_core = 0, g_all = 0, g_sum = 0, c_core = 0, gworst = 0;
+    std::size_t core_n = 0;
+    for (std::size_t i = 0; i < NV; ++i) {
+        const double ref = bitsToF64(kExpUlpVectors[i].exp_bits);
+        const double ug = expUlpError(yg[i], ref);
+        g_all = std::max(g_all, ug);
+        if (std::abs(xin[i]) <= 700.0) {
+            if (ug > g_core) {
+                g_core = ug;
+                gworst = xin[i];
+            }
+            c_core = std::max(c_core, expUlpError(yc[i], ref));
+            g_sum += ug;
+            ++core_n;
+        }
+    }
+    std::cout << "Accuracy vs correctly-rounded reference (" << NV << " points):\n";
+    std::cout << "  table-gather exp : core(|x|<=700) max " << g_core << " ULP, mean "
+              << (g_sum / static_cast<double>(core_n)) << " ULP; full-range max " << g_all
+              << " ULP (worst core x = " << gworst << ")\n";
+    std::cout << "  current poly exp : core(|x|<=700) max " << c_core
+              << " ULP (clamps beyond +/-708; edges not compared)\n";
+
+    // Special IEEE inputs through the vectorized path. Note exp(-710) is a
+    // subnormal ~4.7e-309 (not 0); use -750 for the true underflow-to-zero case.
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    alignas(64) double sx[8] = {inf, -inf, nan, 0.0, 1.0, -1.0, 710.0, -750.0};
+    alignas(64) double so[8];
+    gather(sx, so, 8);
+    const bool specials_ok = (so[0] == inf) && (so[1] == 0.0) && std::isnan(so[2]) &&
+                             (so[3] == 1.0) && std::isinf(so[6]) && (so[7] == 0.0);
+    std::cout << "  special inputs (+/-inf, NaN, overflow, underflow): "
+              << (specials_ok ? "OK" : "MISMATCH") << "\n";
+    const bool accuracy_ok = (g_core <= 1.0) && (g_core <= c_core) && specials_ok;
+    std::cout << "  Accuracy gate (<=1 ULP, no regression vs current): "
+              << (accuracy_ok ? "PASS" : "FAIL") << "\n\n";
+
+    // ---- Performance gate: >=20% at a realistic cache-resident regime ----
+    std::mt19937 rng(0x5EED);
+    std::uniform_real_distribution<double> dist(-10.0, 10.0);
+
+    auto measure = [&](const char* label, std::size_t n, std::size_t iters) {
+        std::vector<double> in(n), out(n);
+        for (auto& v : in)
+            v = dist(rng);
+        const double c = benchExpNsPerElem(current, in.data(), out.data(), n, iters);
+        const double g = benchExpNsPerElem(gather, in.data(), out.data(), n, iters);
+        const double speedup = c / g;
+        std::cout << "  " << label << ": current " << c << " ns/elem, table-gather " << g
+                  << " ns/elem, speedup " << speedup << "x (" << ((speedup - 1.0) * 100.0)
+                  << "%)\n";
+        return speedup;
+    };
+
+    stats::detail::detail::subsectionHeader("Throughput (ns per element, lower is better)");
+    measure("hot    ( 8K elems, L1/L2-resident)", 8'192, 20'000);
+    const double stream_speedup = measure("stream (256K elems, ~L3, realistic)", 262'144, 600);
+
+    std::cout << "\n  Performance gate (>=20% at stream): "
+              << (stream_speedup >= 1.20 ? "PASS" : "FAIL") << "\n";
+    std::cout << "  Overall verdict: table-gather exp is "
+              << ((accuracy_ok && stream_speedup >= 1.20)
+                      ? "a WIN (both gates pass)"
+                      : "NOT a clear win (see gates above)")
+              << ".\n";
+}
+
 #endif  // LIBSTATS_GATHER_PROBE_AVX512_AVAILABLE
 
 }  // namespace
@@ -423,6 +647,7 @@ int main() {
 #if LIBSTATS_GATHER_PROBE_AVX512_AVAILABLE
         if (stats::arch::supports_avx512()) {
             runProbeAvx512();
+            runExpExperimentAvx512();
         } else {
             std::cout
                 << "AVX-512 not available at runtime on this CPU -- skipping AVX-512 probe.\n";
