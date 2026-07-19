@@ -99,6 +99,18 @@ Last reconciled against live GitHub state: 2026-07-19.
 - Closed issues without milestone: 9 as of 2026-07-14.
 
 ## In Progress [OPEN]
+- Branch `feat/issue-33-neon-log-cleanroom` (stacked on the Issue #33 branch):
+  **clean-room `vector_log_neon` productionized 2026-07-19**, superseding the
+  Q1 "log is a perf null" verdict — the null applied to the ARM-port design;
+  an independently derived kernel (compensated (L_hi,L_lo) anchors, sqrt2
+  re-centering folded into the table, division-free t = m*R-1 residual, two
+  Fast2Sum steps) measures **max 0.52 ULP** (vs current 2.0) at **1.66 ns/elem
+  = 1.74x scalar** (vs current 2.88 ns / 1.28x) on the M1. Derivation +
+  divergence audit vs ARM optimized-routines advsimd log.c in
+  `docs/NEON_LOG_DERIVATION.md` / `docs/NEON_LOG_DIVERGENCE_AUDIT.md`;
+  regression test `tests/test_simd_neon_log_accuracy.cpp` (ULP floor, IEEE
+  edges, in-place aliasing). Clean-room workspace:
+  `~/Development/libstats-log-cleanroom/` (SPEC.md + standalone harness).
 - Local branch `experiment/issue-33-neon-table-transcendentals` (pushed,
   PR #70 open against `main`): Issue #33 Q1. **Prototype complete
   (2026-07-19) + exp productionized (2026-07-19), PR opened (2026-07-19)** —
