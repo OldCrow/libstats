@@ -152,12 +152,19 @@ Last reconciled against live GitHub state: 2026-07-19.
   of `main`, also on `origin`, no open PR yet): removes the unused
   `vector_erfc` SIMD stub since no distribution batch path actually calls
   `erfc()` (Gaussian CDF batch path uses `vector_erf` directly). Scalar
-  `erfc()` is retained (used by `distribution_base.cpp`). Not yet merged.
-- Local backup branch `backup/wip-sleef-avx2-gather-bench` (1 commit ahead
-  of its recovered stash base, local-only as of 2026-07-14): recovered from
-  stash originally on `simd-architecture-repair`. Adds opt-in SLEEF/SIMD
-  development benchmark tooling for the #33 AVX2 gather-based exp/log vs.
-  current SLEEF polynomial experiment. Not yet validated or merged.
+  `erfc()` is retained (used by `distribution_base.cpp`). Still not merged,
+  but **rebased onto current `main` and re-validated 2026-07-19** (housekeeping
+  pass, see below) — its base (`3ab190d`, v2.0.2 bump) had zero drift on the
+  three touched files, so the rebase was conflict-free; 49/49 `ctest`.
+  Force-pushed to `origin`. Next concrete step: open a PR.
+- Deleted local+remote branch `backup/wip-sleef-avx2-gather-bench`
+  2026-07-19 (housekeeping pass): despite the name, its one commit (based on
+  a `2025-09-04` commit, ~a year stale) contained zero gather-related code —
+  just an early WIP replacing AVX2's exp/log delegation-to-AVX with a native
+  FMA/SLEEF implementation. That work already shipped on `main` long ago
+  (v1.5.0 Phase 1b), and the `LIBSTATS_BUILD_SIMD_DEV_TOOLS` option it
+  half-added also already exists on `main` via the merged #66. Nothing to
+  recover; no PR existed for it.
 - Housekeeping completed 2026-07-14: stale fully merged local branches were
   deleted, empty stash state was dropped, useful stash state was promoted to
   backup branches above, and prunable orchestration worktrees plus their
