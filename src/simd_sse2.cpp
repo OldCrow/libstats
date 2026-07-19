@@ -175,7 +175,11 @@ void VectorOps::vector_exp_sse2(const double* values, double* results, std::size
     const __m128d ln2_hi = _mm_set1_pd(0.693147180369123816490e+00);
     const __m128d ln2_lo = _mm_set1_pd(1.90821492927058770002e-10);
     const __m128d exp_max = _mm_set1_pd(709.782712893383996732223);
-    const __m128d exp_min = _mm_set1_pd(-708.0);
+    // exp_min sits below the true underflow-to-zero threshold (exp(x) rounds to 0
+    // for x < -745.1332...), so clamped lanes still produce 0 via the two-step 2^n
+    // scaling below. The old -708.0 clamp pinned every x < -708 to ~3.3e-308
+    // instead of flushing through the subnormal range.
+    const __m128d exp_min = _mm_set1_pd(-746.0);
     const __m128d half = _mm_set1_pd(0.5);
     const __m128d one = _mm_set1_pd(1.0);
     // Magic-number rounding constant: 2^52 + 2^51 = 6755399441055744; adding it to x
@@ -227,17 +231,26 @@ void VectorOps::vector_exp_sse2(const double* values, double* results, std::size
         poly = _mm_add_pd(_mm_mul_pd(poly, r2), r);
         poly = _mm_add_pd(poly, one);
 
-        // Scale by 2^n: convert n to 32-bit int, zero-extend to 64-bit, shift left 52.
-        // _mm_cvttpd_epi32 gives [n0, n1, 0, 0] as 4x32-bit;
-        // _mm_unpacklo_epi32 with zero gives [n0, 0, n1, 0] as 32-bit = [n0, n1] as 64-bit;
-        // add bias 1023 in 64-bit; shift left 52 to place in IEEE 754 exponent field.
-        __m128i n_i32 = _mm_cvttpd_epi32(n_float);                       // [n0,n1,0,0] as 4x32-bit
-        __m128i n_i64 = _mm_unpacklo_epi32(n_i32, _mm_setzero_si128());  // zero-extend to 64-bit
-        __m128i ebits = _mm_add_epi64(n_i64, _mm_set1_epi64x(1023LL));
-        ebits = _mm_slli_epi64(ebits, 52);
-        __m128d scale = _mm_castsi128_pd(ebits);
+        // Scale by 2^n in two steps: n = n1 + n2 with n1 = n>>1, so each factor
+        // 2^n1, 2^n2 has biased exponent n_k + 1023 in [485, 1535] and stays a
+        // normal double even when n reaches -1076 (x = -746). The second multiply
+        // rounds once into the subnormal range, giving graceful underflow to 0.
+        // _mm_cvttpd_epi32 gives [n0, n1, 0, 0] as 4x32-bit (truncation is exact:
+        // n_float is already integral); _mm_unpacklo_epi32 with zero gives
+        // [n0, 0, n1, 0] as 32-bit = [n0, n1] as 64-bit. Zero-extension of
+        // negative n_k is harmless: only the low 12 bits of n_k + 1023 survive
+        // the 52-bit shift into the IEEE 754 exponent field.
+        __m128i n_i32 = _mm_cvttpd_epi32(n_float);  // [n0,n1,0,0] as 4x32-bit
+        __m128i n1_i32 = _mm_srai_epi32(n_i32, 1);  // floor(n/2), arithmetic shift
+        __m128i n2_i32 = _mm_sub_epi32(n_i32, n1_i32);
+        const __m128i zero = _mm_setzero_si128();
+        const __m128i bias = _mm_set1_epi64x(1023LL);
+        __m128i e1 = _mm_slli_epi64(_mm_add_epi64(_mm_unpacklo_epi32(n1_i32, zero), bias), 52);
+        __m128i e2 = _mm_slli_epi64(_mm_add_epi64(_mm_unpacklo_epi32(n2_i32, zero), bias), 52);
+        __m128d scale1 = _mm_castsi128_pd(e1);
+        __m128d scale2 = _mm_castsi128_pd(e2);
 
-        _mm_storeu_pd(&results[i], _mm_mul_pd(poly, scale));
+        _mm_storeu_pd(&results[i], _mm_mul_pd(_mm_mul_pd(poly, scale1), scale2));
     }
 
     for (std::size_t i = simd_end; i < size; ++i)

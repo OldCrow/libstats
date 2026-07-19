@@ -350,6 +350,30 @@ dispatched.
   (2026-07-19, awaiting PR approval); NEON log stays a perf-null, not
   productionized (accuracy-only finding tracked on #46).
 
+## SIMD exp underflow fix (worktree compassionate-booth-4de55b, 2026-07-19) [DERIVED]
+- The four x86 `vector_exp_*` kernels (SSE2/AVX/AVX2/AVX-512) clamped input
+  at -708.0, pinning every x < -708 to ~3.3e-308 (up to ~6.7e15 ULP error in
+  the subnormal range per the cleanroom baseline audit). Fixed: clamp lowered
+  to -746.0 with two-step 2^n scaling (n = n1 + n2, n1 = n>>1), giving
+  graceful flush through subnormals to +0. Side effect: also fixes the old
+  single-step scaling returning inf for x >~ 709.44 (n = 1024 hit the inf
+  exponent pattern).
+- NEON needed no change after rebase: PR #70's table kernel routes |x| >= 704
+  to a scalar std::exp fixup, verified bitwise-exact for
+  x in {-708.5, -720, -745, -746, -800, -1e6, -1e300} on M1. The original
+  NEON hunk here (written against the old SLEEF kernel) was dropped as
+  obsolete during the rebase onto post-#70/#72 main.
+- Regression test added
+  (`BatchMathRegressions.VectorExpDeepUnderflowMatchesStdExp`); on NEON it
+  exercises the table kernel's fixup path, on x86 the new two-step scaling.
+- [OPEN] x86 kernels validated by cross-compile + SSE2 run under Rosetta 2
+  (clean); AVX/AVX2/AVX-512 need native-machine or CI validation (Kaby Lake,
+  Asus TUF A16).
+- [OPEN] Pre-existing, unrelated: exp_max clamp constant is ~30 ULP (in x)
+  below the true overflow threshold, so for x in that one-double window the
+  kernels return exp(exp_max) (~214 ULP low) where std::exp is still finite.
+  Deliberate safety margin against 1-ULP overshoot to inf; left as is.
+
 ## Next Steps
 - Issue #33 x86 experiment (Q2) is fully closed null on both AVX2/Kaby Lake
   and AVX-512/Zen 4 (see "Issue #33 Experiment" and

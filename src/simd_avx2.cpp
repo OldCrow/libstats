@@ -201,7 +201,11 @@ void VectorOps::vector_exp_avx2(const double* input, double* output, std::size_t
     const __m256d ln2_hi = _mm256_set1_pd(0.693147180369123816490e+00);
     const __m256d ln2_lo = _mm256_set1_pd(1.90821492927058770002e-10);
     const __m256d exp_max = _mm256_set1_pd(709.782712893383996732223);
-    const __m256d exp_min = _mm256_set1_pd(-708.0);
+    // exp_min sits below the true underflow-to-zero threshold (exp(x) rounds to 0
+    // for x < -745.1332...), so clamped lanes still produce 0 via the two-step 2^n
+    // scaling below. The old -708.0 clamp pinned every x < -708 to ~3.3e-308
+    // instead of flushing through the subnormal range.
+    const __m256d exp_min = _mm256_set1_pd(-746.0);
     const __m256d half = _mm256_set1_pd(0.5);
     const __m256d one = _mm256_set1_pd(1.0);
 
@@ -248,13 +252,23 @@ void VectorOps::vector_exp_avx2(const double* input, double* output, std::size_t
         poly = _mm256_fmadd_pd(poly, r2, r);    // (r*P(r)+0.5)*r^2 + r
         poly = _mm256_add_pd(poly, one);        // 1 + r + r^2*(0.5+r*P(r))
 
-        // Scale by 2^n (same bit-manipulation as AVX)
+        // Scale by 2^n in two steps (same bit-manipulation as AVX): n = n1 + n2
+        // with n1 = n>>1, so each factor 2^n1, 2^n2 stays a normal double even
+        // when n reaches -1076 (x = -746); the second multiply rounds once into
+        // the subnormal range, giving graceful underflow to 0.
         __m128i n_int = _mm256_cvtpd_epi32(n_float);
-        __m128i ebits = _mm_add_epi32(n_int, _mm_set1_epi32(1023));
-        __m128i elo = _mm_slli_epi64(_mm_cvtepi32_epi64(ebits), 52);
-        __m128i ehi = _mm_slli_epi64(_mm_cvtepi32_epi64(_mm_shuffle_epi32(ebits, 0x0E)), 52);
-        __m256d scale = _mm256_set_m128d(_mm_castsi128_pd(ehi), _mm_castsi128_pd(elo));
-        _mm256_storeu_pd(&output[i], _mm256_mul_pd(poly, scale));
+        __m128i n1 = _mm_srai_epi32(n_int, 1);  // floor(n/2), arithmetic shift
+        __m128i n2 = _mm_sub_epi32(n_int, n1);
+        __m128i bias = _mm_set1_epi32(1023);
+        __m128i eb1 = _mm_add_epi32(n1, bias);
+        __m128i eb2 = _mm_add_epi32(n2, bias);
+        __m128i e1_lo = _mm_slli_epi64(_mm_cvtepi32_epi64(eb1), 52);
+        __m128i e1_hi = _mm_slli_epi64(_mm_cvtepi32_epi64(_mm_shuffle_epi32(eb1, 0x0E)), 52);
+        __m128i e2_lo = _mm_slli_epi64(_mm_cvtepi32_epi64(eb2), 52);
+        __m128i e2_hi = _mm_slli_epi64(_mm_cvtepi32_epi64(_mm_shuffle_epi32(eb2, 0x0E)), 52);
+        __m256d scale1 = _mm256_set_m128d(_mm_castsi128_pd(e1_hi), _mm_castsi128_pd(e1_lo));
+        __m256d scale2 = _mm256_set_m128d(_mm_castsi128_pd(e2_hi), _mm_castsi128_pd(e2_lo));
+        _mm256_storeu_pd(&output[i], _mm256_mul_pd(_mm256_mul_pd(poly, scale1), scale2));
     }
 
     for (std::size_t i = simd_end; i < size; ++i)

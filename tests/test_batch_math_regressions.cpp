@@ -11,8 +11,12 @@
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/poisson.h"
 #include "libstats/distributions/von_mises.h"
+#include "libstats/platform/simd.h"
 
+#include <bit>
 #include <cmath>
+#include <cstdint>
+#include <cstdlib>
 #include <gtest/gtest.h>
 #include <span>
 #include <vector>
@@ -115,6 +119,39 @@ TEST(BatchMathRegressions, NegativeBinomialFitRejectsNegative) {
     NegativeBinomialDistribution nb;
     EXPECT_THROW(nb.fit({2.0, -1.0, 3.0}), std::invalid_argument);
     EXPECT_THROW(nb.fit({std::numeric_limits<double>::quiet_NaN(), 2.0}), std::invalid_argument);
+}
+
+TEST(BatchMathRegressions, VectorExpDeepUnderflowMatchesStdExp) {
+    // SIMD exp kernels clamped input at -708.0, so every x < -708 returned
+    // exp(-708) ~ 3.3e-308 — including x < -745.13 where the true result is 0 and
+    // (-745.13, -708.4) where it is subnormal. The fix clamps at -746 with
+    // two-step 2^n scaling; results must now track std::exp through the
+    // subnormal range and flush to +0. The old single-step scaling also returned
+    // inf for x >~ 709.44 (n = 1024 hit the inf exponent pattern); 709.7 guards
+    // that region.
+    const double points[] = {-708.5, -720.0, -745.0, -746.0, -800.0, -1e6,
+                             -708.0, -700.0, -1.0,   0.5,    700.0,  709.7};
+    // Repeat each value 8x so every SIMD width (2/4/8 doubles) hits the vector
+    // kernel rather than the scalar remainder loop.
+    std::vector<double> values;
+    for (double p : points)
+        values.insert(values.end(), 8, p);
+    std::vector<double> out(values.size());
+
+    arch::simd::VectorOps::vector_exp(values.data(), out.data(), values.size());
+
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        const double ref = std::exp(values[i]);
+        // Both results are >= +0, so the bit patterns are ordered and their
+        // difference is the ULP distance — valid across the normal/subnormal
+        // boundary, where a relative-error check would be meaningless.
+        const auto ulp =
+            std::abs(std::bit_cast<std::int64_t>(out[i]) - std::bit_cast<std::int64_t>(ref));
+        EXPECT_LE(ulp, 4) << "x=" << values[i] << " simd=" << out[i] << " ref=" << ref;
+        if (ref == 0.0) {
+            EXPECT_FALSE(std::signbit(out[i])) << "x=" << values[i] << " returned -0";
+        }
+    }
 }
 
 TEST(BatchMathRegressions, GaussianStandardizedValueRebuildsCacheAfterReset) {
