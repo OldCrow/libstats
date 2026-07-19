@@ -175,7 +175,11 @@ void VectorOps::vector_exp_avx512(const double* values, double* results,
     const __m512d ln2_hi = _mm512_set1_pd(0.693147180369123816490e+00);
     const __m512d ln2_lo = _mm512_set1_pd(1.90821492927058770002e-10);
     const __m512d exp_max = _mm512_set1_pd(709.782712893383996732223);
-    const __m512d exp_min = _mm512_set1_pd(-708.0);
+    // exp_min sits below the true underflow-to-zero threshold (exp(x) rounds to 0
+    // for x < -745.1332...), so clamped lanes still produce 0 via the two-step 2^n
+    // scaling below. The old -708.0 clamp pinned every x < -708 to ~3.3e-308
+    // instead of flushing through the subnormal range.
+    const __m512d exp_min = _mm512_set1_pd(-746.0);
     const __m512d half = _mm512_set1_pd(0.5);
     const __m512d one = _mm512_set1_pd(1.0);
 
@@ -222,16 +226,21 @@ void VectorOps::vector_exp_avx512(const double* values, double* results,
         poly = _mm512_fmadd_pd(poly, r2, r);    // (r*P(r)+0.5)*r² + r
         poly = _mm512_add_pd(poly, one);        // 1 + r + r²*(0.5+r*P(r))
 
-        // Scale by 2^n: convert n to int32, expand to int64, add IEEE 754
-        // exponent bias 1023, shift to exponent field, reinterpret as double.
+        // Scale by 2^n in two steps: n = n1 + n2 with n1 = n>>1, so each factor
+        // 2^n1, 2^n2 has biased exponent n_k + 1023 in [485, 1535] and stays a
+        // normal double even when n reaches -1076 (x = -746). The second multiply
+        // rounds once into the subnormal range, giving graceful underflow to 0.
         // _mm512_cvtpd_epi32 and _mm512_cvtepi32_epi64 are AVX-512F (no DQ).
         __m256i n_i32 = _mm512_cvtpd_epi32(n_float);   // 8 doubles → __m256i
-        __m512i n_i64 = _mm512_cvtepi32_epi64(n_i32);  // expand to int64
-        __m512i ebits = _mm512_add_epi64(n_i64, _mm512_set1_epi64(1023));
-        ebits = _mm512_slli_epi64(ebits, 52);
-        __m512d scale = _mm512_castsi512_pd(ebits);
+        __m256i n1_i32 = _mm256_srai_epi32(n_i32, 1);  // floor(n/2), arithmetic shift
+        __m256i n2_i32 = _mm256_sub_epi32(n_i32, n1_i32);
+        const __m512i bias = _mm512_set1_epi64(1023);
+        __m512i e1 = _mm512_slli_epi64(_mm512_add_epi64(_mm512_cvtepi32_epi64(n1_i32), bias), 52);
+        __m512i e2 = _mm512_slli_epi64(_mm512_add_epi64(_mm512_cvtepi32_epi64(n2_i32), bias), 52);
+        __m512d scale1 = _mm512_castsi512_pd(e1);
+        __m512d scale2 = _mm512_castsi512_pd(e2);
 
-        _mm512_storeu_pd(&results[i], _mm512_mul_pd(poly, scale));
+        _mm512_storeu_pd(&results[i], _mm512_mul_pd(_mm512_mul_pd(poly, scale1), scale2));
     }
 
     for (std::size_t i = simd_end; i < size; ++i)

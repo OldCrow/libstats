@@ -172,12 +172,13 @@ void VectorOps::vector_exp_avx(const double* input, double* output, std::size_t 
 
     // Bounds for valid range.
     // exp_max: largest x for which exp(x) is finite (log of DBL_MAX).
-    // exp_min: -708.0, chosen so that the range-reduction exponent n = round(x/ln2) satisfies
-    //   n + 1023 >= 1 > 0, keeping the biased exponent non-negative for IEEE 754 bit manipulation.
-    //   For x < -708, exp(x) < 2.2e-308 (smallest normal double), so clamping here is correct.
-    //   Using -1000 was wrong: n + 1023 = -420 there, producing garbage from the bit shift.
+    // exp_min: -746.0, below the true underflow-to-zero threshold (exp(x) rounds to 0
+    //   for x < -745.1332...), so clamped lanes still produce 0. The two-step 2^n
+    //   scaling below keeps the biased exponents positive down to n = -1076; the old
+    //   -708.0 clamp (required by single-step scaling) pinned every x < -708 to
+    //   exp(-708) ~ 3.3e-308 instead of flushing through the subnormal range.
     const __m256d exp_max = _mm256_set1_pd(709.782712893383996732223);
-    const __m256d exp_min = _mm256_set1_pd(-708.0);
+    const __m256d exp_min = _mm256_set1_pd(-746.0);
 
     // SLEEF polynomial coefficients for exp(s) where |s| < ln(2)/2
     // These provide < 1 ULP error for double precision
@@ -236,30 +237,35 @@ void VectorOps::vector_exp_avx(const double* input, double* output, std::size_t 
         poly = _mm256_add_pd(poly, r);
         poly = _mm256_add_pd(poly, _mm256_set1_pd(1.0));
 
-        // Scale by 2^n
-        // Convert n to integer for bit manipulation
-        __m128i n_int_low = _mm256_cvtpd_epi32(n_float);
+        // Scale by 2^n in two steps: n = n1 + n2 with n1 = n>>1, so each factor
+        // 2^n1, 2^n2 has biased exponent n_k + 1023 in [485, 1535] and stays a
+        // normal double even when n reaches -1076 (x = -746). The second multiply
+        // rounds once into the subnormal range, giving graceful underflow to 0
+        // (single-step scaling needs n + 1023 > 0, i.e. x >= -708).
+        __m128i n_int = _mm256_cvtpd_epi32(n_float);
+        __m128i n1 = _mm_srai_epi32(n_int, 1);  // floor(n/2), arithmetic shift
+        __m128i n2 = _mm_sub_epi32(n_int, n1);
 
-        // Create 2^n by manipulating exponent bits
+        // Create 2^n_k by manipulating exponent bits
         // Double precision: sign(1) | exponent(11) | mantissa(52)
-        // 2^n = 1.0 * 2^n has exponent = 1023 + n
+        // 2^n_k = 1.0 * 2^n_k has exponent = 1023 + n_k
         __m128i bias = _mm_set1_epi32(1023);
-        __m128i exp_bits = _mm_add_epi32(n_int_low, bias);
+        __m128i eb1 = _mm_add_epi32(n1, bias);
+        __m128i eb2 = _mm_add_epi32(n2, bias);
 
-        // Shift to exponent position and convert back to double
-        // Extract lower two elements [0,1] for conversion to 64-bit
-        __m128i exp_bits_64_low = _mm_cvtepi32_epi64(exp_bits);
-        // Extract upper two elements [2,3] by shuffling them to [0,1] first
-        __m128i exp_bits_64_high = _mm_cvtepi32_epi64(_mm_shuffle_epi32(exp_bits, 0x0E));
+        // Shift to exponent position and convert back to double.
+        // Lower two elements [0,1] convert directly; upper two [2,3] are
+        // shuffled down to [0,1] first.
+        __m128i e1_lo = _mm_slli_epi64(_mm_cvtepi32_epi64(eb1), 52);
+        __m128i e1_hi = _mm_slli_epi64(_mm_cvtepi32_epi64(_mm_shuffle_epi32(eb1, 0x0E)), 52);
+        __m128i e2_lo = _mm_slli_epi64(_mm_cvtepi32_epi64(eb2), 52);
+        __m128i e2_hi = _mm_slli_epi64(_mm_cvtepi32_epi64(_mm_shuffle_epi32(eb2, 0x0E)), 52);
 
-        exp_bits_64_low = _mm_slli_epi64(exp_bits_64_low, 52);
-        exp_bits_64_high = _mm_slli_epi64(exp_bits_64_high, 52);
+        __m256d scale1 = _mm256_set_m128d(_mm_castsi128_pd(e1_hi), _mm_castsi128_pd(e1_lo));
+        __m256d scale2 = _mm256_set_m128d(_mm_castsi128_pd(e2_hi), _mm_castsi128_pd(e2_lo));
 
-        __m256d scale =
-            _mm256_set_m128d(_mm_castsi128_pd(exp_bits_64_high), _mm_castsi128_pd(exp_bits_64_low));
-
-        // Final result: exp(x) = exp(r) * 2^n
-        __m256d result = _mm256_mul_pd(poly, scale);
+        // Final result: exp(x) = exp(r) * 2^n1 * 2^n2
+        __m256d result = _mm256_mul_pd(_mm256_mul_pd(poly, scale1), scale2);
 
         _mm256_storeu_pd(&output[i], result);
     }
