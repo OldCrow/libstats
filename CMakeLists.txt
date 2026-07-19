@@ -1333,6 +1333,11 @@ if(LIBSTATS_BUILD_TESTS)
     # floor, IEEE edges, and in-place aliasing. Self-skips on non-NEON.
     create_libstats_gtest(test_simd_neon_log_accuracy tests/test_simd_neon_log_accuracy.cpp)
 
+    # NEON vector_cos accuracy regression -- guards the clean-room quadrant-reduction kernel's <1
+    # ULP floor incl. the near-k*pi/2 stress set, even symmetry, domain fallback, and in-place
+    # aliasing. Self-skips on non-NEON.
+    create_libstats_gtest(test_simd_neon_cos_accuracy tests/test_simd_neon_cos_accuracy.cpp)
+
     # SIMD benchmark test (on-demand only, not in regular test suite due to runtime)
     create_libstats_test(benchmark_simd_all tests/benchmark_simd_all.cpp)
 
@@ -1581,6 +1586,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_simd_policy
                 test_simd_neon_exp_accuracy
                 test_simd_neon_log_accuracy
+                test_simd_neon_cos_accuracy
                 # Level 1: Core infrastructure tests
                 test_error_handling_comprehensive
                 test_numerical_safety

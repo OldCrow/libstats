@@ -107,6 +107,22 @@ Last reconciled against live GitHub state: 2026-07-19.
 - Closed issues without milestone: 9 as of 2026-07-14.
 
 ## In Progress [OPEN]
+- Branch `feat/neon-cos-cleanroom`: **clean-room `vector_cos_neon`
+  productionized 2026-07-19**, replacing the v1.4.0 Taylor kernel whose
+  measured error was ~6e8 ULP inside [-2pi, 2pi] (7-term Taylor truncation
+  ~6.5e-11 absolute) with sign errors near k*pi/2 — a correctness fix for
+  the von Mises path. New kernel: quadrant reduction with a 4-part
+  exact-product pi/2 split, compensated (r, rlo), degree-6 minimax cores,
+  exact 1-u/2 head/tail; max 0.78 ULP uniform / 0.50 near-k*pi/2 for
+  |x| <= 2^23, scalar fallback beyond. Speedup 1.7x vs scalar (down from the
+  broken kernel's ~2.8x — correctness costs the difference; von Mises
+  PDF/LogPDF at 5.7x/6.5x). Derivation + divergence audit vs ARM
+  optimized-routines in docs/NEON_TRIG_DERIVATION.md /
+  NEON_TRIG_DIVERGENCE_AUDIT.md; regression gate
+  tests/test_simd_neon_cos_accuracy.cpp (5000-vector <1 ULP floor incl.
+  stress set, even symmetry, domain fallback, aliasing). A public
+  `vector_sin` API (the sin core is already computed internally) is a
+  separate cross-backend decision, deferred.
 - Branch `feat/issue-33-neon-log-cleanroom` (stacked on the Issue #33 branch):
   **clean-room `vector_log_neon` productionized 2026-07-19**, superseding the
   Q1 "log is a perf null" verdict — the null applied to the ARM-port design;
