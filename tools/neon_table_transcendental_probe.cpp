@@ -64,10 +64,10 @@ namespace {
 
     // Correctly-rounded exp() reference vectors (input_bits, exp_bits), evaluated at
     // 200-bit precision with mpmath then rounded once to nearest double. This set is
-    // architecture-neutral -- it is pure mathematics, not an AVX-512 artifact -- so
-    // the NEON probe reuses it as-is rather than regenerating an identical file.
+    // architecture-neutral -- it is pure mathematics, not an AVX-512 artifact -- and is
+    // also used by the production NEON exp regression test (tests/test_simd_neon_exp_accuracy.cpp).
     // Defines struct ExpUlpVector and kExpUlpVectors[]. See scripts/gen_exp_ulp_vectors.py.
-    #include "avx512_exp_ulp_vectors.inc"
+    #include "exp_ulp_vectors.inc"
 
     // N=128 log table, Array-of-Structs {invc, logc} -- ARM's tab layout verbatim, so
     // one vld1q_f64 pulls both per lane. See scripts/gen_neon_log_table.py.

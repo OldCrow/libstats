@@ -1325,6 +1325,10 @@ if(LIBSTATS_BUILD_TESTS)
     create_libstats_gtest(test_platform_optimizations tests/test_platform_optimizations.cpp)
     create_libstats_gtest(test_simd_policy tests/test_simd_policy.cpp)
 
+    # NEON vector_exp accuracy regression (Issue #33 Q1) -- guards the table+poly kernel's <1 ULP
+    # floor. Self-skips (not fails) on non-NEON builds/machines.
+    create_libstats_gtest(test_simd_neon_exp_accuracy tests/test_simd_neon_exp_accuracy.cpp)
+
     # SIMD benchmark test (on-demand only, not in regular test suite due to runtime)
     create_libstats_test(benchmark_simd_all tests/benchmark_simd_all.cpp)
 
@@ -1571,6 +1575,7 @@ if(LIBSTATS_BUILD_TESTS)
                 test_simd_comprehensive
                 test_platform_optimizations
                 test_simd_policy
+                test_simd_neon_exp_accuracy
                 # Level 1: Core infrastructure tests
                 test_error_handling_comprehensive
                 test_numerical_safety

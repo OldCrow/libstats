@@ -57,35 +57,39 @@ MIT License used by libstats.
 
 **Project**: https://github.com/ARM-software/optimized-routines
 **License**: MIT OR Apache-2.0 WITH LLVM-exception (used here under MIT)
-**Usage**: The experimental AVX-512 table-based `exp` (Issue #33 Stage 3) and the
-experimental NEON table-based `exp`/`log` (Issue #33 Q1) reproduce the N=128
-lookup tables and the argument-reduction constants and minimax polynomial
-coefficients from ARM optimized-routines `math/exp_data.c` + `math/exp.c` and
-`math/log_data.c` + `math/log.c` respectively.
+**Usage**: The production NEON table-based `exp` (Issue #33 Q1) and the
+experimental AVX-512 table-based `exp` (Issue #33 Stage 3, dev-tool only) reproduce
+the N=128 lookup table and the argument-reduction constants and minimax polynomial
+coefficients from ARM optimized-routines `math/exp_data.c` + `math/exp.c`. The
+experimental NEON table-based `log` (Issue #33 Q1, dev-tool only -- not
+productionized; see PLAN.md) similarly reproduces `math/log_data.c` + `math/log.c`.
 
 Affected files:
-- `scripts/gen_avx512_exp_table.py` — regenerates the AVX-512 exp table and
+- `scripts/gen_neon_exp_table.py` — regenerates the **production** NEON exp table
+  (same values as ARM's table, re-interleaved to an Array-of-Structs layout) and
   cross-checks it bit-exactly against ARM's published values
+- `src/neon_exp_data.inc` — the generated **production** NEON exp table
+  (`kExpNeonTable`), included by `vector_exp_neon` in `src/simd_neon.cpp`
+- `scripts/gen_avx512_exp_table.py` — regenerates the AVX-512 exp table and
+  cross-checks it bit-exactly against ARM's published values (dev tool only)
 - `src/avx512_exp_data.inc` — the generated AVX-512 exp table (`kExpSbitsAvx512`,
-  `kExpTailAvx512`)
+  `kExpTailAvx512`; dev tool only)
 - `tools/gather_throughput_probe.cpp` — `vectorExpAvx512Gather` (the 8-wide
   gather port; opt-in dev tool only, not part of the shipped library)
-- `scripts/gen_neon_exp_table.py` — regenerates the NEON exp table (same values
-  as the AVX-512 table, re-interleaved to an Array-of-Structs layout) and
-  cross-checks it bit-exactly against ARM's published values
-- `src/neon_exp_data.inc` — the generated NEON exp table (`kExpNeonTable`)
 - `scripts/gen_neon_log_table.py` — embeds ARM's `__log_data.tab` (N=128)
   verbatim and cross-checks every entry against an independently computed
-  `log(1/invc)` reference
-- `src/neon_log_data.inc` — the generated NEON log table (`kLogNeonTable`)
-- `tools/neon_table_transcendental_probe.cpp` — `vectorExpNeonGather` and
-  `vectorLogNeonGather` (the 2-wide NEON software-gather ports; opt-in dev tool
-  only, not part of the shipped library)
+  `log(1/invc)` reference (dev tool only -- log was not productionized)
+- `src/neon_log_data.inc` — the generated NEON log table (`kLogNeonTable`; dev
+  tool only)
+- `tools/neon_table_transcendental_probe.cpp` — `vectorExpNeonGather` (the
+  prototype that became the production kernel above) and `vectorLogNeonGather`
+  (still opt-in dev tool only, not part of the shipped library)
 
 This deliberately derives from the permissively licensed ARM optimized-routines
 source (MIT), **not** the LGPL-2.1+ glibc copy in `sysdeps/aarch64/fpu/`, to keep
 libstats' MIT licensing clean. **Contrast with `vector_erf_neon` below, which
-predates this policy and needs remediation.**
+predates this policy** (remediated separately on branch
+`fix/issue-67-erf-neon-cleanroom` / PR #69, not yet merged as of this writing).
 
 ### MIT License (ARM optimized-routines)
 

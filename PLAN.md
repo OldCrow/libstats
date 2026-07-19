@@ -91,7 +91,7 @@ Last reconciled against live GitHub state: 2026-07-19.
 
 ## GitHub Issues Without Milestone [DERIVED]
 - Open issues without milestone:
-  - #33 OPEN — v1.5.x: Evaluate table+Taylor approach for NEON transcendentals — cross-architecture experiment (see Known Gaps). x86 half of Q2 fully closed null (AVX2/Kaby Lake 2026-07-18; AVX-512/Zen 4 Stage 3 2026-07-19). NEON Q1 prototyped 2026-07-19 on branch `experiment/issue-33-neon-table-transcendentals` (Mac Mini M1): **exp is a borderline win** (<1 ULP, ~+20% stream / ~+21% hot), **log is a perf null** (1 ULP — better than current's 2 ULP — but ~tied at stream). Productionization decision pending.
+  - #33 OPEN — v1.5.x: Evaluate table+Taylor approach for NEON transcendentals — cross-architecture experiment (see Known Gaps). x86 half of Q2 fully closed null (AVX2/Kaby Lake 2026-07-18; AVX-512/Zen 4 Stage 3 2026-07-19). NEON Q1 prototyped 2026-07-19 on branch `experiment/issue-33-neon-table-transcendentals` (Mac Mini M1): **exp is a borderline win** (<1 ULP, ~+20% stream / ~+21% hot), **log is a perf null** (1 ULP — better than current's 2 ULP — but ~tied at stream). **exp productionized 2026-07-19** (47/47 ctest, `simd_verification` VectorExp 2.5-2.6x); an in-place-aliasing bug was found and fixed in the process (see "NEON Q1" below). Not yet committed/pushed — awaiting user approval before commit/PR; issue stays OPEN until the PR merges.
   - #67 OPEN (created 2026-07-19) — `vector_erf_neon` derived from glibc's
     LGPL-2.1+ `erf_advsimd.c`, not a permissively-licensed source. No MIT
     equivalent algorithm exists upstream; needs a dedicated remediation
@@ -100,16 +100,19 @@ Last reconciled against live GitHub state: 2026-07-19.
 
 ## In Progress [OPEN]
 - Local branch `experiment/issue-33-neon-table-transcendentals` (cut from
-  `main` 2026-07-19 on the Mac Mini M1, not yet pushed, nothing committed):
-  Issue #33 Q1. **Prototype complete + measured** (2026-07-19): exp is a
-  borderline win, log a perf-null (see "Issue #33 Experiment -> NEON Q1" for
-  numbers). Added, all dev-only/untracked so far: `tools/neon_table_transcendental_probe.cpp`,
-  `src/neon_exp_data.inc`, `src/neon_log_data.inc`, `src/log_ulp_vectors.inc`,
-  `scripts/gen_neon_exp_table.py`, `scripts/gen_neon_log_table.py`,
-  `scripts/gen_log_ulp_vectors.py`, plus a CMake dev-tool block. Production
-  kernels untouched. **Decision: productionize exp only** (steps in "NEON Q1"
-  below); next session picks up implementation. Internal plan artifact
-  `8370d3c6-66f5-4814-be66-cf4b996f85fa`.
+  `main`, on the Mac Mini M1, not yet pushed): Issue #33 Q1. **Prototype
+  complete (2026-07-19) + exp productionized (2026-07-19)** — see "Issue #33
+  Experiment -> NEON Q1" for full numbers. `vector_exp_neon`
+  (`src/simd_neon.cpp`) now runs the table+Taylor kernel in production;
+  `src/exp_ulp_vectors.inc` (renamed from `avx512_exp_ulp_vectors.inc`) backs
+  a new production regression test, `tests/test_simd_neon_exp_accuracy.cpp`.
+  47/47 ctest, `simd_verification` VectorExp 2.5-2.6x. Found and fixed a real
+  in-place-aliasing bug in the ported kernel's edge-fixup logic (surfaced by
+  `NumericalSafety.LogSpaceOperations`, which calls `vector_exp` in-place via
+  `LogSpaceOps::logSumExpArrayFallback`). `vector_log_neon` unchanged
+  (perf-null, not productionized). Nothing committed yet — presenting diff +
+  validation to the user for approval before commit/push/PR, per SOP. Internal
+  plan artifact `8370d3c6-66f5-4814-be66-cf4b996f85fa`.
 - Local/pushed branch `fix/remove-stale-vector-erfc-stub` (1 commit ahead
   of `main`, also on `origin`, no open PR yet): removes the unused
   `vector_erfc` SIMD stub since no distribution batch path actually calls
@@ -129,7 +132,7 @@ Last reconciled against live GitHub state: 2026-07-19.
   base commit `1b564ec`, superseded by later issue #50 profiling commits on
   `main`.
 
-## Issue #33 Experiment — gather/table exp,log [x86 (Q2) CLOSED null; NEON (Q1) prototyped 2026-07-19 — exp WIN (productionization pending), log perf-null]
+## Issue #33 Experiment — gather/table exp,log [x86 (Q2) CLOSED null; NEON (Q1) exp PRODUCTIONIZED 2026-07-19 (awaiting PR approval), log perf-null (not productionized)]
 Decisions locked 2026-07-18 (Q2); Q1 work started 2026-07-19. Internal plan
 artifact: `8370d3c6-66f5-4814-be66-cf4b996f85fa` (covers both Q2, closed, and
 Q1, open). Full write-up: `docs/SIMD_BENCHMARK_RESULTS.md` "Issue #33 —
@@ -223,7 +226,7 @@ dispatched.
   AVX-512/Zen 4). Only NEON Q1 (table exp/log via software gather, needs the
   M1) remains genuinely open on issue #33.
 
-### NEON Q1 (Mac Mini M1) — prototyped 2026-07-19 (exp WIN, log perf-null); exp productionization pending
+### NEON Q1 (Mac Mini M1) — prototyped 2026-07-19 (exp WIN, log perf-null); exp PRODUCTIONIZED 2026-07-19
 - Branch `experiment/issue-33-neon-table-transcendentals` cut from `main`
   (post-#66 merge, so it includes the closed Q2 work and reusable
   `LIBSTATS_BUILD_SIMD_DEV_TOOLS` infra) on the Mac Mini M1. No code changes
@@ -275,34 +278,51 @@ dispatched.
   table-speed candidate (ARM's reference cos is polynomial) but IS the least-
   accurate primitive (~1e-10 abs, 7-term Taylor) -> accuracy-only upgrade, noted
   on #46. So nothing else batches into the exp work.
-- **NEXT SESSION — implement exp productionization (steps 1-5; step 6 DEFERRED):**
-  1. Add `#include "neon_exp_data.inc"` in the ARM block of `src/simd_neon.cpp`,
-     mirroring the existing `#include "neon_erf_data.inc"` (quoted include resolves
-     from the source's own `src/` dir; no CMake include-path change needed).
-  2. Replace the body of `vector_exp_neon` (`src/simd_neon.cpp`, the 10-term SLEEF
-     poly at ~lines 243-316) with the prototype kernel `vectorExpNeonGather` from
-     `tools/neon_table_transcendental_probe.cpp` (2x-unrolled, tail-corrected N=128
-     table, order-5 poly, hoisted `|x|>=704 -> std::exp` edge fixup). Lift the
-     `kExp*` constants into the ARM block. WATCH-OUT: this changes edge behavior —
-     the table kernel routes `|x|>=704` to exact `std::exp` (correct +/-inf/0),
-     whereas the current kernel clamps to [-708, 709.78]; check no test asserts the
-     old saturating behavior.
-  3. `THIRD_PARTY_NOTICES.md`: confirm the ARM optimized-routines `exp_data.c` (MIT)
-     entry (already present from the AVX-512 exp work) also names the NEON table
-     `src/neon_exp_data.inc`.
-  4. Add a `<1 ULP` regression test for `vector_exp_neon` vs the reference vectors
-     in `src/avx512_exp_ulp_vectors.inc` (arch-neutral; consider renaming to
-     `exp_ulp_vectors.inc` when promoted to a production test). Wire into GTest/CTest
-     (extend an existing SIMD-accuracy test under `tests/`).
-  5. Re-validate on this M1: rebuild, `ctest --test-dir build -LE "timing|benchmark"`
-     (expect 46/46) + `./build/tools/simd_verification`; sanity-check exp-heavy
-     distributions (LogNormal, Weibull, Gamma, Pareto, Rayleigh).
-  Step 6 (Q3 NEON dispatch-threshold reprofiling for exp-heavy distributions) is
-  DEFERRED to a separate follow-up per decision.
-- Pickup context: branch is HEAD on this M1, nothing committed; do not commit
-  unless asked. Regenerating any table needs mpmath in a throwaway venv
-  (`python3 -m venv /tmp/v && /tmp/v/bin/pip install mpmath`). Model/effort: the
-  kernel swap is the bit-exact crux (Opus tier); wiring + validation are routine.
+- **Productionization complete 2026-07-19 (steps 1-5; step 6 DEFERRED):**
+  1. Included `neon_exp_data.inc` in the ARM block of `src/simd_neon.cpp`,
+     mirroring the existing `neon_erf_data.inc` include.
+  2. Replaced the body of `vector_exp_neon` with the validated table+Taylor
+     kernel (2x-unrolled, tail-corrected N=128 table, order-5 poly, hoisted
+     `|x|>=704 -> std::exp` edge fixup). Confirmed no existing test asserted
+     the old clamping behavior before finalizing.
+  3. `THIRD_PARTY_NOTICES.md` updated: `src/neon_exp_data.inc` /
+     `scripts/gen_neon_exp_table.py` now listed as production (not
+     dev-tool-only); log/AVX-512 remain dev-tool-only; erf's separate
+     "KNOWN ISSUE" section left untouched (that fix is on the unmerged #67
+     branch, not this one).
+  4. Renamed `src/avx512_exp_ulp_vectors.inc` -> `src/exp_ulp_vectors.inc`
+     (now a production test dependency) and added
+     `tests/test_simd_neon_exp_accuracy.cpp` (GTest, wired into CTest):
+     core `|x|<=700` max ULP <=1.0 / mean <0.01 vs the mpmath reference, plus
+     an IEEE-special-values case (±inf, NaN, ±0, overflow, underflow).
+  5. Re-validated on this M1 (fresh Release build `build-exp33`):
+     `ctest -LE "timing|benchmark"` **47/47** (46 existing + the new test,
+     including a real bug fix — see below); `simd_verification` VectorExp
+     **2.5-2.6x** (up from 2.1x baseline), full distribution suite geomeans
+     unaffected/healthy (PDF 6.8x, LogPDF 8.2x, CDF 3.1x); the 5 exp-heavy
+     timing-labelled enhanced tests (Gamma, LogNormal, Pareto, Weibull,
+     Rayleigh) all pass.
+  - **Bug found and fixed during step 5:** the ported kernel's edge-fixup
+    logic re-read the input array *after* the SIMD store, a pattern that only
+    breaks when called in-place (`a == result`). `LogSpaceOps::
+    logSumExpArrayFallback` (`src/log_space_ops.cpp:141-161`) legitimately
+    calls `vector_exp` in-place; for `-inf` input, the store overwrote the
+    input with an internally-computed `NaN` before the fixup check read it
+    back, so the `|x|>=704` unordered-compare check never fired and the
+    wrong `NaN` survived instead of the correct `exp(-inf)=0`. This broke
+    `NumericalSafety.LogSpaceOperations`. Fixed by computing the edge-fixup
+    mask from the already-loaded input register (before the store), never
+    re-reading `a[]` after storing into it — mirrors how the original SLEEF
+    kernel never re-read the array. **General lesson for future NEON/SIMD
+    kernel work in this codebase:** never re-read the input array after the
+    corresponding store when in-place calls are possible; decide fixups only
+    from already-loaded registers.
+  Step 6 (Q3 NEON dispatch-threshold reprofiling for exp-heavy distributions)
+  remains DEFERRED to a separate follow-up per decision.
+- Pickup context: branch is HEAD on this M1; changes are staged but **not yet
+  committed** — awaiting user approval (diff + validation summary) before
+  commit/push/PR, per SOP. Regenerating any table needs mpmath in a throwaway
+  venv (`python3 -m venv /tmp/v && /tmp/v/bin/pip install mpmath`).
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends to
@@ -315,8 +335,9 @@ dispatched.
   of Q2 is now closed null on both tiers: AVX2/Kaby Lake 2026-07-18 (gather
   too expensive even warm) and AVX-512/Zen 4 Stage 3 2026-07-19 (accurate
   two-gather table-exp holds <1 ULP but is slower than the current
-  polynomial — see "Issue #33 Experiment"). Only NEON Q1 (needs the M1)
-  remains open.
+  polynomial — see "Issue #33 Experiment"). NEON Q1 exp is productionized
+  (2026-07-19, awaiting PR approval); NEON log stays a perf-null, not
+  productionized (accuracy-only finding tracked on #46).
 
 ## Next Steps
 - Issue #33 x86 experiment (Q2) is fully closed null on both AVX2/Kaby Lake
@@ -325,12 +346,13 @@ dispatched.
   `backup/wip-sleef-avx2-gather-bench` remains salvage-reference only. The
   `experiment/issue-33-gather-transcendentals` branch holds the probe, the
   Stage 3 kernel, and the generators as reference.
-- Issue #33 Q1 (NEON): prototype COMPLETE (exp win, log perf-null). Next
-  concrete step (next session): implement the **exp productionization** into
-  `src/simd_neon.cpp` per the 5-step checklist in "Issue #33 Experiment ->
-  NEON Q1" above (branch `experiment/issue-33-neon-table-transcendentals`,
-  Mac Mini M1). Q3 dispatch-threshold reprofiling deferred to a follow-up. Log
-  is not productionized (accuracy-only note lives on #46).
+- Issue #33 Q1 (NEON): exp productionization COMPLETE on
+  `experiment/issue-33-neon-table-transcendentals` (47/47 ctest,
+  `simd_verification` VectorExp 2.5-2.6x; see "Issue #33 Experiment -> NEON
+  Q1"). Next concrete step: present the diff + validation summary to the user
+  for approval, then commit/push/open a PR (mirroring the #67 PR pattern).
+  Q3 dispatch-threshold reprofiling deferred to a follow-up. Log is not
+  productionized (accuracy-only note lives on #46).
 - #67 (vector_erf_neon LGPL provenance) needs a remediation decision before
   its resolution can be scheduled; not blocking other work, but should not
   be forgotten given it affects already-shipped, dispatched production code.

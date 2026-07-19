@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Generate avx512_exp_ulp_vectors.inc — correctly-rounded exp() reference set.
+"""Generate exp_ulp_vectors.inc — correctly-rounded exp() reference set.
 
-Issue #33 Stage 3: high-precision reference for validating the < 1 ULP accuracy
-gate of vector_exp_avx512_gather. Aligns with issue #46 (mpmath as the
-arbitrary-precision reference).
+Issue #33: high-precision, architecture-neutral reference for validating the
+< 1 ULP accuracy gate of table-based exp kernels (originally the AVX-512 Stage 3
+experiment; now also used by the NEON production regression test). Aligns with
+issue #46 (mpmath as the arbitrary-precision reference).
 
 Emits an array of {input, correctly_rounded_exp} pairs as bit patterns. The
 reference is exp(x) evaluated at 200-bit precision then rounded once to the
@@ -18,7 +19,7 @@ Special IEEE inputs (+/-inf, NaN) are validated separately in the harness, not
 here, since "correctly-rounded" is not meaningful for them.
 
 Usage:
-    python scripts/gen_exp_ulp_vectors.py > src/avx512_exp_ulp_vectors.inc
+    python scripts/gen_exp_ulp_vectors.py > src/exp_ulp_vectors.inc
 """
 
 import struct
@@ -85,8 +86,9 @@ def main():
 
     print("// Auto-generated correctly-rounded exp() reference vectors (Issue #33).")
     print("// {input_bits, exp_bits}; exp evaluated at 200-bit precision (mpmath) then")
-    print("// rounded once to nearest double. Used to measure the ULP error of")
-    print("// vector_exp_avx512_gather against the < 1 ULP accuracy gate (see issue #46).")
+    print("// rounded once to nearest double. Architecture-neutral -- used to measure the")
+    print("// ULP error of table-based exp kernels (NEON production, AVX-512 experimental)")
+    print("// against the < 1 ULP accuracy gate (see issue #46).")
     print("// DO NOT EDIT -- regenerate with scripts/gen_exp_ulp_vectors.py.")
     print("struct ExpUlpVector { std::uint64_t x_bits; std::uint64_t exp_bits; };")
     print(f"static constexpr ExpUlpVector kExpUlpVectors[{len(xs)}] = {{")

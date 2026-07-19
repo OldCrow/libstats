@@ -250,8 +250,7 @@ void runProbeAvx2() {
 inline void sink512(__m512d v) {
     alignas(64) double tmp[8];
     _mm512_store_pd(tmp, v);
-    volatile double escape =
-        tmp[0] + tmp[1] + tmp[2] + tmp[3] + tmp[4] + tmp[5] + tmp[6] + tmp[7];
+    volatile double escape = tmp[0] + tmp[1] + tmp[2] + tmp[3] + tmp[4] + tmp[5] + tmp[6] + tmp[7];
     (void)escape;
 }
 
@@ -405,18 +404,18 @@ void runProbeAvx512() {
                  "    proceed to Stage 3 (table port) under the <1 ULP accuracy floor.\n";
 }
 
-// ============================================================================
-// Issue #33 Stage 3: experimental table-gather exp kernel (non-dispatched)
-// ============================================================================
-// Faithful two-gather port of ARM optimized-routines' scalar exp (math/exp.c +
-// math/exp_data.c, SPDX: MIT OR Apache-2.0 WITH LLVM-exception), vectorized to
-// 8-wide AVX-512. The tail-corrected N=128 table is what holds < 1 ULP; the
-// ~1.9 ULP single-table exp_advsimd variant does not meet libstats' accuracy
-// floor. This kernel lives in the opt-in dev tool ONLY -- production
-// vector_exp_avx512 is untouched and this symbol is never added to the dispatch
-// table. See PLAN.md "Issue #33 Experiment" and THIRD_PARTY_NOTICES.md.
-#include "avx512_exp_data.inc"         // kExpSbitsAvx512[128], kExpTailAvx512[128]
-#include "avx512_exp_ulp_vectors.inc"  // kExpUlpVectors[], struct ExpUlpVector
+    // ============================================================================
+    // Issue #33 Stage 3: experimental table-gather exp kernel (non-dispatched)
+    // ============================================================================
+    // Faithful two-gather port of ARM optimized-routines' scalar exp (math/exp.c +
+    // math/exp_data.c, SPDX: MIT OR Apache-2.0 WITH LLVM-exception), vectorized to
+    // 8-wide AVX-512. The tail-corrected N=128 table is what holds < 1 ULP; the
+    // ~1.9 ULP single-table exp_advsimd variant does not meet libstats' accuracy
+    // floor. This kernel lives in the opt-in dev tool ONLY -- production
+    // vector_exp_avx512 is untouched and this symbol is never added to the dispatch
+    // table. See PLAN.md "Issue #33 Experiment" and THIRD_PARTY_NOTICES.md.
+    #include "avx512_exp_data.inc"  // kExpSbitsAvx512[128], kExpTailAvx512[128]
+    #include "exp_ulp_vectors.inc"  // kExpUlpVectors[], struct ExpUlpVector (architecture-neutral)
 
 // ARM AOR exp constants (math/exp_data.c, N=128 block).
 constexpr double kExpInvLn2N = 0x1.71547652b82fep0 * 128.0;  // N/ln2
@@ -521,8 +520,7 @@ double expUlpError(double got, double ref) {
 }
 
 template <typename Fn>
-double benchExpNsPerElem(Fn&& fn, const double* in, double* out, std::size_t n,
-                         std::size_t iters) {
+double benchExpNsPerElem(Fn&& fn, const double* in, double* out, std::size_t n, std::size_t iters) {
     fn(in, out, n);  // warmup + populate caches
     const auto start = std::chrono::steady_clock::now();
     for (std::size_t it = 0; it < iters; ++it)
@@ -619,9 +617,8 @@ void runExpExperimentAvx512() {
     std::cout << "\n  Performance gate (>=20% at stream): "
               << (stream_speedup >= 1.20 ? "PASS" : "FAIL") << "\n";
     std::cout << "  Overall verdict: table-gather exp is "
-              << ((accuracy_ok && stream_speedup >= 1.20)
-                      ? "a WIN (both gates pass)"
-                      : "NOT a clear win (see gates above)")
+              << ((accuracy_ok && stream_speedup >= 1.20) ? "a WIN (both gates pass)"
+                                                          : "NOT a clear win (see gates above)")
               << ".\n";
 }
 
