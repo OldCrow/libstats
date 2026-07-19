@@ -179,6 +179,7 @@ void VectorOps::vector_exp_avx(const double* input, double* output, std::size_t 
     //   exp(-708) ~ 3.3e-308 instead of flushing through the subnormal range.
     const __m256d exp_max = _mm256_set1_pd(709.782712893383996732223);
     const __m256d exp_min = _mm256_set1_pd(-746.0);
+    const __m256d pos_inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
 
     // SLEEF polynomial coefficients for exp(s) where |s| < ln(2)/2
     // These provide < 1 ULP error for double precision
@@ -197,10 +198,10 @@ void VectorOps::vector_exp_avx(const double* input, double* output, std::size_t 
     const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
 
     for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
-        __m256d x = _mm256_loadu_pd(&input[i]);
+        __m256d x_orig = _mm256_loadu_pd(&input[i]);
 
         // Clamp to avoid overflow/underflow
-        x = _mm256_min_pd(x, exp_max);
+        __m256d x = _mm256_min_pd(x_orig, exp_max);
         x = _mm256_max_pd(x, exp_min);
 
         // Range reduction: x = n*ln(2) + r
@@ -266,6 +267,13 @@ void VectorOps::vector_exp_avx(const double* input, double* output, std::size_t 
 
         // Final result: exp(x) = exp(r) * 2^n1 * 2^n2
         __m256d result = _mm256_mul_pd(_mm256_mul_pd(poly, scale1), scale2);
+
+        // Match std::exp at the non-finite/overflow edges: x > exp_max (incl.
+        // +inf) -> +inf, NaN -> NaN. Underflow/-inf already flush to +0, so no
+        // low-side fixup is needed. Keeps the SIMD body consistent with the
+        // scalar remainder loop below (std::exp) and the NEON kernel.
+        result = _mm256_blendv_pd(result, pos_inf, _mm256_cmp_pd(x_orig, exp_max, _CMP_GT_OQ));
+        result = _mm256_blendv_pd(result, x_orig, _mm256_cmp_pd(x_orig, x_orig, _CMP_UNORD_Q));
 
         _mm256_storeu_pd(&output[i], result);
     }

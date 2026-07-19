@@ -50,6 +50,13 @@ Last reconciled against live GitHub state: 2026-07-19.
   — see "Issue #67" section below. Posted a comment on **#49** recording that
   the erf accuracy fix disconfirms "erf precision" as that issue's cause (see
   the updated #49 line below and the Issue #67 section).
+- 2026-07-19: created **#74 OPEN** (later fixed same session, see "x86
+  AVX2/AVX/SSE2 native validation audit" below) — `vector_log_sse2` was
+  missing the subnormal-input scaling that `vector_log_avx/avx2/avx512` all
+  have, silently returning `log(x)` up to ~35 natural-log-units off for
+  subnormal `x`. Found via native SSE2 testing enabled by the new
+  `LIBSTATS_MAX_SIMD_TIER` CMake cap; never caught before because SSE2 had
+  only previously run under Rosetta 2. https://github.com/OldCrow/libstats/issues/74
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -104,6 +111,9 @@ Last reconciled against live GitHub state: 2026-07-19.
     LGPL-2.1+ `erf_advsimd.c`, not a permissively-licensed source. No MIT
     equivalent algorithm exists upstream; needs a dedicated remediation
     decision. See `THIRD_PARTY_NOTICES.md` "KNOWN ISSUE" section.
+  - #74 OPEN (created and fixed 2026-07-19, not yet closed pending PR/merge) —
+    `vector_log_sse2` subnormal-input bug. See "x86 AVX2/AVX/SSE2 native
+    validation audit" below.
 - Closed issues without milestone: 9 as of 2026-07-14.
 
 ## In Progress [OPEN]
@@ -436,13 +446,66 @@ Branch `fix/issue-67-erf-neon-cleanroom` (off `main`, pushed to origin, commit
 - Regression test added
   (`BatchMathRegressions.VectorExpDeepUnderflowMatchesStdExp`); on NEON it
   exercises the table kernel's fixup path, on x86 the new two-step scaling.
-- [OPEN] x86 kernels validated by cross-compile + SSE2 run under Rosetta 2
-  (clean); AVX/AVX2/AVX-512 need native-machine or CI validation (Kaby Lake,
-  Asus TUF A16).
+- [RESOLVED 2026-07-19] x86 kernels are now natively validated on Kaby Lake
+  for AVX2, AVX, *and* SSE2 (previously only AVX2 ran natively; AVX/SSE2 were
+  cross-compile/Rosetta-only) — see "x86 AVX2/AVX/SSE2 native validation
+  audit" below. AVX-512 still needs native-machine or CI validation on the
+  Asus TUF A16.
 - [OPEN] Pre-existing, unrelated: exp_max clamp constant is ~30 ULP (in x)
   below the true overflow threshold, so for x in that one-double window the
   kernels return exp(exp_max) (~214 ULP low) where std::exp is still finite.
   Deliberate safety margin against 1-ULP overshoot to inf; left as is.
+
+## x86 AVX2/AVX/SSE2 native validation audit (2026-07-19) [DERIVED]
+Follow-up audit requested after the exp underflow fix above shipped without
+native AVX/SSE2 coverage (Kaby Lake only runs AVX2 by default — runtime
+dispatch always selects the top supported tier, so AVX and SSE2 kernels never
+execute on this machine otherwise). Scope: everything changed since the
+`v2.0.4` tag, filtered to x86 production SIMD (`simd_sse2/avx/avx2/avx512.cpp`)
+— NEON changes and the opt-in `#66` gather dev-tooling were out of scope.
+- **Edge-case audit finding**: the exp underflow fix's clamp (`min(x, exp_max)`
+  / `max(x, exp_min)`) silently mapped `NaN` and any `x > exp_max` (including
+  `+inf` and true overflow) to a finite `~DBL_MAX`-ish value instead of
+  matching `std::exp`'s `NaN`/`+inf`. This also disagreed with the scalar
+  remainder loop in the same function (already `std::exp`) and with the NEON
+  kernel (routes `|x| >= 704` to scalar `std::exp`).
+- **Fix**: added a branchless post-clamp fixup to all four `vector_exp_*`
+  kernels — blend `+inf` where the *original* (pre-clamp) `x > exp_max`, blend
+  the original `x` (a NaN) where `x` is unordered vs itself. AVX2/AVX use
+  `_mm256_blendv_pd`; AVX-512 uses `_mm512_mask_blend_pd`; SSE2 has no
+  `blendv`, reuses the existing `SSE2_BLEND` and/andnot/or macro. Regression
+  test `BatchMathRegressions.VectorExpEdgeCasesMatchStdExp` added
+  (+inf/-inf/NaN/overflow points, 8x-repeated to hit every SIMD width).
+- **`LIBSTATS_MAX_SIMD_TIER` CMake option added** (`SIMDDetection.cmake`,
+  `apply_simd_tier_cap()`): caps the highest *compiled* x86 tier
+  (`SSE2|AVX|AVX2|AVX512`; empty = no cap, the default). Disabling a tier
+  removes its source file and compile definition, so the next tier down
+  becomes the dispatch ceiling — this is what let AVX and SSE2 run natively
+  on this AVX2-capable Kaby Lake box for the first time, rather than only via
+  cross-compile flag checks or Rosetta 2 emulation. Runs after
+  `apply_cross_compilation_overrides()` so an explicit cap wins over any
+  `LIBSTATS_FORCE_*`.
+- **Validation results** (Kaby Lake, Release): AVX2 (default) — 49/49 ctest,
+  `simd_verification` 70/70, edge probe confirms `+inf/NaN/overflow` now match
+  `std::exp`. AVX (`-DLIBSTATS_MAX_SIMD_TIER=AVX`) — same, natively, for the
+  first time. SSE2 (`-DLIBSTATS_MAX_SIMD_TIER=SSE2`) — same, natively, for the
+  first time, **after** the #74 fix below (see next bullet for the 3 failures
+  found before that fix).
+- **Side discovery — issue #74**: the first-ever native SSE2 run surfaced 3
+  pre-existing, unrelated `simd_verification` failures (`Gamma_EdgeCases`,
+  `Beta_EdgeCases`, `ChiSquared_EdgeCases`, `LogPDF`, max_diff ≈ 35.4) traced
+  to `vector_log_sse2` lacking the subnormal-input 2^54 scaling step that
+  `vector_log_avx/avx2/avx512` all have (subnormals have no implicit leading
+  mantissa bit, so the exponent/mantissa bit-extraction trick silently
+  produces a wrong result — e.g. `log(denorm_min())` returned -709.09 instead
+  of -744.44). Unrelated to the exp fix above (Gamma/Beta/ChiSquared `LogPDF`
+  never calls `vector_exp`). Filed and fixed same session: ported the AVX2
+  scaling block into `vector_log_sse2` via `SSE2_BLEND`; added
+  `BatchMathRegressions.VectorLogSubnormalMatchesStdLog`. Re-validated: SSE2
+  `simd_verification` 70/70 (was 67/70), ctest 49/49.
+  https://github.com/OldCrow/libstats/issues/74
+- **Not done this session**: no commit/PR yet for either fix (exp edge-cases
+  or #74) — working tree only, pending user review per SOP.
 
 ## Next Steps
 - Issue #33 x86 experiment (Q2) is fully closed null on both AVX2/Kaby Lake
@@ -464,6 +527,11 @@ Branch `fix/issue-67-erf-neon-cleanroom` (off `main`, pushed to origin, commit
   2026-07-19 rebase onto post-#70/#72 `main`.
 - Still assess `fix/remove-stale-vector-erfc-stub` (unrelated stale erfc-stub
   removal) for merge.
+- x86 AVX2/AVX/SSE2 native validation audit: both fixes (exp edge-cases,
+  `vector_log_sse2` subnormals / **#74**) are complete and validated in the
+  working tree but not yet committed — next concrete step is committing,
+  pushing, and opening a PR (or two), then closing **#74** once merged.
+  AVX-512 native validation on the Asus TUF A16 remains the one open tier.
 - Work through the v2.1.0 — Accuracy & Performance backlog (6 issues,
   mostly SIMD accuracy/perf gaps) before starting the new-distribution
   milestones (v2.2.0, v2.3.0) or the v3.0.0 architecture refactor.

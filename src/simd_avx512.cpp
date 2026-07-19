@@ -182,6 +182,7 @@ void VectorOps::vector_exp_avx512(const double* values, double* results,
     const __m512d exp_min = _mm512_set1_pd(-746.0);
     const __m512d half = _mm512_set1_pd(0.5);
     const __m512d one = _mm512_set1_pd(1.0);
+    const __m512d pos_inf = _mm512_set1_pd(std::numeric_limits<double>::infinity());
 
     const __m512d c1 = _mm512_set1_pd(0.1666666666666669072e+0);
     const __m512d c2 = _mm512_set1_pd(0.4166666666666602598e-1);
@@ -198,8 +199,8 @@ void VectorOps::vector_exp_avx512(const double* values, double* results,
     const std::size_t simd_end = (size / W) * W;
 
     for (std::size_t i = 0; i < simd_end; i += W) {
-        __m512d x = _mm512_loadu_pd(&values[i]);
-        x = _mm512_min_pd(x, exp_max);
+        __m512d x_orig = _mm512_loadu_pd(&values[i]);
+        __m512d x = _mm512_min_pd(x_orig, exp_max);
         x = _mm512_max_pd(x, exp_min);
 
         // Range reduction: x = n*ln2 + r
@@ -240,7 +241,16 @@ void VectorOps::vector_exp_avx512(const double* values, double* results,
         __m512d scale1 = _mm512_castsi512_pd(e1);
         __m512d scale2 = _mm512_castsi512_pd(e2);
 
-        _mm512_storeu_pd(&results[i], _mm512_mul_pd(_mm512_mul_pd(poly, scale1), scale2));
+        __m512d result = _mm512_mul_pd(_mm512_mul_pd(poly, scale1), scale2);
+        // Match std::exp at the non-finite/overflow edges: x > exp_max (incl.
+        // +inf) -> +inf, NaN -> NaN. Underflow/-inf already flush to +0 via
+        // exp_min + two-step scaling. Keeps the SIMD body consistent with the
+        // scalar remainder loop below (std::exp) and the NEON kernel.
+        result = _mm512_mask_blend_pd(_mm512_cmp_pd_mask(x_orig, exp_max, _CMP_GT_OQ), result,
+                                      pos_inf);
+        result = _mm512_mask_blend_pd(_mm512_cmp_pd_mask(x_orig, x_orig, _CMP_UNORD_Q), result,
+                                      x_orig);
+        _mm512_storeu_pd(&results[i], result);
     }
 
     for (std::size_t i = simd_end; i < size; ++i)

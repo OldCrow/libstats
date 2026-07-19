@@ -301,6 +301,16 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDDetection.cmake")
 
 # Set options for SIMD detection behavior
 option(LIBSTATS_ENABLE_RUNTIME_CHECKS "Enable runtime CPU checks even when cross-compiling" OFF)
+# Cap the highest *compiled* x86 SIMD tier. Runtime dispatch always selects the
+# highest tier the CPU supports, so on an AVX2 box the AVX and SSE2 kernels never
+# execute. Setting this to SSE2 or AVX disables the tiers above it (source + define
+# removed) so the capped tier becomes the dispatch ceiling — useful for validating
+# lower-tier kernels natively. Accepts SSE2|AVX|AVX2|AVX512 (empty = no cap).
+# Honoured by detect_simd_features() -> apply_simd_tier_cap() in SIMDDetection.cmake.
+set(LIBSTATS_MAX_SIMD_TIER
+    ""
+    CACHE STRING "Cap the highest compiled x86 SIMD tier (SSE2|AVX|AVX2|AVX512; empty = no cap)")
+set_property(CACHE LIBSTATS_MAX_SIMD_TIER PROPERTY STRINGS "" SSE2 AVX AVX2 AVX512)
 # Perform comprehensive SIMD detection
 detect_simd_features()
 

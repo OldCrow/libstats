@@ -182,6 +182,7 @@ void VectorOps::vector_exp_sse2(const double* values, double* results, std::size
     const __m128d exp_min = _mm_set1_pd(-746.0);
     const __m128d half = _mm_set1_pd(0.5);
     const __m128d one = _mm_set1_pd(1.0);
+    const __m128d pos_inf = _mm_set1_pd(std::numeric_limits<double>::infinity());
     // Magic-number rounding constant: 2^52 + 2^51 = 6755399441055744; adding it to x
     // rounds x (as double) to integer in the binade [2^51, 2^52], then subtracting it back
     // yields round(x) without SSE4.1 _mm_round_pd.
@@ -202,8 +203,8 @@ void VectorOps::vector_exp_sse2(const double* values, double* results, std::size
     const std::size_t simd_end = (size / W) * W;
 
     for (std::size_t i = 0; i < simd_end; i += W) {
-        __m128d x = _mm_loadu_pd(&values[i]);
-        x = _mm_min_pd(x, exp_max);
+        __m128d x_orig = _mm_loadu_pd(&values[i]);
+        __m128d x = _mm_min_pd(x_orig, exp_max);
         x = _mm_max_pd(x, exp_min);
 
         // Range reduction: n = round(x / ln2) via magic-number trick
@@ -250,7 +251,14 @@ void VectorOps::vector_exp_sse2(const double* values, double* results, std::size
         __m128d scale1 = _mm_castsi128_pd(e1);
         __m128d scale2 = _mm_castsi128_pd(e2);
 
-        _mm_storeu_pd(&results[i], _mm_mul_pd(_mm_mul_pd(poly, scale1), scale2));
+        __m128d result = _mm_mul_pd(_mm_mul_pd(poly, scale1), scale2);
+        // Match std::exp at the non-finite/overflow edges (SSE2 has no blendv):
+        // x > exp_max (incl. +inf) -> +inf, NaN -> NaN. Underflow/-inf already
+        // flush to +0 via exp_min + two-step scaling. Keeps the SIMD body
+        // consistent with the scalar remainder loop below (std::exp).
+        result = SSE2_BLEND(_mm_cmpgt_pd(x_orig, exp_max), pos_inf, result);
+        result = SSE2_BLEND(_mm_cmpunord_pd(x_orig, x_orig), x_orig, result);
+        _mm_storeu_pd(&results[i], result);
     }
 
     for (std::size_t i = simd_end; i < size; ++i)
@@ -288,16 +296,29 @@ void VectorOps::vector_log_sse2(const double* values, double* results, std::size
     for (std::size_t i = 0; i < simd_end; i += W) {
         __m128d x = _mm_loadu_pd(&values[i]);
 
-        // Special-case detection
+        // Special-case detection (on the original, unscaled x)
         __m128d is_zero = _mm_cmpeq_pd(x, zero);
         __m128d is_negative = _mm_cmplt_pd(x, zero);
         __m128d is_inf = _mm_cmpeq_pd(x, pos_inf);
+
+        // Scale subnormal inputs by 2^54 before bit-level exponent/mantissa
+        // extraction below: subnormals have no implicit leading mantissa bit, so
+        // the "exponent field + forced mantissa bias" trick is only valid for
+        // normalized doubles. Without this, log(denormal) silently returns a
+        // value up to ~35 natural-log-units off (e.g. log(denorm_min()) came out
+        // as -709.09 instead of -744.44). Same fix as vector_log_avx/avx2/avx512;
+        // ported here 2026-07-19 after native SSE2 testing (via
+        // LIBSTATS_MAX_SIMD_TIER) surfaced the gap for the first time.
+        const __m128d min_normal = _mm_set1_pd(2.2250738585072014e-308);
+        const __m128d scale_up = _mm_set1_pd(18014398509481984.0);  // 2^54
+        __m128d is_denormal = _mm_cmplt_pd(x, min_normal);
+        __m128d scaled_x = SSE2_BLEND(is_denormal, _mm_mul_pd(x, scale_up), x);
 
         // Exponent extraction: cast to int, srli_epi64 by 52, mask 11-bit field, subtract 1023.
         // _mm_srli_epi64 shifts each 64-bit element right: exponent lands in bits [0..10].
         // _mm_shuffle_epi32 + _mm_cvtepi32_pd converts the two 32-bit exponent values to double
         // without SSE4.1 _mm_cvtepi64_pd: the exponent fits in 32 bits (0..2046).
-        __m128i xi = _mm_castpd_si128(x);
+        __m128i xi = _mm_castpd_si128(scaled_x);
         __m128i exp_i = _mm_srli_epi64(xi, 52);
         exp_i = _mm_and_si128(exp_i, _mm_set1_epi64x(0x7FFLL));
         // exp_i = [exp0:64, exp1:64]; lower 32 bits of each 64-bit lane hold the value.
@@ -305,6 +326,8 @@ void VectorOps::vector_log_sse2(const double* values, double* results, std::size
         __m128i exp_i32 = _mm_shuffle_epi32(exp_i, _MM_SHUFFLE(0, 0, 2, 0));
         __m128d e = _mm_cvtepi32_pd(exp_i32);
         e = _mm_sub_pd(e, _mm_set1_pd(1023.0));
+        // Undo the 2^54 scaling's contribution to the exponent for denormal lanes.
+        e = SSE2_BLEND(is_denormal, _mm_sub_pd(e, _mm_set1_pd(54.0)), e);
 
         // Mantissa: clear exponent field, set exponent to 1023 (=> m in [1,2))
         __m128i mant_mask = _mm_set1_epi64x(0x000FFFFFFFFFFFFFLL);
