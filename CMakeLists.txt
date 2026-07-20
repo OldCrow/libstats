@@ -706,13 +706,26 @@ endif()
 # this block so the binary is distributable to machines with lower ISA than the build host. Per-file
 # flags from cmake/SIMDDetection.cmake:apply_simd_source_flags() remain active.
 if(NOT LIBSTATS_PORTABLE)
+    # NOTE: the global flag must follow the (possibly LIBSTATS_MAX_SIMD_TIER-capped)
+    # LIBSTATS_HAS_* results from detect_simd_features(), not just "AVX512 or else AVX2".
+    # Applying /arch:AVX2 globally regardless of a lower cap predefines the compiler's
+    # __AVX2__ macro for every TU (including src/simd_dispatch.cpp), which
+    # include/platform/simd.h's MSVC fallback then reads to auto-#define
+    # LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
+    # getDispatchTable() to reference vector_*_avx2 symbols that were never compiled
+    # (simd_avx2.cpp is excluded by the cap), producing LNK2019 unresolved externals.
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
         if(LIBSTATS_HAS_AVX512)
             add_compile_options(/arch:AVX512)
             message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX512")
-        else()
+        elseif(LIBSTATS_HAS_AVX2)
             add_compile_options(/arch:AVX2)
             message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+        elseif(LIBSTATS_HAS_AVX)
+            add_compile_options(/arch:AVX)
+            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX")
+        else()
+            message(STATUS "Applied MSVC x64 SIMD flags: none (SSE2 is the x64 baseline)")
         endif()
     elseif(
         CMAKE_CXX_COMPILER_ID MATCHES "Clang"
@@ -721,9 +734,14 @@ if(NOT LIBSTATS_PORTABLE)
         if(LIBSTATS_HAS_AVX512)
             add_compile_options(-mavx512f)
             message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx512f")
-        else()
+        elseif(LIBSTATS_HAS_AVX2)
             add_compile_options(-mavx2)
             message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
+        elseif(LIBSTATS_HAS_AVX)
+            add_compile_options(-mavx)
+            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx")
+        else()
+            message(STATUS "Applied Clang-cl x64 SIMD flags: none (SSE2 is the x64 baseline)")
         endif()
     endif()
 else()
@@ -756,8 +774,12 @@ endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     if(LIBSTATS_HAS_AVX512)
         message(STATUS "SIMD: AVX-512/AVX2/AVX/SSE2 enabled (MSVC x64)")
-    else()
+    elseif(LIBSTATS_HAS_AVX2)
         message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (MSVC x64)")
+    elseif(LIBSTATS_HAS_AVX)
+        message(STATUS "SIMD: AVX/SSE2 enabled (MSVC x64)")
+    else()
+        message(STATUS "SIMD: SSE2 enabled (MSVC x64)")
     endif()
 elseif(
     CMAKE_CXX_COMPILER_ID MATCHES "Clang"
@@ -765,8 +787,12 @@ elseif(
     AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     if(LIBSTATS_HAS_AVX512)
         message(STATUS "SIMD: AVX-512/AVX2/AVX/SSE2 enabled (ClangCL x64)")
-    else()
+    elseif(LIBSTATS_HAS_AVX2)
         message(STATUS "SIMD: AVX2/AVX/SSE2 enabled (ClangCL x64)")
+    elseif(LIBSTATS_HAS_AVX)
+        message(STATUS "SIMD: AVX/SSE2 enabled (ClangCL x64)")
+    else()
+        message(STATUS "SIMD: SSE2 enabled (ClangCL x64)")
     endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     # GCC SIMD status messages

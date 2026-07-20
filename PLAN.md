@@ -512,7 +512,53 @@ execute on this machine otherwise). Scope: everything changed since the
   `simd_verification` 70/70 (was 67/70), ctest 49/49.
   https://github.com/OldCrow/libstats/issues/74
 - **Not done this session**: no commit/PR yet for either fix (exp edge-cases
-  or #74) — working tree only, pending user review per SOP.
+  or #74) -- working tree only, pending user review per SOP.
+
+## AVX-512 native validation on Asus TUF A16 (2026-07-20) [DERIVED]
+Closed the one open tier noted above. Built and tested all four x86 SIMD tiers
+natively on this machine (native AVX-512 plus `LIBSTATS_MAX_SIMD_TIER`-capped
+AVX2/AVX/SSE2), each in its own `build_<tier>/` CMake tree, Release config,
+Visual Studio 18 2026 generator.
+- **Results**: 49/49 `ctest` and full `simd_verification` PASS (70/70 ops) on
+  all four tiers (AVX-512, AVX2, AVX, SSE2) -- AVX and SSE2 native runs are
+  first-ever on this machine, mirroring the Kaby Lake audit above. The
+  `tests/compare_math_utils_with_scipy.py` script does not link against
+  `libstats` (it compares hardcoded reference values to scipy), so its
+  151/152 result is a scipy self-consistency check, not evidence about any
+  build variant; the one failure (`t_cdf(1,1000)`) predates this session.
+- **Bug found + fixed (build system, Windows/MSVC-only)**: `LIBSTATS_MAX_SIMD_TIER=AVX`
+  and `=SSE2` failed to link on Windows/MSVC (`LNK2019` unresolved `vector_*_avx2`
+  symbols from `getDispatchTable()` in `simd_dispatch.obj`). Root cause: CMakeLists.txt's
+  global Windows `/arch:` flag block only branched on `LIBSTATS_HAS_AVX512`
+  (AVX-512 vs. else-AVX2), ignoring the tier cap; the resulting global
+  `/arch:AVX2` predefines the compiler's `__AVX2__` macro for every TU
+  (including `simd_dispatch.cpp`), which `include/platform/simd.h`'s MSVC
+  compiler-macro fallback (`#if defined(__AVX2__) ... #define LIBSTATS_HAS_AVX2`)
+  then re-defines regardless of the cap -- so `getDispatchTable()` compiled in
+  references to `vector_*_avx2` symbols whose TU (`simd_avx2.cpp`) the cap had
+  excluded. This never surfaced on Kaby Lake because that machine builds via
+  AppleClang/Unix, where SIMD flags are per-source-file, not global. Fixed by
+  making the CMakeLists.txt global-flag block (both MSVC and Clang-cl branches)
+  cascade through `LIBSTATS_HAS_AVX512` -> `_AVX2` -> `_AVX` -> none(SSE2
+  baseline), matching the already-correct per-file flags in
+  `apply_simd_source_flags()`. Verified: AVX and SSE2 tiers now link and pass
+  49/49 `ctest` + 70/70 `simd_verification` on Windows/MSVC.
+- **AVX-512 parity finding + fixed**: `vector_exp_avx512` and
+  `vector_cos_avx512` called `_mm512_roundscale_pd(..., _MM_FROUND_TO_NEAREST_INT)`
+  without `_MM_FROUND_NO_EXC`, unlike AVX2/AVX's
+  `_mm256_round_pd(..., _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC)` and
+  SSE2's exception-free magic-number rounding. Per the Intel SDM,
+  `_mm512_roundscale_pd`'s `imm8[3]` is the "suppress precision exception"
+  (SPE) bit -- omitting it means VRNDSCALEPD can raise `#PE` where the other
+  three tiers explicitly suppress it. Masked by default (no behavioral or
+  numerical difference in default FP-exception-mask builds; this predates the
+  #68/#74 fixes and was not introduced by them), but a real parity gap if a
+  caller unmasks FP exceptions. Fixed by adding `| _MM_FROUND_NO_EXC` to both
+  call sites; re-validated 49/49 `ctest` + 70/70 `simd_verification` on
+  AVX-512 post-fix, no behavior change.
+- **Not committed this session**: both fixes (CMakeLists.txt tier-cap flag
+  cascade, AVX-512 roundscale `_MM_FROUND_NO_EXC`) are in the working tree
+  only, pending user review.
 
 ## Next Steps
 - Issue #33 x86 experiment (Q2) is fully closed null on both AVX2/Kaby Lake

@@ -204,8 +204,13 @@ void VectorOps::vector_exp_avx512(const double* values, double* results,
         x = _mm512_max_pd(x, exp_min);
 
         // Range reduction: x = n*ln2 + r
-        __m512d n_float =
-            _mm512_roundscale_pd(_mm512_mul_pd(x, ln2_inv), _MM_FROUND_TO_NEAREST_INT);
+        // _MM_FROUND_NO_EXC (imm8[3], "suppress precision exception") matches the
+        // AVX2/AVX _mm256_round_pd(..., _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC)
+        // call below in intent: without it, VRNDSCALEPD raises #PE (masked by default,
+        // but a real behavioral gap vs the other tiers if the caller unmasks FP
+        // exceptions).
+        __m512d n_float = _mm512_roundscale_pd(_mm512_mul_pd(x, ln2_inv),
+                                               _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
         __m512d r = _mm512_fnmadd_pd(n_float, ln2_hi, x);  // x - n*ln2_hi
         r = _mm512_fnmadd_pd(n_float, ln2_lo, r);          // r - n*ln2_lo
 
@@ -621,8 +626,11 @@ void VectorOps::vector_cos_avx512(const double* input, double* output, std::size
     for (std::size_t i = 0; i < simd_end; i += W) {
         __m512d x = _mm512_loadu_pd(&input[i]);
 
-        // Step 1: reduce to [−π, π]
-        __m512d q = _mm512_roundscale_pd(_mm512_mul_pd(x, inv_two_pi), _MM_FROUND_TO_NEAREST_INT);
+        // Step 1: reduce to [−π, π]. _MM_FROUND_NO_EXC matches vector_exp_avx512's
+        // roundscale call and the AVX2/AVX _mm256_round_pd(..., | _MM_FROUND_NO_EXC) --
+        // see the comment there for why the flag is needed.
+        __m512d q = _mm512_roundscale_pd(_mm512_mul_pd(x, inv_two_pi),
+                                         _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
         __m512d y = _mm512_sub_pd(x, _mm512_mul_pd(q, two_pi));
 
         // Step 2: reduce to [−π/2, π/2] using AVX-512 mask operations
