@@ -75,7 +75,13 @@ Last reconciled against live GitHub state: 2026-07-19.
   closed/historical ones are summarized as counts only.
 
 ## GitHub Milestones [DERIVED]
-- v2.1.0 — Accuracy & Performance (open, #1): 6 open / 0 closed.
+- Renumbered 2026-07-21 (top-down) to make room for the shipped v2.1.0
+  release: former #1 "v2.1.0 — Accuracy & Performance" -> "v2.2.0", former
+  #2 "v2.2.0 — New Distributions (Foundation)" -> "v2.3.0", former #3
+  "v2.3.0 — New Distributions (Extended)" -> "v2.4.0". Milestone numbers
+  (#1-#4) and attached issues are unchanged; only titles moved. #4
+  "v3.0.0 — Architecture Refactor" untouched.
+- v2.2.0 — Accuracy & Performance (open, #1): 6 open / 0 closed.
   - #46 OPEN — Benchmark: SIMD accuracy characterization vs arbitrary-precision reference (mpmath).
   - #47 OPEN — bessel.h Tier 2 fallback (A&S polynomial) limits VonMises accuracy to ~10⁻⁷ on macOS/AppleClang.
   - #48 OPEN — CauchyDistribution::getCumulativeProbability delegates to StudentT incomplete-beta; should use closed-form arctan.
@@ -87,12 +93,12 @@ Last reconciled against live GitHub state: 2026-07-19.
     and/or the `erfc`-tail cancellation path, not the `vector_erf` primitive.
   - #51 OPEN — VonMisesDistribution CDF has no SIMD/batch path — scalar integration loop is 5–10× slower than scipy.
   - #52 OPEN — BinomialDistribution CDF slower than scipy; PDF near-parity — PMF summation and scalar lgamma are limiting factors.
-- v2.2.0 — New Distributions (Foundation) (open, #2): 4 open / 0 closed.
+- v2.3.0 — New Distributions (Foundation) (open, #2): 4 open / 0 closed.
   - #54 OPEN — feat: add LogisticDistribution and GumbelDistribution — closed-form SIMD via vector_exp.
   - #55 OPEN — feat: add BernoulliDistribution and ErlangDistribution — delegation wrappers over Binomial and Gamma.
   - #56 OPEN — feat: add FDistribution and InverseGammaDistribution — Gamma/Beta family delegation wrappers.
   - #57 OPEN — feat: add HalfNormalDistribution and TruncatedNormalDistribution — erf/erfc normalisation family.
-- v2.3.0 — New Distributions (Extended) (open, #3): 5 open / 0 closed.
+- v2.4.0 — New Distributions (Extended) (open, #3): 5 open / 0 closed.
   - #58 OPEN — feat: add GeneralizedExtremeValueDistribution (GEV) — unifies Gumbel/Fréchet/Weibull-max families (depends on #54).
   - #59 OPEN — feat: add LogLogisticDistribution (Fisk) — log-space Logistic pipeline, survival analysis (depends on #54).
   - #60 OPEN — feat: add TriangularDistribution — piecewise linear, pure arithmetic SIMD (no transcendentals).
@@ -585,6 +591,10 @@ Visual Studio 18 2026 generator.
   working tree but not yet committed — next concrete step is committing,
   pushing, and opening a PR (or two), then closing **#74** once merged.
   AVX-512 native validation on the Asus TUF A16 remains the one open tier.
-- Work through the v2.1.0 — Accuracy & Performance backlog (6 issues,
+- Work through the v2.2.0 — Accuracy & Performance backlog (6 issues,
   mostly SIMD accuracy/perf gaps) before starting the new-distribution
-  milestones (v2.2.0, v2.3.0) or the v3.0.0 architecture refactor.
+  milestones (v2.3.0, v2.4.0) or the v3.0.0 architecture refactor.
+- libstats v2.1.0 shipped 2026-07-21: version bump, CHANGELOG entry, tag
+  pushed, repo made public. See CHANGELOG.md "[2.1.0]" for the full
+  contents (clean-room erf/exp/log/cos, x86 exp/log subnormal fixes,
+  AVX-512 roundscale parity, Windows tier-cap link fix, erfc stub removal).
