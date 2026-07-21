@@ -1152,31 +1152,6 @@ if(LIBSTATS_HAS_TBB)
     endif()
 endif()
 
-# Linux/GCC parallel STL can route execution-policy algorithms through TBB.  Link TBB through the
-# final library targets PUBLICLY so libstats consumers inherit the dependency transitively. Modern
-# find_package(TBB) exports TBB::tbb; pkg-config libraries are retained as fallback.
-if(LIBSTATS_HAS_TBB)
-    if(TARGET TBB::tbb)
-        target_link_libraries(libstats_static PUBLIC TBB::tbb)
-        target_link_libraries(libstats_shared PUBLIC TBB::tbb)
-    else()
-        if(DEFINED LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL)
-            target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
-            target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
-        endif()
-        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
-           AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}" STREQUAL "")
-            target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
-            target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
-        endif()
-        if(DEFINED LIBSTATS_TBB_LIBRARIES_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARIES_INTERNAL}"
-                                                       STREQUAL "")
-            target_link_libraries(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
-            target_link_libraries(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
-        endif()
-    endif()
-endif()
-
 # Create aliases for easier consumption
 add_library(libstats::headers ALIAS libstats_headers)
 add_library(libstats::static ALIAS libstats_static)
