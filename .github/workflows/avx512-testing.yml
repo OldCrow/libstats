@@ -70,7 +70,17 @@ jobs:
 
     - name: Build with AVX-512
       if: env.AVX512_SUPPORTED == 'true'
-      run: cmake --build build --parallel
+      run: |
+        # Bound parallelism to available memory: bare --parallel spawns a
+        # compile per ready target and OOM-kills the 7 GB hosted runner
+        # (exit 143, mass "Terminated"). Same bound as ci.yml build jobs.
+        MEM_GB=$(awk '/MemAvailable/{printf "%d", $2/1048576}' /proc/meminfo 2>/dev/null || echo 4)
+        CPU=$(nproc 2>/dev/null || echo 2)
+        MEM_JOBS=$(( MEM_GB / 2 ))
+        JOBS=$(( MEM_JOBS < CPU ? MEM_JOBS : CPU ))
+        JOBS=$(( JOBS < 1 ? 1 : JOBS ))
+        echo "Parallel build jobs: ${JOBS}"
+        cmake --build build --parallel "${JOBS}"
 
     - name: Run AVX-512 Tests
       if: env.AVX512_SUPPORTED == 'true'
