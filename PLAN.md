@@ -598,3 +598,14 @@ Visual Studio 18 2026 generator.
   pushed, repo made public. See CHANGELOG.md "[2.1.0]" for the full
   contents (clean-room erf/exp/log/cos, x86 exp/log subnormal fixes,
   AVX-512 roundscale parity, Windows tier-cap link fix, erfc stub removal).
+- The transient GitHub Actions "recent account payments have failed or your
+  spending limit needs to be increased" failures during the private-repo
+  containment window were caused by the repo being private and therefore using
+  metered Actions minutes. They were not an independent billing/config issue;
+  returning the repo to public restored the normal public-repo runner behavior.
+- The "Documentation" workflow's Deploy job started failing separately with
+  "Get Pages site failed" once the repo went private, because GitHub Pages had
+  never been enabled/configured for this repo (`gh api repos/OldCrow/libstats/pages`
+  404'd). Fixed 2026-07-21 by enabling Pages via the API with
+  `build_type: workflow` (matching `docs.yml`'s `actions/deploy-pages` step);
+  re-run confirmed green, deployed to https://oldcrow.github.io/libstats/.
