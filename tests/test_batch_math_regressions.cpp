@@ -187,8 +187,9 @@ TEST(BatchMathRegressions, VectorExpEdgeCasesMatchStdExp) {
             const auto ulp =
                 std::abs(std::bit_cast<std::int64_t>(out[i]) - std::bit_cast<std::int64_t>(ref));
             EXPECT_LE(ulp, 4) << "x=" << x << " simd=" << out[i] << " ref=" << ref;
-            if (ref == 0.0)
+            if (ref == 0.0) {
                 EXPECT_FALSE(std::signbit(out[i])) << "x=" << x << " returned -0";
+            }
         }
     }
 }
