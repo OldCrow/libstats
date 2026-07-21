@@ -38,10 +38,10 @@ jobs:
         echo "=== AVX-512 Feature Check ==="
         if cat /proc/cpuinfo | grep -q "avx512f"; then
           echo "✅ AVX-512F support detected"
-          echo "AVX512_SUPPORTED=true" >> $GITHUB_ENV
+          echo "AVX512_SUPPORTED=true" >> "$GITHUB_ENV"
         else
           echo "❌ No AVX-512F support detected"
-          echo "AVX512_SUPPORTED=false" >> $GITHUB_ENV
+          echo "AVX512_SUPPORTED=false" >> "$GITHUB_ENV"
           echo "This runner does not support AVX-512. Skipping AVX-512 specific tests."
         fi
 
@@ -55,8 +55,8 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y gcc-13 g++-13
-        echo "CC=gcc-13" >> $GITHUB_ENV
-        echo "CXX=g++-13" >> $GITHUB_ENV
+        echo "CC=gcc-13" >> "$GITHUB_ENV"
+        echo "CXX=g++-13" >> "$GITHUB_ENV"
 
     - name: Configure CMake with AVX-512
       if: env.AVX512_SUPPORTED == 'true'

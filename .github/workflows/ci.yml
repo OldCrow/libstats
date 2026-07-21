@@ -50,19 +50,25 @@ jobs:
 
     - name: Install compiler (Ubuntu)
       if: runner.os == 'Linux'
+      env:
+        CC_PKG: ${{ matrix.compiler.cc }}
+        CXX_PKG: ${{ matrix.compiler.cxx }}
       run: |
         sudo apt-get update
-        if [[ "${{ matrix.compiler.cc }}" == gcc* ]]; then
-          sudo apt-get install -y ${{ matrix.compiler.cc }} ${{ matrix.compiler.cxx }}
-        elif [[ "${{ matrix.compiler.cc }}" == clang* ]]; then
-          sudo apt-get install -y ${{ matrix.compiler.cc }}
+        if [[ "$CC_PKG" == gcc* ]]; then
+          sudo apt-get install -y "$CC_PKG" "$CXX_PKG"
+        elif [[ "$CC_PKG" == clang* ]]; then
+          sudo apt-get install -y "$CC_PKG"
         fi
 
     - name: Setup compiler environment
       if: runner.os != 'Windows' || matrix.compiler.name != 'msvc'
+      env:
+        CC_VAL: ${{ matrix.compiler.cc }}
+        CXX_VAL: ${{ matrix.compiler.cxx }}
       run: |
-        echo "CC=${{ matrix.compiler.cc }}" >> $GITHUB_ENV
-        echo "CXX=${{ matrix.compiler.cxx }}" >> $GITHUB_ENV
+        echo "CC=$CC_VAL" >> "$GITHUB_ENV"
+        echo "CXX=$CXX_VAL" >> "$GITHUB_ENV"
 
     - name: Configure CMake (Windows MSVC)
       if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
@@ -107,18 +113,18 @@ jobs:
 
         # Convert to Windows paths and add to PATH
         if [ -d "build/${{ matrix.build_type }}" ]; then
-          WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/${{ matrix.build_type }}" 2>/dev/null || echo "${{ github.workspace }}\\build\\${{ matrix.build_type }}")
-          echo "$WIN_PATH" >> $GITHUB_PATH
+          WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/${{ matrix.build_type }}" 2>/dev/null || printf '%s' "${{ github.workspace }}\\build\\${{ matrix.build_type }}")
+          echo "$WIN_PATH" >> "$GITHUB_PATH"
         fi
 
         if [ -d "build/tests/${{ matrix.build_type }}" ]; then
-          WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/tests/${{ matrix.build_type }}" 2>/dev/null || echo "${{ github.workspace }}\\build\\tests\\${{ matrix.build_type }}")
-          echo "$WIN_PATH" >> $GITHUB_PATH
+          WIN_PATH=$(cygpath -w "${{ github.workspace }}/build/tests/${{ matrix.build_type }}" 2>/dev/null || printf '%s' "${{ github.workspace }}\\build\\tests\\${{ matrix.build_type }}")
+          echo "$WIN_PATH" >> "$GITHUB_PATH"
         fi
 
         # Also add the main build directory
-        WIN_PATH=$(cygpath -w "${{ github.workspace }}/build" 2>/dev/null || echo "${{ github.workspace }}\\build")
-        echo "$WIN_PATH" >> $GITHUB_PATH
+        WIN_PATH=$(cygpath -w "${{ github.workspace }}/build" 2>/dev/null || printf '%s' "${{ github.workspace }}\\build")
+        echo "$WIN_PATH" >> "$GITHUB_PATH"
 
         # Copy DLLs as a fallback
         if [ -f "build/${{ matrix.build_type }}/libstats.dll" ]; then
@@ -220,7 +226,7 @@ jobs:
         # Report violations but do not fail: the codebase uses clang-format-18+
         # features; clang-format-17 (used here for compatibility checking) produces
         # minor differences that are version-specific, not style regressions.
-        find include src tests -name '*.h' -o -name '*.cpp' | xargs clang-format-17 --dry-run --Werror || true
+        find include src tests \( -name '*.h' -o -name '*.cpp' \) -print0 | xargs -0 clang-format-17 --dry-run --Werror || true
         echo "Note: clang-format-17 check configured but not enforced (version mismatch with developer toolchain)"
 
     - name: Run clang-tidy

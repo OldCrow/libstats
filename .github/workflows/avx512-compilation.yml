@@ -40,18 +40,24 @@ jobs:
       with:
         persist-credentials: false
     - name: Install Compilers
+      env:
+        CC_PKG: ${{ matrix.compiler.cc }}
+        CXX_PKG: ${{ matrix.compiler.cxx }}
       run: |
         sudo apt-get update
-        if [[ "${{ matrix.compiler.cc }}" == gcc* ]]; then
-          sudo apt-get install -y ${{ matrix.compiler.cc }} ${{ matrix.compiler.cxx }}
-        elif [[ "${{ matrix.compiler.cc }}" == clang* ]]; then
-          sudo apt-get install -y ${{ matrix.compiler.cc }} ${{ matrix.compiler.cxx }}
+        if [[ "$CC_PKG" == gcc* ]]; then
+          sudo apt-get install -y "$CC_PKG" "$CXX_PKG"
+        elif [[ "$CC_PKG" == clang* ]]; then
+          sudo apt-get install -y "$CC_PKG" "$CXX_PKG"
         fi
 
     - name: Set Compiler Environment
+      env:
+        CC_VAL: ${{ matrix.compiler.cc }}
+        CXX_VAL: ${{ matrix.compiler.cxx }}
       run: |
-        echo "CC=${{ matrix.compiler.cc }}" >> $GITHUB_ENV
-        echo "CXX=${{ matrix.compiler.cxx }}" >> $GITHUB_ENV
+        echo "CC=$CC_VAL" >> "$GITHUB_ENV"
+        echo "CXX=$CXX_VAL" >> "$GITHUB_ENV"
 
     - name: Configure CMake for AVX-512 Compilation
       env:
