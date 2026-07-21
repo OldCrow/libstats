@@ -168,15 +168,21 @@ jobs:
   sanitizers:
     name: Sanitizers (ASan/UBSan, Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
     - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       with:
         persist-credentials: false
+    # Build only the library + test targets under instrumentation. The Test
+    # step runs ctest, so examples/tools/benchmarks add heavy instrumented
+    # compile time for no coverage gain — disabling them keeps this job inside
+    # its timeout (the full instrumented build previously timed out at 20 min).
     - name: Configure (ASan + UBSan)
       run: |
         cmake -B build-san \
           -DCMAKE_BUILD_TYPE=Debug \
+          -DLIBSTATS_BUILD_TOOLS=OFF \
+          -DLIBSTATS_BUILD_EXAMPLES=OFF \
           -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1" \
           -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 

@@ -470,7 +470,10 @@ set(LIBSTATS_GCC_STRICT_WARNINGS
     # GCC-specific diagnostic warnings
     -Wlogical-op
     -Wduplicated-cond
-    -Wduplicated-branches
+    # NOTE: -Wduplicated-branches deliberately omitted. The per-CPU-tier dispatch functions in
+    # platform_constants_impl.cpp intentionally keep distinct branches (e.g. Intel_Legacy vs generic
+    # AVX) that currently return the same tuning constant but are kept separate for future per-tier
+    # divergence. The warning fires on this by-design structure and catches no real bug here.
     -Wrestrict
     -Wnull-dereference
     -Wjump-misses-init
@@ -493,8 +496,11 @@ set(LIBSTATS_GCC_STRICT_WARNINGS
     # ODR (One Definition Rule) violation detection - Enhanced
     -fno-common
     -Wodr
-    -Wredundant-decls
-    # Allow some warnings that are too pedantic
+    # NOTE: -Wredundant-decls deliberately omitted. The library uses forward-declaration headers
+    # (e.g. common/platform_constants_fwd.h) by design to decouple includes; those symbols are then
+    # fully declared in their platform/ headers. -Wredundant-decls flags this intentional fwd-decl
+    # idiom as an error under -Werror. -Wodr + -fno-common above still cover the actual
+    # ODR-violation class this section targets. Allow some warnings that are too pedantic
     -Wno-inline
     -Wno-padded
     -Wno-unused-parameter
