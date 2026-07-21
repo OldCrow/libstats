@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.0.4 on `main` — 19 distributions across 7 families, 46/46 correctness tests pass on Kaby Lake AVX2+FMA, Mac Mini M1 NEON, and Asus TUF A16 AVX-512 (CI validated; audit-remediation re-validation completed pre-v2.0.4, see `docs/VALIDATION_HISTORY.md`). v1.5.3 is the final v1.x release.
+**Current status**: v2.1.0 on `main` — 19 distributions across 7 families, 46/46 correctness tests pass on Kaby Lake AVX2+FMA, Mac Mini M1 NEON, and Asus TUF A16 AVX-512 (CI validated; audit-remediation re-validation completed pre-v2.0.4, see `docs/VALIDATION_HISTORY.md`). v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -59,7 +59,7 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **Windows/MSVC:** Follow Platform-Specific Notes below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current validation matrix (v2.0.4)
+### Current validation matrix (v2.1.0)
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|

@@ -1,3 +1,68 @@
+## [2.1.0] - 2026-07-19
+
+### Security
+
+- **`vector_erf_neon` clean-room replacement (issue #67)**: the NEON error-function
+  kernel, shipped since v1.5.0, was found to be a near-verbatim port of glibc's
+  LGPL-2.1+ `sysdeps/aarch64/fpu/erf_advsimd.c` (identical hex constants, table
+  size/shift-trick, gather pattern). No MIT-licensed equivalent algorithm exists
+  upstream, so it was replaced via an isolated clean-room derivation (local Taylor
+  expansion about a uniform grid with a compensated hi/lo table) authored with zero
+  access to the prior implementation, its table, or the glibc source. The
+  replacement carries no third-party license obligations and is strictly more
+  accurate than the code it replaced: max 1 ULP (was ~2.29 ULP), 7.1–7.4x speedup
+  (on par with the prior ~8.0x). See `docs/NEON_ERF_DERIVATION.md` and
+  `docs/NEON_ERF_DIVERGENCE_AUDIT.md` for the provenance record.
+
+### Added
+
+- **Clean-room `vector_exp_neon` table kernel** (issue #33 Q1): tail-corrected
+  N=128 table + order-5 polynomial NEON exp kernel, replacing the prior SLEEF
+  polynomial. <1 ULP accuracy (mean ~0.001), ~20-27% faster in streaming/hot
+  regimes; `simd_verification` VectorExp 2.5-2.6x (up from 2.1x).
+- **Clean-room `vector_log_neon`**: compensated (L_hi, L_lo) table kernel
+  superseding the earlier "perf null" verdict for a table-based log design.
+  Max 0.52 ULP (was 2.0), 1.74x scalar (was 1.28x).
+- **Clean-room `vector_cos_neon`**: quadrant-reduction kernel (4-part exact-product
+  pi/2 split, compensated (r, rlo), degree-6 minimax cores) replacing the v1.4.0
+  Taylor kernel, whose measured error was ~6e8 ULP in [-2pi, 2pi] with sign errors
+  near k*pi/2 — a correctness fix for the Von Mises PDF/CDF path. New kernel: max
+  0.78 ULP uniform / 0.50 near k*pi/2.
+
+### Fixed
+
+- **x86 `vector_exp_*` subnormal underflow** (all four SIMD tiers: SSE2, AVX, AVX2,
+  AVX-512): deep-negative inputs now flush gracefully through subnormals to +0
+  (previously clamped at -708.0, up to ~6.7e15 ULP error in the subnormal range);
+  also fixes incorrect `+inf` for x > ~709.44.
+- **x86 `vector_exp_*` non-finite edge cases**: `NaN` and `x > exp_max` (including
+  `+inf`/true overflow) now correctly propagate instead of silently clamping to a
+  finite value, matching `std::exp` and the NEON kernel's scalar fixup path.
+- **`vector_log_sse2` subnormal inputs** (issue #74): ported the subnormal-input
+  2^54 scaling step already present in the AVX/AVX2/AVX-512 log kernels — SSE2
+  previously returned results up to ~35 natural-log-units off for subnormal `x`
+  (e.g. `log(denorm_min())` returned -709.09 instead of -744.44).
+- **AVX-512 `vector_exp`/`vector_cos` rounding**: added the missing
+  `_MM_FROUND_NO_EXC` suppress-precision-exception bit to `_mm512_roundscale_pd`
+  calls, matching the exception-free rounding already used by AVX2/AVX/SSE2 (no
+  behavioral change under default FP-exception masking).
+- **Windows/MSVC `LIBSTATS_MAX_SIMD_TIER` link failures**: the global `/arch:`
+  flag block now cascades AVX-512 -> AVX2 -> AVX -> SSE2 baseline (matching the
+  already-correct per-file SIMD flags), fixing `LNK2019` unresolved-symbol errors
+  when capping the compiled tier below AVX-512 on MSVC.
+
+### Removed
+
+- **Stale `vector_erfc` SIMD stub**: removed the unused SIMD `erfc` kernels since
+  no distribution batch path calls `erfc()` directly (the Gaussian CDF batch path
+  uses `vector_erf` directly). Scalar `erfc()` is retained.
+
+### Validation
+
+- 46/46 correctness tests pass on Kaby Lake AVX2+FMA, Mac Mini M1 NEON, and Asus
+  TUF A16 AVX-512. All four x86 SIMD tiers (AVX-512, AVX2, AVX, SSE2) are now
+  natively validated on both x86 machines via `LIBSTATS_MAX_SIMD_TIER`.
+
 ## [2.0.4] - 2026-07-05
 
 ### Refactoring

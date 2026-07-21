@@ -80,7 +80,7 @@ endif()
 
 project(
     libstats
-    VERSION 2.0.4
+    VERSION 2.1.0
     LANGUAGES CXX)
 
 # v2.x compiler baseline. Fail early with actionable messages.
@@ -301,12 +301,11 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDDetection.cmake")
 
 # Set options for SIMD detection behavior
 option(LIBSTATS_ENABLE_RUNTIME_CHECKS "Enable runtime CPU checks even when cross-compiling" OFF)
-# Cap the highest *compiled* x86 SIMD tier. Runtime dispatch always selects the
-# highest tier the CPU supports, so on an AVX2 box the AVX and SSE2 kernels never
-# execute. Setting this to SSE2 or AVX disables the tiers above it (source + define
-# removed) so the capped tier becomes the dispatch ceiling — useful for validating
-# lower-tier kernels natively. Accepts SSE2|AVX|AVX2|AVX512 (empty = no cap).
-# Honoured by detect_simd_features() -> apply_simd_tier_cap() in SIMDDetection.cmake.
+# Cap the highest *compiled* x86 SIMD tier. Runtime dispatch always selects the highest tier the CPU
+# supports, so on an AVX2 box the AVX and SSE2 kernels never execute. Setting this to SSE2 or AVX
+# disables the tiers above it (source + define removed) so the capped tier becomes the dispatch
+# ceiling — useful for validating lower-tier kernels natively. Accepts SSE2|AVX|AVX2|AVX512 (empty =
+# no cap). Honoured by detect_simd_features() -> apply_simd_tier_cap() in SIMDDetection.cmake.
 set(LIBSTATS_MAX_SIMD_TIER
     ""
     CACHE STRING "Cap the highest compiled x86 SIMD tier (SSE2|AVX|AVX2|AVX512; empty = no cap)")
@@ -706,14 +705,13 @@ endif()
 # this block so the binary is distributable to machines with lower ISA than the build host. Per-file
 # flags from cmake/SIMDDetection.cmake:apply_simd_source_flags() remain active.
 if(NOT LIBSTATS_PORTABLE)
-    # NOTE: the global flag must follow the (possibly LIBSTATS_MAX_SIMD_TIER-capped)
-    # LIBSTATS_HAS_* results from detect_simd_features(), not just "AVX512 or else AVX2".
-    # Applying /arch:AVX2 globally regardless of a lower cap predefines the compiler's
-    # __AVX2__ macro for every TU (including src/simd_dispatch.cpp), which
-    # include/platform/simd.h's MSVC fallback then reads to auto-#define
-    # LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
-    # getDispatchTable() to reference vector_*_avx2 symbols that were never compiled
-    # (simd_avx2.cpp is excluded by the cap), producing LNK2019 unresolved externals.
+    # NOTE: the global flag must follow the (possibly LIBSTATS_MAX_SIMD_TIER-capped) LIBSTATS_HAS_*
+    # results from detect_simd_features(), not just "AVX512 or else AVX2". Applying /arch:AVX2
+    # globally regardless of a lower cap predefines the compiler's __AVX2__ macro for every TU
+    # (including src/simd_dispatch.cpp), which include/platform/simd.h's MSVC fallback then reads to
+    # auto-#define LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
+    # getDispatchTable() to reference vector_*_avx2 symbols that were never compiled (simd_avx2.cpp
+    # is excluded by the cap), producing LNK2019 unresolved externals.
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
         if(LIBSTATS_HAS_AVX512)
             add_compile_options(/arch:AVX512)
