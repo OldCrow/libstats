@@ -127,7 +127,7 @@ TEST(GaussianAnalysis, JarqueBeraRejectsHeavyTailKurtosis) {
     //   JB_correct (denom=24):  200*(0 + 4/24 ) ≈ 33   → p ≈ 0    → reject
     //   JB_buggy   (denom=225): 200*(0 + 4/225) ≈ 3.6  → p ≈ 0.17 → no reject
     std::vector<double> data(200, 0.0);
-    for (int i = 0; i < 20; ++i) {
+    for (std::size_t i = 0; i < 20; ++i) {
         data[i] = 1.0;
         data[i + 20] = -1.0;
     }

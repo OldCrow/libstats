@@ -28,7 +28,7 @@ std::tuple<double, double, bool> shapiroWilkTest(const std::vector<double>& data
     std::sort(sorted.begin(), sorted.end());
     const std::size_t n = sorted.size();
 
-    const double mean = std::accumulate(sorted.begin(), sorted.end(), 0.0) / n;
+    const double mean = std::accumulate(sorted.begin(), sorted.end(), 0.0) / static_cast<double>(n);
     double ss = 0.0;
     for (double x : sorted)
         ss += (x - mean) * (x - mean);
@@ -69,7 +69,7 @@ std::tuple<double, double, bool> jarqueBeraTest(const std::vector<double>& data,
         throw std::invalid_argument("Alpha must be between 0 and 1");
 
     const std::size_t n = data.size();
-    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
 
     double m2 = 0.0, m3 = 0.0, m4 = 0.0;
     for (double x : data) {
@@ -79,9 +79,9 @@ std::tuple<double, double, bool> jarqueBeraTest(const std::vector<double>& data,
         m3 += d2 * d;
         m4 += d2 * d2;
     }
-    m2 /= n;
-    m3 /= n;
-    m4 /= n;
+    m2 /= static_cast<double>(n);
+    m3 /= static_cast<double>(n);
+    m4 /= static_cast<double>(n);
 
     const double skewness = m3 / std::pow(m2, 1.5);
     const double kurtosis = m4 / (m2 * m2) - detail::EXCESS_KURTOSIS_OFFSET;
@@ -108,7 +108,7 @@ std::pair<double, double> confidenceIntervalMean(const std::vector<double>& data
         throw std::invalid_argument("Confidence level must be between 0 and 1");
 
     const std::size_t n = data.size();
-    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     const double alpha = 1.0 - confidence_level;
     double margin;
 
@@ -117,8 +117,9 @@ std::pair<double, double> confidenceIntervalMean(const std::vector<double>& data
     // is reserved for the truly-known-population case.
     if (population_variance_known) {
         // Population variance known: plug-in biased estimator, z critical value.
-        const double var =
-            std::inner_product(data.begin(), data.end(), data.begin(), 0.0) / n - mean * mean;
+        const double var = std::inner_product(data.begin(), data.end(), data.begin(), 0.0) /
+                               static_cast<double>(n) -
+                           mean * mean;
         const double z = detail::inverse_normal_cdf(1.0 - alpha * 0.5);
         margin = z * std::sqrt(var) / std::sqrt(static_cast<double>(n));
     } else {
@@ -153,7 +154,7 @@ std::pair<double, double> confidenceIntervalVariance(const std::vector<double>& 
         throw std::invalid_argument("Confidence level must be between 0 and 1");
 
     const std::size_t n = data.size();
-    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     const double var =
         std::inner_product(data.begin(), data.end(), data.begin(), 0.0, std::plus<>(),
                            [mean](double x, double y) { return (x - mean) * (y - mean); }) /
@@ -179,7 +180,7 @@ std::tuple<double, double, bool> oneSampleTTest(const std::vector<double>& data,
         throw std::invalid_argument("Alpha must be between 0 and 1");
 
     const std::size_t n = data.size();
-    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     const double var =
         std::inner_product(data.begin(), data.end(), data.begin(), 0.0, std::plus<>(),
                            [mean](double x, double y) { return (x - mean) * (y - mean); }) /
@@ -200,8 +201,8 @@ std::tuple<double, double, bool> twoSampleTTest(const std::vector<double>& data1
         throw std::invalid_argument("Alpha must be between 0 and 1");
 
     const std::size_t n1 = data1.size(), n2 = data2.size();
-    const double m1 = std::accumulate(data1.begin(), data1.end(), 0.0) / n1;
-    const double m2 = std::accumulate(data2.begin(), data2.end(), 0.0) / n2;
+    const double m1 = std::accumulate(data1.begin(), data1.end(), 0.0) / static_cast<double>(n1);
+    const double m2 = std::accumulate(data2.begin(), data2.end(), 0.0) / static_cast<double>(n2);
     const double v1 =
         std::inner_product(data1.begin(), data1.end(), data1.begin(), 0.0, std::plus<>(),
                            [m1](double x, double y) { return (x - m1) * (y - m1); }) /
@@ -213,14 +214,19 @@ std::tuple<double, double, bool> twoSampleTTest(const std::vector<double>& data1
 
     double t, df;
     if (equal_variances) {
-        const double sp = ((n1 - 1) * v1 + (n2 - 1) * v2) / static_cast<double>(n1 + n2 - 2);
-        t = (m1 - m2) / std::sqrt(sp * (1.0 / n1 + 1.0 / n2));
+        const double sp = (static_cast<double>(n1 - 1) * v1 + static_cast<double>(n2 - 1) * v2) /
+                          static_cast<double>(n1 + n2 - 2);
+        t = (m1 - m2) /
+            std::sqrt(sp * (1.0 / static_cast<double>(n1) + 1.0 / static_cast<double>(n2)));
         df = static_cast<double>(n1 + n2 - 2);
     } else {
-        const double se = std::sqrt(v1 / n1 + v2 / n2);
+        const double se = std::sqrt(v1 / static_cast<double>(n1) + v2 / static_cast<double>(n2));
         t = (m1 - m2) / se;
-        const double num = std::pow(v1 / n1 + v2 / n2, 2.0);
-        const double den = std::pow(v1 / n1, 2.0) / (n1 - 1) + std::pow(v2 / n2, 2.0) / (n2 - 1);
+        const double num =
+            std::pow(v1 / static_cast<double>(n1) + v2 / static_cast<double>(n2), 2.0);
+        const double den =
+            std::pow(v1 / static_cast<double>(n1), 2.0) / static_cast<double>(n1 - 1) +
+            std::pow(v2 / static_cast<double>(n2), 2.0) / static_cast<double>(n2 - 1);
         df = num / den;
     }
 
@@ -254,16 +260,17 @@ std::tuple<double, double, double, double> bayesianEstimation(const std::vector<
         throw std::invalid_argument("Data vector cannot be empty");
 
     const std::size_t n = data.size();
-    const double sm = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double sm = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     const double ssq = std::inner_product(data.begin(), data.end(), data.begin(), 0.0);
 
-    const double post_prec = prior_precision + n;
-    const double post_mean = (prior_precision * prior_mean + n * sm) / post_prec;
-    const double post_shape = prior_shape + n / 2.0;
-    const double sum_sq_dev = ssq - n * sm * sm;
+    const double post_prec = prior_precision + static_cast<double>(n);
+    const double post_mean =
+        (prior_precision * prior_mean + static_cast<double>(n) * sm) / post_prec;
+    const double post_shape = prior_shape + static_cast<double>(n) / 2.0;
+    const double sum_sq_dev = ssq - static_cast<double>(n) * sm * sm;
     const double d = sm - prior_mean;
-    const double post_rate =
-        prior_rate + 0.5 * sum_sq_dev + 0.5 * (prior_precision * n * d * d) / post_prec;
+    const double post_rate = prior_rate + 0.5 * sum_sq_dev +
+                             0.5 * (prior_precision * static_cast<double>(n) * d * d) / post_prec;
 
     return {post_mean, post_prec, post_shape, post_rate};
 }
@@ -373,11 +380,11 @@ std::pair<double, double> methodOfMomentsEstimation(const std::vector<double>& d
     if (data.empty())
         throw std::invalid_argument("Data vector cannot be empty");
     const std::size_t n = data.size();
-    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / n;
+    const double mean = std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n);
     const double var =
         std::inner_product(data.begin(), data.end(), data.begin(), 0.0, std::plus<>(),
                            [mean](double x, double y) { return (x - mean) * (y - mean); }) /
-        n;
+        static_cast<double>(n);
     return {mean, std::sqrt(var)};
 }
 
@@ -389,7 +396,7 @@ std::pair<double, double> lMomentsEstimation(const std::vector<double>& data) {
     std::sort(sorted.begin(), sorted.end());
     const std::size_t n = sorted.size();
 
-    const double l1 = std::accumulate(sorted.begin(), sorted.end(), 0.0) / n;
+    const double l1 = std::accumulate(sorted.begin(), sorted.end(), 0.0) / static_cast<double>(n);
     // Hosking (1990) unbiased PWM estimator for L2:
     //   b1 = (1/n) * sum_{i=0}^{n-1} (i / (n-1)) * sorted[i]
     //   l2 = 2*b1 - l1
@@ -412,7 +419,9 @@ std::vector<double> calculateHigherMoments(const std::vector<double>& data, bool
         throw std::invalid_argument("Data vector cannot be empty");
 
     const std::size_t n = data.size();
-    const double mean = center_on_mean ? std::accumulate(data.begin(), data.end(), 0.0) / n : 0.0;
+    const double mean =
+        center_on_mean ? std::accumulate(data.begin(), data.end(), 0.0) / static_cast<double>(n)
+                       : 0.0;
 
     std::vector<double> moments(6, 0.0);
     for (double x : data) {
@@ -421,7 +430,7 @@ std::vector<double> calculateHigherMoments(const std::vector<double>& data, bool
             moments[static_cast<std::size_t>(k)] += std::pow(d, k + 1);
     }
     for (double& m : moments)
-        m /= n;
+        m /= static_cast<double>(n);
     return moments;
 }
 

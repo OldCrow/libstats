@@ -158,49 +158,54 @@ void demonstrate_smart_dispatch() {
 void demonstrate_forced_strategies() {
     print_separator("Forced Strategy Hints");
 
-    std::cout
-        << "\nBeyond minimal_latency/maximum_throughput, each strategy can be forced\n"
-        << "explicitly. Use forced hints to benchmark individual strategies or to\n"
-        << "lock a strategy for a specific workload that you have profiled.\n\n"
-        << "Caution: forced strategies bypass the dispatch threshold logic and can\n"
-        << "be slower than auto-dispatch for the given batch size.\n\n";
+    std::cout << "\nBeyond minimal_latency/maximum_throughput, each strategy can be forced\n"
+              << "explicitly. Use forced hints to benchmark individual strategies or to\n"
+              << "lock a strategy for a specific workload that you have profiled.\n\n"
+              << "Caution: forced strategies bypass the dispatch threshold logic and can\n"
+              << "be slower than auto-dispatch for the given batch size.\n\n";
 
     auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
     constexpr size_t N = 50000;
     std::vector<double> xs(N), out_scalar(N), out_vectorized(N), out_parallel(N);
     std::mt19937 rng(42);
     std::uniform_real_distribution<double> gen(-3.0, 3.0);
-    for (auto& v : xs) v = gen(rng);
+    for (auto& v : xs)
+        v = gen(rng);
 
     stats::detail::PerformanceHint hint_scalar, hint_vec, hint_par;
-    hint_scalar.strategy   = stats::detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
-    hint_vec.strategy      = stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-    hint_par.strategy      = stats::detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+    hint_scalar.strategy = stats::detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+    hint_vec.strategy = stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_par.strategy = stats::detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
 
     auto time_us = [&](auto& hint, auto& output) {
         auto t0 = std::chrono::high_resolution_clock::now();
         normal.getLogProbability(std::span<const double>(xs), std::span<double>(output), hint);
         return std::chrono::duration_cast<std::chrono::microseconds>(
-                   std::chrono::high_resolution_clock::now() - t0).count();
+                   std::chrono::high_resolution_clock::now() - t0)
+            .count();
     };
 
-    std::int64_t t_scl = time_us(hint_scalar,    out_scalar);
-    std::int64_t t_vec = time_us(hint_vec,       out_vectorized);
-    std::int64_t t_par = time_us(hint_par,       out_parallel);
+    std::int64_t t_scl = time_us(hint_scalar, out_scalar);
+    std::int64_t t_vec = time_us(hint_vec, out_vectorized);
+    std::int64_t t_par = time_us(hint_par, out_parallel);
 
     std::cout << std::fixed << std::setprecision(1);
     std::cout << "Gaussian LogPDF on " << N << " elements:\n";
     std::cout << "  FORCE_SCALAR:     " << t_scl << " us\n";
     std::cout << "  FORCE_VECTORIZED: " << t_vec << " us"
-              << "  (" << static_cast<double>(t_scl) / std::max<std::int64_t>(t_vec, 1) << "x vs scalar)\n";
+              << "  ("
+              << static_cast<double>(t_scl) / static_cast<double>(std::max<std::int64_t>(t_vec, 1))
+              << "x vs scalar)\n";
     std::cout << "  FORCE_PARALLEL:   " << t_par << " us"
-              << "  (" << static_cast<double>(t_scl) / std::max<std::int64_t>(t_par, 1) << "x vs scalar)\n";
+              << "  ("
+              << static_cast<double>(t_scl) / static_cast<double>(std::max<std::int64_t>(t_par, 1))
+              << "x vs scalar)\n";
 
     // Verify that all three strategies produce identical results
     bool all_match = true;
     for (size_t i = 0; i < N; ++i) {
         if (std::abs(out_scalar[i] - out_vectorized[i]) > 1e-10 ||
-            std::abs(out_scalar[i] - out_parallel[i])   > 1e-10) {
+            std::abs(out_scalar[i] - out_parallel[i]) > 1e-10) {
             all_match = false;
             break;
         }
@@ -243,10 +248,8 @@ void demonstrate_performance_dispatcher() {
     stats::detail::PerformanceDispatcher dispatcher;
 
     std::cout << "\nStrategy selection at batch sizes {50, 500, 5000, 50000, 500000}:\n";
-    std::cout << std::left << std::setw(15) << "Batch Size"
-              << std::setw(22) << "Gaussian PDF"
-              << std::setw(22) << "Exponential PDF"
-              << std::setw(22) << "Binomial CDF" << "\n";
+    std::cout << std::left << std::setw(15) << "Batch Size" << std::setw(22) << "Gaussian PDF"
+              << std::setw(22) << "Exponential PDF" << std::setw(22) << "Binomial CDF" << "\n";
     std::cout << std::string(80, '-') << "\n";
 
     std::vector<size_t> problem_sizes = {50, 500, 5000, 50000, 500000};
@@ -257,10 +260,8 @@ void demonstrate_performance_dispatcher() {
                                             stats::detail::OperationType::PDF, capabilities);
         auto sb = dispatcher.selectStrategy(size, stats::detail::DistributionType::BINOMIAL,
                                             stats::detail::OperationType::CDF, capabilities);
-        std::cout << std::setw(15) << size
-                  << std::setw(22) << strategyToString(sg)
-                  << std::setw(22) << strategyToString(se)
-                  << std::setw(22) << strategyToString(sb) << "\n";
+        std::cout << std::setw(15) << size << std::setw(22) << strategyToString(sg) << std::setw(22)
+                  << strategyToString(se) << std::setw(22) << strategyToString(sb) << "\n";
     }
     std::cout << "\nThresholds are in include/core/dispatch_thresholds.h and are tuned\n"
               << "per architecture using the strategy_profile tool.\n";
@@ -279,7 +280,8 @@ int main() {
         std::cout << "\u2705 Auto-dispatch (no hint, minimal_latency, maximum_throughput)\n";
         std::cout << "\u2705 Forced strategies (FORCE_SCALAR, FORCE_VECTORIZED, FORCE_PARALLEL)\n";
         std::cout << "\u2705 Per-distribution dispatch threshold differences shown\n";
-        std::cout << "\nSee also: logpdf_and_likelihood_demo for actual distribution batch calls.\n";
+        std::cout
+            << "\nSee also: logpdf_and_likelihood_demo for actual distribution batch calls.\n";
 
     } catch (const std::exception& e) {
         std::cerr << "Error during demonstration: " << e.what() << std::endl;

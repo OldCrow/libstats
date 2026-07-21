@@ -5,8 +5,17 @@ permissions:
 on:
   push:
     branches: [ main, develop, 'release/*', 'v*' ]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   pull_request:
     branches: [ main ]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
+  # Monthly canary: catches drift with no code change to trigger it.
+  schedule:
+    - cron: '40 3 1 * *'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   avx512-test:
@@ -14,11 +23,13 @@ jobs:
     # Use self-hosted runner with AVX-512 support
     # runs-on: self-hosted-avx512
     runs-on: ubuntu-latest  # Fallback for now
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'avx512-test'))
+    timeout-minutes: 20
+    if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'avx512-test'))
 
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
     - name: Check AVX-512 Support
       run: |
         echo "=== CPU Information ==="

@@ -64,7 +64,7 @@ TEST(RunsTest, TrendedDataRejectsRandomness) {
 TEST(RunsTest, ReturnTupleOrder) {
     // Verify the return is {z, p, reject} in the documented order.
     std::vector<double> data(20);
-    for (int i = 0; i < 20; ++i)
+    for (std::size_t i = 0; i < 20; ++i)
         data[i] = (i % 2 == 0) ? 1.0 : 2.0;
     auto result = runsTest(data);
     auto [z, p, reject] = result;
@@ -86,7 +86,7 @@ TEST(FrequencyTest, ThrowsOnInvalidRange) {
 
 TEST(FrequencyTest, ThrowsOnBadAlpha) {
     std::vector<double> data(30);
-    for (int i = 0; i < 30; ++i)
+    for (std::size_t i = 0; i < 30; ++i)
         data[i] = static_cast<double>(1 + i % 6);
     EXPECT_THROW((void)frequencyTest(data, 1, 6, 0.0), std::invalid_argument);
     EXPECT_THROW((void)frequencyTest(data, 1, 6, 1.1), std::invalid_argument);

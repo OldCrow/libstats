@@ -380,13 +380,13 @@ void VonMisesDistribution::buildCdfGrid() const noexcept {
         for (int j = 1; j < TRAP_N; ++j)
             seg += pdf(a + static_cast<double>(j) * dh);
         running += seg * dh;
-        cdfGridAngles_[i + 1] = b;
-        cdfGridValues_[i + 1] = running;
+        cdfGridAngles_[static_cast<std::size_t>(i + 1)] = b;
+        cdfGridValues_[static_cast<std::size_t>(i + 1)] = running;
     }
     // Normalize so cdfGridValues_[N] == 1
     if (running > detail::ZERO_DOUBLE) {
         for (int i = 0; i <= N; ++i)
-            cdfGridValues_[i] /= running;
+            cdfGridValues_[static_cast<std::size_t>(i)] /= running;
     }
     cdfGridValues_[N] = detail::ONE;  // enforce exactly 1 at +PI
     cdfGridKappa_ = kappa;

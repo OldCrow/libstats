@@ -3,30 +3,48 @@ name: CI
 on:
   push:
     branches: [ main, develop, 'release/*', 'v*' ]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   pull_request:
     branches: [ main ]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
+  # Monthly canary: catches drift with no code change to trigger it (runner
+  # image rolls, toolchain updates) instead of discovering breakage at the
+  # next real push.
+  schedule:
+    - cron: '30 3 1 * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # One Release build per platform/compiler. Debug legs were dropped (they
+  # duplicated Release coverage without gating on warnings); the
+  # strict-warnings job below uses the existing Strict build type (-Werror)
+  # to catch what Debug builds never actually enforced.
   build:
     name: Build ${{ matrix.os }} ${{ matrix.compiler.name }} ${{ matrix.build_type }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, compiler: { name: gcc-13,  cc: gcc-13,  cxx: g++-13  }, build_type: Debug   }
           - { os: ubuntu-latest, compiler: { name: gcc-14,  cc: gcc-14,  cxx: g++-14  }, build_type: Release }
           - { os: ubuntu-latest, compiler: { name: clang-17, cc: clang-17, cxx: clang++-17 }, build_type: Release }
           - { os: macos-15,      compiler: { name: AppleClang, cc: clang, cxx: clang++ }, build_type: Release }
-          - { os: windows-latest, compiler: { name: msvc, cc: cl, cxx: cl }, build_type: Debug   }
           - { os: windows-latest, compiler: { name: msvc, cc: cl, cxx: cl }, build_type: Release }
 
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
     - name: Setup MSVC (Windows)
       if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
       with:
         arch: x64
 
@@ -137,12 +155,61 @@ jobs:
           timeout 30 ./build/examples/gaussian_performance_benchmark || true
         fi
 
+  # ---------------------------------------------------------------------------
+  # ASan+UBSan together in one Linux job (corvus/ewcalc pattern) rather than
+  # separate runners per sanitizer.
+  # ---------------------------------------------------------------------------
+  sanitizers:
+    name: Sanitizers (ASan/UBSan, Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
+    - name: Configure (ASan + UBSan)
+      run: |
+        cmake -B build-san \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+    - name: Build
+      run: cmake --build build-san --parallel
+
+    - name: Test
+      env:
+        ASAN_OPTIONS: detect_leaks=1
+        UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+      run: ctest --test-dir build-san --output-on-failure -LE "timing|benchmark"
+
+  # ---------------------------------------------------------------------------
+  # Strict warnings gate — replaces the old gcc-13/Windows Debug matrix legs.
+  # Uses the Strict build type already defined in CMakeLists.txt (-Werror +
+  # per-compiler strict warning sets); compile-only, no test run needed.
+  # ---------------------------------------------------------------------------
+  strict-warnings:
+    name: Strict warnings (Linux, -Werror)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
+    - name: Configure (Strict)
+      run: cmake -B build-strict -DCMAKE_BUILD_TYPE=Strict
+
+    - name: Build
+      run: cmake --build build-strict --parallel
+
   lint:
     name: Code Quality Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
     - name: Install tools
       run: |
         sudo apt-get update
@@ -177,9 +244,11 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
     - name: Clean build directory
       run: rm -rf build
 
@@ -238,7 +307,7 @@ jobs:
         lcov --list coverage.info
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
       with:
         files: ./coverage.info
         flags: unittests

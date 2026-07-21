@@ -9,13 +9,24 @@ permissions:
 on:
   push:
     branches: [ main, 'release/*' ]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   pull_request:
     branches: [ main ]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
+  # Monthly canary: catches compiler/toolchain drift with no code change to
+  # trigger it.
+  schedule:
+    - cron: '35 3 1 * *'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   avx512-compile:
     name: AVX-512 Compilation Test (Syntax Only)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     strategy:
       matrix:
@@ -25,8 +36,9 @@ jobs:
         build_type: [Debug, Release]
 
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
     - name: Install Compilers
       run: |
         sudo apt-get update
