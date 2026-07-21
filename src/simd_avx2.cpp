@@ -342,8 +342,11 @@ void VectorOps::vector_log_avx2(const double* input, double* output, std::size_t
 
         // int64 -> double (store-and-reload)
         alignas(16) int64_t elo[2], ehi_arr[2];
-        _mm_store_si128(reinterpret_cast<__m128i*>(elo), exp_lo);
-        _mm_store_si128(reinterpret_cast<__m128i*>(ehi_arr), exp_hi);
+        // Cast via void* so -Wcast-align=strict doesn't flag int64_t*(align 8)
+        // -> __m128i*(align 16): elo/ehi_arr are alignas(16) above, so the
+        // aligned store is valid; the flag just can't see that guarantee.
+        _mm_store_si128(static_cast<__m128i*>(static_cast<void*>(elo)), exp_lo);
+        _mm_store_si128(static_cast<__m128i*>(static_cast<void*>(ehi_arr)), exp_hi);
         __m128d elo_d = _mm_set_pd(static_cast<double>(elo[1]), static_cast<double>(elo[0]));
         __m128d ehi_d =
             _mm_set_pd(static_cast<double>(ehi_arr[1]), static_cast<double>(ehi_arr[0]));

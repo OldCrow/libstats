@@ -359,8 +359,11 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
         // Since we have 64-bit values in exp_low/exp_high, we need different conversion
         alignas(16) int64_t exp_low_arr[2];
         alignas(16) int64_t exp_high_arr[2];
-        _mm_store_si128(reinterpret_cast<__m128i*>(exp_low_arr), exp_low);
-        _mm_store_si128(reinterpret_cast<__m128i*>(exp_high_arr), exp_high);
+        // Cast via void* so -Wcast-align=strict doesn't flag int64_t*(align 8)
+        // -> __m128i*(align 16): the buffers are alignas(16) above, so the
+        // aligned store is valid; the flag just can't see that guarantee.
+        _mm_store_si128(static_cast<__m128i*>(static_cast<void*>(exp_low_arr)), exp_low);
+        _mm_store_si128(static_cast<__m128i*>(static_cast<void*>(exp_high_arr)), exp_high);
 
         __m128d exp_low_d =
             _mm_set_pd(static_cast<double>(exp_low_arr[1]), static_cast<double>(exp_low_arr[0]));
