@@ -65,8 +65,8 @@ class SIMDBenchmark {
           output_simd_(size) {
         // Initialize with varied but safe values
         for (size_t i = 0; i < size; ++i) {
-            input_a_[i] = 1.0 + (i % 100) * 0.01;  // 1.0 to 1.99
-            input_b_[i] = 0.5 + (i % 50) * 0.01;   // 0.5 to 0.99
+            input_a_[i] = 1.0 + static_cast<double>(i % 100) * 0.01;  // 1.0 to 1.99
+            input_b_[i] = 0.5 + static_cast<double>(i % 50) * 0.01;   // 0.5 to 0.99
         }
     }
 
