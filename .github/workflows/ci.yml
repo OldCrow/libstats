@@ -262,9 +262,11 @@ jobs:
 
     - name: Set compiler paths
       run: |
-        echo "CC=gcc-13" >> $GITHUB_ENV
-        echo "CXX=g++-13" >> $GITHUB_ENV
-        echo "GCOV=gcov-13" >> $GITHUB_ENV
+        {
+          echo "CC=gcc-13"
+          echo "CXX=g++-13"
+          echo "GCOV=gcov-13"
+        } >> "$GITHUB_ENV"
 
     - name: Configure with coverage
       run: |
