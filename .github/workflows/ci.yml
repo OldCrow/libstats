@@ -161,6 +161,33 @@ jobs:
           timeout 30 ./build/examples/gaussian_performance_benchmark || true
         fi
 
+    # -------------------------------------------------------------------------
+    # Install-contract smoke test — Linux/GCC/Release leg only (cheapest
+    # runner; exercises the installed-package path via find_package + pkg-config).
+    # -------------------------------------------------------------------------
+    - name: Install to prefix
+      if: runner.os == 'Linux' && matrix.compiler.name == 'gcc-14' && matrix.build_type == 'Release'
+      run: cmake --install build --prefix "$GITHUB_WORKSPACE/_install"
+
+    - name: Configure consumer_example against installed prefix
+      if: runner.os == 'Linux' && matrix.compiler.name == 'gcc-14' && matrix.build_type == 'Release'
+      run: |
+        cmake -S consumer_example -B consumer_example/build \
+          -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/_install"
+
+    - name: Build and run consumer_example
+      if: runner.os == 'Linux' && matrix.compiler.name == 'gcc-14' && matrix.build_type == 'Release'
+      run: |
+        cmake --build consumer_example/build
+        ./consumer_example/build/consumer_demo
+
+    - name: pkg-config smoke test
+      if: runner.os == 'Linux' && matrix.compiler.name == 'gcc-14' && matrix.build_type == 'Release'
+      run: |
+        export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/_install/lib/pkgconfig"
+        pkg-config --exists --print-errors libstats
+        pkg-config --cflags --libs libstats
+
   # ---------------------------------------------------------------------------
   # ASan+UBSan together in one Linux job (corvus/ewcalc pattern) rather than
   # separate runners per sanitizer.

@@ -83,6 +83,14 @@ project(
     VERSION 2.1.0
     LANGUAGES CXX)
 
+# GNUInstallDirs gives platform-correct, packager-overridable destinations (e.g. lib64 on some Linux
+# distros) instead of hardcoded lib/bin/include. Included here (rather than down by the install()
+# rules) because the $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> genexes on
+# libstats_headers/libstats_static/libstats_shared substitute CMAKE_INSTALL_INCLUDEDIR as a plain
+# variable at the target_include_directories() call site — it must already be set by then, or it
+# silently expands to an empty install interface.
+include(GNUInstallDirs)
+
 # v2.x compiler baseline. Fail early with actionable messages.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.0)
@@ -1030,14 +1038,18 @@ set(LIBSTATS_ALL_OBJECTS
 # Header-only library (for header-only components)
 add_library(libstats_headers INTERFACE)
 target_include_directories(
-    libstats_headers INTERFACE $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
-                               $<INSTALL_INTERFACE:include> $<INSTALL_INTERFACE:include/libstats>)
+    libstats_headers
+    INTERFACE $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
 
 # Static library using object libraries for better build performance
 add_library(libstats_static STATIC ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
-    libstats_static PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
-                           $<INSTALL_INTERFACE:include> $<INSTALL_INTERFACE:include/libstats>)
+    libstats_static
+    PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
 # LP-13: VERSION/SOVERSION are meaningful only for shared libraries (they affect dylib naming and
 # .so symlinks). Setting them on a static library is a no-op that CMake silently ignores, but it is
 # misleading. Keep only OUTPUT_NAME.
@@ -1050,8 +1062,10 @@ endif()
 # Dynamic/shared library using object libraries for better build performance
 add_library(libstats_shared SHARED ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
-    libstats_shared PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
-                           $<INSTALL_INTERFACE:include> $<INSTALL_INTERFACE:include/libstats>)
+    libstats_shared
+    PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
 set_target_properties(
     libstats_shared
     PROPERTIES OUTPUT_NAME "stats"
@@ -1837,31 +1851,38 @@ endif()
 install(
     TARGETS libstats_headers libstats_static libstats_shared libstats_simd_interface
     EXPORT libstats-targets
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES
-    DESTINATION include)
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # Install headers (exclude editor artifacts and macOS metadata)
 install(
     DIRECTORY include/
-    DESTINATION include/libstats
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats
     PATTERN ".DS_Store" EXCLUDE
     PATTERN "*.bak" EXCLUDE
     PATTERN "*.bak2" EXCLUDE
     PATTERN ".gitkeep" EXCLUDE)
+
+# libstats.h #includes "libstats_version.h" (bare, unnamespaced), generated at configure time into
+# the include shim (see NEW-BS-1 above) and reachable at build time via
+# $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>. Without this, an installed find_package(libstats)
+# consumer fails to compile: the generated header was never part of the installed tree.
+install(FILES "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats_version.h"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
 
 # Install CMake config files for find_package support
 install(
     EXPORT libstats-targets
     FILE libstats-targets.cmake
     NAMESPACE libstats::
-    DESTINATION lib/cmake/libstats)
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats)
 
 # Create and install config file
 include(CMakePackageConfigHelpers)
-set(INCLUDE_INSTALL_DIR include)
+set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
     VERSION ${PROJECT_VERSION}
@@ -1870,12 +1891,12 @@ write_basic_package_version_file(
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats-config.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
-    INSTALL_DESTINATION lib/cmake/libstats
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats
     PATH_VARS INCLUDE_INSTALL_DIR)
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
-        DESTINATION lib/cmake/libstats)
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats)
 
 # ===============================================================================
 # Documentation Generation with Doxygen
@@ -1918,9 +1939,10 @@ if(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
                    "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc" @ONLY)
 
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc" DESTINATION lib/pkgconfig)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 
-    message(STATUS "pkg-config file will be installed to lib/pkgconfig/")
+    message(STATUS "pkg-config file will be installed to ${CMAKE_INSTALL_LIBDIR}/pkgconfig/")
 elseif(APPLE)
     # On macOS with Homebrew, also generate pkg-config
     set(LIBSTATS_PC_LIBS_PRIVATE "")
@@ -1930,7 +1952,8 @@ elseif(APPLE)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
                    "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc" @ONLY)
 
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc" DESTINATION lib/pkgconfig)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
 
 # Print summary

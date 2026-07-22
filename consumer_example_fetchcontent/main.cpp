@@ -14,11 +14,11 @@ int main() {
     // Create a standard normal distribution using the safe factory API
     auto result = stats::GaussianDistribution::create(0.0, 1.0);
     if (result.isError()) {
-        std::cerr << "Failed to create distribution: " << result.message << "\n";
+        std::cerr << "Failed to create distribution: " << result.message() << "\n";
         return 1;
     }
 
-    auto& gaussian = result.value;
+    auto& gaussian = *result;
 
     // Evaluate PDF and CDF at a few points
     std::cout << "libstats consumer example\n";
