@@ -12,7 +12,7 @@ Thank you for your interest in contributing to libstats! We welcome contribution
 | Linux | GCC 13+ or Clang 17+ |
 | Windows | MSVC 19.38+ (Visual Studio 2022 17.8+) |
 
-- **CMake**: 3.20 or later
+- **CMake**: 3.25 or later
 - **Git**: For version control
 - **Optional**: GTest for running tests, Intel TBB for enhanced parallel support
 

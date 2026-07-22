@@ -13,7 +13,7 @@ See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade in
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
-[![CMake](https://img.shields.io/badge/CMake-3.20%2B-blue.svg)](https://cmake.org/)
+[![CMake](https://img.shields.io/badge/CMake-3.25%2B-blue.svg)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#safety-features)
 [![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#performance-features)
@@ -235,7 +235,7 @@ Tests are labelled: **no label** = correctness (parallel-safe); **timing** = spe
 
 ### System Requirements
 - **C++20 compatible compiler**: GCC 13+, Clang 17+, AppleClang 15+, MSVC 19.38+
-- **CMake**: 3.20 or later
+- **CMake**: 3.25 or later
 - **Platform**: Windows, macOS 13+, Linux (automatic detection and optimization)
 
 #### Common Build Configurations

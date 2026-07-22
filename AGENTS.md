@@ -78,28 +78,35 @@ For every prior release's validation matrix and SIMD speedup tables, see `docs/V
 
 ### Quick Build
 ```bash
-# macOS/Linux — standard development build (default 'Dev' build type)
-cmake -B build
+# macOS/Linux — standard development build (default 'Dev' build type, output in build/)
+cmake --preset dev
 cmake --build build --parallel   # equivalent to make -j$(nproc)
 ctest --test-dir build --output-on-failure
 ```
+
+Manual alternative (no preset): `cmake -B build -DCMAKE_BUILD_TYPE=Dev && cmake --build build`.
 
 Windows: use the commands in Platform-Specific Notes below.
 
 ### Common Build Configurations
 ```bash
-# Development (default) - light optimization with debug info
-cmake ..
+# Development (default) - light optimization with debug info (build/)
+cmake --preset dev
 
-# Production release - maximum optimization
-cmake -DCMAKE_BUILD_TYPE=Release ..
+# Production release - maximum optimization (build-release/)
+cmake --preset release
 
-# Full debugging support
-cmake -DCMAKE_BUILD_TYPE=Debug ..
+# Full debugging support (build-debug/)
+cmake --preset debug
 
-# Strict compiler warnings as errors (for compatibility testing)
-cmake -DCMAKE_BUILD_TYPE=Strict ..   # v2.0.0: unified Strict mode replaces legacy compiler-specific strict aliases
+# Release with debug symbols — preferred for profiling (build-relwithdebinfo/)
+cmake --preset rel-with-debug
+
+# Strict compiler warnings as errors, for compatibility testing (build-strict/)
+cmake --preset strict   # v2.0.0: unified Strict mode replaces legacy compiler-specific strict aliases
 ```
+
+Manual alternative: `cmake -B <dir> -DCMAKE_BUILD_TYPE=<Dev|Release|Debug|RelWithDebInfo|Strict>`.
 
 ### CMake Options
 ```bash
@@ -114,6 +121,26 @@ cmake -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF ..
 ```
 
 The build system supports cross-compiler compatibility testing with specialized build types that enable consistent warning levels across GCC, Clang, and MSVC.
+
+### CMake standard
+
+Full rules: `CMAKE-HOUSE-STYLE.md` in the Development root on dev machines (master copy, not checked in); this section is self-sufficient for this repo. libstats deviations:
+- Target-first scoping, `LIBSTATS_`-prefixed options, warnings PRIVATE and
+  `PROJECT_IS_TOP_LEVEL`-gated: in place for the current object-library
+  hierarchy; deeper modularization (cmake/ modules for warning sets,
+  tests/tools subdirectory CMakeLists) is Phase 3 work, not yet landed.
+- **Grandfathered custom build types**: `Dev` (default) and `Strict`
+  (the `-Werror` vehicle) — kept per house-style exception; not to be
+  copied into other repos.
+- Install contract conforms: GNUInstallDirs, `libstats-targets` export
+  (namespace `libstats::`), kebab `libstats-config.cmake`, `SameMajorVersion`.
+- Presets (`CMakePresets.json`, schema 6, min CMake 3.25): `dev` → `build/`
+  (default workflow), `release` → `build-release/`, `debug` →
+  `build-debug/`, `rel-with-debug` → `build-relwithdebinfo/`, `strict` →
+  `build-strict/`. **Deviation from the shared vocabulary**: `release` maps
+  to `build-release/` rather than `build/`, because `build/` is already
+  claimed by the default `dev` workflow here — grandfathered alongside the
+  `Dev` build type.
 
 ### Build System Features
 - **Automatic parallel detection**: Detects CPU cores and configures optimal builds
@@ -243,7 +270,7 @@ flag cleans Release artifacts but leaves existing Debug EXEs untouched if their 
   - Auto-detect installation path (any edition): `& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`
 - **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings).
   SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
-- CMake ≥ 3.20 required. Install from https://cmake.org/download/, `winget install Kitware.CMake`, or `choco install cmake`.
+- CMake ≥ 3.25 required. Install from https://cmake.org/download/, `winget install Kitware.CMake`, or `choco install cmake`.
 - vcpkg for GTest: `git clone https://github.com/microsoft/vcpkg C:\vcpkg && C:\vcpkg\bootstrap-vcpkg.bat`. The path `C:\vcpkg` is a convention; if installed via `winget install Microsoft.vcpkg` or `choco install vcpkg` the location will differ — run `where vcpkg` to find it.
 - Configure: `cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake`
   (adjust the toolchain path if vcpkg is not at `C:\vcpkg`)
