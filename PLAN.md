@@ -566,6 +566,25 @@ Visual Studio 18 2026 generator.
   cascade, AVX-512 roundscale `_MM_FROUND_NO_EXC`) are in the working tree
   only, pending user review.
 
+## Build-Stack Standardization (2026-07-23) [DERIVED]
+Cross-repo effort tracked in `~/Development/BUILD-STANDARDIZATION-PLAN.md`
+(house style: `~/Development/CMAKE-HOUSE-STYLE.md`). Phases 0-3 complete,
+CI-green: Phase 0 duplicated-TBB-block removal (`7a0ba8d`); Phase 1
+GNUInstallDirs install contract + installed-package CI smoke test
+(`412f973`); Phase 2 CMakePresets.json + CMake minimum bumped to 3.25
+(`09ee94d`); Phase 3B incremental modularization in three batches —
+`cmake/Threading.cmake` + `cmake/CompilerFlags.cmake` extraction (`442e9a5`),
+tests/tools moved to subdirectory CMakeLists (`e12cf7e`), per-config
+`CMAKE_CXX_FLAGS_DEV`/`_STRICT` + per-target `libstats_apply_warnings()`
+(`9ba4313`). Also `6a68200` (AVX-512 CI OOM fix, Phase 0 addendum). Phase 4
+cleanup (this entry): removed the dead `LIBSTATS_OPT_NONE/LIGHT_UNIX`,
+`LIBSTATS_OPT_NONE/LIGHT/FULL_MSVC`, and `LIBSTATS_DEBUG_INFO_UNIX/MSVC`
+cmake variables from `cmake/CompilerFlags.cmake` (unused since Batch 3;
+`LIBSTATS_OPT_FULL_UNIX` kept, still referenced); fixed stale
+`CMakeLists.txt` line-number pointers and the "Phase 3 work, not yet landed"
+CMake-standard section in AGENTS.md to describe current (post-Phase-3)
+structure.
+
 ## Next Steps
 - Issue #33 x86 experiment (Q2) is fully closed null on both AVX2/Kaby Lake
   and AVX-512/Zen 4 (see "Issue #33 Experiment" and

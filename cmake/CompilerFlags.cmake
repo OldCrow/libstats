@@ -160,17 +160,11 @@ set(LIBSTATS_MSVC_ENHANCED_WARNINGS
     /we4239 # Nonstandard extension used (can catch duplicate definitions)
 )
 
-# Optimization levels for different build types
-set(LIBSTATS_OPT_NONE_UNIX -O0)
-set(LIBSTATS_OPT_LIGHT_UNIX -O1)
+# Optimization levels for different build types (Phase 4 cleanup:
+# LIBSTATS_OPT_NONE_UNIX/LIGHT_UNIX/NONE_MSVC/LIGHT_MSVC/FULL_MSVC and LIBSTATS_DEBUG_INFO_UNIX/MSVC
+# were unused since Batch 3 (verified repo-wide) and removed. LIBSTATS_OPT_FULL_UNIX is kept --
+# still referenced once below in the GNU-else shadow append.)
 set(LIBSTATS_OPT_FULL_UNIX -O3)
-set(LIBSTATS_OPT_NONE_MSVC /Od)
-set(LIBSTATS_OPT_LIGHT_MSVC /O1)
-set(LIBSTATS_OPT_FULL_MSVC /O2)
-
-# Debug information flags
-set(LIBSTATS_DEBUG_INFO_UNIX -g)
-set(LIBSTATS_DEBUG_INFO_MSVC /Zi)
 
 # =============================================================================
 # PER-CONFIG OPTIMIZATION/DEBUG-INFO FLAGS FOR THE CUSTOM BUILD TYPES (Phase 3B/B5)

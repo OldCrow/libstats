@@ -126,9 +126,20 @@ The build system supports cross-compiler compatibility testing with specialized 
 
 Full rules: `CMAKE-HOUSE-STYLE.md` in the Development root on dev machines (master copy, not checked in); this section is self-sufficient for this repo. libstats deviations:
 - Target-first scoping, `LIBSTATS_`-prefixed options, warnings PRIVATE and
-  `PROJECT_IS_TOP_LEVEL`-gated: in place for the current object-library
-  hierarchy; deeper modularization (cmake/ modules for warning sets,
-  tests/tools subdirectory CMakeLists) is Phase 3 work, not yet landed.
+  `PROJECT_IS_TOP_LEVEL`-gated: landed (Phase 3B). Threading detection and
+  compiler-flag/warning-set logic live in `cmake/Threading.cmake` and
+  `cmake/CompilerFlags.cmake`; tests and tools are registered from their own
+  `tests/CMakeLists.txt` and `tools/CMakeLists.txt` via `add_subdirectory`.
+  Warnings are applied PRIVATE per-target through `libstats_apply_warnings(target)`
+  (defined in `cmake/CompilerFlags.cmake`), called on every object library,
+  the final static/shared libs, tests, and tools — GTest is exempt (fetched
+  sources never receive our warning flags). Optimization/debug-info flags
+  for the custom `Dev`/`Strict` build types come from `CMAKE_CXX_FLAGS_DEV`/
+  `CMAKE_CXX_FLAGS_STRICT`, set with the guarded-FORCE idiom
+  (`if(NOT var) set(... FORCE)`) — a plain unguarded `set(... CACHE STRING)`
+  is a silent no-op here because CMake auto-creates these per-config cache
+  entries empty for any custom `CMAKE_BUILD_TYPE` at `project()`, before this
+  file is ever included.
 - **Grandfathered custom build types**: `Dev` (default) and `Strict`
   (the `-Werror` vehicle) — kept per house-style exception; not to be
   copied into other repos.
@@ -448,21 +459,25 @@ The registration checklist is authoritative in `include/core/distribution_meta.h
    - Add per-distribution tests: known analytical values, moment formulas, special cases,
      VectorizedMatchesScalar, VectorizedSpeedup (timing-labelled), MLEFit.
 
-5. **Register** in four CMakeLists.txt locations and in `include/libstats.h`:
+5. **Register** in four CMakeLists.txt locations (one top-level, three in
+   `tests/CMakeLists.txt`) and in `include/libstats.h`:
 
-   *`CMakeLists.txt` — `LIBSTATS_DISTRIBUTIONS_SOURCES`* (~line 780):
+   *`CMakeLists.txt` (top-level) — `LIBSTATS_DISTRIBUTIONS_SOURCES`*, in the
+   "Level 5: Distribution Implementations" block:
    Add `src/dist.cpp` to the Level-5 distributions source list.
 
-   *`CMakeLists.txt` — test registration* (~line 1380):
+   *`tests/CMakeLists.txt` — Level-5 registration block* (under the
+   "LEVEL 5 TESTS: Concrete Distribution Implementations" banner comment):
    ```cmake
-   create_libstats_test(test_dist_basic tests/test_dist_basic.cpp)
-   create_libstats_gtest(test_dist_enhanced tests/test_dist_enhanced.cpp)
+   create_libstats_test(test_dist_basic test_dist_basic.cpp)
+   create_libstats_gtest(test_dist_enhanced test_dist_enhanced.cpp)
    ```
 
-   *`CMakeLists.txt` — `run_all_tests` DEPENDS block* (~line 1500):
+   *`tests/CMakeLists.txt` — `run_all_tests` DEPENDS block* (the
+   `add_custom_target(run_all_tests ...)` near the end of the file):
    Add `test_dist_basic` and `test_dist_enhanced` to the dependency list.
 
-   *`CMakeLists.txt` — timing label* (if the enhanced test has speedup assertions):
+   *`tests/CMakeLists.txt` — timing label* (if the enhanced test has speedup assertions):
    Add `test_dist_enhanced` to the `set_tests_properties(... PROPERTIES LABELS "timing")` call.
 
    *`include/libstats.h`* — inside `#ifdef LIBSTATS_FULL_INTERFACE`:
