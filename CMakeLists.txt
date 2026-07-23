@@ -469,7 +469,12 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_version.h.in"
 # =============================================================================
 # CREATE OBJECT LIBRARIES FOR PARALLEL COMPILATION
 # =============================================================================
-# Object libraries allow parallel compilation and better dependency tracking
+# The tiers mirror the header dependency levels for organization only. There are deliberately NO
+# add_dependencies() calls between the object libraries: they produce .o files that nothing consumes
+# until the final archive/link step, and header dependencies are tracked per-TU by the generator's
+# depfiles. Inter-tier add_dependencies (removed 2026-07-23) only serialized compilation into waves
+# and reduced build parallelism. The one real ordering constraint is Windows' include-shim refresh
+# (see the WIN32 block below).
 
 # Foundation object library (Level 0-1)
 add_library(libstats_foundation_obj OBJECT ${LIBSTATS_FOUNDATION_SOURCES})
@@ -482,45 +487,36 @@ add_library(libstats_core_utilities_obj OBJECT ${LIBSTATS_CORE_UTILITIES_SOURCES
 target_include_directories(libstats_core_utilities_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
 libstats_apply_warnings(libstats_core_utilities_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
-add_dependencies(libstats_core_utilities_obj libstats_foundation_obj)
 
 # Platform capabilities object library (Level 2)
 add_library(libstats_platform_obj OBJECT ${LIBSTATS_PLATFORM_SOURCES})
 target_include_directories(libstats_platform_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
 libstats_apply_warnings(libstats_platform_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
-add_dependencies(libstats_platform_obj libstats_foundation_obj)
 
 # Advanced infrastructure object library (Level 3)
 add_library(libstats_infrastructure_obj OBJECT ${LIBSTATS_INFRASTRUCTURE_SOURCES})
 target_include_directories(libstats_infrastructure_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
 libstats_apply_warnings(libstats_infrastructure_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
-add_dependencies(libstats_infrastructure_obj libstats_foundation_obj libstats_core_utilities_obj
-                 libstats_platform_obj)
 
 # Distribution framework object library (Level 4)
 add_library(libstats_framework_obj OBJECT ${LIBSTATS_FRAMEWORK_SOURCES})
 target_include_directories(libstats_framework_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
 libstats_apply_warnings(libstats_framework_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
-add_dependencies(libstats_framework_obj libstats_foundation_obj libstats_core_utilities_obj
-                 libstats_platform_obj libstats_infrastructure_obj)
 
 # Distribution implementations object library (Level 5)
 add_library(libstats_distributions_obj OBJECT ${LIBSTATS_DISTRIBUTIONS_SOURCES})
 target_include_directories(libstats_distributions_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
 libstats_apply_warnings(libstats_distributions_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
-add_dependencies(libstats_distributions_obj libstats_foundation_obj libstats_core_utilities_obj
-                 libstats_platform_obj libstats_infrastructure_obj libstats_framework_obj)
 
 # SIMD object library (Platform-dependent, can compile in parallel)
 add_library(libstats_simd_obj OBJECT ${LIBSTATS_SIMD_SOURCES})
 target_include_directories(libstats_simd_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
 libstats_apply_warnings(libstats_simd_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
-add_dependencies(libstats_simd_obj libstats_foundation_obj) # SIMD depends on CPU detection
 
 # Windows: ensure the shim copy finishes before any cl.exe job opens the copied headers. MSBuild
 # runs ALL custom targets in parallel with compilation; without this ordering the copy_directory and
