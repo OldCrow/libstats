@@ -11,6 +11,7 @@ function(add_libstats_tool tool_name source_file)
     target_link_libraries(${tool_name} PRIVATE libstats_static)
     target_include_directories(${tool_name} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
                                                     ${CMAKE_SOURCE_DIR}/src)
+    libstats_apply_warnings(${tool_name}) # Phase 3B/B5
 
     # Link to SIMD interface target for modern CMake approach
     if(TARGET libstats_simd_interface)
@@ -27,6 +28,7 @@ function(add_standalone_tool tool_name source_file)
     # No libstats linking - pure standard library tools Still needs include paths for tool_utils.h →
     # libstats headers
     target_include_directories(${tool_name} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+    libstats_apply_warnings(${tool_name}) # Phase 3B/B5
 
     set_target_properties(${tool_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
                                                   ${CMAKE_BINARY_DIR}/tools)

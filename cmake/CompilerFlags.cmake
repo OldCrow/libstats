@@ -173,6 +173,74 @@ set(LIBSTATS_DEBUG_INFO_UNIX -g)
 set(LIBSTATS_DEBUG_INFO_MSVC /Zi)
 
 # =============================================================================
+# PER-CONFIG OPTIMIZATION/DEBUG-INFO FLAGS FOR THE CUSTOM BUILD TYPES (Phase 3B/B5)
+# =============================================================================
+# CMake's standard per-config mechanism (CMAKE_CXX_FLAGS_<CONFIG>, applied to every target in every
+# directory -- including FetchContent dependencies such as GTest) replaces the
+# optimization/debug-info portion of the old global add_compile_options() chains below for Dev and
+# Strict, exactly the way it already handles the built-in Release/Debug/RelWithDebInfo/MinSizeRel
+# configs.
+#
+# DEVIATION from a literal "set(... CACHE STRING ...) -- no FORCE" reading, verified empirically and
+# flagged for review: CMake auto-creates CMAKE_CXX_FLAGS_<CONFIG> as an EMPTY cache STRING the
+# moment CXX is enabled in project(), for ANY CMAKE_BUILD_TYPE spelling -- including custom ones
+# like "Dev" that CMake itself does not otherwise know about. That auto-created (empty) entry
+# already exists in the cache by the time this file is include()'d, so a plain
+# `set(CMAKE_CXX_FLAGS_DEV "-O1 -g" CACHE STRING ...)` with no FORCE is a silent no-op:
+# CMAKE_CXX_FLAGS_DEV would stay "" forever, and Dev builds would get NO optimization/debug-info
+# flags at all -- a real regression, not the "zero behavior change" this batch requires. Confirmed
+# with a bare two-line test project (CMAKE_BUILD_TYPE=Dev, no other configuration) before writing
+# this comment.
+#
+# Fix (the standard, documented CMake idiom for exactly this situation): guard the FORCE-set on the
+# variable currently being empty/falsy. A user's own command-line override
+# (-DCMAKE_CXX_FLAGS_DEV="...") or a parent project's pre-set value is truthy, so the guard skips
+# the FORCE and the override survives untouched; CMake's own auto-created blank placeholder is
+# falsy, so we do overwrite that one time with our real default. This preserves the
+# "user-overridable, no repeated stomping" intent the no-FORCE instruction was going for, while
+# actually working.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
+    if(NOT CMAKE_CXX_FLAGS_DEV)
+        set(CMAKE_CXX_FLAGS_DEV
+            "-O1 -g"
+            CACHE STRING "Flags used by the CXX compiler during Dev builds." FORCE)
+    endif()
+    # Strict has never carried optimization/debug-info flags -- it exists solely to enable strict
+    # warnings + -Werror/-WX (see libstats_apply_warnings below). Preserve that: empty string. (The
+    # guard is applied here too, for symmetry/correctness, even though CMake's own auto-created
+    # default is already "" -- so this branch is observably a no-op today, same as an unguarded
+    # set() would be, but it correctly leaves room for a future non-empty Strict default without
+    # silently re-stomping a user override the way an unguarded FORCE would.)
+    if(NOT CMAKE_CXX_FLAGS_STRICT)
+        set(CMAKE_CXX_FLAGS_STRICT
+            ""
+            CACHE STRING "Flags used by the CXX compiler during Strict builds." FORCE)
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    if(NOT CMAKE_CXX_FLAGS_DEV)
+        set(CMAKE_CXX_FLAGS_DEV
+            "/O1 /Zi /MD"
+            CACHE STRING "Flags used by the CXX compiler during Dev builds." FORCE)
+    endif()
+    if(NOT CMAKE_CXX_FLAGS_STRICT)
+        set(CMAKE_CXX_FLAGS_STRICT
+            ""
+            CACHE STRING "Flags used by the CXX compiler during Strict builds." FORCE)
+    endif()
+endif()
+
+# GCC's own Debug default (CMAKE_CXX_FLAGS_DEBUG = "-g") does not include -fstack-protector-strong,
+# which the old global chain added for GCC only. Re-set the SAME (non-cache) variable, appending to
+# whatever it currently holds, rather than a CACHE write: a plain set() creates a directory-scope
+# variable that shadows the cache entry's value for the rest of *this* configure run only -- it
+# never touches the CACHE entry itself. Each fresh `cmake` invocation re-reads the untouched cache
+# value ("-g") as the right-hand side here, so re-running configure on an already-configured build
+# directory reproduces "-g -fstack-protector-strong" once, not an ever-growing accumulation.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fstack-protector-strong")
+endif()
+
+# =============================================================================
 # COMPILER-SPECIFIC BUILD CONFIGURATION WITH GENERATOR EXPRESSIONS
 # =============================================================================
 # Use generator expressions to reduce repetitive if/elseif chains Standard CMake Build Types
@@ -192,92 +260,60 @@ add_compile_definitions($<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
 
 # Apply build type and compiler-specific flags using traditional CMake approach This maintains
 # reliability while ensuring cross-compiler compatibility
-
+#
+# Phase 3B/B5: optimization/debug-info flags for Release/Debug/Dev/Strict no longer come from this
+# chain -- Release/Debug rely on CMake's own CMAKE_CXX_FLAGS_<CONFIG> defaults (previously
+# duplicated here); Dev/Strict rely on the CMAKE_CXX_FLAGS_DEV/_STRICT cache variables defined
+# above. WARNING flags no longer come from this chain either -- they are applied PRIVATE,
+# per-target, by libstats_apply_warnings() (defined below) so that FetchContent dependencies (GTest)
+# do not receive them. What remains in this chain: the MSVC /utf-8 global flag (documented
+# exception, must cover GTest), and -- preserved verbatim, unreachable on every supported flow --
+# the "unknown compiler" branch and the Clang/GNU "unmatched build type" shadow-appends (see below).
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     # MSVC compiler flags /utf-8: interpret source files as UTF-8 and emit UTF-8 output. Silences
     # C4566 (universal-character-name cannot be represented in current code page) for Unicode
-    # characters in string literals across all tool sources.
+    # characters in string literals across all tool sources. Stays global (unlike the warning/opt
+    # flags below) so it also reaches FetchContent'd GTest translation units.
     add_compile_options(/utf-8)
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(/W3 /O2 /DNDEBUG)
-        message(STATUS "Applied MSVC Release flags: /W3 /O2 /DNDEBUG")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(/W3 /Od /Zi /RTC1 /MDd)
-        message(STATUS "Applied MSVC Debug flags: /W3 /Od /Zi /RTC1 /MDd")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
-        add_compile_options(/W3 /O1 /Zi /MD /wd4996)
-        message(STATUS "Applied MSVC Dev flags: /W3 /O1 /Zi /MD /wd4996")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
-        add_compile_options(/W4 /WX /permissive-)
-        add_compile_options(${LIBSTATS_MSVC_ENHANCED_WARNINGS})
-        message(STATUS "Applied Strict flags (MSVC): /W4 /WX /permissive-")
-    else()
-        add_compile_options(/W3)
-        message(STATUS "Applied MSVC default flags: /W3")
-    endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
-    # Clang/AppleClang compiler flags
+    # Clang/AppleClang: Release/Debug/Dev/Strict flags now applied via CMAKE_CXX_FLAGS_<CONFIG>
+    # (opt/ debug-info) and libstats_apply_warnings() (warnings) -- nothing left to add here for
+    # those four build types. The "unmatched build type" branch below is unreachable on every
+    # supported flow (the top level of CMakeLists.txt forces CMAKE_BUILD_TYPE to "Dev" when unset
+    # for a single-config generator) but its non-warning flag is preserved verbatim via a
+    # CMAKE_CXX_FLAGS shadow append (see the GCC Debug comment above for why this idiom does not
+    # accumulate across reconfigures); the warning part of that same original branch moved into
+    # libstats_apply_warnings' own else-branch.
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(${LIBSTATS_OPT_FULL_UNIX} -DNDEBUG ${LIBSTATS_COMMON_WARNINGS_UNIX})
-        message(
-            STATUS
-                "Applied Clang Release flags: ${LIBSTATS_OPT_FULL_UNIX} -DNDEBUG ${LIBSTATS_COMMON_WARNINGS_UNIX}"
-        )
+
     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX}
-                            ${LIBSTATS_COMMON_WARNINGS_UNIX})
-        message(
-            STATUS
-                "Applied Clang Debug flags: ${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX}"
-        )
+
     elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
-        add_compile_options(${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX}
-                            ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations)
-        message(
-            STATUS
-                "Applied Clang Dev flags: ${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations"
-        )
+
     elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
-        add_compile_options(${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror)
-        message(STATUS "Applied Strict flags (Clang/AppleClang): strict warnings + -Werror")
+
     else()
-        add_compile_options(${LIBSTATS_COMMON_WARNINGS_UNIX} -O2)
-        message(STATUS "Applied Clang default flags: ${LIBSTATS_COMMON_WARNINGS_UNIX} -O2")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    # GCC compiler flags
+    # GCC: same restructuring as Clang/AppleClang above.
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(${LIBSTATS_OPT_FULL_UNIX} -DNDEBUG ${LIBSTATS_COMMON_WARNINGS_UNIX})
-        message(
-            STATUS
-                "Applied GCC Release flags: ${LIBSTATS_OPT_FULL_UNIX} -DNDEBUG ${LIBSTATS_COMMON_WARNINGS_UNIX}"
-        )
+
     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX}
-                            ${LIBSTATS_COMMON_WARNINGS_UNIX} -fstack-protector-strong)
-        message(
-            STATUS
-                "Applied GCC Debug flags: ${LIBSTATS_OPT_NONE_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -fstack-protector-strong"
-        )
+
     elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
-        add_compile_options(${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX}
-                            ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations)
-        message(
-            STATUS
-                "Applied GCC Dev flags: ${LIBSTATS_OPT_LIGHT_UNIX} ${LIBSTATS_DEBUG_INFO_UNIX} ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations"
-        )
+
     elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
-        add_compile_options(${LIBSTATS_GCC_STRICT_WARNINGS} -Werror)
-        message(STATUS "Applied Strict flags (GCC): strict warnings + -Werror")
+
     else()
-        add_compile_options(${LIBSTATS_COMMON_WARNINGS_UNIX} ${LIBSTATS_OPT_FULL_UNIX})
-        message(
-            STATUS
-                "Applied GCC default flags: ${LIBSTATS_COMMON_WARNINGS_UNIX} ${LIBSTATS_OPT_FULL_UNIX}"
-        )
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LIBSTATS_OPT_FULL_UNIX}")
     endif()
 else()
-    # Unknown compiler - use sensible defaults
+    # Unknown compiler - use sensible defaults. Untouched by Phase 3B/B5: this branch never applied
+    # any LIBSTATS_* warning flags (nothing for libstats_apply_warnings to mirror here), and is
+    # unreachable in this project regardless (the compiler-baseline check near the top of
+    # CMakeLists.txt rejects any CXX_COMPILER_ID that is not AppleClang/Clang/GNU/MSVC via
+    # FATAL_ERROR before this file is even included). Preserved verbatim.
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         add_compile_options(-O3 -DNDEBUG)
         message(STATUS "Applied unknown compiler Release flags: -O3 -DNDEBUG")
@@ -289,3 +325,63 @@ else()
         message(STATUS "Applied unknown compiler default flags: -O2")
     endif()
 endif()
+
+# =============================================================================
+# PER-TARGET WARNING APPLICATION (Phase 3B/B5)
+# =============================================================================
+# Applies this project's warning flags PRIVATE to a single target. Branches on compiler ID and
+# CMAKE_BUILD_TYPE exactly mirroring the build-type dispatch the old global chain used above
+# (including its else/default branches) -- only the WARNING flags live here now;
+# optimization/debug-info flags are handled by CMake's standard per-config CMAKE_CXX_FLAGS_<CONFIG>
+# mechanism above, which -- unlike the old global add_compile_options() chain -- also reaches
+# FetchContent dependencies (GTest). Dev's -Wno-deprecated-declarations and MSVC Dev's /wd4996 are
+# warning-control, so they live here rather than in the per-config cache variables.
+#
+# Do NOT apply this function to GTest targets (gtest/gtest_main or GTest::* imported targets) or to
+# the INTERFACE libstats_headers target (INTERFACE libraries have no compilation of their own to
+# apply PRIVATE flags to).
+function(libstats_apply_warnings target)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_compile_options(${target} PRIVATE /W3)
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            target_compile_options(${target} PRIVATE /W3)
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+            target_compile_options(${target} PRIVATE /W3 /wd4996)
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
+            target_compile_options(${target} PRIVATE /W4 /WX /permissive-)
+            target_compile_options(${target} PRIVATE ${LIBSTATS_MSVC_ENHANCED_WARNINGS})
+        else()
+            target_compile_options(${target} PRIVATE /W3)
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX})
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX})
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX}
+                                                     -Wno-deprecated-declarations)
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
+            target_compile_options(${target} PRIVATE ${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror)
+        else()
+            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX})
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX})
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX})
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
+            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX}
+                                                     -Wno-deprecated-declarations)
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
+            target_compile_options(${target} PRIVATE ${LIBSTATS_GCC_STRICT_WARNINGS} -Werror)
+        else()
+            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX})
+        endif()
+    else()
+        # Unknown compiler: the old global chain never applied any LIBSTATS_* warning flags for this
+        # branch (see the untouched "unknown compiler" block above) -- nothing to mirror here.
+    endif()
+endfunction()

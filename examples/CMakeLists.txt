@@ -11,6 +11,12 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     target_include_directories(${EXAMPLE_NAME} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
                                                        ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
+    # Phase 3B/B5: previously inherited the project's warning flags via directory-scope
+    # add_compile_options() propagation from the top-level CompilerFlags.cmake chain (examples/ is
+    # add_subdirectory()'d after that chain runs). That chain is gone; apply per-target explicitly
+    # so examples keep the same warning coverage they always had.
+    libstats_apply_warnings(${EXAMPLE_NAME})
+
     # Apply same compiler flags as main library
     if(APPLE)
         target_compile_options(${EXAMPLE_NAME} PRIVATE -stdlib=libc++)

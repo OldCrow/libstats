@@ -474,23 +474,27 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_version.h.in"
 # Foundation object library (Level 0-1)
 add_library(libstats_foundation_obj OBJECT ${LIBSTATS_FOUNDATION_SOURCES})
 target_include_directories(libstats_foundation_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+libstats_apply_warnings(libstats_foundation_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 
 # Core utilities object library (Level 2)
 add_library(libstats_core_utilities_obj OBJECT ${LIBSTATS_CORE_UTILITIES_SOURCES})
 target_include_directories(libstats_core_utilities_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+libstats_apply_warnings(libstats_core_utilities_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_core_utilities_obj libstats_foundation_obj)
 
 # Platform capabilities object library (Level 2)
 add_library(libstats_platform_obj OBJECT ${LIBSTATS_PLATFORM_SOURCES})
 target_include_directories(libstats_platform_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+libstats_apply_warnings(libstats_platform_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_platform_obj libstats_foundation_obj)
 
 # Advanced infrastructure object library (Level 3)
 add_library(libstats_infrastructure_obj OBJECT ${LIBSTATS_INFRASTRUCTURE_SOURCES})
 target_include_directories(libstats_infrastructure_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+libstats_apply_warnings(libstats_infrastructure_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_infrastructure_obj libstats_foundation_obj libstats_core_utilities_obj
                  libstats_platform_obj)
@@ -498,6 +502,7 @@ add_dependencies(libstats_infrastructure_obj libstats_foundation_obj libstats_co
 # Distribution framework object library (Level 4)
 add_library(libstats_framework_obj OBJECT ${LIBSTATS_FRAMEWORK_SOURCES})
 target_include_directories(libstats_framework_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+libstats_apply_warnings(libstats_framework_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_framework_obj libstats_foundation_obj libstats_core_utilities_obj
                  libstats_platform_obj libstats_infrastructure_obj)
@@ -505,6 +510,7 @@ add_dependencies(libstats_framework_obj libstats_foundation_obj libstats_core_ut
 # Distribution implementations object library (Level 5)
 add_library(libstats_distributions_obj OBJECT ${LIBSTATS_DISTRIBUTIONS_SOURCES})
 target_include_directories(libstats_distributions_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+libstats_apply_warnings(libstats_distributions_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_distributions_obj libstats_foundation_obj libstats_core_utilities_obj
                  libstats_platform_obj libstats_infrastructure_obj libstats_framework_obj)
@@ -512,6 +518,7 @@ add_dependencies(libstats_distributions_obj libstats_foundation_obj libstats_cor
 # SIMD object library (Platform-dependent, can compile in parallel)
 add_library(libstats_simd_obj OBJECT ${LIBSTATS_SIMD_SOURCES})
 target_include_directories(libstats_simd_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+libstats_apply_warnings(libstats_simd_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 add_dependencies(libstats_simd_obj libstats_foundation_obj) # SIMD depends on CPU detection
 
@@ -560,6 +567,10 @@ target_include_directories(
     PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
+# Phase 3B/B5: has no compiled sources of its own (only $<TARGET_OBJECTS:...> from the object
+# libraries above, which already carry their own warnings) -- applied for structural completeness /
+# consistency per the design; observably a no-op today.
+libstats_apply_warnings(libstats_static)
 # LP-13: VERSION/SOVERSION are meaningful only for shared libraries (they affect dylib naming and
 # .so symlinks). Setting them on a static library is a no-op that CMake silently ignores, but it is
 # misleading. Keep only OUTPUT_NAME.
@@ -576,6 +587,9 @@ target_include_directories(
     PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
+# Phase 3B/B5: see libstats_static above -- no compiled sources of its own, applied for structural
+# completeness; observably a no-op today.
+libstats_apply_warnings(libstats_shared)
 set_target_properties(
     libstats_shared
     PROPERTIES OUTPUT_NAME "stats"

@@ -70,6 +70,8 @@ function(configure_common_test_settings TEST_NAME)
     target_include_directories(
         ${TEST_NAME} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR} ${CMAKE_SOURCE_DIR}/src
                              ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    libstats_apply_warnings(${TEST_NAME}) # Phase 3B/B5 -- single insertion point for every test
+                                          # target
 
     # Platform-specific rpath is inherited from libstats_static/shared via PUBLIC link options. No
     # per-target rpath needed here (adding it causes duplicate -rpath linker warnings).
