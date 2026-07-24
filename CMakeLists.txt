@@ -10,7 +10,7 @@ option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 # LIBSTATS_PORTABLE: skip the global /arch:AVX512 / /arch:AVX2 flag on Windows MSVC / Clang-cl
 # builds so that the binary is safe to distribute across machines with different ISA capabilities.
 # Per-file ISA flags on the SIMD kernel TUs (applied by
-# cmake/SIMDDetection.cmake:apply_simd_source_flags) remain active and unaffected.  Default OFF
+# cmake/SIMDApplication.cmake:apply_simd_source_flags) remain active and unaffected.  Default OFF
 # (native performance build). Recommended ON for pylibstats wheel builds.  See libstats issue
 # tracker for the long-term plan to extend per-file flags to all TUs on Windows.
 option(
@@ -178,6 +178,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Threading.cmake")
 detect_threading_systems()
 # SIMD feature detection and compilation flags Use our comprehensive SIMD detection system
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDDetection.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDApplication.cmake")
 
 # Set options for SIMD detection behavior
 option(LIBSTATS_ENABLE_RUNTIME_CHECKS "Enable runtime CPU checks even when cross-compiling" OFF)
@@ -222,12 +223,12 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CompilerFlags.cmake")
 # compilers. Using traditional conditionals that are proven to work.
 #
 # STRATEGY: - MSVC/Clang-cl on Windows: Use global flags (simple, reliable) - GCC/Clang on Unix: Use
-# source-file-specific flags (cmake/SIMDDetection.cmake) - All platforms: Definitions are set by
+# source-file-specific flags (cmake/SIMDApplication.cmake) - All platforms: Definitions are set by
 # SIMDDetection.cmake based on detection
 
 # Windows compilers: apply the build-machine SIMD level as a global flag. LIBSTATS_PORTABLE=ON skips
 # this block so the binary is distributable to machines with lower ISA than the build host. Per-file
-# flags from cmake/SIMDDetection.cmake:apply_simd_source_flags() remain active.
+# flags from cmake/SIMDApplication.cmake:apply_simd_source_flags() remain active.
 if(NOT LIBSTATS_PORTABLE)
     # NOTE: the global flag must follow the (possibly LIBSTATS_MAX_SIMD_TIER-capped) LIBSTATS_HAS_*
     # results from detect_simd_features(), not just "AVX512 or else AVX2". Applying /arch:AVX2
@@ -276,7 +277,7 @@ endif()
 # LIBSTATS_HAS_AVX2, etc. The definitions are applied through the libstats_simd_interface target.
 
 # Unix compilers (GCC/Clang): SIMD flags are applied per-source-file via the configure_simd_target()
-# function from cmake/SIMDDetection.cmake This provides precise control and avoids flag conflicts.
+# function from cmake/SIMDApplication.cmake This provides precise control and avoids flag conflicts.
 
 # Display configuration information (evaluate once at configure time) Cross-Compiler Build Type
 # Status Messages
