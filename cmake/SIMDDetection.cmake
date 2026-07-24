@@ -156,8 +156,8 @@ function(apply_cross_compilation_overrides)
         message(STATUS "SIMD: NEON forced to TRUE via environment")
     endif()
 
-    # Enforce dependency consistency for SIMD source/definition wiring.
-    # AVX-512 code depends on AVX2 symbols, and AVX2 code depends on AVX symbols.
+    # Enforce dependency consistency for SIMD source/definition wiring. AVX-512 code depends on AVX2
+    # symbols, and AVX2 code depends on AVX symbols.
     if(LIBSTATS_HAS_AVX512 AND NOT LIBSTATS_HAS_AVX2)
         message(
             WARNING
@@ -198,14 +198,13 @@ function(apply_cross_compilation_overrides)
         CACHE INTERNAL "List of SIMD compile definitions" FORCE)
 endfunction()
 
-# Cap the highest *compiled* x86 SIMD tier (LIBSTATS_MAX_SIMD_TIER). Runtime
-# dispatch always selects the highest tier the CPU supports, so lower-tier
-# kernels (e.g. AVX or SSE2 on an AVX2 box) otherwise never execute and cannot
-# be validated natively. This disables every x86 tier strictly above the cap and
-# removes its source + compile definition. Because it only ever removes from the
-# top, the downward dependency (AVX2 needs AVX needs SSE2) stays satisfied. Runs
-# after apply_cross_compilation_overrides(), so an explicit cap overrides any
-# LIBSTATS_FORCE_* that raised a tier. NEON is unaffected (ARM-only).
+# Cap the highest *compiled* x86 SIMD tier (LIBSTATS_MAX_SIMD_TIER). Runtime dispatch always selects
+# the highest tier the CPU supports, so lower-tier kernels (e.g. AVX or SSE2 on an AVX2 box)
+# otherwise never execute and cannot be validated natively. This disables every x86 tier strictly
+# above the cap and removes its source + compile definition. Because it only ever removes from the
+# top, the downward dependency (AVX2 needs AVX needs SSE2) stays satisfied. Runs after
+# apply_cross_compilation_overrides(), so an explicit cap overrides any LIBSTATS_FORCE_* that raised
+# a tier. NEON is unaffected (ARM-only).
 function(apply_simd_tier_cap)
     if(NOT DEFINED LIBSTATS_MAX_SIMD_TIER
        OR LIBSTATS_MAX_SIMD_TIER STREQUAL ""
@@ -217,10 +216,8 @@ function(apply_simd_tier_cap)
     set(_tier_order SSE2 AVX AVX2 AVX512)
     list(FIND _tier_order "${_cap}" _cap_rank)
     if(_cap_rank EQUAL -1)
-        message(
-            FATAL_ERROR
-                "LIBSTATS_MAX_SIMD_TIER='${LIBSTATS_MAX_SIMD_TIER}' is invalid; "
-                "use one of: SSE2 AVX AVX2 AVX512 (or empty/NONE for no cap)")
+        message(FATAL_ERROR "LIBSTATS_MAX_SIMD_TIER='${LIBSTATS_MAX_SIMD_TIER}' is invalid; "
+                            "use one of: SSE2 AVX AVX2 AVX512 (or empty/NONE for no cap)")
     endif()
 
     get_property(
@@ -262,7 +259,8 @@ function(apply_simd_tier_cap)
 
     if(_disabled)
         string(JOIN ", " _disabled_str ${_disabled})
-        message(STATUS "SIMD: capped at ${_cap} via LIBSTATS_MAX_SIMD_TIER; disabled: ${_disabled_str}")
+        message(
+            STATUS "SIMD: capped at ${_cap} via LIBSTATS_MAX_SIMD_TIER; disabled: ${_disabled_str}")
     else()
         message(
             STATUS
@@ -316,7 +314,7 @@ function(detect_simd_features)
             set(LIBSTATS_SIMD_DEFINITIONS
                 "LIBSTATS_HAS_SSE2=1"
                 CACHE INTERNAL "List of SIMD compile definitions" FORCE)
-        message(STATUS "SIMD: SSE2 enabled (compiler only - cross-compiling)")
+            message(STATUS "SIMD: SSE2 enabled (compiler only - cross-compiling)")
         endif()
         apply_cross_compilation_overrides()
         apply_simd_tier_cap()
@@ -580,9 +578,9 @@ bool test_avx2() {
                 "SIMDDetection: check_cxx_compiler_flag('/arch:AVX512') result = ${COMPILER_SUPPORTS_AVX512}"
         )
         if(COMPILER_SUPPORTS_AVX512)
-            # check_cxx_compiler_flag only tests that MSVC accepts the flag syntax, not
-            # that the build machine's CPU can execute the resulting instructions.
-            # Use check_cxx_source_runs (compile + execute) to verify actual CPU support.
+            # check_cxx_compiler_flag only tests that MSVC accepts the flag syntax, not that the
+            # build machine's CPU can execute the resulting instructions. Use check_cxx_source_runs
+            # (compile + execute) to verify actual CPU support.
             include(CheckCXXSourceRuns)
             set(_avx512_saved_req_flags "${CMAKE_REQUIRED_FLAGS}")
             set(CMAKE_REQUIRED_FLAGS "/arch:AVX512")
@@ -623,10 +621,9 @@ int main() {
             message(STATUS "SIMD: AVX-512 disabled (compiler not supported)")
         endif()
     else()
-        # simd_avx512.cpp uses AVX-512DQ intrinsics (_mm512_cvtepi64_pd,
-        # _mm512_and/or_pd) added in v1.5.0 Phase 4. Require both F and DQ
-        # at detection time so we only enable the AVX-512 path on hardware
-        # that can actually execute the compiled code without SIGILL.
+        # simd_avx512.cpp uses AVX-512DQ intrinsics (_mm512_cvtepi64_pd, _mm512_and/or_pd) added in
+        # v1.5.0 Phase 4. Require both F and DQ at detection time so we only enable the AVX-512 path
+        # on hardware that can actually execute the compiled code without SIGILL.
         check_cxx_compiler_flag("-mavx512f -mavx512dq" COMPILER_SUPPORTS_AVX512DQ)
         if(COMPILER_SUPPORTS_AVX512DQ)
             test_runtime_cpu_feature(
@@ -667,7 +664,8 @@ bool test_avx512() {
                 message(STATUS "SIMD: AVX-512 disabled (runtime check failed)")
             endif()
         else()
-            message(STATUS "SIMD: AVX-512 disabled (compiler does not support -mavx512f -mavx512dq)")
+            message(
+                STATUS "SIMD: AVX-512 disabled (compiler does not support -mavx512f -mavx512dq)")
         endif()
     endif()
 
@@ -750,8 +748,8 @@ bool test_neon() {
     # Apply any environment variable overrides
     apply_cross_compilation_overrides()
 
-    # Cap the compiled tier if requested (must run after overrides so an explicit
-    # cap wins over any LIBSTATS_FORCE_* that raised a tier).
+    # Cap the compiled tier if requested (must run after overrides so an explicit cap wins over any
+    # LIBSTATS_FORCE_* that raised a tier).
     apply_simd_tier_cap()
 
     # Always include fallback implementation
@@ -821,8 +819,8 @@ function(create_simd_interface_target)
     message(STATUS "SIMD interface target created with definitions: ${_definitions}")
 endfunction()
 
-# Apply per-source-file SIMD compile flags. These are file-global properties and need to be set
-# only once; call this function once after create_simd_interface_target().
+# Apply per-source-file SIMD compile flags. These are file-global properties and need to be set only
+# once; call this function once after create_simd_interface_target().
 function(apply_simd_source_flags)
     get_property(
         _sse2
