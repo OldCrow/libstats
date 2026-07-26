@@ -1,3 +1,65 @@
+# Changelog
+
+All notable changes to libstats will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Changed
+
+- **Build-stack standardization (CMake)**: five CMake presets (`dev`, `release`,
+  `debug`, `rel-with-debug`, `strict`) replace ad hoc configure invocations, and
+  the CMake minimum rises to 3.25. Install paths now go through GNUInstallDirs,
+  with a CI leg that installs to a prefix and smoke-tests `find_package` and
+  `pkg-config` consumption. Threading detection, compiler-flag/warning-set
+  logic, and SIMD flag application move out of the top-level `CMakeLists.txt`
+  into `cmake/Threading.cmake`, `cmake/CompilerFlags.cmake`, and
+  `cmake/SIMDApplication.cmake`; warnings are now applied PRIVATE per-target
+  via `libstats_apply_warnings()` rather than directory-wide, and the custom
+  `Dev`/`Strict` build types get correctly-guarded per-config flags. Test and
+  tool registration moved into `tests/CMakeLists.txt` and `tools/CMakeLists.txt`.
+  Follow-up cleanup dropped dead flag variables, six no-op inter-tier
+  `add_dependencies()` edges that serialized compilation for no correctness
+  benefit (~9% faster clean builds), and a duplicated TBB linking block.
+- **Docs**: standards references (CMake house style, build-standardization
+  record) now point at the `OldCrow/standards` fleet repo instead of an
+  unversioned local path.
+
+### Fixed
+
+- **GCC `-Wcast-align=strict` on SIMD store buffers**: four `int64_t*` ->
+  `__m128i*` casts in the AVX/AVX2 log-exponent paths now go through `void*`
+  so the compiler can see the `alignas(16)` guarantee; no runtime change.
+- **Strict-build test warnings**: braced an ambiguous `if`/`EXPECT_FALSE`
+  (dangling-else) in `test_batch_math_regressions.cpp`, and made an implicit
+  `size_t` -> `double` conversion explicit in `benchmark_simd_all`.
+
+### CI
+
+- **Strict `-Werror` gate replaces the Debug/Release matrix**: collapses the
+  6-way Debug/Release matrix to one Release build per platform/compiler and
+  adds a Strict job that finally exercises the long-defined but never-run
+  `-Werror` build type — first real runs surfaced genuine conversion warnings
+  across sources, tests, and tools (fixed with explicit casts) plus two
+  GCC-only false-positive categories (`-Wredundant-decls`, 25 sites;
+  `-Wduplicated-branches`, 4) removed from the warning set with rationale —
+  alongside a new ASan+UBSan job, docs-path skipping, and a monthly schedule
+  canary. Vestigial `release.yml`/`.releaserc.json` semantic-release
+  automation removed (superseded by the documented manual release process).
+- **Workflow lint fixes**: cleared shellcheck/actionlint findings (SC2129,
+  SC2193, SC2086, SC2028, SC2038) surfaced by the new lint-workflows job, and
+  gated zizmor on medium+ severity instead of any finding so stylistic
+  suggestions stop failing the job.
+- **OOM-bounded parallelism**: bounded Strict/Sanitizers/AVX-512 build
+  parallelism to the runner's available memory — bare `--parallel` spawned an
+  unbounded compile per ready target and OOM-killed hosted runners (exit 143)
+  2-3 minutes into the build.
+- **zizmor 1.28.0**: bumped past the yanked 1.27.0 release (GHSA-f42p-wjw5-97qh
+  — cleartext token logging under verbose debug output); this repo's job never
+  ran with the affected flags, but the bump closes the latent exposure.
+
 ## [2.1.0] - 2026-07-19
 
 ### Security
