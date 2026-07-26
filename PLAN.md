@@ -173,8 +173,10 @@ file's git history.
 - 2026-07-24 CI lint hardening: zizmor gated on medium+ severity, latent
   shellcheck findings cleared, `lint-workflows` job green.
 - 2026-07-21/23 Build-stack standardization Phases 0–4 (cross-repo effort in
-  `~/Development/BUILD-STANDARDIZATION-PLAN.md`, house style in
-  `CMAKE-HOUSE-STYLE.md`): TBB block dedup, GNUInstallDirs install contract
+  the fleet standards repo:
+  [record](https://github.com/OldCrow/standards/blob/main/records/BUILD-STANDARDIZATION-PLAN.md),
+  [house style](https://github.com/OldCrow/standards/blob/main/CMAKE-HOUSE-STYLE.md)):
+  TBB block dedup, GNUInstallDirs install contract
   + installed-package CI smoke test, CMakePresets.json and CMake minimum
   3.25, `cmake/Threading.cmake` + `cmake/CompilerFlags.cmake` extraction,
   tests/tools subdirectory CMakeLists, per-target `libstats_apply_warnings()`,

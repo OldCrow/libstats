@@ -124,7 +124,8 @@ The build system supports cross-compiler compatibility testing with specialized 
 
 ### CMake standard
 
-Full rules: `CMAKE-HOUSE-STYLE.md` in the Development root on dev machines (master copy, not checked in); this section is self-sufficient for this repo. libstats deviations:
+Full rules: [CMake House Style](https://github.com/OldCrow/standards/blob/main/CMAKE-HOUSE-STYLE.md)
+in the fleet standards repo; this section is self-sufficient for this repo. libstats deviations:
 - Target-first scoping, `LIBSTATS_`-prefixed options, warnings PRIVATE and
   `PROJECT_IS_TOP_LEVEL`-gated: landed (Phase 3B). Threading detection and
   compiler-flag/warning-set logic live in `cmake/Threading.cmake` and
@@ -506,6 +507,10 @@ compile time. A clean build after any enum or table change verifies consistency.
 - Thresholds derived from four-architecture profiling data in `data/profiles/dispatcher/`
 
 ## CI / Validation
+
+Fleet-wide workflow rules (runner budget, bounded parallelism, ISA hazards on
+hosted runners, action pinning):
+[CI House Style](https://github.com/OldCrow/standards/blob/main/CI-HOUSE-STYLE.md).
 
 ### Running Tests
 ```bash
