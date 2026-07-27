@@ -227,11 +227,11 @@ def check_phase1_effectiveness():
 
     # Determine correct paths
     if os.path.exists('include'):
-        forward_decl_path = 'include/common/forward_declarations.h'
-        libstats_path = 'include/libstats.h'
+        forward_decl_path = 'include/libstats/common/forward_declarations.h'
+        libstats_path = 'include/libstats/libstats.h'
     elif os.path.exists('../include'):
-        forward_decl_path = '../include/common/forward_declarations.h'
-        libstats_path = '../include/libstats.h'
+        forward_decl_path = '../include/libstats/common/forward_declarations.h'
+        libstats_path = '../include/libstats/libstats.h'
     else:
         print("   ❌ Cannot find include directory")
         return

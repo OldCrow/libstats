@@ -173,9 +173,9 @@ class HeaderAnalyzer:
 
         # Analyze a few key headers
         key_headers = [
-            'include/distributions/gaussian.h',
-            'include/core/distribution_base.h',
-            'include/libstats.h'
+            'include/libstats/distributions/gaussian.h',
+            'include/libstats/core/distribution_base.h',
+            'include/libstats/libstats.h'
         ]
 
         for header in key_headers:

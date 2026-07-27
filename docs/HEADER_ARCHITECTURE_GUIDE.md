@@ -21,13 +21,14 @@ Focused include:
 
 ```text
 include/
-├── libstats.h
-├── common/
-├── core/
-├── distributions/
-├── platform/
-└── stats/
-    └── analysis/
+└── libstats/
+    ├── libstats.h
+    ├── common/
+    ├── core/
+    ├── distributions/
+    ├── platform/
+    └── stats/
+        └── analysis/
 ```
 
 ## Core headers
@@ -114,14 +115,12 @@ Removed v1.x APIs:
 
 ## Installed include path
 
-Installed headers are expected under:
+Installed headers land under:
 
 ```text
 include/libstats/
 ```
 
-The build tree mirrors this via:
-
-```text
-build/include_shim/libstats/
-```
+The source tree mirrors this layout directly (`<src>/include/libstats/`), so
+the build tree and the install tree resolve `#include "libstats/core/foo.h"`
+identically with no shim, symlink, or copy step involved.

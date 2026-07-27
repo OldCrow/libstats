@@ -76,7 +76,8 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 7 open / 0 closed.
+- **v2.2.0 — Accuracy & Performance** (open, #1): 6 open / 1 closed
+  (#83 include restructure shipped 2026-07-26).
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
     macOS/AppleClang.
@@ -92,8 +93,6 @@ and attached issues were unchanged; only titles moved.
     5–10× slower than scipy.
   - #52 — Binomial CDF slower than scipy; PMF summation and scalar lgamma
     are the limiting factors.
-  - #83 — Restructure `include/` to `include/libstats/` and delete the
-    include shim.
 - **v2.3.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
@@ -130,10 +129,15 @@ and attached issues were unchanged; only titles moved.
   threshold, so for x in that one-double window the kernels return
   `exp(exp_max)` (~214 ULP low) where `std::exp` is still finite. This is a
   deliberate safety margin against a 1-ULP overshoot to inf; left as is.
-- The include shim (`LIBSTATS_INCLUDE_SHIM_DIR`, CMakeLists.txt:436) still
-  costs a configure-time symlink on Unix and a flat copy plus a
-  `libstats_refresh_shim` ALL-target with per-target ordering dependencies
-  on Windows, to dodge MSBuild copy/read races. #83 deletes it.
+- `detect_threading_systems()` (cmake/Threading.cmake:6) early-returns on
+  its cached completion flag, but imported targets are not cache-persistent
+  — so any reconfigure of an existing build dir skips
+  `find_package(Threads)`, and the `if(TARGET Threads::Threads)` guard
+  (CMakeLists.txt) silently drops `Threads::Threads` from the PUBLIC link
+  and the installed export. Found 2026-07-26 while verifying #83's
+  install-tree byte-diff (the stale-cache baseline was the side missing the
+  entry). Pre-existing, orthogonal to #83; needs an issue. On Linux this
+  can underlink installed-package consumers.
 
 ## Cross-Repo Dependencies [OPEN]
 pylibstats consumes this repo two ways — a `find_package` version floor and
@@ -159,17 +163,17 @@ before starting either.
    scoped PRIVATE to the affected targets, fusion requested only in source,
    at ≤~8% measured cost. Authoring is machine-independent; **re-measuring
    the NEON ULP bounds needs the Mac Mini M1.**
-2. **#83** — the include restructure. Specification and four verification
-   gates are written on the issue; the install-tree byte-diff is the primary
-   oracle. Atomic change, roughly half a day including one CI round.
-3. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
+2. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
    backlog (3–5× on Zen 4, and the gap widens with SIMD width).
-4. Settle the corvus-adoption question above, then work the rest of v2.2.0
+3. Settle the corvus-adoption question above, then work the rest of v2.2.0
    before starting v2.3.0/v2.4.0 or the v3.0.0 refactor.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-07-26 #83 include restructure: `include/` → `include/libstats/`,
+  shim machinery deleted; install tree byte-identical, 135/135 TUs show
+  only the predicted include-dir change, 49/49 tests + both consumers pass.
 - 2026-07-24 CI lint hardening: zizmor gated on medium+ severity, latent
   shellcheck findings cleared, `lint-workflows` job green.
 - 2026-07-21/23 Build-stack standardization Phases 0–4 (cross-repo effort in

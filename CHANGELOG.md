@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Include tree restructured to mirror the install tree (#83)**: all 79
+  headers moved `include/` → `include/libstats/` (pure renames), deleting
+  the include-shim machinery — the configure-time symlink on macOS/Linux
+  and the flat copy + `libstats_refresh_shim` ALL-target + per-target
+  ordering dependencies that dodged MSBuild copy/read races on Windows.
+  The build tree now serves the same dual include contract as the installed
+  package (`#include "libstats/core/foo.h"` and bare `#include "libstats.h"`);
+  the generated `libstats_version.h` moves to `<build>/generated/`. The
+  installed package is byte-identical; no consumer-facing change.
 - **Build-stack standardization (CMake)**: five CMake presets (`dev`, `release`,
   `debug`, `rel-with-debug`, `strict`) replace ad hoc configure invocations, and
   the CMake minimum rises to 3.25. Install paths now go through GNUInstallDirs,

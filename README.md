@@ -144,7 +144,7 @@ int main() {
 
 ```
 libstats/
-├── include/           # Modular header architecture
+├── include/libstats/  # Modular header architecture (mirrors the installed layout)
 │   ├── libstats.h        # Complete library (single include)
 │   ├── core/             # Core mathematical and statistical components
 │   ├── distributions/    # Statistical distributions (Gaussian, Exponential, etc.)

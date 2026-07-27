@@ -123,7 +123,7 @@ The L2 boundary is architecture-specific and must not be assumed to hold on AVX2
 
 ### Bessel function tier selection
 
-`include/core/bessel.h` provides two tiers for `bessel_i0`, `bessel_i1`, and `log_bessel_i0`:
+`include/libstats/core/bessel.h` provides two tiers for `bessel_i0`, `bessel_i1`, and `log_bessel_i0`:
 
 - **Tier 1** (MSVC/GCC/Clang with `LIBSTATS_HAS_CXX17_BESSEL`): delegates to `std::cyl_bessel_i` (C++17 §29.9.3). Achieves <1 ULP against scipy for κ=2.
 - **Tier 2** (AppleClang/macOS, `LIBSTATS_HAS_CXX17_BESSEL` not defined): A&S §9.8.1–9.8.4 polynomial approximation. Documented precision: <1.6×10⁻⁷.

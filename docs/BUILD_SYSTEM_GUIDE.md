@@ -81,19 +81,19 @@ Aliases:
 - `libstats::headers`
 - `libstats::simd`
 
-## Include shim
+## Include layout
 
-The build tree exposes headers under:
+The source tree mirrors the install tree directly: headers live under
+`include/libstats/`, so `#include "libstats/core/foo.h"` resolves identically
+in the build tree and after `cmake --install` — no shim, symlink, or copy
+step is involved (issue #83 removed the previous include-shim machinery,
+which cost a configure-time symlink on macOS/Linux and a flat copy plus an
+ALL-target refresh on Windows).
 
-```text
-build/include_shim/libstats/
-```
-
-This matches the install-tree path (`include/libstats/`) so `#include "libstats/core/foo.h"` works identically in both contexts.
-
-Implementation is platform-guarded:
-- **macOS/Linux**: `build/include_shim/libstats` is a directory symlink to `include/`. Header edits are immediately visible to the compiler with no re-run of cmake required.
-- **Windows**: a flat copy is used (symlinks require Developer Mode or elevated privileges). A `libstats_refresh_shim` build target re-copies the directory on every `cmake --build` so mid-session edits are picked up automatically.
+The build tree carries the same dual include contract as the installed
+package: `<src>/include` (for `#include "libstats/core/foo.h"`),
+`<src>/include/libstats` (for the bare `#include "libstats.h"`), and
+`<build>/generated` (for the configure-time-generated `libstats_version.h`).
 
 ## SIMD detection
 
@@ -170,16 +170,11 @@ Built tools live in `build/tools/`:
 
 ### Header not found
 
-Use the build-tree shim include path:
+For direct ad hoc compilation outside CMake, add both source include roots
+(the dual bare/`libstats/`-prefixed contract, see AGENTS.md):
 
 ```bash
--Ibuild/include_shim
-```
-
-or project source include path for direct ad hoc compilation:
-
-```bash
--I./include
+-I./include -I./include/libstats
 ```
 
 ### SIMD source does not compile

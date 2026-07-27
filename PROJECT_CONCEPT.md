@@ -129,12 +129,12 @@ The library supports four execution strategies:
 - **PARALLEL** — multi-threaded execution for larger workloads
 - **WORK_STEALING** — dynamic load balancing for large or irregular workloads
 
-Strategy selection uses empirically-derived per-architecture thresholds (from profiling bundles across four machines) stored as a constexpr lookup table in `include/core/dispatch_thresholds.h`. Power users can override strategy selection explicitly via `getXxxWithStrategy()` variants.
+Strategy selection uses empirically-derived per-architecture thresholds (from profiling bundles across four machines) stored as a constexpr lookup table in `include/libstats/core/dispatch_thresholds.h`. Power users can override strategy selection explicitly via `getXxxWithStrategy()` variants.
 
 ## Repository Structure
 
 ### Core directories
-- `include/` — public headers and internal header structure
+- `include/libstats/` — public headers and internal header structure (mirrors the installed layout)
 - `src/` — implementation files
 - `tests/` — correctness, integration, and enhanced tests (all GTest-based)
 - `examples/` — usage-oriented demonstrations
@@ -144,7 +144,7 @@ Strategy selection uses empirically-derived per-architecture thresholds (from pr
 - `data/profiles/dispatcher/` — profiling bundles for empirical threshold derivation
 
 ### User-facing entry points
-- `include/libstats.h` — umbrella header
+- `include/libstats/libstats.h` — umbrella header
 - `README.md` — project overview and onboarding
 - `AGENTS.md` — repository-specific development guidance for agents
 

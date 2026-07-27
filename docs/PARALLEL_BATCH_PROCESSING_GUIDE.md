@@ -82,7 +82,7 @@ The default dispatcher considers:
 Thresholds live in:
 
 ```text
-include/core/dispatch_thresholds.h
+include/libstats/core/dispatch_thresholds.h
 ```
 
 These thresholds are architecture-specific. Performance results from AVX2, NEON, and AVX-512 systems should not be compared directly.

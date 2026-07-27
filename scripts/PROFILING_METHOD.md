@@ -1,7 +1,7 @@
 # Dispatcher Threshold Profiling Method
 
 This document is the authoritative reference for how dispatch thresholds in
-`include/core/dispatch_thresholds.h` are measured and derived.  All agents
+`include/libstats/core/dispatch_thresholds.h` are measured and derived.  All agents
 that capture profiling runs or encode table values **must** follow this method
 exactly to ensure consistency across architectures and sessions.
 

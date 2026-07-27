@@ -42,7 +42,8 @@ When adding a public header:
 2. Use `#pragma once`.
 3. Include only what the header needs.
 4. Use `libstats/...` include paths for installed-header compatibility.
-5. Add tests that compile through the installed-style include shim.
+5. Add tests that compile through the installed-style include path
+   (`include/libstats/...`, identical in the build tree and the install tree).
 6. Update documentation if it changes public API.
 
 ## Analysis headers
@@ -51,12 +52,10 @@ Generic analysis headers may be added to `stats/analysis/analysis.h`.
 
 Distribution-specific analysis headers must be included explicitly by users. Do not add them to the generic umbrella unless the design changes deliberately.
 
-## Include shim
+## Installed-style include paths
 
-The build creates:
-
-```text
-build/include_shim/libstats/
-```
-
-Use this when testing installed-style include paths.
+The source tree mirrors the install tree directly at `include/libstats/`, so
+`#include "libstats/core/foo.h"` and the bare `#include "libstats.h"` both
+resolve the same way in the build tree and after `cmake --install` — no
+shim, symlink, or copy step is involved (issue #83 removed the previous
+include-shim machinery).
