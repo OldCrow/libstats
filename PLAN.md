@@ -136,8 +136,9 @@ and attached issues were unchanged; only titles moved.
   (CMakeLists.txt) silently drops `Threads::Threads` from the PUBLIC link
   and the installed export. Found 2026-07-26 while verifying #83's
   install-tree byte-diff (the stale-cache baseline was the side missing the
-  entry). Pre-existing, orthogonal to #83; needs an issue. On Linux this
-  can underlink installed-package consumers.
+  entry). Pre-existing, orthogonal to #83; filed as #90 (also covers the
+  identical TBB::tbb pattern). On Linux this can underlink
+  installed-package consumers.
 
 ## Cross-Repo Dependencies [OPEN]
 pylibstats consumes this repo two ways — a `find_package` version floor and
