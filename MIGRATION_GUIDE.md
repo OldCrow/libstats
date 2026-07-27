@@ -224,7 +224,7 @@ VoidResult validateFoo(double x) {
 `validateBetaParameters`, `validateChiSquaredParameters`, `validateStudentTParameters`
 (and all other `validate*Parameters` functions) are no longer private static
 members of their distribution classes. They are now free functions returning
-`VoidResult`, defined in `include/core/error_handling.h`, `namespace stats`.
+`VoidResult`, defined in `include/libstats/core/error_handling.h`, `namespace stats`.
 
 ```cpp
 // v1.x
@@ -246,7 +246,7 @@ function directly.
 
 v1.x used `DistributionTraits<D>` template specializations (SFINAE) to
 constrain generic code to valid distribution types. v2.0.0 replaces this with
-C++20 concepts in `stats::concepts` (`include/core/distribution_concepts.h`):
+C++20 concepts in `stats::concepts` (`include/libstats/core/distribution_concepts.h`):
 
 | Concept | Requirement |
 |---|---|
@@ -271,7 +271,7 @@ Two practical consequences for custom distributions:
 
 v1.x had two parallel enums for the same concept: a standalone `SIMDLevel`
 and `SIMDPolicy`'s own nested level enum. v2.0.0 makes `SIMDPolicy::Level` a
-type alias for the canonical `SIMDLevel` (`include/platform/simd_policy.h`):
+type alias for the canonical `SIMDLevel` (`include/libstats/platform/simd_policy.h`):
 
 ```cpp
 using Level = SIMDLevel;  // was a separate nested enum in v1.x

@@ -42,7 +42,7 @@ $env:PROCESSOR_IDENTIFIER
 The active SIMD tier changes fundamentally between machines. SIMD code paths, performance thresholds, and test results are architecture-dependent. If the machine has changed since the last session:
 - Note the change explicitly.
 - Verify the build directory is current for this architecture (`cmake ..` may be needed).
-- Dispatch thresholds in `include/core/dispatch_thresholds.h` are architecture-specific.
+- Dispatch thresholds in `include/libstats/core/dispatch_thresholds.h` are architecture-specific.
 - Benchmark results are not comparable across architectures.
 
 | SIMD Tier | Example CPUs | Active simd_*.cpp files |
@@ -190,13 +190,13 @@ macOS (Ventura 13+); alternate LLVM compiler setup is not required and not suppo
 ```bash
 # macOS — system AppleClang (recommended)
 clang++ -std=c++20 -stdlib=libc++ \
-  -I./include \
+  -I./include -I./include/libstats \
   -L./build \
   your_test.cpp -o test_output ./build/libstats.a
 
 # Linux — GCC 13+ or Clang 17+
 g++ -std=c++20 -Wall -Wextra -O2 \
-  -I./include \
+  -I./include -I./include/libstats \
   -L./build \
   your_test.cpp -o test_output -lstats
 ```
@@ -218,7 +218,7 @@ int main() {
 
 Troubleshooting:
 - **Library not found**: Use static linking (`./build/libstats.a`) instead of `-lstats`.
-- **Header not found**: Verify `-I./include` path is correct relative to the project root.
+- **Header not found**: Verify `-I./include -I./include/libstats` paths are correct relative to the project root — the bare `#include "libstats.h"` template above resolves via `-I./include/libstats`, while any `#include "libstats/core/foo.h"`-style include resolves via `-I./include`.
 - **C++20 features not available**: Ensure compiler version meets minimum (AppleClang 15, GCC 13, Clang 17).
 
 ## Platform-Specific Notes
@@ -355,7 +355,7 @@ Each implemented distribution provides: PDF/CDF/Quantiles, Statistical Moments, 
 
 Header architecture:
 ```
-include/
+include/libstats/           # Mirrors the installed header layout
 ├── libstats.h              # Complete library (single include)
 ├── core/                   # Core mathematical and statistical components
 │   ├── constants/          # Mathematical, precision, statistical constants
@@ -409,23 +409,23 @@ Object library architecture: the CMake system uses dependency-aware object libra
 
 ### Creating New Distributions
 
-The registration checklist is authoritative in `include/core/distribution_meta.h`. Geometric (16), Laplace (17), and Cauchy (18) are the most recently implemented (2026-06-28); for any future distribution (N+1), follow all 6 steps below.
+The registration checklist is authoritative in `include/libstats/core/distribution_meta.h`. Geometric (16), Laplace (17), and Cauchy (18) are the most recently implemented (2026-06-28); for any future distribution (N+1), follow all 6 steps below.
 
 **Steps for any future distribution (N+1):**
 
-1. **Append** the new `DistributionType` enum value to `include/core/distribution_type.h`
+1. **Append** the new `DistributionType` enum value to `include/libstats/core/distribution_type.h`
    (append-only; never reorder — values are used as array indices).
-2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/core/distribution_meta.h`
+2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/libstats/core/distribution_meta.h`
    (enum name, display name, `is_discrete`, `is_delegation_wrapper`). Bump the
    `static_assert(kDistributionTypeCount >= N, ...)` minimum to match the new count.
 3. **Append** one `ThresholdRow` to each of the four `kXxx` tables in
-   `include/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
+   `include/libstats/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
    For delegation wrappers (e.g. Geometric→NegBinomial, Cauchy→StudentT), the delegate's
    thresholds apply — copy them or leave NEVER and profile after implementation.
 
 4. **Implement** the distribution:
 
-   *Header* `include/distributions/dist.h` — use `exponential.h` as the reference:
+   *Header* `include/libstats/distributions/dist.h` — use `exponential.h` as the reference:
    - Inherit from `DistributionBase`.
    - Declare `static constexpr detail::DistributionType kDistributionType = detail::DistributionType::DIST_NAME;`
      and `static constexpr bool kIsDiscrete = false/true;` (must match the metadata row).
@@ -461,7 +461,7 @@ The registration checklist is authoritative in `include/core/distribution_meta.h
      VectorizedMatchesScalar, VectorizedSpeedup (timing-labelled), MLEFit.
 
 5. **Register** in four CMakeLists.txt locations (one top-level, three in
-   `tests/CMakeLists.txt`) and in `include/libstats.h`:
+   `tests/CMakeLists.txt`) and in `include/libstats/libstats.h`:
 
    *`CMakeLists.txt` (top-level) — `LIBSTATS_DISTRIBUTIONS_SOURCES`*, in the
    "Level 5: Distribution Implementations" block:
@@ -481,7 +481,7 @@ The registration checklist is authoritative in `include/core/distribution_meta.h
    *`tests/CMakeLists.txt` — timing label* (if the enhanced test has speedup assertions):
    Add `test_dist_enhanced` to the `set_tests_properties(... PROPERTIES LABELS "timing")` call.
 
-   *`include/libstats.h`* — inside `#ifdef LIBSTATS_FULL_INTERFACE`:
+   *`include/libstats/libstats.h`* — inside `#ifdef LIBSTATS_FULL_INTERFACE`:
    - Add `#include "distributions/dist.h"`
    - Add `using DistName = DistNameDistribution;` in the `namespace stats { ... }` type-alias block.
 

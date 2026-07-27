@@ -346,6 +346,6 @@ int main(int argc, char* argv[]) {
                "ops)\n\n"
             << "Matching tolerance: compiled within 2x of measured is MATCH.\n"
             << "Input must be strategy_profile_results.csv (raw data), not crossovers.csv.\n"
-            << "Edit include/core/dispatch_thresholds.h to apply changes.\n";
+            << "Edit include/libstats/core/dispatch_thresholds.h to apply changes.\n";
     });
 }

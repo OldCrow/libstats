@@ -233,7 +233,7 @@ if(NOT LIBSTATS_PORTABLE)
     # NOTE: the global flag must follow the (possibly LIBSTATS_MAX_SIMD_TIER-capped) LIBSTATS_HAS_*
     # results from detect_simd_features(), not just "AVX512 or else AVX2". Applying /arch:AVX2
     # globally regardless of a lower cap predefines the compiler's __AVX2__ macro for every TU
-    # (including src/simd_dispatch.cpp), which include/platform/simd.h's MSVC fallback then reads to
+    # (including src/simd_dispatch.cpp), which include/libstats/platform/simd.h's MSVC fallback then reads to
     # auto-#define LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
     # getDispatchTable() to reference vector_*_avx2 symbols that were never compiled (simd_avx2.cpp
     # is excluded by the cap), producing LNK2019 unresolved externals.
@@ -418,54 +418,20 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
 # architecture flags and are platform-dependent
 
 # =============================================================================
-# INCLUDE PATH SHIM FOR INSTALLED HEADER PREFIX
+# BUILD-TREE INCLUDE DIRECTORIES (dual contract, mirrors the install tree)
 # =============================================================================
-# Headers use #include "libstats/core/foo.h" so the include path is identical in the build tree and
-# the install tree (where headers land in include/libstats/).
-#
-# Implementation strategy (platform-guarded): macOS/Linux — a single directory symlink:
-# build/include_shim/libstats → <src>/include Any edit to a header is immediately visible to the
-# compiler; zero copy overhead per build. Re-running cmake is not required after header edits.
-#
-# Windows — a flat copy (symlinks require Developer Mode or elevated privileges and can trigger
-# "untrusted mount point" errors): copy_directory at configure time, refreshed by an ALL custom
-# target so mid-session header edits are picked up on the next cmake --build.
-#
-# Long-term: the canonical fix is to restructure include/ to include/libstats/ so the source tree
-# mirrors the install tree and no shim is needed at all. Tracked as a post-v2.0 task.
-set(LIBSTATS_INCLUDE_SHIM_DIR "${CMAKE_CURRENT_BINARY_DIR}/include_shim")
-set(LIBSTATS_INCLUDE_SHIM_LINK "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats")
-file(MAKE_DIRECTORY "${LIBSTATS_INCLUDE_SHIM_DIR}")
-file(REMOVE_RECURSE "${LIBSTATS_INCLUDE_SHIM_LINK}")
-if(WIN32)
-    execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/include"
-                "${LIBSTATS_INCLUDE_SHIM_LINK}" RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_RESULT)
-    if(NOT LIBSTATS_INCLUDE_SHIM_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to materialise include shim at ${LIBSTATS_INCLUDE_SHIM_LINK}")
-    endif()
-    # Re-copy on every build so mid-session header edits are picked up without requiring a cmake
-    # re-run. cmake -E copy_directory is timestamp-aware.
-    add_custom_target(
-        libstats_refresh_shim ALL
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/include"
-                "${LIBSTATS_INCLUDE_SHIM_LINK}"
-        COMMENT "Refreshing include shim"
-        VERBATIM)
-else()
-    execute_process(
-        COMMAND "${CMAKE_COMMAND}" -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/include"
-                "${LIBSTATS_INCLUDE_SHIM_LINK}" RESULT_VARIABLE LIBSTATS_INCLUDE_SHIM_RESULT)
-    if(NOT LIBSTATS_INCLUDE_SHIM_RESULT EQUAL 0)
-        message(
-            FATAL_ERROR "Failed to create include shim symlink at ${LIBSTATS_INCLUDE_SHIM_LINK}")
-    endif()
-endif()
+# Headers use #include "libstats/core/foo.h" (resolved via <src>/include) and libstats.h is also
+# reachable bare via #include "libstats.h" (resolved via <src>/include/libstats), matching the
+# installed package's dual INSTALL_INTERFACE contract below. Since the source tree now mirrors the
+# install tree directly (include/libstats/...), no shim/symlink/copy step is needed on any platform.
+set(LIBSTATS_BUILD_INCLUDE_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/include/libstats"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 # NEW-BS-1: Generate version header from CMake project() metadata so the runtime constants always
 # match the version in CMakeLists.txt.
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_version.h.in"
-               "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats_version.h" @ONLY)
+               "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h" @ONLY)
 
 # =============================================================================
 # CREATE OBJECT LIBRARIES FOR PARALLEL COMPILATION
@@ -474,67 +440,51 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_version.h.in"
 # add_dependencies() calls between the object libraries: they produce .o files that nothing consumes
 # until the final archive/link step, and header dependencies are tracked per-TU by the generator's
 # depfiles. Inter-tier add_dependencies (removed 2026-07-23) only serialized compilation into waves
-# and reduced build parallelism. The one real ordering constraint is Windows' include-shim refresh
-# (see the WIN32 block below).
+# and reduced build parallelism. There is no longer any include-shim ordering constraint on Windows
+# (removed with the include-shim machinery, see issue #83): headers are read directly from the
+# source tree, so there is nothing to race with.
 
 # Foundation object library (Level 0-1)
 add_library(libstats_foundation_obj OBJECT ${LIBSTATS_FOUNDATION_SOURCES})
-target_include_directories(libstats_foundation_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+target_include_directories(libstats_foundation_obj PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
 libstats_apply_warnings(libstats_foundation_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 
 # Core utilities object library (Level 2)
 add_library(libstats_core_utilities_obj OBJECT ${LIBSTATS_CORE_UTILITIES_SOURCES})
-target_include_directories(libstats_core_utilities_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+target_include_directories(libstats_core_utilities_obj PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
 libstats_apply_warnings(libstats_core_utilities_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 
 # Platform capabilities object library (Level 2)
 add_library(libstats_platform_obj OBJECT ${LIBSTATS_PLATFORM_SOURCES})
-target_include_directories(libstats_platform_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+target_include_directories(libstats_platform_obj PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
 libstats_apply_warnings(libstats_platform_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 
 # Advanced infrastructure object library (Level 3)
 add_library(libstats_infrastructure_obj OBJECT ${LIBSTATS_INFRASTRUCTURE_SOURCES})
-target_include_directories(libstats_infrastructure_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+target_include_directories(libstats_infrastructure_obj PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
 libstats_apply_warnings(libstats_infrastructure_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 
 # Distribution framework object library (Level 4)
 add_library(libstats_framework_obj OBJECT ${LIBSTATS_FRAMEWORK_SOURCES})
-target_include_directories(libstats_framework_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+target_include_directories(libstats_framework_obj PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
 libstats_apply_warnings(libstats_framework_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 
 # Distribution implementations object library (Level 5)
 add_library(libstats_distributions_obj OBJECT ${LIBSTATS_DISTRIBUTIONS_SOURCES})
-target_include_directories(libstats_distributions_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+target_include_directories(libstats_distributions_obj PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
 libstats_apply_warnings(libstats_distributions_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
 
 # SIMD object library (Platform-dependent, can compile in parallel)
 add_library(libstats_simd_obj OBJECT ${LIBSTATS_SIMD_SOURCES})
-target_include_directories(libstats_simd_obj PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR})
+target_include_directories(libstats_simd_obj PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
 libstats_apply_warnings(libstats_simd_obj) # Phase 3B/B5
 # SIMD definitions will be linked through interface target
-
-# Windows: ensure the shim copy finishes before any cl.exe job opens the copied headers. MSBuild
-# runs ALL custom targets in parallel with compilation; without this ordering the copy_directory and
-# compiler reads race on the same files, producing "Permission denied".
-if(WIN32)
-    foreach(
-        _shim_dep
-        libstats_foundation_obj
-        libstats_core_utilities_obj
-        libstats_platform_obj
-        libstats_infrastructure_obj
-        libstats_framework_obj
-        libstats_distributions_obj
-        libstats_simd_obj)
-        add_dependencies(${_shim_dep} libstats_refresh_shim)
-    endforeach()
-endif()
 
 # =============================================================================
 # COMBINED SOURCE LIST FOR FINAL LIBRARIES
@@ -553,7 +503,9 @@ set(LIBSTATS_ALL_OBJECTS
 add_library(libstats_headers INTERFACE)
 target_include_directories(
     libstats_headers
-    INTERFACE $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
+              $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
               $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
               $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
 
@@ -561,7 +513,9 @@ target_include_directories(
 add_library(libstats_static STATIC ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
     libstats_static
-    PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
+           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
 # Phase 3B/B5: has no compiled sources of its own (only $<TARGET_OBJECTS:...> from the object
@@ -581,7 +535,9 @@ endif()
 add_library(libstats_shared SHARED ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
     libstats_shared
-    PUBLIC $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
+           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
 # Phase 3B/B5: see libstats_static above -- no compiled sources of its own, applied for structural
@@ -731,20 +687,24 @@ install(
     INCLUDES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# Install headers (exclude editor artifacts and macOS metadata)
+# Install headers (exclude editor artifacts and macOS metadata). Note: no trailing slash on
+# "include/libstats" -- DIRECTORY installs the libstats/ directory itself into DESTINATION, landing
+# its contents at ${CMAKE_INSTALL_INCLUDEDIR}/libstats/... (same result as the old include/ ->
+# .../libstats mapping, now that the source tree already mirrors the install tree).
 install(
-    DIRECTORY include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats
+    DIRECTORY include/libstats
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     PATTERN ".DS_Store" EXCLUDE
     PATTERN "*.bak" EXCLUDE
     PATTERN "*.bak2" EXCLUDE
     PATTERN ".gitkeep" EXCLUDE)
 
 # libstats.h #includes "libstats_version.h" (bare, unnamespaced), generated at configure time into
-# the include shim (see NEW-BS-1 above) and reachable at build time via
-# $<BUILD_INTERFACE:${LIBSTATS_INCLUDE_SHIM_DIR}>. Without this, an installed find_package(libstats)
-# consumer fails to compile: the generated header was never part of the installed tree.
-install(FILES "${LIBSTATS_INCLUDE_SHIM_DIR}/libstats_version.h"
+# ${CMAKE_CURRENT_BINARY_DIR}/generated (see NEW-BS-1 above) and reachable at build time via
+# $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>. Without this, an installed
+# find_package(libstats) consumer fails to compile: the generated header was never part of the
+# installed tree.
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h"
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
 
 # Install CMake config files for find_package support

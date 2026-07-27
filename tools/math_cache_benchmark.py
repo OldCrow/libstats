@@ -197,7 +197,7 @@ class MathCacheBenchmark:
         current_dir = Path.cwd()
 
         # Try to find project root by looking for key files
-        project_indicators = ['CMakeLists.txt', 'include/libstats.h', 'src/']
+        project_indicators = ['CMakeLists.txt', 'include/libstats/libstats.h', 'src/']
 
         # Check current directory first
         if all((current_dir / indicator).exists() for indicator in project_indicators):

@@ -107,7 +107,7 @@ class StaticAnalyzer:
         results = {}
 
         for common_header in common_headers:
-            header_path = self.project_root / "include" / common_header
+            header_path = self.project_root / "include" / "libstats" / common_header
             if not header_path.exists():
                 results[common_header] = {'status': 'NOT_FOUND'}
                 continue
@@ -143,7 +143,7 @@ class StaticAnalyzer:
         # Analyze all headers
         print("🎯 Generating optimization recommendations...")
 
-        distribution_headers = list(self.project_root.glob("include/distributions/*.h"))
+        distribution_headers = list(self.project_root.glob("include/libstats/distributions/*.h"))
 
         # Check distribution header consistency
         dist_includes = defaultdict(int)

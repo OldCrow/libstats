@@ -263,7 +263,7 @@ void demonstrate_performance_dispatcher() {
         std::cout << std::setw(15) << size << std::setw(22) << strategyToString(sg) << std::setw(22)
                   << strategyToString(se) << std::setw(22) << strategyToString(sb) << "\n";
     }
-    std::cout << "\nThresholds are in include/core/dispatch_thresholds.h and are tuned\n"
+    std::cout << "\nThresholds are in include/libstats/core/dispatch_thresholds.h and are tuned\n"
               << "per architecture using the strategy_profile tool.\n";
 }
 

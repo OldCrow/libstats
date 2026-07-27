@@ -8,7 +8,7 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     target_link_libraries(${EXAMPLE_NAME} PRIVATE libstats_static)
 
     # Add include directories
-    target_include_directories(${EXAMPLE_NAME} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR}
+    target_include_directories(${EXAMPLE_NAME} PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS}
                                                        ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
     # Phase 3B/B5: previously inherited the project's warning flags via directory-scope

@@ -68,7 +68,7 @@ function(configure_common_test_settings TEST_NAME)
 
     # Add include directories
     target_include_directories(
-        ${TEST_NAME} PRIVATE ${LIBSTATS_INCLUDE_SHIM_DIR} ${CMAKE_SOURCE_DIR}/src
+        ${TEST_NAME} PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/src
                              ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include)
     libstats_apply_warnings(${TEST_NAME}) # Phase 3B/B5 -- single insertion point for every test
                                           # target

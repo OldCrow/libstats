@@ -37,7 +37,7 @@ namespace stats {
 using namespace stats::detail;
 using namespace stats::arch::simd;
 
-// result_of_t is now defined canonically in include/platform/internal/type_traits.h
+// result_of_t is now defined canonically in include/libstats/platform/internal/type_traits.h
 // and pulled in transitively via work_stealing_pool.h.
 
 // Thread-local storage for current worker ID

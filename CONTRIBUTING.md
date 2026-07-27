@@ -106,7 +106,7 @@ All contributions must include appropriate tests:
 
 ```
 libstats/
-├── include/           # Public headers
+├── include/libstats/  # Public headers (mirrors the installed layout)
 ├── src/              # Implementation files
 ├── tests/            # Unit and integration tests
 ├── examples/         # Usage examples
@@ -117,20 +117,20 @@ libstats/
 ### Adding New Distributions
 
 When contributing new probability distributions, follow the 5-step registration
-checklist in `include/core/distribution_meta.h` (authoritative), then implement:
+checklist in `include/libstats/core/distribution_meta.h` (authoritative), then implement:
 
-1. **Append** the `DistributionType` enum value to `include/core/distribution_type.h`
+1. **Append** the `DistributionType` enum value to `include/libstats/core/distribution_type.h`
    (append-only — values are used as array indices).
-2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/core/distribution_meta.h`.
+2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/libstats/core/distribution_meta.h`.
 3. **Append** one `ThresholdRow` to each of the four `kXxx` tables in
-   `include/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
+   `include/libstats/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
 4. **Implement** the distribution (see `exponential.h`/`.cpp` as the reference template):
    - Inherit from `DistributionBase`, implement all pure virtual methods.
    - Full statistical interface: PDF/LogPDF/CDF/quantile/sampling/MLE/`parallelBatchFit`.
    - Parameter validation and factory methods (`Result<T>`/`VoidResult` API).
    - SIMD-optimized batch operations via the `VectorOps` pipeline in `*BatchUnsafeImpl`.
    - Tests: `*_basic.cpp` standalone + `*_enhanced.cpp` GTest with speedup assertions.
-5. **Register** in `CMakeLists.txt` and `include/libstats.h`.
+5. **Register** in `CMakeLists.txt` and `include/libstats/libstats.h`.
 
 ### SIMD Development
 
