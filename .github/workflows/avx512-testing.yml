@@ -86,8 +86,10 @@ jobs:
       if: env.AVX512_SUPPORTED == 'true'
       working-directory: build
       run: |
-        # Run all tests
-        ctest --output-on-failure --parallel
+        # Exclude timing and benchmark tests: speedup assertions require a quiet
+        # dedicated machine and serial execution. Run them locally with -j1 -L timing.
+        # (Same exclusion as ci.yml — hosted runners are shared vCPUs.)
+        ctest --output-on-failure --parallel -LE "timing|benchmark"
 
         # Run specific SIMD verification tool
         if [ -f "./tools/simd_verification" ]; then
