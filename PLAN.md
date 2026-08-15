@@ -158,6 +158,41 @@ and attached issues were unchanged; only titles moved.
   only" adoption and the failure mode goes in the report — it does not end
   the spike.
 
+  **S1 COMPLETE 2026-08-15 — both configs pass; the Config B risk did not
+  materialise.** Config B (MSVC 19.51 consumer + clang-cl-built installed
+  corvus) links, runs, and dispatches **AVX3_ZEN4**; Config A (all-MSVC
+  FetchContent at the `v0.5.0` tag) dispatches **AVX2**, capped by
+  `HWY_BROKEN_MSVC` as predicted. Both probes pass with zero failures
+  against the consumer's own `std::cyl_bessel_i` (≤ 2.3e-16, many rows
+  bit-identical), over a kappa sweep straddling corvus's x_s = 8 regime
+  split. The two configs' probe output is **byte-identical except the
+  `active_target` line**, so A-vs-B is a performance choice, not an
+  accuracy one.
+
+  **The tier is set by the compiler that builds corvus's TUs, not by the
+  delivery mechanism** — A and B varied both at once, so a third run
+  de-confounded them: FetchContent + clang-cl also gives AVX3_ZEN4, in
+  177 s. Matrix: FetchContent+MSVC AVX2; FetchContent+clang-cl AVX3_ZEN4;
+  installed-clang-cl + MSVC-consumer AVX3_ZEN4. What the installed path
+  actually buys is **decoupling** — corvus on clang-cl while this repo
+  stays pinned to `cl.exe` — which matters only to the extent libstats IS
+  pinned (CI and the pylibstats wheel path are the real constraints, and
+  clang-cl is MSVC-ABI-compatible, so "pinned" needs deciding, not
+  assuming). An all-clang-cl libstats build would reach AVX3 from plain
+  FetchContent with no prefix at all. A third lever exists for an
+  MSVC-pinned build: corvus's `CORVUS_MSVC_UNBLOCK_AVX512` (measured
+  working there, all gates pass, deliberately unsupported upstream).
+  Secondary datum: clang-cl builds corvus 3.9x faster than cl.exe on the
+  same config (177 s vs 682 s).
+
+  **Open question for S4, not answerable from S1:** whether a Config A
+  adoption would leave these kernels at AVX2 inside a binary whose own
+  hand-rolled paths run AVX-512 — that depends on which compiler libstats
+  commits to on Windows, which is a libstats decision this spike does not
+  make. Probe sources and five re-runnable scripts are in this session's
+  scratchpad; S4 folds them into the report. **Next: S2** (the Tier 0
+  wrappers), with the log-composition small-x adjudication written first.
+
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
   enable a branchless Discrete CDF and Uniform PDF/LogPDF. Low priority,
