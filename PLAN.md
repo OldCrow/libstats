@@ -76,9 +76,10 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 6 open / 3 closed
+- **v2.2.0 — Accuracy & Performance** (open, #1): 7 open / 3 closed
   (#83 include restructure shipped 2026-07-26; #92 and #93 closed
-  2026-08-15 — see Resolved log).
+  2026-08-15 — see Resolved log; #95 added to the milestone 2026-08-15,
+  since #51 depends on it and already sat here).
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
     macOS/AppleClang.
@@ -94,6 +95,12 @@ and attached issues were unchanged; only titles moved.
     5–10× slower than scipy.
   - #52 — Binomial CDF slower than scipy; PMF summation and scalar lgamma
     are the limiting factors.
+  - #95 — SIMD trig surface: no `vector_sin` at any tier, and the four x86
+    `vector_cos` kernels measure ~6.5e-11 absolute (~2.9e5 ULP) against
+    NEON's clean-room 0.50–0.78 ULP. **Gates #51** — its series recipe
+    cannot reach ≤5e-16 on x86 until this is fixed. Already reaching the
+    shipped VonMises batch PDF, where two test files relax to 1e-10 rather
+    than fix the kernel — #47 with the platforms swapped.
 - **v2.3.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
@@ -106,18 +113,6 @@ and attached issues were unchanged; only titles moved.
   boilerplate into a CRTP or policy helper.
 
 ## GitHub Issues Without Milestone [DERIVED]
-- Open: **#95** — SIMD trig surface, filed 2026-08-15 while writing corvus's
-  #51 consumer note. Two findings, one fix: there is no `vector_sin` at any
-  tier, and the four x86 `vector_cos` kernels share a single-double 2π
-  reduction plus 7-term Taylor that measures **~6.5e-11 absolute (~2.9e5
-  ULP)** against NEON's clean-room 0.50–0.78 ULP. Not latent — VonMises
-  batch PDF routes through it (`von_mises.cpp:845`) and two test files
-  already relax to 1e-10 rather than fix the kernel. **Same shape as #47
-  with the platforms swapped**: there macOS is the degraded leg via the A&S
-  Bessel fallback, here x86 is, and both times the tolerance moved instead
-  of the kernel. Unmilestoned deliberately; v2.2.0 is where it would sit,
-  but that is a scoping call. Also bounds #51: the series recipe cannot
-  reach ≤5e-16 on x86 until this is addressed.
 - Open: **#84** — Audit compensated-summation paths for FP-contraction
   sensitivity. Filed from corvus's cross-compiler finding (GCC's default
   `-ffp-contract=fast` fused inside a compensated sequence and shifted a
