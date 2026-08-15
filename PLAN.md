@@ -109,13 +109,32 @@ and attached issues were unchanged; only titles moved.
 - Open: **#84** — Audit compensated-summation paths for FP-contraction
   sensitivity. Filed from corvus's cross-compiler finding (GCC's default
   `-ffp-contract=fast` fused inside a compensated sequence and shifted a
-  double-double result 0.6 bits vs MSVC). Needs a milestone decision.
-  **Exposure is confirmed and narrow**: the only error-free transforms in
-  this repo are the clean-room NEON kernels in `src/simd_neon.cpp` (log's
-  two Fast2Sum steps, erf's compensated final add, cos's compensated
-  reduction) plus `src/neon_erf_data.inc`. AppleClang contracts by default
-  and builds exactly those, and their published ULP bounds depend on the
-  identities holding as written.
+  double-double result 0.6 bits vs MSVC). **Machine-independent half is
+  done** (2026-08-15, written up in the issue); unmilestoned by decision —
+  it rides the M1 session rather than opening a release line.
+  - Inventory: three error-free transforms, all in `src/simd_neon.cpp` —
+    log's two Fast2Sum steps (461-464), erf's compensated final add
+    (617-619, anchors in `src/neon_erf_data.inc`), sin/cos's compensated
+    `(r, rlo)` reduction (650-696). The Welford updates in `gaussian.cpp`
+    and `lognormal.cpp` are the textbook recurrence with no residual term,
+    so they are **in scope but not exposed** — no identity to break. No
+    x86 path qualifies.
+  - Exposure is one compiler, one file: the TU builds only on aarch64
+    (`cmake/SIMDDetection.cmake:150`), so the set is exactly {AppleClang,
+    those three sites}. The fleet's contraction-default spread produces no
+    divergence surface here.
+  - **No reproducibility claim exists anywhere in the repo** — every hit is
+    seeded-RNG determinism. So nothing promised is at risk; the live
+    concern is that the published NEON ULP bounds may silently depend on
+    contraction being ON, having all been measured under AppleClang
+    defaults.
+  - Policy proposed: `-ffp-contract=off` scoped to that source. The
+    kernels already spell every fusion they want with explicit
+    `vfmaq_f64`, so contraction can only act where a separate
+    `vmulq`/`vaddq` pair was deliberate. Landing site exists —
+    `cmake/SIMDApplication.cmake:94-103` already sets per-source
+    `COMPILE_OPTIONS` on the file (empty on aarch64), so it is a one-line
+    addition.
 - Closed: 13, none milestoned (#94 closed 2026-08-15 — see Resolved log).
 
 ## In Progress [OPEN]
@@ -368,14 +387,17 @@ transform. #47 is retired outright by corvus's `i0`/`i1`/`i0e`/`i1e`, #51 by
 its documented Miller-recurrence recipe, and #52 by `beta_p`.
 
 ## Next Steps
-1. **#84** — run the FP-contraction inventory against `src/simd_neon.cpp`
-   and decide the policy. corvus's resolution was `-ffp-contract=off`
-   scoped PRIVATE to the affected targets, fusion requested only in source,
-   at ≤~8% measured cost. Authoring is machine-independent; **re-measuring
-   the NEON ULP bounds needs the Mac Mini M1.**
-2. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
+1. **#90** — reconfigure drops `Threads::Threads` and `TBB::tbb` from the
+   PUBLIC link and the installed export. Unmilestoned, self-contained,
+   and the only unblocked defect in the backlog.
+2. **#84 is now execution-only, on the M1.** Flip `-ffp-contract=off` at
+   the identified site, re-run the NEON log/erf/trig accuracy gates, and
+   either confirm the published bounds or restate them. Batch it with the
+   corvus spike's macOS leg and #47 — same platform, same compiler,
+   adjacent code. Nothing further to decide first.
+3. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
    backlog (3–5× on Zen 4, and the gap widens with SIMD width).
-3. Settle the corvus-adoption question above, then work the rest of v2.2.0
+4. Settle the corvus-adoption question above, then work the rest of v2.2.0
    before starting v2.3.0/v2.4.0 or the v3.0.0 refactor.
 
 ## Resolved log
