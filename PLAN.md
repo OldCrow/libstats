@@ -106,6 +106,18 @@ and attached issues were unchanged; only titles moved.
   boilerplate into a CRTP or policy helper.
 
 ## GitHub Issues Without Milestone [DERIVED]
+- Open: **#95** — SIMD trig surface, filed 2026-08-15 while writing corvus's
+  #51 consumer note. Two findings, one fix: there is no `vector_sin` at any
+  tier, and the four x86 `vector_cos` kernels share a single-double 2π
+  reduction plus 7-term Taylor that measures **~6.5e-11 absolute (~2.9e5
+  ULP)** against NEON's clean-room 0.50–0.78 ULP. Not latent — VonMises
+  batch PDF routes through it (`von_mises.cpp:845`) and two test files
+  already relax to 1e-10 rather than fix the kernel. **Same shape as #47
+  with the platforms swapped**: there macOS is the degraded leg via the A&S
+  Bessel fallback, here x86 is, and both times the tolerance moved instead
+  of the kernel. Unmilestoned deliberately; v2.2.0 is where it would sit,
+  but that is a scoping call. Also bounds #51: the series recipe cannot
+  reach ≤5e-16 on x86 until this is addressed.
 - Open: **#84** — Audit compensated-summation paths for FP-contraction
   sensitivity. Filed from corvus's cross-compiler finding (GCC's default
   `-ffp-contract=fast` fused inside a compensated sequence and shifted a
