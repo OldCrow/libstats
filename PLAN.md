@@ -55,7 +55,7 @@ The last three entries are conventions, not project state; they belong in
 AGENTS.md Conventions on the next pass through that file.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-07-26.
+Last reconciled against live GitHub state: 2026-08-15.
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -76,8 +76,19 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 6 open / 1 closed
+- **v2.2.0 — Accuracy & Performance** (open, #1): 8 open / 1 closed
   (#83 include restructure shipped 2026-07-26).
+  - #92 — log I₀ discontinuous at x = 700 in the C++17 Bessel tier. Filed
+    2026-08-15 from the corvus spike. **Same function as #47 but a
+    different tier and every platform**, not just macOS: above 700
+    `std::cyl_bessel_i` overflows and the header's two-term A&S fallback
+    takes over unmatched — 0.4 → 1881 ULP between adjacent points, a
+    2.14e-10 step, decaying back under 1 ULP by x ≈ 5000. Decide whether
+    #47 and #92 are one issue with two tiers.
+  - #93 — `circularVariance_ = 1 − I₁/I₀` ill-conditioned at large κ
+    (768 ULP at κ = 200 from ~9 bits of cancellation; also NaN above
+    κ ≈ 713 where both unscaled values overflow and the `i0 > 0` guard
+    misses `inf`). Needs scaled variants, which no current tier exposes.
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
     macOS/AppleClang.
@@ -105,6 +116,15 @@ and attached issues were unchanged; only titles moved.
   boilerplate into a CRTP or policy helper.
 
 ## GitHub Issues Without Milestone [DERIVED]
+- Open: **#94** — `cmake -G Ninja` cannot configure this repo on ANY platform:
+  `tests/CMakeLists.txt:511` emits a literal `$` into the `run_tests` ctest
+  regex where Ninja requires `$$`, invalidating the whole `build.ninja`.
+  Invisible to CI because `ci.yml` configures with no `-G` (Visual Studio on
+  Windows, Makefiles elsewhere) and `CMakePresets.json` pins no generator.
+  One-character fix. Pairs with MSBuild's MAX_PATH-bound `.tlog` tracker:
+  the generator that tolerates deep build trees is the one that cannot
+  configure, and the one that configures breaks on them. Needs a milestone
+  decision; filed 2026-08-15 from the corvus spike.
 - Open: **#84** — Audit compensated-summation paths for FP-contraction
   sensitivity. Filed from corvus's cross-compiler finding (GCC's default
   `-ffp-contract=fast` fused inside a compensated sequence and shifted a
@@ -293,7 +313,32 @@ and attached issues were unchanged; only titles moved.
   MAX_PATH, so the only generator that tolerates long build paths is the
   one the repo cannot configure. Either fix alone removes the corner.
 
-  **Next: S4** — the report and the go/no-go recommendation.
+  **S4 COMPLETE 2026-08-15 — SPIKE CLOSED.** Report published as an artifact
+  (https://claude.ai/code/artifact/ab912f14-d920-4eb2-b60f-5d92222bb33f);
+  the three adoption-independent defects are now #92, #93, #94 rather than
+  prose here.
+
+  **RECOMMENDATION: adopt, but NOT on the strength of Bessel alone.** The
+  spike proves the mechanism works and that corvus beats both existing tiers
+  measurably. It does not by itself justify a dependency: eight scalar call
+  sites, none hot, and the one real hole below corvus-grade (#92) is fixable
+  in-repo with no dependency at all. The case that DOES justify adoption is
+  the wider surface — #47 retired outright, #51 given the documented Miller
+  recurrence, #52 given `beta_p`, plus erfinv and the incomplete gamma/beta
+  family this repo has no good version of. **Decide on that basis, not on I₀.**
+
+  Costs to price in, none of them blocking but all real: Highway becomes
+  transitive into libstats and therefore pylibstats wheels; that triggers
+  corvus's open NOTICE obligation (Apache-2.0 must ship with BINARY
+  artifacts — source-only releases have dodged it, wheels will not);
+  `libstats-config.cmake` owes a `find_dependency(corvus)` because the SIMD
+  interface links PRIVATE and corvus lands in `INTERFACE_LINK_LIBRARIES` as
+  `$<LINK_ONLY:...>`; and the delivery mechanism is unsettled, since the
+  spike wiring offers only `find_package`.
+
+  **Prerequisite for a real decision:** the macOS leg. Tier 2 is where #47's
+  actual users are, and it was explicitly out of spike scope for want of the
+  M1 — same constraint as #84.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
