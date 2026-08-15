@@ -311,6 +311,58 @@ jobs:
     - name: Resolve the build graph (dry run)
       run: ninja -C build-ninja -n > /dev/null
 
+  # ---------------------------------------------------------------------------
+  # #90 guard. Imported targets are not cache-persistent, so a second configure
+  # pass over an existing build dir can quietly produce a different installed
+  # export than the first. Every other job configures exactly once and is blind
+  # to it. Configure-only -- install(EXPORT) writes the export file at GENERATE
+  # time under CMakeFiles/Export/, so nothing needs to be compiled to see it.
+  # Linux specifically: pthreads are a real dependency here, where on macOS they
+  # live in libSystem and on Windows the path is not taken at all, so this is the
+  # only leg where the symptom is visible.
+  # ---------------------------------------------------------------------------
+  reconfigure-export:
+    name: Export stability across reconfigure (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Configure (first pass)
+      run: cmake -B build-recfg -DCMAKE_BUILD_TYPE=Release
+
+    - name: Capture the generated export
+      run: cp build-recfg/CMakeFiles/Export/*/libstats-targets.cmake /tmp/pass1.cmake
+
+    # Any second configure reproduces it; the extra -D just makes the intent
+    # explicit and guarantees CMake does not short-circuit the pass.
+    - name: Reconfigure the same build directory
+      run: cmake -B build-recfg -DLIBSTATS_VERBOSE_BUILD=ON
+
+    - name: Capture the export again
+      run: cp build-recfg/CMakeFiles/Export/*/libstats-targets.cmake /tmp/pass2.cmake
+
+    - name: Export must not depend on configure count
+      run: |
+        if ! diff -u /tmp/pass1.cmake /tmp/pass2.cmake; then
+          echo "::error::Installed export differs between the first and second configure pass (#90)."
+          exit 1
+        fi
+
+    # The diff above catches the general class; this pins the specific
+    # regression, so a future change that drops Threads::Threads from BOTH
+    # passes cannot slip through as "stable".
+    - name: Threads::Threads must survive into the export
+      run: |
+        for f in /tmp/pass1.cmake /tmp/pass2.cmake; do
+          if ! grep -q 'Threads::Threads' "$f"; then
+            echo "::error::$f has no Threads::Threads in INTERFACE_LINK_LIBRARIES (#90)."
+            exit 1
+          fi
+        done
+
   lint:
     name: Code Quality Checks
     runs-on: ubuntu-latest

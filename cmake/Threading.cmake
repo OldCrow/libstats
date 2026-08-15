@@ -3,6 +3,27 @@
 # separate detect_threading_systems_*() functions.
 # =============================================================================
 function(detect_threading_systems)
+    # ── Package lookups run on EVERY configure pass (#90) ───────────────────
+    #
+    # Cache variables persist across passes; IMPORTED TARGETS DO NOT. They are recreated only by
+    # find_package(), so these calls must sit ABOVE the completion guard. When they sat below it,
+    # any reconfigure of an existing build dir left Threads::Threads undefined, and the consuming
+    # `if(TARGET Threads::Threads)` in CMakeLists.txt went quiet rather than failing — dropping
+    # -pthread from the PUBLIC link and therefore from libstats-targets.cmake, so the installed
+    # package differed depending on how many times its build dir had been configured.
+    #
+    # Repeat calls are cheap: each package caches its own probe results, so the second pass rebinds
+    # the targets without redoing the compile checks. Everything BELOW the guard is cache-setting
+    # and status output, which correctly runs once.
+    find_package(OpenMP QUIET)
+    if(NOT WIN32)
+        if(UNIX AND NOT APPLE)
+            find_package(Threads REQUIRED)
+        else()
+            find_package(Threads QUIET)
+        endif()
+    endif()
+
     if(DEFINED CACHE{LIBSTATS_THREADING_DETECTION_COMPLETE})
         if(LIBSTATS_VERBOSE_BUILD)
             message(STATUS "Using cached threading detection results")
@@ -13,7 +34,6 @@ function(detect_threading_systems)
     message(STATUS "Detecting threading capabilities...")
 
     # ── OpenMP (all platforms) ──────────────────────────────────────────────
-    find_package(OpenMP QUIET)
     if(OpenMP_CXX_FOUND)
         set(LIBSTATS_HAS_OPENMP
             TRUE
@@ -27,12 +47,9 @@ function(detect_threading_systems)
     endif()
 
     # ── POSIX threads (Unix) ────────────────────────────────────────────────
+    #
+    # find_package(Threads) itself ran above the guard; this only records the outcome in the cache.
     if(NOT WIN32)
-        if(UNIX AND NOT APPLE)
-            find_package(Threads REQUIRED)
-        else()
-            find_package(Threads QUIET)
-        endif()
         if(Threads_FOUND AND CMAKE_USE_PTHREADS_INIT)
             set(LIBSTATS_HAS_PTHREADS
                 TRUE
@@ -137,23 +154,33 @@ endfunction()
 # =============================================================================
 # Unified TBB detection logic for all platforms
 function(detect_tbb_unified)
+    # Detection runs on EVERY configure pass (#90), for the same reason as in
+    # detect_threading_systems(): nothing this function produces survives into the next pass. The
+    # TBB::tbb imported target, the LIBSTATS_TBB_*_INTERNAL PARENT_SCOPE variables, and the
+    # directory-scope include/link paths below are all per-pass state, so a cache-guarded early
+    # return left the consuming block in CMakeLists.txt with LIBSTATS_HAS_TBB still TRUE and nothing
+    # at all to link. The completion flag now suppresses only the repeat status output; the cache
+    # writes stay non-FORCE, so the first pass still decides.
+    set(_already_reported FALSE)
     if(DEFINED CACHE{LIBSTATS_TBB_DETECTION_COMPLETE})
+        set(_already_reported TRUE)
         if(LIBSTATS_VERBOSE_BUILD)
-            message(STATUS "Using cached TBB detection results")
+            message(STATUS "Rebinding cached TBB detection results")
         endif()
-        return()
-    endif()
-
-    if(LIBSTATS_VERBOSE_BUILD)
+    elseif(LIBSTATS_VERBOSE_BUILD)
         message(STATUS "Detecting Intel TBB...")
     endif()
-    set(LIBSTATS_HAS_TBB FALSE)
+
+    # Local, deliberately NOT named LIBSTATS_HAS_TBB: that name is a cache variable, and a
+    # same-named normal variable would shadow it for the rest of this function, making the reads
+    # below ambiguous about which one they meant.
+    set(_has_tbb FALSE)
 
     # Method 1: find_package (preferred for vcpkg, conan, system installs)
     find_package(TBB QUIET)
     if(TBB_FOUND)
-        set(LIBSTATS_HAS_TBB TRUE)
-        if(LIBSTATS_VERBOSE_BUILD)
+        set(_has_tbb TRUE)
+        if(LIBSTATS_VERBOSE_BUILD AND NOT _already_reported)
             message(STATUS "  ✓ TBB found via find_package")
         endif()
     else()
@@ -180,26 +207,30 @@ function(detect_tbb_unified)
                 set(LIBSTATS_TBB_CFLAGS_INTERNAL
                     "${TBB_CFLAGS_OTHER}"
                     PARENT_SCOPE)
-                set(LIBSTATS_HAS_TBB TRUE)
-                if(LIBSTATS_VERBOSE_BUILD)
+                set(_has_tbb TRUE)
+                if(LIBSTATS_VERBOSE_BUILD AND NOT _already_reported)
                     message(STATUS "  ✓ TBB found via pkg-config")
                 endif()
             endif()
         endif()
     endif()
 
-    # Cache result
+    # Cache result. Non-FORCE, so the first pass's answer stands and an explicit user override is
+    # never stomped.
     set(LIBSTATS_HAS_TBB
-        ${LIBSTATS_HAS_TBB}
+        ${_has_tbb}
         CACHE BOOL "Intel TBB support available")
     set(LIBSTATS_TBB_DETECTION_COMPLETE
         TRUE
         CACHE BOOL "TBB detection completed")
 
-    if(LIBSTATS_HAS_TBB)
-        message(STATUS "Intel TBB: AVAILABLE - parallel execution policies enhanced")
-    else()
-        message(
-            STATUS "Intel TBB: NOT FOUND - C++20 execution policies may have limited performance")
+    if(NOT _already_reported)
+        if(_has_tbb)
+            message(STATUS "Intel TBB: AVAILABLE - parallel execution policies enhanced")
+        else()
+            message(
+                STATUS
+                    "Intel TBB: NOT FOUND - C++20 execution policies may have limited performance")
+        endif()
     endif()
 endfunction()

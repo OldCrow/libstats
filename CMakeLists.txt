@@ -233,8 +233,8 @@ if(NOT LIBSTATS_PORTABLE)
     # NOTE: the global flag must follow the (possibly LIBSTATS_MAX_SIMD_TIER-capped) LIBSTATS_HAS_*
     # results from detect_simd_features(), not just "AVX512 or else AVX2". Applying /arch:AVX2
     # globally regardless of a lower cap predefines the compiler's __AVX2__ macro for every TU
-    # (including src/simd_dispatch.cpp), which include/libstats/platform/simd.h's MSVC fallback then reads to
-    # auto-#define LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
+    # (including src/simd_dispatch.cpp), which include/libstats/platform/simd.h's MSVC fallback then
+    # reads to auto-#define LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
     # getDispatchTable() to reference vector_*_avx2 symbols that were never compiled (simd_avx2.cpp
     # is excluded by the cap), producing LNK2019 unresolved externals.
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -600,10 +600,24 @@ configure_simd_target(libstats_shared)
 # POSIX thread functions are used by platform sources on Unix-like systems. NEW-BS-4: also link to
 # platform_obj whose sources (thread_pool, work_stealing_pool) reference pthread directly and may be
 # consumed without the final library targets.
+#
+# #90: this gate used to fail silently. Threads::Threads is an imported target, so it exists only if
+# find_package(Threads) ran during THIS configure pass — and detect_threading_systems() used to skip
+# that on any reconfigure of an existing build dir. The PUBLIC links here are exactly what
+# install(EXPORT) writes into libstats-targets.cmake, so the installed package's
+# INTERFACE_LINK_LIBRARIES silently depended on how many times its build dir had been configured.
+# Threading.cmake now always runs the lookup; the elseif asserts that postcondition instead of
+# trusting it, because the failure mode leaves no trace in the build log.
 if(TARGET Threads::Threads)
     target_link_libraries(libstats_platform_obj PRIVATE Threads::Threads)
     target_link_libraries(libstats_static PUBLIC Threads::Threads)
     target_link_libraries(libstats_shared PUBLIC Threads::Threads)
+elseif(LIBSTATS_HAS_PTHREADS)
+    message(
+        FATAL_ERROR
+            "Threading detection reports pthreads available, but the imported target "
+            "Threads::Threads does not exist in this configure pass. Continuing would omit it "
+            "from the PUBLIC link and from the installed export without any diagnostic — see #90.")
 endif()
 
 # Platform-specific library linking: rpath and signing are handled per-target above. -stdlib=libc++
@@ -632,6 +646,17 @@ if(LIBSTATS_HAS_TBB)
                                                        STREQUAL "")
             target_link_libraries(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
             target_link_libraries(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
+        else()
+            # #90, TBB half: LIBSTATS_HAS_TBB is cached, but neither the imported target nor the
+            # pkg-config variables are — so a reconfigure could enter this block believing TBB was
+            # available and then link nothing at all. Warn rather than fail: unlike pthreads this is
+            # a performance path, and a stale cache from a since-removed TBB is a plausible way to
+            # arrive here legitimately.
+            message(
+                WARNING
+                    "LIBSTATS_HAS_TBB is set, but this configure pass produced neither the "
+                    "TBB::tbb target nor pkg-config results — TBB will not be linked. Delete the "
+                    "build directory's cache to re-detect. See #90.")
         endif()
     endif()
 
