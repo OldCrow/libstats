@@ -266,6 +266,51 @@ jobs:
         echo "Parallel build jobs: ${JOBS}"
         cmake --build build-strict --parallel "${JOBS}"
 
+  # Guards generator-specific defects in the files CMake GENERATES, which the
+  # rest of CI cannot see: every other job configures with plain `cmake -B`
+  # and no -G, so Windows gets Visual Studio and Linux gets Makefiles. Ninja
+  # is exercised nowhere else, and CMakePresets.json pins no generator either.
+  #
+  # This existed because of #94: a literal `$` in the run_tests ctest regex
+  # reached build.ninja unescaped (Ninja requires `$$`), and the malformed
+  # line invalidated the ENTIRE build.ninja, so nothing built. It went
+  # unnoticed for as long as it did precisely because no job ran Ninja.
+  #
+  # Deliberately does not compile anything. The defect class is malformed
+  # GENERATED build files, and configure alone does not catch it -- #94
+  # configured cleanly and failed only when ninja parsed the result. Forcing
+  # a parse plus a full dry-run graph resolution covers the class exactly,
+  # in seconds rather than the minutes a real build would cost.
+  ninja-generator:
+    name: Ninja generator (Linux, configure + parse)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Ensure ninja is available
+      run: command -v ninja || { sudo apt-get update && sudo apt-get install -y ninja-build; }
+
+    # Tests MUST be enabled (the default). run_tests lives in
+    # tests/CMakeLists.txt, so building without tests would omit the very
+    # target whose generated command carries the escaping hazard, and this
+    # job would pass while guarding nothing.
+    - name: Configure with Ninja
+      run: cmake -B build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+    # `ninja -t targets` reads build.ninja end to end and fails on malformed
+    # syntax -- this is the check that would have caught #94.
+    - name: Parse the generated build.ninja
+      run: ninja -C build-ninja -t targets > /dev/null
+
+    # Dry run resolves the whole dependency graph without compiling, so a
+    # command that is syntactically valid but references a broken rule or a
+    # missing input still fails here.
+    - name: Resolve the build graph (dry run)
+      run: ninja -C build-ninja -n > /dev/null
+
   lint:
     name: Code Quality Checks
     runs-on: ubuntu-latest

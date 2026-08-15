@@ -404,8 +404,17 @@ file's git history.
   no longer needed at all (it was load-bearing — `test_benchmark_basic` is a
   correctness test and must stay). Verified: Ninja configures, `build.ninja`
   parses (203 targets), filter now selects 41/72, and the
-  benchmark-vs-benchmark_basic distinction is preserved. Remaining optional
-  follow-up: no CI job exercises Ninja, so this class can regress silently.
+  benchmark-vs-benchmark_basic distinction is preserved. Guarded the same day
+  by a `ninja-generator` CI job: configure with `-G Ninja`, then
+  `ninja -t targets` and `ninja -n`. It compiles NOTHING on purpose —
+  configure alone does not catch this class (#94 configured cleanly and only
+  failed when ninja parsed the result), so forcing a parse plus a graph
+  resolution covers it exactly, in seconds. Negative-controlled against the
+  pre-fix build tree: `ninja -t targets` exits 1 there with the original
+  `bad $-escape`, exits 0 on the fixed tree. NOTE the job must keep tests
+  ENABLED — `run_tests` lives in tests/CMakeLists.txt, so a tests-off
+  configure would omit the target carrying the hazard and the guard would
+  pass while guarding nothing.
 - 2026-07-26 #83 include restructure: `include/` → `include/libstats/`,
   shim machinery deleted; install tree byte-identical, 135/135 TUs show
   only the predicted include-dir change, 49/49 tests + both consumers pass.
