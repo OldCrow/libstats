@@ -4,7 +4,13 @@
  * @file bessel.h
  * @brief Modified Bessel functions of the first kind for VonMisesDistribution.
  *
- * Provides I₀(x), I₁(x), and log I₀(x) via two implementation tiers:
+ * Provides I₀(x), I₁(x), and log I₀(x) via three implementation tiers:
+ *
+ *   Tier 0 (LIBSTATS_USE_CORVUS defined — opt-in, OFF by default):
+ *     Delegates to corvus, a SIMD special-function library with per-tier
+ *     audited ULP bounds (max 1 ULP for i0/i1/i0e/i1e on every validated
+ *     SIMD target).  Retires Tier 2's 1.6×10⁻⁷ accuracy ceiling on
+ *     macOS/AppleClang, which is what issue #47 is about.
  *
  *   Tier 1 (LIBSTATS_HAS_CXX17_BESSEL defined):
  *     Delegates to std::cyl_bessel_i(ν, x) from <cmath> (C++17 §29.9.3).
@@ -26,10 +32,89 @@
 
 #include <cmath>
 
+#if defined(LIBSTATS_USE_CORVUS)
+    #include <corvus/corvus.h>
+
+    #include <span>
+#endif
+
 namespace stats {
 namespace detail {
 
-#if defined(LIBSTATS_HAS_CXX17_BESSEL)
+#if defined(LIBSTATS_USE_CORVUS)
+
+// ---------------------------------------------------------------------------
+// Tier 0: delegate to corvus (opt-in via LIBSTATS_USE_CORVUS)
+//
+// corvus takes spans, not scalars. Every call site in this repo is scalar and
+// sits in parameter-cache or fit-time code (src/von_mises.cpp, 8 sites, none
+// in a hot loop), so a span-of-1 wrapper is the right shape: it costs one
+// runtime-dispatch indirect call per invocation and buys the accuracy. If a
+// batch von Mises path ever wants these, it should call corvus with a real
+// span rather than looping over these wrappers.
+//
+// WHY log I₀ COMPOSES INSTEAD OF HAVING ITS OWN KERNEL
+// ----------------------------------------------------
+// corvus deliberately exports no log_i0. It documents the composition
+//     log I₀(x) = log(i0e(x)) + |x|          [i0e(x) = I₀(x)·e^{−|x|}]
+// as relative error < 1 ULP for x ≳ 2, and absolute error ≤ 3.3×10⁻¹⁶ on the
+// whole axis. The composition is relatively WEAK as x → 0: log I₀(x) ~ x²/4
+// there, so log(i0e) ≈ x²/4 − x cancels against the +x and the small result
+// keeps only absolute accuracy.
+//
+// That weakness is unreachable from this repo, at all three call sites:
+//
+//   updateCacheUnsafe()  logNormaliser_ = LN_2PI + log I₀(κ)
+//   getDifferentialEntropy()  H = LN_2PI − log I₀(κ) + κ·A(κ)
+//
+// Both embed log I₀ in a sum anchored by LN_2PI ≈ 1.8379, so the governing
+// contract is ABSOLUTE, not relative: 3.3×10⁻¹⁶ against a result of magnitude
+// ≥ 1.8 is ≤ 1.5×10⁻¹⁶ relative, inside one ULP of the answer (ulp(1.84) =
+// 2.22×10⁻¹⁶). The entropy site additionally short-circuits on isUniform_
+// (κ < 1e-10) before reaching here. So the small-κ regime where the
+// composition is weak either cannot be reached or cannot be observed.
+//
+// At LARGE κ the composition is strictly BETTER than Tier 1, and that is
+// MEASURED rather than argued. Tier 1 cannot call std::cyl_bessel_i above
+// x = 700 (I₀ overflows double) and falls back to the two-term A&S
+// asymptotic below, whose truncation is O(1/x³). Against mpmath at dps 50:
+// at κ = 1000 that fallback is 7.3×10⁻¹¹ absolute, while this composition is
+// 2.2×10⁻¹⁴ — better by ~3300×. corvus's i0e is 1-ULP everywhere and |x| is
+// exact, so the composition has no such seam.
+//
+// Every κ ≤ 700 row of the spike sweep is bit-identical between the two
+// tiers, with one exception: at κ = 8.1 the composition is 0.7 ULP and
+// Tier 1 is 0.3 ULP. Both sit inside the documented bound; neither is a
+// defect. (Spike measurement, 2026-08-15.)
+//
+// VERDICT: adopt the composition as-is; no dedicated log-I₀ kernel is needed
+// for this consumer. (Spike adjudication, 2026-08-15.)
+// ---------------------------------------------------------------------------
+
+[[nodiscard]] inline double bessel_i0(double x) noexcept {
+    const double in = x;  // I₀ is even; corvus handles both signs natively
+    double out;
+    corvus::i0(std::span<const double>(&in, 1), std::span<double>(&out, 1));
+    return out;
+}
+
+[[nodiscard]] inline double bessel_i1(double x) noexcept {
+    const double in = x;  // I₁ is odd; corvus reapplies the sign internally
+    double out;
+    corvus::i1(std::span<const double>(&in, 1), std::span<double>(&out, 1));
+    return out;
+}
+
+[[nodiscard]] inline double log_bessel_i0(double x) noexcept {
+    // |x| on both sides of the composition, so this is correct for either
+    // scaling convention and matches Tier 2's use of fabs. I₀ is even.
+    const double ax = std::fabs(x);
+    double scaled;
+    corvus::i0e(std::span<const double>(&ax, 1), std::span<double>(&scaled, 1));
+    return std::log(scaled) + ax;
+}
+
+#elif defined(LIBSTATS_HAS_CXX17_BESSEL)
 
 // ---------------------------------------------------------------------------
 // Tier 1: delegate to C++17 <cmath> special functions

@@ -190,8 +190,40 @@ and attached issues were unchanged; only titles moved.
   hand-rolled paths run AVX-512 — that depends on which compiler libstats
   commits to on Windows, which is a libstats decision this spike does not
   make. Probe sources and five re-runnable scripts are in this session's
-  scratchpad; S4 folds them into the report. **Next: S2** (the Tier 0
-  wrappers), with the log-composition small-x adjudication written first.
+  scratchpad; S4 folds them into the report.
+
+  **S2 COMPLETE 2026-08-15.** Tier 0 landed in
+  `include/libstats/core/bessel.h` (span-of-1 wrappers, `LIBSTATS_USE_CORVUS`
+  OFF by default) plus one cohesive CMake block riding the existing
+  `libstats_simd_interface` propagation that already carries
+  `LIBSTATS_HAS_CXX17_BESSEL`. libstats builds clean with Tier 0 in 51 s.
+  The log-composition adjudication is written at the definition site, where
+  it doubles as corvus's #47 integration note: all three `log_bessel_i0`
+  consumers embed the result in a sum anchored by `LN_2PI` ≈ 1.8379, so the
+  governing contract is corvus's ABSOLUTE 3.3e-16, not its weaker small-κ
+  relative error — which is therefore unreachable here. Verdict: compose,
+  no dedicated log-I₀ kernel needed.
+
+  **Two findings from the S2 smoke diff, both independent of adoption and
+  both adjudicated against mpmath at dps 50 rather than assumed:**
+  1. **Tier 1's `x > 700` fallback is inaccurate, and this is NOT a
+     macOS-only problem.** Above 700 `std::cyl_bessel_i` overflows, so
+     `log_bessel_i0` falls back to a hand-rolled two-term A&S asymptotic.
+     At κ = 1000 it is 7.3e-11 absolute against mpmath, where corvus's
+     composition is 2.2e-14 — ~3300× worse. #47 is filed as a macOS/Tier 2
+     issue; this says the SAME function has a real accuracy hole on every
+     platform that defines `LIBSTATS_HAS_CXX17_BESSEL`, Windows and Linux
+     included. Worth widening #47's scope or filing separately.
+  2. **`circularVariance_ = 1 − I₁/I₀` is ill-conditioned at large κ.**
+     At κ = 200 the two builds differ by 768 ULP in the variance while
+     agreeing bit-for-bit on log I₀. Cause is the formula, not either
+     Bessel implementation: I₁/I₀ → 1 − 1/(2κ), so `1 − ratio` cancels ~9
+     bits at κ = 200 and amplifies any last-bit difference. A dedicated
+     1 − A(κ) formulation (corvus composes A exactly as i1e/i0e, the
+     scalings cancel) would fix it. Independent of adoption.
+
+  **Next: S3** — full 49-test ctest under baseline / Config A / Config B,
+  plus the kappa-sweep wiring gate.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would

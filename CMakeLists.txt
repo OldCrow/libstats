@@ -580,6 +580,29 @@ if(LIBSTATS_HAS_CXX17_BESSEL)
     target_compile_definitions(libstats_simd_interface INTERFACE LIBSTATS_HAS_CXX17_BESSEL)
 endif()
 
+# --- Tier 0 Bessel via corvus (spike, OFF by default) ------------------------
+# Declared and wired together so the whole feature is one reviewable block and
+# one deletion if adoption is declined. Rides the same libstats_simd_interface
+# propagation as the Tier 1 define above, which is what puts LIBSTATS_USE_CORVUS
+# in front of every TU that includes core/bessel.h.
+#
+# Version floor 0.5: i0/i1/i0e/i1e ship in corvus 0.3.0, but 0.5.0 is the first
+# release whose Bessel path carries the huge-parameter Dekker audit, and its
+# package config is SameMajorVersion-compatible, so 0.5 is the honest floor.
+option(LIBSTATS_USE_CORVUS "Use corvus for Bessel I0/I1/log I0 (Tier 0)" OFF)
+if(LIBSTATS_USE_CORVUS)
+    find_package(corvus 0.5 REQUIRED)
+    target_compile_definitions(libstats_simd_interface INTERFACE LIBSTATS_USE_CORVUS)
+    target_link_libraries(libstats_simd_interface INTERFACE corvus::corvus)
+    message(STATUS "libstats: Bessel Tier 0 = corvus ${corvus_VERSION}")
+    # NOTE (spike finding, for the S4 report): configure_simd_target() links
+    # libstats::simd PRIVATE, so on the STATIC library corvus lands in
+    # INTERFACE_LINK_LIBRARIES as $<LINK_ONLY:...>. A real adoption therefore
+    # also owes libstats-config.cmake a find_dependency(corvus) -- otherwise
+    # installed-package consumers fail to link. Out of scope for the spike,
+    # which is build-tree only.
+endif()
+
 # Apply per-source-file SIMD compile flags once (file-global properties).
 apply_simd_source_flags()
 
