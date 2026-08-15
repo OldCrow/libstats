@@ -413,6 +413,17 @@ if(GTEST_FOUND)
         test_laplace_enhanced
         test_cauchy_enhanced
         PROPERTIES LABELS "timing")
+
+    # test_benchmark is a benchmark, not a correctness test. It used to be kept
+    # out of run_tests by name, via "^test_benchmark$" in that target's -E
+    # regex -- and that literal $ is exactly what made the target unusable
+    # under the Ninja generator, which requires it written as $$ and treats the
+    # malformed line as invalidating the whole build.ninja. Labelling it
+    # removes the $ and is the more consistent treatment anyway:
+    # benchmark_simd_all is already excluded this way. The name-anchored form
+    # was load-bearing (test_benchmark_basic IS a correctness test and must
+    # stay in the suite), so it could not simply be dropped.
+    set_tests_properties(test_benchmark PROPERTIES LABELS "benchmark")
 endif()
 set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 
@@ -505,10 +516,16 @@ add_custom_target(
 # Separate target for standard test suite (correctness only, parallel-safe) Excludes: on-demand
 # tests, timing-labelled tests, benchmarks Use 'make run_tests_timing' to validate performance
 # assertions on a quiet machine.
+# Pipes here are PLAIN, not backslash-escaped. ctest -LE/-E take CMake regexes,
+# where | is alternation and \| is an escaped literal pipe -- so the previous
+# "timing\|benchmark" matched only the literal text "timing|benchmark", which no
+# label or test name equals. Both filters were therefore inert and this target
+# ran the entire suite (72 tests) rather than the 41 it describes. Verified by
+# comparing `ctest -N` counts for the escaped and plain forms.
 add_custom_target(
     run_tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -LE "timing\\|benchmark" -E
-            "stress\\|comprehensive\\|dynamic\\|_fix\\|parallel_compilation\\|^test_benchmark$"
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -LE "timing|benchmark" -E
+            "stress|comprehensive|dynamic|_fix|parallel_compilation"
     COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)")
 
 # Timing validation target — runs serially for accurate measurement

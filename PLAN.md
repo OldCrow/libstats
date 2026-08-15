@@ -116,15 +116,6 @@ and attached issues were unchanged; only titles moved.
   boilerplate into a CRTP or policy helper.
 
 ## GitHub Issues Without Milestone [DERIVED]
-- Open: **#94** — `cmake -G Ninja` cannot configure this repo on ANY platform:
-  `tests/CMakeLists.txt:511` emits a literal `$` into the `run_tests` ctest
-  regex where Ninja requires `$$`, invalidating the whole `build.ninja`.
-  Invisible to CI because `ci.yml` configures with no `-G` (Visual Studio on
-  Windows, Makefiles elsewhere) and `CMakePresets.json` pins no generator.
-  One-character fix. Pairs with MSBuild's MAX_PATH-bound `.tlog` tracker:
-  the generator that tolerates deep build trees is the one that cannot
-  configure, and the one that configures breaks on them. Needs a milestone
-  decision; filed 2026-08-15 from the corvus spike.
 - Open: **#84** — Audit compensated-summation paths for FP-contraction
   sensitivity. Filed from corvus's cross-compiler finding (GCC's default
   `-ffp-contract=fast` fused inside a compensated sequence and shifted a
@@ -135,7 +126,7 @@ and attached issues were unchanged; only titles moved.
   reduction) plus `src/neon_erf_data.inc`. AppleClang contracts by default
   and builds exactly those, and their published ULP bounds depend on the
   identities holding as written.
-- Closed: 12, none milestoned.
+- Closed: 13, none milestoned (#94 closed 2026-08-15 — see Resolved log).
 
 ## In Progress [OPEN]
 - **corvus adoption spike** — branch `spike/corvus-bessel`, opened 2026-08-15.
@@ -400,6 +391,21 @@ its documented Miller-recurrence recipe, and #52 by `beta_p`.
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-08-15 **#94 closed, and it was hiding a bigger bug.** The reported
+  defect was real — a literal `$` in `run_tests`' ctest regex invalidated the
+  whole `build.ninja`, so `-G Ninja` could not configure on any platform.
+  Fixing it surfaced that **both filters on that target had never worked**:
+  `-LE "timing\|benchmark"` and the `-E` list used backslash-escaped pipes,
+  and in a CMake regex `\|` is an escaped LITERAL pipe, so each matched only
+  the literal text `timing|benchmark`. Measured with `ctest -N`: the target
+  selected **72 tests — the entire suite — where it describes 41**, i.e. it
+  ran every timing and benchmark test despite its own comment. Fix: plain
+  pipes, plus `LABELS "benchmark"` on `test_benchmark` so the `$` anchor is
+  no longer needed at all (it was load-bearing — `test_benchmark_basic` is a
+  correctness test and must stay). Verified: Ninja configures, `build.ninja`
+  parses (203 targets), filter now selects 41/72, and the
+  benchmark-vs-benchmark_basic distinction is preserved. Remaining optional
+  follow-up: no CI job exercises Ninja, so this class can regress silently.
 - 2026-07-26 #83 include restructure: `include/` → `include/libstats/`,
   shim machinery deleted; install tree byte-identical, 135/135 TUs show
   only the predicted include-dir change, 49/49 tests + both consumers pass.
