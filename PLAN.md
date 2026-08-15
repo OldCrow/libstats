@@ -222,8 +222,47 @@ and attached issues were unchanged; only titles moved.
      1 − A(κ) formulation (corvus composes A exactly as i1e/i0e, the
      scalings cancel) would fix it. Independent of adoption.
 
-  **Next: S3** — full 49-test ctest under baseline / Config A / Config B,
-  plus the kappa-sweep wiring gate.
+  **S3 (part 1) — TIER-1 DEFECT PINNED 2026-08-15.** `core/bessel.h` is
+  standalone (only `<cmath>`), so all three tiers were compiled from the SAME
+  source with only the tier macros flipped and swept against mpmath at
+  dps 60 — no libstats build involved, which keeps the measurement free of
+  every other moving part. Error in ULP of the result (absolute alone ranks
+  large-x rows wrongly, since log I₀(x) ~ x and the result's own spacing
+  grows):
+
+  | x | Tier 0 (corvus) | Tier 1 (std) | Tier 2 (A&S) |
+  |---|---|---|---|
+  | 0.5 | 7.4 | 10.4 | 3.6e9 |
+  | 100 | 0.5 | 0.5 | 3.3e7 |
+  | 700 | 0.4 | 0.4 | 1.29e6 |
+  | **700.001** | **0.2** | **1881.2** | 1.29e6 |
+  | 1000 | 0.2 | 644.8 | 9.4e5 |
+  | 2000 | 0.0 | 40.0 | 2.5e5 |
+  | 5000 | 0.3 | 0.7 | 2.6e4 |
+
+  1. **Tier 1's defect is a STEP DISCONTINUITY at exactly x = 700**, not a
+     gradual drift: 2.14e-10 absolute jump across the branch, error going
+     0.4 → 1881 ULP between adjacent points. It then DECAYS with x (the
+     truncation is O(1/x³)) and is back under 1 ULP by x ≈ 5000. So the
+     damaged band is **κ ∈ (700, ~3000)**, worst immediately above the seam.
+     A discontinuity is the stronger defect signature: any density built on
+     log I₀ inherits a visible step at κ = 700. Present on every platform
+     defining `LIBSTATS_HAS_CXX17_BESSEL` — Windows and Linux, not just the
+     macOS path #47 names. Fixable in-repo with no corvus dependency (more
+     asymptotic terms, or match the branches at the seam).
+  2. **Tier 2 quantified**, since #47 asserts ~1e-7 without a measurement:
+     2.5e-8 to 4.7e-7 absolute across the sweep, i.e. ~1.3e6 ULP in the
+     700 band and worse below. Confirms the issue and gives it numbers.
+  3. **The S2 adjudication survives measurement.** The composition's
+     documented small-x relative weakness is real (7.4 ULP at x = 0.5) but
+     Tier 1 is WORSE there (10.4 ULP) — both lose relative precision to
+     log(1 + small), independent of tier, and both are irrelevant to this
+     repo's consumers, which use the value absolutely against LN_2PI.
+  4. Minor: `core/bessel.h` is not self-contained on MSVC — Tier 1 uses
+     `M_PI`, supplied globally by CMakeLists.txt:168's `_USE_MATH_DEFINES`.
+
+  **Next: S3 (part 2)** — full 49-test ctest under baseline / Config A /
+  Config B.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
