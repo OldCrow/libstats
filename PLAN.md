@@ -261,8 +261,39 @@ and attached issues were unchanged; only titles moved.
   4. Minor: `core/bessel.h` is not self-contained on MSVC — Tier 1 uses
      `M_PI`, supplied globally by CMakeLists.txt:168's `_USE_MATH_DEFINES`.
 
-  **Next: S3 (part 2)** — full 49-test ctest under baseline / Config A /
-  Config B.
+  **S3 (part 2) COMPLETE 2026-08-15 — both legs green, 49/49, identical
+  test sets.** Baseline (Tier 1) and Tier 0 (corvus built by clang-cl,
+  libstats by MSVC) both pass the full suite with timing/benchmark labels
+  excluded, matching ci.yml. Suite times were 73.0 s and 52.9 s, which is
+  NOT a performance result and must not be reported as one: the Tier 0 leg
+  ran second with warm caches, timing tests were excluded by design, and
+  the library has 8 scalar Bessel call sites, none hot. The spike measured
+  accuracy, not throughput.
+
+  Scope note: no third leg with an MSVC-built corvus (the AVX2 tier). S1
+  established AVX2 and AVX3_ZEN4 corvus produce byte-identical output on
+  every probe row, so that leg would exercise build plumbing, not
+  behaviour, at the cost of a ~12 min Highway+corvus MSVC build. Also
+  worth settling in S4: the S2 wiring only offers `find_package(corvus)`,
+  so "Config A" for libstats means corvus compiled by MSVC, not a
+  different delivery path — a real adoption should decide whether to
+  offer FetchContent too, since that is the zero-setup path for
+  contributors.
+
+  **THIRD ADOPTION-INDEPENDENT DEFECT, found running S3: libstats cannot
+  configure under `-G Ninja` on ANY platform.** `tests/CMakeLists.txt:511`
+  emits a literal `$` into the `run_tests` ctest regex
+  (`...^test_benchmark$`); Ninja requires `$$`, and the malformed line
+  invalidates the whole `build.ninja`, so nothing builds. Never caught
+  because ci.yml configures with plain `cmake -B build` and no `-G`
+  (Visual Studio on Windows, Makefiles elsewhere), CMakePresets.json pins
+  no generator, and the escaping is generator-specific rather than
+  platform-specific. One-character fix. Pairs badly with a second Windows
+  trap found the same way: MSBuild's `.tlog` file tracker breaks past
+  MAX_PATH, so the only generator that tolerates long build paths is the
+  one the repo cannot configure. Either fix alone removes the corner.
+
+  **Next: S4** — the report and the go/no-go recommendation.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
