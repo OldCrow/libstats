@@ -135,7 +135,10 @@ and attached issues were unchanged; only titles moved.
     `cmake/SIMDApplication.cmake:94-103` already sets per-source
     `COMPILE_OPTIONS` on the file (empty on aarch64), so it is a one-line
     addition.
-- Closed: 13, none milestoned (#94 closed 2026-08-15 — see Resolved log).
+- Closed: 14, none milestoned (#90 and #94 both closed 2026-08-15 — see
+  Resolved log). Note #90 was never listed here while open; this section is
+  derived from GitHub rather than maintained by hand, so re-derive it rather
+  than trusting it between passes.
 
 ## In Progress [OPEN]
 - **corvus adoption spike** — branch `spike/corvus-bessel`, opened 2026-08-15.
@@ -387,22 +390,37 @@ transform. #47 is retired outright by corvus's `i0`/`i1`/`i0e`/`i1e`, #51 by
 its documented Miller-recurrence recipe, and #52 by `beta_p`.
 
 ## Next Steps
-1. **#90** — reconfigure drops `Threads::Threads` and `TBB::tbb` from the
-   PUBLIC link and the installed export. Unmilestoned, self-contained,
-   and the only unblocked defect in the backlog.
-2. **#84 is now execution-only, on the M1.** Flip `-ffp-contract=off` at
+1. **#84 is now execution-only, on the M1.** Flip `-ffp-contract=off` at
    the identified site, re-run the NEON log/erf/trig accuracy gates, and
    either confirm the published bounds or restate them. Batch it with the
    corvus spike's macOS leg and #47 — same platform, same compiler,
    adjacent code. Nothing further to decide first.
-3. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
+2. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
    backlog (3–5× on Zen 4, and the gap widens with SIMD width).
-4. Settle the corvus-adoption question above, then work the rest of v2.2.0
+3. Settle the corvus-adoption question above, then work the rest of v2.2.0
    before starting v2.3.0/v2.4.0 or the v3.0.0 refactor.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-08-15 **#90 closed** — `detect_threading_systems()` and
+  `detect_tbb_unified()` returned early on a cached completion flag, but
+  **cache variables persist across configure passes and imported targets do
+  not**. Any reconfigure of an existing build dir therefore left
+  `Threads::Threads` undefined, the consuming `if(TARGET ...)` went quiet
+  instead of failing, and the PUBLIC link — which is exactly what
+  `install(EXPORT)` writes into `libstats-targets.cmake` — vanished. Same
+  commit, same prefix, different installed package. Fixed by hoisting the
+  `find_package()` calls above each guard; everything below stays put, being
+  cache-setting and status output that correctly runs once. TBB was exposed
+  the same way and worse (neither the target nor the pkg-config
+  PARENT_SCOPE vars nor the directory-scope paths are cached, while
+  `LIBSTATS_HAS_TBB` is — so a pass could believe TBB was available and link
+  nothing). Both consuming sites now fail loudly rather than silently.
+  Guarded by a new configure-only CI job that configures, captures the
+  generated export, reconfigures, captures again, and diffs — Linux leg,
+  since macOS hides pthreads in libSystem and Windows never takes the path.
+  Every other job configures exactly once and was blind to this class.
 - 2026-08-15 **#92 closed** — Tier 1's log I₀ asymptotic carried only two
   terms, truncating at O(x⁻³). The shipped c₁ = 1/8 and c₂ = 9/128 match the
   exact c_k = ((2k−1)!!)²/(k! 8^k), so the FORM was right and only the length
