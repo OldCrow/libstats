@@ -76,19 +76,9 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 8 open / 1 closed
-  (#83 include restructure shipped 2026-07-26).
-  - #92 — log I₀ discontinuous at x = 700 in the C++17 Bessel tier. Filed
-    2026-08-15 from the corvus spike. **Same function as #47 but a
-    different tier and every platform**, not just macOS: above 700
-    `std::cyl_bessel_i` overflows and the header's two-term A&S fallback
-    takes over unmatched — 0.4 → 1881 ULP between adjacent points, a
-    2.14e-10 step, decaying back under 1 ULP by x ≈ 5000. Decide whether
-    #47 and #92 are one issue with two tiers.
-  - #93 — `circularVariance_ = 1 − I₁/I₀` ill-conditioned at large κ
-    (768 ULP at κ = 200 from ~9 bits of cancellation; also NaN above
-    κ ≈ 713 where both unscaled values overflow and the `i0 > 0` guard
-    misses `inf`). Needs scaled variants, which no current tier exposes.
+- **v2.2.0 — Accuracy & Performance** (open, #1): 6 open / 3 closed
+  (#83 include restructure shipped 2026-07-26; #92 and #93 closed
+  2026-08-15 — see Resolved log).
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
     macOS/AppleClang.
@@ -391,6 +381,45 @@ its documented Miller-recurrence recipe, and #52 by `beta_p`.
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-08-15 **#92 closed** — Tier 1's log I₀ asymptotic carried only two
+  terms, truncating at O(x⁻³). The shipped c₁ = 1/8 and c₂ = 9/128 match the
+  exact c_k = ((2k−1)!!)²/(k! 8^k), so the FORM was right and only the length
+  was wrong; c₃ = 225/3072 evaluates to 0.0732/700³ = 2.13e-10, exactly the
+  observed step. Extended to five terms: seam goes 0.4 → 1881 ULP down to
+  0.4 → 0.8, discontinuity 2.139e-10 → 1.376e-13 (~1.2 ULP of the result,
+  i.e. rounding). Five not four because at four the asymptotic is 0.009 ULP
+  but the seam is already floored by the direct path's own error — five puts
+  the asymptotic below it so it is never the limiting side. Also replaced
+  `M_PI` with a local `kTwoPi` (numerically identical — doubling is exact),
+  making the header self-contained instead of depending on the build's
+  global `_USE_MATH_DEFINES`.
+- 2026-08-15 **#93 closed, with a documented residual.** Computing A(κ)
+  better cannot fix the circular variance: A → 1 − 1/(2κ), so forming 1 − A
+  in double discards ~log₂(2κ) bits regardless of A's accuracy. The
+  complement needs its own route — and symmetrically A does too, since
+  1 − complement cancels as κ → 0. Added `bessel_i1_i0_complement` and
+  `bessel_i1_over_i0`, each direct in its own regime, split at
+  `kBesselRatioAsymptoticCut = 50`. Coefficients derived by Vandermonde
+  solve against mpmath at dps 220, not quoted: the low orders come out
+  exactly dyadic (1/2, 1/8, 1/8, 25/128, 13/32, 1073/1024), which is what
+  validates the solve — a first pass at dps 60 gave c₁₀ = 213.72 where the
+  truth is 211.47. The κ ≈ 713 overflow NaN is fixed as a side effect, since
+  every κ in that region now takes the series branch and never evaluates
+  either Bessel function. Applied at all three i1/i0 sites: `getEntropy()`
+  and the MLE fit loop carried the identical latent NaN. Measured: complement
+  ≤ 110 ULP at the crossover, sub-ULP for κ ≳ 80 and κ ≲ 20; ratio ≤ 1.23
+  ULP; no NaN at 700/712/713/714. **RESIDUAL, and it is close to intrinsic:**
+  the complement error is ≈ 2κ × (A's error in ULP), and A is already ~1.3
+  ULP here, so even a correctly-rounded A leaves a floor near κ ULP at the
+  cut. More series terms make it worse below the cut (asymptotic, diverges —
+  ten terms give 1050 ULP at κ = 40). Closing that band needs extended
+  precision inside the complement itself, which this library has no layer
+  for. NOTE this is NOT remediated by adopting corvus: its exports return
+  doubles, so the cancelling subtraction still happens here, and its A is the
+  same ~1 ULP. It would take a corvus export that forms the complement in
+  double-double internally — which does not exist and would need an unfreeze
+  plus a full family pipeline. Recorded as a corvus candidate, not an
+  adoption benefit.
 - 2026-08-15 **#94 closed, and it was hiding a bigger bug.** The reported
   defect was real — a literal `$` in `run_tests`' ctest regex invalidated the
   whole `build.ninja`, so `-G Ninja` could not configure on any platform.

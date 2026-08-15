@@ -69,11 +69,11 @@ namespace {
         kappa = 0.0;
 
     for (int iter = 0; iter < 20 && kappa > 0.0; ++iter) {
-        const double i0 = detail::bessel_i0(kappa);
-        const double i1 = detail::bessel_i1(kappa);
-        if (i0 <= 0.0)
-            break;
-        const double A = i1 / i0;
+        // A(κ) via the ratio helper (#93): the direct i1/i0 form returned NaN
+        // above κ ≈ 713, where both values overflow and the old `i0 <= 0.0`
+        // guard did not catch inf — the Newton step then propagated NaN and
+        // the fit silently produced a NaN concentration.
+        const double A = detail::bessel_i1_over_i0(kappa);
         const double Ap = detail::ONE - A * A - A / kappa;
         if (std::fabs(Ap) < 1e-15)
             break;
@@ -605,9 +605,9 @@ double VonMisesDistribution::getEntropy() const {
     if (is_uniform)
         return detail::LN_2PI;
     const double log_i0 = detail::log_bessel_i0(k);
-    const double i0 = detail::bessel_i0(k);
-    const double i1 = detail::bessel_i1(k);
-    const double A1 = (i0 > 0.0) ? i1 / i0 : 0.0;
+    // A(κ) via the ratio helper: the direct i1/i0 form returned NaN above
+    // κ ≈ 713 where both values overflow (#93).
+    const double A1 = detail::bessel_i1_over_i0(k);
     return detail::LN_2PI - log_i0 + k * A1;
 }
 
@@ -889,13 +889,14 @@ void VonMisesDistribution::updateCacheUnsafe() const noexcept {
 
     isUniform_ = (kappa_ < 1e-10);
 
-    // Circular variance = 1 − I₁(κ)/I₀(κ)
+    // Circular variance = 1 − I₁(κ)/I₀(κ), via the dedicated complement helper
+    // (#93). Forming it as `ONE - i1 / i0` discarded ~log₂(2κ) bits — about 9
+    // at κ = 200 — and returned NaN above κ ≈ 713, where I₀ and I₁ both
+    // overflow and the `i0 > 0.0` guard does not catch inf.
     if (isUniform_) {
         circularVariance_ = detail::ONE;
     } else {
-        const double i0 = detail::bessel_i0(kappa_);
-        const double i1 = detail::bessel_i1(kappa_);
-        circularVariance_ = (i0 > 0.0) ? detail::ONE - i1 / i0 : detail::ONE;
+        circularVariance_ = detail::bessel_i1_i0_complement(kappa_);
     }
 
     cache_valid_ = true;
