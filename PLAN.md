@@ -55,7 +55,7 @@ The last three entries are conventions, not project state; they belong in
 AGENTS.md Conventions on the next pass through that file.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-07-26.
+Last reconciled against live GitHub state: 2026-08-15.
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -76,8 +76,19 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 6 open / 1 closed
+- **v2.2.0 — Accuracy & Performance** (open, #1): 8 open / 1 closed
   (#83 include restructure shipped 2026-07-26).
+  - #92 — log I₀ discontinuous at x = 700 in the C++17 Bessel tier. Filed
+    2026-08-15 from the corvus spike. **Same function as #47 but a
+    different tier and every platform**, not just macOS: above 700
+    `std::cyl_bessel_i` overflows and the header's two-term A&S fallback
+    takes over unmatched — 0.4 → 1881 ULP between adjacent points, a
+    2.14e-10 step, decaying back under 1 ULP by x ≈ 5000. Decide whether
+    #47 and #92 are one issue with two tiers.
+  - #93 — `circularVariance_ = 1 − I₁/I₀` ill-conditioned at large κ
+    (768 ULP at κ = 200 from ~9 bits of cancellation; also NaN above
+    κ ≈ 713 where both unscaled values overflow and the `i0 > 0` guard
+    misses `inf`). Needs scaled variants, which no current tier exposes.
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
     macOS/AppleClang.
@@ -105,6 +116,15 @@ and attached issues were unchanged; only titles moved.
   boilerplate into a CRTP or policy helper.
 
 ## GitHub Issues Without Milestone [DERIVED]
+- Open: **#94** — `cmake -G Ninja` cannot configure this repo on ANY platform:
+  `tests/CMakeLists.txt:511` emits a literal `$` into the `run_tests` ctest
+  regex where Ninja requires `$$`, invalidating the whole `build.ninja`.
+  Invisible to CI because `ci.yml` configures with no `-G` (Visual Studio on
+  Windows, Makefiles elsewhere) and `CMakePresets.json` pins no generator.
+  One-character fix. Pairs with MSBuild's MAX_PATH-bound `.tlog` tracker:
+  the generator that tolerates deep build trees is the one that cannot
+  configure, and the one that configures breaks on them. Needs a milestone
+  decision; filed 2026-08-15 from the corvus spike.
 - Open: **#84** — Audit compensated-summation paths for FP-contraction
   sensitivity. Filed from corvus's cross-compiler finding (GCC's default
   `-ffp-contract=fast` fused inside a compensated sequence and shifted a
@@ -190,8 +210,135 @@ and attached issues were unchanged; only titles moved.
   hand-rolled paths run AVX-512 — that depends on which compiler libstats
   commits to on Windows, which is a libstats decision this spike does not
   make. Probe sources and five re-runnable scripts are in this session's
-  scratchpad; S4 folds them into the report. **Next: S2** (the Tier 0
-  wrappers), with the log-composition small-x adjudication written first.
+  scratchpad; S4 folds them into the report.
+
+  **S2 COMPLETE 2026-08-15.** Tier 0 landed in
+  `include/libstats/core/bessel.h` (span-of-1 wrappers, `LIBSTATS_USE_CORVUS`
+  OFF by default) plus one cohesive CMake block riding the existing
+  `libstats_simd_interface` propagation that already carries
+  `LIBSTATS_HAS_CXX17_BESSEL`. libstats builds clean with Tier 0 in 51 s.
+  The log-composition adjudication is written at the definition site, where
+  it doubles as corvus's #47 integration note: all three `log_bessel_i0`
+  consumers embed the result in a sum anchored by `LN_2PI` ≈ 1.8379, so the
+  governing contract is corvus's ABSOLUTE 3.3e-16, not its weaker small-κ
+  relative error — which is therefore unreachable here. Verdict: compose,
+  no dedicated log-I₀ kernel needed.
+
+  **Two findings from the S2 smoke diff, both independent of adoption and
+  both adjudicated against mpmath at dps 50 rather than assumed:**
+  1. **Tier 1's `x > 700` fallback is inaccurate, and this is NOT a
+     macOS-only problem.** Above 700 `std::cyl_bessel_i` overflows, so
+     `log_bessel_i0` falls back to a hand-rolled two-term A&S asymptotic.
+     At κ = 1000 it is 7.3e-11 absolute against mpmath, where corvus's
+     composition is 2.2e-14 — ~3300× worse. #47 is filed as a macOS/Tier 2
+     issue; this says the SAME function has a real accuracy hole on every
+     platform that defines `LIBSTATS_HAS_CXX17_BESSEL`, Windows and Linux
+     included. Worth widening #47's scope or filing separately.
+  2. **`circularVariance_ = 1 − I₁/I₀` is ill-conditioned at large κ.**
+     At κ = 200 the two builds differ by 768 ULP in the variance while
+     agreeing bit-for-bit on log I₀. Cause is the formula, not either
+     Bessel implementation: I₁/I₀ → 1 − 1/(2κ), so `1 − ratio` cancels ~9
+     bits at κ = 200 and amplifies any last-bit difference. A dedicated
+     1 − A(κ) formulation (corvus composes A exactly as i1e/i0e, the
+     scalings cancel) would fix it. Independent of adoption.
+
+  **S3 (part 1) — TIER-1 DEFECT PINNED 2026-08-15.** `core/bessel.h` is
+  standalone (only `<cmath>`), so all three tiers were compiled from the SAME
+  source with only the tier macros flipped and swept against mpmath at
+  dps 60 — no libstats build involved, which keeps the measurement free of
+  every other moving part. Error in ULP of the result (absolute alone ranks
+  large-x rows wrongly, since log I₀(x) ~ x and the result's own spacing
+  grows):
+
+  | x | Tier 0 (corvus) | Tier 1 (std) | Tier 2 (A&S) |
+  |---|---|---|---|
+  | 0.5 | 7.4 | 10.4 | 3.6e9 |
+  | 100 | 0.5 | 0.5 | 3.3e7 |
+  | 700 | 0.4 | 0.4 | 1.29e6 |
+  | **700.001** | **0.2** | **1881.2** | 1.29e6 |
+  | 1000 | 0.2 | 644.8 | 9.4e5 |
+  | 2000 | 0.0 | 40.0 | 2.5e5 |
+  | 5000 | 0.3 | 0.7 | 2.6e4 |
+
+  1. **Tier 1's defect is a STEP DISCONTINUITY at exactly x = 700**, not a
+     gradual drift: 2.14e-10 absolute jump across the branch, error going
+     0.4 → 1881 ULP between adjacent points. It then DECAYS with x (the
+     truncation is O(1/x³)) and is back under 1 ULP by x ≈ 5000. So the
+     damaged band is **κ ∈ (700, ~3000)**, worst immediately above the seam.
+     A discontinuity is the stronger defect signature: any density built on
+     log I₀ inherits a visible step at κ = 700. Present on every platform
+     defining `LIBSTATS_HAS_CXX17_BESSEL` — Windows and Linux, not just the
+     macOS path #47 names. Fixable in-repo with no corvus dependency (more
+     asymptotic terms, or match the branches at the seam).
+  2. **Tier 2 quantified**, since #47 asserts ~1e-7 without a measurement:
+     2.5e-8 to 4.7e-7 absolute across the sweep, i.e. ~1.3e6 ULP in the
+     700 band and worse below. Confirms the issue and gives it numbers.
+  3. **The S2 adjudication survives measurement.** The composition's
+     documented small-x relative weakness is real (7.4 ULP at x = 0.5) but
+     Tier 1 is WORSE there (10.4 ULP) — both lose relative precision to
+     log(1 + small), independent of tier, and both are irrelevant to this
+     repo's consumers, which use the value absolutely against LN_2PI.
+  4. Minor: `core/bessel.h` is not self-contained on MSVC — Tier 1 uses
+     `M_PI`, supplied globally by CMakeLists.txt:168's `_USE_MATH_DEFINES`.
+
+  **S3 (part 2) COMPLETE 2026-08-15 — both legs green, 49/49, identical
+  test sets.** Baseline (Tier 1) and Tier 0 (corvus built by clang-cl,
+  libstats by MSVC) both pass the full suite with timing/benchmark labels
+  excluded, matching ci.yml. Suite times were 73.0 s and 52.9 s, which is
+  NOT a performance result and must not be reported as one: the Tier 0 leg
+  ran second with warm caches, timing tests were excluded by design, and
+  the library has 8 scalar Bessel call sites, none hot. The spike measured
+  accuracy, not throughput.
+
+  Scope note: no third leg with an MSVC-built corvus (the AVX2 tier). S1
+  established AVX2 and AVX3_ZEN4 corvus produce byte-identical output on
+  every probe row, so that leg would exercise build plumbing, not
+  behaviour, at the cost of a ~12 min Highway+corvus MSVC build. Also
+  worth settling in S4: the S2 wiring only offers `find_package(corvus)`,
+  so "Config A" for libstats means corvus compiled by MSVC, not a
+  different delivery path — a real adoption should decide whether to
+  offer FetchContent too, since that is the zero-setup path for
+  contributors.
+
+  **THIRD ADOPTION-INDEPENDENT DEFECT, found running S3: libstats cannot
+  configure under `-G Ninja` on ANY platform.** `tests/CMakeLists.txt:511`
+  emits a literal `$` into the `run_tests` ctest regex
+  (`...^test_benchmark$`); Ninja requires `$$`, and the malformed line
+  invalidates the whole `build.ninja`, so nothing builds. Never caught
+  because ci.yml configures with plain `cmake -B build` and no `-G`
+  (Visual Studio on Windows, Makefiles elsewhere), CMakePresets.json pins
+  no generator, and the escaping is generator-specific rather than
+  platform-specific. One-character fix. Pairs badly with a second Windows
+  trap found the same way: MSBuild's `.tlog` file tracker breaks past
+  MAX_PATH, so the only generator that tolerates long build paths is the
+  one the repo cannot configure. Either fix alone removes the corner.
+
+  **S4 COMPLETE 2026-08-15 — SPIKE CLOSED.** Report published as an artifact
+  (https://claude.ai/code/artifact/ab912f14-d920-4eb2-b60f-5d92222bb33f);
+  the three adoption-independent defects are now #92, #93, #94 rather than
+  prose here.
+
+  **RECOMMENDATION: adopt, but NOT on the strength of Bessel alone.** The
+  spike proves the mechanism works and that corvus beats both existing tiers
+  measurably. It does not by itself justify a dependency: eight scalar call
+  sites, none hot, and the one real hole below corvus-grade (#92) is fixable
+  in-repo with no dependency at all. The case that DOES justify adoption is
+  the wider surface — #47 retired outright, #51 given the documented Miller
+  recurrence, #52 given `beta_p`, plus erfinv and the incomplete gamma/beta
+  family this repo has no good version of. **Decide on that basis, not on I₀.**
+
+  Costs to price in, none of them blocking but all real: Highway becomes
+  transitive into libstats and therefore pylibstats wheels; that triggers
+  corvus's open NOTICE obligation (Apache-2.0 must ship with BINARY
+  artifacts — source-only releases have dodged it, wheels will not);
+  `libstats-config.cmake` owes a `find_dependency(corvus)` because the SIMD
+  interface links PRIVATE and corvus lands in `INTERFACE_LINK_LIBRARIES` as
+  `$<LINK_ONLY:...>`; and the delivery mechanism is unsettled, since the
+  spike wiring offers only `find_package`.
+
+  **Prerequisite for a real decision:** the macOS leg. Tier 2 is where #47's
+  actual users are, and it was explicitly out of spike scope for want of the
+  M1 — same constraint as #84.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
