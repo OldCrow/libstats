@@ -118,8 +118,45 @@ and attached issues were unchanged; only titles moved.
 - Closed: 12, none milestoned.
 
 ## In Progress [OPEN]
-- None. Every branch tracked here before 2026-07-21 has merged or been
-  deleted; see the Resolved log.
+- **corvus adoption spike** — branch `spike/corvus-bessel`, opened 2026-08-15.
+  Wires corvus `i0`/`i1`/`i0e` behind `stats::detail::bessel_i0` /
+  `bessel_i1` / `log_bessel_i0` as a Tier 0 under `LIBSTATS_USE_CORVUS`
+  (OFF by default), above the two existing tiers in
+  `include/libstats/core/bessel.h`. Scope is deliberately ONE function path:
+  three functions, eight call sites, all scalar and all in `src/von_mises.cpp`
+  (parameter-cache and fit-time, none in a hot loop) — so the payoff is
+  **accuracy**, retiring the Tier 2 A&S 1.6e-7 fallback behind #47, **not
+  throughput**. Scalar span-of-1 wrappers are adequate at every call site.
+
+  The deliverable is a **go/no-go adoption recommendation with evidence, not
+  a merged feature.** The adoption decision itself is recorded in
+  `corvus/PLAN.md` (see Cross-Repo Dependencies below); this section carries
+  execution state only, and neither file restates the other.
+
+  Stages: **S0** branch + decision record. **S1** build plumbing and the ABI
+  matrix — Config A (FetchContent, all-MSVC, AVX2-capped by
+  `HWY_BROKEN_MSVC`) and Config B (prebuilt clang-cl corvus consumed via
+  `find_package`, the config that answers corvus's untested clang-cl→MSVC
+  link question and delivers AVX-512); both assert the dispatch target via
+  `CORVUS_EXPECT_TARGET` rather than assuming it, and check /MD on both
+  sides. **S2** the Tier 0 wrappers (`log_bessel_i0` = `log(i0e(x)) + x` per
+  corvus's documented composition; its small-x caveat is adjudicated and
+  written down before implementation, since that adjudication becomes
+  corvus's integration note). **S3** validation — full 49-test ctest under
+  baseline / A / B, plus a wiring gate over a kappa sweep including the
+  small-kappa band and kappa > 700. **S4** report, the corvus #47
+  integration note, and PLAN updates on both sides.
+
+  Out of scope, explicitly: no corvus edits (consumed at the `v0.5.0` tag,
+  core/generator/test freeze in effect); no #51 Miller-recurrence CDF work;
+  no macOS leg — the AppleClang Tier 2 retirement is the real-world #47
+  payoff but **needs the Mac Mini M1**, same constraint as #84; no new
+  oracle, because corvus's per-tier 1-ULP claims are the accuracy authority
+  and what is needed here is a wiring gate, not a reference set.
+
+  Known risk: if Config B fails to link, the spike **pivots** to "Config A
+  only" adoption and the failure mode goes in the report — it does not end
+  the spike.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
@@ -157,6 +194,15 @@ tail decomposition (#49), erfinv/erfcinv (the normal quantile), and lgamma,
 and carries Bessel I0/I1 in its P1 scope (#47). Solving #47 or #49 by hand
 here is plausibly wasted work if adoption is coming. Settle the direction
 before starting either.
+
+[2026-08-15] A scoped spike against this question is now running — see
+**In Progress** above for its stages and branch. The decision still lands in
+`corvus/PLAN.md`; nothing here changes. One correction worth carrying into
+it: **#49 is not a corvus win.** This repo already disconfirmed erf precision
+as its cause (a max-1-ULP kernel left the 2.62e-7 error unchanged), so
+adoption will not touch it — the suspicion remains the `(ln x − μ)/σ`
+transform. #47 is retired outright by corvus's `i0`/`i1`/`i0e`/`i1e`, #51 by
+its documented Miller-recurrence recipe, and #52 by `beta_p`.
 
 ## Next Steps
 1. **#84** — run the FP-contraction inventory against `src/simd_neon.cpp`
