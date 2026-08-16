@@ -323,6 +323,13 @@ create_libstats_gtest(test_rayleigh_enhanced test_rayleigh_enhanced.cpp)
 create_libstats_test(test_von_mises_basic test_von_mises_basic.cpp)
 create_libstats_gtest(test_von_mises_enhanced test_von_mises_enhanced.cpp)
 
+# #97 guards: which Bessel tier a TU compiles, and that both tiers agree on the
+# negative axis. Deliberately NOT added to the "timing" label block below --
+# these carry no timing assertions, and CI's correctness run excludes that
+# label, so labelling them would silently stop them running where they matter
+# most (the libstdc++ std::domain_error path is Linux-only).
+create_libstats_gtest(test_bessel_tier test_bessel_tier.cpp)
+
 # binomial.h - Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
 create_libstats_test(test_binomial_basic test_binomial_basic.cpp)
 create_libstats_gtest(test_binomial_enhanced test_binomial_enhanced.cpp)
