@@ -55,7 +55,7 @@ The last three entries are conventions, not project state; they belong in
 AGENTS.md Conventions on the next pass through that file.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-08-15.
+Last reconciled against live GitHub state: 2026-08-16.
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -76,10 +76,10 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 7 open / 3 closed
+- **v2.2.0 — Accuracy & Performance** (open, #1): 8 open / 3 closed
   (#83 include restructure shipped 2026-07-26; #92 and #93 closed
   2026-08-15 — see Resolved log; #95 added to the milestone 2026-08-15,
-  since #51 depends on it and already sat here).
+  since #51 depends on it and already sat here; #96 added 2026-08-16).
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
     macOS/AppleClang.
@@ -101,6 +101,18 @@ and attached issues were unchanged; only titles moved.
     cannot reach ≤5e-16 on x86 until this is fixed. Already reaching the
     shipped VonMises batch PDF, where two test files relax to 1e-10 rather
     than fix the kernel — #47 with the platforms swapped.
+  - #96 — the `bessel_i1_i0_complement` asymptotic polynomial shipped in
+    #93's fix has its top three coefficients wrong (c8, c9, c10; the last by
+    0.199). Small: ~1.2 ULP at the κ = 50 crossover, nil above ~80, so the
+    ~110 ULP residual and the ACCURACY.md claim both stand — **constants
+    only, no re-audit**. The lesson is the method: the coefficients were
+    fitted by a Vandermonde solve, whose characteristic failure is that low
+    orders come out right while high orders degrade, so #93's stated
+    validation ("the low orders come out exactly dyadic") could not detect
+    it. Every coefficient of this series is an exact rational obtainable by
+    dividing the two Hankel expansions as power series; derive, don't fit.
+    Found from libhmm, which carried the same defect and used the exact
+    derivation (its #73).
 - **v2.3.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
