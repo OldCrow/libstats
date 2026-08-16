@@ -545,6 +545,25 @@ ctest --test-dir build -R test_gaussian_enhanced  # Contains timing assertions
 Timing tests fail under CPU contention because parallel strategies show less speedup
 when the machine is loaded. This is a measurement problem, not a correctness problem.
 
+**A new error-free transform must be contraction-proofed where it is written.**
+Kahan/Neumaier summation, TwoSum/Fast2Sum, and `fma(a,b,-a*b)` residual tricks
+are exact identities whose proofs assume each IEEE operation rounds as written.
+A compiler contraction landing inside one makes the "exact" correction term the
+error of an operation that never happened — and nothing fails, so a
+single-compiler suite cannot notice. No `-ffp-contract` flag is set anywhere in
+this build, so every TU takes its compiler default: GCC `fast`, AppleClang `on`,
+MSVC/clang-cl off.
+
+The three compensated sequences in `src/simd_neon.cpp` are safe today (#84,
+audited 2026-08-16) and are safe *because of how they are written*, not because
+of any build setting: every intended fusion is spelled as an explicit
+`vfmaq_f64`/`vfmsq_f64`, so no rounded multiply sits adjacent to an add; and the
+one remaining multiply-then-add, log's `e*ln2_hi + L_hi`, has a product that is
+exact by construction (42-bit constant × ≤11-bit exponent). Adding a compensated
+sequence that does neither would reintroduce the hazard silently. So: spell every
+fusion, or arrange for the product to be exact, or scope `-ffp-contract=off` to
+that file.
+
 **A new regression guard must be shown to fail against the unfixed state, on the
 platform it targets, before it is trusted.** Two ways a guard can be structurally
 unable to fail, both seen on #97:

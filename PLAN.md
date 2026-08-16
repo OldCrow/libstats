@@ -116,36 +116,8 @@ and attached issues were unchanged; only titles moved.
   boilerplate into a CRTP or policy helper.
 
 ## GitHub Issues Without Milestone [DERIVED]
-- Open: **#84** — Audit compensated-summation paths for FP-contraction
-  sensitivity. Filed from corvus's cross-compiler finding (GCC's default
-  `-ffp-contract=fast` fused inside a compensated sequence and shifted a
-  double-double result 0.6 bits vs MSVC). **Machine-independent half is
-  done** (2026-08-15, written up in the issue); unmilestoned by decision —
-  it rides the M1 session rather than opening a release line.
-  - Inventory: three error-free transforms, all in `src/simd_neon.cpp` —
-    log's two Fast2Sum steps (461-464), erf's compensated final add
-    (617-619, anchors in `src/neon_erf_data.inc`), sin/cos's compensated
-    `(r, rlo)` reduction (650-696). The Welford updates in `gaussian.cpp`
-    and `lognormal.cpp` are the textbook recurrence with no residual term,
-    so they are **in scope but not exposed** — no identity to break. No
-    x86 path qualifies.
-  - Exposure is one compiler, one file: the TU builds only on aarch64
-    (`cmake/SIMDDetection.cmake:150`), so the set is exactly {AppleClang,
-    those three sites}. The fleet's contraction-default spread produces no
-    divergence surface here.
-  - **No reproducibility claim exists anywhere in the repo** — every hit is
-    seeded-RNG determinism. So nothing promised is at risk; the live
-    concern is that the published NEON ULP bounds may silently depend on
-    contraction being ON, having all been measured under AppleClang
-    defaults.
-  - Policy proposed: `-ffp-contract=off` scoped to that source. The
-    kernels already spell every fusion they want with explicit
-    `vfmaq_f64`, so contraction can only act where a separate
-    `vmulq`/`vaddq` pair was deliberate. Landing site exists —
-    `cmake/SIMDApplication.cmake:94-103` already sets per-source
-    `COMPILE_OPTIONS` on the file (empty on aarch64), so it is a one-line
-    addition.
-- Closed: 14, none milestoned (#90 and #94 both closed 2026-08-15 — see
+- Open: none. **#84 closed 2026-08-16** — see Resolved log.
+- Closed: 15, none milestoned (#84 closed 2026-08-16; #90 and #94 2026-08-15 — see
   Resolved log). Note #90 was never listed here while open; this section is
   derived from GitHub rather than maintained by hand, so re-derive it rather
   than trusting it between passes.
@@ -183,7 +155,7 @@ and attached issues were unchanged; only titles moved.
   Out of scope, explicitly: no corvus edits (consumed at the `v0.5.0` tag,
   core/generator/test freeze in effect); no #51 Miller-recurrence CDF work;
   no macOS leg — the AppleClang Tier 2 retirement is the real-world #47
-  payoff but **needs the Mac Mini M1**, same constraint as #84; no new
+  payoff but **needs the Mac Mini M1**; no new
   oracle, because corvus's per-tier 1-ULP claims are the accuracy authority
   and what is needed here is a wiring gate, not a reference set.
 
@@ -351,7 +323,7 @@ and attached issues were unchanged; only titles moved.
 
   **Prerequisite for a real decision:** the macOS leg. Tier 2 is where #47's
   actual users are, and it was explicitly out of spike scope for want of the
-  M1 — same constraint as #84.
+  M1.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
@@ -400,14 +372,9 @@ transform. #47 is retired outright by corvus's `i0`/`i1`/`i0e`/`i1e`, #51 by
 its documented Miller-recurrence recipe, and #52 by `beta_p`.
 
 ## Next Steps
-1. **#84 is now execution-only, on the M1.** Flip `-ffp-contract=off` at
-   the identified site, re-run the NEON log/erf/trig accuracy gates, and
-   either confirm the published bounds or restate them. Batch it with the
-   corvus spike's macOS leg and #47 — same platform, same compiler,
-   adjacent code. Nothing further to decide first.
-2. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
+1. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
    backlog (3–5× on Zen 4, and the gap widens with SIMD width).
-3. Settle the corvus-adoption question above, then work the rest of v2.2.0
+2. Settle the corvus-adoption question above, then work the rest of v2.2.0
    before starting v2.3.0/v2.4.0 or the v3.0.0 refactor.
 
 ## Resolved log
@@ -431,6 +398,34 @@ file's git history.
   generated export, reconfigures, captures again, and diffs — Linux leg,
   since macOS hides pthreads in libSystem and Windows never takes the path.
   Every other job configures exactly once and was blind to this class.
+- 2026-08-16 **#84 closed — NO EXPOSURE**, reversing the 2026-08-15 verdict
+  recorded on the issue and here. That pass inventoried *where* the compensated
+  sequences are and then declared exposure without checking whether any of them
+  contains an operation a compiler could actually contract. None does.
+  Contraction needs a ROUNDED multiply adjacent to an add; all three sites fail
+  that test, for two different reasons.
+  - sin/cos reduction and erf's final add: every multiply is already inside an
+    explicit `vfmsq_f64`/`vfmaq_f64`, including the error-recovery step itself.
+    The only unfused ops have no multiply beside them, and a multiply feeding an
+    FMA's *product* operand cannot be folded further. erf is arguably not the
+    hazard class at all — `E`/`El` compensate a tabulated constant's
+    representation error, not an operation's rounding, exactly the distinction
+    libhmm #70 drew for its Cody-Waite splits.
+  - log's Fast2Sum is the one genuine rounded-multiply-into-add, and its product
+    is **exact**: `kLogNeonLn2Hi` carries 42 significant bits and `|ed| ≤ 1074`
+    needs 11, so 53 total. Verified over the rationals, not assumed — exact for
+    every e in [−2954, 2954]. Fusing skips a rounding that never happens.
+  - Policy: `-ffp-contract=off` **withdrawn**. It would cost FMA throughout the
+    NEON kernels, where fusion is deliberate and accuracy-positive, to defend
+    against something provably inert.
+  - Same conclusion as libhmm #70 by a different route, and worth keeping the
+    distinction: libhmm has ZERO instances of the hazard class, so nothing can
+    break. libstats has three real compensated sequences that are safe because
+    of how they were WRITTEN — a stronger property and a more fragile one, since
+    it lives in the source rather than the build. Hence the contraction-proofing
+    rule now in AGENTS.md.
+  - Also dissolves the M1 dependency the earlier write-up recorded: no kernel
+    change means no ULP re-measurement, so nothing here waits on hardware.
 - 2026-08-16 **#97 closed** — `LIBSTATS_HAS_CXX17_BESSEL` never reached
   consumers, because it sat on `libstats_simd_interface` and the exported
   library targets reference that as `$<LINK_ONLY:...>`, which propagates the
