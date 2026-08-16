@@ -24,6 +24,15 @@
  *   - Macro:     LIBHMM_HAS_CXX17_BESSEL → LIBSTATS_HAS_CXX17_BESSEL
  */
 
+// LIBSTATS_HAS_CXX17_BESSEL comes from the generated libstats_config.h, which records the
+// check_cxx_source_compiles result at configure time. A header and not a compile definition on
+// purpose: this file is installed, and the tier it selects must be identical in the library's TUs,
+// the test TUs and consumer TUs. It was not — the definition sat on an interface target reached
+// through $<LINK_ONLY:...>, which strips usage requirements, so consumers silently compiled the
+// Tier 2 fallback while the library shipped Tier 1. Same inline functions, two bodies, one program.
+// Issue #97.
+#include "libstats_config.h"
+
 #include <cmath>
 
 namespace stats {
@@ -35,12 +44,26 @@ namespace detail {
 // Tier 1: delegate to C++17 <cmath> special functions
 // ---------------------------------------------------------------------------
 
+// Both take |x| and restore the symmetry themselves — I₀ is even, I₁ is odd.
+//
+// This is not decoration. std::cyl_bessel_i's domain is x ≥ 0, and libstdc++
+// ENFORCES it by throwing std::domain_error; these functions are noexcept, so
+// on GCC/Linux a negative argument is std::terminate, not a wrong number.
+// MSVC's implementation does not throw, which is why the hazard is invisible
+// on Windows. Tier 2 below has always folded through std::fabs, so without
+// this the two tiers disagree on the entire negative axis — one returning
+// I₀(|x|), the other aborting the process.
+//
+// Latent while every in-library caller passes a concentration κ ≥ 0, but these
+// are helpers in an INSTALLED header and a consumer may pass anything. It
+// stopped being latent the moment #97 let consumers reach Tier 1 at all.
 [[nodiscard]] inline double bessel_i0(double x) noexcept {
-    return std::cyl_bessel_i(0.0, x);
+    return std::cyl_bessel_i(0.0, std::fabs(x));
 }
 
 [[nodiscard]] inline double bessel_i1(double x) noexcept {
-    return std::cyl_bessel_i(1.0, x);
+    const double result = std::cyl_bessel_i(1.0, std::fabs(x));
+    return (x < 0.0) ? -result : result;
 }
 
 // 2π as a double. Identical to 2.0 * M_PI (doubling is exact, and 2×π_double
@@ -71,15 +94,20 @@ inline constexpr double kTwoPi = 6.283185307179586476925286766559;
     //
     // Coefficients are exact dyadic rationals, generated from the c_k formula
     // rather than transcribed: 1/8, 9/128, 225/3072, 11025/98304, 893025/2^22.
-    if (x > 700.0) {
-        const double t = 1.0 / x;
+    // |x| throughout: I₀ is even, so log I₀ is too, and the direct branch would
+    // otherwise hand a negative argument to std::cyl_bessel_i — which libstdc++
+    // answers with std::domain_error through a noexcept frame. Tier 2 has always
+    // reduced to |x| here; this makes the tiers agree.
+    const double ax = std::fabs(x);
+    if (ax > 700.0) {
+        const double t = 1.0 / ax;
         const double s =
             t * (0.125 +
                  t * (0.0703125 +
                       t * (0.0732421875 + t * (0.112152099609375 + t * 0.22710800170898438))));
-        return x - 0.5 * std::log(kTwoPi * x) + std::log1p(s);
+        return ax - 0.5 * std::log(kTwoPi * ax) + std::log1p(s);
     }
-    return std::log(std::cyl_bessel_i(0.0, x));
+    return std::log(std::cyl_bessel_i(0.0, ax));
 }
 
 #else
