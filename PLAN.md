@@ -76,11 +76,11 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 8 open / 4 closed
+- **v2.2.0 — Accuracy & Performance** (open, #1): 7 open / 5 closed
   (#83 include restructure shipped 2026-07-26; #92 and #93 closed
   2026-08-15 — see Resolved log; #95 added to the milestone 2026-08-15,
-  since #51 depends on it and already sat here; #96 added and closed
-  2026-08-16).
+  since #51 depends on it and already sat here; #96 and #97 both added
+  and closed 2026-08-16).
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
     macOS/AppleClang.
@@ -103,20 +103,7 @@ and attached issues were unchanged; only titles moved.
     shipped VonMises batch PDF, where two test files relax to 1e-10 rather
     than fix the kernel — #47 with the platforms swapped.
   - ~~#96~~ **CLOSED 2026-08-16** — see Resolved log.
-  - #97 — the installed export drops `LIBSTATS_HAS_CXX17_BESSEL`, so **every
-    consumer compiles Tier 2 on every platform**, not just macOS. Cause is
-    `$<LINK_ONLY:libstats_simd_interface>` on the exported library targets:
-    LINK_ONLY propagates the link and strips usage requirements, and that
-    interface is where the definition lives. Verified against a clean install
-    tree on MSVC — consumer got Tier 2 and 1.3e-08 relative on `bessel_i0(10)`
-    where the library's own TUs are at machine precision. **Also an ODR
-    violation**: the Bessel helpers are `inline` in an installed header, the
-    library's TUs compiled Tier 1, consumer TUs compile Tier 2, and the linker
-    picks. In-tree tests cannot catch it — they link `libstats::simd` directly
-    (tests/CMakeLists.txt:80-81) and so compile a different program than any
-    consumer. **Reframes #47**: Tier 2 is not a macOS problem, it is the
-    consumer default everywhere, which also strengthens the corvus case there.
-    Same defect class as OldCrow/libhmm#75.
+  - ~~#97~~ **CLOSED 2026-08-16** — see Resolved log.
 - **v2.3.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
@@ -444,6 +431,36 @@ file's git history.
   generated export, reconfigures, captures again, and diffs — Linux leg,
   since macOS hides pthreads in libSystem and Windows never takes the path.
   Every other job configures exactly once and was blind to this class.
+- 2026-08-16 **#97 closed** — `LIBSTATS_HAS_CXX17_BESSEL` never reached
+  consumers, because it sat on `libstats_simd_interface` and the exported
+  library targets reference that as `$<LINK_ONLY:...>`, which propagates the
+  link and strips usage requirements. Consumers therefore compiled Tier 2 on
+  every platform (not just macOS, as #47 assumes) and, since the helpers are
+  `inline` in an installed header while the library's TUs compiled Tier 1, it
+  was also an ODR violation. Fixed by moving the probe result into a generated
+  `libstats_config.h`, reusing the mechanism this repo already had for
+  `libstats_version.h`. Measured on MSVC against a clean install tree: a
+  `find_package` consumer goes from Tier 2 at 1.3e-08 relative on
+  `bessel_i0(10)` to Tier 1 at 1.5e-16.
+  - **A second defect had to be fixed in the same change**, or #97 would have
+    promoted it from latent to fatal. Tier 1 called `std::cyl_bessel_i` raw
+    while Tier 2 folded through `std::fabs`, so the tiers disagreed across the
+    whole negative axis — and `std::cyl_bessel_i`'s domain is x ≥ 0, which
+    libstdc++ enforces by throwing `std::domain_error` through these `noexcept`
+    frames, i.e. `std::terminate`. MSVC does not throw, which is why Windows
+    never saw it. Tier 1 now takes `|x|` and restores the symmetry itself.
+    Found by watching libhmm's CI fail on exactly this after its own #75 fix
+    let its tests reach Tier 1 for the first time.
+  - **Two guards that could not fail, both mine, both caught late.** The
+    lesson is now in AGENTS.md → CI/Validation → Test Labels. First, a
+    one-sided assertion ("Tier 2 is within 1.6e-7") passes on a Tier 1 build
+    too; the shipped canary is two-sided, deciding from
+    `__cpp_lib_math_special_functions` and requiring libstats to agree.
+    Second — and this survived a full green CI run — the guard was appended to
+    a `timing`-labelled binary, and CI's correctness run is
+    `-LE "timing|benchmark"`, so it executed on no runner. It now lives in an
+    unlabelled `tests/test_bessel_tier.cpp`. Confirmed running as Test #58 on
+    gcc-14 and AppleClang, test count 48 → 49.
 - 2026-08-16 **#96 closed** — #93's complement series had c8, c9 and c10
   wrong, c10 by 0.199. Report verified independently before acting, by two
   routes: exact rational series division of the two Hankel expansions

@@ -545,6 +545,23 @@ ctest --test-dir build -R test_gaussian_enhanced  # Contains timing assertions
 Timing tests fail under CPU contention because parallel strategies show less speedup
 when the machine is loaded. This is a measurement problem, not a correctness problem.
 
+**A new regression guard must be shown to fail against the unfixed state, on the
+platform it targets, before it is trusted.** Two ways a guard can be structurally
+unable to fail, both seen on #97:
+
+- **It passes on either side of the bug.** Asserting "Tier 2 is accurate to
+  1.6e-7" also passes on a Tier 1 build, so it would never notice a regression.
+  Make the assertion two-sided — decide the expected state independently (there,
+  from `__cpp_lib_math_special_functions`) and require the library to agree.
+- **It never runs.** The first version of that guard was appended to a
+  `timing`-labelled binary, and CI's correctness run is `-LE "timing|benchmark"`,
+  so it executed on no runner. A green CI meant only that it compiled.
+
+Neither is caught by reading the test. Both are caught by running it against the
+broken build once — and platform matters, since the defect it guards (libstdc++
+throwing `std::domain_error` from `std::cyl_bessel_i` through a `noexcept` frame)
+does not reproduce on MSVC at all.
+
 ### Testing Strategy
 - **All levels**: GTest-based tests registered with CTest
 - Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
