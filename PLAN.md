@@ -408,9 +408,13 @@ its documented Miller-recurrence recipe, and #52 by `beta_p`.
    backlog (3–5× on Zen 4, and the gap widens with SIMD width).
 2. Settle the corvus-adoption question above, then work the rest of v2.3.0
    before starting v2.4.0/v2.5.0 or the v3.0.0 refactor.
-3. Bump pylibstats' `find_package` floor and `FetchContent` `GIT_TAG` to
-   v2.2.0 — its `pin-currency` canary fails against a newer libstats
-   release, so this is not optional bookkeeping.
+3. ~~Bump pylibstats' pin to v2.2.0~~ **DONE 2026-08-16** — pylibstats 0.5.0
+   is on PyPI against v2.2.0, so consumers finally get Tier 1 Bessel. Two
+   findings from that release worth knowing here, since this repo owns the
+   "coordinate the bump" invariant above: the pin bump itself was clean and
+   built on all four platforms first time, and both problems it surfaced were
+   pre-existing pylibstats packaging defects rather than anything libstats
+   changed. Detail lives in `pylibstats/PLAN.md`, not restated here.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
