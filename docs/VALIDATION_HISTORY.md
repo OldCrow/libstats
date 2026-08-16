@@ -9,6 +9,21 @@ git-cliff). For SIMD methodology, see `docs/SIMD_OPTIMIZATION_REFERENCE.md` and
 
 ## Validation matrices by release
 
+### v2.1.0 — validation target (three machines)
+
+Carried here verbatim from `AGENTS.md` when v2.2.0 shipped.
+
+| Machine | SIMD | Correctness | Timing | Notes |
+|---|---|---|---|---|
+| Mac Mini M1 | NEON | 46/46 ✅ | 22/22 ✅ | Validated 2026-07-05 |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 46/46 ✅ | — | CI validated |
+| Asus TUF A16 (Windows) | AVX-512 | 46/46 ✅ | — | CI validated |
+
+Note the suite counts in this row are not comparable with v2.2.0's. Until
+#94 (fixed in v2.2.0) the `run_tests` target's `ctest -LE/-E` filters were
+written with escaped pipes and matched nothing, so the selection those
+numbers came from was not the selection intended.
+
 ### v2.0.0 — validation target (three machines)
 
 Ivy Bridge / macOS Catalina dropped from the ecosystem in v2.0.0 (Catalina EOL;

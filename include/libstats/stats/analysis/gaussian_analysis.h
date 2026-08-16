@@ -153,7 +153,8 @@ namespace stats::analysis::gaussian {
  *       of σ under Gaussian data — approximately 27–35% below the true σ depending
  *       on the tuning constant. Do not use the scale for inference without applying
  *       the appropriate consistency factor for the chosen estimator.
- *       A corrected version is planned for v2.1.
+ *       A corrected version is wanted but not scheduled; this note previously
+ *       promised it for v2.1, which shipped without it.
  */
 [[nodiscard]] std::pair<double, double> robustEstimation(
     const std::vector<double>& data, const std::string& estimator_type = "huber",

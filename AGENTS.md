@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.1.0 on `main` — 19 distributions across 7 families, 46/46 correctness tests pass on Kaby Lake AVX2+FMA, Mac Mini M1 NEON, and Asus TUF A16 AVX-512 (CI validated; audit-remediation re-validation completed pre-v2.0.4, see `docs/VALIDATION_HISTORY.md`). v1.5.3 is the final v1.x release.
+**Current status**: v2.2.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. 49/49 correctness tests pass natively on Asus TUF A16 AVX-512 (2026-08-16); the Kaby Lake AVX2+FMA and Mac Mini M1 NEON legs are CI-validated but not yet natively re-run for this release. See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -59,13 +59,26 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **Windows/MSVC:** Follow Platform-Specific Notes below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current validation matrix (v2.1.0)
+### Current validation matrix (v2.2.0)
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
-| Mac Mini M1 | NEON | 46/46 ✅ | 22/22 ✅ | Validated 2026-07-05 |
-| Kaby Lake (2017 MBP) | AVX2+FMA | 46/46 ✅ | — | CI validated |
-| Asus TUF A16 (Windows) | AVX-512 | 46/46 ✅ | — | CI validated |
+| Asus TUF A16 (Windows) | AVX-512 | 49/49 ✅ | 21/22 ⚠️ | Native, 2026-08-16, MSVC 14.51 Release |
+| Mac Mini M1 | NEON | — | — | **Not yet re-validated for v2.2.0** |
+| Kaby Lake (2017 MBP) | AVX2+FMA | — | — | **Not yet re-validated for v2.2.0** |
+
+Counts are not comparable with v2.1.0's: #94 fixed `run_tests`' `ctest` filters,
+which had been written with escaped pipes and matched nothing, so the earlier
+numbers came from a selection nobody intended.
+
+The one timing failure is `UniformEnhancedTest.SIMDAndParallelBatchImplementations`
+— a speedup assertion measuring 1.5x against a 1.8x adaptive threshold at 5000
+elements. Reproduced 2 failures in 3 back-to-back runs on a settled machine, so
+it is flaky rather than a regression, and nothing in v2.2.0 touches uniform or
+the dispatch thresholds (only #83's header rename shows in `git log` for those
+paths). Same class as the Poisson assertion excluded from the AVX-512 workflow
+in v2.2.0. Timing tests carry the `timing` label and are excluded from CI
+everywhere, so this is a real-hardware finding, not a CI one.
 
 For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
 

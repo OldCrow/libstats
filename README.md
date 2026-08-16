@@ -2,14 +2,20 @@
 
 ---
 
-### v2.1.0 released
+### v2.2.0 released
 
-**v2.1.0 is the current release.** v1.5.3 was the final v1.x release.
+**v2.2.0 is the current release.** v1.5.3 was the final v1.x release.
 See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade instructions.
+
+Upgrading from v2.1.0 is a recompile, not a code change — the API is unchanged.
+Note that CMake 3.25 is now the minimum, install paths follow GNUInstallDirs,
+and a new installed header `libstats/libstats_config.h` carries the build's
+Bessel tier. Consumers of the installed v2.1.0 package were silently compiling
+the low-accuracy Bessel fallback; see CHANGELOG #97.
 
 ---
 
-[![Version](https://img.shields.io/badge/version-v2.1.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.1.0)
+[![Version](https://img.shields.io/badge/version-v2.2.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.2.0)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -327,7 +333,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.1.0 is released. v1.5.3 was the final v1.x release.
+v2.2.0 is released. v1.5.3 was the final v1.x release.
 
 **19 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`

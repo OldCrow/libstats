@@ -5,7 +5,88 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] - 2026-08-16
+
+This release is numbered 2.2.0 rather than 2.1.1 because it is not a
+drop-in: the CMake minimum rises from 3.20 to 3.25, install paths move to
+GNUInstallDirs, and a new public header `libstats/libstats_config.h` joins
+the installed set. The library API itself is unchanged.
+
+### Fixed
+
+- **Installed packages silently compiled the Tier 2 Bessel fallback (#97)**:
+  `LIBSTATS_HAS_CXX17_BESSEL` selects between two bodies of the same `inline`
+  functions in the installed `libstats/core/bessel.h`, but was applied as a
+  `target_compile_definitions` on `libstats_simd_interface`, which the library
+  targets pull in as `$<LINK_ONLY:...>`. `LINK_ONLY` propagates the link and
+  **strips usage requirements**, so the macro reached the library's own TUs and
+  the in-tree tests and never a `find_package` consumer. Every consumer on every
+  platform got the low-accuracy tier — measured against a clean install tree,
+  `bessel_i0(10)` went from 1.3×10⁻⁸ relative (Tier 2) to 1.5×10⁻¹⁶ (Tier 1) —
+  and, because the two bodies differed inside `inline` functions linked into one
+  program, it was also an ODR violation. The probe result now travels in a
+  generated `libstats_config.h`, following the mechanism already used for
+  `libstats_version.h`, which also covers pkg-config and plain-include-path
+  consumers.
+- **`std::terminate` on negative Bessel arguments under libstdc++ (#97)**: Tier 1
+  called `std::cyl_bessel_i` raw, which libstdc++ answers with a thrown
+  `std::domain_error` for x < 0 while MSVC does not — so the `noexcept` wrappers
+  meant an abort on GCC only. `bessel_i0`/`bessel_i1` now fold to `|x|` and
+  restore the sign, matching Tier 2's long-standing behaviour. Latent before
+  #97's fix, since no consumer was reaching Tier 1.
+- **Top three coefficients of the I1/I0 complement series were wrong (#96)**:
+  c8, c9 and c10 of #93's series were incorrect, c10 by 0.199. The cause is
+  recorded because the original validation looked convincing — a Vandermonde
+  solve is ill-conditioned and degrades at **high** order while staying exact at
+  low order, so #93's check that the low coefficients came out dyadic confirmed
+  precisely the half a bad solve gets right. Re-derived by exact rational series
+  division of the two Hankel expansions and confirmed by numerical extraction at
+  dps 220. Shipped accuracy is barely affected (~1.2 ULP against a ~110 ULP
+  truncation-dominated total); the fix matters for anyone extending the series.
+- **`log I0` was discontinuous at x = 700 (#92)**: Tier 1's asymptotic above the
+  cut carried only two terms, truncating at O(x⁻³) — exactly the size of the
+  2.14×10⁻¹⁰ step the branch introduced. Extended to five terms; against mpmath
+  at dps 60 the seam goes from 0.4→1881 ULP down to 0.4→0.8, and the
+  discontinuity to 1.38×10⁻¹³, roughly 1.2 ULP of the result.
+- **Circular variance lost ~9 bits at large κ (#93)**: `1 - I1/I0` cancels
+  however accurately the ratio is computed, since A(κ) → 1 − 1/(2κ). Adds
+  `bessel_i1_i0_complement` and `bessel_i1_over_i0`, each computed directly in
+  its own regime and split at κ = 50.
+- **Reconfiguring a build directory dropped `Threads::Threads` from the
+  installed export (#90)**: `detect_threading_systems()` and
+  `detect_tbb_unified()` returned early on a cached completion flag, but cache
+  variables persist across configure passes while imported targets do not. Any
+  reconfigure left `Threads::Threads` undefined, the consuming `if(TARGET ...)`
+  went quiet rather than failing, and the PUBLIC link — which is what
+  `install(EXPORT)` writes into `libstats-targets.cmake` — vanished. Same commit
+  and prefix could produce a different package depending on how many times its
+  build directory had been configured. TBB was exposed the same way. The
+  `find_package()` calls move above each guard.
+- **`run_tests` ran the entire suite, and the Ninja generator could not
+  configure the repo (#94)**: a literal `$` reached `build.ninja` unescaped,
+  invalidating the whole file on every platform. Fixing it surfaced that both of
+  the target's filters had never worked — `ctest -LE/-E` take CMake regexes,
+  where `\|` is an escaped literal pipe, so `"timing\|benchmark"` matched only
+  text no label equals. `run_tests` was selecting 72 tests where its own comment
+  described 41.
+- **GCC `-Wcast-align=strict` on SIMD store buffers**: four `int64_t*` ->
+  `__m128i*` casts in the AVX/AVX2 log-exponent paths now go through `void*`
+  so the compiler can see the `alignas(16)` guarantee; no runtime change.
+- **Strict-build test warnings**: braced an ambiguous `if`/`EXPECT_FALSE`
+  (dangling-else) in `test_batch_math_regressions.cpp`, and made an implicit
+  `size_t` -> `double` conversion explicit in `benchmark_simd_all`.
+
+### Added
+
+- **`libstats/libstats_config.h`**: a generated, installed header carrying the
+  build's Bessel tier as `LIBSTATS_HAS_CXX17_BESSEL`, so consumers compile the
+  same bodies the library did (#97).
+- **`tests/test_bessel_tier.cpp`**: a two-sided tier canary that decides
+  independently via `__cpp_lib_math_special_functions` and then requires
+  libstats to agree, plus a negative-argument symmetry test. Deliberately its
+  own unlabelled binary — the guards were first written into a `timing`-labelled
+  file that CI's `ctest -LE "timing|benchmark"` excludes, so they guarded
+  nothing.
 
 ### Changed
 
@@ -36,17 +117,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   record) now point at the `OldCrow/standards` fleet repo instead of an
   unversioned local path.
 
-### Fixed
-
-- **GCC `-Wcast-align=strict` on SIMD store buffers**: four `int64_t*` ->
-  `__m128i*` casts in the AVX/AVX2 log-exponent paths now go through `void*`
-  so the compiler can see the `alignas(16)` guarantee; no runtime change.
-- **Strict-build test warnings**: braced an ambiguous `if`/`EXPECT_FALSE`
-  (dangling-else) in `test_batch_math_regressions.cpp`, and made an implicit
-  `size_t` -> `double` conversion explicit in `benchmark_simd_all`.
-
 ### CI
 
+- **`ninja-generator` job**: no job exercised the Ninja generator — every other
+  one configures with a plain `cmake -B` and no `-G`, giving Visual Studio on
+  Windows and Makefiles elsewhere, which is why #94 survived as long as it did.
+  The new job configures with `-G Ninja` then runs `ninja -t targets` and
+  `ninja -n`, compiling nothing on purpose: the defect class is malformed
+  *generated* build files, which configure cleanly and fail only once the
+  generator's output is parsed. Verified in both directions against the pre-fix
+  and post-fix trees. It must keep tests enabled, since `run_tests` — the target
+  carrying the escaping hazard — lives in `tests/CMakeLists.txt`.
+- **`reconfigure-export` job**: configures a build directory twice before
+  installing, which is the only way #90 was visible.
+- **AVX-512 workflow excludes timing/benchmark tests**: the scheduled AVX-512
+  run was failing a timing-labelled speedup assertion (0.92x against a 1.84x
+  threshold) that is unreliable on shared hosted vCPUs. `ci.yml` already applied
+  `-LE "timing|benchmark"` everywhere for this reason; `avx512-testing.yml` was
+  the last workflow running the full suite.
 - **Strict `-Werror` gate replaces the Debug/Release matrix**: collapses the
   6-way Debug/Release matrix to one Release build per platform/compiler and
   adds a Strict job that finally exercises the long-defined but never-run

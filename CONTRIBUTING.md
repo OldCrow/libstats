@@ -262,9 +262,11 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **New Distributions**: All 19 distributions are fully implemented in v2.0.0. Inverse Gamma,
-   KDE (kernel density estimation), and GMM (Gaussian mixture models) remain on the v2.1+
-   roadmap.
+1. **New Distributions**: All 19 distributions are fully implemented as of v2.0.0.
+   Inverse Gamma is scheduled in the v2.4.0 milestone (issue #56); KDE (kernel
+   density estimation) and GMM (Gaussian mixture models) are wanted but
+   unscheduled. See the [milestones](https://github.com/OldCrow/libstats/milestones)
+   for what is currently planned rather than a version named here.
 2. **Statistical Tests**: More goodness-of-fit tests and validation methods
 3. **Performance Optimization**: SIMD improvements and cache optimizations
 4. **Documentation**: API documentation and usage examples

@@ -1,12 +1,21 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-07-26
-v2.1.0 is the current release (tag commit 2026-07-20); 19 distributions
-across 7 families. `main` sits 29 commits ahead of the tag: CI hardening,
-the build-stack standardization phases, and four Strict-mode source
-casts — no library behavior change, so nothing here forces a release.
-Working tree clean, `main` level with `origin/main`, no feature branches
-local or remote (Dependabot PRs #85–#88 are the only open PRs).
+## Status [DERIVED] — 2026-08-16
+v2.2.0 is the current release (tagged 2026-08-16); 19 distributions across
+7 families, API unchanged from v2.1.0.
+
+**Why 2.2.0 and not 2.1.1.** The Bessel work (#92/#93/#96/#97) and the
+export fix (#90) are patch-shaped, but three things landed alongside them
+that break drop-in: the CMake minimum rises 3.20 → 3.25, install paths move
+to GNUInstallDirs, and `libstats/libstats_config.h` joins the installed
+header set. A patch number promises a swap-in; this is not one.
+
+The release was cut with 7 issues still open on the milestone formerly
+titled v2.2.0, because #97 is a live correctness defect for every consumer
+of the installed package — silently Tier 2 Bessel, 1.3e-08 where the
+library measures 1.5e-16 — and the remainder of that milestone is gated on
+#95, a from-scratch x86 trig kernel. The open work moved to a new v2.3.0
+milestone rather than holding the fix behind it.
 
 Release contents live in `CHANGELOG.md`; per-version validation matrices
 and SIMD speedup tables live in `docs/VALIDATION_HISTORY.md`; conventions,
@@ -72,18 +81,33 @@ Last reconciled against live GitHub state: 2026-08-16.
   closed/historical ones are summarized as counts only.
 
 ## GitHub Milestones [DERIVED]
-Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
-former #1/#2/#3 titles each moved up one minor version. Milestone numbers
-and attached issues were unchanged; only titles moved.
+Renumbered twice, and the second time is not the same operation as the
+first. **2026-07-21**: nothing had shipped out of milestone #1, so the
+former #1/#2/#3 titles each moved up one minor version — numbers and
+attached issues unchanged, only titles.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 7 open / 5 closed
-  (#83 include restructure shipped 2026-07-26; #92 and #93 closed
-  2026-08-15 — see Resolved log; #95 added to the milestone 2026-08-15,
-  since #51 depends on it and already sat here; #96 and #97 both added
-  and closed 2026-08-16).
+**2026-08-16**: five issues *had* shipped out of milestone #1, so a title
+cascade would have relabelled closed work with a version it did not ship
+in. Instead milestone #1 keeps the title v2.2.0 and its 5 closed issues,
+becoming the release record; its 7 open issues moved to a **new** milestone
+#5 titled v2.3.0, and #2/#3 moved up one minor version to make room.
+Milestone numbers therefore no longer sort in version order — #5 sits
+between #1 and #2 — which is cosmetic and is the price of not rewriting
+history.
+
+- **v2.2.0 — Accuracy & Performance** (closed, #1): 0 open / 5 closed —
+  shipped 2026-08-16. #83 include restructure, #92 and #93 (log I0
+  continuity and circular variance), #96 (complement-series coefficients),
+  #97 (installed export dropped the Bessel tier). See Resolved log.
+- **v2.3.0 — Accuracy & Performance** (open, #5): 7 open / 0 closed —
+  the v2.2.0 milestone's unshipped remainder, moved 2026-08-16.
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
-    macOS/AppleClang.
+    macOS/AppleClang. **Narrowed by #97, not solved.** #97 was the same
+    symptom reaching *every* consumer through a build defect and is fixed;
+    what remains here is the genuine case — AppleClang has no C++17 special
+    math, so Tier 2 is all that platform can offer and the A&S polynomial
+    itself must improve.
   - #48 — Cauchy CDF delegates to StudentT incomplete-beta; should use
     closed-form arctan.
   - #49 — LogNormal CDF accuracy 2.62×10⁻⁷. **"erf precision" is
@@ -102,12 +126,10 @@ and attached issues were unchanged; only titles moved.
     cannot reach ≤5e-16 on x86 until this is fixed. Already reaching the
     shipped VonMises batch PDF, where two test files relax to 1e-10 rather
     than fix the kernel — #47 with the platforms swapped.
-  - ~~#96~~ **CLOSED 2026-08-16** — see Resolved log.
-  - ~~#97~~ **CLOSED 2026-08-16** — see Resolved log.
-- **v2.3.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
+- **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
-- **v2.4.0 — New Distributions (Extended)** (open, #3): 5 open / 0 closed
+- **v2.5.0 — New Distributions (Extended)** (open, #3): 5 open / 0 closed
   — #58 GEV (depends on #54), #59 LogLogistic (depends on #54),
   #60 Triangular, #61 Wald, #62 Hypergeometric + BetaBinomial + Zipf.
 - **v3.0.0 — Architecture Refactor** (open, #4): 4 open / 0 closed —
@@ -333,16 +355,26 @@ and attached issues were unchanged; only titles moved.
   threshold, so for x in that one-double window the kernels return
   `exp(exp_max)` (~214 ULP low) where `std::exp` is still finite. This is a
   deliberate safety margin against a 1-ULP overshoot to inf; left as is.
-- `detect_threading_systems()` (cmake/Threading.cmake:6) early-returns on
-  its cached completion flag, but imported targets are not cache-persistent
-  — so any reconfigure of an existing build dir skips
-  `find_package(Threads)`, and the `if(TARGET Threads::Threads)` guard
-  (CMakeLists.txt) silently drops `Threads::Threads` from the PUBLIC link
-  and the installed export. Found 2026-07-26 while verifying #83's
-  install-tree byte-diff (the stale-cache baseline was the side missing the
-  entry). Pre-existing, orthogonal to #83; filed as #90 (also covers the
-  identical TBB::tbb pattern). On Linux this can underlink
-  installed-package consumers.
+- [2026-08-16] **v2.2.0's validation matrix covers one machine of three.**
+  The documented release practice (`docs/CI_CD_GUIDE.md`, "Release
+  validation practice") supplements CI with native runs on AVX2+FMA, NEON
+  and AVX-512. Only the Asus TUF A16 AVX-512 leg has a v2.2.0 run
+  (49/49 correctness, 2026-08-16); the M1 NEON and Kaby Lake AVX2 legs are
+  outstanding. Judgement call whether that gates the tag: the release
+  carries no SIMD kernel change — the Bessel work is scalar header code and
+  the rest is build plumbing — so the tiers are not the risk surface here,
+  and the one platform-dependent behaviour (#97's libstdc++ `domain_error`
+  path) is covered by `test_bessel_tier` on the Linux and macOS runners.
+- [2026-08-16] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
+  is flaky on the AVX-512 validation machine** — 2 failures in 3
+  back-to-back runs, measuring 1.5x against a 1.8x adaptive threshold at
+  5000 elements. Pre-existing: nothing in v2.2.0 touches uniform or the
+  dispatch thresholds. Same class as the Poisson assertion that v2.2.0
+  excluded from the AVX-512 workflow, and it is `timing`-labelled so CI
+  never runs it. Not yet filed — worth an issue that either widens the
+  margin for cheap-PDF distributions or drops the assertion, since a gate
+  that fails two thirds of the time on the reference machine is not
+  measuring what it claims.
 
 ## Cross-Repo Dependencies [OPEN]
 pylibstats consumes this repo two ways — a `find_package` version floor and
@@ -356,7 +388,7 @@ API change, check pylibstats' pin and coordinate the bump.
 
 [OPEN] **Whether libstats adopts corvus as a dependency is undecided**, and
 it is tracked in `corvus/PLAN.md`, not here. It governs the real cost of at
-least four v2.2.0 issues: corvus already ships 1-ULP erf/erfc with a proper
+least four v2.3.0 issues: corvus already ships 1-ULP erf/erfc with a proper
 tail decomposition (#49), erfinv/erfcinv (the normal quantile), and lgamma,
 and carries Bessel I0/I1 in its P1 scope (#47). Solving #47 or #49 by hand
 here is plausibly wasted work if adoption is coming. Settle the direction
@@ -374,12 +406,22 @@ its documented Miller-recurrence recipe, and #52 by `beta_p`.
 ## Next Steps
 1. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
    backlog (3–5× on Zen 4, and the gap widens with SIMD width).
-2. Settle the corvus-adoption question above, then work the rest of v2.2.0
-   before starting v2.3.0/v2.4.0 or the v3.0.0 refactor.
+2. Settle the corvus-adoption question above, then work the rest of v2.3.0
+   before starting v2.4.0/v2.5.0 or the v3.0.0 refactor.
+3. Bump pylibstats' `find_package` floor and `FetchContent` `GIT_TAG` to
+   v2.2.0 — its `pin-currency` canary fails against a newer libstats
+   release, so this is not optional bookkeeping.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-08-16 **v2.2.0 tagged** — the Bessel set (#92 log I0 continuity, #93
+  circular variance, #96 complement-series coefficients, #97 installed
+  export dropping the tier), the #90 export fix, #94's Ninja unbreak, and
+  the build-stack standardization. Numbered 2.2.0 rather than 2.1.1 because
+  the CMake floor, install paths and installed header set all changed; see
+  Status. Milestone #1 closed with 5 issues, its 7 open ones moved to the
+  new v2.3.0. See CHANGELOG [2.2.0].
 - 2026-08-15 **#90 closed** — `detect_threading_systems()` and
   `detect_tbb_unified()` returned early on a cached completion flag, but
   **cache variables persist across configure passes and imported targets do
