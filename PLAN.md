@@ -76,7 +76,7 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 7 open / 4 closed
+- **v2.2.0 — Accuracy & Performance** (open, #1): 8 open / 4 closed
   (#83 include restructure shipped 2026-07-26; #92 and #93 closed
   2026-08-15 — see Resolved log; #95 added to the milestone 2026-08-15,
   since #51 depends on it and already sat here; #96 added and closed
@@ -103,8 +103,20 @@ and attached issues were unchanged; only titles moved.
     shipped VonMises batch PDF, where two test files relax to 1e-10 rather
     than fix the kernel — #47 with the platforms swapped.
   - ~~#96~~ **CLOSED 2026-08-16** — see Resolved log.
-    Found from libhmm, which carried the same defect and used the exact
-    derivation (its #73).
+  - #97 — the installed export drops `LIBSTATS_HAS_CXX17_BESSEL`, so **every
+    consumer compiles Tier 2 on every platform**, not just macOS. Cause is
+    `$<LINK_ONLY:libstats_simd_interface>` on the exported library targets:
+    LINK_ONLY propagates the link and strips usage requirements, and that
+    interface is where the definition lives. Verified against a clean install
+    tree on MSVC — consumer got Tier 2 and 1.3e-08 relative on `bessel_i0(10)`
+    where the library's own TUs are at machine precision. **Also an ODR
+    violation**: the Bessel helpers are `inline` in an installed header, the
+    library's TUs compiled Tier 1, consumer TUs compile Tier 2, and the linker
+    picks. In-tree tests cannot catch it — they link `libstats::simd` directly
+    (tests/CMakeLists.txt:80-81) and so compile a different program than any
+    consumer. **Reframes #47**: Tier 2 is not a macOS problem, it is the
+    consumer default everywhere, which also strengthens the corvus case there.
+    Same defect class as OldCrow/libhmm#75.
 - **v2.3.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
