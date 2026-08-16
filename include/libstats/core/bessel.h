@@ -190,10 +190,23 @@ inline constexpr double kTwoPi = 6.283185307179586476925286766559;
 // the overflow region now takes the series branch, which never evaluates
 // either Bessel function.
 //
-// Coefficients were derived by solving a Vandermonde system in 1/κ against
-// mpmath at dps 220, not quoted from a table. The low orders come out exactly
-// dyadic — 1/2, 1/8, 1/8, 25/128, 13/32, 1073/1024 — which is what confirms
-// the solve; the top three are the numerical continuation.
+// EVERY coefficient of this series is an exact rational, and they are obtained
+// by exact rational arithmetic rather than fitted. 1 − A is the ratio of the
+// two Hankel expansions (A&S 9.7.1 at ν = 0 and ν = 1); the e^κ/√(2πκ)
+// prefactor cancels, so dividing them as power series in t = 1/κ over the
+// rationals yields each c_k exactly, with no solve and no conditioning:
+//
+//   1/2, 1/8, 1/8, 25/128, 13/32, 1073/1024, 103/32,
+//   375733/32768, 23797/512, 55384775/262144
+//
+// The first shipped version (#93) fitted these with a Vandermonde solve and got
+// the top three wrong — c10 by 0.199 — because Vandermonde systems are
+// ill-conditioned and degrade at HIGH order while staying exact at low order.
+// Its stated validation was that the low orders came out dyadic, which is
+// precisely the half a bad solve gets right; raising precision moved the answer
+// without fixing it, which was the other tell. Corrected in #96. If this series
+// is ever extended, derive by series division: it makes "is the solve good?"
+// an unaskable question rather than an unanswered one.
 //
 // The cut was chosen by evaluating BOTH branches at the same κ in this
 // compiled header and scoring against mpmath — not from a model. An earlier
@@ -203,15 +216,31 @@ inline constexpr double kTwoPi = 6.283185307179586476925286766559;
 // 2κ factor and the real figures are an order worse and much noisier:
 //
 //        κ      series      naive
-//       30    19749 ULP      76 ULP
-//       45      318 ULP     125 ULP
+//       30    19839 ULP      76 ULP
+//       45      320 ULP     125 ULP
 //       50      110 ULP     127 ULP   <- they cross here
 //       60       17 ULP     177 ULP
 //       80      0.6 ULP     206 ULP
 //      100      0.4 ULP      47 ULP
 //
-// Worst case over κ ∈ [15, 105] by cut: 1050 ULP at 40, 318 at 45, **129 at
+// Worst case over κ ∈ [15, 105] by cut: 1057 ULP at 40, 320 at 45, **129 at
 // 50**, 298 at 60. Hence 50.
+//
+// Re-measured after the #96 coefficient correction, which is why the sub-50
+// series entries moved a little (19749 → 19839, 1050 → 1057, 318 → 320): those
+// are the κ where the wrong top coefficients cost the most. The crossover and
+// the choice of 50 are unchanged.
+//
+// The #96 coefficient correction does NOT move that table, and it is worth
+// saying so before someone re-measures and concludes the fix was pointless.
+// Above the cut the series error is dominated by TRUNCATION — the c11 term
+// this polynomial does not carry — not by the accuracy of the terms it does.
+// The wrong constants contributed ~1.2 ULP at κ = 50 against a ~110 ULP total,
+// and less above. What made them worth fixing is the other direction: the same
+// error is ~91 ULP at κ = 30, so any future move of the cut downward, or any
+// extension of the series, would have walked straight into it. libhmm carries
+// 17 terms and cuts at 30, which is exactly why libhmm found this and we did
+// not.
 //
 // The residual ~130 ULP near the cut is close to intrinsic for double here,
 // not slack left on the table. The complement is ~1/(2κ), so ANY error in A is
@@ -239,9 +268,9 @@ inline constexpr double kBesselRatioAsymptoticCut = 50.0;
                                    t * (0.40625 +
                                         t * (1.0478515625 +
                                              t * (3.21875 +
-                                                  t * (11.466461181921275 +
-                                                       t * (46.478503876575118 +
-                                                            t * 211.47489057159319)))))))));
+                                                  t * (11.466461181640625 +
+                                                       t * (46.478515625 +
+                                                            t * 211.27614974975586)))))))));
     }
     const double i0 = bessel_i0(x);
     const double i1 = bessel_i1(x);
