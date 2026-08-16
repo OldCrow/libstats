@@ -76,10 +76,11 @@ Renumbered top-down 2026-07-21 to make room for the shipped v2.1.0:
 former #1/#2/#3 titles each moved up one minor version. Milestone numbers
 and attached issues were unchanged; only titles moved.
 
-- **v2.2.0 — Accuracy & Performance** (open, #1): 8 open / 3 closed
+- **v2.2.0 — Accuracy & Performance** (open, #1): 7 open / 4 closed
   (#83 include restructure shipped 2026-07-26; #92 and #93 closed
   2026-08-15 — see Resolved log; #95 added to the milestone 2026-08-15,
-  since #51 depends on it and already sat here; #96 added 2026-08-16).
+  since #51 depends on it and already sat here; #96 added and closed
+  2026-08-16).
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
   - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
     macOS/AppleClang.
@@ -101,16 +102,7 @@ and attached issues were unchanged; only titles moved.
     cannot reach ≤5e-16 on x86 until this is fixed. Already reaching the
     shipped VonMises batch PDF, where two test files relax to 1e-10 rather
     than fix the kernel — #47 with the platforms swapped.
-  - #96 — the `bessel_i1_i0_complement` asymptotic polynomial shipped in
-    #93's fix has its top three coefficients wrong (c8, c9, c10; the last by
-    0.199). Small: ~1.2 ULP at the κ = 50 crossover, nil above ~80, so the
-    ~110 ULP residual and the ACCURACY.md claim both stand — **constants
-    only, no re-audit**. The lesson is the method: the coefficients were
-    fitted by a Vandermonde solve, whose characteristic failure is that low
-    orders come out right while high orders degrade, so #93's stated
-    validation ("the low orders come out exactly dyadic") could not detect
-    it. Every coefficient of this series is an exact rational obtainable by
-    dividing the two Hankel expansions as power series; derive, don't fit.
+  - ~~#96~~ **CLOSED 2026-08-16** — see Resolved log.
     Found from libhmm, which carried the same defect and used the exact
     derivation (its #73).
 - **v2.3.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
@@ -440,6 +432,29 @@ file's git history.
   generated export, reconfigures, captures again, and diffs — Linux leg,
   since macOS hides pthreads in libSystem and Windows never takes the path.
   Every other job configures exactly once and was blind to this class.
+- 2026-08-16 **#96 closed** — #93's complement series had c8, c9 and c10
+  wrong, c10 by 0.199. Report verified independently before acting, by two
+  routes: exact rational series division of the two Hankel expansions
+  (A&S 9.7.1, ν = 0 and ν = 1, prefactor cancelling) reproduces c1–c7 and
+  yields c8 = 375733/32768, c9 = 23797/512, c10 = 55384775/262144; a dps-220
+  extraction peeling the exact low terms off the true 1 − I₁/I₀ converges on
+  the same c10 from κ = 1e12 to 1e16.
+  **Method lesson, which outlives the constants**: Vandermonde solves are
+  ill-conditioned and degrade at HIGH order while staying exact at low order,
+  so #93's stated validation — the low orders coming out dyadic — confirmed
+  exactly the half a bad solve gets right. Raising precision moved the answer
+  without fixing it, the other tell. Every coefficient here is an exact
+  rational, so derive by series division and the question stops existing.
+  **Impact was ~1.2 ULP at the κ = 50 cut against a ~110 ULP total**, because
+  above the cut the series error is dominated by truncation rather than by the
+  terms carried — the header now says so explicitly, since a re-measurement
+  would otherwise suggest the fix achieved nothing. It earns its place in the
+  other direction: the same error is ~91 ULP at κ = 30, so lowering the cut or
+  extending the series would have hit it. That is how libhmm found it, at 17
+  terms cutting at 30 (OldCrow/libhmm#73).
+  Cut re-derived from the compiled header against mpmath and unchanged: worst
+  over κ ∈ [30, 90] is 128.6 ULP at 50, versus 320 at 45 and 200.7 at 55. The
+  ACCURACY.md claim stands as written; both von Mises test binaries pass.
 - 2026-08-15 **#92 closed** — Tier 1's log I₀ asymptotic carried only two
   terms, truncating at O(x⁻³). The shipped c₁ = 1/8 and c₂ = 9/128 match the
   exact c_k = ((2k−1)!!)²/(k! 8^k), so the FORM was right and only the length
