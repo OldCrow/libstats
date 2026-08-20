@@ -330,6 +330,13 @@ create_libstats_gtest(test_von_mises_enhanced test_von_mises_enhanced.cpp)
 # most (the libstdc++ std::domain_error path is Linux-only).
 create_libstats_gtest(test_bessel_tier test_bessel_tier.cpp)
 
+# #95 guard: per-tier ULP gate for the x86 vector_cos_<tier> kernels
+# (vector_sin_<tier> staged in behind LIBSTATS_TRIG_GATES_HAVE_SIN until it
+# lands). Deliberately NOT added to the "timing" label block below -- same
+# reasoning as test_bessel_tier above: this carries no timing assertions,
+# and a regression gate CI never runs guards nothing.
+create_libstats_gtest(test_trig_ulp_gates test_trig_ulp_gates.cpp)
+
 # binomial.h - Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
 create_libstats_test(test_binomial_basic test_binomial_basic.cpp)
 create_libstats_gtest(test_binomial_enhanced test_binomial_enhanced.cpp)
