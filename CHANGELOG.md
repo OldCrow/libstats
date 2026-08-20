@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **x86 `vector_cos` rebuilt at every tier; `vector_sin` added at every tier
+  (#95)**: the four x86 kernels were a 7-term Taylor polynomial at ~1e-10
+  absolute (~3e5 ULP; wrong sign near zeros of cos — worst case measured
+  ~1e19 ULP on the bit lattice at x ≈ −7.5e6). All four are now the
+  clean-room quadrant-reduction kernel already proven in `vector_cos_neon`
+  and in libhmm v4.4.0's x86 retarget of the same derivation: measured on
+  Zen 4 against 320-bit mpmath references, **max 1 ULP, mean 0.022–0.028
+  ULP, all tiers, cos and sin**; 0 ULP on the specials set. SSE2 and AVX
+  use a plain-arithmetic form that loses nothing in the argument reduction
+  (every n·π/2-part product is exact by the 30-bit-split construction);
+  AVX2/AVX-512 use explicit FMA. Domain contract matches NEON: |x| ≤ 2²³
+  vectorized, per-lane `std::cos`/`std::sin` fixup beyond, NaN propagates,
+  `sin(±0) = ±0` with sign preserved. New per-tier ULP gate
+  (`tests/test_trig_ulp_gates.cpp`, references checked in) demonstrated
+  failing against the old kernels before the fix landed; it also runs the
+  dispatched entry points and a non-lane-multiple tail span. The per-tier
+  kernels are now public statics on `VectorOps` for direct gate access.
+  `vector_sin` unblocks the #51 von Mises CDF batch path.
+
 - **Cauchy CDF uses the closed-form arctan (#48)**: scalar and batch
   `getCumulativeProbability` no longer delegate to StudentT(1)'s regularized
   incomplete-beta path — the CDF is `1/2 + atan((x−x₀)/γ)/π`, one `atan` per

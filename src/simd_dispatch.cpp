@@ -47,6 +47,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
     t.vector_pow_elementwise = vector_pow_elementwise_fallback;
     t.vector_erf = vector_erf_fallback;
     t.vector_cos = vector_cos_fallback;
+    t.vector_sin = vector_sin_fallback;
 
 #ifdef LIBSTATS_HAS_NEON
     if (stats::arch::supports_neon()) {
@@ -62,6 +63,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow_elementwise = vector_pow_elementwise_neon;
         t.vector_erf = vector_erf_neon;
         t.vector_cos = vector_cos_neon;
+        t.vector_sin = vector_sin_neon;
         return t;  // ARM: NEON is the only SIMD tier
     }
 #endif
@@ -83,6 +85,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow_elementwise = vector_pow_elementwise_sse2;
         t.vector_erf = vector_erf_sse2;
         t.vector_cos = vector_cos_sse2;
+        t.vector_sin = vector_sin_sse2;
     }
 #endif
 
@@ -100,6 +103,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow_elementwise = vector_pow_elementwise_avx;
         t.vector_erf = vector_erf_avx;
         t.vector_cos = vector_cos_avx;
+        t.vector_sin = vector_sin_avx;
     }
 #endif
 
@@ -117,6 +121,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow_elementwise = vector_pow_elementwise_avx2;
         t.vector_erf = vector_erf_avx2;
         t.vector_cos = vector_cos_avx2;
+        t.vector_sin = vector_sin_avx2;
     }
 #endif
 
@@ -134,6 +139,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_pow_elementwise = vector_pow_elementwise_avx512;
         t.vector_erf = vector_erf_avx512;
         t.vector_cos = vector_cos_avx512;
+        t.vector_sin = vector_sin_avx512;
     }
 #endif
 
@@ -227,6 +233,12 @@ void VectorOps::vector_cos(const double* values, double* results, std::size_t si
     if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
         return vector_cos_fallback(values, results, size);
     getDispatchTable().vector_cos(values, results, size);
+}
+
+void VectorOps::vector_sin(const double* values, double* results, std::size_t size) noexcept {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_sin_fallback(values, results, size);
+    getDispatchTable().vector_sin(values, results, size);
 }
 
 //========== Runtime Information Functions ==========

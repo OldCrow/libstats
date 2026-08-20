@@ -590,75 +590,181 @@ void VectorOps::vector_erf_sse2(const double* input, double* output, std::size_t
         output[i] = std::erf(input[i]);
 }
 
+    // Clean-room quadrant-reduction cos/sin (issue #95), SSE2 plain-arithmetic
+    // form -- ported structurally from libhmm's cos_pd/sin_pd(__m128d) (issue
+    // #74 there), itself ported from this project's own vector_cos_neon. See
+    // docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
+    // the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
+    // self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
+    // No third-party source.
+    #include "trig_cleanroom_data.inc"
+
+// SSE2 blend helper — no _mm_blendv_pd before SSE4.1. Selects trueValue where
+// mask = all-ones, falseValue where mask = all-zeros (distinct from the
+// SSE2_BLEND macro above, which is scoped to vector_log_sse2/vector_erf_sse2
+// and already #undef'd by this point in the file).
+[[nodiscard]] static inline __m128d sse2_blend(__m128d mask, __m128d trueValue,
+                                                __m128d falseValue) noexcept {
+    return _mm_or_pd(_mm_and_pd(mask, trueValue), _mm_andnot_pd(mask, falseValue));
+}
+
+// Reduction shared by cos_sse2/sin_sse2 cores: x = n*(pi/2) + r, n =
+// round(x*2/pi) via the cvt round-trip (exact-product lemma holds for
+// |n| <= 5,340,354, i.e. |x| <= kTrigDMax = 2^23); r/rlo carry the reduced
+// argument compensated. SSE2 has no FMA, so every step is plain mul+add/sub;
+// this loses nothing here because every nf*p_k product is exact by the
+// 30-bit-split construction (kTrigPio2) -- a plain rounded subtract after an
+// exact multiply commits the identical single rounding step an FMA would.
+// n32 has no SSE4.1 cvtepi32_epi64: bit0/bit1 are read off a duplicated
+// 32-bit shuffle instead of a true 64-bit sign-extension (sufficient: only
+// the low 2 bits of each lane are ever inspected).
+static inline void trig_reduce_2pd(__m128d x, __m128d& r, __m128d& rlo, __m128i& n64) noexcept {
+    const __m128i n32 = _mm_cvtpd_epi32(_mm_mul_pd(x, _mm_set1_pd(kTrigTwoOverPi)));
+    const __m128d nf = _mm_cvtepi32_pd(n32);  // exact
+    n64 = _mm_shuffle_epi32(n32, _MM_SHUFFLE(1, 1, 0, 0));
+
+    r = _mm_sub_pd(x, _mm_mul_pd(nf, _mm_set1_pd(kTrigPio2[0])));  // exact (step 1)
+    rlo = _mm_setzero_pd();
+    for (int k = 1; k < 4; ++k) {
+        const __m128d pk = _mm_set1_pd(kTrigPio2[k]);
+        const __m128d rk = _mm_sub_pd(r, _mm_mul_pd(nf, pk));
+        const __m128d e = _mm_sub_pd(_mm_sub_pd(r, rk), _mm_mul_pd(nf, pk));
+        rlo = _mm_add_pd(rlo, e);
+        r = rk;
+    }
+}
+
+// Degree-6 minimax parity cores on u = r*r; cos's 1 - u/2 head is split into
+// an exact (h, hl) pair (kTrigCosC[0] == -0.5 exactly, generator-asserted).
+static inline void trig_cores_2pd(__m128d r, __m128d rlo, __m128d& s_core,
+                                  __m128d& c_core) noexcept {
+    const __m128d u = _mm_mul_pd(r, r);
+
+    __m128d ps = _mm_set1_pd(kTrigSinC[6]);
+    for (int i = 5; i >= 0; --i)
+        ps = _mm_add_pd(_mm_set1_pd(kTrigSinC[i]), _mm_mul_pd(ps, u));
+    s_core = _mm_add_pd(r, _mm_add_pd(rlo, _mm_mul_pd(_mm_mul_pd(r, u), ps)));
+
+    __m128d pc = _mm_set1_pd(kTrigCosC[6]);
+    for (int i = 5; i >= 1; --i)
+        pc = _mm_add_pd(_mm_set1_pd(kTrigCosC[i]), _mm_mul_pd(pc, u));
+    const __m128d one_c = _mm_set1_pd(1.0);
+    const __m128d half_c = _mm_set1_pd(0.5);
+    const __m128d h = _mm_sub_pd(one_c, _mm_mul_pd(u, half_c));                    // 1 - u/2, exact
+    const __m128d hl = _mm_sub_pd(_mm_sub_pd(one_c, h), _mm_mul_pd(u, half_c));    // (1-h) - u/2, exact
+    __m128d mc = _mm_add_pd(hl, _mm_mul_pd(_mm_mul_pd(u, u), pc));
+    mc = _mm_sub_pd(mc, _mm_mul_pd(r, rlo));  // first-order effect of compensated reduction
+    c_core = _mm_add_pd(h, mc);
+}
+
 void VectorOps::vector_cos_sse2(const double* input, double* output, std::size_t size) noexcept {
     if (!stats::arch::supports_sse2()) {
         return vector_cos_fallback(input, output, size);
     }
 
-    // SSE2 lacks _mm_round_pd (requires SSE4.1). Range reduction uses the
-    // magic-number trick: adding 2^52+2^51=6755399441055744 rounds a double
-    // to the nearest integer (for |x| < 2^51, which holds for any angle value).
-
+    // Clean-room quadrant-reduction cos(x) for |x| <= kTrigDMax (2^23);
+    // scalar fixup beyond (and for inf; NaN self-propagates, see the
+    // reduction comment on trig_reduce_2pd and NEON's fixupSpecial note).
+    // Quadrant table: q=0:+c 1:-s 2:-c 3:+s -> swap core on bit0, sign on
+    // bit1 XOR bit0 (both taken from the low bits of n's two's-complement
+    // form). Expect ~1.5 ULP landing here (plain Horner, no FMA) vs ~0.8 for
+    // the FMA tiers -- see trig_reduce_2pd's comment for why the reduction
+    // itself loses nothing.
     constexpr std::size_t W = arch::simd::SSE_DOUBLES;
     const std::size_t simd_end = (size / W) * W;
-
-    const __m128d inv_two_pi = _mm_set1_pd(1.0 / (2.0 * detail::PI));
-    const __m128d two_pi = _mm_set1_pd(2.0 * detail::PI);
-    const __m128d pi = _mm_set1_pd(detail::PI);
-    const __m128d half_pi = _mm_set1_pd(detail::PI_OVER_2);
-    const __m128d neg_pi = _mm_set1_pd(-detail::PI);
-    const __m128d neg_half_pi = _mm_set1_pd(-detail::PI_OVER_2);
-    const __m128d one = _mm_set1_pd(1.0);
-    const __m128d neg_one = _mm_set1_pd(-1.0);
-    // 2^52 + 2^51 — adding then subtracting rounds to nearest integer
-    const __m128d magic = _mm_set1_pd(6755399441055744.0);
-
-    const __m128d c1 = _mm_set1_pd(-0.5);
-    const __m128d c2 = _mm_set1_pd(4.166666666666667e-2);
-    const __m128d c3 = _mm_set1_pd(-1.388888888888889e-3);
-    const __m128d c4 = _mm_set1_pd(2.480158730158730e-5);
-    const __m128d c5 = _mm_set1_pd(-2.755731922398589e-7);
-    const __m128d c6 = _mm_set1_pd(2.087675698786810e-9);
-    const __m128d c7 = _mm_set1_pd(-1.147074559772973e-11);
+    const __m128d domain_bound = _mm_set1_pd(kTrigDMax);
+    const __m128d sign_mask = _mm_set1_pd(-0.0);
+    const __m128i one_i = _mm_set1_epi64x(1);
 
     for (std::size_t i = 0; i < simd_end; i += W) {
         __m128d x = _mm_loadu_pd(&input[i]);
+        __m128d ax = _mm_andnot_pd(sign_mask, x);
 
-        // Step 1: reduce to [-π, π] using magic-number rounding
-        __m128d scaled = _mm_mul_pd(x, inv_two_pi);
-        __m128d q = _mm_sub_pd(_mm_add_pd(scaled, magic), magic);  // round-to-nearest
-        __m128d y = _mm_sub_pd(x, _mm_mul_pd(q, two_pi));
+        __m128d r, rlo;
+        __m128i n64;
+        trig_reduce_2pd(x, r, rlo, n64);
+        __m128d s_core, c_core;
+        trig_cores_2pd(r, rlo, s_core, c_core);
 
-        // Step 2: reduce to [-π/2, π/2], tracking sign
-        // SSE2 comparison returns all-ones (true) or all-zeros (false) per lane.
-        __m128d sign = one;
-        __m128d gt_hpi = _mm_cmpgt_pd(y, half_pi);
-        __m128d lt_nhpi = _mm_cmplt_pd(y, neg_half_pi);
+        const __m128i bit0 = _mm_and_si128(n64, one_i);
+        const __m128i bit1 = _mm_and_si128(_mm_srli_epi64(n64, 1), one_i);
+        // all-ones iff bit0 set (0 - 1 = -1 = all-ones; 0 - 0 = 0), for sse2_blend.
+        const __m128d swap_mask = _mm_castsi128_pd(_mm_sub_epi64(_mm_setzero_si128(), bit0));
+        const __m128d cv = sse2_blend(swap_mask, s_core, c_core);
+        const __m128i sign_bit = _mm_xor_si128(bit1, bit0);
+        const __m128d sign_v = _mm_castsi128_pd(_mm_slli_epi64(sign_bit, 63));
+        _mm_storeu_pd(&output[i], _mm_xor_pd(cv, sign_v));
 
-        // Blend: select new_y when mask is true, else keep y
-        __m128d new_y_gt = _mm_sub_pd(pi, y);
-        __m128d new_y_lt = _mm_sub_pd(neg_pi, y);
-        y = _mm_or_pd(_mm_and_pd(gt_hpi, new_y_gt), _mm_andnot_pd(gt_hpi, y));
-        sign = _mm_or_pd(_mm_and_pd(gt_hpi, neg_one), _mm_andnot_pd(gt_hpi, sign));
-        y = _mm_or_pd(_mm_and_pd(lt_nhpi, new_y_lt), _mm_andnot_pd(lt_nhpi, y));
-        sign = _mm_or_pd(_mm_and_pd(lt_nhpi, neg_one), _mm_andnot_pd(lt_nhpi, sign));
-
-        // Step 3: Horner evaluation
-        __m128d y2 = _mm_mul_pd(y, y);
-        __m128d poly = c7;
-        poly = _mm_add_pd(c6, _mm_mul_pd(y2, poly));
-        poly = _mm_add_pd(c5, _mm_mul_pd(y2, poly));
-        poly = _mm_add_pd(c4, _mm_mul_pd(y2, poly));
-        poly = _mm_add_pd(c3, _mm_mul_pd(y2, poly));
-        poly = _mm_add_pd(c2, _mm_mul_pd(y2, poly));
-        poly = _mm_add_pd(c1, _mm_mul_pd(y2, poly));
-        poly = _mm_add_pd(one, _mm_mul_pd(y2, poly));
-
-        _mm_storeu_pd(&output[i], _mm_mul_pd(poly, sign));
+        // Out-of-domain / inf fixup decided from the pre-store REGISTER value
+        // `x`, so this stays correct when output aliases input.
+        const int mask = _mm_movemask_pd(_mm_cmpgt_pd(ax, domain_bound));
+        if (mask) {
+            alignas(16) double xbuf[2];
+            _mm_store_pd(xbuf, x);
+            if (mask & 1)
+                output[i + 0] = std::cos(xbuf[0]);
+            if (mask & 2)
+                output[i + 1] = std::cos(xbuf[1]);
+        }
     }
 
     for (std::size_t i = simd_end; i < size; ++i) {
         output[i] = std::cos(input[i]);
+    }
+}
+
+void VectorOps::vector_sin_sse2(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_sse2()) {
+        return vector_sin_fallback(input, output, size);
+    }
+
+    // Clean-room quadrant-reduction sin(x) -- see vector_cos_sse2's comment
+    // for the domain contract and reduction discipline; identical here.
+    // Quadrant table: q=0:+s 1:+c 2:-s 3:-c -> swap core on bit0 (opposite
+    // selection order from cos), sign on bit1 alone. Computed from the
+    // quadrant table directly, NOT cos(x - pi/2) (that composition loses
+    // accuracy through the extra subtraction).
+    constexpr std::size_t W = arch::simd::SSE_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+    const __m128d domain_bound = _mm_set1_pd(kTrigDMax);
+    const __m128d sign_mask = _mm_set1_pd(-0.0);
+    const __m128i one_i = _mm_set1_epi64x(1);
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m128d x = _mm_loadu_pd(&input[i]);
+        __m128d ax = _mm_andnot_pd(sign_mask, x);
+
+        __m128d r, rlo;
+        __m128i n64;
+        trig_reduce_2pd(x, r, rlo, n64);
+        __m128d s_core, c_core;
+        trig_cores_2pd(r, rlo, s_core, c_core);
+
+        const __m128i bit0 = _mm_and_si128(n64, one_i);
+        const __m128i bit1 = _mm_and_si128(_mm_srli_epi64(n64, 1), one_i);
+        const __m128d swap_mask = _mm_castsi128_pd(_mm_sub_epi64(_mm_setzero_si128(), bit0));
+        const __m128d sv = sse2_blend(swap_mask, c_core, s_core);
+        const __m128d sign_v = _mm_castsi128_pd(_mm_slli_epi64(bit1, 63));
+        __m128d result = _mm_xor_pd(sv, sign_v);
+        // IEEE sign-of-zero: for x = -0 the core computes (-0) + (+0) = +0,
+        // dropping the sign; sin(+/-0) must be +/-0 exactly. x == 0 matches
+        // both zeros and no other double, so blend x itself back in.
+        result = sse2_blend(_mm_cmpeq_pd(x, _mm_setzero_pd()), x, result);
+        _mm_storeu_pd(&output[i], result);
+
+        const int mask = _mm_movemask_pd(_mm_cmpgt_pd(ax, domain_bound));
+        if (mask) {
+            alignas(16) double xbuf[2];
+            _mm_store_pd(xbuf, x);
+            if (mask & 1)
+                output[i + 0] = std::sin(xbuf[0]);
+            if (mask & 2)
+                output[i + 1] = std::sin(xbuf[1]);
+        }
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::sin(input[i]);
     }
 }
 

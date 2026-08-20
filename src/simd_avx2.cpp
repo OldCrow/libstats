@@ -600,71 +600,162 @@ void VectorOps::vector_erf_avx2(const double* input, double* output, std::size_t
         output[i] = std::erf(input[i]);
 }
 
+    // Clean-room quadrant-reduction cos/sin (issue #95), AVX2 FMA form --
+    // ported structurally from libhmm's cos_pd/sin_pd(__m256d) (issue #74
+    // there), itself ported from this project's own vector_cos_neon. See
+    // docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
+    // the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
+    // self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
+    // No third-party source. _mm256_cvtepi32_epi64 requires AVX2 (this TU is
+    // compiled with -mavx2 -mfma / /arch:AVX2).
+    #include "trig_cleanroom_data.inc"
+
+// Reduction shared by cos_avx2/sin_avx2: n32 = round-to-nearest-even(x*2/pi)
+// via the cvt round-trip (exact-product lemma holds for |n| <= 5,340,354,
+// i.e. |x| <= kTrigDMax = 2^23); r/rlo carry the reduced argument
+// compensated.
+static inline void trig_reduce_4pd(__m256d x, __m256d& r, __m256d& rlo, __m256i& n64) noexcept {
+    const __m128i n32 = _mm256_cvtpd_epi32(_mm256_mul_pd(x, _mm256_set1_pd(kTrigTwoOverPi)));
+    const __m256d nf = _mm256_cvtepi32_pd(n32);  // exact
+    n64 = _mm256_cvtepi32_epi64(n32);
+
+    r = _mm256_fnmadd_pd(nf, _mm256_set1_pd(kTrigPio2[0]), x);  // exact (step 1)
+    rlo = _mm256_setzero_pd();
+    for (int k = 1; k < 4; ++k) {
+        const __m256d pk = _mm256_set1_pd(kTrigPio2[k]);
+        const __m256d rk = _mm256_fnmadd_pd(nf, pk, r);
+        const __m256d e = _mm256_fnmadd_pd(nf, pk, _mm256_sub_pd(r, rk));
+        rlo = _mm256_add_pd(rlo, e);
+        r = rk;
+    }
+}
+
+// Degree-6 minimax parity cores on u = r*r; cos's 1 - u/2 head is split into
+// an exact (h, hl) pair (kTrigCosC[0] == -0.5 exactly, generator-asserted).
+static inline void trig_cores_4pd(__m256d r, __m256d rlo, __m256d& s_core,
+                                  __m256d& c_core) noexcept {
+    const __m256d u = _mm256_mul_pd(r, r);
+
+    __m256d ps = _mm256_set1_pd(kTrigSinC[6]);
+    for (int i = 5; i >= 0; --i)
+        ps = _mm256_fmadd_pd(ps, u, _mm256_set1_pd(kTrigSinC[i]));
+    s_core = _mm256_add_pd(r, _mm256_fmadd_pd(_mm256_mul_pd(r, u), ps, rlo));
+
+    __m256d pc = _mm256_set1_pd(kTrigCosC[6]);
+    for (int i = 5; i >= 1; --i)
+        pc = _mm256_fmadd_pd(pc, u, _mm256_set1_pd(kTrigCosC[i]));
+    const __m256d one_c = _mm256_set1_pd(1.0);
+    const __m256d half_c = _mm256_set1_pd(0.5);
+    const __m256d h = _mm256_fnmadd_pd(u, half_c, one_c);                     // 1 - u/2, exact
+    const __m256d hl = _mm256_fnmadd_pd(u, half_c, _mm256_sub_pd(one_c, h));  // (1-h) - u/2, exact
+    __m256d mc = _mm256_fmadd_pd(_mm256_mul_pd(u, u), pc, hl);
+    mc = _mm256_fnmadd_pd(r, rlo, mc);  // first-order effect of compensated reduction
+    c_core = _mm256_add_pd(h, mc);
+}
+
 void VectorOps::vector_cos_avx2(const double* input, double* output, std::size_t size) noexcept {
     if (!stats::arch::supports_avx2()) {
         return vector_cos_fallback(input, output, size);
     }
 
-    // Native AVX2 implementation using FMA for the 7-term Horner polynomial.
-    // Same two-step range reduction as vector_cos_avx; _mm256_fmadd_pd replaces
-    // each mul+add pair in the Horner evaluation, reducing rounding error and
-    // halving the instruction count for the polynomial step.
-    // Max error ≈ 1×10⁻¹⁰ for |y| ≤ π/2. Scalar tail delegates to std::cos.
+    // cos(x) for |x| <= kTrigDMax (2^23); scalar fixup beyond (and for inf;
+    // NaN self-propagates through the polynomial path, see trig_reduce_4pd).
+    // Quadrant table: q=0:+c 1:-s 2:-c 3:+s -> swap core on bit0, sign on
+    // bit1 XOR bit0 (both taken from the low bits of n's two's-complement
+    // form). Max ~1 ULP measured on the FMA tiers (see gen_trig_cleanroom_table.py's
+    // fit-quality asserts and the divergence audit).
     constexpr std::size_t W = arch::simd::AVX2_DOUBLES;
     const std::size_t simd_end = (size / W) * W;
-
-    const __m256d inv_two_pi = _mm256_set1_pd(1.0 / (2.0 * detail::PI));
-    const __m256d two_pi = _mm256_set1_pd(2.0 * detail::PI);
-    const __m256d pi = _mm256_set1_pd(detail::PI);
-    const __m256d half_pi = _mm256_set1_pd(detail::PI_OVER_2);
-    const __m256d neg_pi = _mm256_set1_pd(-detail::PI);
-    const __m256d neg_half_pi = _mm256_set1_pd(-detail::PI_OVER_2);
-    const __m256d one = _mm256_set1_pd(1.0);
-    const __m256d neg_one = _mm256_set1_pd(-1.0);
-
-    // Taylor coefficients: c_k = (-1)^k / (2k)!
-    const __m256d c1 = _mm256_set1_pd(-0.5);                    // -1/2!
-    const __m256d c2 = _mm256_set1_pd(4.166666666666667e-2);    //  1/4!
-    const __m256d c3 = _mm256_set1_pd(-1.388888888888889e-3);   // -1/6!
-    const __m256d c4 = _mm256_set1_pd(2.480158730158730e-5);    //  1/8!
-    const __m256d c5 = _mm256_set1_pd(-2.755731922398589e-7);   // -1/10!
-    const __m256d c6 = _mm256_set1_pd(2.087675698786810e-9);    //  1/12!
-    const __m256d c7 = _mm256_set1_pd(-1.147074559772973e-11);  // -1/14!
+    const __m256d domain_bound = _mm256_set1_pd(kTrigDMax);
+    const __m256d sign_mask = _mm256_set1_pd(-0.0);
+    const __m256i one_i = _mm256_set1_epi64x(1);
 
     for (std::size_t i = 0; i < simd_end; i += W) {
         __m256d x = _mm256_loadu_pd(&input[i]);
+        __m256d ax = _mm256_andnot_pd(sign_mask, x);
 
-        // Step 1: reduce to [−π, π]
-        __m256d q = _mm256_round_pd(_mm256_mul_pd(x, inv_two_pi),
-                                    _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
-        __m256d y = _mm256_sub_pd(x, _mm256_mul_pd(q, two_pi));
+        __m256d r, rlo;
+        __m256i n64;
+        trig_reduce_4pd(x, r, rlo, n64);
+        __m256d s_core, c_core;
+        trig_cores_4pd(r, rlo, s_core, c_core);
 
-        // Step 2: reduce to [−π/2, π/2], tracking sign
-        __m256d sign = one;
-        __m256d gt_hpi = _mm256_cmp_pd(y, half_pi, _CMP_GT_OQ);
-        __m256d lt_nhpi = _mm256_cmp_pd(y, neg_half_pi, _CMP_LT_OQ);
+        const __m256i bit0 = _mm256_and_si256(n64, one_i);
+        const __m256i bit1 = _mm256_and_si256(_mm256_srli_epi64(n64, 1), one_i);
+        // all-ones iff bit0 set (0 - 1 = -1 = all-ones; 0 - 0 = 0), for blendv_pd's MSB test.
+        const __m256d swap_mask = _mm256_castsi256_pd(_mm256_sub_epi64(_mm256_setzero_si256(), bit0));
+        const __m256d cv = _mm256_blendv_pd(c_core, s_core, swap_mask);
+        const __m256i sign_bit = _mm256_xor_si256(bit1, bit0);
+        const __m256d sign_v = _mm256_castsi256_pd(_mm256_slli_epi64(sign_bit, 63));
+        _mm256_storeu_pd(&output[i], _mm256_xor_pd(cv, sign_v));
 
-        y = _mm256_blendv_pd(y, _mm256_sub_pd(pi, y), gt_hpi);
-        sign = _mm256_blendv_pd(sign, neg_one, gt_hpi);
-        y = _mm256_blendv_pd(y, _mm256_sub_pd(neg_pi, y), lt_nhpi);
-        sign = _mm256_blendv_pd(sign, neg_one, lt_nhpi);
-
-        // Step 3: FMA Horner  cos(y) = 1 + y²·(c₁ + y²·(… + y²·c₇))
-        __m256d y2 = _mm256_mul_pd(y, y);
-        __m256d poly = c7;
-        poly = _mm256_fmadd_pd(y2, poly, c6);
-        poly = _mm256_fmadd_pd(y2, poly, c5);
-        poly = _mm256_fmadd_pd(y2, poly, c4);
-        poly = _mm256_fmadd_pd(y2, poly, c3);
-        poly = _mm256_fmadd_pd(y2, poly, c2);
-        poly = _mm256_fmadd_pd(y2, poly, c1);
-        poly = _mm256_fmadd_pd(y2, poly, one);
-
-        _mm256_storeu_pd(&output[i], _mm256_mul_pd(poly, sign));
+        // Out-of-domain / inf fixup decided from the pre-store REGISTER value
+        // `x`, so this stays correct when output aliases input.
+        const int mask = _mm256_movemask_pd(_mm256_cmp_pd(ax, domain_bound, _CMP_GT_OQ));
+        if (mask) {
+            alignas(32) double xbuf[4];
+            _mm256_store_pd(xbuf, x);
+            for (int lane = 0; lane < 4; ++lane)
+                if (mask & (1 << lane))
+                    output[i + static_cast<std::size_t>(lane)] = std::cos(xbuf[lane]);
+        }
     }
 
     for (std::size_t i = simd_end; i < size; ++i) {
         output[i] = std::cos(input[i]);
+    }
+}
+
+void VectorOps::vector_sin_avx2(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx2()) {
+        return vector_sin_fallback(input, output, size);
+    }
+
+    // sin(x) for |x| <= kTrigDMax (2^23) -- see vector_cos_avx2's comment for
+    // the domain contract. Quadrant table: q=0:+s 1:+c 2:-s 3:-c -> swap core
+    // on bit0 (opposite selection order from cos), sign on bit1 alone.
+    // Computed from the quadrant table directly, NOT cos(x - pi/2) (that
+    // composition loses accuracy through the extra subtraction).
+    constexpr std::size_t W = arch::simd::AVX2_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+    const __m256d domain_bound = _mm256_set1_pd(kTrigDMax);
+    const __m256d sign_mask = _mm256_set1_pd(-0.0);
+    const __m256i one_i = _mm256_set1_epi64x(1);
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m256d x = _mm256_loadu_pd(&input[i]);
+        __m256d ax = _mm256_andnot_pd(sign_mask, x);
+
+        __m256d r, rlo;
+        __m256i n64;
+        trig_reduce_4pd(x, r, rlo, n64);
+        __m256d s_core, c_core;
+        trig_cores_4pd(r, rlo, s_core, c_core);
+
+        const __m256i bit0 = _mm256_and_si256(n64, one_i);
+        const __m256i bit1 = _mm256_and_si256(_mm256_srli_epi64(n64, 1), one_i);
+        const __m256d swap_mask = _mm256_castsi256_pd(_mm256_sub_epi64(_mm256_setzero_si256(), bit0));
+        const __m256d sv = _mm256_blendv_pd(s_core, c_core, swap_mask);
+        const __m256d sign_v = _mm256_castsi256_pd(_mm256_slli_epi64(bit1, 63));
+        __m256d result = _mm256_xor_pd(sv, sign_v);
+        // IEEE sign-of-zero: for x = -0 the core computes (-0) + (+0) = +0,
+        // dropping the sign; sin(+/-0) must be +/-0 exactly. x == 0 matches
+        // both zeros and no other double, so blend x itself back in.
+        result = _mm256_blendv_pd(result, x, _mm256_cmp_pd(x, _mm256_setzero_pd(), _CMP_EQ_OQ));
+        _mm256_storeu_pd(&output[i], result);
+
+        const int mask = _mm256_movemask_pd(_mm256_cmp_pd(ax, domain_bound, _CMP_GT_OQ));
+        if (mask) {
+            alignas(32) double xbuf[4];
+            _mm256_store_pd(xbuf, x);
+            for (int lane = 0; lane < 4; ++lane)
+                if (mask & (1 << lane))
+                    output[i + static_cast<std::size_t>(lane)] = std::sin(xbuf[lane]);
+        }
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::sin(input[i]);
     }
 }
 

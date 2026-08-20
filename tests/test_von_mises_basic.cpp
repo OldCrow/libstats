@@ -191,12 +191,14 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        // pdf_tolerance relaxed to 1e-10: SIMD vector_cos has documented max error ~1e-10
-        // vs std::cos in the scalar path; this propagates into the PDF via the exp.
+        // 1e-15: vector_cos/vector_sin are max 1 ULP at every tier (issue #95,
+        // gated by test_trig_ulp_gates), so batch-vs-scalar deviation is bounded
+        // by kappa*(kernel + libm cos error) ~ 3e-16 at this kappa=1 instance.
+        // The old 1e-10 accommodated the pre-#95 x86 Taylor kernel.
         stats::tests::BasicDistConfig cfg{
             "VonMises", {-1.5, -0.5, 0.0, 0.5, 1.5}, -3.14159265358979, 3.14159265358979,
-            1e-10,  // pdf_tolerance
-            1e-10   // cdf_tolerance
+            1e-15,  // pdf_tolerance
+            1e-15   // cdf_tolerance
         };
         cfg.invalid_scenarios = {
             {"mu=inf",
