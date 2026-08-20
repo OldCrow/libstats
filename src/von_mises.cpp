@@ -89,6 +89,48 @@ namespace {
     return kappa;
 }
 
+//==============================================================================
+// CDF Bessel-series coefficients (issue #51)
+//
+// F(x) = (t+pi)/(2pi) + sum_{j=1}^{j_max} b_j * sin(j*t),  t = wrap(x-mu)
+// b_j = I_j(kappa) / (j * pi * I0(kappa))
+//
+// Miller backward recurrence: I_{j-1}(kappa) = I_{j+1}(kappa) + (2j/kappa)*I_j(kappa),
+// run downward from an arbitrary seed at N = j_max+15 (the forward recurrence is
+// unstable once j exceeds ~kappa and must not be used -- see issue #51). No Bessel
+// anchor is needed: every series term uses only the ratio I_j/I0, and backward
+// recurrence delivers every f_j proportional to I_j up to one common (arbitrary)
+// scale factor, so f_j/f_0 IS I_j/I0 exactly -- no corvus/A&S dependency, no #47
+// exposure. Rescaling mid-recurrence by 1e250 whenever magnitudes grow guards
+// overflow; the ratios are invariant under a uniform rescale of the array.
+//==============================================================================
+
+[[nodiscard]] std::vector<double> vonmises_cdf_series_coeffs(double kappa, int j_max) {
+    const int N = j_max + 15;
+    std::vector<double> f(static_cast<std::size_t>(N + 2), 0.0);
+    f[static_cast<std::size_t>(N + 1)] = 0.0;
+    f[static_cast<std::size_t>(N)] = 1e-30;
+
+    for (int j = N; j >= 1; --j) {
+        const auto jm1 = static_cast<std::size_t>(j - 1);
+        const auto jj = static_cast<std::size_t>(j);
+        const auto jp1 = static_cast<std::size_t>(j + 1);
+        f[jm1] = f[jp1] + (detail::TWO * static_cast<double>(j) / kappa) * f[jj];
+        if (std::fabs(f[jm1]) > 1e250) {
+            for (std::size_t m = jm1; m <= static_cast<std::size_t>(N + 1); ++m)
+                f[m] /= 1e250;
+        }
+    }
+
+    std::vector<double> b(static_cast<std::size_t>(j_max));
+    const double f0 = f[0];
+    for (int j = 1; j <= j_max; ++j) {
+        b[static_cast<std::size_t>(j - 1)] =
+            (f[static_cast<std::size_t>(j)] / f0) / (static_cast<double>(j) * detail::PI);
+    }
+    return b;
+}
+
 }  // anonymous namespace
 
 //==============================================================================
@@ -318,37 +360,51 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
         return (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
     }
 
+    // Used only by the kappa>1000 wrapped-normal fallback below, which is kept
+    // verbatim from the pre-#51 implementation (wraps x alone, not the difference).
     const double v = wrapAngle(x);
 
-    double kappa, mu, lnorm;
+    double result = detail::ZERO_DOUBLE;
     withCacheSnapshot([&] {
-        kappa = kappa_;
-        mu = mu_;
-        lnorm = logNormaliser_;
+        const double kappa = kappa_;
+        const double mu = mu_;
+
+        // kappa = 0 (uniform circular distribution): exact linear CDF.
+        if (isUniform_) {
+            const double t = wrapAngle(x - mu);
+            result =
+                std::clamp((t + detail::PI) / detail::TWO_PI, detail::ZERO_DOUBLE, detail::ONE);
+            return;
+        }
+
+        // kappa > 1000: unvalidated range for the #51 series -- keep the
+        // pre-#51 wrapped-normal approximation verbatim (guard moved from
+        // kappa>50 to kappa>1000). VM(mu, kappa) ~ N(mu, 1/kappa) on the
+        // circle; approximation error is O(1/kappa^2).
+        if (kappa > 1000.0) {
+            const double z = (v - mu) * std::sqrt(kappa);
+            result = std::clamp(detail::HALF * (detail::ONE + std::erf(z * detail::INV_SQRT_2)),
+                                detail::ZERO_DOUBLE, detail::ONE);
+            return;
+        }
+
+        // 0 < kappa <= 1000: Bessel-series CDF (issue #51), PROVISIONAL pending
+        // the mpmath-oracle accuracy gate (tests/test_vonmises_cdf_accuracy.cpp).
+        //   F(t) = (t+pi)/(2pi) + sum_{j=1}^{j_max} b_j * sin(j*t),  t = wrap(x-mu)
+        // b_j = cdfSeriesCoeffs_[j-1], from the Miller recurrence in
+        // updateCacheUnsafe() (no Bessel anchor -- f_j/f_0 IS I_j/I0 exactly).
+        // Terms are summed j_max -> 1 (smallest first) so the largest terms
+        // accumulate last, keeping the round-off floor low.
+        const double t = wrapAngle(x - mu);
+        double sum = detail::ZERO_DOUBLE;
+        const auto& b = cdfSeriesCoeffs_;
+        for (std::size_t j = b.size(); j >= 1; --j)
+            sum += b[j - 1] * std::sin(static_cast<double>(j) * t);
+        result = std::clamp((t + detail::PI) / detail::TWO_PI + sum, detail::ZERO_DOUBLE,
+                            detail::ONE);
     });
 
-    // For large κ, VM(μ, κ) ≈ N(μ, 1/κ) on the circle — use the wrapped normal CDF.
-    // Approximation error is O(1/κ²); < 1e-4 for κ > 50.
-    if (kappa > 50.0) {
-        const double z = (v - mu) * std::sqrt(kappa);
-        return std::clamp(detail::HALF * (detail::ONE + std::erf(z * detail::INV_SQRT_2)),
-                          detail::ZERO_DOUBLE, detail::ONE);
-    }
-
-    // Trapezoidal rule: integrate f(t) from −π to v.
-    // Scale step count with √κ to track the narrowing peak; minimum 512.
-    const int N = std::max(512, static_cast<int>(64.0 * std::sqrt(kappa)));
-    const double a = -detail::PI;
-    const double h = (v - a) / static_cast<double>(N);
-    if (std::fabs(h) < 1e-15)
-        return detail::ZERO_DOUBLE;
-
-    auto pdf = [&](double t) { return std::exp(kappa * std::cos(t - mu) - lnorm); };
-
-    double sum = detail::HALF * (pdf(a) + pdf(v));
-    for (int i = 1; i < N; ++i)
-        sum += pdf(a + static_cast<double>(i) * h);
-    return std::clamp(sum * h, detail::ZERO_DOUBLE, detail::ONE);
+    return result;
 }
 
 void VonMisesDistribution::buildCdfGrid() const noexcept {
@@ -739,7 +795,13 @@ void VonMisesDistribution::getCumulativeProbability(std::span<const double> valu
         *this, values, results, hint, detail::OperationType::CDF,
         [](const VonMisesDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
-            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count);
+            double mu;
+            std::vector<double> coeffs;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                coeffs = d.cdfSeriesCoeffs_;  // copy: batch runs outside the lock
+            });
+            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, mu, coeffs);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -826,10 +888,12 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
 //
 // LogPDF batch:  z[i] = x[i] − μ  |  c[i] = vector_cos(z)  |  r[i] = κ·c[i] − ln Z
 // PDF batch:     same as LogPDF then r[i] = vector_exp(r)
+// CDF batch (#51): t[i] = wrap(x[i]−μ); r[i] = (t[i]+π)/(2π); for j = j_max..1:
+//                  r[i] += b_j · vector_sin(j·t[i])  (κ=0 or κ>1000: scalar fallback)
 //
-// Both paths use VectorOps::vector_cos (AVX/AVX2/SSE2/NEON/AVX-512) which
-// replaced the earlier scalar std::cos loop. Non-finite inputs receive an
-// exact sentinel value via a scalar fixup pass after the SIMD kernel.
+// PDF/LogPDF use VectorOps::vector_cos; CDF uses VectorOps::vector_sin (#95) —
+// both AVX/AVX2/SSE2/NEON/AVX-512. Non-finite inputs receive an exact sentinel
+// value via a scalar fixup pass after the SIMD kernel.
 //
 // The primary performance gain over per-element calls remains avoiding the
 // cache-validity check and lock acquisition on every element.
@@ -873,9 +937,56 @@ void VonMisesDistribution::getProbabilityBatchUnsafeImpl(
 }
 
 void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(
-    const double* values, double* results, std::size_t count) const noexcept {
+    const double* values, double* results, std::size_t count, double cached_mu,
+    const std::vector<double>& cached_coeffs) const noexcept {
+    // kappa = 0 or kappa > 1000: series not applicable (see updateCacheUnsafe).
+    // Fall back to the per-element scalar path -- itself now O(j_max) or the
+    // wrapped-normal approximation, not the old O(512) trapezoid.
+    if (cached_coeffs.empty()) {
+        for (std::size_t i = 0; i < count; ++i)
+            results[i] = getCumulativeProbability(values[i]);
+        return;
+    }
+
+    const int j_max = static_cast<int>(cached_coeffs.size());
+
+    std::vector<double, arch::simd::aligned_allocator<double>> t(count);
+    std::vector<double, arch::simd::aligned_allocator<double>> jt(count);
+    std::vector<double, arch::simd::aligned_allocator<double>> s(count);
+
+    // t[i] = wrap(values[i] - mu). wrapAngle is scalar-only (fmod-based); the
+    // subtraction runs through SIMD, the wrap through a plain loop.
+    arch::simd::VectorOps::scalar_add(values, -cached_mu, t.data(), count);
     for (std::size_t i = 0; i < count; ++i)
-        results[i] = getCumulativeProbability(values[i]);
+        t[i] = wrapAngle(t[i]);
+
+    // results[i] = (t[i] + pi) / (2*pi)  -- the linear part of the series.
+    arch::simd::VectorOps::scalar_add(t.data(), detail::PI, results, count);
+    arch::simd::VectorOps::scalar_multiply(results, detail::ONE / detail::TWO_PI, results, count);
+
+    // Accumulate j_max -> 1 (smallest terms first, matching the scalar path):
+    //   jt[i] = j * t[i]; s[i] = sin(jt[i]) (#95, vector_sin, max 1 ULP);
+    //   results[i] += b_j * s[i]
+    for (int j = j_max; j >= 1; --j) {
+        const double bj = cached_coeffs[static_cast<std::size_t>(j - 1)];
+        arch::simd::VectorOps::scalar_multiply(t.data(), static_cast<double>(j), jt.data(), count);
+        arch::simd::VectorOps::vector_sin(jt.data(), s.data(), count);
+        arch::simd::VectorOps::scalar_multiply(s.data(), bj, s.data(), count);
+        arch::simd::VectorOps::vector_add(results, s.data(), results, count);
+    }
+
+    // Fixup: wrapAngle passes NaN/+-inf through unchanged, so those lanes are
+    // poisoned (NaN) by this point -- restore the scalar contract exactly:
+    // NaN -> NaN, +inf -> 1, -inf -> 0. Finite lanes are clamped to [0,1].
+    for (std::size_t i = 0; i < count; ++i) {
+        if (std::isnan(values[i])) {
+            results[i] = std::numeric_limits<double>::quiet_NaN();
+        } else if (std::isinf(values[i])) {
+            results[i] = (values[i] > 0.0) ? detail::ONE : detail::ZERO_DOUBLE;
+        } else {
+            results[i] = std::clamp(results[i], detail::ZERO_DOUBLE, detail::ONE);
+        }
+    }
 }
 
 //==============================================================================
@@ -897,6 +1008,17 @@ void VonMisesDistribution::updateCacheUnsafe() const noexcept {
         circularVariance_ = detail::ONE;
     } else {
         circularVariance_ = detail::bessel_i1_i0_complement(kappa_);
+    }
+
+    // CDF Bessel-series coefficients (#51). Not applicable at kappa=0 (isUniform_
+    // uses the exact linear CDF) or kappa>1000 (unvalidated range for the series;
+    // the wrapped-normal fallback is used instead) -- see vonmises_cdf_series_coeffs
+    // above and the class-level CDF doc for the derivation.
+    if (isUniform_ || kappa_ > 1000.0) {
+        cdfSeriesCoeffs_.clear();
+    } else {
+        const int j_max = static_cast<int>(std::ceil(10.0 + 8.5 * std::sqrt(kappa_)));
+        cdfSeriesCoeffs_ = vonmises_cdf_series_coeffs(kappa_, j_max);
     }
 
     cache_valid_ = true;

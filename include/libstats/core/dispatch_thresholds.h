@@ -172,7 +172,12 @@ constexpr ArchTable kNeon = {{
                                                         // VECTORIZED at N=15k; 20k is conservative
                                                         // safe zone). LogPDF: bimodal {25k,25k,64};
                                                         // upper pair→25k
-    /* VON_MISES(13)         */ {100000, 500000, 128},
+    /* VON_MISES(13)         */ {100000, 500000, 100000},  // CDF: 128->100000 (matches PDF;
+                                                           // prior value forced near-NEVER
+                                                           // VECTORIZED under the old O(512)
+                                                           // trapezoid CDF -- initial value,
+                                                           // pending benchmark tuning for the
+                                                           // #51 Bessel-series CDF)
     /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},  // CDF: prior 64 reversed;
                                                         // BEST=VECTORIZED/SCALAR
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},  // CDF: prior 256 reversed;
@@ -249,7 +254,11 @@ constexpr ArchTable kAvx = {{
     /* PARETO(10)            */ {12500, 12500, 37500},  // kAvx2=25k/25k/75k ÷2
     /* WEIBULL(11)           */ {25000, 5000, 25000},   // LogPDF: 25000→5000 (kAvx2=10k÷2)
     /* RAYLEIGH(12)          */ {12500, 64, 12500},     // PDF: 25k→12500; CDF: 50k→12500
-    /* VON_MISES(13)         */ {100000, 400000, 128},  // LogPDF: 300k→400k (kAvx2 GCD-dom)
+    /* VON_MISES(13)         */ {100000, 400000, 100000},  // LogPDF: 300k→400k (kAvx2 GCD-dom).
+                                                           // CDF: 128->100000 (matches PDF;
+                                                           // initial value, pending benchmark
+                                                           // tuning for the #51 Bessel-series
+                                                           // CDF)
     /* BINOMIAL(14)          */ {NEVER, NEVER, 128},    // CDF: held from kAvx512=128
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 256},    // CDF: held; kNeon/kAvx2=NEVER
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},
@@ -341,7 +350,10 @@ constexpr ArchTable kAvx2 = {{
     /* PARETO(10)            */ {25000, 25000, 75000},
     /* WEIBULL(11)           */ {50000, 10000, 50000},  // LogPDF: bimodal {10k,64,8k}→10k
     /* RAYLEIGH(12)          */ {25000, 64, 25000},
-    /* VON_MISES(13)         */ {200000, 400000, 256},
+    /* VON_MISES(13)         */ {200000, 400000, 200000},  // CDF: 256->200000 (matches PDF;
+                                                           // initial value, pending benchmark
+                                                           // tuning for the #51 Bessel-series
+                                                           // CDF)
     /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},
@@ -476,7 +488,10 @@ constexpr ArchTable kAvx512 = {{
     /* PARETO(10)            */ {2000000, 1500000, 2000000},  // LogPDF: 1M→1.5M; CDF: NEVER→2M
     /* WEIBULL(11)           */ {150000, 150000, 2000000},    // CDF: 1.5M→2M
     /* RAYLEIGH(12)          */ {150000, 150000, 300000},     // unchanged
-    /* VON_MISES(13)         */ {25000, 75000, 128},  // PDF: 50k→25k; LogPDF: 100k→75k; CDF: 64→128
+    /* VON_MISES(13)         */ {25000, 75000, 25000},  // PDF: 50k→25k; LogPDF: 100k→75k;
+                                                        // CDF: 64→128→25000 (matches PDF;
+                                                        // initial value, pending benchmark
+                                                        // tuning for the #51 Bessel-series CDF)
     /* BINOMIAL(14)          */ {NEVER, NEVER, 128},  // unchanged
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},  // CDF: 2048→512
     /* GEOMETRIC(16)         */ {NEVER, NEVER, 512},  // new: PDF/LogPDF NEVER; CDF 512 (6-run set

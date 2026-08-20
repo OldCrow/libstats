@@ -16,8 +16,19 @@ namespace stats {
  * - PDF:    f(x; μ, κ) = exp(κ·cos(x−μ)) / (2π·I₀(κ))
  * - LogPDF: κ·cos(x−μ) − logNormaliser_
  *           where logNormaliser_ = log(2π) + log I₀(κ)
- * - CDF:    ∫₋π^x f(t; μ, κ) dt  (numerical, 512-step trapezoidal rule)
- * - Quantile: bisection on CDF in (−π, π]; O(512·bisection steps)
+ * - CDF:    for 0 < κ ≤ 1000, a Bessel-series expansion (issue #51):
+ *             F(x) = (t+π)/(2π) + Σⱼ bⱼ·sin(j·t),  t = wrap(x−μ) ∈ [−π,π]
+ *           with bⱼ = Iⱼ(κ)/(j·π·I₀(κ)) from a per-instance Miller backward
+ *           recurrence (cdfSeriesCoeffs_, §24), j = 1..j_max,
+ *           j_max = ⌈10 + 8.5√κ⌉. κ = 0 uses the exact linear form
+ *           (t+π)/(2π). κ > 1000 (unvalidated range for the series) falls
+ *           back to the wrapped-normal approximation, O(1/κ²) error.
+ * - Quantile: bisection on the CDF grid in (−π, π]; O(log N) via cdfGrid*
+ *           (§24), still built from the O(512) trapezoidal rule (issue #51
+ *           left this as-is: the full test suite round-trips cleanly against
+ *           the more accurate series CDF at the grid's existing resolution;
+ *           rebuilding the grid from the series is a tracked follow-up, not
+ *           a correctness requirement).
  * - Parameters: μ ∈ ℝ (wrapped to (−π, π]), κ ≥ 0
  * - Support: x ∈ (−π, π]
  *
@@ -46,8 +57,10 @@ namespace stats {
  *   2. vector_cos(results)    — SIMD cosine across all backends (AVX/AVX2/NEON/AVX-512)
  *   3. scalar_multiply(κ)     — scale by concentration
  *   4. scalar_add(−ln Z)      — subtract log-normaliser
- * The PARALLEL strategy provides multi-core throughput for very large batches
- * where the CDF path (512-step trapezoidal per element) dominates.
+ * The CDF batch path (issue #51) evaluates the same Bessel series per lane:
+ * `t = wrap(x−μ)` per element, then `VectorOps::vector_sin` once per series
+ * term (j = j_max down to 1) accumulated against the per-instance bⱼ. The
+ * PARALLEL strategy provides multi-core throughput for very large batches.
  *
  * @par MLE:
  * - μ̂ = atan2(Σsin(xᵢ), Σcos(xᵢ))  (one-pass circular mean)
@@ -230,9 +243,12 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
-     * @brief CDF via 512-step trapezoidal integration from −π to x.
-     * Expensive O(512) per call. For large batches, prefer PARALLEL strategy.
-     * @note Input x is wrapped to (−π, π] before integration.
+     * @brief CDF via the Bessel-series expansion for 0 < κ ≤ 1000 (issue #51);
+     * exact linear form at κ = 0; wrapped-normal approximation for κ > 1000
+     * (unvalidated range for the series). O(j_max) per call, j_max = ⌈10+8.5√κ⌉.
+     * @note x−μ is wrapped to [−π, π] before series evaluation.
+     * PROVISIONAL accuracy bound pending the mpmath-oracle accuracy gate
+     * (tests/test_vonmises_cdf_accuracy.cpp).
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
@@ -367,10 +383,19 @@ class VonMisesDistribution : public DistributionBase {
                                        double cached_kappa, double cached_mu,
                                        double cached_log_normaliser) const noexcept;
 
-    /** @brief CDF batch — each element calls the 512-step trapezoidal CDF. Unsafe: no validation.
+    /**
+     * @brief CDF batch — Bessel series evaluated batch-wise (issue #51).
+     *
+     * `cached_mu`/`cached_coeffs` are a snapshot taken by the caller under
+     * the cache lock (see the CDF autoDispatch lambda in .cpp). When
+     * `cached_coeffs` is empty (κ = 0 or κ > 1000 — series not applicable,
+     * see updateCacheUnsafe()) this falls back to the per-element scalar
+     * getCumulativeProbability() loop. Unsafe: no parameter validation.
      */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                 std::size_t count) const noexcept;
+                                                 std::size_t count, double cached_mu,
+                                                 const std::vector<double>& cached_coeffs) const
+        noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS
@@ -447,6 +472,18 @@ class VonMisesDistribution : public DistributionBase {
 
     /** @brief Build cdfGrid* for the current kappa_. Called under cache_mutex_. */
     void buildCdfGrid() const noexcept;
+
+    /**
+     * @brief CDF Bessel-series coefficients bⱼ = Iⱼ(κ)/(j·π·I₀(κ)), j = 1..j_max
+     * (issue #51). cdfSeriesCoeffs_[j-1] holds bⱼ. Computed via a Miller
+     * backward recurrence in updateCacheUnsafe() — no forward recurrence, no
+     * Bessel anchor (the recurrence's own f_j/f_0 ratio already equals
+     * Iⱼ/I₀; see updateCacheUnsafe() for the derivation). Empty when the
+     * series is not applicable: κ = 0 (isUniform_; exact linear CDF) or
+     * κ > 1000 (unvalidated range; wrapped-normal fallback). Invalidated
+     * automatically on κ/μ change via the normal cache mechanism.
+     */
+    mutable std::vector<double> cdfSeriesCoeffs_;
 };
 
 }  // namespace stats
