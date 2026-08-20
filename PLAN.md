@@ -99,14 +99,12 @@ history.
   shipped 2026-08-16. #83 include restructure, #92 and #93 (log I0
   continuity and circular variance), #96 (complement-series coefficients),
   #97 (installed export dropped the Bessel tier). See Resolved log.
-- **v2.3.0 — Accuracy & Performance** (open, #5): 5 open / 0 closed —
+- **v2.3.0 — Accuracy & Performance** (open, #5): 4 open / 1 closed —
   the v2.2.0 milestone's unshipped remainder, moved 2026-08-16. #47 and
   #52 moved out 2026-08-20 (see "Parked on corvus adoption" below).
-  Working order decided 2026-08-20: #48 → #95 → #51 → #49 (interleavable)
-  → #46 last, so the mpmath characterization measures the final surface
-  and reuses #95's gate infrastructure.
-  - #48 — Cauchy CDF delegates to StudentT incomplete-beta; should use
-    closed-form arctan. Small, independent — first.
+  Working order decided 2026-08-20: #48 (done) → #95 → #51 → #49
+  (interleavable) → #46 last, so the mpmath characterization measures the
+  final surface and reuses #95's gate infrastructure.
   - #95 — SIMD trig surface: no `vector_sin` at any tier, and the four x86
     `vector_cos` kernels measure ~6.5e-11 absolute (~2.9e5 ULP) against
     NEON's clean-room 0.50–0.78 ULP. **Gates #51.** Already reaching the
@@ -434,6 +432,10 @@ its documented Miller-recurrence recipe, and #52 by `beta_p`.
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-08-20 **#48 closed** — Cauchy CDF closed-form arctan (scalar + batch
+  autoDispatch), ~2 ULP with a cancellation-free lower-tail branch;
+  mpmath-referenced test the old delegation fails at 2.7e-10. See
+  CHANGELOG [Unreleased].
 - 2026-08-16 **v2.2.0 tagged** — the Bessel set (#92 log I0 continuity, #93
   circular variance, #96 complement-series coefficients, #97 installed
   export dropping the tier), the #90 export fix, #94's Ninja unbreak, and
