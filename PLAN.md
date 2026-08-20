@@ -99,33 +99,48 @@ history.
   shipped 2026-08-16. #83 include restructure, #92 and #93 (log I0
   continuity and circular variance), #96 (complement-series coefficients),
   #97 (installed export dropped the Bessel tier). See Resolved log.
-- **v2.3.0 — Accuracy & Performance** (open, #5): 7 open / 0 closed —
-  the v2.2.0 milestone's unshipped remainder, moved 2026-08-16.
-  - #46 — Benchmark: SIMD accuracy characterization vs mpmath.
-  - #47 — bessel.h Tier 2 fallback limits VonMises accuracy to ~10⁻⁷ on
-    macOS/AppleClang. **Narrowed by #97, not solved.** #97 was the same
-    symptom reaching *every* consumer through a build defect and is fixed;
-    what remains here is the genuine case — AppleClang has no C++17 special
-    math, so Tier 2 is all that platform can offer and the A&S polynomial
-    itself must improve.
+- **v2.3.0 — Accuracy & Performance** (open, #5): 5 open / 0 closed —
+  the v2.2.0 milestone's unshipped remainder, moved 2026-08-16. #47 and
+  #52 moved out 2026-08-20 (see "Parked on corvus adoption" below).
+  Working order decided 2026-08-20: #48 → #95 → #51 → #49 (interleavable)
+  → #46 last, so the mpmath characterization measures the final surface
+  and reuses #95's gate infrastructure.
   - #48 — Cauchy CDF delegates to StudentT incomplete-beta; should use
-    closed-form arctan.
+    closed-form arctan. Small, independent — first.
+  - #95 — SIMD trig surface: no `vector_sin` at any tier, and the four x86
+    `vector_cos` kernels measure ~6.5e-11 absolute (~2.9e5 ULP) against
+    NEON's clean-room 0.50–0.78 ULP. **Gates #51.** Already reaching the
+    shipped VonMises batch PDF, where two test files relax to 1e-10 rather
+    than fix the kernel. **Reduced to a port-back by libhmm v4.4.0**: its
+    #74 kernel is this repo's clean-room NEON derivation (same generator
+    script, credited in `trig_cleanroom_data.inc`) retargeted at
+    SSE2/AVX2/AVX-512 intrinsics, validated max 1 ULP on Zen 4 with
+    per-tier ULP gates. One unproven leg: libstats' AVX tier (no
+    guaranteed FMA — needs the SSE2-style plain-arithmetic path widened,
+    with its own validation).
+  - #51 — VonMises CDF has no SIMD/batch path; scalar integration loop is
+    5–10× slower than scipy. **Unblocked by #95 alone** — the
+    `I_j(κ)/I₀(κ)` series coefficients are per-instance scalar setup
+    (κ fixed, batch varies over x) and Miller recurrence self-normalizes
+    via `I₀(κ) + 2Σ I_j(κ) = e^κ`, so no Bessel call at any tier; the
+    supposed #47 dependency never existed. Remaining design work is the
+    series-truncation error budget (j_max vs κ).
   - #49 — LogNormal CDF accuracy 2.62×10⁻⁷. **"erf precision" is
     disconfirmed as the cause** (2026-07-19): replacing `vector_erf_neon`
     with a max-1-ULP kernel left the error unchanged. Suspicion moves to
     the `(ln x − μ)/σ` argument transform or the erfc-tail cancellation.
     Error is bit-identical across machines, so it is in the shared scalar
-    path.
-  - #51 — VonMises CDF has no SIMD/batch path; scalar integration loop is
-    5–10× slower than scipy.
-  - #52 — Binomial CDF slower than scipy; PMF summation and scalar lgamma
-    are the limiting factors.
-  - #95 — SIMD trig surface: no `vector_sin` at any tier, and the four x86
-    `vector_cos` kernels measure ~6.5e-11 absolute (~2.9e5 ULP) against
-    NEON's clean-room 0.50–0.78 ULP. **Gates #51** — its series recipe
-    cannot reach ≤5e-16 on x86 until this is fixed. Already reaching the
-    shipped VonMises batch PDF, where two test files relax to 1e-10 rather
-    than fix the kernel — #47 with the platforms swapped.
+    path — debuggable on Zen 4, interleavable with the above.
+  - #46 — Benchmark: SIMD accuracy characterization vs mpmath. Last.
+- **Parked on corvus adoption** (open, unmilestoned since 2026-08-20):
+  #47 (bessel.h Tier 2 A&S fallback, ~10⁻⁷ on AppleClang) and #52
+  (Binomial CDF via PMF summation). Not "won't fix" — each tracks the
+  libstats-side consumption work the adoption change set performs and
+  closes with `Fixes #NN`: #47 the bessel.h rewire (and whether the tier
+  scheme survives at all), #52 the `beta_p` closed-form CDF rewrite plus
+  the before/after scipy benchmark. libhmm v4.4.0 was checked for an
+  adoptable interim #47 fix: none — its Tier 2 is the same A&S
+  polynomial. Parking comments on both issues, 2026-08-20.
 - **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
