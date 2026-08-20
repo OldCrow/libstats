@@ -113,20 +113,60 @@ TEST_F(CauchyEnhancedTest, CDFAtLocation) {
 }
 
 TEST_F(CauchyEnhancedTest, CDFFormula) {
-    // CDF(x; 0, 1) = 0.5 + atan(x)/pi
-    // Tolerance matches StudentT's CDFSymmetry / BatchMatchesScalar (1e-8): Cauchy
-    // delegates to StudentT(nu=1)'s incomplete-beta CDF, which achieves ~1e-9 absolute
-    // accuracy vs the analytical atan formula.  Using atan directly would require
-    // abandoning the delegation pattern for this one scalar path.
+    // CDF(x; 0, 1) = 0.5 + atan(x)/pi, computed directly since #48 (the
+    // StudentT(1) incomplete-beta delegation this replaced was ~1e-9 absolute
+    // and capped this test at 1e-8).
     for (double x : {-2.0, -1.0, 0.0, 1.0, 2.0}) {
         double expected = 0.5 + std::atan(x) / detail::PI;
-        EXPECT_NEAR(sc_.getCumulativeProbability(x), expected, 1e-8) << "CDF formula at x=" << x;
+        EXPECT_NEAR(sc_.getCumulativeProbability(x), expected, 1e-15) << "CDF formula at x=" << x;
     }
     // Symmetry: CDF(x0+d) + CDF(x0-d) = 1
     for (double d : {0.5, 1.0, 2.0, 5.0}) {
-        EXPECT_NEAR(sc_.getCumulativeProbability(d) + sc_.getCumulativeProbability(-d), 1.0, 1e-8)
+        EXPECT_NEAR(sc_.getCumulativeProbability(d) + sc_.getCumulativeProbability(-d), 1.0, 1e-15)
             << "Symmetry at d=" << d;
     }
+}
+
+TEST_F(CauchyEnhancedTest, CDFClosedFormVsMpmath) {
+    // References: mpmath at dps=50, F = 1/2 + atan((x-x0)/g)/pi, rounded to
+    // 17 significant digits. Relative tolerance 1e-15 (~4.5 ULP) — the
+    // closed form is ~2 ULP, and crucially the LOWER TAIL holds full
+    // relative accuracy because x < x0 is computed as atan(-g/(x-x0))/pi
+    // rather than the cancelling 0.5 + atan(z)/pi (issue #48). The deep-tail
+    // rows (F ~ 3e-16, 3e-9) are what guard that branch: the naive form's
+    // relative error there is ~ulp(0.5)/F, i.e. catastrophic; the replaced
+    // incomplete-beta delegation was ~1e-9 absolute and also fails them.
+    struct Row {
+        double x, x0, gamma, expected;
+    };
+    static constexpr Row kRows[] = {
+        {-1e15, 0.0, 1.0, 3.1830988618379067e-16},
+        {-1e8, 0.0, 1.0, 3.1830988618379066e-9},
+        {-1000.0, 0.0, 1.0, 0.00031830978008055894},
+        {-50.0, 0.0, 1.0, 0.0063653491009727967},
+        {-4.0, 0.0, 1.0, 0.077979130377369325},
+        {-1.0, 0.0, 1.0, 0.25},
+        {-0.5, 0.0, 1.0, 0.35241638234956673},
+        {0.25, 0.0, 1.0, 0.57797913037736933},
+        {2.0, 0.0, 1.0, 0.85241638234956673},
+        {30.0, 0.0, 1.0, 0.98939359759446458},
+        {1e6, 0.0, 1.0, 0.99999968169011382},
+        {-40.0, 2.0, 3.0, 0.022697870999860425},
+        {-1.0, 2.0, 3.0, 0.25},
+        {5.0, 2.0, 3.0, 0.75},
+        {2000.0, 2.0, 3.0, 0.99952205758712685},
+    };
+    for (const auto& r : kRows) {
+        auto c = CauchyDistribution::create(r.x0, r.gamma).unwrap();
+        const double got = c.getCumulativeProbability(r.x);
+        EXPECT_LE(std::abs(got - r.expected) / r.expected, 1e-15)
+            << "CDF(" << r.x << "; " << r.x0 << ", " << r.gamma << ") = " << got
+            << ", expected " << r.expected;
+    }
+    // Exact endpoints of the closed form.
+    EXPECT_EQ(sc_.getCumulativeProbability(-std::numeric_limits<double>::infinity()), 0.0);
+    EXPECT_EQ(sc_.getCumulativeProbability(std::numeric_limits<double>::infinity()), 1.0);
+    EXPECT_EQ(sc_.getCumulativeProbability(0.0), 0.5);
 }
 
 // ─── Quantile ─────────────────────────────────────────────────────────────────

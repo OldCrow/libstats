@@ -35,6 +35,9 @@ namespace detail {
 /// High-precision value of π
 inline constexpr double PI = 3.141592653589793238462643383279502884;
 
+/// High-precision value of 1/π
+inline constexpr double INV_PI = 0.3183098861837906715377675267450287;
+
 /// Natural logarithm of 2
 inline constexpr double LN2 = 0.6931471805599453094172321214581766;
 

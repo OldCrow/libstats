@@ -5,6 +5,23 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Cauchy CDF uses the closed-form arctan (#48)**: scalar and batch
+  `getCumulativeProbability` no longer delegate to StudentT(1)'s regularized
+  incomplete-beta path — the CDF is `1/2 + atan((x−x₀)/γ)/π`, one `atan` per
+  element with no iteration. Accuracy improves from the delegation's ~10⁻⁹
+  absolute to ~2 ULP, and the lower tail (x < x₀) is computed
+  cancellation-free as `atan(−γ/(x−x₀))/π`, holding full relative accuracy
+  down to F ≈ 10⁻¹⁶ where the naive form caps at ~ulp(1/2)/F. The batch
+  overload now runs its own auto-dispatch (scalar loop until a `vector_atan`
+  SIMD primitive exists; parallel/work-stealing above the thresholds) instead
+  of allocating a transform buffer and delegating. PDF/LogPDF delegation is
+  unchanged. New mpmath-referenced accuracy test (dps=50) that the previous
+  implementation fails at up to 2.7×10⁻¹⁰.
+
 ## [2.2.0] - 2026-08-16
 
 This release is numbered 2.2.0 rather than 2.1.1 because it is not a

@@ -33,13 +33,15 @@ namespace stats {
  * If Z ~ StudentT(1), then x₀ + γZ ~ Cauchy(x₀, γ).
  *
  * @par Delegation Design Pattern:
- * CauchyDistribution delegates all probability computation to a private
+ * CauchyDistribution delegates PDF and LogPDF computation to a private
  * `StudentTDistribution student_t_{1.0}` member, which is fixed at ν=1 and
  * never needs to be updated when x₀ or γ change.  The location-scale transform
  * is applied to inputs before delegation (z = (x − x₀)/γ) and outputs are
- * scaled accordingly (PDF: ÷γ; LogPDF: −log γ; CDF/Quantile: no scaling).
- * This pattern automatically inherits all future improvements to StudentT
- * (including SIMD batch vectorisation).
+ * scaled accordingly (PDF: ÷γ; LogPDF: −log γ).  This pattern automatically
+ * inherits future improvements to StudentT (including SIMD batch
+ * vectorisation).  CDF and Quantile do NOT delegate: both have trivial
+ * closed forms (arctan / tan) where the StudentT route would substitute an
+ * iterative regularized incomplete-beta evaluation (#48).
  *
  * @par Thread Safety:
  * - All methods are fully thread-safe using reader-writer locks.
@@ -205,7 +207,8 @@ class CauchyDistribution : public DistributionBase {
     [[nodiscard]] VoidResult validateCurrentParameters() const noexcept;
 
     //==========================================================================
-    // 5. CORE PROBABILITY METHODS — delegates to StudentT(ν=1) via z=(x−x₀)/γ
+    // 5. CORE PROBABILITY METHODS — PDF/LogPDF delegate to StudentT(ν=1) via
+    // z=(x−x₀)/γ; CDF (#48) and Quantile use their closed forms directly.
     //==========================================================================
 
     /**
@@ -221,7 +224,8 @@ class CauchyDistribution : public DistributionBase {
     [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
-     * @brief CDF: 0.5 + atan((x−x₀)/γ)/π = student_t_(1).CDF((x−x₀)/γ).
+     * @brief CDF: 0.5 + atan((x−x₀)/γ)/π, closed form (#48). The lower tail
+     * (x < x₀) is computed cancellation-free as atan(−γ/(x−x₀))/π.
      * Returns NaN for NaN input; 0/1 for ±∞.
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
@@ -296,8 +300,9 @@ class CauchyDistribution : public DistributionBase {
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
-    // Each method transforms inputs z=(x−x₀)/γ, delegates to StudentT(1)'s
-    // auto-dispatch batch, then scales output (PDF: ×1/γ; LogPDF: −logγ; CDF: none).
+    // PDF/LogPDF transform inputs z=(x−x₀)/γ, delegate to StudentT(1)'s
+    // auto-dispatch batch, then scale output (PDF: ×1/γ; LogPDF: −logγ).
+    // CDF uses the closed-form arctan directly via autoDispatch (#48).
     //==========================================================================
 
     /**
@@ -315,8 +320,9 @@ class CauchyDistribution : public DistributionBase {
                            const detail::PerformanceHint& hint = {}) const;
 
     /**
-     * @brief Batch CDF — delegates to StudentT(1) batch after input transform.
-     * CDF_Cauchy(x) = CDF_StudentT(1)((x−x₀)/γ).
+     * @brief Batch CDF — closed-form arctan, no delegation (#48).
+     * CDF_Cauchy(x) = 1/2 + atan((x−x₀)/γ)/π, computed cancellation-free in
+     * the lower tail via atan(−γ/(x−x₀))/π for x < x₀. One atan per element.
      */
     void getCumulativeProbability(std::span<const double> values, std::span<double> results,
                                   const detail::PerformanceHint& hint = {}) const;

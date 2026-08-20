@@ -203,6 +203,24 @@ VoidResult CauchyDistribution::validateCurrentParameters() const noexcept {
 // 5. CORE PROBABILITY METHODS
 //==============================================================================
 
+namespace {
+// Cauchy CDF closed form on the standardized argument z = (x − x₀)/γ (#48):
+//   F(z) = 1/2 + atan(z)/π.
+// For z < 0 that form cancels — atan(z)/π → −1/2 as F → 0 — capping the
+// lower tail's relative accuracy at ~ulp(1/2)/F. The identity
+// atan(z) = −π/2 − atan(1/z) (z < 0) rewrites it as
+//   F(z) = atan(−1/z)/π,
+// which is cancellation-free: full relative accuracy down to the smallest
+// tails. Either branch performs three roundings (divide or add, atan,
+// multiply), ~2 ULP total. Exact at ±0 (F = 1/2) and ±∞ (F = 0, 1);
+// NaN propagates through atan.
+[[nodiscard]] inline double cauchy_cdf_standardized(double z) noexcept {
+    if (z < detail::ZERO_DOUBLE)
+        return std::atan(-detail::ONE / z) * detail::INV_PI;
+    return detail::HALF + std::atan(z) * detail::INV_PI;
+}
+}  // namespace
+
 double CauchyDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
@@ -239,8 +257,9 @@ double CauchyDistribution::getCumulativeProbability(double x) const {
         x0 = x0_;
         ig = inv_gamma_;
     });
-    const double z = (x - x0) * ig;
-    return student_t_.getCumulativeProbability(z);
+    // Closed form — one atan, no delegation. Previously routed through
+    // StudentT(1)'s regularized incomplete-beta path (#48).
+    return cauchy_cdf_standardized((x - x0) * ig);
 }
 
 double CauchyDistribution::getQuantile(double p) const {
@@ -416,8 +435,9 @@ double CauchyDistribution::getGammaAtomic() const noexcept {
 
 //==============================================================================
 // 13. SMART BATCH OPERATIONS
-// Input transform: z[i] = (x[i] − x₀) / γ
-// Delegate to StudentT(1)'s auto-dispatch batch, then scale output.
+// PDF/LogPDF: transform z[i] = (x[i] − x₀)/γ, delegate to StudentT(1)'s
+// auto-dispatch batch, then scale output (PDF: ×1/γ; LogPDF: −logγ).
+// CDF: closed-form arctan via autoDispatch, no delegation (#48).
 //==============================================================================
 
 void CauchyDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -474,39 +494,68 @@ void CauchyDistribution::getLogProbability(std::span<const double> values,
     VectorOps::scalar_add(results.data(), -lg, results.data(), n);
 }
 
+// Batch CDF is the one batch path that does NOT delegate to StudentT(1):
+// the closed form (#48) is one atan per element, so delegation would trade
+// it for the regularized incomplete-beta iteration. No vector_atan SIMD
+// primitive exists yet, so the VECTORIZED strategy runs the same scalar
+// loop; PARALLEL/WORK_STEALING split it across threads.
 void CauchyDistribution::getCumulativeProbability(std::span<const double> values,
                                                   std::span<double> results,
                                                   const detail::PerformanceHint& hint) const {
-    const std::size_t n = values.size();
-    if (n == 0)
-        return;
-    if (n != results.size())
-        throw std::invalid_argument("Input and output spans must have the same size");
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::OperationType::CDF,
+        [](const CauchyDistribution& dist, double value) {
+            return dist.getCumulativeProbability(value);
+        },
+        [](const CauchyDistribution& dist, const double* vals, double* res, std::size_t count) {
+            double x0, ig;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+            });
+            for (std::size_t i = 0; i < count; ++i)
+                res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+        },
+        [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
+            const std::size_t count = vals.size();
+            if (count == 0)
+                return;
 
-    // Snapshot parameters under the appropriate lock to avoid TOCTOU.
-    double x0, ig;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_) {
-            lock.unlock();
-            std::unique_lock<std::shared_mutex> ulock(cache_mutex_);
-            if (!cache_valid_)
-                updateCacheUnsafe();
-            x0 = x0_;
-            ig = inv_gamma_;
-        } else {
-            x0 = x0_;
-            ig = inv_gamma_;
-        }
-    }
+            double x0, ig;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+            });
 
-    std::vector<double, arch::simd::aligned_allocator<double>> z(n);
-    using VectorOps = arch::simd::VectorOps;
-    VectorOps::scalar_add(values.data(), -x0, z.data(), n);
-    VectorOps::scalar_multiply(z.data(), ig, z.data(), n);
+            if (arch::should_use_parallel(count)) {
+                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+                });
+            } else {
+                for (std::size_t i = 0; i < count; ++i)
+                    res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+            }
+        },
+        [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
+            const std::size_t count = vals.size();
+            if (count == 0)
+                return;
 
-    // CDF_Cauchy(x) = CDF_StudentT(1)(z) — no output scaling needed
-    student_t_.getCumulativeProbability(std::span<const double>(z.data(), n), results, hint);
+            double x0, ig;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+            });
+
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+            });
+        });
 }
 
 //==============================================================================
