@@ -105,7 +105,16 @@ history.
   Working order decided 2026-08-20: #48 (done) → #95 → #51 → #49
   (interleavable) → #46 last, so the mpmath characterization measures the
   final surface and reuses #95's gate infrastructure.
-  - #95 — SIMD trig surface: no `vector_sin` at any tier, and the four x86
+  - #95 — **implemented and verified on `feature/v2.3-trig-surface`
+    (2026-08-20), awaiting signed commits (YubiKey absent), PR, CI.**
+    Measured on Zen 4: max 1 ULP, mean 0.022–0.028 ULP, all four x86
+    tiers, cos and sin; 0 ULP specials. Two defects found by the gate in
+    verification: sin(−0) returned +0 on every tier (fixed by zero-blend;
+    libhmm's `sin_pd` has the SAME defect upstream, unfiled as of this
+    entry), and the gate's staged sin toggle passed nullptr sin_fn (fixed;
+    a dispatched-entry gate was added since the per-tier gates bypass
+    dispatch and nothing else exercises `vector_sin`'s wiring until #51).
+    Original filing: SIMD trig surface: no `vector_sin` at any tier, and the four x86
     `vector_cos` kernels measure ~6.5e-11 absolute (~2.9e5 ULP) against
     NEON's clean-room 0.50–0.78 ULP. **Gates #51.** Already reaching the
     shipped VonMises batch PDF, where two test files relax to 1e-10 rather

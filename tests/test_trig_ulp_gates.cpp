@@ -1,11 +1,10 @@
 // tests/test_trig_ulp_gates.cpp
 //
-// Per-tier ULP accuracy gate for the x86 vector_cos_<tier> kernels and their
-// forthcoming vector_sin_<tier> counterparts (issue #95). Ground truth comes
-// from tests/trig_ulp_vectors.inc: cos/sin evaluated at 320-bit mpmath
-// precision, each rounded once to nearest double
-// (scripts/gen_trig_ulp_vectors.py; ported from libhmm's #74 generator, same
-// owner, MIT).
+// Per-tier ULP accuracy gate for the vector_cos_<tier> and vector_sin_<tier>
+// kernels (issue #95). Ground truth comes from tests/trig_ulp_vectors.inc:
+// cos/sin evaluated at 320-bit mpmath precision, each rounded once to
+// nearest double (scripts/gen_trig_ulp_vectors.py; ported from libhmm's #74
+// generator, same owner, MIT).
 //
 // libstats exposes each tier DIRECTLY as public statics on VectorOps
 // (stats::arch::simd::VectorOps::vector_cos_{sse2,avx,avx2,avx512,neon}),
@@ -16,24 +15,20 @@
 // doesn't hide a lower tier's regression. Tiers the runtime CPU does not
 // support are skipped with GTEST_SKIP via stats::arch::supports_*().
 //
-// STAGING (#95): vector_sin does not exist anywhere in this tree yet --
-// only vector_cos_<tier> is implemented, and by the OLD, unfixed x86
-// kernels (see LIBSTATS_TRIG_GATES_HAVE_SIN below). The sin half of this
-// file is compiled out until #95 lands vector_sin_<tier> at every tier.
-//
-// The cos budgets are PROVISIONAL pending the orchestrator's verification
-// pass once #95's fixed kernels land (see kBudget* below). Do not loosen
-// any budget below without a matching kernel fix; a budget miss here is a
-// kernel bug for the orchestrator, not a test-tuning problem.
+// Do not loosen any budget below without a matching kernel fix; a budget
+// miss here is a kernel bug for the orchestrator, not a test-tuning
+// problem. Measured on Zen 4 (2026-08-20, all four x86 tiers, cos and sin):
+// max 1 ULP, mean 0.022-0.028 ULP on the main set; 0 ULP on specials.
 //
 // Demonstrated failing against the unfixed x86 cos kernels prior to #95
 // landing (repo rule: a new regression guard must be shown to fail against
 // the unfixed state on the platform it targets) -- see PLAN.md's #95 entry
 // for the ~6.5e-11 absolute (~2.9e5 ULP) measurement this gate reproduces.
 
-// Flip to 1 when #95's vector_sin lands (vector_sin_<tier> statics exist on
-// VectorOps for every x86 tier).
-#define LIBSTATS_TRIG_GATES_HAVE_SIN 0
+// vector_sin landed with #95's kernel change set; the sin half of the gate
+// is active. (Was 0 during the staged fail-first demonstration against the
+// pre-#95 cos kernels, when vector_sin did not yet exist.)
+#define LIBSTATS_TRIG_GATES_HAVE_SIN 1
 
 #include "libstats/platform/cpu_detection.h"
 #include "libstats/platform/simd.h"
@@ -348,7 +343,7 @@ TEST(TrigUlpGates, Sse2) {
     if (!stats::arch::supports_sse2()) {
         GTEST_SKIP() << "SSE2 not supported on this CPU";
     }
-    run_main_gate("sse2", VectorOps::vector_cos_sse2, nullptr, kBudgetLoose);
+    run_main_gate("sse2", VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2, kBudgetLoose);
 }
 #endif
 
@@ -357,7 +352,7 @@ TEST(TrigUlpGates, Avx) {
     if (!stats::arch::supports_avx()) {
         GTEST_SKIP() << "AVX not supported on this CPU";
     }
-    run_main_gate("avx", VectorOps::vector_cos_avx, nullptr, kBudgetLoose);
+    run_main_gate("avx", VectorOps::vector_cos_avx, VectorOps::vector_sin_avx, kBudgetLoose);
 }
 #endif
 
@@ -366,7 +361,7 @@ TEST(TrigUlpGates, Avx2) {
     if (!stats::arch::supports_avx2()) {
         GTEST_SKIP() << "AVX2 not supported on this CPU";
     }
-    run_main_gate("avx2", VectorOps::vector_cos_avx2, nullptr, kBudgetTight);
+    run_main_gate("avx2", VectorOps::vector_cos_avx2, VectorOps::vector_sin_avx2, kBudgetTight);
 }
 #endif
 
@@ -375,7 +370,7 @@ TEST(TrigUlpGates, Avx512) {
     if (!stats::arch::supports_avx512()) {
         GTEST_SKIP() << "AVX-512 not supported on this CPU";
     }
-    run_main_gate("avx512", VectorOps::vector_cos_avx512, nullptr, kBudgetTight);
+    run_main_gate("avx512", VectorOps::vector_cos_avx512, VectorOps::vector_sin_avx512, kBudgetTight);
 }
 #endif
 
@@ -384,7 +379,7 @@ TEST(TrigUlpGates, Neon) {
     if (!stats::arch::supports_neon()) {
         GTEST_SKIP() << "NEON not supported on this CPU";
     }
-    run_main_gate("neon", VectorOps::vector_cos_neon, nullptr, kBudgetTight);
+    run_main_gate("neon", VectorOps::vector_cos_neon, VectorOps::vector_sin_neon, kBudgetTight);
 }
 #endif
 
@@ -398,7 +393,7 @@ TEST(TrigUlpSpecialsGates, Sse2) {
     if (!stats::arch::supports_sse2()) {
         GTEST_SKIP() << "SSE2 not supported on this CPU";
     }
-    run_specials_gate("sse2", VectorOps::vector_cos_sse2, nullptr, kBudgetSpecials);
+    run_specials_gate("sse2", VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2, kBudgetSpecials);
 }
 #endif
 
@@ -407,7 +402,7 @@ TEST(TrigUlpSpecialsGates, Avx) {
     if (!stats::arch::supports_avx()) {
         GTEST_SKIP() << "AVX not supported on this CPU";
     }
-    run_specials_gate("avx", VectorOps::vector_cos_avx, nullptr, kBudgetSpecials);
+    run_specials_gate("avx", VectorOps::vector_cos_avx, VectorOps::vector_sin_avx, kBudgetSpecials);
 }
 #endif
 
@@ -416,7 +411,7 @@ TEST(TrigUlpSpecialsGates, Avx2) {
     if (!stats::arch::supports_avx2()) {
         GTEST_SKIP() << "AVX2 not supported on this CPU";
     }
-    run_specials_gate("avx2", VectorOps::vector_cos_avx2, nullptr, kBudgetSpecials);
+    run_specials_gate("avx2", VectorOps::vector_cos_avx2, VectorOps::vector_sin_avx2, kBudgetSpecials);
 }
 #endif
 
@@ -425,7 +420,7 @@ TEST(TrigUlpSpecialsGates, Avx512) {
     if (!stats::arch::supports_avx512()) {
         GTEST_SKIP() << "AVX-512 not supported on this CPU";
     }
-    run_specials_gate("avx512", VectorOps::vector_cos_avx512, nullptr, kBudgetSpecials);
+    run_specials_gate("avx512", VectorOps::vector_cos_avx512, VectorOps::vector_sin_avx512, kBudgetSpecials);
 }
 #endif
 
@@ -434,7 +429,7 @@ TEST(TrigUlpSpecialsGates, Neon) {
     if (!stats::arch::supports_neon()) {
         GTEST_SKIP() << "NEON not supported on this CPU";
     }
-    run_specials_gate("neon", VectorOps::vector_cos_neon, nullptr, kBudgetSpecials);
+    run_specials_gate("neon", VectorOps::vector_cos_neon, VectorOps::vector_sin_neon, kBudgetSpecials);
 }
 #endif
 
@@ -456,8 +451,34 @@ TEST(TrigUlpGates, SubSpanNonLaneMultipleTailPath) {
         GTEST_SKIP() << "SSE2 not supported on this CPU";
     }
     const GateResult r = run_gate("sse2-subspan", "subspan_4999", kTrigUlpVectors, n,
-                                  VectorOps::vector_cos_sse2, nullptr);
+                                  VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2);
     EXPECT_LE(r.cos_max, kBudgetLoose)
         << "sub-span cos max ULP over budget (worst x=" << r.cos_worst_x << ")";
+#if LIBSTATS_TRIG_GATES_HAVE_SIN
+    EXPECT_LE(r.sin_max, kBudgetLoose)
+        << "sub-span sin max ULP over budget (worst x=" << r.sin_worst_x << ")";
+#endif
 }
 #endif
+
+// =========================================================================
+// Dispatch-entry coverage: the per-tier gates above deliberately bypass the
+// runtime-dispatched VectorOps::vector_cos()/vector_sin() entry points, and
+// vector_sin has no in-library consumer until #51 lands -- so a wiring
+// mistake in makeDispatchTable() (e.g. t.vector_sin = vector_cos_avx2)
+// would pass every gate. This holds the dispatched path, whatever tier the
+// CPU selects, to the loose budget on the full main set. Uses 4999 elements
+// so the dispatched tier's masked/scalar tail runs too.
+// =========================================================================
+
+TEST(TrigUlpGates, DispatchedEntryPoints) {
+    constexpr std::size_t n = 4999;
+    const GateResult r = run_gate("dispatched", "main_4999", kTrigUlpVectors, n,
+                                  VectorOps::vector_cos, VectorOps::vector_sin);
+    EXPECT_LE(r.cos_max, kBudgetLoose)
+        << "dispatched cos max ULP over budget (worst x=" << r.cos_worst_x << ")";
+#if LIBSTATS_TRIG_GATES_HAVE_SIN
+    EXPECT_LE(r.sin_max, kBudgetLoose)
+        << "dispatched sin max ULP over budget (worst x=" << r.sin_worst_x << ")";
+#endif
+}
