@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **LogNormal CDF lower tail no longer collapses (#49)**: every path
+  computed `0.5·(1+erf(z/√2))`, whose lower tail dies on the `1+erf`
+  cancellation floor (~1.1e-16 absolute) regardless of erf quality — the
+  reason #49's 1-ULP erf swap changed nothing — and returns exactly 0 once
+  `std::erf` saturates at −1 (z ≲ −8.3). True max relative error over the
+  issue's benchmark grid was 1.0, not the reported 2.62e-7 (a
+  metric-flooring artifact). z < 0 now routes through `0.5·erfc(−z/√2)`
+  in `detail::normal_cdf` (whose analysis-helper consumers inherit the
+  fix) and both LogNormal batch paths; the SIMD path keeps its vectorized
+  erf pipeline with a per-lane erfc recompute below erf-argument −1. New
+  mpmath-oracle gate with references down to F ≈ 1.9e-307, budgeted by the
+  achievable-accuracy law rel(F) ~ |ln F|·2⁻⁵² (a flat deep-tail budget is
+  unachievable in double for this formulation); measured max 0.49 of
+  budget. Gaussian's CDF has the same defect independently and is fixed
+  separately.
+
 - **Von Mises CDF rebuilt on the Bessel series, scalar and batch (#51)**:
   `F(x) = (t+π)/(2π) + Σ b_j·sin(j·t)` with `b_j = I_j(κ)/(j·π·I₀(κ))`,
   t = wrap(x−μ), j_max = ⌈10 + 8.5√κ⌉. Coefficients come from Miller's
