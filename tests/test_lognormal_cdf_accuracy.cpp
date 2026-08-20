@@ -63,10 +63,21 @@ double bitsToF64(std::uint64_t b) {
 // -------------------------------------------------------------------------
 // Budgets. PINNED from measurement -- see file banner.
 // -------------------------------------------------------------------------
-// Relative-error budget applied where the reference F is large enough for
-// "relative" to be a meaningful measure; measured 1.8e-14, so this carries
-// >5x headroom.
-constexpr double kRelBudget = 1e-13;
+// Relative-error budget is a LAW OF F, not a constant. The tail-branched
+// erfc form's relative error is dominated by the (ln x - mu)/sigma argument
+// transform: an ~ulp(ln x) absolute perturbation of the erfc argument w is
+// amplified by erfc's asymptotic slope d ln F / dw = -2w, and since
+// w^2 ~ -ln F in the tail, the achievable double-precision relative error is
+//     rel(F) ~ |ln F| * 2^-52  (measured: 1.55e-13 at F=1.9e-307 vs
+//     1.556e-13 predicted; 1.8e-14 at F~1e-19 vs 2.1e-14 predicted).
+// A flat budget deep into the tail is therefore unachievable by ANY
+// implementation of this formulation in double -- the original flat 1e-13
+// spec tripped exactly this on 5 rows below F~1e-207. The budget below is
+// the law with headroom:  1e-15 * max(20, -ln F_ref)  -- 2.4x margin at
+// moderate tails, 4.5x at F ~ 1e-307.
+inline double law_budget(double f_ref) {
+    return 1e-15 * std::max(20.0, -std::log(f_ref));
+}
 // Below this reference-F floor, the oracle's own double-precision inputs
 // (and the tiny reference magnitude itself) make relative error a poor
 // metric -- fall back to an absolute budget there instead.
@@ -74,13 +85,16 @@ constexpr double kFFloor = 1e-290;
 constexpr double kAbsBudgetBelowFloor = 1e-290;
 constexpr double kBudgetSpecials = 0.0;  // 0/-1/NaN/+inf: exact per contract
 // Batch (span overload, VECTORIZED/PARALLEL/AUTO strategies) is allowed to
-// differ from the scalar path -- the SIMD path only recomputes via erfc for
-// lanes with erf-argument w < -2.0, while the scalar path uses erfc for
-// every z < 0. So in the -2 <= w < 0 band, batch still uses the plain erf
-// form while scalar uses erfc: absolute difference <= ~1.1e-16, relative
-// <= ~5e-14 (see src/lognormal.cpp's getCumulativeProbabilityBatchUnsafeImpl
-// comment for the derivation). Budgets below carry headroom over that.
-constexpr double kBudgetBatchVsScalarRel = 1e-13;
+// differ from the scalar path, from two sources: (1) in the -1 <= w < 0
+// band (F >= 0.079) batch still uses the plain erf form while scalar uses
+// erfc -- absolute <= ~1.1e-16, relative <= ~1.4e-15; (2) the erfc ARGUMENT
+// is rounded differently -- scalar divides by sigma then multiplies by
+// 1/sqrt(2), batch multiplies once by the cached 1/(sigma*sqrt(2)) -- and
+// that ~ulp(w) difference is amplified by erfc's slope exactly like the
+// accuracy law above (measured 1.17e-14 at w ~ -5, matching 2w^2*eps). So
+// the RELATIVE consistency bound is the same law_budget(F_ref) as the
+// accuracy gate (each path is within ~0.5x law of the same reference);
+// only the ABSOLUTE bound is flat.
 constexpr double kBudgetBatchVsScalarAbs = 1e-15;
 
 double relerr(double got, double ref) {
@@ -125,6 +139,11 @@ namespace {
 struct BucketResult {
     double scalar_max_rel = 0.0, scalar_worst_x = 0.0;
     double batch_max_rel = 0.0, batch_worst_x = 0.0;
+    // Worst relative error as a FRACTION of the per-row law_budget(F_ref)
+    // -- the gated quantity (<= 1.0 passes). max_rel above stays for the
+    // human-readable printout.
+    double scalar_max_frac = 0.0, scalar_frac_worst_x = 0.0;
+    double batch_max_frac = 0.0, batch_frac_worst_x = 0.0;
     double batch_vs_scalar_max_rel = 0.0;
     double batch_vs_scalar_max_abs = 0.0;
     std::size_t n = 0;
@@ -157,33 +176,54 @@ BucketResult run_bucket(double mu, double sigma, const LnCdfVector* rows, std::s
     for (std::size_t i = 0; i < n; ++i)
         scalar_out[i] = dist.getCumulativeProbability(xs[i]);
 
-    dist.getCumulativeProbability(std::span<const double>(xs), std::span<double>(batch_out));
+    // Force the vectorized path explicitly: at n=49 per bucket, AUTO
+    // dispatch's per-batch-size strategy table may pick the plain
+    // per-element scalar strategy (identical code path to the scalar loop
+    // above), which would trivially pass this gate without ever exercising
+    // getCumulativeProbabilityBatchUnsafeImpl's SIMD kernel and per-lane
+    // erf/erfc tail fixup (#49's fix site #3) -- the very code this gate
+    // exists to cover.
+    dist.getCumulativeProbability(
+        std::span<const double>(xs), std::span<double>(batch_out),
+        stats::detail::PerformanceHint{
+            stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED, std::nullopt});
 
     BucketResult r;
     r.n = n;
     for (std::size_t i = 0; i < n; ++i) {
+        const double budget = refs[i] > 0.0 ? law_budget(refs[i]) : kAbsBudgetBelowFloor;
         const double sre = relerr(scalar_out[i], refs[i]);
         if (sre > r.scalar_max_rel) {
             r.scalar_max_rel = sre;
             r.scalar_worst_x = xs[i];
+        }
+        if (sre / budget > r.scalar_max_frac) {
+            r.scalar_max_frac = sre / budget;
+            r.scalar_frac_worst_x = xs[i];
         }
         const double bre = relerr(batch_out[i], refs[i]);
         if (bre > r.batch_max_rel) {
             r.batch_max_rel = bre;
             r.batch_worst_x = xs[i];
         }
+        if (bre / budget > r.batch_max_frac) {
+            r.batch_max_frac = bre / budget;
+            r.batch_frac_worst_x = xs[i];
+        }
         const double bs_abs = std::fabs(batch_out[i] - scalar_out[i]);
-        const double bs_rel = relerr(batch_out[i], scalar_out[i]);
+        const double bs_rel = relerr(batch_out[i], scalar_out[i]) / budget;  // law-normalized
         r.batch_vs_scalar_max_abs = std::max(r.batch_vs_scalar_max_abs, bs_abs);
         r.batch_vs_scalar_max_rel = std::max(r.batch_vs_scalar_max_rel, bs_rel);
     }
 
     std::cout << std::setprecision(17) << "lncdf scalar mu=" << mu << " sigma=" << sigma
-              << " max_rel=" << r.scalar_max_rel << " worst_x=" << r.scalar_worst_x << "\n";
+              << " max_rel=" << r.scalar_max_rel << " worst_x=" << r.scalar_worst_x
+              << " max_budget_frac=" << r.scalar_max_frac << "\n";
     std::cout << std::setprecision(17) << "lncdf batch  mu=" << mu << " sigma=" << sigma
-              << " max_rel=" << r.batch_max_rel << " worst_x=" << r.batch_worst_x << "\n";
+              << " max_rel=" << r.batch_max_rel << " worst_x=" << r.batch_worst_x
+              << " max_budget_frac=" << r.batch_max_frac << "\n";
     std::cout << std::setprecision(17) << "lncdf batch_vs_scalar mu=" << mu << " sigma=" << sigma
-              << " max_rel=" << r.batch_vs_scalar_max_rel
+              << " max_law_frac=" << r.batch_vs_scalar_max_rel
               << " max_abs=" << r.batch_vs_scalar_max_abs << "\n";
     return r;
 }
@@ -216,14 +256,17 @@ TEST(LogNormalCdfGates, MainSweepPerBucket) {
         const double sigma = bitsToF64(kLnCdfVectors[start].sigma_bits);
         const BucketResult r = run_bucket(mu, sigma, &kLnCdfVectors[start], count);
 
-        EXPECT_LE(r.scalar_max_rel, kRelBudget)
+        EXPECT_LE(r.scalar_max_frac, 1.0)
             << "scalar mu=" << mu << " sigma=" << sigma
-            << " over relative-error budget (worst x=" << r.scalar_worst_x << ")";
-        EXPECT_LE(r.batch_max_rel, kRelBudget)
+            << " over the law_budget(F) relative-error budget (worst x="
+            << r.scalar_frac_worst_x << ")";
+        EXPECT_LE(r.batch_max_frac, 1.0)
             << "batch mu=" << mu << " sigma=" << sigma
-            << " over relative-error budget (worst x=" << r.batch_worst_x << ")";
-        EXPECT_LE(r.batch_vs_scalar_max_rel, kBudgetBatchVsScalarRel)
-            << "batch vs scalar relative mismatch mu=" << mu << " sigma=" << sigma;
+            << " over the law_budget(F) relative-error budget (worst x="
+            << r.batch_frac_worst_x << ")";
+        EXPECT_LE(r.batch_vs_scalar_max_rel, 1.0)
+            << "batch vs scalar law-normalized relative mismatch mu=" << mu
+            << " sigma=" << sigma;
         EXPECT_LE(r.batch_vs_scalar_max_abs, kBudgetBatchVsScalarAbs)
             << "batch vs scalar absolute mismatch mu=" << mu << " sigma=" << sigma;
     }
