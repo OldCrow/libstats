@@ -750,6 +750,114 @@ void VectorOps::vector_cos_neon(const double* input, double* output, std::size_t
     }
 }
 
+void VectorOps::vector_sin_neon(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_neon()) {
+        return vector_sin_fallback(input, output, size);
+    }
+
+    // Clean-room quadrant-reduction sin(x), same family as vector_cos_neon
+    // (this kernel is NOT touched by this addition; see its comment above for
+    // the full derivation). Reuses the identical reduction and parity-core
+    // structure (cosCore's body, duplicated here rather than shared so the
+    // validated cos kernel above stays byte-for-byte untouched), differing
+    // only in the quadrant recombination:
+    //   quadrant q = n mod 4: sin(x) = +sin r, +cos r, -sin r, -cos r
+    //     -> swap cores on bit0 (OPPOSITE selection order from cos: cos
+    //        selects s_core when bit0 is set, sin selects c_core when bit0
+    //        is set), sign from bit1 ALONE (no XOR with bit0). Quadrant is
+    //        computed from n directly, never as cos(x - pi/2) (that
+    //        composition loses accuracy through the extra subtraction).
+
+    const auto sinCore = [](float64x2_t x) -> float64x2_t {
+        // reduction: identical to cosCore's (see its comment for the
+        // exact-product / compensated-subtraction argument).
+        const float64x2_t nf = vrndnq_f64(vmulq_f64(x, vdupq_n_f64(kTrigNeonTwoOverPi)));
+        const int64x2_t n = vcvtq_s64_f64(nf);  // nf is integral; conversion exact
+        float64x2_t r = vfmsq_f64(x, nf, vdupq_n_f64(kTrigNeonPio2[0]));
+        float64x2_t rlo = vdupq_n_f64(0.0);
+        for (int k = 1; k < 4; ++k) {
+            const float64x2_t pk = vdupq_n_f64(kTrigNeonPio2[k]);
+            const float64x2_t rk = vfmsq_f64(r, nf, pk);
+            const float64x2_t e = vfmsq_f64(vsubq_f64(r, rk), nf, pk);
+            rlo = vaddq_f64(rlo, e);
+            r = rk;
+        }
+
+        const float64x2_t u = vmulq_f64(r, r);
+
+        // sin core: s = r + (r*u*P(u) + rlo)
+        float64x2_t ps = vdupq_n_f64(kTrigNeonSinC[6]);
+        for (int i = 5; i >= 0; --i)
+            ps = vfmaq_f64(vdupq_n_f64(kTrigNeonSinC[i]), ps, u);
+        const float64x2_t s_core = vaddq_f64(r, vfmaq_f64(rlo, vmulq_f64(r, u), ps));
+
+        // cos core: identical exact head+tail split as cosCore.
+        float64x2_t pc = vdupq_n_f64(kTrigNeonCosC[6]);
+        for (int i = 5; i >= 1; --i)
+            pc = vfmaq_f64(vdupq_n_f64(kTrigNeonCosC[i]), pc, u);
+        const float64x2_t one = vdupq_n_f64(1.0);
+        const float64x2_t half = vdupq_n_f64(0.5);
+        const float64x2_t h = vfmsq_f64(one, u, half);
+        const float64x2_t hl = vfmsq_f64(vsubq_f64(one, h), u, half);
+        float64x2_t mc = vfmaq_f64(hl, vmulq_f64(u, u), pc);
+        mc = vfmsq_f64(mc, r, rlo);
+        const float64x2_t c_core = vaddq_f64(h, mc);
+
+        // quadrant recombination: sin swaps on bit0 in the OPPOSITE order
+        // from cos (select c_core when bit0 set, else s_core), sign from
+        // bit1 alone (not XOR'd with bit0).
+        const uint64x2_t qu = vreinterpretq_u64_s64(n);
+        const uint64x2_t swap = vtstq_u64(qu, vdupq_n_u64(1));
+        const uint64x2_t sgn_s = vshlq_n_u64(vandq_u64(vshrq_n_u64(qu, 1), vdupq_n_u64(1)), 63);
+        const float64x2_t sv = vbslq_f64(swap, c_core, s_core);
+        const float64x2_t result = vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(sv), sgn_s));
+        // IEEE sign-of-zero: for x = -0 the core computes (-0) + (+0) = +0,
+        // dropping the sign; sin(+/-0) must be +/-0 exactly. x == 0 matches
+        // both zeros and no other double, so blend x itself back in.
+        return vbslq_f64(vceqq_f64(x, vdupq_n_f64(0.0)), x, result);
+    };
+
+    // Out-of-domain / inf lanes: see vector_cos_neon's fixupSpecial comment
+    // (NaN self-propagates; decided from pre-store REGISTER values so this
+    // stays correct when output aliases input).
+    const float64x2_t domain_bound = vdupq_n_f64(kTrigNeonDMax);
+    const auto fixupSpecial = [&](std::size_t base, float64x2_t xv, uint64x2_t mask) {
+        if (vgetq_lane_u64(mask, 0))
+            output[base + 0] = std::sin(vgetq_lane_f64(xv, 0));
+        if (vgetq_lane_u64(mask, 1))
+            output[base + 1] = std::sin(vgetq_lane_f64(xv, 1));
+    };
+
+    const std::size_t unroll_end = (size / 4) * 4;  // 2 vectors (4 doubles) per iteration
+    const std::size_t simd_end = (size / 2) * 2;
+
+    std::size_t i = 0;
+    for (; i < unroll_end; i += 4) {
+        float64x2_t x0 = vld1q_f64(&input[i]);
+        float64x2_t x1 = vld1q_f64(&input[i + 2]);
+        vst1q_f64(&output[i], sinCore(x0));
+        vst1q_f64(&output[i + 2], sinCore(x1));
+
+        uint64x2_t mask0 = vcgtq_f64(vabsq_f64(x0), domain_bound);
+        uint64x2_t mask1 = vcgtq_f64(vabsq_f64(x1), domain_bound);
+        uint64x2_t any = vorrq_u64(mask0, mask1);
+        if (vgetq_lane_u64(any, 0) | vgetq_lane_u64(any, 1)) {
+            fixupSpecial(i, x0, mask0);
+            fixupSpecial(i + 2, x1, mask1);
+        }
+    }
+    for (; i < simd_end; i += 2) {
+        float64x2_t x = vld1q_f64(&input[i]);
+        vst1q_f64(&output[i], sinCore(x));
+        uint64x2_t mask = vcgtq_f64(vabsq_f64(x), domain_bound);
+        if (vgetq_lane_u64(mask, 0) | vgetq_lane_u64(mask, 1))
+            fixupSpecial(i, x, mask);
+    }
+    for (; i < size; ++i) {
+        output[i] = std::sin(input[i]);
+    }
+}
+
 #else
 
 // Fallback implementations for non-ARM platforms
@@ -811,6 +919,10 @@ void VectorOps::vector_erf_neon(const double* a, double* result, std::size_t siz
 
 void VectorOps::vector_cos_neon(const double* input, double* output, std::size_t size) noexcept {
     vector_cos_fallback(input, output, size);
+}
+
+void VectorOps::vector_sin_neon(const double* input, double* output, std::size_t size) noexcept {
+    vector_sin_fallback(input, output, size);
 }
 
 #endif  // ARM platform check

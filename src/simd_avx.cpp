@@ -791,72 +791,197 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
         output[i] = std::erf(input[i]);
 }
 
+    // Clean-room quadrant-reduction cos/sin (issue #95), AVX plain-arithmetic
+    // form. UNPROVEN LEG pending the ULP gate: unlike the other three tiers,
+    // this one has no donor implementation (libhmm's "AVX" section actually
+    // requires FMA, i.e. targets AVX2-class hardware) -- it is derived here by
+    // widening the SSE2 plain-arithmetic form (trig_reduce_2pd/trig_cores_2pd
+    // in src/simd_sse2.cpp) to 256-bit. AVX1 has no FMA and no
+    // _mm256_cvtepi32_epi64 (that's AVX2), so both the reduction and the
+    // quadrant-bit widening below use AVX1-only intrinsics.
+    //
+    // The reduction loses nothing versus the FMA tiers: every nf*p_k product
+    // in trig_reduce_4pd is exact by the 30-bit-split construction
+    // (kTrigPio2), so a plain rounded subtract after an exact multiply
+    // commits the identical single rounding step an FMA would (same argument
+    // as SSE2's trig_reduce_2pd). The only accuracy cost is the ordinary
+    // Horner mul+add in trig_cores_4pd (slightly worse rounding per step than
+    // FMA); expect ~1.5 ULP landing here vs ~0.8 for the FMA tiers, measured
+    // by the ULP gate smoke test.
+    #include "trig_cleanroom_data.inc"
+
+// Reduction shared by cos_avx/sin_avx: n32 = round-to-nearest-even(x*2/pi)
+// via the cvt round-trip (exact-product lemma holds for |n| <= 5,340,354,
+// i.e. |x| <= kTrigDMax = 2^23); r/rlo carry the reduced argument
+// compensated. Plain mul+sub throughout -- no FMA on AVX1.
+static inline void trig_reduce_4pd(__m256d x, __m256d& r, __m256d& rlo, __m128i& n32) noexcept {
+    n32 = _mm256_cvtpd_epi32(_mm256_mul_pd(x, _mm256_set1_pd(kTrigTwoOverPi)));
+    const __m256d nf = _mm256_cvtepi32_pd(n32);  // exact
+
+    r = _mm256_sub_pd(x, _mm256_mul_pd(nf, _mm256_set1_pd(kTrigPio2[0])));  // exact (step 1)
+    rlo = _mm256_setzero_pd();
+    for (int k = 1; k < 4; ++k) {
+        const __m256d pk = _mm256_set1_pd(kTrigPio2[k]);
+        const __m256d rk = _mm256_sub_pd(r, _mm256_mul_pd(nf, pk));
+        const __m256d e = _mm256_sub_pd(_mm256_sub_pd(r, rk), _mm256_mul_pd(nf, pk));
+        rlo = _mm256_add_pd(rlo, e);
+        r = rk;
+    }
+}
+
+// Degree-6 minimax parity cores on u = r*r; cos's 1 - u/2 head is split into
+// an exact (h, hl) pair (kTrigCosC[0] == -0.5 exactly, generator-asserted).
+// Plain mul+add throughout -- no FMA on AVX1.
+static inline void trig_cores_4pd(__m256d r, __m256d rlo, __m256d& s_core,
+                                  __m256d& c_core) noexcept {
+    const __m256d u = _mm256_mul_pd(r, r);
+
+    __m256d ps = _mm256_set1_pd(kTrigSinC[6]);
+    for (int i = 5; i >= 0; --i)
+        ps = _mm256_add_pd(_mm256_set1_pd(kTrigSinC[i]), _mm256_mul_pd(ps, u));
+    s_core = _mm256_add_pd(r, _mm256_add_pd(rlo, _mm256_mul_pd(_mm256_mul_pd(r, u), ps)));
+
+    __m256d pc = _mm256_set1_pd(kTrigCosC[6]);
+    for (int i = 5; i >= 1; --i)
+        pc = _mm256_add_pd(_mm256_set1_pd(kTrigCosC[i]), _mm256_mul_pd(pc, u));
+    const __m256d one_c = _mm256_set1_pd(1.0);
+    const __m256d half_c = _mm256_set1_pd(0.5);
+    const __m256d h = _mm256_sub_pd(one_c, _mm256_mul_pd(u, half_c));                    // 1 - u/2, exact
+    const __m256d hl = _mm256_sub_pd(_mm256_sub_pd(one_c, h), _mm256_mul_pd(u, half_c));  // (1-h) - u/2, exact
+    __m256d mc = _mm256_add_pd(hl, _mm256_mul_pd(_mm256_mul_pd(u, u), pc));
+    mc = _mm256_sub_pd(mc, _mm256_mul_pd(r, rlo));  // first-order effect of compensated reduction
+    c_core = _mm256_add_pd(h, mc);
+}
+
+// Widens the 4-lane int32 quadrant index n32 (from _mm256_cvtpd_epi32; AVX1
+// has no _mm256_cvtepi32_epi64, that's AVX2) into 256-bit swap/sign masks by
+// applying the SSE2 duplicate-shuffle trick (trig_reduce_2pd's n64 widening)
+// independently to each 128-bit half. Only the low 2 bits of each lane are
+// ever inspected, so duplicating a lane into both dwords of a 64-bit slot is
+// sufficient without a true 64-bit sign-extension.
+static inline void trig_quadrant_bits_4pd(__m128i n32, __m256d& swap_mask, __m256d& bit0_sign,
+                                          __m256d& bit1_sign) noexcept {
+    const __m128i n64_lo = _mm_shuffle_epi32(n32, _MM_SHUFFLE(1, 1, 0, 0));  // {n0,n0,n1,n1}
+    const __m128i n64_hi = _mm_shuffle_epi32(n32, _MM_SHUFFLE(3, 3, 2, 2));  // {n2,n2,n3,n3}
+    const __m128i one_i = _mm_set1_epi64x(1);
+    const __m128i zero_i = _mm_setzero_si128();
+
+    const __m128i bit0_lo = _mm_and_si128(n64_lo, one_i);
+    const __m128i bit0_hi = _mm_and_si128(n64_hi, one_i);
+    const __m128i bit1_lo = _mm_and_si128(_mm_srli_epi64(n64_lo, 1), one_i);
+    const __m128i bit1_hi = _mm_and_si128(_mm_srli_epi64(n64_hi, 1), one_i);
+
+    // all-ones iff bit0 set (0 - 1 = -1 = all-ones; 0 - 0 = 0), for blendv_pd's MSB test.
+    const __m128d swap_lo = _mm_castsi128_pd(_mm_sub_epi64(zero_i, bit0_lo));
+    const __m128d swap_hi = _mm_castsi128_pd(_mm_sub_epi64(zero_i, bit0_hi));
+    swap_mask = _mm256_set_m128d(swap_hi, swap_lo);
+
+    const __m128d bit0s_lo = _mm_castsi128_pd(_mm_slli_epi64(bit0_lo, 63));
+    const __m128d bit0s_hi = _mm_castsi128_pd(_mm_slli_epi64(bit0_hi, 63));
+    bit0_sign = _mm256_set_m128d(bit0s_hi, bit0s_lo);
+
+    const __m128d bit1s_lo = _mm_castsi128_pd(_mm_slli_epi64(bit1_lo, 63));
+    const __m128d bit1s_hi = _mm_castsi128_pd(_mm_slli_epi64(bit1_hi, 63));
+    bit1_sign = _mm256_set_m128d(bit1s_hi, bit1s_lo);
+}
+
 void VectorOps::vector_cos_avx(const double* input, double* output, std::size_t size) noexcept {
     if (!stats::arch::supports_avx()) {
         return vector_cos_fallback(input, output, size);
     }
 
-    // Two-step range reduction + 7-term Horner Taylor polynomial.
-    // Step 1: y = x - round(x/2π)·2π  →  y ∈ [−π, π]
-    // Step 2: if |y| > π/2, reflect and flip sign  →  y ∈ [−π/2, π/2]
-    // Step 3: cos(y) ≈ 1 + y²·(c₁ + y²·(c₂ + … + y²·c₇))
-    // Max error ≈ 1×10⁻¹⁰ for |y| ≤ π/2. Scalar tail uses std::cos.
-
+    // cos(x) for |x| <= kTrigDMax (2^23); scalar fixup beyond (and for inf;
+    // NaN self-propagates through the polynomial path, see trig_reduce_4pd).
+    // Quadrant table: q=0:+c 1:-s 2:-c 3:+s -> swap core on bit0, sign on
+    // bit1 XOR bit0. UNPROVEN LEG -- see the derivation comment above
+    // trig_reduce_4pd; expect ~1.5 ULP, verified by the ULP gate smoke test.
     constexpr std::size_t W = arch::simd::AVX_DOUBLES;
     const std::size_t simd_end = (size / W) * W;
-
-    const __m256d inv_two_pi = _mm256_set1_pd(1.0 / (2.0 * detail::PI));
-    const __m256d two_pi = _mm256_set1_pd(2.0 * detail::PI);
-    const __m256d pi = _mm256_set1_pd(detail::PI);
-    const __m256d half_pi = _mm256_set1_pd(detail::PI_OVER_2);
-    const __m256d neg_pi = _mm256_set1_pd(-detail::PI);
-    const __m256d neg_half_pi = _mm256_set1_pd(-detail::PI_OVER_2);
-    const __m256d one = _mm256_set1_pd(1.0);
-    const __m256d neg_one = _mm256_set1_pd(-1.0);
-
-    // Taylor coefficients: c_k = (-1)^k / (2k)!
-    const __m256d c1 = _mm256_set1_pd(-0.5);                    // -1/2!
-    const __m256d c2 = _mm256_set1_pd(4.166666666666667e-2);    //  1/4!
-    const __m256d c3 = _mm256_set1_pd(-1.388888888888889e-3);   // -1/6!
-    const __m256d c4 = _mm256_set1_pd(2.480158730158730e-5);    //  1/8!
-    const __m256d c5 = _mm256_set1_pd(-2.755731922398589e-7);   // -1/10!
-    const __m256d c6 = _mm256_set1_pd(2.087675698786810e-9);    //  1/12!
-    const __m256d c7 = _mm256_set1_pd(-1.147074559772973e-11);  // -1/14!
+    const __m256d domain_bound = _mm256_set1_pd(kTrigDMax);
+    const __m256d sign_mask = _mm256_set1_pd(-0.0);
 
     for (std::size_t i = 0; i < simd_end; i += W) {
         __m256d x = _mm256_loadu_pd(&input[i]);
+        __m256d ax = _mm256_andnot_pd(sign_mask, x);
 
-        // Step 1: reduce to [−π, π]
-        __m256d q = _mm256_round_pd(_mm256_mul_pd(x, inv_two_pi),
-                                    _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
-        __m256d y = _mm256_sub_pd(x, _mm256_mul_pd(q, two_pi));
+        __m256d r, rlo;
+        __m128i n32;
+        trig_reduce_4pd(x, r, rlo, n32);
+        __m256d s_core, c_core;
+        trig_cores_4pd(r, rlo, s_core, c_core);
 
-        // Step 2: reduce to [−π/2, π/2], tracking sign
-        __m256d sign = one;
-        __m256d gt_hpi = _mm256_cmp_pd(y, half_pi, _CMP_GT_OQ);
-        __m256d lt_nhpi = _mm256_cmp_pd(y, neg_half_pi, _CMP_LT_OQ);
+        __m256d swap_mask, bit0_sign, bit1_sign;
+        trig_quadrant_bits_4pd(n32, swap_mask, bit0_sign, bit1_sign);
+        const __m256d cv = _mm256_blendv_pd(c_core, s_core, swap_mask);
+        const __m256d sign_v = _mm256_xor_pd(bit0_sign, bit1_sign);
+        _mm256_storeu_pd(&output[i], _mm256_xor_pd(cv, sign_v));
 
-        y = _mm256_blendv_pd(y, _mm256_sub_pd(pi, y), gt_hpi);
-        sign = _mm256_blendv_pd(sign, neg_one, gt_hpi);
-        y = _mm256_blendv_pd(y, _mm256_sub_pd(neg_pi, y), lt_nhpi);
-        sign = _mm256_blendv_pd(sign, neg_one, lt_nhpi);
-
-        // Step 3: Horner evaluation  cos(y) = 1 + y²·(c₁ + y²·(… + y²·c₇))
-        __m256d y2 = _mm256_mul_pd(y, y);
-        __m256d poly = c7;
-        poly = _mm256_add_pd(c6, _mm256_mul_pd(y2, poly));
-        poly = _mm256_add_pd(c5, _mm256_mul_pd(y2, poly));
-        poly = _mm256_add_pd(c4, _mm256_mul_pd(y2, poly));
-        poly = _mm256_add_pd(c3, _mm256_mul_pd(y2, poly));
-        poly = _mm256_add_pd(c2, _mm256_mul_pd(y2, poly));
-        poly = _mm256_add_pd(c1, _mm256_mul_pd(y2, poly));
-        poly = _mm256_add_pd(one, _mm256_mul_pd(y2, poly));
-
-        _mm256_storeu_pd(&output[i], _mm256_mul_pd(poly, sign));
+        // Out-of-domain / inf fixup decided from the pre-store REGISTER value
+        // `x`, so this stays correct when output aliases input.
+        const int mask = _mm256_movemask_pd(_mm256_cmp_pd(ax, domain_bound, _CMP_GT_OQ));
+        if (mask) {
+            alignas(32) double xbuf[4];
+            _mm256_store_pd(xbuf, x);
+            for (int lane = 0; lane < 4; ++lane)
+                if (mask & (1 << lane))
+                    output[i + static_cast<std::size_t>(lane)] = std::cos(xbuf[lane]);
+        }
     }
 
     for (std::size_t i = simd_end; i < size; ++i) {
         output[i] = std::cos(input[i]);
+    }
+}
+
+void VectorOps::vector_sin_avx(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx()) {
+        return vector_sin_fallback(input, output, size);
+    }
+
+    // sin(x) for |x| <= kTrigDMax (2^23) -- see vector_cos_avx's comment for
+    // the domain contract and the unproven-leg note. Quadrant table:
+    // q=0:+s 1:+c 2:-s 3:-c -> swap core on bit0 (opposite selection order
+    // from cos), sign on bit1 alone. Computed from the quadrant table
+    // directly, NOT cos(x - pi/2) (that composition loses accuracy through
+    // the extra subtraction).
+    constexpr std::size_t W = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+    const __m256d domain_bound = _mm256_set1_pd(kTrigDMax);
+    const __m256d sign_mask = _mm256_set1_pd(-0.0);
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m256d x = _mm256_loadu_pd(&input[i]);
+        __m256d ax = _mm256_andnot_pd(sign_mask, x);
+
+        __m256d r, rlo;
+        __m128i n32;
+        trig_reduce_4pd(x, r, rlo, n32);
+        __m256d s_core, c_core;
+        trig_cores_4pd(r, rlo, s_core, c_core);
+
+        __m256d swap_mask, bit0_sign, bit1_sign;
+        trig_quadrant_bits_4pd(n32, swap_mask, bit0_sign, bit1_sign);
+        (void)bit0_sign;
+        const __m256d sv = _mm256_blendv_pd(s_core, c_core, swap_mask);
+        __m256d result = _mm256_xor_pd(sv, bit1_sign);
+        // IEEE sign-of-zero: for x = -0 the core computes (-0) + (+0) = +0,
+        // dropping the sign; sin(+/-0) must be +/-0 exactly. x == 0 matches
+        // both zeros and no other double, so blend x itself back in.
+        result = _mm256_blendv_pd(result, x, _mm256_cmp_pd(x, _mm256_setzero_pd(), _CMP_EQ_OQ));
+        _mm256_storeu_pd(&output[i], result);
+
+        const int mask = _mm256_movemask_pd(_mm256_cmp_pd(ax, domain_bound, _CMP_GT_OQ));
+        if (mask) {
+            alignas(32) double xbuf[4];
+            _mm256_store_pd(xbuf, x);
+            for (int lane = 0; lane < 4; ++lane)
+                if (mask & (1 << lane))
+                    output[i + static_cast<std::size_t>(lane)] = std::sin(xbuf[lane]);
+        }
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::sin(input[i]);
     }
 }
 

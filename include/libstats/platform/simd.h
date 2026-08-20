@@ -622,6 +622,16 @@ class VectorOps {
     ///       delegates to std::cos for exact IEEE 754 semantics.
     static void vector_cos(const double* values, double* results, std::size_t size) noexcept;
 
+    /// Vectorized sine computation
+    /// @param values Input vector of angles (radians, arbitrary range)
+    /// @param results Output vector (sin(values))
+    /// @param size Number of elements
+    /// @note Clean-room quadrant-reduction kernel (issue #95), same family as
+    ///       vector_cos. Sub-ULP on FMA tiers (AVX2/AVX-512/NEON), slightly
+    ///       worse on the plain-arithmetic tiers (SSE2/AVX) for |x| <= 2^23;
+    ///       scalar tail delegates to std::sin for exact IEEE 754 semantics.
+    static void vector_sin(const double* values, double* results, std::size_t size) noexcept;
+
     /// Check if SIMD should be used for given size
     /// @param size Number of elements to process
     /// @return true if SIMD is beneficial for this size
@@ -690,6 +700,8 @@ class VectorOps {
                                                 double* results, std::size_t size) noexcept;
     static void vector_cos_fallback(const double* values, double* results,
                                     std::size_t size) noexcept;
+    static void vector_sin_fallback(const double* values, double* results,
+                                    std::size_t size) noexcept;
 
     // DispatchTable: populated once at startup by makeDispatchTable().
     // To add a new SIMD tier: edit makeDispatchTable() in simd_dispatch.cpp only.
@@ -708,6 +720,7 @@ class VectorOps {
         void (*vector_pow_elementwise)(const double*, const double*, double*, std::size_t) noexcept;
         void (*vector_erf)(const double*, double*, std::size_t) noexcept;
         void (*vector_cos)(const double*, double*, std::size_t) noexcept;
+        void (*vector_sin)(const double*, double*, std::size_t) noexcept;
     };
     static DispatchTable makeDispatchTable() noexcept;
     static const DispatchTable& getDispatchTable() noexcept;
@@ -732,7 +745,17 @@ class VectorOps {
     static void vector_pow_elementwise_avx512(const double* base, const double* exponent,
                                               double* results, std::size_t size) noexcept;
     static void vector_erf_avx512(const double* values, double* results, std::size_t size) noexcept;
+
+   public:
+    // Exposed directly for the per-tier ULP accuracy gate (issue #95,
+    // tests/test_trig_ulp_gates.cpp): each guards itself internally via
+    // stats::arch::supports_<tier>() and falls back to vector_cos_fallback/
+    // vector_sin_fallback, so calling it directly on an unsupported CPU is
+    // still safe -- it is just redundant with the runtime dispatch.
     static void vector_cos_avx512(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_sin_avx512(const double* values, double* results, std::size_t size) noexcept;
+
+   private:
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
@@ -754,7 +777,14 @@ class VectorOps {
     static void vector_pow_elementwise_avx(const double* base, const double* exponent,
                                            double* results, std::size_t size) noexcept;
     static void vector_erf_avx(const double* values, double* results, std::size_t size) noexcept;
+
+   public:
+    // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
+    // block's comment above.
     static void vector_cos_avx(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_sin_avx(const double* values, double* results, std::size_t size) noexcept;
+
+   private:
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
@@ -776,7 +806,14 @@ class VectorOps {
     static void vector_pow_elementwise_avx2(const double* base, const double* exponent,
                                             double* results, std::size_t size) noexcept;
     static void vector_erf_avx2(const double* values, double* results, std::size_t size) noexcept;
+
+   public:
+    // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
+    // block's comment above.
     static void vector_cos_avx2(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_sin_avx2(const double* values, double* results, std::size_t size) noexcept;
+
+   private:
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
@@ -798,7 +835,14 @@ class VectorOps {
     static void vector_pow_elementwise_sse2(const double* base, const double* exponent,
                                             double* results, std::size_t size) noexcept;
     static void vector_erf_sse2(const double* values, double* results, std::size_t size) noexcept;
+
+   public:
+    // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
+    // block's comment above.
     static void vector_cos_sse2(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_sin_sse2(const double* values, double* results, std::size_t size) noexcept;
+
+   private:
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
@@ -820,7 +864,12 @@ class VectorOps {
     static void vector_pow_elementwise_neon(const double* base, const double* exponent,
                                             double* results, std::size_t size) noexcept;
     static void vector_erf_neon(const double* values, double* results, std::size_t size) noexcept;
+
+   public:
+    // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
+    // block's comment above.
     static void vector_cos_neon(const double* values, double* results, std::size_t size) noexcept;
+    static void vector_sin_neon(const double* values, double* results, std::size_t size) noexcept;
 #endif
 };
 

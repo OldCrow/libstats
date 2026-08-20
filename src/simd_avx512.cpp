@@ -596,69 +596,161 @@ void VectorOps::vector_erf_avx512(const double* values, double* results,
         results[i] = std::erf(values[i]);
 }
 
+    // Clean-room quadrant-reduction cos/sin (issue #95), AVX-512 FMA form --
+    // ported structurally from libhmm's cos_pd/sin_pd(__m512d) (issue #74
+    // there), itself ported from this project's own vector_cos_neon. See
+    // docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
+    // the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
+    // self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
+    // No third-party source. _mm512_cvtepi32_epi64 requires AVX-512F;
+    // _mm512_xor_pd requires AVX-512DQ (this TU is compiled with -mavx512f
+    // -mavx512dq / /arch:AVX512).
+    #include "trig_cleanroom_data.inc"
+
+// Reduction shared by cos_avx512/sin_avx512: n32 = round-to-nearest-even(x*2/pi)
+// via the cvt round-trip (exact-product lemma holds for |n| <= 5,340,354,
+// i.e. |x| <= kTrigDMax = 2^23); r/rlo carry the reduced argument
+// compensated.
+static inline void trig_reduce_8pd(__m512d x, __m512d& r, __m512d& rlo, __m512i& n64) noexcept {
+    const __m256i n32 = _mm512_cvtpd_epi32(_mm512_mul_pd(x, _mm512_set1_pd(kTrigTwoOverPi)));
+    const __m512d nf = _mm512_cvtepi32_pd(n32);  // exact
+    n64 = _mm512_cvtepi32_epi64(n32);
+
+    r = _mm512_fnmadd_pd(nf, _mm512_set1_pd(kTrigPio2[0]), x);  // exact (step 1)
+    rlo = _mm512_setzero_pd();
+    for (int k = 1; k < 4; ++k) {
+        const __m512d pk = _mm512_set1_pd(kTrigPio2[k]);
+        const __m512d rk = _mm512_fnmadd_pd(nf, pk, r);
+        const __m512d e = _mm512_fnmadd_pd(nf, pk, _mm512_sub_pd(r, rk));
+        rlo = _mm512_add_pd(rlo, e);
+        r = rk;
+    }
+}
+
+// Degree-6 minimax parity cores on u = r*r; cos's 1 - u/2 head is split into
+// an exact (h, hl) pair (kTrigCosC[0] == -0.5 exactly, generator-asserted).
+static inline void trig_cores_8pd(__m512d r, __m512d rlo, __m512d& s_core,
+                                  __m512d& c_core) noexcept {
+    const __m512d u = _mm512_mul_pd(r, r);
+
+    __m512d ps = _mm512_set1_pd(kTrigSinC[6]);
+    for (int i = 5; i >= 0; --i)
+        ps = _mm512_fmadd_pd(ps, u, _mm512_set1_pd(kTrigSinC[i]));
+    s_core = _mm512_add_pd(r, _mm512_fmadd_pd(_mm512_mul_pd(r, u), ps, rlo));
+
+    __m512d pc = _mm512_set1_pd(kTrigCosC[6]);
+    for (int i = 5; i >= 1; --i)
+        pc = _mm512_fmadd_pd(pc, u, _mm512_set1_pd(kTrigCosC[i]));
+    const __m512d one_c = _mm512_set1_pd(1.0);
+    const __m512d half_c = _mm512_set1_pd(0.5);
+    const __m512d h = _mm512_fnmadd_pd(u, half_c, one_c);                     // 1 - u/2, exact
+    const __m512d hl = _mm512_fnmadd_pd(u, half_c, _mm512_sub_pd(one_c, h));  // (1-h) - u/2, exact
+    __m512d mc = _mm512_fmadd_pd(_mm512_mul_pd(u, u), pc, hl);
+    mc = _mm512_fnmadd_pd(r, rlo, mc);  // first-order effect of compensated reduction
+    c_core = _mm512_add_pd(h, mc);
+}
+
 void VectorOps::vector_cos_avx512(const double* input, double* output, std::size_t size) noexcept {
     if (!stats::arch::supports_avx512()) {
         return vector_cos_fallback(input, output, size);
     }
 
-    // Native 8-wide AVX-512 implementation (polynomial approximation, no SVML).
-
+    // cos(x) for |x| <= kTrigDMax (2^23); scalar fixup beyond (and for inf;
+    // NaN self-propagates through the polynomial path, see trig_reduce_8pd).
+    // Quadrant table: q=0:+c 1:-s 2:-c 3:+s -> swap core on bit0, sign on
+    // bit1 XOR bit0 (both taken from the low bits of n's two's-complement
+    // form). Max ~1 ULP measured on the FMA tiers.
     constexpr std::size_t W = arch::simd::AVX512_DOUBLES;
     const std::size_t simd_end = (size / W) * W;
-
-    const __m512d inv_two_pi = _mm512_set1_pd(1.0 / (2.0 * detail::PI));
-    const __m512d two_pi = _mm512_set1_pd(2.0 * detail::PI);
-    const __m512d pi = _mm512_set1_pd(detail::PI);
-    const __m512d half_pi = _mm512_set1_pd(detail::PI_OVER_2);
-    const __m512d neg_pi = _mm512_set1_pd(-detail::PI);
-    const __m512d neg_half_pi = _mm512_set1_pd(-detail::PI_OVER_2);
-    const __m512d one = _mm512_set1_pd(1.0);
-    const __m512d neg_one = _mm512_set1_pd(-1.0);
-
-    const __m512d c1 = _mm512_set1_pd(-0.5);
-    const __m512d c2 = _mm512_set1_pd(4.166666666666667e-2);
-    const __m512d c3 = _mm512_set1_pd(-1.388888888888889e-3);
-    const __m512d c4 = _mm512_set1_pd(2.480158730158730e-5);
-    const __m512d c5 = _mm512_set1_pd(-2.755731922398589e-7);
-    const __m512d c6 = _mm512_set1_pd(2.087675698786810e-9);
-    const __m512d c7 = _mm512_set1_pd(-1.147074559772973e-11);
+    const __m512d domain_bound = _mm512_set1_pd(kTrigDMax);
+    const __m512d sign_mask = _mm512_set1_pd(-0.0);
+    const __m512i one_i = _mm512_set1_epi64(1);
 
     for (std::size_t i = 0; i < simd_end; i += W) {
         __m512d x = _mm512_loadu_pd(&input[i]);
+        __m512d ax = _mm512_andnot_pd(sign_mask, x);
 
-        // Step 1: reduce to [−π, π]. _MM_FROUND_NO_EXC matches vector_exp_avx512's
-        // roundscale call and the AVX2/AVX _mm256_round_pd(..., | _MM_FROUND_NO_EXC) --
-        // see the comment there for why the flag is needed.
-        __m512d q = _mm512_roundscale_pd(_mm512_mul_pd(x, inv_two_pi),
-                                         _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
-        __m512d y = _mm512_sub_pd(x, _mm512_mul_pd(q, two_pi));
+        __m512d r, rlo;
+        __m512i n64;
+        trig_reduce_8pd(x, r, rlo, n64);
+        __m512d s_core, c_core;
+        trig_cores_8pd(r, rlo, s_core, c_core);
 
-        // Step 2: reduce to [−π/2, π/2] using AVX-512 mask operations
-        __m512d sign = one;
-        __mmask8 gt_hpi = _mm512_cmp_pd_mask(y, half_pi, _CMP_GT_OQ);
-        __mmask8 lt_nhpi = _mm512_cmp_pd_mask(y, neg_half_pi, _CMP_LT_OQ);
+        const __mmask8 swap = _mm512_test_epi64_mask(n64, one_i);
+        const __m512i bit0 = _mm512_and_si512(n64, one_i);
+        const __m512i bit1 = _mm512_and_si512(_mm512_srli_epi64(n64, 1), one_i);
+        const __m512i sign_bit = _mm512_xor_si512(bit1, bit0);
+        const __m512d cv = _mm512_mask_blend_pd(swap, c_core, s_core);
+        const __m512d sign_v = _mm512_castsi512_pd(_mm512_slli_epi64(sign_bit, 63));
+        _mm512_storeu_pd(&output[i], _mm512_xor_pd(cv, sign_v));
 
-        y = _mm512_mask_blend_pd(gt_hpi, y, _mm512_sub_pd(pi, y));
-        sign = _mm512_mask_blend_pd(gt_hpi, sign, neg_one);
-        y = _mm512_mask_blend_pd(lt_nhpi, y, _mm512_sub_pd(neg_pi, y));
-        sign = _mm512_mask_blend_pd(lt_nhpi, sign, neg_one);
-
-        // Step 3: Horner evaluation using FMA for throughput
-        __m512d y2 = _mm512_mul_pd(y, y);
-        __m512d poly = c7;
-        poly = _mm512_fmadd_pd(y2, poly, c6);
-        poly = _mm512_fmadd_pd(y2, poly, c5);
-        poly = _mm512_fmadd_pd(y2, poly, c4);
-        poly = _mm512_fmadd_pd(y2, poly, c3);
-        poly = _mm512_fmadd_pd(y2, poly, c2);
-        poly = _mm512_fmadd_pd(y2, poly, c1);
-        poly = _mm512_fmadd_pd(y2, poly, one);
-
-        _mm512_storeu_pd(&output[i], _mm512_mul_pd(poly, sign));
+        // Out-of-domain / inf fixup decided from the pre-store REGISTER value
+        // `x`, so this stays correct when output aliases input.
+        const __mmask8 mask = _mm512_cmp_pd_mask(ax, domain_bound, _CMP_GT_OQ);
+        if (mask) {
+            alignas(64) double xbuf[8];
+            _mm512_store_pd(xbuf, x);
+            for (int lane = 0; lane < 8; ++lane)
+                if (mask & (1 << lane))
+                    output[i + static_cast<std::size_t>(lane)] = std::cos(xbuf[lane]);
+        }
     }
 
     for (std::size_t i = simd_end; i < size; ++i) {
         output[i] = std::cos(input[i]);
+    }
+}
+
+void VectorOps::vector_sin_avx512(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx512()) {
+        return vector_sin_fallback(input, output, size);
+    }
+
+    // sin(x) for |x| <= kTrigDMax (2^23) -- see vector_cos_avx512's comment
+    // for the domain contract. Quadrant table: q=0:+s 1:+c 2:-s 3:-c -> swap
+    // core on bit0 (opposite selection order from cos), sign on bit1 alone.
+    // Computed from the quadrant table directly, NOT cos(x - pi/2) (that
+    // composition loses accuracy through the extra subtraction).
+    constexpr std::size_t W = arch::simd::AVX512_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+    const __m512d domain_bound = _mm512_set1_pd(kTrigDMax);
+    const __m512d sign_mask = _mm512_set1_pd(-0.0);
+    const __m512i one_i = _mm512_set1_epi64(1);
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m512d x = _mm512_loadu_pd(&input[i]);
+        __m512d ax = _mm512_andnot_pd(sign_mask, x);
+
+        __m512d r, rlo;
+        __m512i n64;
+        trig_reduce_8pd(x, r, rlo, n64);
+        __m512d s_core, c_core;
+        trig_cores_8pd(r, rlo, s_core, c_core);
+
+        const __mmask8 swap = _mm512_test_epi64_mask(n64, one_i);
+        const __m512i bit1 = _mm512_and_si512(_mm512_srli_epi64(n64, 1), one_i);
+        const __m512d sv = _mm512_mask_blend_pd(swap, s_core, c_core);
+        const __m512d sign_v = _mm512_castsi512_pd(_mm512_slli_epi64(bit1, 63));
+        __m512d result = _mm512_xor_pd(sv, sign_v);
+        // IEEE sign-of-zero: for x = -0 the core computes (-0) + (+0) = +0,
+        // dropping the sign; sin(+/-0) must be +/-0 exactly. x == 0 matches
+        // both zeros and no other double, so blend x itself back in.
+        const __mmask8 zmask = _mm512_cmp_pd_mask(x, _mm512_setzero_pd(), _CMP_EQ_OQ);
+        result = _mm512_mask_blend_pd(zmask, result, x);
+        _mm512_storeu_pd(&output[i], result);
+
+        const __mmask8 mask = _mm512_cmp_pd_mask(ax, domain_bound, _CMP_GT_OQ);
+        if (mask) {
+            alignas(64) double xbuf[8];
+            _mm512_store_pd(xbuf, x);
+            for (int lane = 0; lane < 8; ++lane)
+                if (mask & (1 << lane))
+                    output[i + static_cast<std::size_t>(lane)] = std::sin(xbuf[lane]);
+        }
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::sin(input[i]);
     }
 }
 
