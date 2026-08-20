@@ -337,6 +337,14 @@ create_libstats_gtest(test_bessel_tier test_bessel_tier.cpp)
 # and a regression gate CI never runs guards nothing.
 create_libstats_gtest(test_trig_ulp_gates test_trig_ulp_gates.cpp)
 
+# #51 guard: absolute-error accuracy gate for VonMisesDistribution::
+# getCumulativeProbability against a direct-quadrature oracle (independent of
+# the Bessel-series/trapezoidal implementation). Deliberately NOT added to
+# the "timing" label block below -- same reasoning as test_trig_ulp_gates
+# above: this carries no timing assertions, and a regression gate CI never
+# runs guards nothing.
+create_libstats_gtest(test_vonmises_cdf_accuracy test_vonmises_cdf_accuracy.cpp)
+
 # binomial.h - Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
 create_libstats_test(test_binomial_basic test_binomial_basic.cpp)
 create_libstats_gtest(test_binomial_enhanced test_binomial_enhanced.cpp)
