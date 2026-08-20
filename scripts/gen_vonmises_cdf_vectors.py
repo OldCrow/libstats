@@ -97,18 +97,42 @@ def from_bits(b: int) -> float:
 PI = mp.mpf(math.pi)
 TWO_PI = 2 * PI
 
+# Double-width constants for the bit-exact wrapAngle replica in wrap_to_pi:
+# math.pi == detail::PI's double value; 2.0*math.pi is exact (power-of-two
+# multiply) and equals detail::TWO_PI (constexpr 2.0 * PI in double).
+PI_D = math.pi
+TWO_PI_D = 2.0 * math.pi
 
-def wrap_to_pi(diff: "mp.mpf") -> "mp.mpf":
-    """Wrap an mpf angle difference into (-pi, pi], exact mpf arithmetic,
-    with the branch-cut threshold anchored to double-precision pi (see PI's
-    definition above) to match VonMisesDistribution::wrapAngle's own
-    fmod-then-adjust convention bit-for-bit at the domain seam."""
-    r = mp.fmod(diff, TWO_PI)
-    if r <= -PI:
-        r += TWO_PI
-    elif r > PI:
-        r -= TWO_PI
-    return r
+
+def wrap_to_pi(x: float, mu: float) -> "mp.mpf":
+    """Bit-exact DOUBLE replica of the library's wrapped argument
+    t = VonMisesDistribution::wrapAngle(x - mu).
+
+    Every step -- the x-mu subtraction, fmod, both branch compares, and the
+    +/-2*pi adjustments -- is IEEE-double arithmetic (Python floats ARE
+    doubles; math.fmod is C fmod), against the same double constants
+    (math.pi == detail::PI, 2.0*math.pi == detail::TWO_PI, both exact).
+    Only the RESULT is lifted to mpf for the quadrature.
+
+    Why not exact-real wrapping with a double threshold (the previous
+    revision): the threshold fix alone still let the exact difference
+    x - mu and the library's double-rounded difference land on OPPOSITE
+    sides of -PI_D at endpoint rows like x = mu - pi with mu = 0.7, where
+    the double subtraction's rounding decides whether the (-pi, pi]
+    aliasing fires -- a full 0-vs-1 jump in F charged as kernel error.
+    The oracle therefore answers: "what is the correctly-rounded F at the
+    library's own wrapped t". The deliberate cost is that wrapAngle's own
+    rounding (~pdf(t)*ulp, worst ~4e-15 at kappa=1000) is excluded from
+    the charged error; the wrap is 5 lines of pre-#51 shared
+    infrastructure, replicated here and reviewed against the source, and
+    the endpoint SEMANTICS stay pinned by the explicit mu+/-pi -> F=1
+    rows. Two independent ifs, not elif, mirroring wrapAngle exactly."""
+    t = math.fmod(x - mu, TWO_PI_D)
+    if t <= -PI_D:
+        t += TWO_PI_D
+    if t > PI_D:
+        t -= TWO_PI_D
+    return mp.mpf(t)
 
 
 def circle_integral(kappa: "mp.mpf", lo: "mp.mpf", hi: "mp.mpf") -> "mp.mpf":
@@ -134,7 +158,7 @@ def denom(kappa: "mp.mpf") -> "mp.mpf":
 
 def von_mises_cdf_mpf(x: float, mu: float, kappa: float) -> "mp.mpf":
     kap = mp.mpf(kappa)
-    t = wrap_to_pi(mp.mpf(x) - mp.mpf(mu))
+    t = wrap_to_pi(x, mu)
     num = circle_integral(kap, -PI, t)
     Z = denom(kap)
     F = num / Z
@@ -196,7 +220,7 @@ def _self_check() -> None:
     for mu in (0.0, 0.7, -2.5):
         for x in (mu - PI, mu - 1.0, mu, mu + 0.3, mu + PI - mp.mpf("1e-9")):
             xf = float(x)
-            t = wrap_to_pi(mp.mpf(xf) - mp.mpf(mu))
+            t = wrap_to_pi(xf, mu)
             expected = (t + PI) / TWO_PI
             F = von_mises_cdf_mpf(xf, mu, 0.0)
             err = abs(F - expected)

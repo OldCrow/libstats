@@ -105,33 +105,26 @@ history.
   Working order decided 2026-08-20: #48 (done) → #95 → #51 → #49
   (interleavable) → #46 last, so the mpmath characterization measures the
   final surface and reuses #95's gate infrastructure.
-  - #95 — **implemented and verified on `feature/v2.3-trig-surface`
-    (2026-08-20), awaiting signed commits (YubiKey absent), PR, CI.**
-    Measured on Zen 4: max 1 ULP, mean 0.022–0.028 ULP, all four x86
-    tiers, cos and sin; 0 ULP specials. Two defects found by the gate in
-    verification: sin(−0) returned +0 on every tier (fixed by zero-blend;
-    libhmm's `sin_pd` has the SAME defect upstream, unfiled as of this
-    entry), and the gate's staged sin toggle passed nullptr sin_fn (fixed;
-    a dispatched-entry gate was added since the per-tier gates bypass
-    dispatch and nothing else exercises `vector_sin`'s wiring until #51).
-    Original filing: SIMD trig surface: no `vector_sin` at any tier, and the four x86
-    `vector_cos` kernels measure ~6.5e-11 absolute (~2.9e5 ULP) against
-    NEON's clean-room 0.50–0.78 ULP. **Gates #51.** Already reaching the
-    shipped VonMises batch PDF, where two test files relax to 1e-10 rather
-    than fix the kernel. **Reduced to a port-back by libhmm v4.4.0**: its
-    #74 kernel is this repo's clean-room NEON derivation (same generator
-    script, credited in `trig_cleanroom_data.inc`) retargeted at
-    SSE2/AVX2/AVX-512 intrinsics, validated max 1 ULP on Zen 4 with
-    per-tier ULP gates. One unproven leg: libstats' AVX tier (no
-    guaranteed FMA — needs the SSE2-style plain-arithmetic path widened,
-    with its own validation).
-  - #51 — VonMises CDF has no SIMD/batch path; scalar integration loop is
-    5–10× slower than scipy. **Unblocked by #95 alone** — the
-    `I_j(κ)/I₀(κ)` series coefficients are per-instance scalar setup
-    (κ fixed, batch varies over x) and Miller recurrence self-normalizes
-    via `I₀(κ) + 2Σ I_j(κ) = e^κ`, so no Bessel call at any tier; the
-    supposed #47 dependency never existed. Remaining design work is the
-    series-truncation error budget (j_max vs κ).
+  - #95 — **CLOSED 2026-08-20** via PR #98 (merged, CI green incl. the
+    NEON leg on the ARM runners). Max 1 ULP, mean 0.022–0.028 ULP, all
+    tiers, cos and sin; sin(−0) sign defect found by the gate and fixed
+    (upstream twin filed as libhmm#81); dispatched-entry gate added. See
+    Resolved log and CHANGELOG [Unreleased].
+  - #51 — **implemented and verified on `feature/v2.3-vonmises-cdf`
+    (2026-08-20), awaiting commits/PR/CI.** Bessel-series CDF, scalar and
+    batch: Miller backward recurrence normalized by f_j/f₀ (ratios only —
+    no Bessel evaluated, no #47 exposure), j_max = ⌈10 + 8.5√κ⌉
+    per-instance coefficients, vector_sin per term. Measured vs a 40-digit
+    mpmath quadrature oracle: scalar ≤ 2.2e-16, batch ≤ 8.9e-16 absolute
+    through κ = 1000; budgets pinned 2e-15/4e-15. Also a BEHAVIOR FIX:
+    the old CDF wrapped into absolute (−π, π] regardless of μ,
+    contradicting the documented F(μ) = 0.5 invariant and disagreeing
+    with the μ-centered quantile grid; the series CDF wraps t = x−μ.
+    Two oracle-side wrap seams found and fixed in verification (threshold
+    at double π, then the double x−μ subtraction — the reference is F at
+    the library-wrapped t). κ > 1000 keeps the wrapped-normal fallback.
+    Follow-ups noted in-tree: quantile grid still trapezoid-built;
+    CDF dispatch thresholds provisional pending benchmark.
   - #49 — LogNormal CDF accuracy 2.62×10⁻⁷. **"erf precision" is
     disconfirmed as the cause** (2026-07-19): replacing `vector_erf_neon`
     with a max-1-ULP kernel left the error unchanged. Suspicion moves to
@@ -441,6 +434,10 @@ its documented Miller-recurrence recipe, and #52 by `beta_p`.
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-08-20 **#95 closed** — clean-room quadrant-reduction cos/sin at every
+  SIMD tier (PR #98): max 1 ULP all tiers, per-tier ULP gates + dispatched-entry
+  gate checked in; sin(−0) sign defect caught by the gate, fixed, and filed
+  upstream as libhmm#81. See CHANGELOG [Unreleased].
 - 2026-08-20 **#48 closed** — Cauchy CDF closed-form arctan (scalar + batch
   autoDispatch), ~2 ULP with a cancellation-free lower-tail branch;
   mpmath-referenced test the old delegation fails at 2.7e-10. See

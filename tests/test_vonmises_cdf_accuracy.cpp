@@ -15,11 +15,14 @@
 // pre-fix implementation before being trusted (see PLAN.md / the landing
 // commit for this file's fail-first numbers).
 //
-// PROVISIONAL: budgets below are placeholders for the orchestrator to pin
-// after measuring the real (fixed) implementation; they are deliberately
-// generous relative to mpmath's own ~1e-38 quadrature precision so the gate
-// exercises "is the kernel's own accuracy contract met", not "does this
-// reproduce mpmath bit-for-bit".
+// Budgets PINNED from measurement on Zen 4, 2026-08-20, against the fixed
+// #51 implementation: scalar max 2.2e-16 at EVERY kappa bucket including
+// 1000 (std::sin per term, smallest-term-first summation); batch max
+// 8.9e-16 (worst at kappa=500/1000, vector_sin per term); specials exact.
+// The pinned values below carry >=4.5x headroom over those measurements to
+// absorb cross-platform libm/tier variation. Do not loosen without a
+// matching kernel fix; a budget miss here is a kernel bug, not a
+// test-tuning problem.
 
 #include "libstats/distributions/von_mises.h"
 
@@ -48,11 +51,12 @@ double bitsToF64(std::uint64_t b) {
 }
 
 // -------------------------------------------------------------------------
-// Budgets. PROVISIONAL -- see file banner. Kept as named constants so the
-// orchestrator can retune in one place after measuring the fixed kernel.
+// Budgets. PINNED from measurement -- see file banner. Flat across kappa:
+// the measured kappa-dependence (3.3e-16 -> 8.9e-16 over kappa 0.5 -> 1000,
+// batch) is mild enough that one bound with headroom covers the range.
 // -------------------------------------------------------------------------
-constexpr double kBudgetKappaLe100 = 2e-15;   // kappa in (0, 100]
-constexpr double kBudgetKappaLe1000 = 8e-15;  // kappa in (100, 1000]
+constexpr double kBudgetKappaLe100 = 2e-15;   // scalar+batch, kappa <= 100
+constexpr double kBudgetKappaLe1000 = 4e-15;  // scalar+batch, kappa in (100, 1000]
 constexpr double kBudgetSpecials = 0.0;       // NaN/+-inf: exact per contract
 // Batch (VECTORIZED/PARALLEL/AUTO strategies inside the span overload) is
 // allowed to differ from the scalar path -- different summation/step-count

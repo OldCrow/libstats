@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Von Mises CDF rebuilt on the Bessel series, scalar and batch (#51)**:
+  `F(x) = (t+π)/(2π) + Σ b_j·sin(j·t)` with `b_j = I_j(κ)/(j·π·I₀(κ))`,
+  t = wrap(x−μ), j_max = ⌈10 + 8.5√κ⌉. Coefficients come from Miller's
+  backward recurrence normalized by `f_j/f₀` — ratios only, **no Bessel
+  function evaluated anywhere**, so no dependency on the platform Bessel
+  tier (#47). Replaces a ≥512-point trapezoid (κ ≤ 50, ~1e-6) and a
+  wrapped-normal approximation (κ > 50, **~1e-4**). Measured against a
+  40-digit mpmath quadrature oracle on Zen 4: scalar max 2.2e-16 and batch
+  max 8.9e-16 absolute at every κ bucket through 1000; gates checked in
+  (`tests/test_vonmises_cdf_accuracy.cpp`, budgets pinned 2e-15/4e-15,
+  demonstrated failing against the old implementation first). The batch
+  path evaluates the series with `vector_sin` (#95) — one batch sine +
+  axpy per term — and the CDF dispatch thresholds are un-NEVERed
+  (provisional values matching PDF's, pending benchmark). κ > 1000 keeps
+  the wrapped-normal fallback; κ = 0 is the exact uniform closed form.
+- **Von Mises CDF is now μ-centered — behavior fix for μ ≠ 0**: the old
+  CDF wrapped x into the absolute interval (−π, π] regardless of μ, which
+  contradicted the class's documented F(μ) = 0.5 median invariant and was
+  inconsistent with `getQuantile` (whose grid was always μ-centered). The
+  series CDF wraps t = x−μ, restoring F(μ) = 0.5 exactly for every μ and
+  making CDF/quantile round-trips consistent. Anyone relying on the old
+  absolute-domain CDF values for μ ≠ 0 will see different (now correct)
+  results.
+
 - **x86 `vector_cos` rebuilt at every tier; `vector_sin` added at every tier
   (#95)**: the four x86 kernels were a 7-term Taylor polynomial at ~1e-10
   absolute (~3e5 ULP; wrong sign near zeros of cos — worst case measured
