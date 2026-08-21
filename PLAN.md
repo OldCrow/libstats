@@ -125,12 +125,33 @@ history.
     the library-wrapped t). κ > 1000 keeps the wrapped-normal fallback.
     Follow-ups noted in-tree: quantile grid still trapezoid-built;
     CDF dispatch thresholds provisional pending benchmark.
-  - #49 — LogNormal CDF accuracy 2.62×10⁻⁷. **"erf precision" is
-    disconfirmed as the cause** (2026-07-19): replacing `vector_erf_neon`
-    with a max-1-ULP kernel left the error unchanged. Suspicion moves to
-    the `(ln x − μ)/σ` argument transform or the erfc-tail cancellation.
-    Error is bit-identical across machines, so it is in the shared scalar
-    path — debuggable on Zen 4, interleavable with the above.
+  - #49 — **implemented and verified on `feature/v2.3-lognormal-cdf-tail`
+    (2026-08-20), awaiting PR/CI.** Root cause was the FORMULATION, as the
+    2026-07-19 disconfirmation predicted: every path computed
+    0.5·(1+erf(z/√2)), whose lower tail hits the 1+erf cancellation floor
+    and collapses to exact 0 once erf saturates — true max relative error
+    on the benchmark grid was 1.0; the filed 2.62e-7 was the benchmark
+    metric flooring its denominator. Fixed by tail-branching to
+    0.5·erfc(−z/√2) (scalar normal_cdf + both batch paths; SIMD keeps
+    vector_erf with per-lane erfc below w=−1). Gate budget is the
+    achievable-accuracy LAW rel(F) ~ |ln F|·2⁻⁵² with headroom — a flat
+    deep-tail budget is mathematically unachievable in double for this
+    formulation (the original flat 1e-13 spec tripped exactly that).
+    Measured: max 0.49 of law budget, scalar and batch, refs to
+    F ≈ 1.9e-307. A vectorized erfc (corvus adoption) is the eventual
+    clean batch answer for both fix sites.
+    - Gaussian instance — **DONE 2026-08-20** (spawned session, same
+      branch): GaussianDistribution never routed through normal_cdf and
+      reproduced the defect in all five of its own CDF sites (scalar,
+      three parallel lambdas, SIMD batch impl). Same tail-branched fix;
+      the batch per-lane fixup recomputes w with the scalar path's exact
+      expression, so fixed-up lanes are bit-identical to scalar (batch
+      vs scalar now differs only in the −1≤w<0 plain-erf band, ≤1 ulp).
+      Gate test_gaussian_cdf_accuracy + gaussian_cdf_vectors.inc
+      (gen_gaussian_cdf_vectors.py, erfc oracle at dps=40; (0,1) bucket
+      covers the isStandardNormal_ path): fail-first max_rel 1.0
+      pre-fix; post-fix max 0.287 of the same law budget, batch-vs-
+      scalar abs ≤ 1.11e-16. Correctness suite 53/53 on Zen 4 MSVC.
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath. Last.
 - **Parked on corvus adoption** (open, unmilestoned since 2026-08-20):
   #47 (bessel.h Tier 2 A&S fallback, ~10⁻⁷ on AppleClang) and #52

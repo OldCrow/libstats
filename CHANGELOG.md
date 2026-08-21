@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **LogNormal CDF lower tail no longer collapses (#49)**: every path
+  computed `0.5·(1+erf(z/√2))`, whose lower tail dies on the `1+erf`
+  cancellation floor (~1.1e-16 absolute) regardless of erf quality — the
+  reason #49's 1-ULP erf swap changed nothing — and returns exactly 0 once
+  `std::erf` saturates at −1 (z ≲ −8.3). True max relative error over the
+  issue's benchmark grid was 1.0, not the reported 2.62e-7 (a
+  metric-flooring artifact). z < 0 now routes through `0.5·erfc(−z/√2)`
+  in `detail::normal_cdf` (whose analysis-helper consumers inherit the
+  fix) and both LogNormal batch paths; the SIMD path keeps its vectorized
+  erf pipeline with a per-lane erfc recompute below erf-argument −1. New
+  mpmath-oracle gate with references down to F ≈ 1.9e-307, budgeted by the
+  achievable-accuracy law rel(F) ~ |ln F|·2⁻⁵² (a flat deep-tail budget is
+  unachievable in double for this formulation); measured max 0.49 of
+  budget. Gaussian's CDF had the same defect independently — fixed in the
+  entry below, same change set.
+
+- **Gaussian CDF lower tail no longer collapses (#49 pattern)**:
+  `GaussianDistribution` never routed through `detail::normal_cdf`, so all
+  five of its own CDF sites (scalar, the three parallel lambdas, and the
+  SIMD batch kernel) independently reproduced the #49 cancellation bug.
+  Same fix: x < μ routes through `0.5·erfc(−z/√2)`; the SIMD batch path
+  keeps its vectorized erf pipeline with a per-lane erfc recompute below
+  erf-argument −1, deliberately using the scalar path's exact argument
+  expression so fixed-up lanes are bit-identical to
+  `getCumulativeProbability(x)` (batch and scalar now differ only in the
+  −1 ≤ w < 0 plain-erf band, by ≤ 1 ulp of 1). New mpmath-oracle gate
+  (`test_gaussian_cdf_accuracy`, references to F ≈ 1e-290, a bucket
+  covering the dedicated standard-normal code path) under the same
+  |ln F|·2⁻⁵² accuracy law; fail-first max relative error 1.0, post-fix
+  max 0.287 of budget.
+
 - **Von Mises CDF rebuilt on the Bessel series, scalar and batch (#51)**:
   `F(x) = (t+π)/(2π) + Σ b_j·sin(j·t)` with `b_j = I_j(κ)/(j·π·I₀(κ))`,
   t = wrap(x−μ), j_max = ⌈10 + 8.5√κ⌉. Coefficients come from Miller's

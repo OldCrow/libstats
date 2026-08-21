@@ -828,7 +828,14 @@ void LogNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             } else {
                 // erf argument: (log(x) − μ) / (σ√2) = (log(x) − μ) * inv_sigma_sqrt2
                 const double z = (std::log(x) - cached_mu) * cached_inv_sigma_sqrt2;
-                results[i] = detail::HALF * (detail::ONE + std::erf(z));
+                // Tail-branched to avoid the 1+erf(negative) cancellation
+                // floor (#49) — same rationale as detail::normal_cdf in
+                // math_utils.cpp. z here already carries the /sqrt(2)
+                // factor via cached_inv_sigma_sqrt2, so erfc(-z) is the
+                // direct left-tail form (no extra INV_SQRT_2 needed).
+                results[i] = z < detail::ZERO_DOUBLE
+                                 ? detail::HALF * std::erfc(-z)
+                                 : detail::HALF * (detail::ONE + std::erf(z));
             }
         }
         return;
@@ -838,16 +845,35 @@ void LogNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 
     // Step 1: temp = log(x)
     arch::simd::VectorOps::vector_log(values, temp.data(), count);
-    // Step 2: results = log(x) − μ
-    arch::simd::VectorOps::scalar_add(temp.data(), -cached_mu, results, count);
-    // Step 2b: results = (log(x) − μ) / (σ√2)
-    arch::simd::VectorOps::scalar_multiply(results, cached_inv_sigma_sqrt2, results, count);
-    // Step 3: results = erf(...)
-    arch::simd::VectorOps::vector_erf(results, results, count);
-    // Step 4: results = 1 + erf(...)
+    // Step 2: temp = log(x) − μ
+    arch::simd::VectorOps::scalar_add(temp.data(), -cached_mu, temp.data(), count);
+    // Step 2b: temp = (log(x) − μ) / (σ√2)  — this is the erf argument w,
+    // kept around (rather than overwritten in place) so the per-lane
+    // tail fixup below can see it.
+    arch::simd::VectorOps::scalar_multiply(temp.data(), cached_inv_sigma_sqrt2, temp.data(), count);
+    // Step 3: results = erf(w)
+    arch::simd::VectorOps::vector_erf(temp.data(), results, count);
+    // Step 4: results = 1 + erf(w)
     arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
-    // Step 5: results = 0.5·(1 + erf(...))
+    // Step 5: results = 0.5·(1 + erf(w))
     arch::simd::VectorOps::scalar_multiply(results, detail::HALF, results, count);
+
+    // Per-lane tail fixup (#49): no vectorized erfc exists yet (tracked
+    // alongside the corvus adoption discussion, PLAN #47/#52 — a
+    // vectorized erfc would let this whole path use the tail-branched
+    // form directly, the way detail::normal_cdf now does). The plain
+    // erf form's relative error is ~ulp(1)/(2F): below w = -1
+    // (F < 0.079) it passes ~1.4e-15 and grows without bound toward the
+    // z<0 cancellation floor, crossing the gate's 2e-14 relative floor
+    // near w ≈ -1.7. Fixing up from w = -1 bounds the non-fixed lanes at
+    // ~1.4e-15 with an order of margin, while the bulk of typical
+    // (mode-centred) data stays fully vectorized.
+    for (std::size_t i = 0; i < count; ++i) {
+        const double w = temp[i];
+        if (w < -1.0) {
+            results[i] = detail::HALF * std::erfc(-w);
+        }
+    }
 
     // Fixup: x <= 0 is outside support; CDF = 0.
     for (std::size_t i = 0; i < count; ++i) {

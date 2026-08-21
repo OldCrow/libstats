@@ -804,8 +804,22 @@ std::size_t vectorized_math_threshold() noexcept {
 // =============================================================================
 
 double normal_cdf(double z) noexcept {
-    // Standard normal CDF using error function
-    return detail::HALF * (detail::ONE + erf(z * detail::INV_SQRT_2));
+    // Standard normal CDF using error function, tail-branched (#49).
+    //
+    // The naive cancellation form 0.5*(1+erf(z/sqrt(2))) has an absolute
+    // error floor of ~ulp(1)/2 ~= 1.1e-16 for z < 0 regardless of erf's own
+    // quality (1+erf(negative-near-1) cancels most of erf's precision), and
+    // once z <~ -8.3, std::erf(z/sqrt(2)) returns exactly -1 so the whole
+    // expression collapses to exactly 0 -- true relative error there is
+    // 1.0, not the tiny value a naive metric reports. Using erfc for the
+    // left tail avoids the cancellation entirely: 0.5*erfc(-z/sqrt(2))
+    // stays accurate (full relative precision) all the way down to erfc's
+    // own underflow floor (~1e-308), instead of pinning to a fixed
+    // absolute floor.  Right tail (z >= 0) keeps the original form, which
+    // is already well-conditioned there.
+    return z < detail::ZERO_DOUBLE
+               ? detail::HALF * erfc(-z * detail::INV_SQRT_2)
+               : detail::HALF * (detail::ONE + erf(z * detail::INV_SQRT_2));
 }
 
 double inverse_normal_cdf(double p) noexcept {

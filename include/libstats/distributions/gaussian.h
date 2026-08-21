@@ -392,7 +392,9 @@ class GaussianDistribution : public DistributionBase {
 
     /**
      * @brief Evaluates the CDF at x using the error function
-     * Formula: CDF(x) = (1/2) * (1 + erf((x-μ)/(σ√2)))
+     * Formula: CDF(x) = (1/2) * (1 + erf((x-μ)/(σ√2))), evaluated as
+     * (1/2) * erfc(-(x-μ)/(σ√2)) for x < μ so the left tail keeps full
+     * relative precision instead of hitting the 1+erf cancellation floor
      *
      * @param x The value at which to evaluate the CDF
      * @return Cumulative probability P(X ≤ x)
