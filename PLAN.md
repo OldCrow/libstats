@@ -64,7 +64,7 @@ The last three entries are conventions, not project state; they belong in
 AGENTS.md Conventions on the next pass through that file.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-08-16.
+Last reconciled against live GitHub state: 2026-08-20.
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -99,7 +99,9 @@ history.
   shipped 2026-08-16. #83 include restructure, #92 and #93 (log I0
   continuity and circular variance), #96 (complement-series coefficients),
   #97 (installed export dropped the Bessel tier). See Resolved log.
-- **v2.3.0 — Accuracy & Performance** (open, #5): 4 open / 1 closed —
+- **v2.3.0 — Accuracy & Performance** (open, #5): 0 open / 5 closed —
+  ALL WORK MERGED 2026-08-20; milestone close + release cut pending
+  (user decision). Original scope note:
   the v2.2.0 milestone's unshipped remainder, moved 2026-08-16. #47 and
   #52 moved out 2026-08-20 (see "Parked on corvus adoption" below).
   Working order decided 2026-08-20: #48 (done) → #95 → #51 → #49
@@ -152,7 +154,16 @@ history.
       covers the isStandardNormal_ path): fail-first max_rel 1.0
       pre-fix; post-fix max 0.287 of the same law budget, batch-vs-
       scalar abs ≤ 1.11e-16. Correctness suite 53/53 on Zen 4 MSVC.
-  - #46 — Accuracy characterization vs mpmath [DERIVED, in review]:
+  - #46 — **CLOSED 2026-08-20** via PR #101 (squash 57da00a, CI green;
+      a GCC 13 strict-overflow false positive in the p-grid sort was
+      fixed by replacing the defensive sort with an ascending assert,
+      CSV verified byte-identical). **v2.3.0 milestone now 0 open /
+      5 closed — complete; closing the milestone and cutting the
+      release are [OPEN] user decisions.** Follow-up issues filed
+      2026-08-20: #102 batch NaN propagation (v2.4.0, bug), #103
+      +-inf input contract (unmilestoned, decision-gated), #104
+      quantile extreme-p contract (unmilestoned, decision-gated).
+      [DERIVED] detail:
       replaced the issue's pylibstats route (pins to released v2.2.0,
       would characterize the wrong code) with tools/accuracy_sweep.cpp
       (bit-exact deterministic CSV, 19 dists × 3 instances, scalar +
@@ -186,7 +197,10 @@ history.
   the before/after scipy benchmark. libhmm v4.4.0 was checked for an
   adoptable interim #47 fix: none — its Tier 2 is the same A&S
   polynomial. Parking comments on both issues, 2026-08-20.
-- **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
+- **v2.4.0 — New Distributions (Foundation)** (open, #2): 5 open / 0 closed
+  (#102 batch NaN propagation added 2026-08-20, bugfix outside the
+  new-distributions theme; #103/#104 contract-decision issues sit
+  unmilestoned alongside parked #47/#52)
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
 - **v2.5.0 — New Distributions (Extended)** (open, #3): 5 open / 0 closed
