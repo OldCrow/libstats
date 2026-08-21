@@ -9,6 +9,21 @@ git-cliff). For SIMD methodology, see `docs/SIMD_OPTIMIZATION_REFERENCE.md` and
 
 ## Validation matrices by release
 
+### v2.2.0 — validation matrix
+
+Carried here verbatim from `AGENTS.md` when v2.3.0 shipped.
+
+| Machine | SIMD | Correctness | Timing | Notes |
+|---|---|---|---|---|
+| Asus TUF A16 (Windows) | AVX-512 | 49/49 ✅ | 21/22 ⚠️ | Native, 2026-08-16, MSVC 14.51 Release |
+| Mac Mini M1 | NEON | — | — | Never natively re-validated for v2.2.0 (CI leg only) |
+| Kaby Lake (2017 MBP) | AVX2+FMA | — | — | Never natively re-validated for v2.2.0 (CI leg only) |
+
+Counts are not comparable with v2.1.0's: #94 fixed `run_tests`' `ctest`
+filters, which had been written with escaped pipes and matched nothing. The
+one timing failure was the `UniformEnhancedTest` speedup assertion (flaky,
+carried into the v2.3.0 matrix unchanged).
+
 ### v2.1.0 — validation target (three machines)
 
 Carried here verbatim from `AGENTS.md` when v2.2.0 shipped.

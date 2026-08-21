@@ -1,8 +1,9 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-08-16
-v2.2.0 is the current release (tagged 2026-08-16); 19 distributions across
-7 families, API unchanged from v2.1.0.
+## Status [DERIVED] — 2026-08-20
+v2.3.0 is the current release (tagged 2026-08-20); 19 distributions across
+7 families, API unchanged from v2.1.0. Milestone #5 (v2.3.0) closed with
+all 5 issues shipped (#48, #95, #51, #49, #46).
 
 **Why 2.2.0 and not 2.1.1.** The Bessel work (#92/#93/#96/#97) and the
 export fix (#90) are patch-shaped, but three things landed alongside them

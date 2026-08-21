@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.2.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. 49/49 correctness tests pass natively on Asus TUF A16 AVX-512 (2026-08-16); the Kaby Lake AVX2+FMA and Mac Mini M1 NEON legs are CI-validated but not yet natively re-run for this release. See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.3.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. 55/55 correctness tests pass natively on Asus TUF A16 AVX-512 (2026-08-20); the Kaby Lake AVX2+FMA and Mac Mini M1 NEON legs are CI-validated (including the ARM-runner NEON leg added for #95) but not yet natively re-run for this release. See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -59,26 +59,28 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **Windows/MSVC:** Follow Platform-Specific Notes below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current validation matrix (v2.2.0)
+### Current validation matrix (v2.3.0)
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
-| Asus TUF A16 (Windows) | AVX-512 | 49/49 ✅ | 21/22 ⚠️ | Native, 2026-08-16, MSVC 14.51 Release |
-| Mac Mini M1 | NEON | — | — | **Not yet re-validated for v2.2.0** |
-| Kaby Lake (2017 MBP) | AVX2+FMA | — | — | **Not yet re-validated for v2.2.0** |
+| Asus TUF A16 (Windows) | AVX-512 | 55/55 ✅ | 21/22 ⚠️ | Native, 2026-08-20, MSVC Release |
+| Mac Mini M1 | NEON | — | — | **Not yet re-validated for v2.3.0** (CI ARM-runner leg green) |
+| Kaby Lake (2017 MBP) | AVX2+FMA | — | — | **Not yet re-validated for v2.3.0** (CI leg green) |
 
-Counts are not comparable with v2.1.0's: #94 fixed `run_tests`' `ctest` filters,
-which had been written with escaped pipes and matched nothing, so the earlier
-numbers came from a selection nobody intended.
+The correctness count grew 49 → 55 with v2.3.0's new accuracy gates (trig
+ULP per tier, Von Mises CDF, LogNormal CDF, Gaussian CDF, and companions).
 
-The one timing failure is `UniformEnhancedTest.SIMDAndParallelBatchImplementations`
-— a speedup assertion measuring 1.5x against a 1.8x adaptive threshold at 5000
-elements. Reproduced 2 failures in 3 back-to-back runs on a settled machine, so
-it is flaky rather than a regression, and nothing in v2.2.0 touches uniform or
-the dispatch thresholds (only #83's header rename shows in `git log` for those
-paths). Same class as the Poisson assertion excluded from the AVX-512 workflow
-in v2.2.0. Timing tests carry the `timing` label and are excluded from CI
+The one timing failure is the same `UniformEnhancedTest.
+SIMDAndParallelBatchImplementations` speedup assertion carried from the
+v2.2.0 matrix (1.44x measured against a 1.8x adaptive threshold at 5000
+elements, reproduced on a settled machine) — flaky, not a regression;
+nothing in v2.3.0 touches uniform kernels or the dispatch thresholds it
+measures. Timing tests carry the `timing` label and are excluded from CI
 everywhere, so this is a real-hardware finding, not a CI one.
+
+The mpmath accuracy characterization (`docs/ACCURACY_CHARACTERIZATION.md`,
+#46) is PROVISIONAL for the same reason this matrix is one-row: Zen 4 only
+until the Kaby Lake and M1 legs are natively re-run.
 
 For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
 
