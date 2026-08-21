@@ -152,7 +152,31 @@ history.
       covers the isStandardNormal_ path): fail-first max_rel 1.0
       pre-fix; post-fix max 0.287 of the same law budget, batch-vs-
       scalar abs ≤ 1.11e-16. Correctness suite 53/53 on Zen 4 MSVC.
-  - #46 — Benchmark: SIMD accuracy characterization vs mpmath. Last.
+  - #46 — Accuracy characterization vs mpmath [DERIVED, in review]:
+      replaced the issue's pylibstats route (pins to released v2.2.0,
+      would characterize the wrong code) with tools/accuracy_sweep.cpp
+      (bit-exact deterministic CSV, 19 dists × 3 instances, scalar +
+      FORCE_VECTORIZED batch, tails to p=1e-300; two-process determinism
+      verified) + tools/accuracy_vs_mpmath.py (dps-50 oracle, 42
+      self-checks) + docs/ACCURACY_CHARACTERIZATION.md. Oracle needed
+      substantial large-parameter hardening beyond the agents' build —
+      mpmath betainc/gammainc hang or raise for min(a,b) ≳ 5e3 even in
+      the central region: clean-room Lentz CF incomplete beta, upper-
+      gamma complement, far-tail lead guards (exp(lead) below every
+      double), safeguarded log-log false-position quantile solver
+      (secant plateaus and pure bisection both failed), asymptotic
+      normal seeds. CF/quadrature cross-validation at 1e-44. Gate
+      cross-check: gaussian law_frac 1.319 ↔ pinned 0.287·(1e-15 budget)
+      ≈ 1.29 bare-law equivalent; lognormal 1.784 ≲ 2.2 equivalent;
+      von Mises max_abs 1.7e-16/5.1e-16 vs gates 2.2e-16/8.9e-16.
+      Findings (doc Findings section + generated appendix): 86 contract
+      violations — batch NaN propagation inconsistent (8 dists), NaN at
+      ±inf where limits exist, batch logpdf(+inf) clamp −4605.0,
+      quantile NaN/saturation at extreme p, large-param CDF limits
+      (binomial n=1e6: 1.3e-2 at the mean → corvus #47/#52 remedy
+      class). [OPEN] follow-up issue candidates, on user's word:
+      (a) batch NaN propagation, (b) ±inf limit returns, (c) quantile
+      extreme-p contract.
 - **Parked on corvus adoption** (open, unmilestoned since 2026-08-20):
   #47 (bessel.h Tier 2 A&S fallback, ~10⁻⁷ on AppleClang) and #52
   (Binomial CDF via PMF summation). Not "won't fix" — each tracks the

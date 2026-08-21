@@ -48,6 +48,7 @@ add_libstats_tool(parameter_recovery_benchmark parameter_recovery_benchmark.cpp)
 add_libstats_tool(threshold_validator threshold_validator.cpp)
 add_libstats_tool(toctou_validator toctou_validator.cpp)
 add_libstats_tool(copy_move_stress copy_move_stress.cpp)
+add_libstats_tool(accuracy_sweep accuracy_sweep.cpp)
 
 # Issue #33 opt-in dev tools -- gated separately since these are research/experiment tools, not part
 # of the standard tool set built by every developer.
@@ -126,4 +127,8 @@ message(
 message(
     STATUS
         "  - copy_move_stress: Concurrent copy/move throughput stress test across all 19 distributions (replaces test_copy_move_stress)"
+)
+message(
+    STATUS
+        "  - accuracy_sweep: Issue #46 deterministic bit-exact scalar/batch pdf/logpdf/cdf/quantile sweep across all 19 distributions for the mpmath oracle comparison"
 )
