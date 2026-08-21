@@ -65,7 +65,7 @@ The last three entries are conventions, not project state; they belong in
 AGENTS.md Conventions on the next pass through that file.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-08-20.
+Last reconciled against live GitHub state: 2026-08-21.
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -189,24 +189,49 @@ history.
       class). [OPEN] follow-up issue candidates, on user's word:
       (a) batch NaN propagation, (b) ±inf limit returns, (c) quantile
       extreme-p contract.
-- **Parked on corvus adoption** (open, unmilestoned since 2026-08-20):
-  #47 (bessel.h Tier 2 A&S fallback, ~10⁻⁷ on AppleClang) and #52
-  (Binomial CDF via PMF summation). Not "won't fix" — each tracks the
-  libstats-side consumption work the adoption change set performs and
-  closes with `Fixes #NN`: #47 the bessel.h rewire (and whether the tier
-  scheme survives at all), #52 the `beta_p` closed-form CDF rewrite plus
-  the before/after scipy benchmark. libhmm v4.4.0 was checked for an
-  adoptable interim #47 fix: none — its Tier 2 is the same A&S
-  polynomial. Parking comments on both issues, 2026-08-20.
+- **corvus adoption staged as v2.5.0** (decided 2026-08-21 [user],
+  milestone #6 created; the former v2.5.0 Extended milestone renumbered
+  to v2.6.0 — the THIRD renumbering, same title-cascade shape as
+  2026-07-21). Staging rationale: v2.4.0 Foundation is adoption-tolerant
+  (#54 closed-form exp; #55/#56 thin delegation wrappers that inherit
+  core upgrades without re-authoring; #57 erf-based on the #49-hardened
+  normal_cdf), while v2.6.0 Extended is dense with heavy consumers that
+  should be built on corvus cores the FIRST time (#61 Wald erfc-tail
+  CDF, #62 Hypergeometric/BetaBinomial incomplete-beta CDFs and the
+  Zipf closed-form-CDF-vs-summation decision, which corvus's plan
+  requires settled before any Hurwitz zeta work starts there).
+  Acceptance evidence: before/after #46 characterization sweeps.
+  Prerequisites, tracked on the milestone description: (a) M1 + Kaby
+  Lake native validation legs run DURING v2.4.0 (both projects need the
+  same machine time; corvus per-tier claims and this repo's PROVISIONAL
+  characterization share the gap); (b) corvus API stable — pair with
+  corvus v1.0.0 if near; (c) #103/#104 contract decisions settled
+  before v2.4.0 starts authoring distributions (cheap policy calls,
+  not corvus-gated — every distribution written first multiplies the
+  inconsistency #46 found).
+  #47 and #52 moved from parked/unmilestoned into milestone #6 with
+  un-parking comments, 2026-08-21. Each still closes with `Fixes #NN`
+  from the adoption change set: #47 the bessel.h rewire (and whether
+  the tier scheme survives), #52 the `beta_p` closed-form CDF rewrite
+  plus the before/after scipy benchmark. (Historical: parked
+  unmilestoned 2026-08-20; libhmm v4.4.0 had no adoptable interim #47
+  fix — its Tier 2 is the same A&S polynomial.)
 - **v2.4.0 — New Distributions (Foundation)** (open, #2): 5 open / 0 closed
   (#102 batch NaN propagation added 2026-08-20, bugfix outside the
   new-distributions theme; #103/#104 contract-decision issues sit
   unmilestoned alongside parked #47/#52)
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
-- **v2.5.0 — New Distributions (Extended)** (open, #3): 5 open / 0 closed
+- **v2.5.0 — corvus adoption** (open, #6): 2 open / 0 closed — #47
+  bessel.h rewire, #52 Binomial beta_p CDF rewrite; the core-swap work
+  itself plus the before/after characterization sweeps. See the staging
+  entry above for rationale and prerequisites.
+- **v2.6.0 — New Distributions (Extended)** (open, #3, renumbered from
+  v2.5.0 on 2026-08-21): 5 open / 0 closed
   — #58 GEV (depends on #54), #59 LogLogistic (depends on #54),
   #60 Triangular, #61 Wald, #62 Hypergeometric + BetaBinomial + Zipf.
+  #62's Zipf CDF design (summation vs Hurwitz-zeta closed form) must be
+  settled before this milestone's planning — it scopes corvus P3 work.
 - **v3.0.0 — Architecture Refactor** (open, #4): 4 open / 0 closed —
   #40 split CMakeLists.txt into cmake/ modules, #41 unify the dual SIMD
   namespace, #42 decompose parallel_execution.h, #43 extract dispatch/cache
