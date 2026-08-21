@@ -22,8 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mpmath-oracle gate with references down to F ≈ 1.9e-307, budgeted by the
   achievable-accuracy law rel(F) ~ |ln F|·2⁻⁵² (a flat deep-tail budget is
   unachievable in double for this formulation); measured max 0.49 of
-  budget. Gaussian's CDF has the same defect independently and is fixed
-  separately.
+  budget. Gaussian's CDF had the same defect independently — fixed in the
+  entry below, same change set.
 
 - **Gaussian CDF lower tail no longer collapses (#49 pattern)**:
   `GaussianDistribution` never routed through `detail::normal_cdf`, so all
