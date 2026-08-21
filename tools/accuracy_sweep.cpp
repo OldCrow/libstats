@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -192,8 +193,14 @@ const std::vector<double>& xConstructionPGrid() {
         for (double p : {0.35, 0.4, 0.45}) {
             lower.push_back(p);
         }
-        std::sort(lower.begin(), lower.end());
-        lower.erase(std::unique(lower.begin(), lower.end()), lower.end());
+        // Strictly ascending by construction: both exponent lists descend
+        // (so the values ascend), and 10^-0.52 ~ 0.302 < 0.35. Assert
+        // rather than sort+unique -- GCC 13's -Werror=strict-overflow
+        // fires a pointer-wraparound false positive when it constexpr-
+        // expands std::sort inside this immediately-invoked initializer.
+        for (std::size_t i = 1; i < lower.size(); ++i) {
+            assert(lower[i - 1] < lower[i]);
+        }
 
         std::vector<double> full;
         full.reserve(lower.size() * 2 + 1);
