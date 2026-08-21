@@ -25,6 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   budget. Gaussian's CDF has the same defect independently and is fixed
   separately.
 
+- **Gaussian CDF lower tail no longer collapses (#49 pattern)**:
+  `GaussianDistribution` never routed through `detail::normal_cdf`, so all
+  five of its own CDF sites (scalar, the three parallel lambdas, and the
+  SIMD batch kernel) independently reproduced the #49 cancellation bug.
+  Same fix: x < μ routes through `0.5·erfc(−z/√2)`; the SIMD batch path
+  keeps its vectorized erf pipeline with a per-lane erfc recompute below
+  erf-argument −1, deliberately using the scalar path's exact argument
+  expression so fixed-up lanes are bit-identical to
+  `getCumulativeProbability(x)` (batch and scalar now differ only in the
+  −1 ≤ w < 0 plain-erf band, by ≤ 1 ulp of 1). New mpmath-oracle gate
+  (`test_gaussian_cdf_accuracy`, references to F ≈ 1e-290, a bucket
+  covering the dedicated standard-normal code path) under the same
+  |ln F|·2⁻⁵² accuracy law; fail-first max relative error 1.0, post-fix
+  max 0.287 of budget.
+
 - **Von Mises CDF rebuilt on the Bessel series, scalar and batch (#51)**:
   `F(x) = (t+π)/(2π) + Σ b_j·sin(j·t)` with `b_j = I_j(κ)/(j·π·I₀(κ))`,
   t = wrap(x−μ), j_max = ⌈10 + 8.5√κ⌉. Coefficients come from Miller's

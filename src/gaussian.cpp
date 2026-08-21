@@ -270,6 +270,22 @@ double GaussianDistribution::getLogProbability(double x) const {
     return detail::NEG_HALF_LN_2PI - log_sd + neg_half * diff * diff;
 }
 
+namespace {
+// Tail-branched normal CDF from the pre-scaled erf argument w = z/sqrt(2)
+// (#49 pattern; same rationale as detail::normal_cdf in math_utils.cpp).
+// The plain 0.5*(1+erf(w)) form has an absolute error floor of ~1.1e-16
+// for w < 0 regardless of erf's own quality (1+erf(near -1) cancels most
+// of erf's significant digits), and once w <~ -5.9, std::erf returns
+// exactly -1 so the whole expression collapses to exactly 0 -- true
+// relative error there is 1.0. erfc for the left tail keeps full relative
+// precision down to erfc's own underflow floor (~1e-308). Callers pass w
+// already divided by sqrt(2): x*INV_SQRT_2, or (x-mean)/sigmaSqrt2_.
+inline double cdf_from_erf_arg(double w) noexcept {
+    return w < detail::ZERO_DOUBLE ? detail::HALF * std::erfc(-w)
+                                   : detail::HALF * (detail::ONE + std::erf(w));
+}
+}  // namespace
+
 double GaussianDistribution::getCumulativeProbability(double x) const {
     bool is_std;
     double m, sigma_sqrt2;
@@ -279,8 +295,8 @@ double GaussianDistribution::getCumulativeProbability(double x) const {
         sigma_sqrt2 = sigmaSqrt2_;
     });
     if (is_std)
-        return detail::HALF * (detail::ONE + std::erf(x * detail::INV_SQRT_2));
-    return detail::HALF * (detail::ONE + std::erf((x - m) / sigma_sqrt2));
+        return cdf_from_erf_arg(x * detail::INV_SQRT_2);
+    return cdf_from_erf_arg((x - m) / sigma_sqrt2);
 }
 
 double GaussianDistribution::getQuantile(double p) const {
@@ -897,22 +913,20 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     if (cached_is_standard_normal) {
-                        res[i] =
-                            detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
+                        res[i] = cdf_from_erf_arg(vals[i] * detail::INV_SQRT_2);
                     } else {
                         const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                        res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
+                        res[i] = cdf_from_erf_arg(normalized);
                     }
                 });
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     if (cached_is_standard_normal) {
-                        res[i] =
-                            detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
+                        res[i] = cdf_from_erf_arg(vals[i] * detail::INV_SQRT_2);
                     } else {
                         const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                        res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
+                        res[i] = cdf_from_erf_arg(normalized);
                     }
                 }
             }
@@ -939,10 +953,10 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 if (cached_is_standard_normal) {
-                    res[i] = detail::HALF * (detail::ONE + std::erf(vals[i] * detail::INV_SQRT_2));
+                    res[i] = cdf_from_erf_arg(vals[i] * detail::INV_SQRT_2);
                 } else {
                     const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = detail::HALF * (detail::ONE + std::erf(normalized));
+                    res[i] = cdf_from_erf_arg(normalized);
                 }
             });
             pool.waitForAll();
@@ -1199,11 +1213,10 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
         // Use scalar implementation for small arrays or unsupported SIMD
         for (std::size_t i = 0; i < count; ++i) {
             if (is_standard_normal) {
-                results[i] =
-                    detail::HALF * (detail::ONE + std::erf(values[i] * detail::INV_SQRT_2));
+                results[i] = cdf_from_erf_arg(values[i] * detail::INV_SQRT_2);
             } else {
                 const double normalized = (values[i] - mean) / sigma_sqrt2;
-                results[i] = detail::HALF * (detail::ONE + std::erf(normalized));
+                results[i] = cdf_from_erf_arg(normalized);
             }
         }
         return;
@@ -1233,6 +1246,27 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // Final: results = 0.5 * (1 + erf(normalized))
     arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
     arch::simd::VectorOps::scalar_multiply(results, detail::HALF, results, count);
+
+    // Per-lane tail fixup (#49 pattern): no vectorized erfc exists yet (see
+    // src/lognormal.cpp's identical fixup for the full rationale and the
+    // vectorized-erfc tracking note). The plain erf form's relative error is
+    // ~ulp(1)/(2F): below w = -1 (F < 0.079) it passes ~1.4e-15 and grows
+    // without bound toward the w<0 cancellation floor. Fixing up from w = -1
+    // bounds the non-fixed lanes at ~1.4e-15 while the bulk of typical
+    // (mode-centred) data stays fully vectorized. results was the only
+    // workspace (vector_erf overwrote w in place), so w is recomputed per
+    // lane -- deliberately with the SCALAR path's exact expressions (divide
+    // by sigma_sqrt2, not multiply by its reciprocal as the vector steps
+    // above do), which makes every fixed-up lane bit-identical to
+    // getCumulativeProbability(x). NaN lanes compare false and keep the
+    // vectorized result.
+    for (std::size_t i = 0; i < count; ++i) {
+        const double w = is_standard_normal ? values[i] * detail::INV_SQRT_2
+                                            : (values[i] - mean) / sigma_sqrt2;
+        if (w < -detail::ONE) {
+            results[i] = detail::HALF * std::erfc(-w);
+        }
+    }
 }
 
 //==============================================================================

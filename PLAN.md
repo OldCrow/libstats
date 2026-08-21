@@ -138,9 +138,20 @@ history.
     deep-tail budget is mathematically unachievable in double for this
     formulation (the original flat 1e-13 spec tripped exactly that).
     Measured: max 0.49 of law budget, scalar and batch, refs to
-    F ≈ 1.9e-307. Gaussian's CDF reproduces the same defect independently
-    — being fixed in its own session (task spawned from this one); a
-    vectorized erfc (corvus adoption) is the eventual clean batch answer.
+    F ≈ 1.9e-307. A vectorized erfc (corvus adoption) is the eventual
+    clean batch answer for both fix sites.
+    - Gaussian instance — **DONE 2026-08-20** (spawned session, same
+      branch): GaussianDistribution never routed through normal_cdf and
+      reproduced the defect in all five of its own CDF sites (scalar,
+      three parallel lambdas, SIMD batch impl). Same tail-branched fix;
+      the batch per-lane fixup recomputes w with the scalar path's exact
+      expression, so fixed-up lanes are bit-identical to scalar (batch
+      vs scalar now differs only in the −1≤w<0 plain-erf band, ≤1 ulp).
+      Gate test_gaussian_cdf_accuracy + gaussian_cdf_vectors.inc
+      (gen_gaussian_cdf_vectors.py, erfc oracle at dps=40; (0,1) bucket
+      covers the isStandardNormal_ path): fail-first max_rel 1.0
+      pre-fix; post-fix max 0.287 of the same law budget, batch-vs-
+      scalar abs ≤ 1.11e-16. Correctness suite 53/53 on Zen 4 MSVC.
   - #46 — Benchmark: SIMD accuracy characterization vs mpmath. Last.
 - **Parked on corvus adoption** (open, unmilestoned since 2026-08-20):
   #47 (bessel.h Tier 2 A&S fallback, ~10⁻⁷ on AppleClang) and #52
