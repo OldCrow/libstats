@@ -79,6 +79,7 @@ import math
 import os
 import struct
 import sys
+import time
 from dataclasses import dataclass, field
 
 import mpmath as mp
@@ -225,7 +226,9 @@ def vonmises_quantile(mu: float, kappa: float, p: float) -> "mp.mpf":
     elif pm >= 1:
         t = mp.pi
     else:
-        t = mp.findroot(f, mp.mpf(0), solver="bisect", x0=(-mp.pi, mp.pi))
+        # mpmath's bisect solver takes the bracket AS the start value;
+        # passing a scalar start plus an x0 kwarg is a TypeError.
+        t = mp.findroot(f, (-mp.pi, mp.pi), solver="bisect")
     result = mp.mpf(mu) + t
     # Wrap into (-pi, pi] at mpf precision (quantile has no library-side
     # bit-exact double wrap to replicate; this is a reference convention).
@@ -244,10 +247,145 @@ def vonmises_quantile(mu: float, kappa: float, p: float) -> "mp.mpf":
 # ---------------------------------------------------------------------------
 
 
+def _tail_logspace_bisect(fn, target, seed, increasing=True, hi_cap=None):
+    """Root of fn(x) = target for fn strictly monotone on (0, hi_cap or inf),
+    by geometric-midpoint (log-space) bisection at mpf precision.
+
+    Replaces the secant mp.findroot calls originally used for the gamma /
+    student-t / beta quantile oracles. A secant step that lands in a
+    deep-tail plateau -- where fn is constant to 50 digits -- stalls there
+    permanently (observed on the real #46 sweep: gamma quantile near
+    p = 1 - 1e-16 stuck at |fn - target| ~ 1e-15 against a 2.6e-54
+    tolerance). Why not pure log-space bisection (the first replacement):
+    correct, but a fixed ~200 fn evaluations per row is hours of wall time
+    when fn is an incomplete beta with a huge first parameter -- student-t
+    nu = 1e6 costs tens of ms PER EVALUATION at dps 50, and minutes at the
+    extreme arguments the expansion probes. The hybrid below keeps
+    bisection's bracket invariant (cannot stall; anti-stagnation forcing
+    bounds it at ~2x bisection worst case) while false position in
+    (log x, log fn) coordinates converges superlinearly -- exactly, in one
+    step, wherever the tail is a power law, since F ~ C*x^a is a straight
+    line in those coordinates. Typical rows finish in 10-25 evaluations.
+    """
+    seed = mp.mpf(seed)
+    if (not mp.isfinite(seed)) or seed <= 0:
+        seed = mp.mpf(1)
+    if hi_cap is not None and seed >= hi_cap:
+        seed = mp.mpf(hi_cap) / 2
+    sgn = 1 if increasing else -1
+    # Bracket expansion doubles the step each miss (with an exponent cap so
+    # mpf exponents stay small ints): a FIXED step cannot reach the bracket
+    # for small shape parameters -- gamma alpha=0.01 at p ~ 1e-300 has its
+    # quantile near 1e-30000, ~2800 fixed /4096 steps away but only ~13
+    # doubling steps. Log-space bisection is indifferent to the overshoot:
+    # it converges in log-width, which the doubling only grows linearly.
+    step_cap = mp.mpf(2) ** 1000000
+    lo = seed
+    step = mp.mpf(4096)
+    for _ in range(200):
+        if sgn * (fn(lo) - target) < 0:
+            break
+        lo /= step
+        step = min(step * step, step_cap)
+    else:
+        raise RuntimeError("quantile bracket expansion failed (low side)")
+    if hi_cap is not None:
+        hi = mp.mpf(hi_cap)
+    else:
+        hi = seed
+        step = mp.mpf(4096)
+        for _ in range(200):
+            if sgn * (fn(hi) - target) >= 0:
+                break
+            hi *= step
+            step = min(step * step, step_cap)
+        else:
+            raise RuntimeError("quantile bracket expansion failed (high side)")
+    # Safeguarded false position in u = log(x), h = log(fn) - log(target)
+    # coordinates. Bracket invariant: side(ulo) < 0 <= side(uhi) after sign
+    # folding. h is used only to PLACE the interpolated step (it is the
+    # near-linear coordinate in the tails); the plain sign decides which
+    # bracket end moves, so an underflowed fn (exact 0, no log) degrades
+    # a step to bisection instead of breaking anything.
+    ltarget = mp.log(target)
+
+    def _eval(u):
+        v = fn(mp.exp(u))
+        side = sgn * (v - target)
+        smooth = sgn * (mp.log(v) - ltarget) if v > 0 else None
+        return side, smooth
+
+    ulo, uhi = mp.log(lo), mp.log(hi)
+    _, flo = _eval(ulo)
+    _, fhi = _eval(uhi)
+    tol = mp.mpf("1e-45")  # in log-space = relative precision of x
+    last_moved = 0  # +1 lo moved, -1 hi moved; two in a row forces bisection
+    force_bisect = False
+    for _ in range(200):
+        width = uhi - ulo
+        if width < tol:
+            break
+        u_new = None
+        if not force_bisect and flo is not None and fhi is not None and fhi != flo:
+            u_try = ulo - flo * width / (fhi - flo)
+            margin = width / 64
+            if ulo + margin < u_try < uhi - margin:
+                u_new = u_try
+        if u_new is None:
+            u_new = ulo + width / 2
+            force_bisect = False
+        side_new, f_new = _eval(u_new)
+        if side_new < 0:
+            ulo, flo = u_new, f_new
+            force_bisect = last_moved == 1
+            last_moved = 1
+        else:
+            uhi, fhi = u_new, f_new
+            force_bisect = last_moved == -1
+            last_moved = -1
+    return mp.exp((ulo + uhi) / 2)
+
+
+try:
+    from mpmath.libmp.libhyper import NoConvergence as _MPNoConvergence
+except ImportError:  # pragma: no cover - future mpmath relocation guard
+
+    class _MPNoConvergence(Exception):
+        pass
+
+
 def _gamma_cdf(alpha: "mp.mpf", beta: "mp.mpf", x: "mp.mpf") -> "mp.mpf":
+    """Regularized lower incomplete gamma P(alpha, beta*x), hardened for
+    large alpha the same way _betainc_reg is for large parameters:
+
+    - far-lower-tail guard: leading term P ~ y^alpha e^-y / (alpha
+      Gamma(alpha)) below every positive double short-circuits the
+      special-function call entirely (and is the exact log-coordinate the
+      quantile solver interpolates on);
+    - right of the mean (y > alpha) the LOWER-gamma series converges too
+      slowly at large alpha and mpmath raises NoConvergence (observed at
+      chi-squared k = 1e5, quantile solve); the UPPER-gamma continued
+      fraction is the convergent representation there, so compute the
+      complement. NoConvergence is mpmath's own exception class, NOT a
+      ValueError -- catching it explicitly matters.
+    """
     if x <= 0:
         return mp.mpf(0)
-    return mp.gammainc(alpha, 0, beta * x, regularized=True)
+    y = beta * x
+    if y > alpha:
+        # Right of the mean: complement via the upper-gamma continued
+        # fraction. P >= ~0.5 here, so the tiny-value guard never applies.
+        return 1 - mp.gammainc(alpha, y, mp.inf, regularized=True)
+    # Left of the mean only: the y -> 0 leading term is a valid guard.
+    lead = alpha * mp.log(y) - y - mp.log(alpha) - mp.loggamma(alpha)
+    if lead < -750:
+        return mp.exp(lead)
+    try:
+        return mp.gammainc(alpha, 0, y, regularized=True)
+    except (ValueError, _MPNoConvergence):
+        if lead < -100:
+            return mp.exp(lead)
+        raise
 
 
 def _gamma_quantile(alpha: float, beta: float, p: float) -> "mp.mpf":
@@ -258,13 +396,16 @@ def _gamma_quantile(alpha: float, beta: float, p: float) -> "mp.mpf":
         return mp.mpf(0)
     if pm >= 1:
         return mp.inf
-    # Wilson-Hilferty initial guess for a stable Newton start.
+    # Wilson-Hilferty approximation for the STANDARD (beta=1) gamma, used
+    # only to seed the bracket; deep-tail p rounds 2p-1 to +-1 at dps 50
+    # and the erfinv blows up, so fall back to the mean and let the
+    # bracket expansion walk out.
     z = mp.sqrt(2) * mp.erfinv(2 * pm - 1)
     guess = a * (1 - 1 / (9 * a) + z / (3 * mp.sqrt(a))) ** 3
     if guess <= 0 or not mp.isfinite(guess):
-        guess = a / b
-    x = mp.findroot(lambda xx: _gamma_cdf(a, b, xx) - pm, guess / b)
-    return x if x > 0 else mp.mpf(0)
+        guess = a
+    return _tail_logspace_bisect(
+        lambda xx: _gamma_cdf(a, b, xx), pm, guess / b)
 
 
 def _discrete_search_quantile(cdf_int, lo: int, hi: int, p: "mp.mpf") -> int:
@@ -287,33 +428,168 @@ def _poisson_cdf(lam: "mp.mpf", k: int) -> "mp.mpf":
     return mp.gammainc(k + 1, lam, mp.inf, regularized=True)
 
 
+def _betainc_reg(a: "mp.mpf", b: "mp.mpf", x: "mp.mpf") -> "mp.mpf":
+    """Regularized incomplete beta I_x(a, b) with a far-tail asymptotic
+    guard for huge parameters.
+
+    mp.betainc routes through hyp2f1, and for a huge first parameter at an
+    argument far from the transition region hypercomb FAILS TO CONVERGE --
+    it escalates working precision (observed 189 -> 4577+ bits, with
+    million-bit exponents in play) for minutes and then raises ValueError.
+    That was the #46 oracle stall: student-t nu=1e6 probing t=100 dies
+    inside betainc(5e5, 0.5, 0, 0.99).
+
+    Guard: the leading term of I_x(a,b) as x -> 0 is x^a / (a*B(a,b)), so
+    lead = a*ln x - ln a - ln B(a,b). When lead < -750 (value < ~1e-326,
+    below every positive double, including denormals -- no sweep target or
+    library-representable reference can live there) return exp(lead)
+    instead of calling betainc at all. The omitted 2F1 factor is O(1)-ish
+    there; irrelevant at 300+ orders of magnitude below any comparison,
+    while exp(lead) stays monotone for the quantile solvers' bracketing
+    and IS the correct leading log-coordinate their false-position phase
+    interpolates on. If betainc still raises inside the guard boundary
+    with lead < -100, fall back to the same asymptotic; a failure with a
+    non-tiny lead is a genuine oracle problem and re-raises.
+    """
+    if x <= 0:
+        return mp.mpf(0)
+    if x >= 1:
+        return mp.mpf(1)
+    lead = a * mp.log(x) - mp.log(a) - (
+        mp.loggamma(a) + mp.loggamma(b) - mp.loggamma(a + b))
+    if lead < -750:
+        return mp.exp(lead)
+    if min(a, b) >= 5000:
+        # BOTH parameters large: mp.betainc dies here too, even in the
+        # central region where the value is ~0.5 and the lead guard
+        # rightly does not fire (observed: betainc(7e5, 3e5, 0, 0.7)
+        # hangs hyp2f1 for 300+ s). The continued fraction converges in
+        # ~O(sqrt(ab/(a+b))) cheap mpf iterations in exactly that regime.
+        return _betainc_cf(a, b, x)
+    try:
+        return mp.betainc(a, b, 0, x, regularized=True)
+    except (ValueError, _MPNoConvergence):
+        if lead < -100:
+            return mp.exp(lead)
+        return _betainc_cf(a, b, x)
+
+
+def _betainc_cf(a: "mp.mpf", b: "mp.mpf", x: "mp.mpf") -> "mp.mpf":
+    """I_x(a, b) by the standard continued-fraction expansion (modified
+    Lentz iteration), written directly from the textbook formula:
+
+        I_x(a,b) = x^a (1-x)^b / (a B(a,b)) * 1 / (1 + d1/(1 + d2/(1 + ...)))
+        d_{2m}   = m (b - m) x / ((a + 2m - 1)(a + 2m))
+        d_{2m+1} = -(a + m)(a + b + m) x / ((a + 2m)(a + 2m + 1))
+
+    valid (rapidly convergent) for x < (a+1)/(a+b+2); the complement
+    I_x(a,b) = 1 - I_{1-x}(b,a) covers the other side. Runs at elevated
+    working precision so the ambient dps-50 result keeps full accuracy.
+    Self-checked against mp.betainc on moderate parameters and against
+    the exact symmetry point I_{1/2}(a,a) = 1/2 in run_self_checks.
+    """
+    if x > (a + 1) / (a + b + 2):
+        return 1 - _betainc_cf(b, a, 1 - x)
+    with mp.workprec(mp.mp.prec + 40):
+        tiny = mp.mpf(2) ** (-2 * mp.mp.prec)
+        eps = mp.mpf(2) ** (-mp.mp.prec + 5)
+        # Modified Lentz for the CF part.
+        c = mp.mpf(1)
+        d = mp.mpf(1) - (a + b) * x / (a + 1)
+        if abs(d) < tiny:
+            d = tiny
+        d = 1 / d
+        h = d
+        converged = False
+        for m in range(1, 100000):
+            m2 = 2 * m
+            num = m * (b - m) * x / ((a + m2 - 1) * (a + m2))
+            d = 1 + num * d
+            if abs(d) < tiny:
+                d = tiny
+            c = 1 + num / c
+            if abs(c) < tiny:
+                c = tiny
+            d = 1 / d
+            h *= d * c
+            num = -(a + m) * (a + b + m) * x / ((a + m2) * (a + m2 + 1))
+            d = 1 + num * d
+            if abs(d) < tiny:
+                d = tiny
+            c = 1 + num / c
+            if abs(c) < tiny:
+                c = tiny
+            d = 1 / d
+            delta = d * c
+            h *= delta
+            if abs(delta - 1) < eps:
+                converged = True
+                break
+        if not converged:
+            raise RuntimeError(
+                f"incomplete beta CF failed to converge (a={a}, b={b}, x={x})")
+        log_pre = (a * mp.log(x) + b * mp.log(1 - x) - mp.log(a)
+                   - (mp.loggamma(a) + mp.loggamma(b) - mp.loggamma(a + b)))
+        result = mp.exp(log_pre) * h
+    return +result
+
+
 def _binomial_cdf(n: int, p: "mp.mpf", k: int) -> "mp.mpf":
     if k < 0:
         return mp.mpf(0)
     if k >= n:
         return mp.mpf(1)
-    return mp.betainc(n - k, k + 1, 0, 1 - p, regularized=True)
+    return _betainc_reg(mp.mpf(n - k), mp.mpf(k + 1), 1 - p)
 
 
 def _negbinom_cdf(r: "mp.mpf", p: "mp.mpf", k: int) -> "mp.mpf":
     if k < 0:
         return mp.mpf(0)
-    return mp.betainc(r, k + 1, 0, p, regularized=True)
+    return _betainc_reg(r, mp.mpf(k + 1), p)
 
 
 def _student_t_cdf(nu: "mp.mpf", t: "mp.mpf") -> "mp.mpf":
     if t == 0:
         return mp.mpf("0.5")
     xt = nu / (nu + t * t)
-    ib = mp.betainc(nu / 2, mp.mpf("0.5"), 0, xt, regularized=True)
+    ib = _betainc_reg(nu / 2, mp.mpf("0.5"), xt)
     return mp.mpf("0.5") * ib if t < 0 else 1 - mp.mpf("0.5") * ib
 
 
 def _student_t_quantile(nu: "mp.mpf", p: "mp.mpf") -> "mp.mpf":
     if p == mp.mpf("0.5"):
         return mp.mpf(0)
-    guess = SQRT2 * mp.erfinv(2 * p - 1)  # normal approx for the Newton start
-    return mp.findroot(lambda t: _student_t_cdf(nu, t) - p, guess)
+    guess = SQRT2 * mp.erfinv(2 * p - 1)  # normal approx, seeds the bracket
+    if not mp.isfinite(guess):
+        # Deep tail: 2p-1 rounds to +-1 at dps 50 (p ~ 1e-300) and erfinv
+        # blows up. Use the asymptotic normal quantile z^2 ~ 2L - ln(2*pi*
+        # z^2), L = -ln(min(p, 1-p)), instead: without a finite seed the
+        # bracket expansion starts at 1 and its doubling steps probe
+        # extreme |t| where the large-nu incomplete beta costs MINUTES per
+        # evaluation (the observed #46 stall at nu = 1e6). A ~1% seed is
+        # plenty: expansion only needs to straddle the root, and the
+        # false-position phase converges from there in a handful of steps.
+        # (For small nu the true t-quantile is far beyond this normal-scale
+        # seed -- t ~ 1e300 at nu=1 -- and the doubling expansion walks out
+        # to it cheaply, small-nu evaluations being fast.)
+        tail = p if p < mp.mpf("0.5") else 1 - p
+        big_l = -mp.log(tail)
+        z2 = 2 * big_l
+        z2 = 2 * big_l - mp.log(2 * mp.pi * z2)
+        guess = mp.sqrt(z2)
+        if p < mp.mpf("0.5"):
+            guess = -guess
+    if p > mp.mpf("0.5"):
+        # t* > 0; F is increasing from 0.5 to 1 on (0, inf).
+        return _tail_logspace_bisect(
+            lambda t: _student_t_cdf(nu, t), p, guess)
+    # p < 0.5: solve on the negative axis directly through the
+    # cancellation-free incomplete-beta branch (F(-u) = 0.5*I(...) is
+    # DECREASING in u on (0, inf), range (0, 0.5)). Never via the
+    # symmetry Q(p) = -Q(1-p): for p ~ 1e-300, 1-p rounds to exactly 1
+    # at dps 50 and the reflected problem degenerates.
+    return -_tail_logspace_bisect(
+        lambda u: _student_t_cdf(nu, -u), p, -guess, increasing=False)
 
 
 REFS: dict = {}
@@ -649,7 +925,13 @@ class GeometricRef(Ref):
     def logpdf(p, _p2, x):
         pm = mp.mpf(p)
         k = int(round(x))
-        return mp.log(pm) + k * mp.log1p(-pm) if k >= 0 else -mp.inf
+        if k < 0:
+            return -mp.inf
+        if k == 0:
+            # k * log1p(-p) is exactly 0 here; spelling it out avoids the
+            # 0 * (-inf) = NaN artifact at p == 1 (pmf(0) = p exactly).
+            return mp.log(pm)
+        return mp.log(pm) + k * mp.log1p(-pm)
 
     @staticmethod
     def cdf(p, _p2, x):
@@ -680,17 +962,36 @@ class GeometricRef(Ref):
 @_reg("beta")
 class BetaRef(Ref):
     @staticmethod
+    def _edge_pdf(edge_shape, other_shape):
+        # Density AT an endpoint: the endpoint's shape exponent governs.
+        # shape < 1 is an integrable singularity (+inf is the limit, and
+        # what the library returns); shape == 1 leaves the finite value
+        # 1/B(1, other) = other; shape > 1 pins the density to 0.
+        if edge_shape < 1:
+            return mp.inf
+        if edge_shape == 1:
+            return other_shape
+        return mp.mpf(0)
+
+    @staticmethod
     def pdf(alpha, beta, x):
         a, b, xm = mp.mpf(alpha), mp.mpf(beta), mp.mpf(x)
-        if xm <= 0 or xm >= 1:
+        if xm < 0 or xm > 1:
             return mp.mpf(0)
+        if xm == 0:
+            return BetaRef._edge_pdf(a, b)
+        if xm == 1:
+            return BetaRef._edge_pdf(b, a)
         return xm ** (a - 1) * (1 - xm) ** (b - 1) / mp.beta(a, b)
 
     @staticmethod
     def logpdf(alpha, beta, x):
         a, b, xm = mp.mpf(alpha), mp.mpf(beta), mp.mpf(x)
-        if xm <= 0 or xm >= 1:
+        if xm < 0 or xm > 1:
             return -mp.inf
+        if xm == 0 or xm == 1:
+            edge = BetaRef._edge_pdf(a if xm == 0 else b, b if xm == 0 else a)
+            return mp.log(edge) if edge > 0 else -mp.inf
         return (a - 1) * mp.log(xm) + (b - 1) * mp.log1p(-xm) - mp.log(mp.beta(a, b))
 
     @staticmethod
@@ -700,7 +1001,7 @@ class BetaRef(Ref):
             return mp.mpf(0)
         if xm >= 1:
             return mp.mpf(1)
-        return mp.betainc(a, b, 0, xm, regularized=True)
+        return _betainc_reg(a, b, xm)
 
     @staticmethod
     def quantile(alpha, beta, p):
@@ -709,8 +1010,21 @@ class BetaRef(Ref):
             return mp.mpf(0)
         if pm >= 1:
             return mp.mpf(1)
-        guess = a / (a + b)
-        return mp.findroot(lambda xx: mp.betainc(a, b, 0, xx, regularized=True) - pm, guess)
+
+        def q_lower(aa, bb, ppm):
+            # Lower-half solve on (0, 1]; hi_cap=1 is always a valid upper
+            # bracket (I_1 = 1 >= ppm), the low side log-expands toward 0.
+            return _tail_logspace_bisect(
+                lambda xx: _betainc_reg(aa, bb, xx),
+                ppm, aa / (aa + bb), hi_cap=1)
+
+        if pm > mp.mpf("0.5"):
+            # Reflect: Q(a,b,p) = 1 - Q(b,a,1-p). Here 1-pm IS exact at
+            # dps 50 (pm is a lifted double in (0.5, 1), so 1-pm needs
+            # < 53 bits), unlike the p < 0.5 deep-tail direction -- and it
+            # moves the solve to the log-space-friendly lower tail.
+            return 1 - q_lower(b, a, 1 - pm)
+        return q_lower(a, b, pm)
 
 
 @_reg("chi_squared")
@@ -835,7 +1149,15 @@ class WeibullRef(Ref):
     @staticmethod
     def logpdf(shape, scale, x):
         k, lam, xm = mp.mpf(shape), mp.mpf(scale), mp.mpf(x)
-        if xm <= 0:
+        if xm < 0:
+            return -mp.inf
+        if xm == 0:
+            # Density at 0: +inf for k < 1 (integrable singularity, what
+            # the library returns), k/lam = 1/lam for k == 1, 0 for k > 1.
+            if k < 1:
+                return mp.inf
+            if k == 1:
+                return -mp.log(lam)
             return -mp.inf
         return mp.log(k) - mp.log(lam) + (k - 1) * (mp.log(xm) - mp.log(lam)) - (xm / lam) ** k
 
@@ -907,6 +1229,24 @@ def run_self_checks() -> list:
         results.append((name, True, detail))
 
     tol = mp.mpf("1e-30")
+
+    # --- incomplete-beta continued fraction (large-parameter path) ---
+    # The CF replaces mp.betainc wherever min(a,b) >= 5000 (see
+    # _betainc_reg); anchor it against mp.betainc where mpmath is healthy,
+    # and against the exact symmetry point I_{1/2}(a,a) = 1/2 in the
+    # large-parameter regime mpmath cannot reach.
+    for _a, _b, _x in ((2.5, 7.0, 0.2), (30.0, 4.0, 0.9), (100.0, 250.0, 0.31)):
+        _ref = mp.betainc(mp.mpf(_a), mp.mpf(_b), 0, mp.mpf(_x), regularized=True)
+        _cf = _betainc_cf(mp.mpf(_a), mp.mpf(_b), mp.mpf(_x))
+        check(
+            f"betainc_cf.vs_mpmath({_a},{_b},{_x})",
+            abs(_cf - _ref) <= mp.mpf("1e-45") * _ref,
+        )
+    check(
+        "betainc_cf.symmetry_point_large",
+        abs(_betainc_cf(mp.mpf(10000), mp.mpf(10000), mp.mpf("0.5")) - mp.mpf("0.5"))
+        <= mp.mpf("1e-45"),
+    )
 
     # --- gaussian ---
     check("gaussian.cdf(mean)==0.5", abs(GaussianRef.cdf(0.3, 2.0, 0.3) - mp.mpf("0.5")) <= tol)
@@ -1177,7 +1517,11 @@ def compare(rows: list) -> "tuple[dict, list]":
     groups: dict = {}
     skipped = []
 
+    n_done = 0
     for row in rows:
+        n_done += 1
+        if n_done % 500 == 0:
+            print(f"  [progress] {n_done}/{len(rows)} rows", file=sys.stderr, flush=True)
         ref_fns = REFS.get(row.dist)
         if ref_fns is None:
             skipped.append((row.lineno, f"unknown dist {row.dist!r}"))
@@ -1201,30 +1545,88 @@ def compare(rows: list) -> "tuple[dict, list]":
                 g.violations.append((row.lineno, "batch", "NaN input did not produce NaN batch output"))
             continue
 
-        try:
-            ref = fn(row.p1, row.p2, row.x)
-        except (ValueError, ZeroDivisionError, OverflowError) as exc:
-            if inf_input:
-                skipped.append((row.lineno, f"oracle skipped inf-input row ({exc})"))
+        if inf_input and row.method in ("pdf", "logpdf", "cdf"):
+            # +-inf inputs have universal limits for every distribution on
+            # (a subset of) the real line: pdf -> 0, logpdf -> -inf,
+            # cdf -> 1 at +inf / 0 at -inf. Evaluating the raw reference
+            # formulas AT the limit instead produces inf-inf / 0*inf NaN
+            # artifacts, which is an oracle artifact, not a finding. Von
+            # Mises is periodic -- no limit exists, the library's NaN is
+            # the right answer, so check NaN agreement like NaN-input rows.
+            if row.dist == "von_mises":
+                # Periodic distribution: no mathematical limit exists at
+                # +-inf, so no reference value can be asserted. The library
+                # uses a deliberate saturation convention (pdf -> 0,
+                # logpdf -> -inf, cdf -> 0/1), which the characterization
+                # doc records as a convention; the only checkable contract
+                # here is that scalar and batch agree with each other.
+                if row.batch is not None and not (
+                    (is_nan(row.scalar) and is_nan(row.batch))
+                    or row.scalar == row.batch
+                ):
+                    g.violations.append((row.lineno, "batch",
+                        f"scalar/batch disagree at +-inf input "
+                        f"({row.scalar} vs {row.batch})"))
                 continue
-            raise
+            if row.method == "pdf":
+                ref = mp.mpf(0)
+            elif row.method == "logpdf":
+                ref = mp.mpf("-inf")
+            else:
+                ref = mp.mpf(1) if row.x > 0 else mp.mpf(0)
+        else:
+            try:
+                _t0 = time.perf_counter()
+                ref = fn(row.p1, row.p2, row.x)
+                _dt = time.perf_counter() - _t0
+                if _dt > 1.0:
+                    print(f"  [slow-row] line {row.lineno} {row.dist}/{row.method} "
+                          f"p1={row.p1!r} p2={row.p2!r} x={row.x!r} took {_dt:.1f}s",
+                          file=sys.stderr, flush=True)
+            except (ValueError, ZeroDivisionError, OverflowError) as exc:
+                if inf_input:
+                    skipped.append((row.lineno, f"oracle skipped inf-input row ({exc})"))
+                    continue
+                raise
 
         if not mp.isfinite(ref):
             # Reference itself is +-inf (e.g. quantile at p=1 for unbounded
             # support): contract-check finiteness/sign agreement rather than
             # a relative error, which is not meaningful against an infinite
             # reference.
+            if mp.isnan(ref):
+                # A NaN reference on a non-inf input row is an oracle bug,
+                # not a library finding; surface it as such.
+                g.violations.append(
+                    (row.lineno, "oracle", f"oracle produced NaN reference (x={row.x!r})")
+                )
+                continue
             scalar_ok = math.isinf(row.scalar) and (row.scalar > 0) == (ref > 0)
             if not scalar_ok:
                 g.violations.append(
                     (row.lineno, "scalar", f"reference is {ref}, scalar_bits decoded to {row.scalar}")
                 )
+            if row.batch is not None:
+                batch_ok = math.isinf(row.batch) and (row.batch > 0) == (ref > 0)
+                if not batch_ok:
+                    g.violations.append(
+                        (row.lineno, "batch", f"reference is {ref}, batch_bits decoded to {row.batch}")
+                    )
             continue
 
         is_cdf_tail = row.method == "cdf" and ref < mp.mpf("1e-3")
+        if not math.isfinite(row.scalar):
+            g.violations.append(
+                (row.lineno, "scalar", f"reference is finite ({mp.nstr(ref, 6)}), scalar_bits decoded to {row.scalar}")
+            )
+            continue
         g.scalar.observe(mp.mpf(row.scalar), ref, row.x, is_cdf_tail)
 
-        if row.batch is not None:
+        if row.batch is not None and not math.isfinite(row.batch):
+            g.violations.append(
+                (row.lineno, "batch", f"reference is finite ({mp.nstr(ref, 6)}), batch_bits decoded to {row.batch}")
+            )
+        elif row.batch is not None:
             g.n_batch_rows += 1
             g.batch.observe(mp.mpf(row.batch), ref, row.x, is_cdf_tail)
             bs_abs = abs(mp.mpf(row.batch) - mp.mpf(row.scalar))
@@ -1304,8 +1706,28 @@ def render_markdown(groups: dict) -> str:
                 )
             if g.violations:
                 lines.append(
-                    f"| {method} | *(contract)* | {len(g.violations)} violation(s) -- see stdout log | | | | | |"
+                    f"| {method} | *(contract)* | {len(g.violations)} violation(s) -- see appendix | | | | | |"
                 )
+        lines.append("")
+    # Durable appendix: every contract violation, so the checked-in doc
+    # stands alone without the stdout log.
+    all_v = [
+        (dist, method, lineno, who, msg)
+        for (dist, method), g in sorted(groups.items())
+        for (lineno, who, msg) in g.violations
+    ]
+    if all_v:
+        lines.append("### Contract findings (appendix)" + "\n")
+        lines.append(
+            f"{len(all_v)} contract violations across the sweep. `csv_line` "
+            "indexes the sweep CSV this report was generated from (see the "
+            "commit/isa banner in the regeneration log)."
+        )
+        lines.append("")
+        lines.append("| dist | method | source | csv_line | finding |")
+        lines.append("|---|---|---|---|---|")
+        for dist, method, lineno, who, msg in all_v:
+            lines.append(f"| {dist} | {method} | {who} | {lineno} | {msg} |")
         lines.append("")
     return "\n".join(lines)
 

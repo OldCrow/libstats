@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Accuracy characterization vs mpmath (#46)**: new
+  `tools/accuracy_sweep.cpp` (deterministic, bit-exact CSV of scalar and
+  FORCE_VECTORIZED batch `pdf`/`logpdf`/`cdf`/`quantile` over
+  support-aware grids, 19 distributions × 3 instances, tails to
+  `p = 1e-300`) and `tools/accuracy_vs_mpmath.py` (mp.dps = 50 oracle,
+  42 unconditional self-checks, law-of-F tail normalization), generating
+  `docs/ACCURACY_CHARACTERIZATION.md`. Replaces the issue's pylibstats
+  approach, which pins to a released libstats and would characterize the
+  wrong code. The oracle carries its own large-parameter machinery where
+  mpmath's `betainc`/lower `gammainc` hang or raise (clean-room
+  continued-fraction incomplete beta, upper-gamma complement, far-tail
+  asymptotic guards, safeguarded log-log false-position quantile
+  inversion — each anchored by self-checks). Confirms the four pinned
+  accuracy gates and surfaces real findings: inconsistent batch NaN
+  propagation across 8 distributions, NaN/clamped returns at `+-inf`
+  inputs, quantile NaN/saturation at extreme `p`, and large-parameter
+  CDF accuracy limits (binomial `n = 1e6` off 1.3e-2 at the mean) — see
+  the doc's Findings section.
+
 ### Changed
 
 - **LogNormal CDF lower tail no longer collapses (#49)**: every path
