@@ -198,36 +198,65 @@ history.
   plus the before/after scipy benchmark. (Historical: parked
   unmilestoned 2026-08-20; libhmm v4.4.0 had no adoptable interim #47
   fix — its Tier 2 is the same A&S polynomial.)
-- **v2.4.0 — New Distributions (Foundation)** (open, #2): 5 open / 0 closed
-  (#102 batch NaN propagation added 2026-08-20, bugfix outside the
-  new-distributions theme; #103/#104 contract-decision issues sit
-  unmilestoned alongside parked #47/#52)
+- **Order of release: v2.3.1 → v2.3.2 → v2.4.0 → v2.5.0 → v2.6.0 →
+  v3.0.0.** Decided 2026-08-21 from the defensive review, on the libhmm
+  pattern: fix-now candidates grouped into two PATCH milestones (bug fixes,
+  no API change); the second exists because its items change numbers
+  (caps/tolerance, thresholds) or edge-case policy, so they must not gate
+  the correctness patch. Structural items go to the existing major.
+- **v2.3.1 — Correctness patch** (open, #7): 6 open / 0 closed.
+  - #105 OPEN — `vector_log` NaN → 710.188 on every x86 tier (`cmpunord`
+    blend, four sites); LogNormal batch cdf(NaN) = 1 today.
+  - #102 OPEN — batch NaN propagation (moved from v2.4.0): re-run
+    `accuracy_sweep` with the specials in-vector FIRST, then re-scope the
+    victim list — the #46 list is structurally incomplete.
+  - #106 OPEN — von Mises κ > 1000 fallback wraps x, not x − μ; add
+    κ = 2000/10000 gate rows.
+  - #116 OPEN — NegBin/Geometric quantile returns 0 past INT_MAX.
+  - #115 OPEN — `operator>>` round-trip broken for Discrete/Uniform/Beta.
+  - #112 OPEN — batch aliasing contract: central `autoDispatch` check or
+    documented no-aliasing (the doc half landed 2026-08-21).
+  Exit: regression tests from the issues in place; sweep regenerated and
+  #102 re-scoped from it; AVX-512 native correctness suite green.
+- **v2.3.2 — Accuracy, contracts & kernel hygiene** (open, #8): 10 open /
+  0 closed.
+  - #113 OPEN — incomplete-gamma/beta iteration caps and Lentz tolerance
+    (corrects the accuracy premise recorded against #47/#52).
+  - #104 OPEN — quantile contract at extreme p (+ the verified Cauchy
+    split-form fix, on the issue); #103 OPEN — ±inf input contract.
+  - #109 OPEN — re-profile the Cauchy CDF thresholds (rows marked STALE).
+  - #111 OPEN — von Mises batch CDF blocking + the noexcept/allocation
+    policy; #110 OPEN — one erfc tail-branch helper (bit-neutral).
+  - #107 OPEN — one clean-room trig table; #117 OPEN — CPUID DQ/FMA/XCR0
+    gates; #118 OPEN — `parallelFor` exception contract; #114 OPEN —
+    review backlog.
+  Exit: `docs/ACCURACY_CHARACTERIZATION.md` attribution corrected and the
+  sweep regenerated; per-tier accuracy gates for #113.
+- **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
+  (#102 moved to v2.3.1 on 2026-08-21)
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
 - **v2.5.0 — corvus adoption** (open, #6): 2 open / 0 closed — #47
   bessel.h rewire, #52 Binomial beta_p CDF rewrite; the core-swap work
   itself plus the before/after characterization sweeps. See the staging
-  entry above for rationale and prerequisites.
+  entry above for rationale and prerequisites. Both annotated 2026-08-21:
+  scope against the cores' REAL accuracy once #113 (v2.3.2) lands — the
+  large-parameter rows that motivated them are iteration-cap artefacts.
 - **v2.6.0 — New Distributions (Extended)** (open, #3, renumbered from
   v2.5.0 on 2026-08-21): 5 open / 0 closed
   — #58 GEV (depends on #54), #59 LogLogistic (depends on #54),
   #60 Triangular, #61 Wald, #62 Hypergeometric + BetaBinomial + Zipf.
   #62's Zipf CDF design (summation vs Hurwitz-zeta closed form) must be
   settled before this milestone's planning — it scopes corvus P3 work.
-- **v3.0.0 — Architecture Refactor** (open, #4): 4 open / 0 closed —
+- **v3.0.0 — Architecture Refactor** (open, #4): 5 open / 0 closed —
   #40 split CMakeLists.txt into cmake/ modules, #41 unify the dual SIMD
   namespace, #42 decompose parallel_execution.h, #43 extract dispatch/cache
-  boilerplate into a CRTP or policy helper.
+  boilerplate into a CRTP or policy helper, #108 trig-kernel duplication
+  (record the `simd_neon.cpp:761` decision or a per-tier traits layer).
 
 ## GitHub Issues Without Milestone [DERIVED]
-- Open: #103, #104 (contract decisions from #46) and the **defensive review
-  2026-08-21 set #105–#118**, unmilestoned pending triage — see the
-  "Defensive Review 2026-08-21" section below for the ranking. HIGH: #105
-  vector_log NaN laundering. MED: #106 von Mises κ > 1000 wrap, #112 batch
-  aliasing contract, #113 iteration caps behind the corvus premise, #115
-  stream round-trip, #116 NegBin/Geometric quantile → 0, #107–#111
-  quality/perf. LOW: #114 backlog, #117 CPUID gates, #118 parallelFor
-  exceptions. #102/#104 carry review comments (re-scope; Cauchy split form).
+- Open: none — #103/#104 and the 2026-08-21 review set #105–#118 are all
+  milestoned (v2.3.1, v2.3.2, v3.0.0; see GitHub Milestones above).
 - #84 closed 2026-08-16 — see Resolved log.
 - Closed: 15, none milestoned (#84 closed 2026-08-16; #90 and #94 2026-08-15 — see
   Resolved log). Note #90 was never listed here while open; this section is
@@ -541,11 +570,11 @@ session artifact; the issues carry the detail.
   tail); the von Mises fallback error is ≈ 0.04/κ, not O(1/κ²).
 
 ## Next Steps
-1. **Triage #105–#118** (fix-now vs milestone; #105/#106/#116 and the #104
-   split form each have a few-line fix with the test specified on the issue);
-   decide the #112 aliasing contract; open v2.3.1 if the patch route is taken.
-2. Re-run `accuracy_sweep` with the specials at the front and re-scope #102
-   from its output before fixing.
+1. **v2.3.1 — Correctness patch** is next: start with the sweep re-run
+   (specials now in-vector) to re-scope #102, then #105, #116, #106, #115,
+   #112. Bump `[Unreleased]` in CHANGELOG to 2.3.1 at release and coordinate
+   the pylibstats pin.
+2. v2.3.2 after it (#113 first — it corrects the record #47/#52 rest on).
 3. Settle the corvus-adoption question (corvus/PLAN.md) with #113's
    correction in hand, then v2.4.0/v2.5.0 or the v3.0.0 refactor.
 4. ~~Bump pylibstats' pin to v2.2.0~~ **DONE 2026-08-16** — pylibstats 0.5.0
