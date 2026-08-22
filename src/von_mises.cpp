@@ -27,6 +27,10 @@ namespace stats {
 // Private helper: angle wrapping
 //==============================================================================
 
+// Upper bound of the validated #51 Bessel-series CDF range; above it the
+// pre-#51 wrapped-normal fallback is used (two code sites, one constant).
+constexpr double kCdfSeriesKappaMax = 1000.0;
+
 double VonMisesDistribution::wrapAngle(double x) noexcept {
     if (!std::isfinite(x))
         return x;
@@ -380,8 +384,9 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
         // kappa > 1000: unvalidated range for the #51 series -- keep the
         // pre-#51 wrapped-normal approximation verbatim (guard moved from
         // kappa>50 to kappa>1000). VM(mu, kappa) ~ N(mu, 1/kappa) on the
-        // circle; approximation error is O(1/kappa^2).
-        if (kappa > 1000.0) {
+        // circle; approximation error is ~0.043/kappa absolute (measured against a
+        // quadrature oracle at kappa = 1e3, 2e3, 1e4 -- O(1/kappa), not O(1/kappa^2)).
+        if (kappa > kCdfSeriesKappaMax) {
             const double z = (v - mu) * std::sqrt(kappa);
             result = std::clamp(detail::HALF * (detail::ONE + std::erf(z * detail::INV_SQRT_2)),
                                 detail::ZERO_DOUBLE, detail::ONE);
@@ -1014,7 +1019,7 @@ void VonMisesDistribution::updateCacheUnsafe() const noexcept {
     // uses the exact linear CDF) or kappa>1000 (unvalidated range for the series;
     // the wrapped-normal fallback is used instead) -- see vonmises_cdf_series_coeffs
     // above and the class-level CDF doc for the derivation.
-    if (isUniform_ || kappa_ > 1000.0) {
+    if (isUniform_ || kappa_ > kCdfSeriesKappaMax) {
         cdfSeriesCoeffs_.clear();
     } else {
         const int j_max = static_cast<int>(std::ceil(10.0 + 8.5 * std::sqrt(kappa_)));

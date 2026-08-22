@@ -335,9 +335,14 @@ template <typename Dist>
 void emitPdfLogpdfCdfRows(Dist& dist, const std::string& distName, double p1, double p2,
                           bool hasP2, std::vector<double> xs, bool includeSpecials, Sink& sink) {
     if (includeSpecials) {
-        xs.push_back(std::numeric_limits<double>::quiet_NaN());
-        xs.push_back(std::numeric_limits<double>::infinity());
-        xs.push_back(-std::numeric_limits<double>::infinity());
+        // At the FRONT, not the back: the batch kernels process floor(n/W)*W lanes in
+        // the vector body and hand the remainder to scalar libm. With 43 finite x the
+        // three specials at the tail were evaluated by libm on AVX-512 (43 mod 8 = 3),
+        // so the sweep never saw what the kernels do with NaN/inf (review 2026-08-21,
+        // NV2 -- this is how lognormal's batch cdf(NaN) = 1 escaped #102).
+        xs.insert(xs.begin(), {std::numeric_limits<double>::quiet_NaN(),
+                               std::numeric_limits<double>::infinity(),
+                               -std::numeric_limits<double>::infinity()});
     }
 
     using ScalarFn = double (Dist::*)(double) const;

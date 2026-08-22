@@ -10,8 +10,9 @@
 static constexpr double kTrigDMax = 0x1.0000000000000p+23;  // 2^23
 static constexpr double kTrigTwoOverPi = 0x1.45f306dc9c883p-1;
 
-// pi/2 split into exact-product parts: 30/30/30 significant bits + full
-// tail; n*part exact for |n| < 2^23. Subtract in order with FMS.
+// pi/2 split: parts 0-2 carry 30 significant bits each, so n*part_k is exact for
+// |n| < 2^23; part 3 is a full 53-bit tail whose product rounds (at most 2^-124
+// absolute, below the reduction's ~2^-60 error floor). Subtract in order with FMS.
 static constexpr double kTrigPio2[4] = {
     0x1.921fb54800000p+0,
     -0x1.de973dc800000p-31,

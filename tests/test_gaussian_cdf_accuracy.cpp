@@ -318,3 +318,26 @@ TEST(GaussianCdfGates, Specials) {
     EXPECT_LE(scalar_max, kBudgetSpecials);
     EXPECT_LE(batch_max, kBudgetSpecials);
 }
+
+// ---------------------------------------------------------------------------
+// Review 2026-08-21 (N7): the standard-normal fast path must be selected only
+// for exactly (0, 1). A tolerant predicate (|μ| ≤ 1e-8) returned cdf(0) = 0.5
+// for Gaussian(5e-9, 1) and pdf(0) = φ(0) for σ = 1 + 5e-9 — constant in the
+// parameter over the snap band and discontinuous at its edge. Reference
+// values: mpmath, 40 digits. Both assertions fail against the tolerant
+// predicate.
+// ---------------------------------------------------------------------------
+TEST(GaussianCdfGates, NoStandardNormalSnapNearZeroMean) {
+    auto g = stats::GaussianDistribution::create(5e-9, 1.0);
+    ASSERT_TRUE(g.isOk());
+    EXPECT_NEAR(g->getCumulativeProbability(0.0), 0.4999999980052886, 1e-16);
+
+    auto h = stats::GaussianDistribution::create(0.0, 1.0 + 5e-9);
+    ASSERT_TRUE(h.isOk());
+    EXPECT_NEAR(h->getProbability(0.0), 0.39894227840672129, 1e-16);
+
+    // And exactly (0, 1) still takes the fast path to the same answers.
+    auto z = stats::GaussianDistribution::create(0.0, 1.0);
+    ASSERT_TRUE(z.isOk());
+    EXPECT_DOUBLE_EQ(z->getCumulativeProbability(0.0), 0.5);
+}

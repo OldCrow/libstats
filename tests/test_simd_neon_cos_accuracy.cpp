@@ -30,6 +30,10 @@ namespace {
 // Correctly-rounded cos() reference vectors (input_bits, cos_bits), evaluated
 // at 320-bit precision with mpmath then rounded once to nearest double.
 // Defines struct CosUlpVector and kCosUlpVectors[]. See scripts/gen_cos_ulp_vectors.py.
+// NOTE (review 2026-08-21): test_trig_ulp_gates.cpp supersedes the ULP half of this
+// file, but EvenSymmetryBitwise and InPlaceAliasingSafe below exist nowhere else —
+// InPlaceAliasingSafe is the only guard for the "never re-read input after store"
+// rule. Port both into the per-tier gate before retiring this file.
 #include "cos_ulp_vectors.inc"
 
 double bitsToF64(std::uint64_t b) {

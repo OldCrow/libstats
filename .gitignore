@@ -346,3 +346,5 @@ backup_*/
 *.bak2
 *.bak3
 .claude/
+__pycache__/
+*.pyc

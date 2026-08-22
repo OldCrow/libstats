@@ -30,7 +30,7 @@ per pair:
   - log-uniform sweep across the support, chosen to spread F from ~1e-300 to
     1-1e-16 (x = exp(mu + sigma*z) for z drawn to hit a wide spread of F via
     inverse-erfc placement, see `xs_for_pair` below)
-  - x chosen so F lands near {1e-320 (subnormal-ish), 1e-100, 1e-20, 1e-10,
+  - x chosen so F lands near {1e-320 (subnormal F), 1e-100, 1e-20, 1e-10,
     1e-3, 0.5, 1-1e-10}
   - specials: x in {0, -1, NaN, +inf}
 
@@ -146,7 +146,19 @@ def x_for_target_F(mu: float, sigma: float, F_target: "mp.mpf") -> float:
     complementary form), then map back to x = exp(mu + sigma*z)."""
     # erfc(-z/sqrt2)/2 = F  =>  erfc(-z/sqrt2) = 2F  =>  -z/sqrt2 = erfcinv(2F)
     # => z = -sqrt2 * erfcinv(2F)
-    z = -mp.sqrt(2) * mp.erfinv(1 - 2 * F_target)
+    # erfinv(1 - 2F) collapses to +inf once 1 - 2F rounds to 1 at mp.dps
+    # (F <= ~1e-41), which silently dropped the 1e-320/1e-300/1e-100 targets
+    # (review 2026-08-21, N2). Solve log(erfc(-z/sqrt2)/2) = log F instead,
+    # seeded from the asymptotic tail; agrees with dps-360 erfinv to 12 digits.
+    # Hybrid: erfinv is exact where 1 - 2F is representable; the root solve
+    # (seeded from the asymptotic tail) only below F = 1e-30, where it is.
+    if F_target < mp.mpf("1e-30"):
+        z0 = -mp.sqrt(2 * mp.log(1 / F_target))
+        z = mp.findroot(
+            lambda t: mp.log(mp.erfc(-t / mp.sqrt(2)) / 2) - mp.log(F_target), z0
+        )
+    else:
+        z = -mp.sqrt(2) * mp.erfinv(1 - 2 * F_target)
     x = mp.e ** (mp.mpf(mu) + mp.mpf(sigma) * z)
     return float(x)
 

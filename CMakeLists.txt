@@ -344,7 +344,7 @@ elseif(LIBSTATS_HAS_NEON)
 endif()
 
 # =============================================================================
-# DEPENDENCY-AWARE OBJECT LIBRARIES FOR OPTIMAL COMPILATION
+# OBJECT LIBRARIES (PARALLEL-COMPILATION GROUPINGS; NOT A DEPENDENCY CHAIN — SEE AGENTS.md)
 # =============================================================================
 # Organize sources into object libraries that align with header dependency levels This enables: -
 # Parallel compilation of independent components - Minimal recompilation when headers change -
@@ -727,6 +727,9 @@ install(
 # "include/libstats" -- DIRECTORY installs the libstats/ directory itself into DESTINATION, landing
 # its contents at ${CMAKE_INSTALL_INCLUDEDIR}/libstats/... (same result as the old include/ ->
 # .../libstats mapping, now that the source tree already mirrors the install tree).
+# platform/internal/ is installed deliberately: platform/thread_pool.h and
+# work_stealing_pool.h #include "internal/type_traits.h" in their public interface,
+# so excluding the directory would break every installed consumer.
 install(
     DIRECTORY include/libstats
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}

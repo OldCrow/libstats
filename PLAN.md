@@ -41,28 +41,10 @@ what is decided, open, or next.
   divergence audit and integration, never the authorship. Proven on #67.
   Every replacement ships a derivation doc plus a divergence audit under
   `docs/`.
-- **A SIMD kernel must never re-read its input array after the
-  corresponding store.** In-place calls are legal (`LogSpaceOps::
-  logSumExpArrayFallback` calls `vector_exp` with `a == result`), so a
-  post-store re-read sees internally-computed values, not the input. Decide
-  every edge fixup from already-loaded registers. This cost a real
-  `exp(-inf)` bug during the #33 productionization.
-- **Accuracy claims hold only for tiers validated on native silicon.**
-  `LIBSTATS_MAX_SIMD_TIER` (cmake/SIMDDetection.cmake) caps the highest
-  compiled x86 tier so lower tiers can run natively on capable hardware;
-  the first-ever native SSE2 run is what exposed #74, invisible under
-  Rosetta for years.
-- Gather-vs-polynomial transcendentals, settled empirically on three tiers
-  (#33, full write-up in `docs/SIMD_BENCHMARK_RESULTS.md`): x86 hardware
-  gather is too expensive on both Kaby Lake (interleave 8.6× an FMA) and
-  Zen 4 (1.70×, cheaper but still losing once a <1 ULP kernel needs a
-  second gathered tail value). NEON is the opposite — an Array-of-Structs
-  table pulled by one `vld1q` makes the two-value lookup nearly free.
-  Conclusion: table kernels are a NEON technique here, not an x86 one.
-  Do not reopen the x86 half without new hardware.
-
-The last three entries are conventions, not project state; they belong in
-AGENTS.md Conventions on the next pass through that file.
+- The three SIMD conventions formerly listed here (no re-read after store;
+  accuracy claims only for natively validated tiers / `LIBSTATS_MAX_SIMD_TIER`;
+  gather-vs-polynomial settled) moved to AGENTS.md "SIMD kernel conventions"
+  on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
 Last reconciled against live GitHub state: 2026-08-21.
@@ -238,7 +220,15 @@ history.
   boilerplate into a CRTP or policy helper.
 
 ## GitHub Issues Without Milestone [DERIVED]
-- Open: none. **#84 closed 2026-08-16** — see Resolved log.
+- Open: #103, #104 (contract decisions from #46) and the **defensive review
+  2026-08-21 set #105–#118**, unmilestoned pending triage — see the
+  "Defensive Review 2026-08-21" section below for the ranking. HIGH: #105
+  vector_log NaN laundering. MED: #106 von Mises κ > 1000 wrap, #112 batch
+  aliasing contract, #113 iteration caps behind the corvus premise, #115
+  stream round-trip, #116 NegBin/Geometric quantile → 0, #107–#111
+  quality/perf. LOW: #114 backlog, #117 CPUID gates, #118 parallelFor
+  exceptions. #102/#104 carry review comments (re-scope; Cauchy split form).
+- #84 closed 2026-08-16 — see Resolved log.
 - Closed: 15, none milestoned (#84 closed 2026-08-16; #90 and #94 2026-08-15 — see
   Resolved log). Note #90 was never listed here while open; this section is
   derived from GitHub rather than maintained by hand, so re-derive it rather
@@ -503,18 +493,64 @@ adoption will not touch it — the suspicion remains the `(ln x − μ)/σ`
 transform. #47 is retired outright by corvus's `i0`/`i1`/`i0e`/`i1e`, #51 by
 its documented Miller-recurrence recipe, and #52 by `beta_p`.
 
+## Defensive Review 2026-08-21 [DERIVED]
+Between-milestone review of v2.3.0 (metrics, architecture, numerical,
+type/input safety; every finding adversarially verified against the shipped
+`stats_static.lib` — 63 findings, 4 refuted, 15 downgraded). Ledger in the
+session artifact; the issues carry the detail.
+- **Landed at HEAD:** two small behaviour changes — Gaussian's standard-normal
+  fast path now requires exactly (0, 1) rather than a 1e-8 band (a 2e-9
+  discontinuity in cdf(0); regression test shown to fail first), and the SSE2
+  `vector_log` scalar tail is plain `std::log` like the other tiers (it mapped
+  NaN/negatives to −inf by lane position). Test/tooling: trig ULP-gate specials
+  lead with ±inf/NaN so the 4/8-wide tiers evaluate them in-vector; an
+  in-place aliasing test for the dispatched trig entry points; `accuracy_sweep`
+  puts its specials first (this is how LogNormal's batch cdf(NaN) = 1 escaped
+  #102); the Gaussian/LogNormal CDF generators invert deep-tail targets by a
+  root solve (the 1e-320/1e-300/1e-100 rows now exist); `run_tests` /
+  `run_tests_timing` / `run_all_tests` pass `-C $<CONFIG>` (on the VS
+  generator the timing target ran zero tests and exited 0, and `run_tests`
+  ran the timing suite it excludes); the accuracy gates join `run_all_tests`.
+  Doc/contract: no-aliasing stated for the batch overloads (AGENTS.md, batch
+  guide); the three SIMD conventions moved here → AGENTS.md; test counts
+  53/77; object libraries are groupings, not a chain; Cauchy is a PDF/LogPDF-
+  only delegate with STALE-marked CDF thresholds; vcpkg optional; Windows
+  toolchain text version-generic.
+- **Ranking for triage:** #105 (vector_log NaN → finite plausible values
+  through the public batch API), #116 (quantile returns 0), #106 (CDF 0 where
+  truth is 1 across the seam at κ > 1000 — reachable from `fit()`), #112
+  (decide the aliasing contract centrally), #115, #113 (correct the accuracy
+  premise before #47/#52 are scoped), the #104 Cauchy split form. The
+  libhmm-shaped answer is a v2.3.1 patch milestone for #105/#106/#116/#104.
+- **Held up, recorded so nobody re-reviews it:** every batch overload throws
+  on a size mismatch (57/57); every validator rejects every non-finite
+  parameter (66/66); all x86 `vector_log`s have the 2^54 subnormal prescale;
+  the −0 sign blend is on all five tiers with signbit asserted; the #95
+  exact-product lemma holds for parts 0–2 (part 3 rounds at ≤ 2^-124, below
+  the error floor); the NEON compensated sequences (#84) are still safe by
+  construction and no x86 TU carries one; all four v2.3.0 gates have
+  fail-first records; `LIBSTATS_MAX_SIMD_TIER`, the dispatch table, the
+  install tree and `libstats.h` are complete; the cppcheck `error` in
+  `NegativeBinomial::trySetParameters` is a false positive (both arguments
+  are validated before the throwing call).
+- **Corrections to the record:** `docs/ACCURACY_CHARACTERIZATION.md`'s
+  "large-parameter CDF → corvus" rows reproduce from the iteration caps, not
+  the incomplete-gamma/beta cores (#113) — the corvus adoption decision stands
+  on provenance grounds, its accuracy premise does not; the #46 sweep's
+  victim list for #102 is structurally incomplete (specials in the scalar
+  tail); the von Mises fallback error is ≈ 0.04/κ, not O(1/κ²).
+
 ## Next Steps
-1. **#48** — Cauchy closed-form arctan CDF. Smallest measurable win in the
-   backlog (3–5× on Zen 4, and the gap widens with SIMD width).
-2. Settle the corvus-adoption question above, then work the rest of v2.3.0
-   before starting v2.4.0/v2.5.0 or the v3.0.0 refactor.
-3. ~~Bump pylibstats' pin to v2.2.0~~ **DONE 2026-08-16** — pylibstats 0.5.0
-   is on PyPI against v2.2.0, so consumers finally get Tier 1 Bessel. Two
-   findings from that release worth knowing here, since this repo owns the
-   "coordinate the bump" invariant above: the pin bump itself was clean and
-   built on all four platforms first time, and both problems it surfaced were
-   pre-existing pylibstats packaging defects rather than anything libstats
-   changed. Detail lives in `pylibstats/PLAN.md`, not restated here.
+1. **Triage #105–#118** (fix-now vs milestone; #105/#106/#116 and the #104
+   split form each have a few-line fix with the test specified on the issue);
+   decide the #112 aliasing contract; open v2.3.1 if the patch route is taken.
+2. Re-run `accuracy_sweep` with the specials at the front and re-scope #102
+   from its output before fixing.
+3. Settle the corvus-adoption question (corvus/PLAN.md) with #113's
+   correction in hand, then v2.4.0/v2.5.0 or the v3.0.0 refactor.
+4. ~~Bump pylibstats' pin to v2.2.0~~ **DONE 2026-08-16** — pylibstats 0.5.0
+   is on PyPI against v2.2.0; both problems it surfaced were pre-existing
+   pylibstats packaging defects. Detail lives in `pylibstats/PLAN.md`.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this

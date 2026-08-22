@@ -135,7 +135,7 @@ bool supports_avx512();
 bool supports_neon();
 
 // Intel microarchitecture classification is now encapsulated by
-// stats::arch::cpu_tier() in include/platform/internal/cpu_tier.h.
+// stats::arch::cpu_tier() in include/libstats/platform/internal/cpu_tier.h.
 // Use CpuTier::Intel_Legacy (Sandy/Ivy Bridge) or CpuTier::Intel_Modern
 // (Haswell and later) instead of per-generation classifier functions.
 

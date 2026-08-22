@@ -43,6 +43,18 @@ dist.getCumulativeProbability(values, results, hint);
 
 `hint` is optional. With the default hint, libstats auto-dispatches based on batch size, operation type, distribution type, and system capabilities.
 
+## Aliasing
+
+The input and output spans of every batch overload must not overlap. The
+size check (`values.size() == results.size()`, enforced) says nothing about
+overlap, and several kernels re-read `values` after `results` has been
+written — the Gaussian and von Mises CDF tail fixups, the Gamma PDF pipeline
+and the LogNormal LogPDF support fixup — so an in-place call
+(`dist.getCumulativeProbability(buf, buf, hint)`) returns wrong values with
+no error (review 2026-08-21, issue #112). Use a separate output buffer. The
+lower-level `VectorOps` kernels *are* in-place safe by design; that guarantee
+does not extend to the distribution layer.
+
 ## PerformanceHint
 
 `detail::PerformanceHint` lets advanced callers influence dispatch without using removed strategy-specific APIs.

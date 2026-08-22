@@ -469,7 +469,9 @@ set_tests_properties(benchmark_simd_all PROPERTIES LABELS "benchmark")
 # including stress/diagnostic tests
 add_custom_target(
     run_all_tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    # -C $<CONFIG>: multi-config generators (VS, Xcode) register tests per configuration;
+    # without it CTest sees no tests and label filters are inert (review 2026-08-21).
+    COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
     DEPENDS # Level 0: Foundational tests (most critical)
             test_constants
             test_cpu_detection
@@ -479,6 +481,11 @@ add_custom_target(
             test_simd_neon_exp_accuracy
             test_simd_neon_log_accuracy
             test_simd_neon_cos_accuracy
+            test_bessel_tier
+            test_trig_ulp_gates
+            test_vonmises_cdf_accuracy
+            test_lognormal_cdf_accuracy
+            test_gaussian_cdf_accuracy
             # Level 1: Core infrastructure tests
             test_error_handling_comprehensive
             test_numerical_safety
@@ -562,14 +569,14 @@ add_custom_target(
 # comparing `ctest -N` counts for the escaped and plain forms.
 add_custom_target(
     run_tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -LE "timing|benchmark" -E
+    COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure -LE "timing|benchmark" -E
             "stress|comprehensive|dynamic|_fix|parallel_compilation"
     COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)")
 
 # Timing validation target — runs serially for accurate measurement
 add_custom_target(
     run_tests_timing
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j1 -L timing
+    COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure -j1 -L timing --no-tests=error
     COMMENT "Running timing-sensitive tests serially (requires a quiet machine)")
 
 # Phase 3B/B3: propagate to the top-level scope for the "libstats Configuration Summary" print

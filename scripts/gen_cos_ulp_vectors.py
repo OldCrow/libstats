@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate src/cos_ulp_vectors.inc -- correctly-rounded cos() reference set.
+"""Generate tests/cos_ulp_vectors.inc -- correctly-rounded cos() reference set.
 
 Backs tests/test_simd_neon_cos_accuracy.cpp (the <1 ULP regression gate for
 the clean-room vector_cos_neon kernel). Each entry is (input_bits, cos_bits):
@@ -15,7 +15,7 @@ Buckets (all inside the kernel's supported domain |x| <= 2^23):
 
 Usage:  python3 -m venv .venv && .venv/bin/pip install mpmath
         .venv/bin/python scripts/gen_cos_ulp_vectors.py
-Writes src/cos_ulp_vectors.inc relative to the repo root.
+Writes tests/cos_ulp_vectors.inc relative to the repo root.
 """
 
 import os
@@ -63,7 +63,7 @@ for _ in range(1500):
     pts.append(from_bits(bits(xk) + random.randint(-4, 4)))
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-out = os.path.join(root, "src", "cos_ulp_vectors.inc")
+out = os.path.join(root, "tests", "cos_ulp_vectors.inc")
 with open(out, "w") as f:
     f.write("// Auto-generated correctly-rounded cos() reference vectors.\n")
     f.write("// {input_bits, cos_bits}; cos evaluated at 320-bit precision (mpmath) then\n")

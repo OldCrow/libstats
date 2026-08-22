@@ -22,7 +22,7 @@ namespace stats {
  *           recurrence (cdfSeriesCoeffs_, §24), j = 1..j_max,
  *           j_max = ⌈10 + 8.5√κ⌉. κ = 0 uses the exact linear form
  *           (t+π)/(2π). κ > 1000 (unvalidated range for the series) falls
- *           back to the wrapped-normal approximation, O(1/κ²) error.
+ *           back to the wrapped-normal approximation, ≈ 0.04/κ absolute error.
  * - Quantile: bisection on the CDF grid in (−π, π]; O(log N) via cdfGrid*
  *           (§24), still built from the O(512) trapezoidal rule (issue #51
  *           left this as-is: the full test suite round-trips cleanly against

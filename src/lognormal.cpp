@@ -870,7 +870,7 @@ void LogNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // (mode-centred) data stays fully vectorized.
     for (std::size_t i = 0; i < count; ++i) {
         const double w = temp[i];
-        if (w < -1.0) {
+        if (w < -detail::ONE) {
             results[i] = detail::HALF * std::erfc(-w);
         }
     }

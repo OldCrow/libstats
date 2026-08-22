@@ -216,6 +216,9 @@ GateResult run_gate(const char* tier, const char* set_name, const TrigUlpVector*
 
 constexpr std::size_t kMainN = sizeof(kTrigUlpVectors) / sizeof(kTrigUlpVectors[0]);
 constexpr std::size_t kSpecialsN = sizeof(kTrigUlpSpecials) / sizeof(kTrigUlpSpecials[0]);
+// Index contract with scripts/gen_trig_ulp_vectors.py: +/-0 at 0-1, +inf/-inf/NaN at 2-4,
+// so all five asserted specials sit inside the first 8-lane vector on every tier.
+static_assert(kSpecialsN >= 8, "specials must fill one AVX-512 vector");
 
 void run_main_gate(const char* tier, CosSinFn cos_fn, CosSinFn sin_fn, double budget) {
     const GateResult r = run_gate(tier, "main", kTrigUlpVectors, kMainN, cos_fn, sin_fn);
@@ -481,4 +484,46 @@ TEST(TrigUlpGates, DispatchedEntryPoints) {
     EXPECT_LE(r.sin_max, kBudgetLoose)
         << "dispatched sin max ULP over budget (worst x=" << r.sin_worst_x << ")";
 #endif
+}
+
+// ---------------------------------------------------------------------------
+// In-place aliasing (review 2026-08-21, AV2). Every trig kernel claims its
+// out-of-domain/inf fixup is decided from the pre-store register value so that
+// output may alias input; until this test the only guard was the NEON-gated
+// NeonCosAccuracy.InPlaceAliasingSafe. This one runs through the dispatched
+// entry points, so it covers whichever tier the host selects (all five in CI).
+// ---------------------------------------------------------------------------
+#include <cstring>
+#include <limits>
+TEST(TrigUlpGates, InPlaceAliasingMatchesOutOfPlace) {
+    const auto bits_of = [](double d) {
+        std::uint64_t b;
+        std::memcpy(&b, &d, sizeof b);
+        return b;
+    };
+    std::vector<double> in;
+    for (std::size_t i = 0; i < 4096; ++i)
+        in.push_back(-7.0 + 14.0 * static_cast<double>(i) / 4095.0);
+    // Lanes that exercise the register-decided fixup and the specials.
+    const double extras[] = {0.0, -0.0, 1e300, -1e300, 16777216.0, 8388608.0,
+                             std::numeric_limits<double>::infinity(),
+                             -std::numeric_limits<double>::infinity(),
+                             std::numeric_limits<double>::quiet_NaN(), 1e9, -1e9};
+    in.insert(in.end(), std::begin(extras), std::end(extras));
+    const std::size_t n = in.size();  // 4107: not a lane multiple, so the tail runs too
+
+    std::vector<double> cos_sep(n), sin_sep(n);
+    VectorOps::vector_cos(in.data(), cos_sep.data(), n);
+    VectorOps::vector_sin(in.data(), sin_sep.data(), n);
+
+    std::vector<double> cos_alias(in), sin_alias(in);
+    VectorOps::vector_cos(cos_alias.data(), cos_alias.data(), n);
+    VectorOps::vector_sin(sin_alias.data(), sin_alias.data(), n);
+
+    for (std::size_t i = 0; i < n; ++i) {
+        EXPECT_EQ(bits_of(cos_sep[i]), bits_of(cos_alias[i]))
+            << "cos in-place differs at lane " << i << " (x = " << in[i] << ")";
+        EXPECT_EQ(bits_of(sin_sep[i]), bits_of(sin_alias[i]))
+            << "sin in-place differs at lane " << i << " (x = " << in[i] << ")";
+    }
 }

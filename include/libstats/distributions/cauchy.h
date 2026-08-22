@@ -2,7 +2,8 @@
 
 #include "libstats/common/distribution_common.h"
 
-// Cauchy is a thin delegation wrapper over StudentTDistribution(ν=1).
+// Cauchy delegates PDF/LogPDF to StudentTDistribution(ν=1); CDF and Quantile are
+// closed-form (arctan / tan, #48) and do not delegate.
 #include "student_t.h"
 
 namespace stats {

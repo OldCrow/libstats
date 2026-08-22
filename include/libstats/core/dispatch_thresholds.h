@@ -189,7 +189,7 @@ constexpr ArchTable kNeon = {{
                                                    // entry dip 363M vs VECTORIZED 385M (6%); 35k
                                                    // trial to see if entry dip clears further).
                                                    // LogPDF: floor artefact (64); CDF: consistent
-    /* CAUCHY(18)            */ {25000, 50000, 512},  // new: PDF {10k,10k,25k}→25k; LogPDF
+    /* CAUCHY(18)            */ {25000, 50000, 512},  // new: PDF {10k,10k,25k}→25k; LogPDF  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
                                                       // {25k,25k,50k}→50k
 }};
 
@@ -267,7 +267,7 @@ constexpr ArchTable kAvx = {{
                                                    // FMA delta small; same L1/L2
                                                    // boundaries as kAvx2).
                                                    // CDF: kAvx2=256÷2=128
-    /* CAUCHY(18)            */ {37500, 37500, 64},  // PDF/LogPDF: kAvx2=75k÷2
+    /* CAUCHY(18)            */ {37500, 37500, 64},  // PDF/LogPDF: kAvx2=75k÷2  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
 }};
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
@@ -360,7 +360,7 @@ constexpr ArchTable kAvx2 = {{
     /* LAPLACE(17)           */ {64, 25000, 256},   // LogPDF: 64→25k (floor artefact;
                                                     // trough N=5k 107M; clean entry from
                                                     // N=25k; see issue #50)
-    /* CAUCHY(18)            */ {75000, 75000, 128},
+    /* CAUCHY(18)            */ {75000, 75000, 128},  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
 }};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
@@ -503,7 +503,7 @@ constexpr ArchTable kAvx512 = {{
                                                         // see issue #50).
                                                         // CDF: 1024→20k (minor; threshold fires at
                                                         // N=20k but overhead amortises by N=30k)
-    /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER
+    /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
                                                            // (6-run set with StudentT CDF; 50/50
                                                            // split → conservative)
 }};
@@ -584,7 +584,8 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
 //
 // GEOMETRIC: T1 (delegates to NegBinomial — lgamma + incomplete beta).
 // LAPLACE: T2 (elementary transcendental: fabs + exp).
-// CAUCHY: T1 (delegates to StudentT — incomplete beta).
+// CAUCHY: PDF/LogPDF T1 (StudentT delegation); CDF T2 since #48 (closed-form atan).
+// The CDF entry below is a stale T1 placeholder — re-profile.
 // Re-profile with strategy_profile on an actual no-SIMD build to replace these
 // placeholders with measured values.
 constexpr ArchTable kNone = {{
@@ -606,7 +607,7 @@ constexpr ArchTable kNone = {{
     /* NEGATIVE_BINOMIAL(15) */ {2048, 2048, 2048},     // T1: lgamma + digamma/trigamma
     /* GEOMETRIC(16)         */ {2048, 2048, 2048},     // T1: delegates to NegBinomial
     /* LAPLACE(17)           */ {8192, 8192, 8192},     // T2: fabs + exp
-    /* CAUCHY(18)            */ {2048, 2048, 2048},     // T1: delegates to StudentT
+    /* CAUCHY(18)            */ {2048, 2048, 2048},     // T1: PDF/LogPDF delegate to StudentT; CDF column stale since #48
 }};
 constexpr std::size_t none_parallel_threshold(DistributionType dist, OperationType op) {
     return parallelThresholdFromTable(kNone, dist, op);

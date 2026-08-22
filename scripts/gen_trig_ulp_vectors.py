@@ -202,9 +202,14 @@ nan_bits = bits(math.nan)
 pinf = math.inf
 ninf = -math.inf
 
-specials_finite = [
-    0.0,
-    -0.0,
+# Index order is a contract with tests/test_trig_ulp_gates.cpp: +/-0 stay at
+# indices 0-1 (asserted by position), and the three non-finites sit at 2-4 so
+# that every tier -- including the 8-wide one, whose vector body covers lanes
+# 0-7 of the 11 specials -- evaluates them INSIDE the SIMD kernel. At the tail
+# they would be handed to the scalar libm fixup and the kernel's own
+# NaN/inf handling would go untested.
+specials_head = [0.0, -0.0]
+specials_tail = [
     D_MAX,
     -D_MAX,
     math.nextafter(D_MAX, math.inf),
@@ -212,16 +217,17 @@ specials_finite = [
     1e9,
     1e300,
 ]
-specials = [vec(x) for x in specials_finite]
+specials = [vec(x) for x in specials_head]
 
 # +/-inf and NaN: cos/sin are NaN. mpmath cannot evaluate these directly, so
 # the reference bits are hardcoded to the NaN encoding.
 for x in (pinf, ninf, math.nan):
     specials.append((bits(x), nan_bits, nan_bits))
-specials_labels = specials_finite + [pinf, ninf, math.nan]
+specials += [vec(x) for x in specials_tail]
+specials_labels = specials_head + [pinf, ninf, math.nan] + specials_tail
 
 # self-check: NaN/Inf encodings are exactly what IEEE-754 double predicts
-for (xb, cb, sb), xv in zip(specials[-3:], (pinf, ninf, math.nan)):
+for (xb, cb, sb), xv in zip(specials[2:5], (pinf, ninf, math.nan)):
     assert math.isnan(from_bits(cb)) and math.isnan(from_bits(sb)), (
         "specials NaN/Inf reference must be NaN",
         xv,

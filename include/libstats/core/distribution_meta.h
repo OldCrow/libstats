@@ -43,13 +43,13 @@ namespace detail {
  *                         tables (e.g. "NegativeBinomial").
  *   is_discrete         — true for PMF-based distributions (Poisson, Binomial,
  *                         NegBinomial, Discrete, Geometric).
- *   is_delegation_wrapper — true when all probability operations delegate to
- *                         an internal instance of another distribution (e.g.
+ *   is_delegation_wrapper — true when PDF/LogPDF delegate to an internal
+ *                         instance of another distribution (e.g.
  *                         ChiSquared→Gamma, Geometric→NegBinomial,
- *                         Cauchy→StudentT). Dispatch thresholds for wrappers
- *                         are typically identical to their delegates; profiling
- *                         tools can note this rather than running separate
- *                         calibration sweeps.
+ *                         Cauchy→StudentT; Cauchy's CDF/Quantile are
+ *                         closed-form since #48). Informational: no code
+ *                         reads this flag today, and dispatch thresholds
+ *                         are profiled per distribution regardless.
  */
 struct DistributionMeta {
     DistributionType type;
@@ -88,7 +88,7 @@ inline constexpr DistributionMeta kDistributionMeta[] = {
     {DistributionType::GEOMETRIC, "GEOMETRIC", "Geometric", true,
      true},  // delegates to NegativeBinomial(r=1)
     {DistributionType::LAPLACE, "LAPLACE", "Laplace", false, false},
-    {DistributionType::CAUCHY, "CAUCHY", "Cauchy", false, true},  // delegates to StudentT(ν=1)
+    {DistributionType::CAUCHY, "CAUCHY", "Cauchy", false, true},  // PDF/LogPDF only; CDF/Quantile closed-form (#48)
 };
 
 /// Number of defined distribution types (= std::size(kDistributionMeta)).

@@ -109,7 +109,7 @@ class Result {
      * - `std::move(result).unwrap()` — returns T&& (moves value out of variant)
      * - `std::move(result.unwrap())` — lvalue overload returns T&, std::move produces T&&
      *
-     * Undefined (std::bad_variant_access) if isError().
+     * Throws std::bad_variant_access if isError() (a catchable exception, not UB).
      */
     [[nodiscard]] T& unwrap() & { return std::get<T>(data_); }
     [[nodiscard]] const T& unwrap() const& { return std::get<T>(data_); }

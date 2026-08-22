@@ -366,9 +366,11 @@ void VectorOps::vector_log_sse2(const double* values, double* results, std::size
         _mm_storeu_pd(&results[i], result);
     }
 
+    // Plain std::log like every other tier's tail: the previous `> 0 ? log : -inf` form
+    // mapped NaN and negatives to -inf in the tail while the vector body gave NaN, so the
+    // result depended on lane position (review 2026-08-21, NV1). log(0) = -inf is libm's.
     for (std::size_t i = simd_end; i < size; ++i)
-        results[i] =
-            values[i] > 0.0 ? std::log(values[i]) : -std::numeric_limits<double>::infinity();
+        results[i] = std::log(values[i]);
 }
 
 void VectorOps::vector_pow_sse2(const double* base, double exponent, double* results,

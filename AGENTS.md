@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.3.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. 55/55 correctness tests pass natively on Asus TUF A16 AVX-512 (2026-08-20); the Kaby Lake AVX2+FMA and Mac Mini M1 NEON legs are CI-validated (including the ARM-runner NEON leg added for #95) but not yet natively re-run for this release. See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.3.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. 53/53 correctness tests pass natively on Asus TUF A16 AVX-512 (2026-08-20); the Kaby Lake AVX2+FMA and Mac Mini M1 NEON legs are CI-validated (including the ARM-runner NEON leg, in place since v2.0.0) but not yet natively re-run for this release. See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -45,30 +45,32 @@ The active SIMD tier changes fundamentally between machines. SIMD code paths, pe
 - Dispatch thresholds in `include/libstats/core/dispatch_thresholds.h` are architecture-specific.
 - Benchmark results are not comparable across architectures.
 
-| SIMD Tier | Example CPUs | Active simd_*.cpp files |
+| SIMD Tier | Example CPUs | Compiled simd_*.cpp files (runtime dispatch picks the highest supported) |
 |---|---|---|
-| SSE2 + AVX + AVX2 + FMA | Intel Haswell / Kaby Lake and newer | + `simd_avx2.cpp` |
+| SSE2 + AVX + AVX2 (+ FMA) | Linux x86 CI; Intel Haswell / Kaby Lake and newer | `simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp` |
+| SSE2 + AVX + AVX2 + **AVX-512** | AMD Zen 4 (e.g. Ryzen 7000-series) | the three above + `simd_avx512.cpp` |
 | NEON only | Apple Silicon (M1 and newer) | `simd_neon.cpp` |
-| SSE2 + AVX + AVX2 + **AVX-512** | AMD Zen 4 (e.g. Ryzen 7000-series) | + `simd_avx512.cpp` |
-| SSE2 + AVX + AVX2 | Linux x86 CI | `simd_sse2.cpp`, `simd_avx.cpp`, `simd_avx2.cpp` |
+
+`simd_fallback.cpp` and `simd_dispatch.cpp` are always compiled on every platform (`cmake/SIMDDetection.cmake`).
 
 The machines in the Development Ecosystem table are examples; any CPU with the same SIMD capabilities follows the same code paths.
 
 Platform routing rules (OS/toolchain selection — SIMD tier is determined automatically at compile time by CPU feature detection):
 - **macOS (Ventura 13+ required):** Use the standard CMake flow in the Build Commands section.
-- **Windows/MSVC:** Follow Platform-Specific Notes below and use Visual Studio 2022 x64 Release commands (defaults shown for Asus TUF A16; paths may differ on other machines).
+- **Windows/MSVC:** Follow Platform-Specific Notes below and use the Visual Studio x64 Release commands (VS 2022 17.8+ or later; defaults shown for Asus TUF A16, whose toolchain is now VS 18 (2026) — paths and generator names vary by version and edition, so users creating forks should verify their setup).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
 ### Current validation matrix (v2.3.0)
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
-| Asus TUF A16 (Windows) | AVX-512 | 55/55 ✅ | 21/22 ⚠️ | Native, 2026-08-20, MSVC Release |
+| Asus TUF A16 (Windows) | AVX-512 | 53/53 ✅ | 21/22 ⚠️ | Native, 2026-08-20, MSVC Release |
 | Mac Mini M1 | NEON | — | — | **Not yet re-validated for v2.3.0** (CI ARM-runner leg green) |
 | Kaby Lake (2017 MBP) | AVX2+FMA | — | — | **Not yet re-validated for v2.3.0** (CI leg green) |
 
-The correctness count grew 49 → 55 with v2.3.0's new accuracy gates (trig
-ULP per tier, Von Mises CDF, LogNormal CDF, Gaussian CDF, and companions).
+The correctness count grew 49 → 53 with v2.3.0's four new accuracy gates:
+`test_trig_ulp_gates`, `test_vonmises_cdf_accuracy`, `test_lognormal_cdf_accuracy`,
+`test_gaussian_cdf_accuracy`.
 
 The one timing failure is the same `UniformEnhancedTest.
 SIMDAndParallelBatchImplementations` speedup assertion carried from the
@@ -189,6 +191,12 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
 # Performance analysis
 ./build/tools/strategy_profile
 ./build/tools/simd_verification
+./build/tools/threshold_validator <csv>   # compare measured crossovers against dispatch_thresholds.h
+
+# Accuracy characterization vs mpmath (#46; docs/ACCURACY_CHARACTERIZATION.md)
+./build/tools/accuracy_sweep              # C++ side: emits the sweep rows
+python tools/accuracy_vs_mpmath.py        # Python side: mpmath references + report
+# (full registry: tools/CMakeLists.txt — 12 tools plus 2 behind LIBSTATS_BUILD_SIMD_DEV_TOOLS)
 
 # Dispatcher profiling bundle capture
 ./scripts/capture_dispatcher_profile.sh
@@ -256,10 +264,13 @@ Before building or running tests in a new PowerShell session on Windows:
 
 ```powershell
 # 1. Activate MSVC toolchain (required each session — not persistent in PowerShell)
-# Default path for VS 2022 Build Tools. For full VS (Community/Professional/Enterprise),
-# replace "BuildTools" with your edition under "C:\Program Files\Microsoft Visual Studio\2022\".
-# See One-time setup notes below for auto-detection via vswhere.exe.
-$vcvars = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+# Locate the newest installed Visual Studio (any version or edition) with vswhere:
+$vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+$vcvars = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
+# Or pin an explicit path, e.g. VS 2022 Build Tools:
+#   "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+# or a full edition: "C:\Program Files\Microsoft Visual Studio\{version}\{edition}\VC\Auxiliary\Build\vcvars64.bat"
+# ({version} is 2022 for VS 17.x and 18 for VS 2026; {edition} is Community/Professional/Enterprise).
 $envVars = cmd /c "`"$vcvars`" > nul && set"
 foreach ($line in $envVars) {
     if ($line -match "^([^=]+)=(.*)$") {
@@ -291,18 +302,16 @@ A stale Debug EXE + Release DLL = CRT mismatch = heap corruption crash. The `cma
 flag cleans Release artifacts but leaves existing Debug EXEs untouched if their timestamps appear current.
 
 **One-time setup notes:**
-- Visual Studio 2022 Build Tools (not full IDE) is sufficient. Install from https://aka.ms/vs/17/release/vs_buildtools.exe, or `winget install Microsoft.VisualStudio.2022.BuildTools`, or `choco install visualstudio2022buildtools`.
-  - Build Tools default path: `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\`
-  - Full VS (Community/Professional/Enterprise) default path: `C:\Program Files\Microsoft Visual Studio\2022\{edition}\`
+- Visual Studio Build Tools (not full IDE) are sufficient; VS 2022 (17.8+) or later. Install from https://visualstudio.microsoft.com/downloads/ (Build Tools for 2022: https://aka.ms/vs/17/release/vs_buildtools.exe, `winget install Microsoft.VisualStudio.2022.BuildTools`, or `choco install visualstudio2022buildtools`).
+  - Build Tools default path: `C:\Program Files (x86)\Microsoft Visual Studio\{version}\BuildTools\`
+  - Full VS (Community/Professional/Enterprise) default path: `C:\Program Files\Microsoft Visual Studio\{version}\{edition}\` (`{version}` = 2022 for VS 17.x, 18 for VS 2026)
   - Auto-detect installation path (any edition): `& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`
 - **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings).
   SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
 - CMake ≥ 3.25 required. Install from https://cmake.org/download/, `winget install Kitware.CMake`, or `choco install cmake`.
-- vcpkg for GTest: `git clone https://github.com/microsoft/vcpkg C:\vcpkg && C:\vcpkg\bootstrap-vcpkg.bat`. The path `C:\vcpkg` is a convention; if installed via `winget install Microsoft.vcpkg` or `choco install vcpkg` the location will differ — run `where vcpkg` to find it.
-- Configure: `cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake`
-  (adjust the toolchain path if vcpkg is not at `C:\vcpkg`)
+- GTest needs no manual install: `tests/CMakeLists.txt` tries `find_package(GTest)`, then a Homebrew probe, then a `FetchContent` fallback — the same path CI uses (`cmake -B build ... -A x64`, no toolchain file). A vcpkg-installed GTest is picked up by step 1 if you pass `-DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake`, but it is optional.
+- Configure: `cmake .. -A x64` (CMake selects the newest installed Visual Studio; pin one with e.g. `-G "Visual Studio 17 2022"` if several are installed)
 - Build: `cmake --build . --config Release --parallel`
-- GTest installed via vcpkg (`gtest:x64-windows 1.17.0`) — all 33 correctness tests pass
 
 ## Architecture
 
@@ -357,7 +366,7 @@ Level 5: Complete Library Interface (libstats.h)
 16. **Negative Binomial** - NB(r, p) — discrete, real-valued r, Newton–Raphson MLE
 17. **Geometric** - Geo(p) — discrete, delegate over NegBinomial(r=1); MLE: p̂=1/(1+x̄)
 18. **Laplace** - Laplace(μ, b) — standalone, fabs+vector_exp SIMD; MLE: median/MAD
-19. **Cauchy** - Cauchy(x₀, γ) — delegate over StudentT(ν=1); moments NaN; Fisher-scoring MLE
+19. **Cauchy** - Cauchy(x₀, γ) — PDF/LogPDF delegate to StudentT(ν=1), CDF/Quantile closed-form (#48); moments NaN; Fisher-scoring MLE
 
 Each implemented distribution provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
 
@@ -398,7 +407,7 @@ src/
 └── [Level 5] Distributions (gaussian.cpp, exponential.cpp, etc.)
 ```
 
-Object library architecture: the CMake system uses dependency-aware object libraries for parallel compilation — `libstats_foundation_obj` → `libstats_core_utilities_obj` → `libstats_infrastructure_obj` → `libstats_framework_obj` → `libstats_distributions_obj`. Enables optimal incremental builds and clear architectural boundaries.
+Object library architecture: the build compiles the sources in seven OBJECT libraries — `libstats_foundation_obj`, `libstats_core_utilities_obj`, `libstats_platform_obj`, `libstats_infrastructure_obj`, `libstats_framework_obj`, `libstats_distributions_obj`, `libstats_simd_obj` — whose objects are combined into the static and shared libraries. They are parallel-compilation groupings, not a dependency chain: there are no `target_link_libraries` edges between them and all seven receive the same include-dir set, so the 6-level layering above is a source-organisation convention, not a build-enforced boundary (an include-layering check script would be the enforceable artefact).
 
 ## Coding Conventions
 
@@ -412,13 +421,35 @@ Object library architecture: the CMake system uses dependency-aware object libra
 ### Performance Considerations
 - Always rebuild after source changes before running tests
 - Use `initialize_performance_systems()` for optimal batch performance
-- SIMD operations require 16-byte aligned data (handled automatically)
+- SIMD kernels impose no alignment requirement on caller data: every load/store of a caller buffer is unaligned (`loadu`/`storeu`); aligned ops are used only on internal `alignas` locals
 - Large batch operations (>1000 elements) benefit significantly from parallel execution
 
 ### Platform-Specific Conventions
 - **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
 - **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`
 - **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
+
+### SIMD kernel conventions
+
+- **A SIMD kernel must never re-read its input array after the corresponding
+  store.** This binds the `VectorOps` kernel layer, where in-place calls are
+  legal (`LogSpaceOps::logSumExpArrayFallback` calls `vector_exp` with
+  `a == result`): a post-store re-read sees internally-computed values, not the
+  input. Decide every edge fixup from already-loaded registers. It cost a real
+  `exp(-inf)` bug during the #33 productionization. Whether the distribution
+  batch span overloads promise in-place safety is a separate, currently
+  undocumented question (review 2026-08-21) — do not assume it.
+- **Accuracy claims hold only for tiers validated on native silicon.**
+  `LIBSTATS_MAX_SIMD_TIER` (cmake/SIMDDetection.cmake) caps the highest
+  compiled x86 tier so lower tiers can run natively on capable hardware; the
+  first-ever native SSE2 run is what exposed #74, invisible under Rosetta for
+  years.
+- **Gather-vs-polynomial transcendentals are settled** (#33,
+  `docs/SIMD_BENCHMARK_RESULTS.md`): x86 hardware gather is too expensive on
+  both Kaby Lake (interleave 8.6× an FMA) and Zen 4 (1.70×); NEON is the
+  opposite — an Array-of-Structs table pulled by one `vld1q` makes a two-value
+  lookup nearly free. Table kernels are a NEON technique here, not an x86 one.
+  Do not reopen the x86 half without new hardware.
 
 ## Common Development Tasks
 
@@ -516,7 +547,7 @@ compile time. A clean build after any enum or table change verifies consistency.
 - Test with `./build/tools/simd_verification`
 
 ### Parallel Processing
-- Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`
+- Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`. Sizes must match (every overload throws otherwise). **Input and output spans must not overlap**: several batch kernels re-read `values` after writing `results` (Gaussian/von Mises CDF tail fixups, Gamma PDF, LogNormal LogPDF — #112), so an in-place call returns wrong values silently; the contract is "no aliasing" until #112 decides otherwise
 - Explicit control: span-based batch APIs with `detail::PerformanceHint`
 - Dispatch thresholds are per-(architecture, distribution, operation) in `dispatch_thresholds.h`
 - Thresholds derived from four-architecture profiling data in `data/profiles/dispatcher/`
@@ -600,7 +631,7 @@ does not reproduce on MSVC at all.
 - **All levels**: GTest-based tests registered with CTest
 - Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
 - Timing tests: run `ctest -j1 -L timing` on a quiet machine
-- **Coverage**: 50 CTest targets (each basic and enhanced test file registers as one target;
+- **Coverage**: 77 CTest targets — 53 correctness (`ctest -C <cfg> -LE "timing|benchmark"`), 22 timing (`-L timing`), 2 benchmark (each basic and enhanced test file registers as one target;
   each enhanced binary runs additional typed test cases from the shared `DistributionEnhancedTest` suite)
 
 ### Performance Validation

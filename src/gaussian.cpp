@@ -1289,10 +1289,14 @@ void GaussianDistribution::updateCacheUnsafe() const noexcept {
     cachedSqrtTwoPi_ = detail::SQRT_2PI;
 
     // Optimization flags - fast path detection
-    isStandardNormal_ = (std::abs(mean_) <= detail::DEFAULT_TOLERANCE) &&
-                        (std::abs(standardDeviation_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
-    isUnitVariance_ = std::abs(cachedSigmaSquared_ - detail::ONE) <= detail::DEFAULT_TOLERANCE;
-    isZeroMean_ = std::abs(mean_) <= detail::DEFAULT_TOLERANCE;
+    // Exact equality, not a tolerance: the standard-normal fast path ignores mean_ and
+    // sigma entirely, so a tolerant predicate made pdf/cdf constant in μ over |μ| ≤ 1e-8
+    // and discontinuous at the edge (Gaussian(5e-9, 1).cdf(0) returned exactly 0.5;
+    // review 2026-08-21, N7). With exact equality it is an optimisation, not an
+    // approximation.
+    isStandardNormal_ = (mean_ == detail::ZERO_DOUBLE) && (standardDeviation_ == detail::ONE);
+    isUnitVariance_ = (standardDeviation_ == detail::ONE);
+    isZeroMean_ = (mean_ == detail::ZERO_DOUBLE);
     isHighPrecision_ = standardDeviation_ < detail::HIGH_PRECISION_TOLERANCE ||
                        standardDeviation_ > detail::HIGH_PRECISION_UPPER_BOUND;
     isLowVariance_ = cachedSigmaSquared_ < 0.0625;  // σ² < 1/16

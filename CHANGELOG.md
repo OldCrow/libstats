@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Gaussian: the standard-normal fast path is selected only for exactly
+  (0, 1). The previous 1e-8 tolerance made pdf/cdf constant in μ over
+  |μ| ≤ 1e-8 and discontinuous at the edge (`Gaussian(5e-9, 1).cdf(0)`
+  returned exactly 0.5). Regression test added (review 2026-08-21).
+- SSE2 `vector_log` scalar tail now uses plain `std::log` like every other
+  tier; it mapped NaN and negative inputs to −inf while the vector body gave
+  NaN, so results depended on lane position.
+
+### Changed
+- Tests: `run_tests`, `run_tests_timing` and `run_all_tests` pass
+  `-C $<CONFIG>` (on multi-config generators the timing target ran zero tests
+  and exited 0; `run_tests` ran the timing suite it exists to exclude) and the
+  timing target fails on zero tests; the five accuracy/tier gates are in
+  `run_all_tests`; trig ULP-gate specials lead with ±inf/NaN so 4/8-wide
+  tiers evaluate them in-vector; new in-place aliasing test for the
+  dispatched `vector_cos`/`vector_sin`; `cos_ulp_vectors.inc` moved to
+  `tests/`.
+- Tooling: `accuracy_sweep` inserts its NaN/±inf specials at the front of the
+  grid (they were evaluated by libm in the scalar tail on AVX-512);
+  Gaussian/LogNormal CDF reference generators invert deep-tail targets by a
+  root solve (1e-320/1e-300/1e-100 rows now present; 159/160 rows).
+- Documentation: input/output spans of the batch overloads must not overlap
+  (#112); SIMD kernel conventions moved from PLAN.md into AGENTS.md; test
+  counts corrected (53 correctness / 77 targets); object libraries described
+  as compilation groupings, not a dependency chain; Cauchy recorded as a
+  PDF/LogPDF-only delegate with its CDF thresholds marked stale (#109);
+  `platform/internal/` install explained; vcpkg optional for GTest; Windows
+  toolchain text version-generic; von Mises fallback error ≈ 0.04/κ; π/2
+  split part 3 is not an exact product; `Result::unwrap` throws rather than
+  "undefined"; `__pycache__` ignored. Defensive review 2026-08-21: issues
+  #105–#118.
+
 ## [2.3.0] - 2026-08-20
 
 ### Added

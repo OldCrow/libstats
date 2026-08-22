@@ -31,7 +31,7 @@ code path (x*INV_SQRT_2, no subtract/divide) in every CDF site, and this
 gate must cover it. ~50 x values per pair:
   - uniform-z sweep across the support, chosen to spread F from ~1e-300 to
     1-1e-16 (x = mean + sigma*z)
-  - x chosen so F lands near {1e-320 (subnormal-ish), 1e-100, 1e-20, 1e-10,
+  - x chosen so F lands near {1e-320 (subnormal F), 1e-100, 1e-20, 1e-10,
     1e-3, 0.5, 1-1e-10, 1-1e-16}
   - specials: x in {-inf, NaN, +inf}
 
@@ -139,9 +139,19 @@ _self_check()
 def x_for_target_F(mean: float, sigma: float, F_target: "mp.mpf") -> float:
     """Invert F = erfc(-z/sqrt(2))/2 for z, then map back to
     x = mean + sigma*z."""
-    # erfc(-z/sqrt2)/2 = F  =>  -z/sqrt2 = erfcinv(2F)  =>
-    # z = -sqrt2 * erfinv(1 - 2F)
-    z = -mp.sqrt(2) * mp.erfinv(1 - 2 * F_target)
+    # erfinv(1 - 2F) collapses to +inf once 1 - 2F rounds to 1 at mp.dps
+    # (F <= ~1e-41), which silently dropped the 1e-320/1e-300/1e-100 targets
+    # (review 2026-08-21, N2). Solve log(erfc(-z/sqrt2)/2) = log F instead,
+    # seeded from the asymptotic tail; agrees with dps-360 erfinv to 12 digits.
+    # Hybrid: erfinv is exact where 1 - 2F is representable; the root solve
+    # (seeded from the asymptotic tail) only below F = 1e-30, where it is.
+    if F_target < mp.mpf("1e-30"):
+        z0 = -mp.sqrt(2 * mp.log(1 / F_target))
+        z = mp.findroot(
+            lambda t: mp.log(mp.erfc(-t / mp.sqrt(2)) / 2) - mp.log(F_target), z0
+        )
+    else:
+        z = -mp.sqrt(2) * mp.erfinv(1 - 2 * F_target)
     x = mp.mpf(mean) + mp.mpf(sigma) * z
     return float(x)
 
