@@ -74,8 +74,9 @@ The correctness count grew 49 → 53 with v2.3.0's four new accuracy gates:
 
 The one timing failure is the same `UniformEnhancedTest.
 SIMDAndParallelBatchImplementations` speedup assertion carried from the
-v2.2.0 matrix (1.44x measured against a 1.8x adaptive threshold at 5000
-elements, reproduced on a settled machine) — flaky, not a regression;
+v2.2.0 matrix (1.5x on that run, 1.44x on this one, both against a 1.8x
+adaptive threshold at 5000 elements on a settled machine) — flaky, not a
+regression;
 nothing in v2.3.0 touches uniform kernels or the dispatch thresholds it
 measures. Timing tests carry the `timing` label and are excluded from CI
 everywhere, so this is a real-hardware finding, not a CI one.
@@ -161,6 +162,14 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
 - **Grandfathered custom build types**: `Dev` (default) and `Strict`
   (the `-Werror` vehicle) — kept per house-style exception; not to be
   copied into other repos.
+- **A configure-time fact that a public header branches on goes in the
+  generated `libstats_config.h`, never in `target_compile_definitions`.**
+  Template `cmake/libstats_config.h.in`, installed beside the hand-written
+  headers, the same mechanism as `libstats_version.h`. Fleet rule:
+  [CMake House Style §7](https://github.com/OldCrow/standards/blob/main/CMAKE-HOUSE-STYLE.md#7-install-contract-libhmm-libstats-corvus).
+  libstats #97 was the rule's second incident: `$<LINK_ONLY:>` stripped the
+  macro from the installed export, so every consumer compiled Tier 2 Bessel
+  and an ODR violation against the library's own TUs.
 - Install contract conforms: GNUInstallDirs, `libstats-targets` export
   (namespace `libstats::`), kebab `libstats-config.cmake`, `SameMajorVersion`.
 - Presets (`CMakePresets.json`, schema 6, min CMake 3.25): `dev` → `build/`
@@ -664,4 +673,4 @@ Saved workflows in `.warp/workflows/` are available directly in the Warp termina
 - **libstats: Clean Rebuild** — remove `build/` and rebuild from scratch; accepts `build_type` arg (default: `Dev`)
 - **libstats: Validate Machine** — architecture detection, SIMD capabilities, correctness suite, and `simd_verification`; requires a current build
 - **libstats: Switch Branch + Rebuild** — stash uncommitted changes, fetch, checkout target branch, pull, and clean rebuild in one step
-- **libstats: Warning Audit** — build with a strict warning mode and display deduplicated warning counts; accepts `build_type` arg (default: `ClangWarn`)
+- **libstats: Warning Audit** — build with a strict warning mode and display deduplicated warning counts; accepts `build_type` arg (default: `Strict`; the legacy compiler-specific names are not build types since v2.0.0)

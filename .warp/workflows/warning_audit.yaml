@@ -12,8 +12,8 @@ tags:
   - quality
 arguments:
   - name: build_type
-    description: "Warning build type (ClangWarn, MSVCWarn, GCCWarn, ClangStrict)"
-    default_value: ClangWarn
+    description: "Warning build type (Strict — the unified -Werror mode since v2.0.0)"
+    default_value: Strict
 shells:
   - zsh
   - bash

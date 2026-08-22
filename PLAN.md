@@ -47,7 +47,7 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-08-21.
+Last reconciled against live GitHub state: 2026-08-22.
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -82,11 +82,10 @@ history.
   shipped 2026-08-16. #83 include restructure, #92 and #93 (log I0
   continuity and circular variance), #96 (complement-series coefficients),
   #97 (installed export dropped the Bessel tier). See Resolved log.
-- **v2.3.0 — Accuracy & Performance** (open, #5): 0 open / 5 closed —
-  ALL WORK MERGED 2026-08-20; milestone close + release cut pending
-  (user decision). Original scope note:
-  the v2.2.0 milestone's unshipped remainder, moved 2026-08-16. #47 and
-  #52 moved out 2026-08-20 (see "Parked on corvus adoption" below).
+- **v2.3.0 — Accuracy & Performance** (closed, #5): 0 open / 5 closed —
+  all work merged 2026-08-20; milestone closed and tag v2.3.0 cut the same
+  day (404f745). Scope: the v2.2.0 milestone's unshipped remainder, moved
+  2026-08-16. #47 and #52 moved out 2026-08-20 (now in v2.5.0, below).
   Working order decided 2026-08-20: #48 (done) → #95 → #51 → #49
   (interleavable) → #46 last, so the mpmath characterization measures the
   final surface and reuses #95's gate infrastructure.
@@ -140,12 +139,11 @@ history.
   - #46 — **CLOSED 2026-08-20** via PR #101 (squash 57da00a, CI green;
       a GCC 13 strict-overflow false positive in the p-grid sort was
       fixed by replacing the defensive sort with an ascending assert,
-      CSV verified byte-identical). **v2.3.0 milestone now 0 open /
-      5 closed — complete; closing the milestone and cutting the
-      release are [OPEN] user decisions.** Follow-up issues filed
-      2026-08-20: #102 batch NaN propagation (v2.4.0, bug), #103
-      +-inf input contract (unmilestoned, decision-gated), #104
-      quantile extreme-p contract (unmilestoned, decision-gated).
+      CSV verified byte-identical). Last of the five; the milestone
+      closed and v2.3.0 was tagged the same day. Follow-up issues filed
+      2026-08-20: #102 batch NaN propagation (bug; now v2.3.1), #103
+      ±inf input contract and #104 quantile extreme-p contract (both
+      decision-gated; now v2.3.2).
       [DERIVED] detail:
       replaced the issue's pylibstats route (pins to released v2.2.0,
       would characterize the wrong code) with tools/accuracy_sweep.cpp
@@ -168,9 +166,9 @@ history.
       ±inf where limits exist, batch logpdf(+inf) clamp −4605.0,
       quantile NaN/saturation at extreme p, large-param CDF limits
       (binomial n=1e6: 1.3e-2 at the mean → corvus #47/#52 remedy
-      class). [OPEN] follow-up issue candidates, on user's word:
-      (a) batch NaN propagation, (b) ±inf limit returns, (c) quantile
-      extreme-p contract.
+      class). [RESOLVED 2026-08-20] the three follow-up candidates are
+      filed: (a) batch NaN propagation #102, (b) ±inf limit returns #103,
+      (c) quantile extreme-p contract #104.
 - **corvus adoption staged as v2.5.0** (decided 2026-08-21 [user],
   milestone #6 created; the former v2.5.0 Extended milestone renumbered
   to v2.6.0 — the THIRD renumbering, same title-cascade shape as
@@ -216,6 +214,9 @@ history.
   - #115 OPEN — `operator>>` round-trip broken for Discrete/Uniform/Beta.
   - #112 OPEN — batch aliasing contract: central `autoDispatch` check or
     documented no-aliasing (the doc half landed 2026-08-21).
+  - [OPEN] Review note 2026-08-22: #117 (AVX-512 DQ/XCR0 gate missing) and
+    #118 (`parallelFor` swallows exceptions; the naive fix is a UAF) sit in
+    v2.3.2 but are correctness-grade — decide whether they move to v2.3.1.
   Exit: regression tests from the issues in place; sweep regenerated and
   #102 re-scoped from it; AVX-512 native correctness suite green.
 - **v2.3.2 — Accuracy, contracts & kernel hygiene** (open, #8): 10 open /
@@ -264,207 +265,7 @@ history.
   than trusting it between passes.
 
 ## In Progress [OPEN]
-- **corvus adoption spike** — branch `spike/corvus-bessel`, opened 2026-08-15.
-  Wires corvus `i0`/`i1`/`i0e` behind `stats::detail::bessel_i0` /
-  `bessel_i1` / `log_bessel_i0` as a Tier 0 under `LIBSTATS_USE_CORVUS`
-  (OFF by default), above the two existing tiers in
-  `include/libstats/core/bessel.h`. Scope is deliberately ONE function path:
-  three functions, eight call sites, all scalar and all in `src/von_mises.cpp`
-  (parameter-cache and fit-time, none in a hot loop) — so the payoff is
-  **accuracy**, retiring the Tier 2 A&S 1.6e-7 fallback behind #47, **not
-  throughput**. Scalar span-of-1 wrappers are adequate at every call site.
-
-  The deliverable is a **go/no-go adoption recommendation with evidence, not
-  a merged feature.** The adoption decision itself is recorded in
-  `corvus/PLAN.md` (see Cross-Repo Dependencies below); this section carries
-  execution state only, and neither file restates the other.
-
-  Stages: **S0** branch + decision record. **S1** build plumbing and the ABI
-  matrix — Config A (FetchContent, all-MSVC, AVX2-capped by
-  `HWY_BROKEN_MSVC`) and Config B (prebuilt clang-cl corvus consumed via
-  `find_package`, the config that answers corvus's untested clang-cl→MSVC
-  link question and delivers AVX-512); both assert the dispatch target via
-  `CORVUS_EXPECT_TARGET` rather than assuming it, and check /MD on both
-  sides. **S2** the Tier 0 wrappers (`log_bessel_i0` = `log(i0e(x)) + x` per
-  corvus's documented composition; its small-x caveat is adjudicated and
-  written down before implementation, since that adjudication becomes
-  corvus's integration note). **S3** validation — full 49-test ctest under
-  baseline / A / B, plus a wiring gate over a kappa sweep including the
-  small-kappa band and kappa > 700. **S4** report, the corvus #47
-  integration note, and PLAN updates on both sides.
-
-  Out of scope, explicitly: no corvus edits (consumed at the `v0.5.0` tag,
-  core/generator/test freeze in effect); no #51 Miller-recurrence CDF work;
-  no macOS leg — the AppleClang Tier 2 retirement is the real-world #47
-  payoff but **needs the Mac Mini M1**; no new
-  oracle, because corvus's per-tier 1-ULP claims are the accuracy authority
-  and what is needed here is a wiring gate, not a reference set.
-
-  Known risk: if Config B fails to link, the spike **pivots** to "Config A
-  only" adoption and the failure mode goes in the report — it does not end
-  the spike.
-
-  **S1 COMPLETE 2026-08-15 — both configs pass; the Config B risk did not
-  materialise.** Config B (MSVC 19.51 consumer + clang-cl-built installed
-  corvus) links, runs, and dispatches **AVX3_ZEN4**; Config A (all-MSVC
-  FetchContent at the `v0.5.0` tag) dispatches **AVX2**, capped by
-  `HWY_BROKEN_MSVC` as predicted. Both probes pass with zero failures
-  against the consumer's own `std::cyl_bessel_i` (≤ 2.3e-16, many rows
-  bit-identical), over a kappa sweep straddling corvus's x_s = 8 regime
-  split. The two configs' probe output is **byte-identical except the
-  `active_target` line**, so A-vs-B is a performance choice, not an
-  accuracy one.
-
-  **The tier is set by the compiler that builds corvus's TUs, not by the
-  delivery mechanism** — A and B varied both at once, so a third run
-  de-confounded them: FetchContent + clang-cl also gives AVX3_ZEN4, in
-  177 s. Matrix: FetchContent+MSVC AVX2; FetchContent+clang-cl AVX3_ZEN4;
-  installed-clang-cl + MSVC-consumer AVX3_ZEN4. What the installed path
-  actually buys is **decoupling** — corvus on clang-cl while this repo
-  stays pinned to `cl.exe` — which matters only to the extent libstats IS
-  pinned (CI and the pylibstats wheel path are the real constraints, and
-  clang-cl is MSVC-ABI-compatible, so "pinned" needs deciding, not
-  assuming). An all-clang-cl libstats build would reach AVX3 from plain
-  FetchContent with no prefix at all. A third lever exists for an
-  MSVC-pinned build: corvus's `CORVUS_MSVC_UNBLOCK_AVX512` (measured
-  working there, all gates pass, deliberately unsupported upstream).
-  Secondary datum: clang-cl builds corvus 3.9x faster than cl.exe on the
-  same config (177 s vs 682 s).
-
-  **Open question for S4, not answerable from S1:** whether a Config A
-  adoption would leave these kernels at AVX2 inside a binary whose own
-  hand-rolled paths run AVX-512 — that depends on which compiler libstats
-  commits to on Windows, which is a libstats decision this spike does not
-  make. Probe sources and five re-runnable scripts are in this session's
-  scratchpad; S4 folds them into the report.
-
-  **S2 COMPLETE 2026-08-15.** Tier 0 landed in
-  `include/libstats/core/bessel.h` (span-of-1 wrappers, `LIBSTATS_USE_CORVUS`
-  OFF by default) plus one cohesive CMake block riding the existing
-  `libstats_simd_interface` propagation that already carries
-  `LIBSTATS_HAS_CXX17_BESSEL`. libstats builds clean with Tier 0 in 51 s.
-  The log-composition adjudication is written at the definition site, where
-  it doubles as corvus's #47 integration note: all three `log_bessel_i0`
-  consumers embed the result in a sum anchored by `LN_2PI` ≈ 1.8379, so the
-  governing contract is corvus's ABSOLUTE 3.3e-16, not its weaker small-κ
-  relative error — which is therefore unreachable here. Verdict: compose,
-  no dedicated log-I₀ kernel needed.
-
-  **Two findings from the S2 smoke diff, both independent of adoption and
-  both adjudicated against mpmath at dps 50 rather than assumed:**
-  1. **Tier 1's `x > 700` fallback is inaccurate, and this is NOT a
-     macOS-only problem.** Above 700 `std::cyl_bessel_i` overflows, so
-     `log_bessel_i0` falls back to a hand-rolled two-term A&S asymptotic.
-     At κ = 1000 it is 7.3e-11 absolute against mpmath, where corvus's
-     composition is 2.2e-14 — ~3300× worse. #47 is filed as a macOS/Tier 2
-     issue; this says the SAME function has a real accuracy hole on every
-     platform that defines `LIBSTATS_HAS_CXX17_BESSEL`, Windows and Linux
-     included. Worth widening #47's scope or filing separately.
-  2. **`circularVariance_ = 1 − I₁/I₀` is ill-conditioned at large κ.**
-     At κ = 200 the two builds differ by 768 ULP in the variance while
-     agreeing bit-for-bit on log I₀. Cause is the formula, not either
-     Bessel implementation: I₁/I₀ → 1 − 1/(2κ), so `1 − ratio` cancels ~9
-     bits at κ = 200 and amplifies any last-bit difference. A dedicated
-     1 − A(κ) formulation (corvus composes A exactly as i1e/i0e, the
-     scalings cancel) would fix it. Independent of adoption.
-
-  **S3 (part 1) — TIER-1 DEFECT PINNED 2026-08-15.** `core/bessel.h` is
-  standalone (only `<cmath>`), so all three tiers were compiled from the SAME
-  source with only the tier macros flipped and swept against mpmath at
-  dps 60 — no libstats build involved, which keeps the measurement free of
-  every other moving part. Error in ULP of the result (absolute alone ranks
-  large-x rows wrongly, since log I₀(x) ~ x and the result's own spacing
-  grows):
-
-  | x | Tier 0 (corvus) | Tier 1 (std) | Tier 2 (A&S) |
-  |---|---|---|---|
-  | 0.5 | 7.4 | 10.4 | 3.6e9 |
-  | 100 | 0.5 | 0.5 | 3.3e7 |
-  | 700 | 0.4 | 0.4 | 1.29e6 |
-  | **700.001** | **0.2** | **1881.2** | 1.29e6 |
-  | 1000 | 0.2 | 644.8 | 9.4e5 |
-  | 2000 | 0.0 | 40.0 | 2.5e5 |
-  | 5000 | 0.3 | 0.7 | 2.6e4 |
-
-  1. **Tier 1's defect is a STEP DISCONTINUITY at exactly x = 700**, not a
-     gradual drift: 2.14e-10 absolute jump across the branch, error going
-     0.4 → 1881 ULP between adjacent points. It then DECAYS with x (the
-     truncation is O(1/x³)) and is back under 1 ULP by x ≈ 5000. So the
-     damaged band is **κ ∈ (700, ~3000)**, worst immediately above the seam.
-     A discontinuity is the stronger defect signature: any density built on
-     log I₀ inherits a visible step at κ = 700. Present on every platform
-     defining `LIBSTATS_HAS_CXX17_BESSEL` — Windows and Linux, not just the
-     macOS path #47 names. Fixable in-repo with no corvus dependency (more
-     asymptotic terms, or match the branches at the seam).
-  2. **Tier 2 quantified**, since #47 asserts ~1e-7 without a measurement:
-     2.5e-8 to 4.7e-7 absolute across the sweep, i.e. ~1.3e6 ULP in the
-     700 band and worse below. Confirms the issue and gives it numbers.
-  3. **The S2 adjudication survives measurement.** The composition's
-     documented small-x relative weakness is real (7.4 ULP at x = 0.5) but
-     Tier 1 is WORSE there (10.4 ULP) — both lose relative precision to
-     log(1 + small), independent of tier, and both are irrelevant to this
-     repo's consumers, which use the value absolutely against LN_2PI.
-  4. Minor: `core/bessel.h` is not self-contained on MSVC — Tier 1 uses
-     `M_PI`, supplied globally by CMakeLists.txt:168's `_USE_MATH_DEFINES`.
-
-  **S3 (part 2) COMPLETE 2026-08-15 — both legs green, 49/49, identical
-  test sets.** Baseline (Tier 1) and Tier 0 (corvus built by clang-cl,
-  libstats by MSVC) both pass the full suite with timing/benchmark labels
-  excluded, matching ci.yml. Suite times were 73.0 s and 52.9 s, which is
-  NOT a performance result and must not be reported as one: the Tier 0 leg
-  ran second with warm caches, timing tests were excluded by design, and
-  the library has 8 scalar Bessel call sites, none hot. The spike measured
-  accuracy, not throughput.
-
-  Scope note: no third leg with an MSVC-built corvus (the AVX2 tier). S1
-  established AVX2 and AVX3_ZEN4 corvus produce byte-identical output on
-  every probe row, so that leg would exercise build plumbing, not
-  behaviour, at the cost of a ~12 min Highway+corvus MSVC build. Also
-  worth settling in S4: the S2 wiring only offers `find_package(corvus)`,
-  so "Config A" for libstats means corvus compiled by MSVC, not a
-  different delivery path — a real adoption should decide whether to
-  offer FetchContent too, since that is the zero-setup path for
-  contributors.
-
-  **THIRD ADOPTION-INDEPENDENT DEFECT, found running S3: libstats cannot
-  configure under `-G Ninja` on ANY platform.** `tests/CMakeLists.txt:511`
-  emits a literal `$` into the `run_tests` ctest regex
-  (`...^test_benchmark$`); Ninja requires `$$`, and the malformed line
-  invalidates the whole `build.ninja`, so nothing builds. Never caught
-  because ci.yml configures with plain `cmake -B build` and no `-G`
-  (Visual Studio on Windows, Makefiles elsewhere), CMakePresets.json pins
-  no generator, and the escaping is generator-specific rather than
-  platform-specific. One-character fix. Pairs badly with a second Windows
-  trap found the same way: MSBuild's `.tlog` file tracker breaks past
-  MAX_PATH, so the only generator that tolerates long build paths is the
-  one the repo cannot configure. Either fix alone removes the corner.
-
-  **S4 COMPLETE 2026-08-15 — SPIKE CLOSED.** Report published as an artifact
-  (https://claude.ai/code/artifact/ab912f14-d920-4eb2-b60f-5d92222bb33f);
-  the three adoption-independent defects are now #92, #93, #94 rather than
-  prose here.
-
-  **RECOMMENDATION: adopt, but NOT on the strength of Bessel alone.** The
-  spike proves the mechanism works and that corvus beats both existing tiers
-  measurably. It does not by itself justify a dependency: eight scalar call
-  sites, none hot, and the one real hole below corvus-grade (#92) is fixable
-  in-repo with no dependency at all. The case that DOES justify adoption is
-  the wider surface — #47 retired outright, #51 given the documented Miller
-  recurrence, #52 given `beta_p`, plus erfinv and the incomplete gamma/beta
-  family this repo has no good version of. **Decide on that basis, not on I₀.**
-
-  Costs to price in, none of them blocking but all real: Highway becomes
-  transitive into libstats and therefore pylibstats wheels; that triggers
-  corvus's open NOTICE obligation (Apache-2.0 must ship with BINARY
-  artifacts — source-only releases have dodged it, wheels will not);
-  `libstats-config.cmake` owes a `find_dependency(corvus)` because the SIMD
-  interface links PRIVATE and corvus lands in `INTERFACE_LINK_LIBRARIES` as
-  `$<LINK_ONLY:...>`; and the delivery mechanism is unsettled, since the
-  spike wiring offers only `find_package`.
-
-  **Prerequisite for a real decision:** the macOS leg. Tier 2 is where #47's
-  actual users are, and it was explicitly out of spike scope for want of the
-  M1.
+- (none — v2.3.1 has not started; see Next Steps.)
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
@@ -474,21 +275,17 @@ history.
   threshold, so for x in that one-double window the kernels return
   `exp(exp_max)` (~214 ULP low) where `std::exp` is still finite. This is a
   deliberate safety margin against a 1-ULP overshoot to inf; left as is.
-- [2026-08-16] **v2.2.0's validation matrix covers one machine of three.**
-  The documented release practice (`docs/CI_CD_GUIDE.md`, "Release
-  validation practice") supplements CI with native runs on AVX2+FMA, NEON
-  and AVX-512. Only the Asus TUF A16 AVX-512 leg has a v2.2.0 run
-  (49/49 correctness, 2026-08-16); the M1 NEON and Kaby Lake AVX2 legs are
-  outstanding. Judgement call whether that gates the tag: the release
-  carries no SIMD kernel change — the Bessel work is scalar header code and
-  the rest is build plumbing — so the tiers are not the risk surface here,
-  and the one platform-dependent behaviour (#97's libstdc++ `domain_error`
-  path) is covered by `test_bessel_tier` on the Linux and macOS runners.
-- [2026-08-16] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
+- [2026-08-16, updated 2026-08-22] **Native validation covers one machine
+  of three.** The authoritative v2.3.0 matrix is AGENTS.md "Current
+  validation matrix": Asus TUF A16 AVX-512 ran natively; the Mac Mini M1
+  NEON and Kaby Lake AVX2+FMA (2017 MBP) legs are CI-green but not natively
+  re-run. Those two legs are also prerequisite (a) of the v2.5.0 staging.
+- [OPEN, file issue] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
   is flaky on the AVX-512 validation machine** — 2 failures in 3
-  back-to-back runs, measuring 1.5x against a 1.8x adaptive threshold at
-  5000 elements. Pre-existing: nothing in v2.2.0 touches uniform or the
-  dispatch thresholds. Same class as the Poisson assertion that v2.2.0
+  back-to-back runs on the v2.2.0 run (1.5x, 2026-08-16) and 1.44x on the
+  v2.3.0 run (2026-08-20), both against a 1.8x adaptive threshold at
+  5000 elements. Pre-existing: nothing in v2.2.0 or v2.3.0 touches uniform
+  or the dispatch thresholds. Same class as the Poisson assertion that v2.2.0
   excluded from the AVX-512 workflow, and it is `timing`-labelled so CI
   never runs it. Not yet filed — worth an issue that either widens the
   margin for cheap-PDF distributions or drops the assertion, since a gate
@@ -505,22 +302,18 @@ disagree with each other or fall behind libstats' newest release.
 The invariant this repo owns: before cutting a release or making a breaking
 API change, check pylibstats' pin and coordinate the bump.
 
-[OPEN] **Whether libstats adopts corvus as a dependency is undecided**, and
-it is tracked in `corvus/PLAN.md`, not here. It governs the real cost of at
-least four v2.3.0 issues: corvus already ships 1-ULP erf/erfc with a proper
-tail decomposition (#49), erfinv/erfcinv (the normal quantile), and lgamma,
-and carries Bessel I0/I1 in its P1 scope (#47). Solving #47 or #49 by hand
-here is plausibly wasted work if adoption is coming. Settle the direction
-before starting either.
-
-[2026-08-15] A scoped spike against this question is now running — see
-**In Progress** above for its stages and branch. The decision still lands in
-`corvus/PLAN.md`; nothing here changes. One correction worth carrying into
-it: **#49 is not a corvus win.** This repo already disconfirmed erf precision
-as its cause (a max-1-ULP kernel left the 2.62e-7 error unchanged), so
-adoption will not touch it — the suspicion remains the `(ln x − μ)/σ`
-transform. #47 is retired outright by corvus's `i0`/`i1`/`i0e`/`i1e`, #51 by
-its documented Miller-recurrence recipe, and #52 by `beta_p`.
+[OPEN] **corvus adoption is decided and staged as v2.5.0** (milestone #6;
+the decision record is `corvus/PLAN.md`, the staging rationale and
+prerequisites are in GitHub Milestones above; the spike is in the Resolved
+log). Of the four v2.3.0 issues it once governed: #49 shipped in v2.3.0 by
+hand (bcbd570, 30745b8) — the defect was the formulation, not erf precision,
+so adoption never touched it; #51 shipped in v2.3.0 via Miller recurrence
+with no Bessel evaluated; #47 and #52 are parked in v2.5.0 and get re-scoped
+against the cores' real accuracy once #113 (v2.3.2) corrects the
+iteration-cap attribution. What stays open here is the dependency's cost to
+pylibstats wheels: Highway becomes transitive, corvus's Apache-2.0 NOTICE
+must ship with binary artifacts, and `libstats-config.cmake` owes a
+`find_dependency(corvus)`.
 
 ## Defensive Review 2026-08-21 [DERIVED]
 Between-milestone review of v2.3.0 (metrics, architecture, numerical,
@@ -574,16 +367,30 @@ session artifact; the issues carry the detail.
    (specials now in-vector) to re-scope #102, then #105, #116, #106, #115,
    #112. Bump `[Unreleased]` in CHANGELOG to 2.3.1 at release and coordinate
    the pylibstats pin.
-2. v2.3.2 after it (#113 first — it corrects the record #47/#52 rest on).
-3. Settle the corvus-adoption question (corvus/PLAN.md) with #113's
-   correction in hand, then v2.4.0/v2.5.0 or the v3.0.0 refactor.
-4. ~~Bump pylibstats' pin to v2.2.0~~ **DONE 2026-08-16** — pylibstats 0.5.0
+2. Bump pylibstats' pin (`find_package` floor + `GIT_TAG`, together) to
+   v2.3.0, or straight to v2.3.1 if it is imminent — pylibstats'
+   `pin-currency` canary fails on its next monthly run until then.
+3. v2.3.2 after v2.3.1 (#113 first — it corrects the record #47/#52 rest on).
+4. Scope #47/#52 for v2.5.0 with #113's correction in hand, then
+   v2.4.0/v2.5.0 or the v3.0.0 refactor.
+5. ~~Bump pylibstats' pin to v2.2.0~~ **DONE 2026-08-16** — pylibstats 0.5.0
    is on PyPI against v2.2.0; both problems it surfaced were pre-existing
    pylibstats packaging defects. Detail lives in `pylibstats/PLAN.md`.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-08-21 **corvus adoption spike closed** (`spike/corvus-bessel`, S0–S4
+  run 2026-08-15; staging decision 2026-08-21). Tier 0 `i0`/`i1`/`i0e` behind
+  `LIBSTATS_USE_CORVUS` (OFF): both ABI configs link and pass the full suite,
+  corvus output byte-identical at AVX2 and AVX3_ZEN4. Verdict: ADOPT, BUT NOT
+  FOR BESSEL ALONE (eight scalar call sites, none hot) — the case is the wider
+  surface (#47, #51, #52, erfinv, incomplete gamma/beta). Staged as v2.5.0,
+  milestone #6, three prerequisites on its Milestones entry above. Three
+  adoption-independent defects filed as #92/#93/#94 (closed in v2.2.0).
+  `origin/spike/corvus-bessel` holds the only Tier 0 code (a1c71d6): NOT
+  merged, keep it; main is 44 commits ahead, 3 touching `bessel.h`. Full
+  S1–S4 record: `git show b50cd7d:PLAN.md`, "In Progress".
 - 2026-08-20 **#95 closed** — clean-room quadrant-reduction cos/sin at every
   SIMD tier (PR #98): max 1 ULP all tiers, per-tier ULP gates + dispatched-entry
   gate checked in; sin(−0) sign defect caught by the gate, fixed, and filed
