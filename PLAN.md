@@ -367,9 +367,9 @@ session artifact; the issues carry the detail.
    (specials now in-vector) to re-scope #102, then #105, #116, #106, #115,
    #112. Bump `[Unreleased]` in CHANGELOG to 2.3.1 at release and coordinate
    the pylibstats pin.
-2. Bump pylibstats' pin (`find_package` floor + `GIT_TAG`, together) to
-   v2.3.0, or straight to v2.3.1 if it is imminent — pylibstats'
-   `pin-currency` canary fails on its next monthly run until then.
+2. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
+   0.6.0 released on the v2.3.0 pin (floor and tag together); its
+   `pin-currency` canary is green. Re-bump at v2.3.1.
 3. v2.3.2 after v2.3.1 (#113 first — it corrects the record #47/#52 rest on).
 4. Scope #47/#52 for v2.5.0 with #113's correction in hand, then
    v2.4.0/v2.5.0 or the v3.0.0 refactor.
