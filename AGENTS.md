@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.3.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. 53/53 correctness tests pass natively on Asus TUF A16 AVX-512 (2026-08-20); the Kaby Lake AVX2+FMA and Mac Mini M1 NEON legs are CI-validated (including the ARM-runner NEON leg, in place since v2.0.0) but not yet natively re-run for this release. See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.3.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. All three fleet machines validated natively: Asus TUF A16 AVX-512 2026-08-20 (53/53), Kaby Lake AVX2+FMA 2026-08-22 (53/53), Mac Mini M1 NEON 2026-08-23 (55/55 — count-definition note in PLAN.md). See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
