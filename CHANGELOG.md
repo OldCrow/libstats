@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `libstats.pc` is relocatable: `prefix` derives from `${pcfiledir}`, so
+  `cmake --install <build> --prefix <other>` (and moving an installed
+  tree) no longer leave stale absolute paths baked at configure time.
+
 ### Fixed
 - Gaussian: the standard-normal fast path is selected only for exactly
   (0, 1). The previous 1e-8 tolerance made pdf/cdf constant in μ over

@@ -588,8 +588,8 @@ create_simd_interface_target()
 # INTERFACE on libstats_simd_interface, which looked like it propagated "to all consumers" but did
 # not: the exported library targets reference that interface as $<LINK_ONLY:...>, and LINK_ONLY
 # strips usage requirements. The probe result now travels in the generated libstats_config.h
-# (configure_file above, installed below), which reaches every TU that includes a libstats header
-# by construction. See #97 and the header's own comment.
+# (configure_file above, installed below), which reaches every TU that includes a libstats header by
+# construction. See #97 and the header's own comment.
 
 # Apply per-source-file SIMD compile flags once (file-global properties).
 apply_simd_source_flags()
@@ -727,9 +727,9 @@ install(
 # "include/libstats" -- DIRECTORY installs the libstats/ directory itself into DESTINATION, landing
 # its contents at ${CMAKE_INSTALL_INCLUDEDIR}/libstats/... (same result as the old include/ ->
 # .../libstats mapping, now that the source tree already mirrors the install tree).
-# platform/internal/ is installed deliberately: platform/thread_pool.h and
-# work_stealing_pool.h #include "internal/type_traits.h" in their public interface,
-# so excluding the directory would break every installed consumer.
+# platform/internal/ is installed deliberately: platform/thread_pool.h and work_stealing_pool.h
+# #include "internal/type_traits.h" in their public interface, so excluding the directory would
+# break every installed consumer.
 install(
     DIRECTORY include/libstats
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -810,6 +810,11 @@ endif()
 # ===============================================================================
 # pkg-config file generation
 # ===============================================================================
+# Path from <prefix>/<libdir>/pkgconfig back to <prefix> (usually ../..; handles multiarch libdirs
+# too). Consumed by cmake/libstats.pc.in.
+file(RELATIVE_PATH LIBSTATS_PC_PREFIX_REL "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig"
+     "${CMAKE_INSTALL_PREFIX}")
+string(REGEX REPLACE "/$" "" LIBSTATS_PC_PREFIX_REL "${LIBSTATS_PC_PREFIX_REL}")
 if(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
     set(LIBSTATS_PC_LIBS_PRIVATE "-pthread")
     if(LIBSTATS_HAS_TBB)
