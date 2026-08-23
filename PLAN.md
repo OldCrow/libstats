@@ -202,7 +202,7 @@ history.
   no API change); the second exists because its items change numbers
   (caps/tolerance, thresholds) or edge-case policy, so they must not gate
   the correctness patch. Structural items go to the existing major.
-- **v2.3.1 — Correctness patch** (open, #7): 6 open / 0 closed.
+- **v2.3.1 — Correctness patch** (open, #7): 7 open / 0 closed.
   - #105 OPEN — `vector_log` NaN → 710.188 on every x86 tier (`cmpunord`
     blend, four sites); LogNormal batch cdf(NaN) = 1 today.
   - #102 OPEN — batch NaN propagation (moved from v2.4.0). Sweep re-run
@@ -216,12 +216,16 @@ history.
   - #115 OPEN — `operator>>` round-trip broken for Discrete/Uniform/Beta.
   - #112 OPEN — batch aliasing contract: central `autoDispatch` check or
     documented no-aliasing (the doc half landed 2026-08-21).
-  - [OPEN] Review note 2026-08-22: #117 (AVX-512 DQ/XCR0 gate missing) and
-    #118 (`parallelFor` swallows exceptions; the naive fix is a UAF) sit in
-    v2.3.2 but are correctness-grade — decide whether they move to v2.3.1.
+  - #117 OPEN — CPUID gates: AVX-512 tier on F alone (DQ intrinsics, no
+    XCR0 opmask/ZMM check), AVX2 without FMA check, MSVC probe F-only.
+    Moved from v2.3.2 on 2026-08-23: pylibstats wheels dispatch at runtime,
+    so this is an illegal-instruction fault, not hygiene (libhmm #83 parity).
+  - [OPEN] Review note 2026-08-22: #118 (`parallelFor` swallows exceptions;
+    the naive fix is a UAF) sits in v2.3.2 but is correctness-grade — decide
+    whether it moves to v2.3.1; sequence with #111 either way.
   Exit: regression tests from the issues in place; sweep regenerated and
   #102 re-scoped from it; AVX-512 native correctness suite green.
-- **v2.3.2 — Accuracy, contracts & kernel hygiene** (open, #8): 10 open /
+- **v2.3.2 — Accuracy, contracts & kernel hygiene** (open, #8): 9 open /
   0 closed.
   - #113 OPEN — incomplete-gamma/beta iteration caps and Lentz tolerance
     (corrects the accuracy premise recorded against #47/#52).
@@ -230,9 +234,9 @@ history.
   - #109 OPEN — re-profile the Cauchy CDF thresholds (rows marked STALE).
   - #111 OPEN — von Mises batch CDF blocking + the noexcept/allocation
     policy; #110 OPEN — one erfc tail-branch helper (bit-neutral).
-  - #107 OPEN — one clean-room trig table; #117 OPEN — CPUID DQ/FMA/XCR0
-    gates; #118 OPEN — `parallelFor` exception contract; #114 OPEN —
-    review backlog.
+  - #107 OPEN — one clean-room trig table; #118 OPEN — `parallelFor`
+    exception contract; #114 OPEN — review backlog. (#117 moved to v2.3.1
+    on 2026-08-23.)
   Exit: `docs/ACCURACY_CHARACTERIZATION.md` attribution corrected and the
   sweep regenerated; per-tier accuracy gates for #113.
 - **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
@@ -371,7 +375,8 @@ session artifact; the issues carry the detail.
 1. **v2.3.1 — Correctness patch** is next. The sweep re-run is done
    (Kaby Lake, 2026-08-23; #102 re-scoped to 11 distributions on AVX2, 8 on
    AVX-512); continue with #105 (whose mechanism the re-run confirmed on
-   AVX2), #102, #116, #106, #115, #112. Bump `[Unreleased]` in CHANGELOG to 2.3.1 at release and coordinate
+   AVX2), #102, #117 (moved in 2026-08-23; needs the Ryzen box to assert
+   the gate natively), #116, #106, #115, #112. Bump `[Unreleased]` in CHANGELOG to 2.3.1 at release and coordinate
    the pylibstats pin.
 2. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
    0.6.0 released on the v2.3.0 pin (floor and tag together); its
