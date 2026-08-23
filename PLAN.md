@@ -205,9 +205,11 @@ history.
 - **v2.3.1 — Correctness patch** (open, #7): 6 open / 0 closed.
   - #105 OPEN — `vector_log` NaN → 710.188 on every x86 tier (`cmpunord`
     blend, four sites); LogNormal batch cdf(NaN) = 1 today.
-  - #102 OPEN — batch NaN propagation (moved from v2.4.0): re-run
-    `accuracy_sweep` with the specials in-vector FIRST, then re-scope the
-    victim list — the #46 list is structurally incomplete.
+  - #102 OPEN — batch NaN propagation (moved from v2.4.0). Sweep re-run
+    done 2026-08-23 on Kaby Lake (AVX2): victim list is ISA-dependent —
+    the 8 Zen 4 distributions plus cauchy, lognormal, student_t on AVX2
+    (11 total), via the #105 `vector_log` mechanism. Fix and gate per
+    tier; see ACCURACY_CHARACTERIZATION.md "Second machine".
   - #106 OPEN — von Mises κ > 1000 fallback wraps x, not x − μ; add
     κ = 2000/10000 gate rows.
   - #116 OPEN — NegBin/Geometric quantile returns 0 past INT_MAX.
@@ -280,7 +282,9 @@ history.
   validation matrix": Asus TUF A16 AVX-512 ran natively; the Mac Mini M1
   NEON leg is CI-green but not natively re-run; it is the remaining half of
   prerequisite (a) of the v2.5.0 staging. The Kaby Lake `accuracy_sweep`
-  for `docs/ACCURACY_CHARACTERIZATION.md` is still to be taken.
+  ran 2026-08-23 (recorded as a delta section in
+  `docs/ACCURACY_CHARACTERIZATION.md`; von Mises Tier 2 gap and the #102
+  AVX2 victims are the findings).
 - [OPEN, file issue] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
   is flaky on the AVX-512 validation machine** — 2 failures in 3
   back-to-back runs on the v2.2.0 run (1.5x, 2026-08-16) and 1.44x on the
@@ -364,9 +368,10 @@ session artifact; the issues carry the detail.
   tail); the von Mises fallback error is ≈ 0.04/κ, not O(1/κ²).
 
 ## Next Steps
-1. **v2.3.1 — Correctness patch** is next: start with the sweep re-run
-   (specials now in-vector) to re-scope #102, then #105, #116, #106, #115,
-   #112. Bump `[Unreleased]` in CHANGELOG to 2.3.1 at release and coordinate
+1. **v2.3.1 — Correctness patch** is next. The sweep re-run is done
+   (Kaby Lake, 2026-08-23; #102 re-scoped to 11 distributions on AVX2, 8 on
+   AVX-512); continue with #105 (whose mechanism the re-run confirmed on
+   AVX2), #102, #116, #106, #115, #112. Bump `[Unreleased]` in CHANGELOG to 2.3.1 at release and coordinate
    the pylibstats pin.
 2. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
    0.6.0 released on the v2.3.0 pin (floor and tag together); its

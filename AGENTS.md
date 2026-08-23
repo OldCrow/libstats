@@ -86,8 +86,8 @@ a stray `exchangesyncd` — a handicap on the parallel path, so the pass is
 conservative.
 
 The mpmath accuracy characterization (`docs/ACCURACY_CHARACTERIZATION.md`,
-#46) is PROVISIONAL until the M1 leg is natively re-run (Kaby Lake ran 2026-08-22;
-its `accuracy_sweep` is still to be taken).
+#46) is PROVISIONAL until the M1 leg is natively re-run (Kaby Lake validation ran
+2026-08-22 and its `accuracy_sweep` 2026-08-23, recorded as a delta section).
 
 For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
 

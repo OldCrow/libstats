@@ -6,11 +6,11 @@ Issue #46. Full sweep of `pdf`/`logpdf`/`cdf`/`quantile` — scalar and batch
 `tools/accuracy_vs_mpmath.py`.
 
 > **PROVISIONAL.** Not the same standing as an audited per-tier accuracy
-> claim. Currently one machine only: Zen 4 (AVX-512), MSVC Release; scalar
-> libm baseline is MSVC's UCRT. Per-ISA results differ — the Kaby Lake
-> (AVX2) and M1 (NEON) legs are pending and are not represented below. Do
-> not read a bound in this document as holding on any other target until
-> those legs land.
+> claim. The generated tables below are one machine: Zen 4 (AVX-512), MSVC
+> Release; scalar libm baseline is MSVC's UCRT. The Kaby Lake (AVX2,
+> AppleClang) leg ran 2026-08-23 and is summarised as a delta in "Second
+> machine" below — it is not merged into the tables. The M1 (NEON) leg is
+> pending. Do not read a bound here as holding on a target that has not run.
 
 ## Regenerating
 
@@ -78,6 +78,36 @@ that row, not a defect:
   `rel = 1.0` rows at exact lattice probabilities (`F(k) == p`) are a
   right-continuous-inverse convention difference, one integer off, not
   an accuracy defect.
+
+## Second machine: Kaby Lake AVX2 (2026-08-23)
+
+Same sweep (5928 rows, `accuracy_sweep` banner `commit=cd87ab0 isa=AVX2`),
+i7-7820HQ, AppleClang Release (`release` preset), libc++ — so no
+`std::cyl_bessel_i` and the Bessel Tier 2 fallback is active. Compared
+against the Zen 4 tables below per (distribution, method, source) on
+`max_rel`; everything not listed agrees within 2x (last-digit libm noise).
+
+- **von Mises `pdf`/`logpdf`, scalar and batch: 4.7e-7 / 8.5e-7** vs
+  1.4e-14 / 5.2e-15 on Zen 4. That is the Tier 2 Bessel fallback, already
+  recorded per-ISA in `docs/SIMD_OPTIMIZATION_REFERENCE.md`; the CDF rows
+  (own Bessel series, gated by `test_vonmises_cdf_accuracy`) match Zen 4.
+  This is the #47 / v2.5.0 (corvus) line item seen from the other side.
+- **student_t `pdf`/`logpdf`: 7.2e-10 to 7.9e-10** vs 2.1e-10 to 2.6e-10
+  (3-3.5x). Same iteration-cap class as #113; bounded, not a new defect.
+- cauchy batch `logpdf` 1.5e-15 vs 6.4e-16 — libm difference only.
+- **Contract violations: 123 vs 86, and the Kaby Lake set is a strict
+  superset** — nothing Zen 4 flagged disappears; 37 rows appear, all
+  "NaN input did not produce NaN batch output", in three distributions
+  that were clean on AVX-512: **cauchy, lognormal, student_t** (`pdf`,
+  `logpdf`, and lognormal `cdf`). Decoded: lognormal batch
+  `pdf(NaN) = 0`, `logpdf(NaN) = -252894.7`, `cdf(NaN) = 1.0`; student_t
+  batch `pdf(NaN) = 0`, `logpdf(NaN) = -2131.5`; cauchy batch
+  `pdf(NaN) = 1.2e-309`, `logpdf(NaN) = -711.3`. This is the #105
+  `vector_log` NaN-laundering mechanism (710.188 squared/2 is visible in
+  the lognormal logpdf value), which the AVX-512 kernels happen not to
+  exhibit. **#102 re-scope: the batch-NaN victim list is ISA-dependent —
+  8 distributions on AVX-512, 11 on AVX2.** Any fix must be gated on the
+  AVX2 tier (the sweep re-run the plan asked for, done).
 
 ## Findings
 
