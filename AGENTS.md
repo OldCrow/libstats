@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.3.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. All three fleet machines validated natively: Asus TUF A16 AVX-512 2026-08-20 (53/53), Kaby Lake AVX2+FMA 2026-08-22 (53/53), Mac Mini M1 NEON 2026-08-23 (55/55 — count-definition note in PLAN.md). See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.3.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. All three fleet machines validated natively for this release: Asus TUF A16 AVX-512 2026-08-20, Kaby Lake AVX2+FMA 2026-08-22, Mac Mini M1 NEON 2026-08-23 — 53/53 correctness each. See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -62,10 +62,14 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 
 ### Current validation matrix (v2.3.0)
 
+Correctness column = `ctest -LE "timing|benchmark"` (53 registered; the two
+`benchmark`-labelled tests are excluded by definition, the 22 `timing` ones
+run separately on a quiet machine).
+
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
 | Asus TUF A16 (Windows) | AVX-512 | 53/53 ✅ | 21/22 ⚠️ | Native, 2026-08-20, MSVC Release |
-| Mac Mini M1 | NEON | 55/55 ✅ | 22/22 ⚠️ | Native, 2026-08-23, AppleClang 21 Release, v2.3.0 tag, Bessel Tier 2; timing ran on a loaded machine (indicative only); 55 = `ctest -LE timing` (see PLAN count note) |
+| Mac Mini M1 | NEON | 53/53 ✅ | 22/22 ⚠️ | Native, 2026-08-23, AppleClang 21 Release, v2.3.0 tag + main, Bessel Tier 2; timing ran on a loaded machine (indicative only) |
 | Kaby Lake (2017 MBP) | AVX2+FMA | 53/53 ✅ | 22/22 ✅ | Native, 2026-08-22, AppleClang Release (`release` preset); Bessel Tier 2 (libc++ has no `cyl_bessel_i`) |
 
 The correctness count grew 49 → 53 with v2.3.0's four new accuracy gates:

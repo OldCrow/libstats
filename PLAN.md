@@ -290,12 +290,14 @@ history.
   #102 AVX2 victims are the findings); Mac Mini M1 NEON 2026-08-23 on
   the v2.3.0 tag (55/55 via `ctest -LE timing`; all 22 timing tests
   passed but on a loaded machine — indicative only). Prerequisite (a)
-  of the v2.5.0 staging is complete. Count note: the M1's
-  `ctest -LE timing` counts 55 where both x86 sessions report 53 — the
-  three NEON accuracy tests register everywhere and self-skip off-NEON,
-  so registration does not explain the 2-test gap; reconcile the
-  counting command next time an x86 box runs the suite and settle one
-  definition for the matrix cells.
+  of the v2.5.0 staging is complete. Count note RESOLVED
+  2026-08-23: the 55-vs-53 gap was the exclusion regex, not the ISA —
+  exactly two tests carry the `benchmark` label (`benchmark_simd_all`,
+  `test_benchmark`), so `ctest -LE timing` counts 55 where
+  `ctest -LE "timing|benchmark"` counts 53 on the same build. Settled
+  definition (now stated above the AGENTS matrix): correctness =
+  `ctest -LE "timing|benchmark"` = 53; all three machines are 53/53 (the
+  M1's two benchmark-labelled tests passed as well, outside the count).
 - [2026-08-23] **M1 NEON accuracy sweep (v2.3.0 tag, AppleClang 21,
   Bessel Tier 2).** `accuracy_sweep` + `accuracy_vs_mpmath.py`, 5928 rows,
   42/42 self-checks; 76 contract violations vs Zen 4's 86. The
