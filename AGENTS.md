@@ -65,7 +65,7 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
 | Asus TUF A16 (Windows) | AVX-512 | 53/53 ✅ | 21/22 ⚠️ | Native, 2026-08-20, MSVC Release |
-| Mac Mini M1 | NEON | — | — | **Not yet re-validated for v2.3.0** (CI ARM-runner leg green) |
+| Mac Mini M1 | NEON | 55/55 ✅ | 22/22 ⚠️ | Native, 2026-08-23, AppleClang 21 Release, v2.3.0 tag, Bessel Tier 2; timing ran on a loaded machine (indicative only); 55 = `ctest -LE timing` (see PLAN count note) |
 | Kaby Lake (2017 MBP) | AVX2+FMA | 53/53 ✅ | 22/22 ✅ | Native, 2026-08-22, AppleClang Release (`release` preset); Bessel Tier 2 (libc++ has no `cyl_bessel_i`) |
 
 The correctness count grew 49 → 53 with v2.3.0's four new accuracy gates:
@@ -86,8 +86,11 @@ a stray `exchangesyncd` — a handicap on the parallel path, so the pass is
 conservative.
 
 The mpmath accuracy characterization (`docs/ACCURACY_CHARACTERIZATION.md`,
-#46) is PROVISIONAL until the M1 leg is natively re-run (Kaby Lake validation ran
-2026-08-22 and its `accuracy_sweep` 2026-08-23, recorded as a delta section).
+#46) is PROVISIONAL until every ISA block is regenerated in place: the Kaby
+Lake sweep is recorded (2026-08-23, delta section), and the M1 NEON sweep ran
+2026-08-23 (42/42 self-checks, 76 contract violations vs Zen 4's 86; findings
+and deltas in PLAN.md) but its `isa=NEON` block is not yet regenerated into
+the doc.
 
 For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
 

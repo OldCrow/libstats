@@ -282,14 +282,46 @@ history.
   threshold, so for x in that one-double window the kernels return
   `exp(exp_max)` (~214 ULP low) where `std::exp` is still finite. This is a
   deliberate safety margin against a 1-ULP overshoot to inf; left as is.
-- [2026-08-16, updated 2026-08-22] **Native validation covers two machines
-  of three** (Kaby Lake leg ran 2026-08-22: 53/53, 22/22). The authoritative v2.3.0 matrix is AGENTS.md "Current
-  validation matrix": Asus TUF A16 AVX-512 ran natively; the Mac Mini M1
-  NEON leg is CI-green but not natively re-run; it is the remaining half of
-  prerequisite (a) of the v2.5.0 staging. The Kaby Lake `accuracy_sweep`
-  ran 2026-08-23 (recorded as a delta section in
-  `docs/ACCURACY_CHARACTERIZATION.md`; von Mises Tier 2 gap and the #102
-  AVX2 victims are the findings).
+- [2026-08-16, updated 2026-08-23] **Native validation covers all three
+  machines.** Asus TUF A16 AVX-512 natively 2026-08-20 (53/53, 21/22
+  timing); Kaby Lake AVX2+FMA 2026-08-22 (53/53, 22/22, its
+  `accuracy_sweep` recorded 2026-08-23 as a delta section in
+  `docs/ACCURACY_CHARACTERIZATION.md` — von Mises Tier 2 gap and the
+  #102 AVX2 victims are the findings); Mac Mini M1 NEON 2026-08-23 on
+  the v2.3.0 tag (55/55 via `ctest -LE timing`; all 22 timing tests
+  passed but on a loaded machine — indicative only). Prerequisite (a)
+  of the v2.5.0 staging is complete. Count note: the M1's
+  `ctest -LE timing` counts 55 where both x86 sessions report 53 — the
+  three NEON accuracy tests register everywhere and self-skip off-NEON,
+  so registration does not explain the 2-test gap; reconcile the
+  counting command next time an x86 box runs the suite and settle one
+  definition for the matrix cells.
+- [2026-08-23] **M1 NEON accuracy sweep (v2.3.0 tag, AppleClang 21,
+  Bessel Tier 2).** `accuracy_sweep` + `accuracy_vs_mpmath.py`, 5928 rows,
+  42/42 self-checks; 76 contract violations vs Zen 4's 86. The
+  `isa=NEON` block is NOT yet regenerated into
+  `docs/ACCURACY_CHARACTERIZATION.md` (the per-ISA block structure
+  landed the same day from the Kaby session) — regenerate on this
+  machine to close that. Durable deltas vs the Zen 4 doc:
+  **#47 REPRODUCES** — `LIBSTATS_HAS_CXX17_BESSEL`
+  probe fails on libc++, Tier 2 A&S active; measured `bessel_i0` relative
+  error 1.29e-8 at x=10, worst 4.73e-7 at x=100, landing directly in von
+  Mises pdf/logpdf (max_rel 4.7e-7/8.5e-7 vs ~1e-14 on Zen 4 Tier 1);
+  von Mises CDF unaffected (#51 gate holds at every tier) — consistent
+  with the Kaby sweep's von Mises Tier 2 gap. The 8
+  batch-NaN rows that fail on Zen 4 all PASS on NEON (10 fewer
+  violations — #102's victim list is tier-dependent, matching the Kaby
+  re-scope). Headline
+  large-parameter findings reproduce identically (binomial n=1e6 1.28e-2,
+  chi-squared k=1e5 8.3e-6, beta (1e4,1e4) 4.1e-9). NEW FINDING, worth an
+  issue: Geometric/NegativeBinomial quantile/cdf/logpdf do
+  `static_cast<int>(std::round(x))` (negative_binomial.cpp:244,269,294);
+  for x > INT_MAX that cast is UB and ISA-dependent — x86 wraps to
+  INT_MIN (cdf→0, logpdf→−inf), AArch64 saturates to INT_MAX (cdf→1.0,
+  logpdf = constant −2161.30). Both wrong; same defect class as libhmm
+  #88. Doc nits found: ACCURACY_CHARACTERIZATION "Regenerating" says
+  `cmake --build build` (preset dir is `build-release`) and
+  `accuracy_sweep > sweep.csv` (the tool takes the path as an argument).
 - [OPEN, file issue] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
   is flaky on the AVX-512 validation machine** — 2 failures in 3
   back-to-back runs on the v2.2.0 run (1.5x, 2026-08-16) and 1.44x on the
