@@ -75,6 +75,7 @@ from the same statistics.
 from __future__ import annotations
 
 import argparse
+import re
 import math
 import os
 import struct
@@ -1416,6 +1417,9 @@ def parse_csv(path: str) -> "tuple[list[Row], dict]":
             if line.startswith("#"):
                 if "commit=" in line and "isa=" in line:
                     meta["banner"] = line.lstrip("#").strip()
+                    m = re.search(r"isa=(\S+)", meta["banner"])
+                    if m:
+                        meta["isa"] = m.group(1)
                 continue
             if line == "dist,method,p1_bits,p2_bits,x_bits,scalar_bits,batch_bits":
                 # Literal column-header line the sweep tool emits (see the
@@ -1732,20 +1736,54 @@ def render_markdown(groups: dict) -> str:
     return "\n".join(lines)
 
 
-GEN_BEGIN = "<!-- BEGIN GENERATED -->"
-GEN_END = "<!-- END GENERATED -->"
+# One generated block per ISA, so a sweep from a second machine adds a
+# block instead of overwriting the first. The ISA label is the sweep
+# banner's `isa=` value (SIMDPolicy::getLevelString(): "AVX-512", "AVX2",
+# "AVX", "SSE2", "NEON"). The unlabelled `<!-- BEGIN GENERATED -->` form is
+# the pre-2026-08-23 single-machine layout; it is refused rather than
+# silently overwritten -- relabel it by hand once with the ISA it holds.
+GEN_BEGIN_FMT = "<!-- BEGIN GENERATED isa={isa} -->"
+GEN_END_FMT = "<!-- END GENERATED isa={isa} -->"
+GEN_END_ANY = re.compile(r"^<!-- END GENERATED isa=\S+ -->$", re.M)
+GEN_LEGACY = "<!-- BEGIN GENERATED -->"
 
 
-def rewrite_doc(doc_path: str, generated_body: str) -> None:
+def _marker_re(marker: str) -> "re.Pattern[str]":
+    # Markers count only as whole lines, so prose that quotes a marker (the
+    # doc's own "Regenerating" section does) is not mistaken for one.
+    return re.compile("^" + re.escape(marker) + "$", re.M)
+
+
+def rewrite_doc(doc_path: str, generated_body: str, isa: str) -> str:
+    """Replace the `isa` block in doc_path, or append a new one after the last
+    existing labelled block. Returns "replaced" or "added"."""
     with open(doc_path, "r", encoding="utf-8") as f:
         text = f.read()
-    if GEN_BEGIN not in text or GEN_END not in text:
-        raise ValueError(f"{doc_path}: missing {GEN_BEGIN}/{GEN_END} markers")
-    pre, rest = text.split(GEN_BEGIN, 1)
-    _, post = rest.split(GEN_END, 1)
-    new_text = pre + GEN_BEGIN + "\n\n" + generated_body + "\n" + GEN_END + post
+    if _marker_re(GEN_LEGACY).search(text):
+        raise ValueError(
+            f"{doc_path}: found the unlabelled {GEN_LEGACY} block; relabel it "
+            f"as {GEN_BEGIN_FMT.format(isa='<ISA>')} / {GEN_END_FMT.format(isa='<ISA>')} "
+            "with the ISA it was generated on before regenerating"
+        )
+    begin = GEN_BEGIN_FMT.format(isa=isa)
+    end = GEN_END_FMT.format(isa=isa)
+    block = begin + "\n\n" + generated_body + "\n" + end
+    mb, me = _marker_re(begin).search(text), _marker_re(end).search(text)
+    if mb:
+        if not me or me.start() < mb.end():
+            raise ValueError(f"{doc_path}: {begin} without matching {end}")
+        new_text = text[: mb.start()] + block + text[me.end() :]
+        outcome = "replaced"
+    else:
+        ends = list(GEN_END_ANY.finditer(text))
+        if not ends:
+            raise ValueError(f"{doc_path}: no labelled GENERATED block to append after")
+        at = ends[-1].end()
+        new_text = text[:at] + "\n\n" + block + text[at:]
+        outcome = "added"
     with open(doc_path, "w", encoding="utf-8") as f:
         f.write(new_text)
+    return outcome
 
 
 # ---------------------------------------------------------------------------
@@ -1760,6 +1798,11 @@ def main(argv=None) -> int:
         "--out",
         default=None,
         help="path to docs/ACCURACY_CHARACTERIZATION.md (default: alongside this script's repo root)",
+    )
+    parser.add_argument(
+        "--isa",
+        default=None,
+        help="ISA label for the generated block (default: the sweep banner's isa= value)",
     )
     args = parser.parse_args(argv)
 
@@ -1784,9 +1827,14 @@ def main(argv=None) -> int:
 
     print_stdout_summary(groups, skipped, violations_total)
 
-    body = render_markdown(groups)
-    rewrite_doc(doc_path, body)
-    print(f"\nWrote generated block to {doc_path}")
+    isa = args.isa or meta.get("isa")
+    if not isa:
+        print("No isa= in the sweep banner and no --isa given; cannot label the generated block", file=sys.stderr)
+        return 1
+    banner = meta.get("banner", "(no banner)")
+    body = f"## Generated tables: {isa}\n\nSweep banner: `{banner}`\n\n" + render_markdown(groups)
+    outcome = rewrite_doc(doc_path, body, isa)
+    print(f"\n{outcome.capitalize()} generated block isa={isa} in {doc_path}")
 
     return 0
 
