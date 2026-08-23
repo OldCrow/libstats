@@ -23,7 +23,7 @@ Cross-library throughput and accuracy comparison run via `pylibstats/benchmarks/
 | Machine | CPU | SIMD | OS | Python |
 |---|---|---|---|---|
 | Asus TUF A16 | AMD Ryzen 7 7445HS (Zen 4) | AVX-512 | Windows 11 | 3.12.10 |
-| MacBook Pro 14,1 (2017) | Intel Core i7-7820HQ (Kaby Lake) | AVX2+FMA | macOS Tahoe | 3.14.6 |
+| MacBook Pro 14,1 (2017) | Intel Core i7-7820HQ (Kaby Lake) | AVX2+FMA | macOS Ventura | 3.14.6 |
 
 ### Peak throughput highlights (pylibstats absolute, at optimal batch size)
 
