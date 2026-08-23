@@ -86,11 +86,10 @@ a stray `exchangesyncd` — a handicap on the parallel path, so the pass is
 conservative.
 
 The mpmath accuracy characterization (`docs/ACCURACY_CHARACTERIZATION.md`,
-#46) is PROVISIONAL until every ISA block is regenerated in place: the Kaby
-Lake sweep is recorded (2026-08-23, delta section), and the M1 NEON sweep ran
-2026-08-23 (42/42 self-checks, 76 contract violations vs Zen 4's 86; findings
-and deltas in PLAN.md) but its `isa=NEON` block is not yet regenerated into
-the doc.
+#46) covers all three fleet ISAs as of 2026-08-23 (Zen 4 AVX-512, Kaby Lake
+AVX2, M1 NEON — each a generated block labelled by its sweep banner, with
+per-machine delta prose). It is a characterization, not an audited per-tier
+claim: bounds hold per ISA block only.
 
 For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
 

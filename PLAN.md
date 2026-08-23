@@ -299,10 +299,11 @@ history.
 - [2026-08-23] **M1 NEON accuracy sweep (v2.3.0 tag, AppleClang 21,
   Bessel Tier 2).** `accuracy_sweep` + `accuracy_vs_mpmath.py`, 5928 rows,
   42/42 self-checks; 76 contract violations vs Zen 4's 86. The
-  `isa=NEON` block is NOT yet regenerated into
-  `docs/ACCURACY_CHARACTERIZATION.md` (the per-ISA block structure
-  landed the same day from the Kaby session) — regenerate on this
-  machine to close that. Durable deltas vs the Zen 4 doc:
+  `isa=NEON` block was regenerated into `docs/ACCURACY_CHARACTERIZATION.md`
+  later the same day from a fresh main-tree sweep (commit=e9fac49; totals
+  and rows identical to the tag run), with a "Third machine" prose
+  section; the doc's Regenerating snippet nits below were fixed in the
+  same change. Durable deltas vs the Zen 4 doc:
   **#47 REPRODUCES** — `LIBSTATS_HAS_CXX17_BESSEL`
   probe fails on libc++, Tier 2 A&S active; measured `bessel_i0` relative
   error 1.29e-8 at x=10, worst 4.73e-7 at x=100, landing directly in von
