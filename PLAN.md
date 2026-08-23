@@ -275,11 +275,12 @@ history.
   threshold, so for x in that one-double window the kernels return
   `exp(exp_max)` (~214 ULP low) where `std::exp` is still finite. This is a
   deliberate safety margin against a 1-ULP overshoot to inf; left as is.
-- [2026-08-16, updated 2026-08-22] **Native validation covers one machine
-  of three.** The authoritative v2.3.0 matrix is AGENTS.md "Current
+- [2026-08-16, updated 2026-08-22] **Native validation covers two machines
+  of three** (Kaby Lake leg ran 2026-08-22: 53/53, 22/22). The authoritative v2.3.0 matrix is AGENTS.md "Current
   validation matrix": Asus TUF A16 AVX-512 ran natively; the Mac Mini M1
-  NEON and Kaby Lake AVX2+FMA (2017 MBP) legs are CI-green but not natively
-  re-run. Those two legs are also prerequisite (a) of the v2.5.0 staging.
+  NEON leg is CI-green but not natively re-run; it is the remaining half of
+  prerequisite (a) of the v2.5.0 staging. The Kaby Lake `accuracy_sweep`
+  for `docs/ACCURACY_CHARACTERIZATION.md` is still to be taken.
 - [OPEN, file issue] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
   is flaky on the AVX-512 validation machine** — 2 failures in 3
   back-to-back runs on the v2.2.0 run (1.5x, 2026-08-16) and 1.44x on the

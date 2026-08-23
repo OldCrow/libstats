@@ -66,13 +66,13 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 |---|---|---|---|---|
 | Asus TUF A16 (Windows) | AVX-512 | 53/53 ✅ | 21/22 ⚠️ | Native, 2026-08-20, MSVC Release |
 | Mac Mini M1 | NEON | — | — | **Not yet re-validated for v2.3.0** (CI ARM-runner leg green) |
-| Kaby Lake (2017 MBP) | AVX2+FMA | — | — | **Not yet re-validated for v2.3.0** (CI leg green) |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 53/53 ✅ | 22/22 ✅ | Native, 2026-08-22, AppleClang Release (`release` preset); Bessel Tier 2 (libc++ has no `cyl_bessel_i`) |
 
 The correctness count grew 49 → 53 with v2.3.0's four new accuracy gates:
 `test_trig_ulp_gates`, `test_vonmises_cdf_accuracy`, `test_lognormal_cdf_accuracy`,
 `test_gaussian_cdf_accuracy`.
 
-The one timing failure is the same `UniformEnhancedTest.
+The Zen 4 timing failure is the same `UniformEnhancedTest.
 SIMDAndParallelBatchImplementations` speedup assertion carried from the
 v2.2.0 matrix (1.5x on that run, 1.44x on this one, both against a 1.8x
 adaptive threshold at 5000 elements on a settled machine) — flaky, not a
@@ -80,10 +80,14 @@ regression;
 nothing in v2.3.0 touches uniform kernels or the dispatch thresholds it
 measures. Timing tests carry the `timing` label and are excluded from CI
 everywhere, so this is a real-hardware finding, not a CI one.
+On Kaby Lake the same gate passed twice (Vectorized 22.9x at 5000
+elements), both runs serial (`ctest -j1 -L timing`) with one core held by
+a stray `exchangesyncd` — a handicap on the parallel path, so the pass is
+conservative.
 
 The mpmath accuracy characterization (`docs/ACCURACY_CHARACTERIZATION.md`,
-#46) is PROVISIONAL for the same reason this matrix is one-row: Zen 4 only
-until the Kaby Lake and M1 legs are natively re-run.
+#46) is PROVISIONAL until the M1 leg is natively re-run (Kaby Lake ran 2026-08-22;
+its `accuracy_sweep` is still to be taken).
 
 For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
 
