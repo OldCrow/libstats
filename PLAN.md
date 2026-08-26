@@ -221,17 +221,24 @@ history.
   Debug AND Dev configs); #118 parallelFor propagates (wait-all-then-
   harvest); WorkStealingPool still swallows by design — asymmetry
   documented, caller-visible, platform-dependent.
-- **v2.3.2 — Accuracy, contracts & kernel hygiene** (open, #8): 8 open /
+- **v2.3.2 — Accuracy, contracts & kernel hygiene** (open, #8): 12 open /
   0 closed.
   - #113 OPEN — incomplete-gamma/beta iteration caps and Lentz tolerance
     (corrects the accuracy premise recorded against #47/#52).
   - #104 OPEN — quantile contract at extreme p (+ the verified Cauchy
-    split-form fix, on the issue); #103 OPEN — ±inf input contract.
+    split-form fix, on the issue); #103 OPEN — ±inf input contract (scope
+    grew 2026-08-25: +12 poisson logpdf(±inf) = −4605 rows, see comment).
   - #109 OPEN — re-profile the Cauchy CDF thresholds (rows marked STALE).
   - #111 OPEN — von Mises batch CDF blocking + the noexcept/allocation
     policy; #110 OPEN — one erfc tail-branch helper (bit-neutral).
   - #107 OPEN — one clean-room trig table; #114 OPEN — review backlog.
-    (#117 and #118 moved to v2.3.1 on 2026-08-23.)
+  - Filed 2026-08-25 from v2.3.1 findings: #125 OPEN — NegBin/Geometric
+    public cdf/logpdf int-narrowing past INT_MAX (UB, ISA-dependent;
+    quantile/CDF inconsistency); #126 OPEN — beta_i ~1e-6 abs at b ≳ 1e9
+    (lgamma cancellation; sequence with #113); #127 OPEN —
+    parallelReduce/parallelStatOperation early-rethrow harvest (the #118
+    shape); #129 OPEN — flaky Uniform speedup gate on Zen 4 (widen or
+    drop; was a PLAN Known Gap since v2.2.0, now filed).
   Exit: `docs/ACCURACY_CHARACTERIZATION.md` attribution corrected and the
   sweep regenerated; per-tier accuracy gates for #113.
 - **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
@@ -250,11 +257,13 @@ history.
   #60 Triangular, #61 Wald, #62 Hypergeometric + BetaBinomial + Zipf.
   #62's Zipf CDF design (summation vs Hurwitz-zeta closed form) must be
   settled before this milestone's planning — it scopes corvus P3 work.
-- **v3.0.0 — Architecture Refactor** (open, #4): 5 open / 0 closed —
+- **v3.0.0 — Architecture Refactor** (open, #4): 6 open / 0 closed —
   #40 split CMakeLists.txt into cmake/ modules, #41 unify the dual SIMD
   namespace, #42 decompose parallel_execution.h, #43 extract dispatch/cache
   boilerplate into a CRTP or policy helper, #108 trig-kernel duplication
-  (record the `simd_neon.cpp:761` decision or a per-tier traits layer).
+  (record the `simd_neon.cpp:761` decision or a per-tier traits layer),
+  #128 SIMDPolicy::detectBestLevel dead-code ladder duplication (filed
+  2026-08-25, pairs with #41).
 
 ## GitHub Issues Without Milestone [DERIVED]
 - Open: none — #103/#104 and the 2026-08-21 review set #105–#118 are all
@@ -273,19 +282,11 @@ history.
   v2.3.1 + GitHub release, close milestone #7, bump pylibstats pin,
   file the follow-up issues below [user approval pending], Kaby Lake +
   M1 native validation runs for the v2.3.1 matrix.
-- **Follow-up issue candidates** (file with user approval): (a) NegBin/
-  Geometric public cdf/logpdf/quantile int-narrowing past INT_MAX —
-  `getQuantile` can now return a count its own CDF maps to 0; joins the
-  unfiled M1 round-cast finding (negative_binomial.cpp:244,269,294, UB +
-  ISA-dependent). (b) `detail::beta_i` ~1e-6 abs error at b ≈ 1e9 (lgamma
-  cancellation; sets the #116 gate tolerance). (c) poisson logpdf(±inf)
-  = −4605 where the limit is −inf → add to #103's scope (12 sweep rows,
-  scalar and batch agree). (d) `parallelReduce`/`parallelStatOperation`
-  harvest with get() in their combine loops — the early-rethrow
-  use-after-free shape #118 warned about. (e) `SIMDPolicy::detectBestLevel()`
-  dead-code duplication with `SIMDState::initialize()`. (f) the
-  long-standing flaky `UniformEnhancedTest.SIMDAndParallelBatchImplementations`
-  timing gate (PLAN Known Gaps, still unfiled).
+- **Follow-ups FILED 2026-08-25** [user-approved]: #125 (NegBin int
+  narrowing), #126 (beta_i cancellation), #127 (parallelReduce harvest),
+  #129 (flaky Uniform gate) → v2.3.2; #128 (SIMDPolicy dead ladder) →
+  v3.0.0; poisson logpdf(±inf) rows → comment on #103. All itemized in
+  GitHub Milestones above.
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
@@ -338,7 +339,7 @@ history.
   #88. Doc nits found: ACCURACY_CHARACTERIZATION "Regenerating" says
   `cmake --build build` (preset dir is `build-release`) and
   `accuracy_sweep > sweep.csv` (the tool takes the path as an argument).
-- [OPEN, file issue] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
+- [FILED 2026-08-25 as #129, milestoned v2.3.2] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
   is flaky on the AVX-512 validation machine** — 2 failures in 3
   back-to-back runs on the v2.2.0 run (1.5x, 2026-08-16) and 1.44x on the
   v2.3.0 run (2026-08-20), both against a 1.8x adaptive threshold at
