@@ -580,16 +580,20 @@ bool test_avx2() {
         if(COMPILER_SUPPORTS_AVX512)
             # check_cxx_compiler_flag only tests that MSVC accepts the flag syntax, not that the
             # build machine's CPU can execute the resulting instructions. Use check_cxx_source_runs
-            # (compile + execute) to verify actual CPU support.
+            # (compile + execute) to verify actual CPU support. The probe executes
+            # _mm512_cvtepi64_pd — an AVX-512DQ instruction, matching what simd_avx512.cpp needs —
+            # so an F-only CPU fails the probe here the same way it does on the GCC path below.
             include(CheckCXXSourceRuns)
             set(_avx512_saved_req_flags "${CMAKE_REQUIRED_FLAGS}")
             set(CMAKE_REQUIRED_FLAGS "/arch:AVX512")
             check_cxx_source_runs(
                 "#include <intrin.h>
 int main() {
-    __m512d x = _mm512_setzero_pd();
-    (void)x;
-    return 0;
+    __m512i v = _mm512_set1_epi64(1);
+    __m512d d = _mm512_cvtepi64_pd(v);
+    double out[8];
+    _mm512_storeu_pd(out, d);
+    return out[0] == 1.0 ? 0 : 1;
 }"
                 RUNTIME_SUPPORTS_AVX512)
             set(CMAKE_REQUIRED_FLAGS "${_avx512_saved_req_flags}")

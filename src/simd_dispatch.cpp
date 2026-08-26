@@ -108,7 +108,8 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
+    // FMA is a separate CPUID bit from AVX2; simd_avx2.cpp assumes both.
+    if (stats::arch::supports_avx2() && stats::arch::supports_fma()) {
         t.dot_product = dot_product_avx2;
         t.vector_add = vector_add_avx2;
         t.vector_subtract = vector_subtract_avx2;
@@ -126,7 +127,9 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
 #endif
 
 #ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
+    // simd_avx512.cpp uses AVX-512DQ intrinsics (_mm512_cvtepi64_pd, _mm512_andnot_pd, ...),
+    // so F alone is not enough to run these kernels without SIGILL.
+    if (stats::arch::supports_avx512() && stats::arch::supports_avx512dq()) {
         t.dot_product = dot_product_avx512;
         t.vector_add = vector_add_avx512;
         t.vector_subtract = vector_subtract_avx512;
@@ -246,13 +249,13 @@ void VectorOps::vector_sin(const double* values, double* results, std::size_t si
 std::string VectorOps::get_active_simd_level() noexcept {
     // Return the highest SIMD level currently available at runtime
 #ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512()) {
+    if (stats::arch::supports_avx512() && stats::arch::supports_avx512dq()) {
         return "AVX-512";
     }
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
-    if (stats::arch::supports_avx2()) {
+    if (stats::arch::supports_avx2() && stats::arch::supports_fma()) {
         return "AVX2";
     }
 #endif
@@ -334,7 +337,8 @@ inline bool should_use_advanced_simd(std::size_t size, const void* ptr1, const v
 
 // For high-end SIMD (AVX-512), use for smaller aligned datasets
 #ifdef LIBSTATS_HAS_AVX512
-    if (stats::arch::supports_avx512() && size >= stats::arch::simd::OPT_AVX512_MIN_ALIGNED_SIZE &&
+    if (stats::arch::supports_avx512() && stats::arch::supports_avx512dq() &&
+        size >= stats::arch::simd::OPT_AVX512_MIN_ALIGNED_SIZE &&
         is_alignment_beneficial(ptr1, ptr2, ptr3)) {
         return true;
     }
