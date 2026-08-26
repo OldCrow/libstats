@@ -275,13 +275,13 @@ history.
   than trusting it between passes.
 
 ## In Progress [OPEN]
-- **v2.3.1 release close-out**: code merged and issues closed 2026-08-25;
-  bookkeeping commit (version strings, CHANGELOG [2.3.1], AGENTS matrix
-  58/58, VALIDATION_HISTORY archive, ACCURACY_CHARACTERIZATION AVX-512
-  block regen at 6063 rows / 63 violations) in flight. Remaining: tag
-  v2.3.1 + GitHub release, close milestone #7, bump pylibstats pin,
-  file the follow-up issues below [user approval pending], Kaby Lake +
-  M1 native validation runs for the v2.3.1 matrix.
+- **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
+  GitHub release published, milestone #7 closed (0 open / 13 closed),
+  pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
+  together, verified 424/424 pytest on Windows against the fetched tag —
+  a PyPI 0.6.1 on the new pin is a separate pylibstats decision).
+  Remaining for the v2.3.1 matrix: Kaby Lake + M1 native validation runs
+  (each also regenerates its characterization block on the 6063-row grid).
 - **Follow-ups FILED 2026-08-25** [user-approved]: #125 (NegBin int
   narrowing), #126 (beta_i cancellation), #127 (parallelReduce harvest),
   #129 (flaky Uniform gate) → v2.3.2; #128 (SIMDPolicy dead ladder) →
