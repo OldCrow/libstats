@@ -1044,6 +1044,10 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
                                                         double exp_neg_lambda) const noexcept {
     // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
+        if (std::isnan(values[i])) {
+            results[i] = values[i];
+            continue;
+        }
         if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
             continue;
@@ -1073,6 +1077,10 @@ void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
                                                            double log_lambda) const noexcept {
     // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
+        if (std::isnan(values[i])) {
+            results[i] = values[i];
+            continue;
+        }
         if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::MIN_LOG_PROBABILITY;
             continue;
@@ -1094,6 +1102,10 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
                                                                   double lambda) const noexcept {
     // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
+        if (std::isnan(values[i])) {
+            results[i] = values[i];
+            continue;
+        }
         if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
             continue;

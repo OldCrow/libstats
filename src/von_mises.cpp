@@ -917,9 +917,11 @@ void VonMisesDistribution::getLogProbabilityBatchUnsafeImpl(
     arch::simd::VectorOps::scalar_multiply(results, cached_kappa, results, count);
     arch::simd::VectorOps::scalar_add(results, -cached_log_normaliser, results, count);
 
-    // Fixup: non-finite inputs must produce -∞ regardless of the SIMD result
+    // Fixup: NaN propagates; ±inf must produce -∞ regardless of the SIMD result
     for (std::size_t i = 0; i < count; ++i) {
-        if (!std::isfinite(values[i]))
+        if (std::isnan(values[i]))
+            results[i] = values[i];
+        else if (!std::isfinite(values[i]))
             results[i] = detail::NEGATIVE_INFINITY;
     }
 }
@@ -934,9 +936,11 @@ void VonMisesDistribution::getProbabilityBatchUnsafeImpl(
     // Step 4: results[i] = exp(results[i])
     arch::simd::VectorOps::vector_exp(results, results, count);
 
-    // Fixup: non-finite inputs must produce 0
+    // Fixup: NaN propagates; ±inf must produce 0
     for (std::size_t i = 0; i < count; ++i) {
-        if (!std::isfinite(values[i]))
+        if (std::isnan(values[i]))
+            results[i] = values[i];
+        else if (!std::isfinite(values[i]))
             results[i] = detail::ZERO_DOUBLE;
     }
 }

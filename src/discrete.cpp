@@ -1223,7 +1223,9 @@ void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
     // SIMD deferred: integer floor-check and range-test are not amenable to
     // vectorization without vector_floor + vector_blend primitives (deferred).
     for (std::size_t i = 0; i < count; ++i) {
-        if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
+        if (std::isnan(values[i])) {
+            results[i] = values[i];
+        } else if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
             const int k = static_cast<int>(values[i]);
             results[i] = (k >= a && k <= b) ? probability : detail::ZERO_DOUBLE;
         } else {
@@ -1238,7 +1240,9 @@ void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
     // SIMD deferred: integer floor-check and range-test are not amenable to
     // vectorization without vector_floor + vector_blend primitives (deferred).
     for (std::size_t i = 0; i < count; ++i) {
-        if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
+        if (std::isnan(values[i])) {
+            results[i] = values[i];
+        } else if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
             const int k = static_cast<int>(values[i]);
             results[i] = (k >= a && k <= b) ? log_probability : detail::NEGATIVE_INFINITY;
         } else {
@@ -1253,7 +1257,9 @@ void DiscreteDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // SIMD deferred: branchy floor+compare CDF not amenable to vectorization
     // without vector_floor + vector_blend primitives (deferred; see AGENTS.md).
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < static_cast<double>(a)) {
+        if (std::isnan(values[i])) {
+            results[i] = values[i];
+        } else if (values[i] < static_cast<double>(a)) {
             results[i] = detail::ZERO_DOUBLE;
         } else if (values[i] >= static_cast<double>(b)) {
             results[i] = detail::ONE;

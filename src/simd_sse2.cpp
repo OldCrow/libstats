@@ -362,6 +362,7 @@ void VectorOps::vector_log_sse2(const double* values, double* results, std::size
         result = SSE2_BLEND(is_zero, neg_inf, result);
         result = SSE2_BLEND(is_inf, pos_inf, result);
         result = SSE2_BLEND(is_negative, nan_val, result);
+        result = SSE2_BLEND(_mm_cmpunord_pd(x, x), x, result);
 
         _mm_storeu_pd(&results[i], result);
     }

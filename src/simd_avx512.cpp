@@ -357,6 +357,7 @@ void VectorOps::vector_log_avx512(const double* values, double* results,
         result = _mm512_mask_blend_pd(is_zero, result, neg_inf);
         result = _mm512_mask_blend_pd(is_inf, result, pos_inf);
         result = _mm512_mask_blend_pd(is_negative, result, nan_val);
+        result = _mm512_mask_blend_pd(_mm512_cmp_pd_mask(x, x, _CMP_UNORD_Q), result, x);
 
         _mm512_storeu_pd(&results[i], result);
     }

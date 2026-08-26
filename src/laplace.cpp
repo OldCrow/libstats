@@ -672,9 +672,11 @@ void LaplaceDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
     // Step 4: results = tmp + neg_log2b  = -log(2b) - |x-mu|/b = LogPDF
     VectorOps::scalar_add(tmp.data(), cached_neg_log2b, results, count);
 
-    // Fixup: non-finite inputs → -inf
+    // Fixup: NaN propagates, ±inf → -inf
     for (std::size_t i = 0; i < count; ++i) {
-        if (!std::isfinite(values[i]))
+        if (std::isnan(values[i]))
+            results[i] = values[i];
+        else if (!std::isfinite(values[i]))
             results[i] = detail::NEGATIVE_INFINITY;
     }
 }
@@ -692,9 +694,11 @@ void LaplaceDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
     // Step 5: results = exp(LogPDF)
     VectorOps::vector_exp(results, results, count);
 
-    // Fixup: non-finite inputs → 0
+    // Fixup: NaN propagates, ±inf → 0
     for (std::size_t i = 0; i < count; ++i) {
-        if (!std::isfinite(values[i]))
+        if (std::isnan(values[i]))
+            results[i] = values[i];
+        else if (!std::isfinite(values[i]))
             results[i] = detail::ZERO_DOUBLE;
     }
 }
@@ -708,7 +712,7 @@ void LaplaceDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         if (!std::isfinite(x)) {
-            results[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
+            results[i] = std::isnan(x) ? x : (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
         }
         const double dv = x - cached_mu;

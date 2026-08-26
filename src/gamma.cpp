@@ -1168,7 +1168,9 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
         // scalar CDF. The old private regularizedIncompleteGamma divided by
         // std::tgamma(alpha), overflowing for alpha > ~172 and diverging from scalar.
         for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= detail::ZERO_DOUBLE) {
+            if (std::isnan(values[i])) {
+                results[i] = values[i];
+            } else if (values[i] <= detail::ZERO_DOUBLE) {
                 results[i] = detail::ZERO_DOUBLE;
             } else {
                 results[i] = detail::gamma_p(alpha, beta * values[i]);
@@ -1189,7 +1191,9 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
     // per input; no uniform SIMD sequence can express this. See section 18
     // header for the full explanation.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
+        if (std::isnan(values[i])) {
+            results[i] = values[i];
+        } else if (values[i] <= detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
         } else {
             results[i] = detail::gamma_p(alpha, scaled_values[i]);
