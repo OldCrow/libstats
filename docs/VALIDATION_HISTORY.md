@@ -9,6 +9,21 @@ git-cliff). For SIMD methodology, see `docs/SIMD_OPTIMIZATION_REFERENCE.md` and
 
 ## Validation matrices by release
 
+### v2.3.0 — validation matrix
+
+Carried here verbatim from `AGENTS.md` when v2.3.1 shipped.
+
+| Machine | SIMD | Correctness | Timing | Notes |
+|---|---|---|---|---|
+| Asus TUF A16 (Windows) | AVX-512 | 53/53 ✅ | 21/22 ⚠️ | Native, 2026-08-20, MSVC Release |
+| Mac Mini M1 | NEON | 53/53 ✅ | 22/22 ⚠️ | Native, 2026-08-23, AppleClang 21 Release, v2.3.0 tag + main, Bessel Tier 2; timing ran on a loaded machine (indicative only) |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 53/53 ✅ | 22/22 ✅ | Native, 2026-08-22, AppleClang Release (`release` preset); Bessel Tier 2 (libc++ has no `cyl_bessel_i`) |
+
+The one timing failure was the `UniformEnhancedTest` speedup assertion
+(flaky on this machine, carried from v2.2.0; 1.44x vs a 1.8x adaptive
+threshold at 5000 elements). Correctness = `ctest -LE "timing|benchmark"`,
+53 registered.
+
 ### v2.2.0 — validation matrix
 
 Carried here verbatim from `AGENTS.md` when v2.3.0 shipped.

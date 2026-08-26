@@ -5,14 +5,69 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.3.1] - 2026-08-25
+
+Correctness patch — no API change. Eight issues closed (#102, #105, #106,
+#112, #115, #116, #117, #118) across five PRs (#120–#124), each with
+fail-first regression gates. Correctness suite grows 53 → 58.
+
+### Fixed
+- SIMD: `vector_log_{sse2,avx,avx2,avx512}` gained the missing
+  unordered-compare NaN blend — a NaN lane previously exited as 710.188,
+  so LogNormal batch `cdf(NaN)` returned 1 and `pdf(NaN)` returned 0
+  through the public API (#105).
+- Batch NaN propagation: 16 of 19 distributions returned finite,
+  plausible values for NaN batch inputs (uniform batch `pdf(NaN)` gave the
+  full in-support density; Discrete batch `cdf(NaN)` gave −214748364.7).
+  NaN is now classified ahead of every range check and propagates,
+  mirroring each scalar contract; all 19 distributions are gated (#102).
+- Von Mises: the κ > 1000 wrapped-normal CDF fallback wrapped x alone
+  instead of x − μ, returning F = 0 where the truth is 1 for every x on
+  the far side of the ±π seam; new κ = 2000/10000 accuracy-gate buckets
+  (#106).
+- NegativeBinomial/Geometric: `getQuantile`'s search bound was cast to
+  `int` unguarded; past INT_MAX the search collapsed and every quantile
+  returned 0 (`Geometric(1e-9).getQuantile(0.5)` = 0, truth ≈ 6.93e8).
+  Bound clamped to 2^53 before narrowing to `int64`; the search evaluates
+  the incomplete beta directly (#116).
+- Stream I/O: `operator>>` round-trip was broken for Discrete, Uniform and
+  Beta (whitespace tokenisation vs their own comma-space output); rewritten
+  on Gaussian's getline pattern, output formats unchanged (#115).
+- CPUID gates: the AVX-512 tier is now gated on AVX-512DQ (the kernels use
+  five DQ intrinsics — F alone is an illegal-instruction fault on
+  redistributed binaries) and on XCR0[7:5] opmask/ZMM state; the AVX2 tier
+  is gated on FMA; the MSVC configure probe executes a DQ instruction;
+  `SIMDPolicy` uses the same gates so the two reporting ladders agree
+  (#117).
+- `ParallelUtils::parallelFor` silently discarded exceptions thrown inside
+  chunks, returning partial output as success. It now waits for all chunks,
+  then rethrows the first exception (waiting first — harvesting eagerly
+  would unwind while sibling chunks still hold by-reference captures)
+  (#118). `WorkStealingPool::parallelFor` still swallows by design; the
+  asymmetry is documented.
 
 ### Changed
+- Batch span overloads: the no-aliasing contract (input and output spans
+  must not overlap) is documented at every surface and enforced by a
+  debug-mode assert at the central dispatch point — several kernels re-read
+  inputs after writing results, so in-place calls return wrong values
+  silently (#112). Zero cost in Release; the assert is live in Debug and
+  Dev configurations.
+- `tools/accuracy_sweep.cpp` emits NaN/±inf special rows for the discrete
+  family too (previously continuous-only — the gap that hid the discrete
+  #102 victims from every sweep on every ISA). Grid grows 5928 → 6063 rows.
 - `libstats.pc` is relocatable: `prefix` derives from `${pcfiledir}`, so
   `cmake --install <build> --prefix <other>` (and moving an installed
   tree) no longer leave stale absolute paths baked at configure time.
 
-### Fixed
+### Added
+- Five unlabelled gate binaries: `test_log_special_gates` (per-tier
+  vector_log specials), `test_batch_nan_gates` (all 19 distributions),
+  `test_discrete_quantile_bounds`, `test_simd_dispatch_gates` (two-sided
+  CPUID/XCR0 vs dispatcher, policy/dispatch agreement),
+  `test_parallel_exception_propagation`.
+
+### Fixed (pre-milestone, defensive review 2026-08-21)
 - Gaussian: the standard-normal fast path is selected only for exactly
   (0, 1). The previous 1e-8 tolerance made pdf/cdf constant in μ over
   |μ| ≤ 1e-8 and discontinuous at the edge (`Gaussian(5e-9, 1).cdf(0)`
@@ -21,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tier; it mapped NaN and negative inputs to −inf while the vector body gave
   NaN, so results depended on lane position.
 
-### Changed
+### Changed (pre-milestone, defensive review 2026-08-21)
 - Tests: `run_tests`, `run_tests_timing` and `run_all_tests` pass
   `-C $<CONFIG>` (on multi-config generators the timing target ran zero tests
   and exited 0; `run_tests` ran the timing suite it exists to exclude) and the

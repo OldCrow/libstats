@@ -140,6 +140,37 @@ Compared against the Zen 4 tables per (distribution, method, source) on
   (commit=404f745): identical totals (76) and identical von Mises /
   student_t rows — the post-tag review guards did not move any number.
 
+## v2.3.1: AVX-512 block regenerated post-fix (2026-08-25)
+
+The Zen 4 AVX-512 generated block below now reflects **v2.3.1**
+(banner `commit=aa897ac`), superseding the v2.3.0-era numbers the prose
+above compares against. What changed:
+
+- **Grid: 5928 → 6063 rows.** `accuracy_sweep` now emits NaN/±inf special
+  rows for the discrete family too (the v2.3.0 grid was continuous-only —
+  the gap that kept the discrete #102 victims out of every block on every
+  ISA).
+- **The batch-NaN violation class is gone**: 0 "NaN input did not produce
+  NaN batch output" rows anywhere, from 35 on the old grid (and the
+  fail-first gate showed the true pre-fix count on the new grid would have
+  been higher still — 16 of 19 distributions; see #102's closing comment).
+  #105's `vector_log` blend also clears the mechanism behind the AVX2
+  block's 37 extra rows, but **the Kaby Lake and M1 blocks still show
+  pre-fix data** — their prose and tables describe v2.3.0-era sweeps and
+  stand until each machine's native v2.3.1 re-run regenerates its block.
+  The strictly-nested victim-set analysis above (NEON ⊂ AVX-512 ⊂ AVX2)
+  remains correct as a record of the unfixed code.
+- **Total violations: 86 (old grid) → 63.** All remaining rows are two
+  known classes: ±inf input contracts (#103 — including 12 newly visible
+  poisson `logpdf(±inf) = −4605` rows the extended grid exposed, scalar
+  and batch agreeing) and large-parameter / extreme-quantile behavior
+  (#113/#104). 63 is the comparison baseline for future regens on this
+  grid.
+- The von Mises κ > 1000 seam fix (#106) and the NegBin/Geometric
+  quantile-bound fix (#116) do not move sweep rows — the sweep's von Mises
+  grid stays below the fallback cut and its quantile grid below INT_MAX;
+  both are gated by their own test vectors instead.
+
 ## Findings
 
 What the sweep actually surfaced, beyond confirming the four pinned
@@ -190,7 +221,7 @@ oracle or the gate, not to silently prefer one over the other:
 
 ## Generated tables: AVX-512
 
-Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- banner not retained)`
+Sweep banner: `commit=aa897ac  isa=AVX-512  date=2026-08-25`
 
 ### beta
 
@@ -199,11 +230,9 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 | cdf | scalar | 1.628e-9 | 4.113e-9 | 4.113e-9 | 4.468e+5 | - | 0.498166 |
 | cdf | batch | 1.628e-9 | 4.113e-9 | 4.113e-9 | 4.468e+5 | abs=0, rel=0 | 0.498166 |
 | logpdf | scalar | 4.811e-11 | 5.896e-10 | 5.896e-10 | - | - | 0.489076 |
-| logpdf | batch | 2.993e-11 | 6.066e-10 | 6.066e-10 | - | abs=5.821e-11, rel=1.876e-11 | 0.510924 |
-| logpdf | *(contract)* | 1 violation(s) -- see appendix | | | | | |
+| logpdf | batch | 3.8e-11 | 6.066e-10 | 6.066e-10 | - | abs=5.821e-11, rel=1.876e-11 | 0.510924 |
 | pdf | scalar | 0.006387 | 3.051e-11 | 3.051e-11 | - | - | 0.497018 |
 | pdf | batch | 0.006387 | 2.993e-11 | 2.993e-11 | - | abs=0.0004883, rel=1.819e-12 | 0.483195 |
-| pdf | *(contract)* | 1 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 0.3712 | 8.018e+259 | 8.018e+259 | - | - | 0.001 |
 
 ### binomial
@@ -225,7 +254,7 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 | cdf | scalar | 9.774e-17 | 2.908e-16 | 2.908e-16 | 0.06686 | - | 6.81795e+07 |
 | cdf | batch | 9.774e-17 | 2.908e-16 | 2.908e-16 | 0.06686 | abs=0, rel=0 | 6.81795e+07 |
 | logpdf | scalar | 7.235e-15 | 1.627e-15 | 1.627e-15 | - | - | -0.000318309 |
-| logpdf | batch | 7.907e-15 | 6.426e-16 | 6.426e-16 | - | abs=1.421e-14, rel=1.552e-15 | -0.0031831 |
+| logpdf | batch | 7.907e-15 | 1.627e-15 | 1.627e-15 | - | abs=1.421e-14, rel=1.552e-15 | 0.000318309 |
 | pdf | scalar | 6.421e-11 | 6.839e-15 | 6.839e-15 | - | - | -3.15472e+20 |
 | pdf | batch | 4.075e-11 | 7.566e-15 | 7.566e-15 | - | abs=5.821e-11, rel=1.424e-14 | -3.15472e+08 |
 | quantile | scalar | 1.979e+57 | 1.0 | 1.0 | - | - | 1e-300 |
@@ -236,12 +265,12 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 4.149e-6 | 8.298e-6 | 8.298e-6 | 1.614e+8 | - | 99999.3 |
 | cdf | batch | 4.149e-6 | 8.298e-6 | 8.298e-6 | 1.614e+8 | abs=0, rel=0 | 99999.3 |
-| cdf | *(contract)* | 6 violation(s) -- see appendix | | | | | |
+| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | logpdf | scalar | 9.381e-11 | 1.197e-11 | 1.197e-11 | - | - | 99427.3 |
-| logpdf | batch | 1.212e-10 | 1.541e-11 | 1.541e-11 | - | abs=1.164e-10, rel=1.627e-11 | 99622.7 |
+| logpdf | batch | 1.136e-10 | 1.541e-11 | 1.541e-11 | - | abs=1.164e-10, rel=1.627e-11 | 99622.7 |
 | logpdf | *(contract)* | 7 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 1.923e+93 | 9.382e-11 | 9.382e-11 | - | - | 99427.3 |
-| pdf | batch | 2.086e+93 | 1.212e-10 | 1.212e-10 | - | abs=4.009e+93, rel=1.164e-10 | 101672 |
+| pdf | batch | 2.086e+93 | 1.136e-10 | 1.136e-10 | - | abs=4.009e+93, rel=1.164e-10 | 99622.7 |
 | pdf | *(contract)* | 2 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 3540.0 | 4.136e+189 | 4.136e+189 | - | - | 1e-300 |
 | quantile | *(contract)* | 1 violation(s) -- see appendix | | | | | |
@@ -267,7 +296,7 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 | logpdf | scalar | 3.941e-15 | 2.966e-5 | 2.966e-5 | - | - | 1.38155e-05 |
 | logpdf | batch | 3.941e-15 | 2.966e-5 | 2.966e-5 | - | abs=0, rel=0 | 1.38155e-05 |
 | pdf | scalar | 5.492e-11 | 3.438e-15 | 3.438e-15 | - | - | 3.45396e-05 |
-| pdf | batch | 5.492e-11 | 3.438e-15 | 3.438e-15 | - | abs=5.821e-11, rel=1.735e-16 | 3.45396e-05 |
+| pdf | batch | 5.492e-11 | 3.438e-15 | 3.438e-15 | - | abs=5.821e-11, rel=1.663e-16 | 3.45396e-05 |
 | quantile | scalar | 4.46e-12 | 0.0007993 | 0.0007993 | - | - | 1e-15 |
 
 ### gamma
@@ -276,7 +305,7 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 8.718e-8 | 1.768e-7 | 1.768e-7 | 6.558e+7 | - | 9.94789e+06 |
 | cdf | batch | 8.718e-8 | 1.768e-7 | 1.768e-7 | 6.558e+7 | abs=0, rel=0 | 9.94789e+06 |
-| cdf | *(contract)* | 6 violation(s) -- see appendix | | | | | |
+| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | logpdf | scalar | 2.694e-11 | 2.144e-12 | 2.144e-12 | - | - | 9.94789e+06 |
 | logpdf | batch | 3.42e-11 | 2.674e-12 | 2.674e-12 | - | abs=5.821e-11, rel=4.55e-12 | 1.00842e+07 |
 | logpdf | *(contract)* | 7 violation(s) -- see appendix | | | | | |
@@ -317,13 +346,10 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 6.021e-17 | 4.306e-14 | 2.716e-14 | 0.442 | - | -4.51927e+08 |
 | cdf | batch | 5.79e-17 | 4.306e-14 | 3.504e-14 | 0.6266 | abs=1.11e-16, rel=5.686e-14 | -4.51927e+08 |
-| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | logpdf | scalar | 7.249e-14 | 0.9175 | 1.17e-5 | - | - | -1.31224e-05 |
 | logpdf | batch | 7.249e-14 | 0.9175 | 1.17e-5 | - | abs=0, rel=0 | -1.31224e-05 |
-| logpdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 5.159e-10 | 5.504e-14 | 5.501e-14 | - | - | -551.927 |
 | pdf | batch | 5.159e-10 | 5.501e-14 | 5.499e-14 | - | abs=5.821e-11, rel=2.061e-16 | -597.979 |
-| pdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 8.498e-9 | 1.601e-16 | 1.601e-16 | - | - | 1e-15 |
 
 ### lognormal
@@ -356,13 +382,10 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 5.418e-15 | 0.0002983 | 0.0002983 | 3.89e+10 | - | 1e-06 |
 | cdf | batch | 6.563e-14 | 0.0002983 | 0.0002983 | 3.89e+10 | abs=6.528e-14, rel=6.051e-8 | 1e-06 |
-| cdf | *(contract)* | 1 violation(s) -- see appendix | | | | | |
 | logpdf | scalar | 2.325e-13 | 2.351e-14 | 2.351e-14 | - | - | 1.00223e+06 |
 | logpdf | batch | 1.563e-13 | 1.566e-14 | 1.566e-14 | - | abs=2.274e-13, rel=2.469e-14 | 1e+06 |
-| logpdf | *(contract)* | 1 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 1.697e-11 | 2.325e-13 | 2.325e-13 | - | - | 1.00921e+06 |
-| pdf | batch | 9.756e-12 | 1.562e-13 | 1.562e-13 | - | abs=1.819e-11, rel=2.275e-13 | 1.09648e+06 |
-| pdf | *(contract)* | 1 violation(s) -- see appendix | | | | | |
+| pdf | batch | 9.756e-12 | 1.562e-13 | 1.562e-13 | - | abs=1.819e-11, rel=2.274e-13 | 1.09648e+06 |
 | quantile | scalar | 9.731e+179 | 9.731e-15 | 9.731e-15 | - | - | 0.99 |
 | quantile | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 
@@ -374,6 +397,7 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 | cdf | batch | 0.0007912 | 0.00158 | 0.00158 | 4.912e+5 | abs=0, rel=0 | 100000 |
 | logpdf | scalar | 3.281e-9 | 3.328e-11 | 3.328e-11 | - | - | 100000 |
 | logpdf | batch | 3.281e-9 | 3.328e-11 | 3.328e-11 | - | abs=0, rel=0 | 100000 |
+| logpdf | *(contract)* | 12 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 7.285e-7 | 0.004219 | 0.004219 | - | - | 99368 |
 | pdf | batch | 2.802e-13 | 2.221e-10 | 2.221e-10 | - | abs=7.285e-7, rel=0.004213 | 100000 |
 | quantile | scalar | 3.0 | 1.0 | 1.0 | - | - | 1e-300 |
@@ -413,10 +437,8 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 | cdf | batch | 6.985e-17 | 1.049e-16 | 1.001e-16 | 0.02343 | abs=0, rel=0 | 0.0003 |
 | logpdf | scalar | 3.04e-16 | 4.891e-17 | 4.891e-17 | - | - | -0.001 |
 | logpdf | batch | 3.04e-16 | 4.891e-17 | 4.891e-17 | - | abs=0, rel=0 | -0.001 |
-| logpdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 1.041e-14 | 2.092e-17 | 2.092e-17 | - | - | -1e+08 |
 | pdf | batch | 1.041e-14 | 2.092e-17 | 2.092e-17 | - | abs=0, rel=0 | -1e+08 |
-| pdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 9.074e-9 | 1.908e-16 | 1.908e-16 | - | - | 0.999999 |
 
 ### von_mises
@@ -427,10 +449,8 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 | cdf | batch | 5.101e-16 | 5.561e+63 | 5.561e+63 | 1.36e+77 | abs=5.551e-16, rel=1.0 | -2.52455 |
 | logpdf | scalar | 1.426e-14 | 5.191e-15 | 5.191e-15 | - | - | -0.128412 |
 | logpdf | batch | 1.426e-14 | 5.191e-15 | 5.191e-15 | - | abs=1.421e-14, rel=2.56e-15 | -0.128412 |
-| logpdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 2.148e-14 | 1.422e-14 | 1.422e-14 | - | - | -0.374577 |
 | pdf | batch | 2.148e-14 | 1.422e-14 | 1.422e-14 | - | abs=5.551e-17, rel=1.43e-14 | -0.374577 |
-| pdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 6.283 | 1.407e+15 | 1.407e+15 | - | - | 0.5 |
 
 ### weibull
@@ -439,107 +459,83 @@ Sweep banner: `(Zen 4, MSVC Release; regenerated before per-ISA labelling -- ban
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 6.31e-14 | 1.147e-13 | 1.147e-13 | 71.4 | - | 9977.52 |
 | cdf | batch | 6.31e-14 | 1.532e-13 | 1.532e-13 | 71.4 | abs=5.44e-14, rel=1.474e-13 | 9898.23 |
-| cdf | *(contract)* | 1 violation(s) -- see appendix | | | | | |
 | logpdf | scalar | 2.319e-12 | 1.03e-13 | 1.03e-13 | - | - | 10195.1 |
 | logpdf | batch | 2.333e-12 | 1.056e-13 | 1.056e-13 | - | abs=8.527e-14, rel=1.453e-14 | 10195.1 |
-| logpdf | *(contract)* | 6 violation(s) -- see appendix | | | | | |
+| logpdf | *(contract)* | 5 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 1.563e+284 | 2.319e-12 | 2.319e-12 | - | - | 10360.6 |
 | pdf | batch | 1.563e+284 | 2.333e-12 | 2.333e-12 | - | abs=9.12e+51, rel=8.524e-14 | 10360.6 |
-| pdf | *(contract)* | 4 violation(s) -- see appendix | | | | | |
+| pdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 1.114e+136 | 0.0005329 | 0.0005329 | - | - | 1e-15 |
 
 ### Contract findings (appendix)
 
-86 contract violations across the sweep. `csv_line` indexes the sweep CSV this report was generated from (see the commit/isa banner in the regeneration log).
+63 contract violations across the sweep. `csv_line` indexes the sweep CSV this report was generated from (see the commit/isa banner in the regeneration log).
 
 | dist | method | source | csv_line | finding |
 |---|---|---|---|---|
-| beta | logpdf | batch | 2831 | NaN input did not produce NaN batch output |
-| beta | pdf | batch | 2814 | NaN input did not produce NaN batch output |
-| chi_squared | cdf | batch | 3085 | NaN input did not produce NaN batch output |
-| chi_squared | cdf | batch | 3086 | reference is finite (1.0), batch_bits decoded to nan |
-| chi_squared | cdf | batch | 3190 | NaN input did not produce NaN batch output |
-| chi_squared | cdf | batch | 3191 | reference is finite (1.0), batch_bits decoded to nan |
-| chi_squared | cdf | batch | 3295 | NaN input did not produce NaN batch output |
-| chi_squared | cdf | batch | 3296 | reference is finite (1.0), batch_bits decoded to nan |
-| chi_squared | logpdf | scalar | 3055 | reference is -inf, scalar_bits decoded to nan |
-| chi_squared | logpdf | batch | 3055 | reference is -inf, batch_bits decoded to nan |
-| chi_squared | logpdf | batch | 3056 | reference is -inf, batch_bits decoded to -4605.0 |
-| chi_squared | logpdf | batch | 3162 | reference is -inf, batch_bits decoded to -4605.0 |
-| chi_squared | logpdf | scalar | 3266 | reference is -inf, scalar_bits decoded to nan |
-| chi_squared | logpdf | batch | 3266 | reference is -inf, batch_bits decoded to nan |
-| chi_squared | logpdf | batch | 3267 | reference is -inf, batch_bits decoded to -4605.0 |
-| chi_squared | pdf | scalar | 3024 | reference is finite (0.0), scalar_bits decoded to nan |
-| chi_squared | pdf | scalar | 3236 | reference is finite (0.0), scalar_bits decoded to nan |
+| chi_squared | cdf | batch | 3058 | reference is finite (1.0), batch_bits decoded to nan |
+| chi_squared | cdf | batch | 3164 | reference is finite (1.0), batch_bits decoded to nan |
+| chi_squared | cdf | batch | 3269 | reference is finite (1.0), batch_bits decoded to nan |
+| chi_squared | logpdf | scalar | 3027 | reference is -inf, scalar_bits decoded to nan |
+| chi_squared | logpdf | batch | 3027 | reference is -inf, batch_bits decoded to nan |
+| chi_squared | logpdf | batch | 3028 | reference is -inf, batch_bits decoded to -4605.0 |
+| chi_squared | logpdf | batch | 3135 | reference is -inf, batch_bits decoded to -4605.0 |
+| chi_squared | logpdf | scalar | 3239 | reference is -inf, scalar_bits decoded to nan |
+| chi_squared | logpdf | batch | 3239 | reference is -inf, batch_bits decoded to nan |
+| chi_squared | logpdf | batch | 3240 | reference is -inf, batch_bits decoded to -4605.0 |
+| chi_squared | pdf | scalar | 2996 | reference is finite (0.0), scalar_bits decoded to nan |
+| chi_squared | pdf | scalar | 3209 | reference is finite (0.0), scalar_bits decoded to nan |
 | chi_squared | quantile | scalar | 3298 | reference is finite (84333.5), scalar_bits decoded to nan |
-| gamma | cdf | batch | 1465 | NaN input did not produce NaN batch output |
-| gamma | cdf | batch | 1466 | reference is finite (1.0), batch_bits decoded to nan |
-| gamma | cdf | batch | 1570 | NaN input did not produce NaN batch output |
-| gamma | cdf | batch | 1571 | reference is finite (1.0), batch_bits decoded to nan |
-| gamma | cdf | batch | 1675 | NaN input did not produce NaN batch output |
-| gamma | cdf | batch | 1676 | reference is finite (1.0), batch_bits decoded to nan |
-| gamma | logpdf | scalar | 1434 | reference is -inf, scalar_bits decoded to nan |
-| gamma | logpdf | batch | 1434 | reference is -inf, batch_bits decoded to nan |
-| gamma | logpdf | batch | 1435 | reference is -inf, batch_bits decoded to -4605.0 |
-| gamma | logpdf | batch | 1542 | reference is -inf, batch_bits decoded to -4605.0 |
-| gamma | logpdf | scalar | 1646 | reference is -inf, scalar_bits decoded to nan |
-| gamma | logpdf | batch | 1646 | reference is -inf, batch_bits decoded to nan |
-| gamma | logpdf | batch | 1647 | reference is -inf, batch_bits decoded to -4605.0 |
-| gamma | pdf | scalar | 1402 | reference is finite (0.0), scalar_bits decoded to nan |
-| gamma | pdf | scalar | 1616 | reference is finite (0.0), scalar_bits decoded to nan |
+| gamma | cdf | batch | 1437 | reference is finite (1.0), batch_bits decoded to nan |
+| gamma | cdf | batch | 1544 | reference is finite (1.0), batch_bits decoded to nan |
+| gamma | cdf | batch | 1649 | reference is finite (1.0), batch_bits decoded to nan |
+| gamma | logpdf | scalar | 1405 | reference is -inf, scalar_bits decoded to nan |
+| gamma | logpdf | batch | 1405 | reference is -inf, batch_bits decoded to nan |
+| gamma | logpdf | batch | 1406 | reference is -inf, batch_bits decoded to -4605.0 |
+| gamma | logpdf | batch | 1515 | reference is -inf, batch_bits decoded to -4605.0 |
+| gamma | logpdf | scalar | 1619 | reference is -inf, scalar_bits decoded to nan |
+| gamma | logpdf | batch | 1619 | reference is -inf, batch_bits decoded to nan |
+| gamma | logpdf | batch | 1620 | reference is -inf, batch_bits decoded to -4605.0 |
+| gamma | pdf | scalar | 1373 | reference is finite (0.0), scalar_bits decoded to nan |
+| gamma | pdf | scalar | 1589 | reference is finite (0.0), scalar_bits decoded to nan |
 | gamma | quantile | scalar | 1678 | reference is finite (6.73769e+6), scalar_bits decoded to nan |
-| geometric | logpdf | scalar | 5887 | reference is finite (-4014.82), scalar_bits decoded to -inf |
-| geometric | logpdf | scalar | 5888 | reference is finite (-16014.8), scalar_bits decoded to -inf |
-| laplace | cdf | batch | 3445 | NaN input did not produce NaN batch output |
-| laplace | cdf | batch | 3595 | NaN input did not produce NaN batch output |
-| laplace | cdf | batch | 3745 | NaN input did not produce NaN batch output |
-| laplace | logpdf | batch | 3400 | NaN input did not produce NaN batch output |
-| laplace | logpdf | batch | 3550 | NaN input did not produce NaN batch output |
-| laplace | logpdf | batch | 3700 | NaN input did not produce NaN batch output |
-| laplace | pdf | batch | 3355 | NaN input did not produce NaN batch output |
-| laplace | pdf | batch | 3505 | NaN input did not produce NaN batch output |
-| laplace | pdf | batch | 3655 | NaN input did not produce NaN batch output |
-| pareto | cdf | batch | 3946 | NaN input did not produce NaN batch output |
-| pareto | logpdf | batch | 3920 | NaN input did not produce NaN batch output |
-| pareto | pdf | batch | 3894 | NaN input did not produce NaN batch output |
+| geometric | logpdf | scalar | 6019 | reference is finite (-4014.82), scalar_bits decoded to -inf |
+| geometric | logpdf | scalar | 6020 | reference is finite (-16014.8), scalar_bits decoded to -inf |
 | pareto | quantile | scalar | 3961 | reference is finite (1.0e+594), scalar_bits decoded to inf |
 | pareto | quantile | scalar | 3962 | reference is finite (9.99992e+993), scalar_bits decoded to inf |
 | pareto | quantile | scalar | 3963 | reference is finite (1.08324e+1494), scalar_bits decoded to inf |
-| rayleigh | logpdf | scalar | 4129 | reference is -inf, scalar_bits decoded to nan |
-| rayleigh | logpdf | batch | 4129 | reference is -inf, batch_bits decoded to nan |
-| rayleigh | logpdf | scalar | 4237 | reference is -inf, scalar_bits decoded to nan |
-| rayleigh | logpdf | batch | 4237 | reference is -inf, batch_bits decoded to nan |
-| rayleigh | logpdf | scalar | 4345 | reference is -inf, scalar_bits decoded to nan |
-| rayleigh | logpdf | batch | 4345 | reference is -inf, batch_bits decoded to nan |
-| rayleigh | pdf | scalar | 4098 | reference is finite (0.0), scalar_bits decoded to nan |
-| rayleigh | pdf | scalar | 4206 | reference is finite (0.0), scalar_bits decoded to nan |
-| rayleigh | pdf | scalar | 4314 | reference is finite (0.0), scalar_bits decoded to nan |
+| poisson | logpdf | scalar | 4734 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4734 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4735 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4735 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4825 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4825 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4826 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4826 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4916 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4916 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4917 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4917 | reference is -inf, batch_bits decoded to -4605.0 |
+| rayleigh | logpdf | scalar | 4101 | reference is -inf, scalar_bits decoded to nan |
+| rayleigh | logpdf | batch | 4101 | reference is -inf, batch_bits decoded to nan |
+| rayleigh | logpdf | scalar | 4209 | reference is -inf, scalar_bits decoded to nan |
+| rayleigh | logpdf | batch | 4209 | reference is -inf, batch_bits decoded to nan |
+| rayleigh | logpdf | scalar | 4317 | reference is -inf, scalar_bits decoded to nan |
+| rayleigh | logpdf | batch | 4317 | reference is -inf, batch_bits decoded to nan |
+| rayleigh | pdf | scalar | 4070 | reference is finite (0.0), scalar_bits decoded to nan |
+| rayleigh | pdf | scalar | 4178 | reference is finite (0.0), scalar_bits decoded to nan |
+| rayleigh | pdf | scalar | 4286 | reference is finite (0.0), scalar_bits decoded to nan |
 | student_t | quantile | scalar | 1783 | reference is finite (-1.56839e+60), scalar_bits decoded to -inf |
 | student_t | quantile | scalar | 1888 | reference is finite (-1.59857e+299), scalar_bits decoded to -inf |
 | student_t | quantile | scalar | 1993 | reference is finite (-37.0598), scalar_bits decoded to -inf |
-| uniform | logpdf | batch | 1060 | NaN input did not produce NaN batch output |
-| uniform | logpdf | batch | 1199 | NaN input did not produce NaN batch output |
-| uniform | logpdf | batch | 1320 | NaN input did not produce NaN batch output |
-| uniform | pdf | batch | 1012 | NaN input did not produce NaN batch output |
-| uniform | pdf | batch | 1161 | NaN input did not produce NaN batch output |
-| uniform | pdf | batch | 1286 | NaN input did not produce NaN batch output |
-| von_mises | logpdf | batch | 2391 | NaN input did not produce NaN batch output |
-| von_mises | logpdf | batch | 2499 | NaN input did not produce NaN batch output |
-| von_mises | logpdf | batch | 2617 | NaN input did not produce NaN batch output |
-| von_mises | pdf | batch | 2360 | NaN input did not produce NaN batch output |
-| von_mises | pdf | batch | 2468 | NaN input did not produce NaN batch output |
-| von_mises | pdf | batch | 2581 | NaN input did not produce NaN batch output |
-| weibull | cdf | batch | 4576 | NaN input did not produce NaN batch output |
-| weibull | logpdf | scalar | 4453 | reference is -inf, scalar_bits decoded to nan |
-| weibull | logpdf | batch | 4453 | reference is -inf, batch_bits decoded to nan |
-| weibull | logpdf | batch | 4527 | reference is inf, batch_bits decoded to -inf |
-| weibull | logpdf | batch | 4550 | NaN input did not produce NaN batch output |
-| weibull | logpdf | scalar | 4654 | reference is -inf, scalar_bits decoded to nan |
-| weibull | logpdf | batch | 4654 | reference is -inf, batch_bits decoded to nan |
-| weibull | pdf | scalar | 4422 | reference is finite (0.0), scalar_bits decoded to nan |
-| weibull | pdf | batch | 4501 | reference is inf, batch_bits decoded to 0.0 |
-| weibull | pdf | batch | 4524 | NaN input did not produce NaN batch output |
-| weibull | pdf | scalar | 4623 | reference is finite (0.0), scalar_bits decoded to nan |
+| weibull | logpdf | scalar | 4425 | reference is -inf, scalar_bits decoded to nan |
+| weibull | logpdf | batch | 4425 | reference is -inf, batch_bits decoded to nan |
+| weibull | logpdf | batch | 4530 | reference is inf, batch_bits decoded to -inf |
+| weibull | logpdf | scalar | 4626 | reference is -inf, scalar_bits decoded to nan |
+| weibull | logpdf | batch | 4626 | reference is -inf, batch_bits decoded to nan |
+| weibull | pdf | scalar | 4394 | reference is finite (0.0), scalar_bits decoded to nan |
+| weibull | pdf | batch | 4504 | reference is inf, batch_bits decoded to 0.0 |
+| weibull | pdf | scalar | 4595 | reference is finite (0.0), scalar_bits decoded to nan |
 
 <!-- END GENERATED isa=AVX-512 -->
 

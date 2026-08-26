@@ -2,23 +2,24 @@
 
 ---
 
-### v2.3.0 released
+### v2.3.1 released
 
-**v2.3.0 is the current release.** v1.5.3 was the final v1.x release.
+**v2.3.1 is the current release.** v1.5.3 was the final v1.x release.
 See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade instructions.
 
-Upgrading from v2.2.0 is a recompile, not a code change — the API is
-unchanged. One behavioral fix to note: the Von Mises CDF now wraps
-μ-centered, restoring the documented F(μ) = 0.5 invariant (it previously
-wrapped into an absolute (−π, π] window regardless of μ). Deep-tail CDF
-accuracy improved for Cauchy, LogNormal, and Gaussian (cancellation-free
-tail formulations), and the accuracy of every distribution is now
-characterized against mpmath in
-[docs/ACCURACY_CHARACTERIZATION.md](docs/ACCURACY_CHARACTERIZATION.md).
+v2.3.1 is a correctness patch — no API change, upgrading is a drop-in
+swap. NaN inputs now propagate through every batch path on every SIMD
+tier (previously several returned finite, plausible-looking values); the
+von Mises CDF is correct across the ±π seam for κ > 1000; NegBin and
+Geometric quantiles work past INT_MAX; stream round-trips work for
+Discrete, Uniform and Beta; AVX-512 dispatch verifies the DQ and XCR0
+state the kernels actually require; and `parallelFor` now propagates
+exceptions thrown in chunks. Batch input and output spans must not
+overlap — the contract is now documented and debug-asserted.
 
 ---
 
-[![Version](https://img.shields.io/badge/version-v2.3.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.3.0)
+[![Version](https://img.shields.io/badge/version-v2.3.1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.3.1)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -336,7 +337,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.3.0 is released. v1.5.3 was the final v1.x release.
+v2.3.1 is released. v1.5.3 was the final v1.x release.
 
 **19 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`

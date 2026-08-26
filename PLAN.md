@@ -1,9 +1,11 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-08-20
-v2.3.0 is the current release (tagged 2026-08-20); 19 distributions across
-7 families, API unchanged from v2.1.0. Milestone #5 (v2.3.0) closed with
-all 5 issues shipped (#48, #95, #51, #49, #46).
+## Status [DERIVED] — 2026-08-25
+v2.3.1 is merged to main (all 5 PRs #120–#124 squash-merged 2026-08-25,
+8 issues closed; **tag not yet cut** — see Next Steps); 19 distributions
+across 7 families, API unchanged from v2.1.0. v2.3.0 was tagged
+2026-08-20; milestone #5 closed with all 5 issues shipped (#48, #95,
+#51, #49, #46).
 
 **Why 2.2.0 and not 2.1.1.** The Bessel work (#92/#93/#96/#97) and the
 export fix (#90) are patch-shaped, but three things landed alongside them
@@ -47,7 +49,9 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-08-23 (#117/#118 → v2.3.1).
+Last reconciled against live GitHub state: 2026-08-25 (v2.3.1 milestone
+issues all closed via PRs #120–#124; milestone #7 left open until the tag
+is cut).
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -202,31 +206,21 @@ history.
   no API change); the second exists because its items change numbers
   (caps/tolerance, thresholds) or edge-case policy, so they must not gate
   the correctness patch. Structural items go to the existing major.
-- **v2.3.1 — Correctness patch** (open, #7): 8 open / 0 closed.
-  - #105 OPEN — `vector_log` NaN → 710.188 on every x86 tier (`cmpunord`
-    blend, four sites); LogNormal batch cdf(NaN) = 1 today.
-  - #102 OPEN — batch NaN propagation (moved from v2.4.0). Sweep re-run
-    done 2026-08-23 on Kaby Lake (AVX2): victim list is ISA-dependent —
-    the 8 Zen 4 distributions plus cauchy, lognormal, student_t on AVX2
-    (11 total), via the #105 `vector_log` mechanism. Fix and gate per
-    tier; see ACCURACY_CHARACTERIZATION.md "Second machine".
-  - #106 OPEN — von Mises κ > 1000 fallback wraps x, not x − μ; add
-    κ = 2000/10000 gate rows.
-  - #116 OPEN — NegBin/Geometric quantile returns 0 past INT_MAX.
-  - #115 OPEN — `operator>>` round-trip broken for Discrete/Uniform/Beta.
-  - #112 OPEN — batch aliasing contract: central `autoDispatch` check or
-    documented no-aliasing (the doc half landed 2026-08-21).
-  - #117 OPEN — CPUID gates: AVX-512 tier on F alone (DQ intrinsics, no
-    XCR0 opmask/ZMM check), AVX2 without FMA check, MSVC probe F-only.
-    Moved from v2.3.2 on 2026-08-23: pylibstats wheels dispatch at runtime,
-    so this is an illegal-instruction fault, not hygiene (libhmm #83 parity).
-  - #118 OPEN — `parallelFor` drops exceptions thrown in chunks (silent
-    partial output returned as success); the naive `wait()`→`get()` fix is
-    a use-after-free — wait for all futures, then harvest. Moved from
-    v2.3.2 on 2026-08-23; decide the propagate-vs-swallow contract first and
-    sequence with #111 (allocations inside `noexcept`).
-  Exit: regression tests from the issues in place; sweep regenerated and
-  #102 re-scoped from it; AVX-512 native correctness suite green.
+- **v2.3.1 — Correctness patch** (#7): 0 open / 8 closed + 5 merged PRs —
+  all work merged 2026-08-25 (PRs #120–#124, squash); milestone open only
+  until the tag is cut. Every exit criterion met: fail-first regression
+  gates from all 8 issues in place (5 new unlabelled binaries, suite
+  53 → 58), sweep regenerated on the extended 6063-row grid and #102
+  re-scoped from it (re-scope comment on the closed issue: true scope was
+  16/19 distributions; the 5 discrete victims were sweep-invisible until
+  the same PR fixed `accuracy_sweep`'s discrete-specials gap), AVX-512
+  native suite green 58/58. Sweep contract violations 86 → 63 on the new
+  grid (all 35 NaN rows cleared; +12 newly VISIBLE poisson logpdf(±inf)
+  rows → #103's scope; the comparison baseline for future regens is 63).
+  Decisions: #112 documented no-aliasing + central debug assert (live in
+  Debug AND Dev configs); #118 parallelFor propagates (wait-all-then-
+  harvest); WorkStealingPool still swallows by design — asymmetry
+  documented, caller-visible, platform-dependent.
 - **v2.3.2 — Accuracy, contracts & kernel hygiene** (open, #8): 8 open /
   0 closed.
   - #113 OPEN — incomplete-gamma/beta iteration caps and Lentz tolerance
@@ -272,7 +266,26 @@ history.
   than trusting it between passes.
 
 ## In Progress [OPEN]
-- (none — v2.3.1 has not started; see Next Steps.)
+- **v2.3.1 release close-out**: code merged and issues closed 2026-08-25;
+  bookkeeping commit (version strings, CHANGELOG [2.3.1], AGENTS matrix
+  58/58, VALIDATION_HISTORY archive, ACCURACY_CHARACTERIZATION AVX-512
+  block regen at 6063 rows / 63 violations) in flight. Remaining: tag
+  v2.3.1 + GitHub release, close milestone #7, bump pylibstats pin,
+  file the follow-up issues below [user approval pending], Kaby Lake +
+  M1 native validation runs for the v2.3.1 matrix.
+- **Follow-up issue candidates** (file with user approval): (a) NegBin/
+  Geometric public cdf/logpdf/quantile int-narrowing past INT_MAX —
+  `getQuantile` can now return a count its own CDF maps to 0; joins the
+  unfiled M1 round-cast finding (negative_binomial.cpp:244,269,294, UB +
+  ISA-dependent). (b) `detail::beta_i` ~1e-6 abs error at b ≈ 1e9 (lgamma
+  cancellation; sets the #116 gate tolerance). (c) poisson logpdf(±inf)
+  = −4605 where the limit is −inf → add to #103's scope (12 sweep rows,
+  scalar and batch agree). (d) `parallelReduce`/`parallelStatOperation`
+  harvest with get() in their combine loops — the early-rethrow
+  use-after-free shape #118 warned about. (e) `SIMDPolicy::detectBestLevel()`
+  dead-code duplication with `SIMDState::initialize()`. (f) the
+  long-standing flaky `UniformEnhancedTest.SIMDAndParallelBatchImplementations`
+  timing gate (PLAN Known Gaps, still unfiled).
 
 ## Known Gaps [OPEN]
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
@@ -408,26 +421,28 @@ session artifact; the issues carry the detail.
   tail); the von Mises fallback error is ≈ 0.04/κ, not O(1/κ²).
 
 ## Next Steps
-1. **v2.3.1 — Correctness patch** is next. The sweep re-run is done
-   (Kaby Lake, 2026-08-23; #102 re-scoped to 11 distributions on AVX2, 8 on
-   AVX-512); continue with #105 (whose mechanism the re-run confirmed on
-   AVX2), #102, #117 (moved in 2026-08-23; needs the Ryzen box to assert
-   the gate natively), #118 (moved in 2026-08-23; contract decision first),
-   #116, #106, #115, #112. Bump `[Unreleased]` in CHANGELOG to 2.3.1 at release and coordinate
-   the pylibstats pin.
-2. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
-   0.6.0 released on the v2.3.0 pin (floor and tag together); its
-   `pin-currency` canary is green. Re-bump at v2.3.1.
-3. v2.3.2 after v2.3.1 (#113 first — it corrects the record #47/#52 rest on).
-4. Scope #47/#52 for v2.5.0 with #113's correction in hand, then
+1. **Close out v2.3.1**: land the bookkeeping commit, tag v2.3.1 + GitHub
+   release, close milestone #7, bump pylibstats' pin (floor and FetchContent
+   tag together; its `pin-currency` canary enforces), file the approved
+   follow-up issues (see In Progress), run Kaby Lake + M1 native
+   validation for the v2.3.1 matrix (also regenerates their
+   characterization blocks on the 6063-row grid).
+2. v2.3.2 next (#113 first — it corrects the record #47/#52 rest on; #103
+   gains the poisson logpdf(±inf) rows).
+3. Scope #47/#52 for v2.5.0 with #113's correction in hand, then
    v2.4.0/v2.5.0 or the v3.0.0 refactor.
-5. ~~Bump pylibstats' pin to v2.2.0~~ **DONE 2026-08-16** — pylibstats 0.5.0
-   is on PyPI against v2.2.0; both problems it surfaced were pre-existing
-   pylibstats packaging defects. Detail lives in `pylibstats/PLAN.md`.
+4. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
+   0.6.0 released on the v2.3.0 pin; re-bump at v2.3.1 (step 1).
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-08-25 **v2.3.1 milestone work merged** — 8 issues (#102, #105, #106,
+  #112, #115, #116, #117, #118) via 5 squash-merged PRs (#120–#124), each
+  with fail-first gates; suite 53 → 58; five-agent workstream execution
+  with orchestrator QA, all branches conflict-free; integrated verification
+  58/58 on Zen 4 native + 6063-row sweep at 63 violations (zero
+  regressions). Detail in CHANGELOG [2.3.1] and the PR bodies.
 - 2026-08-21 **corvus adoption spike closed** (`spike/corvus-bessel`, S0–S4
   run 2026-08-15; staging decision 2026-08-21). Tier 0 `i0`/`i1`/`i0e` behind
   `LIBSTATS_USE_CORVUS` (OFF): both ABI configs link and pass the full suite,

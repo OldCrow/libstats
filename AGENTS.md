@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.3.0 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. All three fleet machines validated natively for this release: Asus TUF A16 AVX-512 2026-08-20, Kaby Lake AVX2+FMA 2026-08-22, Mac Mini M1 NEON 2026-08-23 — 53/53 correctness each. See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.3.1 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. Correctness patch over v2.3.0 (8 issues, 5 PRs, suite 53 → 58); validated natively on the Zen 4 AVX-512 reference machine 2026-08-25, Kaby Lake and M1 native runs pending. See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -60,21 +60,22 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **Windows/MSVC:** Follow Platform-Specific Notes below and use the Visual Studio x64 Release commands (VS 2022 17.8+ or later; defaults shown for Asus TUF A16, whose toolchain is now VS 18 (2026) — paths and generator names vary by version and edition, so users creating forks should verify their setup).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current validation matrix (v2.3.0)
+### Current validation matrix (v2.3.1)
 
-Correctness column = `ctest -LE "timing|benchmark"` (53 registered; the two
+Correctness column = `ctest -LE "timing|benchmark"` (58 registered; the two
 `benchmark`-labelled tests are excluded by definition, the 22 `timing` ones
 run separately on a quiet machine).
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
-| Asus TUF A16 (Windows) | AVX-512 | 53/53 ✅ | 21/22 ⚠️ | Native, 2026-08-20, MSVC Release |
-| Mac Mini M1 | NEON | 53/53 ✅ | 22/22 ⚠️ | Native, 2026-08-23, AppleClang 21 Release, v2.3.0 tag + main, Bessel Tier 2; timing ran on a loaded machine (indicative only) |
-| Kaby Lake (2017 MBP) | AVX2+FMA | 53/53 ✅ | 22/22 ✅ | Native, 2026-08-22, AppleClang Release (`release` preset); Bessel Tier 2 (libc++ has no `cyl_bessel_i`) |
+| Asus TUF A16 (Windows) | AVX-512 | 58/58 ✅ | — | Native, 2026-08-25, MSVC Release; timing suite not re-run (nothing in v2.3.1 touches kernels' hot paths — the NaN branches are never taken for finite data) |
+| Mac Mini M1 | NEON | — | — | Native run pending for v2.3.1 (v2.3.0: 53/53 ✅, 2026-08-23) |
+| Kaby Lake (2017 MBP) | AVX2+FMA | — | — | Native run pending for v2.3.1 (v2.3.0: 53/53 ✅, 2026-08-22) |
 
-The correctness count grew 49 → 53 with v2.3.0's four new accuracy gates:
-`test_trig_ulp_gates`, `test_vonmises_cdf_accuracy`, `test_lognormal_cdf_accuracy`,
-`test_gaussian_cdf_accuracy`.
+The correctness count grew 53 → 58 with v2.3.1's five new gate binaries:
+`test_log_special_gates`, `test_batch_nan_gates`, `test_discrete_quantile_bounds`,
+`test_simd_dispatch_gates`, `test_parallel_exception_propagation`.
+(v2.3.0 had grown it 49 → 53 with the four accuracy gates.)
 
 The Zen 4 timing failure is the same `UniformEnhancedTest.
 SIMDAndParallelBatchImplementations` speedup assertion carried from the
@@ -652,7 +653,7 @@ does not reproduce on MSVC at all.
 - **All levels**: GTest-based tests registered with CTest
 - Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
 - Timing tests: run `ctest -j1 -L timing` on a quiet machine
-- **Coverage**: 77 CTest targets — 53 correctness (`ctest -C <cfg> -LE "timing|benchmark"`), 22 timing (`-L timing`), 2 benchmark (each basic and enhanced test file registers as one target;
+- **Coverage**: 82 CTest targets — 58 correctness (`ctest -C <cfg> -LE "timing|benchmark"`), 22 timing (`-L timing`), 2 benchmark (each basic and enhanced test file registers as one target;
   each enhanced binary runs additional typed test cases from the shared `DistributionEnhancedTest` suite)
 
 ### Performance Validation
