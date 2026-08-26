@@ -173,6 +173,12 @@ create_libstats_test(test_simd_comprehensive test_simd_comprehensive.cpp)
 create_libstats_gtest(test_platform_optimizations test_platform_optimizations.cpp)
 create_libstats_gtest(test_simd_policy test_simd_policy.cpp)
 
+# #117 guard: the CPUID gates behind tier selection -- AVX-512 requires DQ and XCR0[7:5], AVX2
+# requires FMA. Reads CPUID/XCR0 independently and requires the dispatcher to agree. Deliberately
+# NOT added to the "timing" label block below -- same reasoning as test_bessel_tier: it carries no
+# timing assertions, and a regression gate CI never runs guards nothing.
+create_libstats_gtest(test_simd_dispatch_gates test_simd_dispatch_gates.cpp)
+
 # NEON vector_exp accuracy regression (Issue #33 Q1) -- guards the table+poly kernel's <1 ULP floor.
 # Self-skips (not fails) on non-NEON builds/machines.
 create_libstats_gtest(test_simd_neon_exp_accuracy test_simd_neon_exp_accuracy.cpp)
@@ -478,6 +484,7 @@ add_custom_target(
             test_simd_comprehensive
             test_platform_optimizations
             test_simd_policy
+            test_simd_dispatch_gates
             test_simd_neon_exp_accuracy
             test_simd_neon_log_accuracy
             test_simd_neon_cos_accuracy

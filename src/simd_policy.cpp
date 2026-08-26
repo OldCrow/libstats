@@ -31,12 +31,16 @@ struct SIMDState {
         SIMDPolicy::Level detected_level;
 
 #if defined(LIBSTATS_HAS_AVX512)
-        if (stats::arch::supports_avx512()) {
+        // Same gates as VectorOps::makeDispatchTable(): the AVX-512 kernels need DQ, so a level
+        // reported here that the dispatcher will not select would only mistune block size and
+        // alignment.
+        if (stats::arch::supports_avx512() && stats::arch::supports_avx512dq()) {
             detected_level = SIMDPolicy::Level::AVX512;
         } else
 #endif
+// FMA is a separate CPUID bit from AVX2; simd_avx2.cpp assumes both.
 #if defined(LIBSTATS_HAS_AVX2)
-            if (stats::arch::supports_avx2()) {
+            if (stats::arch::supports_avx2() && stats::arch::supports_fma()) {
             detected_level = SIMDPolicy::Level::AVX2;
         } else
 #endif
@@ -128,11 +132,13 @@ std::string SIMDPolicy::getCapabilityString() noexcept {
 
 SIMDPolicy::Level SIMDPolicy::detectBestLevel() noexcept {
 #if defined(LIBSTATS_HAS_AVX512)
-    if (stats::arch::supports_avx512())
+    // simd_avx512.cpp needs AVX-512DQ, not F alone.
+    if (stats::arch::supports_avx512() && stats::arch::supports_avx512dq())
         return SIMDPolicy::Level::AVX512;
 #endif
 #if defined(LIBSTATS_HAS_AVX2)
-    if (stats::arch::supports_avx2())
+    // FMA is a separate CPUID bit from AVX2; simd_avx2.cpp assumes both.
+    if (stats::arch::supports_avx2() && stats::arch::supports_fma())
         return SIMDPolicy::Level::AVX2;
 #endif
 #if defined(LIBSTATS_HAS_AVX)

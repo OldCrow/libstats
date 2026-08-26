@@ -451,6 +451,7 @@ Features detect_x86_features() {
     bool avx_cpuid = (ecx & (1 << 28)) != 0;
 
     // AVX requires both CPUID support AND OS support (OSXSAVE)
+    bool avx512_state_enabled = false;
     if (osxsave && avx_cpuid) {
         // Check if OS saves XMM/YMM registers (XCR0 bits 1 and 2).
         const uint64_t xcr0 = safe_xgetbv(0);
@@ -460,6 +461,10 @@ Features detect_x86_features() {
             features.avx = true;
             features.fma = (ecx & (1 << 12)) != 0;
         }
+        // AVX-512 additionally needs the OS to save opmask, ZMM_Hi256 and Hi16_ZMM
+        // state — XCR0[7:5] = 111b on top of XCR0[2:1] (Intel SDM Vol. 1 §15.2).
+        // cppcheck-suppress knownConditionTrueFalse
+        avx512_state_enabled = (xcr0 & 0xE6) == 0xE6;
     }
 
     // Check for AVX2/AVX-512 support (requires CPUID leaf 7)
@@ -467,7 +472,7 @@ Features detect_x86_features() {
     if (features.avx && max_cpuid >= 7) {
         safe_cpuid(7, 0, eax, leaf7_ebx, ecx, edx);
         features.avx2 = (leaf7_ebx & (1 << 5)) != 0;
-        features.avx512f = (leaf7_ebx & (1 << 16)) != 0;
+        features.avx512f = avx512_state_enabled && (leaf7_ebx & (1 << 16)) != 0;
     }
 
     // Get brand string if available. Each CPUID call returns 4 × 4-byte registers
