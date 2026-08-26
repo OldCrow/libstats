@@ -30,21 +30,31 @@ grouping table needed; rows are nonetheless emitted contiguously per kappa in
 coverage-list order for readability.
 
 Coverage: kappa in {0.0, 0.01, 0.1, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500,
-1000}; mu in {0.0, 0.7, -2.5} rotated across the kappa list (one mu per
-kappa bucket, mu = mus[i % 3]). Per kappa, ~40 x-values:
+1000, 2000, 10000}; mu in {0.0, 0.7, -2.5} rotated across the kappa list (one
+mu per kappa bucket, mu = mus[i % 3]), except the two fallback-branch buckets
+kappa in {2000, 10000}, which pin mu = 3.0 (see MU_OVERRIDES). Per kappa, ~40
+x-values:
   - 29 uniform over (mu-pi, mu+pi)         (random, fixed seed)
   - 1  exact mu                             (t=0, F=0.5 by symmetry)
   - 2  exact endpoints: mu-pi, mu+pi
   - 4  within 1e-6 of an endpoint (both sides of both endpoints)
   - 4  unwrapped, outside [mu-pi, mu+pi]: mu+7.5, mu-13.2, mu+20.3, mu-9.4
+Fallback buckets (kappa > 1000) carry 18 further x-values: 10 seam points
+(SEAM_XS) on the far side of the +-pi cut from mu = 3.0, where wrap(x - mu)
+and wrap(x) - mu differ by 2*pi -- the #106 defect, whose repro point x = -3.1
+is the first entry (F_code = 0.0 against a truth of 1.0) -- plus 8 near-mode
+points at +-0.5/1/2/3 sd (NEAR_MODE_SDS), which are the only rows that
+actually probe the fallback's ~0.043/kappa approximation error.
 Plus a small specials set (mu=0, kappa=1, hardcoded rather than quadrature):
 x = NaN -> F=NaN, x = +inf -> F=1, x = -inf -> F=0.
 
 Self-checks (raise and exit non-zero on any failure -- generated references
 are trusted over comments per house doctrine):
-  1. F(mu; mu, kappa) == 0.5 to 1e-35, for kappa in {0.1, 1, 10} x mu in
-     {0.0, 0.7, -2.5} -- t=0 splits the integral exactly in half by the
-     integrand's evenness about p=0.
+  1. F(mu; mu, kappa) == 0.5 to 1e-35, for kappa in {0.1, 1, 10, 2000, 10000}
+     x mu in {0.0, 0.7, -2.5} -- t=0 splits the integral exactly in half by
+     the integrand's evenness about p=0. The two large kappa entries are what
+     establishes that dps=40 tanh-sinh quadrature still resolves a peak of
+     width ~1/sqrt(kappa) over a dynamic range of exp(2*kappa).
   2. F is monotone non-decreasing on a coarse 25-point grid over
      (mu-pi, mu+pi], for a spread of (mu, kappa) pairs.
   3. kappa=0 (uniform circular case) reproduces the closed form
@@ -187,8 +197,8 @@ def _self_check() -> None:
     # 1. F(mu; mu, kappa) == 0.5 -- t=0 splits the (even-about-0) integrand
     #    exactly in half, for any mu (mu only shifts the wrap, not the
     #    integrand shape) and any kappa.
-    for kappa in (0.1, 1.0, 10.0):
-        for mu in (0.0, 0.7, -2.5):
+    for kappa in (0.1, 1.0, 10.0, 2000.0, 10000.0):
+        for mu in (0.0, 0.7, -2.5, 3.0):
             F = von_mises_cdf_mpf(mu, mu, kappa)
             err = abs(F - mp.mpf("0.5"))
             assert err <= tol, ("F(mu) self-check failed", mu, kappa, F, err)
@@ -198,8 +208,8 @@ def _self_check() -> None:
     #    exactly on x=mu-pi -- that point wraps to t=+pi (wrap_to_pi's
     #    (-pi,pi] convention folds the -pi boundary onto +pi), which is a
     #    deliberate branch-cut discontinuity, not a monotonicity violation.
-    for kappa in (0.0, 0.5, 5.0, 100.0, 1000.0):
-        for mu in (0.0, 0.7, -2.5):
+    for kappa in (0.0, 0.5, 5.0, 100.0, 1000.0, 2000.0, 10000.0):
+        for mu in (0.0, 0.7, -2.5, 3.0):
             xs = [mu - PI + (mp.mpf(i) + mp.mpf("0.5")) / 25 * TWO_PI for i in range(25)]
             prev = None
             for x in xs:
@@ -233,15 +243,39 @@ _self_check()
 # Main coverage sweep
 # ---------------------------------------------------------------------------
 
-KAPPAS = [0.0, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
+KAPPAS = [
+    0.0, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0,
+    2000.0, 10000.0,
+]  # fmt: skip
 MUS = [0.0, 0.7, -2.5]
+
+# The two kappa > 1000 buckets take mu = 3.0 rather than the MUS rotation, so
+# their +-pi cut sits at x = -0.1416 and the seam x-values below (x = -3.1 in
+# particular) land on its far side. Both buckets are appended AFTER the
+# pre-existing kappa list and neither consumes the random stream out of order,
+# so every row of every earlier bucket regenerates byte-identically.
+MU_OVERRIDES = {2000.0: 3.0, 10000.0: 3.0}
+
+# Extra x-values for the fallback buckets, chosen so wrap(x - mu) and
+# wrap(x) - mu disagree by 2*pi: exactly the case #106 got wrong. At mu = 3.0
+# the wrapped t = wrap(x - mu) stays within ~10 sd of the mode for the first
+# few, and saturates F to 0 or 1 for the rest.
+SEAM_XS = [-3.1, -3.0, -2.0, -1.0, -0.5, -0.2, 6.2, 6.5, 7.0, 8.0]
+
+# Near-mode offsets for the fallback buckets, in units of the wrapped normal's
+# own sd = 1/sqrt(kappa). At kappa >= 2000 that sd is <= 0.022 rad, so none of
+# the 29 uniform draws over (mu-pi, mu+pi) lands where a wrapped-normal
+# approximation actually departs from the truth -- without these the buckets
+# would gate only saturated 0/1 tails and could not notice a wrong sqrt(kappa)
+# scaling.
+NEAR_MODE_SDS = [-3.0, -2.0, -1.0, -0.5, 0.5, 1.0, 2.0, 3.0]
 
 rows = []  # (x_bits, mu_bits, kappa_bits, F_bits)
 bucket_counts = []
 
 t_start = time.time()
 for i, kappa in enumerate(KAPPAS):
-    mu = MUS[i % len(MUS)]
+    mu = MU_OVERRIDES.get(kappa, MUS[i % len(MUS)])
     xs = []
 
     # 29 uniform over (mu-pi, mu+pi)
@@ -268,6 +302,12 @@ for i, kappa in enumerate(KAPPAS):
     xs.append(mu - 13.2)
     xs.append(mu + 20.3)
     xs.append(mu - 9.4)
+
+    # Seam and near-mode coverage for the wrapped-normal fallback branch (#106).
+    if kappa in MU_OVERRIDES:
+        xs.extend(SEAM_XS)
+        sd = 1.0 / math.sqrt(kappa)
+        xs.extend(mu + c * sd for c in NEAR_MODE_SDS)
 
     n_before = len(rows)
     for x in xs:
