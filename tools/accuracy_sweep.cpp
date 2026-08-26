@@ -413,7 +413,10 @@ void sweepDiscrete(const std::string& distName, Factory factory,
     for (auto [p1, p2] : instances) {
         Dist dist = factory(p1, p2);
         std::vector<double> ks = buildDiscreteKGrid(dist);
-        emitPdfLogpdfCdfRows(dist, distName, p1, p2, hasP2, ks, /*includeSpecials=*/false, sink);
+        // Specials included since #102: skipping them here is why no sweep on any
+        // ISA could see the discrete-family batch NaN victims (poisson, discrete,
+        // binomial, negative_binomial, geometric).
+        emitPdfLogpdfCdfRows(dist, distName, p1, p2, hasP2, ks, /*includeSpecials=*/true, sink);
         emitQuantileRows(dist, distName, p1, p2, hasP2, sink);
     }
 }

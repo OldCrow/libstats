@@ -1113,7 +1113,8 @@ void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             // Use exclusion check (x < a || x > b) for CPU efficiency:
             // - Short-circuits on first true condition (common for out-of-support values)
             // - Matches scalar implementation exactly for consistency
-            results[i] = (x < a || x > b) ? detail::ZERO_DOUBLE : inv_width;
+            // NaN fails both comparisons, so classify it explicitly (#102).
+            results[i] = std::isnan(x) ? x : (x < a || x > b) ? detail::ZERO_DOUBLE : inv_width;
         }
         return;
     }
@@ -1130,7 +1131,8 @@ void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
         // Use exclusion check (x < a || x > b) for CPU efficiency:
         // - Short-circuits on first true condition (common for out-of-support values)
         // - Matches scalar implementation exactly for consistency
-        results[i] = (x < a || x > b) ? detail::ZERO_DOUBLE : inv_width;
+        // NaN fails both comparisons, so classify it explicitly (#102).
+        results[i] = std::isnan(x) ? x : (x < a || x > b) ? detail::ZERO_DOUBLE : inv_width;
     }
 }
 
@@ -1149,7 +1151,10 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
             // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
             // - Matches boundary conditions exactly
             // - Short-circuits efficiently for out-of-support values
-            results[i] = (x < a || x > b) ? detail::NEGATIVE_INFINITY : log_inv_width;
+            // NaN fails both comparisons, so classify it explicitly (#102).
+            results[i] = std::isnan(x)      ? x
+                         : (x < a || x > b) ? detail::NEGATIVE_INFINITY
+                                            : log_inv_width;
         }
         return;
     }
@@ -1166,7 +1171,10 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
         // Use exclusion check (x < a || x > b) for consistency with scalar and PDF SIMD:
         // - Matches boundary conditions exactly
         // - Short-circuits efficiently for out-of-support values
-        results[i] = (x < a || x > b) ? detail::NEGATIVE_INFINITY : log_inv_width;
+        // NaN fails both comparisons, so classify it explicitly (#102).
+        results[i] = std::isnan(x)      ? x
+                     : (x < a || x > b) ? detail::NEGATIVE_INFINITY
+                                        : log_inv_width;
     }
 }
 

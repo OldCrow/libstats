@@ -428,6 +428,7 @@ void VectorOps::vector_log_avx(const double* input, double* output, std::size_t 
         result = _mm256_blendv_pd(result, pos_inf, is_inf);
         result = _mm256_blendv_pd(result, _mm256_set1_pd(std::numeric_limits<double>::quiet_NaN()),
                                   is_negative);
+        result = _mm256_blendv_pd(result, x, _mm256_cmp_pd(x, x, _CMP_UNORD_Q));
 
         _mm256_storeu_pd(&output[i], result);
     }

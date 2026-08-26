@@ -716,7 +716,7 @@ void NegativeBinomialDistribution::getLogProbabilityBatchImpl(const double* valu
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         if (!std::isfinite(x)) {
-            results[i] = detail::NEGATIVE_INFINITY;
+            results[i] = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
             continue;
         }
         const int k = static_cast<int>(std::round(x));
@@ -743,7 +743,7 @@ void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values,
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         if (!std::isfinite(x)) {
-            results[i] = detail::ZERO_DOUBLE;
+            results[i] = std::isnan(x) ? x : detail::ZERO_DOUBLE;
             continue;
         }
         const int k = static_cast<int>(std::round(x));

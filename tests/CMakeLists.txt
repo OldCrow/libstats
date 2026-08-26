@@ -337,6 +337,20 @@ create_libstats_gtest(test_bessel_tier test_bessel_tier.cpp)
 # and a regression gate CI never runs guards nothing.
 create_libstats_gtest(test_trig_ulp_gates test_trig_ulp_gates.cpp)
 
+# #105 guard: per-tier special-value gate for the x86 vector_log_<tier>
+# kernels (NaN/-1/0/+inf/denorm_min in the vector body and the scalar tail,
+# specials-first), plus the LogNormal batch NaN consequence through the
+# public span API. Deliberately NOT added to the "timing" label block below
+# -- same reasoning as test_trig_ulp_gates above: this carries no timing
+# assertions, and a regression gate CI never runs guards nothing.
+create_libstats_gtest(test_log_special_gates test_log_special_gates.cpp)
+
+# #102 guard: batch-path NaN propagation across all 19 distributions
+# (pdf/logpdf/cdf span overloads, FORCE_VECTORIZED, NaN in vector body and
+# scalar tail). Deliberately NOT added to the "timing" label block below --
+# same reasoning as test_log_special_gates above.
+create_libstats_gtest(test_batch_nan_gates test_batch_nan_gates.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to
@@ -486,6 +500,8 @@ add_custom_target(
             test_vonmises_cdf_accuracy
             test_lognormal_cdf_accuracy
             test_gaussian_cdf_accuracy
+            test_log_special_gates
+            test_batch_nan_gates
             # Level 1: Core infrastructure tests
             test_error_handling_comprehensive
             test_numerical_safety
