@@ -55,6 +55,25 @@ no error (review 2026-08-21, issue #112). Use a separate output buffer. The
 lower-level `VectorOps` kernels *are* in-place safe by design; that guarantee
 does not extend to the distribution layer.
 
+#112 was resolved by documenting the contract rather than by making the tail
+fixups aliasing-safe. Debug builds carry an assert
+(`LIBSTATS_ASSERT_NO_OVERLAP`) beside the size check in
+`detail::DispatchUtils::autoDispatch` and `executeWithStrategy` — the single
+point every batch span overload funnels through — so an aliased call trips
+immediately in a Debug build. Under `NDEBUG` the assert compiles to nothing and
+nothing checks it: Release builds of an aliased call are silently wrong, as
+before.
+
+## Exceptions from batch kernels
+
+`ParallelUtils::parallelFor`, which backs `Strategy::PARALLEL`, propagates an
+exception thrown inside a chunk: it waits for every chunk, then harvests the
+futures in order and rethrows the first exception (#118). The work-stealing
+path does not — `WorkStealingPool::parallelFor` logs and swallows chunk
+exceptions because its completion latch must be decremented on every path.
+A batch call dispatched to `Strategy::WORK_STEALING` therefore loses a throwing
+kernel's exception where `Strategy::PARALLEL` reports it.
+
 ## PerformanceHint
 
 `detail::PerformanceHint` lets advanced callers influence dispatch without using removed strategy-specific APIs.

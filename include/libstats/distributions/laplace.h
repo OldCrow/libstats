@@ -280,6 +280,11 @@ class LaplaceDistribution : public DistributionBase {
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
     //==========================================================================
+    // For all three overloads below: values and results must have the same
+    // size (a mismatch throws std::invalid_argument) and must not overlap (#112).
+    // An in-place call silently returns wrong values; overlap is caught only by
+    // a debug-mode assert in detail::DispatchUtils. Full contract in
+    // core/distribution_interface.h.
 
     /**
      * @brief Batch PDF via SIMD-accelerated pipeline (see class-level doc for steps).

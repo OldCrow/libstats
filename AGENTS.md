@@ -455,9 +455,10 @@ Object library architecture: the build compiles the sources in seven OBJECT libr
   legal (`LogSpaceOps::logSumExpArrayFallback` calls `vector_exp` with
   `a == result`): a post-store re-read sees internally-computed values, not the
   input. Decide every edge fixup from already-loaded registers. It cost a real
-  `exp(-inf)` bug during the #33 productionization. Whether the distribution
-  batch span overloads promise in-place safety is a separate, currently
-  undocumented question (review 2026-08-21) — do not assume it.
+  `exp(-inf)` bug during the #33 productionization. The distribution batch span
+  overloads are the opposite case and always were: they promise no in-place
+  safety at all (#112, decided 2026-08-25). In-place legality is a `VectorOps`
+  property; it stops at that layer.
 - **Accuracy claims hold only for tiers validated on native silicon.**
   `LIBSTATS_MAX_SIMD_TIER` (cmake/SIMDDetection.cmake) caps the highest
   compiled x86 tier so lower tiers can run natively on capable hardware; the
@@ -566,7 +567,8 @@ compile time. A clean build after any enum or table change verifies consistency.
 - Test with `./build/tools/simd_verification`
 
 ### Parallel Processing
-- Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`. Sizes must match (every overload throws otherwise). **Input and output spans must not overlap**: several batch kernels re-read `values` after writing `results` (Gaussian/von Mises CDF tail fixups, Gamma PDF, LogNormal LogPDF — #112), so an in-place call returns wrong values silently; the contract is "no aliasing" until #112 decides otherwise
+- Auto-dispatch API: `getProbability(std::span<const double>, std::span<double>, hint)`. Sizes must match (every overload throws otherwise). **Input and output spans must not overlap**: several batch kernels re-read `values` after writing `results` (Gaussian/von Mises CDF tail fixups, Gamma PDF, LogNormal LogPDF — #112), so an in-place call returns wrong values silently. #112 settled this as a documented contract, not an implementation change: a debug-mode `LIBSTATS_ASSERT_NO_OVERLAP` sits beside the size check in `detail::DispatchUtils::autoDispatch`/`executeWithStrategy` and compiles away under `NDEBUG`, so Release builds still do not detect aliasing
+- Exceptions: `ParallelUtils::parallelFor` propagates a chunk's exception (waits for all chunks, then harvests and rethrows the first in chunk order — #118). `WorkStealingPool::parallelFor` still swallows, deliberately: its completion latch must be decremented on every path or the caller deadlocks. So `Strategy::WORK_STEALING` loses what `Strategy::PARALLEL` reports
 - Explicit control: span-based batch APIs with `detail::PerformanceHint`
 - Dispatch thresholds are per-(architecture, distribution, operation) in `dispatch_thresholds.h`
 - Thresholds derived from four-architecture profiling data in `data/profiles/dispatcher/`

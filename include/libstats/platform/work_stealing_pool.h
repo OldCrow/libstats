@@ -73,6 +73,15 @@ class WorkStealingPool {
      * @param end End of range (exclusive)
      * @param func Function to call for each index: func(std::size_t index)
      * @param grainSize Minimum work per thread (0 = auto-detect)
+     *
+     * @par Exception contract (#118)
+     * An exception thrown by @p func is logged and swallowed; it does not reach
+     * the caller and the remaining indices of that chunk are skipped. This is
+     * required, not incidental: the per-call completion latch has to be
+     * decremented on every path or the caller's condition-variable wait
+     * deadlocks (POOL-1). This differs from ParallelUtils::parallelFor, which
+     * propagates — a batch operation dispatched to Strategy::WORK_STEALING
+     * loses a throwing kernel's exception where Strategy::PARALLEL reports it.
      */
     template <typename Func>
     void parallelFor(std::size_t start, std::size_t end, Func func, std::size_t grainSize = 0);

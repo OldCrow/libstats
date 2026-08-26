@@ -3,6 +3,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
+#include <exception>
 #include <functional>
 #include <future>
 #include <mutex>
@@ -213,6 +214,22 @@ class ParallelUtils {
     /// @param end End index (exclusive)
     /// @param task Function to execute for each index
     /// @param grainSize Minimum work per thread (0 = auto-detect)
+    ///
+    /// @par Exception contract (#118)
+    /// If @p task throws, the exception is propagated to the caller. Every
+    /// chunk is waited on first, so no chunk is still executing when the
+    /// exception leaves this function — the chunk lambdas capture @p task by
+    /// reference, and unwinding the caller's frame while they still run is a
+    /// use-after-free. When several chunks throw, the first in chunk-submission
+    /// order (i.e. ascending index) is rethrown and the rest are discarded.
+    /// Below the parallel threshold the loop runs inline and the exception
+    /// propagates directly; the contract is the same on both branches.
+    ///
+    /// @note WorkStealingPool::parallelFor does *not* share this contract: it
+    ///       swallows chunk exceptions because its completion latch must be
+    ///       decremented unconditionally. A batch operation dispatched to
+    ///       Strategy::WORK_STEALING therefore loses a throwing kernel's
+    ///       exception where Strategy::PARALLEL reports it.
     template <typename Func>
     static void parallelFor(std::size_t start, std::size_t end, Func&& task,
                             std::size_t grainSize = 0) {
@@ -253,9 +270,28 @@ class ParallelUtils {
             futures.push_back(std::move(future));
         }
 
-        // Wait for all chunks to complete
+        // Wait for every chunk to finish before touching any result. Harvesting
+        // with get() in this loop would rethrow out of the caller's frame while
+        // the remaining chunks still hold their by-reference captures of task.
         for (auto& future : futures) {
             future.wait();
+        }
+
+        // All chunks are done; now it is safe to unwind. Harvest in submission
+        // order and keep the first exception.
+        std::exception_ptr firstException;
+        for (auto& future : futures) {
+            try {
+                future.get();
+            } catch (...) {
+                if (!firstException) {
+                    firstException = std::current_exception();
+                }
+            }
+        }
+
+        if (firstException) {
+            std::rethrow_exception(firstException);
         }
     }
 

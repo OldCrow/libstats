@@ -381,6 +381,14 @@ create_libstats_gtest(test_lognormal_cdf_accuracy test_lognormal_cdf_accuracy.cp
 # CI never runs guards nothing.
 create_libstats_gtest(test_gaussian_cdf_accuracy test_gaussian_cdf_accuracy.cpp)
 
+# #118 guard: ParallelUtils::parallelFor propagates a chunk's exception, and
+# only after every chunk has finished (the naive wait()->get() fix unwinds the
+# caller while siblings still hold references into its frame). Deliberately NOT
+# added to the "timing" label block below -- the sleeps here are ordering
+# scaffolding, not speedup assertions, and a regression gate CI never runs
+# guards nothing.
+create_libstats_gtest(test_parallel_exception_propagation test_parallel_exception_propagation.cpp)
+
 # binomial.h - Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
 create_libstats_test(test_binomial_basic test_binomial_basic.cpp)
 create_libstats_gtest(test_binomial_enhanced test_binomial_enhanced.cpp)
@@ -529,6 +537,7 @@ add_custom_target(
             test_batch_math_regressions
             # Level 3: Parallel infrastructure tests
             test_thread_pool
+            test_parallel_exception_propagation
             $<$<BOOL:${LIBSTATS_HAS_WORK_STEALING_POOL_TEST}>:test_work_stealing_pool>
             test_parallel_execution_integration
             test_benchmark_basic
