@@ -226,6 +226,29 @@ int main() {
         iss >> parsed;
         BasicTestFormatter::printProperty("Parsed alpha (expect 4)", parsed.getAlpha());
         BasicTestFormatter::printProperty("Parsed beta  (expect 6)", parsed.getBeta());
+        if (!iss || parsed.getAlpha() != 4.0 || parsed.getBeta() != 6.0)
+            throw std::runtime_error("Beta stream parse did not reconstruct alpha=4, beta=6");
+
+        // Round-trip through this distribution's own operator<</operator>>
+        istringstream rt_iss(oss.str());
+        auto rt = BetaDistribution::create().unwrap();
+        rt_iss >> rt;
+        if (!rt_iss)
+            throw std::runtime_error("Beta round-trip stream extraction failed");
+        if (!(rt == a1))
+            throw std::runtime_error("Beta round-trip: rt != a1");
+
+        // Round-trip: two distributions streamed back-to-back into the same stream
+        ostringstream oss2;
+        oss2 << a1 << "\n" << a3;
+        istringstream iss2(oss2.str());
+        auto rt1 = BetaDistribution::create().unwrap();
+        auto rt2 = BetaDistribution::create().unwrap();
+        iss2 >> rt1 >> rt2;
+        if (!iss2)
+            throw std::runtime_error("Beta back-to-back stream extraction failed");
+        if (!(rt1 == a1) || !(rt2 == a3))
+            throw std::runtime_error("Beta back-to-back round-trip mismatch");
 
         BasicTestFormatter::printTestSuccess("Comparison and stream tests passed");
         BasicTestFormatter::printNewline();

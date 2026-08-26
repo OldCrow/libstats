@@ -757,24 +757,42 @@ std::ostream& operator<<(std::ostream& os, const BetaDistribution& dist) {
 }
 
 std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
-    std::string token;
-    is >> token;
-    if (!token.starts_with("BetaDistribution(")) {
+    std::string line;
+
+    // Expected format: "BetaDistribution(alpha=<value>, beta=<value>)"
+    // Read the entire line to handle spaces in the format
+
+    // Skip leading whitespace and read the entire formatted string
+    if (!std::getline(is, line)) {
         is.setstate(std::ios::failbit);
         return is;
     }
-    const size_t a_pos = token.find("alpha=");
-    const size_t comma = token.find(",", a_pos);
-    const size_t b_pos = token.find("beta=");
-    const size_t close = token.find(")", b_pos);
+
+    // Trim leading whitespace
+    size_t start = line.find_first_not_of(" \t\n\r");
+    if (start == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    line = line.substr(start);
+
+    if (!line.starts_with("BetaDistribution(")) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+
+    const size_t a_pos = line.find("alpha=");
+    const size_t comma = line.find(",", a_pos);
+    const size_t b_pos = line.find("beta=");
+    const size_t close = line.find(")", b_pos);
     if (a_pos == std::string::npos || comma == std::string::npos || b_pos == std::string::npos ||
         close == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
     try {
-        const double a = std::stod(token.substr(a_pos + 6, comma - a_pos - 6));
-        const double b = std::stod(token.substr(b_pos + 5, close - b_pos - 5));
+        const double a = std::stod(line.substr(a_pos + 6, comma - a_pos - 6));
+        const double b = std::stod(line.substr(b_pos + 5, close - b_pos - 5));
         auto result = dist.trySetParameters(a, b);
         if (result.isError())
             is.setstate(std::ios::failbit);
