@@ -23,6 +23,20 @@
 // absorb cross-platform libm/tier variation. Do not loosen without a
 // matching kernel fix; a budget miss here is a kernel bug, not a
 // test-tuning problem.
+//
+// The kappa in {2000, 10000} buckets (issue #106) are a DIFFERENT branch and
+// a different budget law: above kappa = 1000 the implementation leaves the
+// series for a wrapped-normal approximation whose intrinsic error is
+// ~0.043/kappa absolute -- O(1/kappa), ten orders of magnitude above the
+// series branch's round-off floor. Their budgets are DERIVED from that law
+// rather than pinned from measurement, and what they gate above all is the
+// WRAP CONVENTION: #106 wrapped x rather than x - mu, so every x on the far
+// side of the +-pi cut from mu returned F = 0 where the truth is 1.0.
+// Measured on Zen 4, 2026-08-25, against the fixed implementation: scalar and
+// batch both 2.02e-5 at kappa=2000 and 4.03e-6 at kappa=10000 -- within 7% of
+// the law's 2.15e-5 and 4.30e-6, and 3.2x under the budgets below. Those
+// maxima come from the eight near-mode rows the generator adds to these two
+// buckets; the uniform draws all sit in a saturated 0/1 tail at this kappa.
 
 #include "libstats/distributions/von_mises.h"
 
@@ -63,7 +77,19 @@ constexpr double kBudgetSpecials = 0.0;       // NaN/+-inf: exact per contract
 // strategy -- but only up to this much.
 constexpr double kBudgetBatchVsScalar = 4e-15;
 
+// Mirrors kCdfSeriesKappaMax in src/von_mises.cpp (file-local there, not
+// exported). Above it the wrapped-normal fallback runs instead of the series;
+// move both together.
+constexpr double kCdfSeriesKappaMax = 1000.0;
+// Wrapped-normal fallback: intrinsic error ~kFallbackErrorCoeff/kappa
+// absolute, times headroom for cross-platform erf/libm variation. Yields
+// 6.5e-5 at kappa=2000 and 1.3e-5 at kappa=10000.
+constexpr double kFallbackErrorCoeff = 0.043;
+constexpr double kFallbackHeadroom = 3.0;
+
 double budgetForKappa(double kappa) {
+    if (kappa > kCdfSeriesKappaMax)
+        return kFallbackHeadroom * kFallbackErrorCoeff / kappa;
     return kappa <= 100.0 ? kBudgetKappaLe100 : kBudgetKappaLe1000;
 }
 
@@ -200,6 +226,58 @@ TEST(VonMisesCdfGates, MainSweepPerKappaBucket) {
         EXPECT_LE(r.batch_vs_scalar_max, kBudgetBatchVsScalar)
             << "batch vs scalar mismatch kappa=" << kappa << " mu=" << mu;
     }
+}
+
+// -------------------------------------------------------------------------
+// Seam gate (#106). The kappa > 1000 wrapped-normal branch must form its
+// standardised argument from wrap(x - mu); the shipped code wrapped x alone
+// and subtracted mu afterwards. The two agree only while x and mu land on the
+// same side of the +-pi cut, so VM(mu=3, kappa=2000).cdf(-3.1) returned 0.0
+// against a truth of 1.0 -- the maximal error a CDF admits.
+//
+// Covered by MainSweepPerKappaBucket too; pinned separately here because the
+// bucket gate reports one aggregate max per kappa and this is the row whose
+// failure means the wrap convention, not the approximation.
+// -------------------------------------------------------------------------
+
+TEST(VonMisesCdfGates, FallbackBranchWrapsXMinusMu) {
+    constexpr std::size_t n = sizeof(kVmCdfVectors) / sizeof(kVmCdfVectors[0]);
+    const VmCdfVector* row = nullptr;
+    for (std::size_t i = 0; i < n; ++i) {
+        if (bitsToF64(kVmCdfVectors[i].kappa_bits) == 2000.0 &&
+            bitsToF64(kVmCdfVectors[i].mu_bits) == 3.0 &&
+            bitsToF64(kVmCdfVectors[i].x_bits) == -3.1) {
+            row = &kVmCdfVectors[i];
+            break;
+        }
+    }
+    ASSERT_NE(row, nullptr) << "the #106 repro row (kappa=2000, mu=3, x=-3.1) is missing from "
+                               "vonmises_cdf_vectors.inc -- regenerate with "
+                               "scripts/gen_vonmises_cdf_vectors.py";
+
+    const double ref = bitsToF64(row->F_bits);
+    // Guards the guard: x = -3.1 is a full 2*pi away from mu on the unwrapped
+    // line but only 0.183 rad (8.2 sd at kappa=2000) past the mode once
+    // wrapped, so the reference must saturate high. A reference that drifted
+    // off 1.0 would make the gate below pass on the broken kernel as well.
+    ASSERT_GT(ref, 0.99) << "reference F at the seam row is " << ref
+                         << ", expected ~1.0 -- this row no longer exercises #106";
+
+    auto dist_result = stats::VonMisesDistribution::create(3.0, 2000.0);
+    ASSERT_TRUE(dist_result.isOk()) << dist_result.message();
+    const stats::VonMisesDistribution dist = std::move(dist_result).unwrap();
+
+    const double x = bitsToF64(row->x_bits);
+    const double scalar = dist.getCumulativeProbability(x);
+    double batch = 0.0;
+    dist.getCumulativeProbability(std::span<const double>(&x, 1), std::span<double>(&batch, 1));
+
+    const double budget = budgetForKappa(2000.0);
+    std::cout << std::setprecision(17) << "vmcdf seam kappa=2000 mu=3 x=-3.1 ref=" << ref
+              << " scalar=" << scalar << " batch=" << batch << "\n";
+    EXPECT_LE(std::fabs(scalar - ref), budget) << "scalar seam value " << scalar << " vs ref "
+                                               << ref;
+    EXPECT_LE(std::fabs(batch - ref), budget) << "batch seam value " << batch << " vs ref " << ref;
 }
 
 // -------------------------------------------------------------------------

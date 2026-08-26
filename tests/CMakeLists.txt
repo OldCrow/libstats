@@ -387,6 +387,14 @@ create_libstats_gtest(test_negative_binomial_enhanced test_negative_binomial_enh
 create_libstats_test(test_geometric_basic test_geometric_basic.cpp)
 create_libstats_gtest(test_geometric_enhanced test_geometric_enhanced.cpp)
 
+# #116 guard: NegativeBinomial/Geometric getQuantile search bound past INT_MAX.
+# A separate binary rather than cases in test_negative_binomial_enhanced /
+# test_geometric_enhanced because BOTH of those carry the "timing" label below,
+# and the correctness run is -LE "timing|benchmark" -- a guard added there would
+# compile and never run. Deliberately NOT added to the "timing" label block:
+# same reasoning as test_bessel_tier and the three CDF accuracy gates above.
+create_libstats_gtest(test_discrete_quantile_bounds test_discrete_quantile_bounds.cpp)
+
 # laplace.h - Laplace distribution (double-exponential, standalone, median/MAD MLE)
 create_libstats_test(test_laplace_basic test_laplace_basic.cpp)
 create_libstats_gtest(test_laplace_enhanced test_laplace_enhanced.cpp)
@@ -558,6 +566,7 @@ add_custom_target(
             test_negative_binomial_enhanced
             test_geometric_basic
             test_geometric_enhanced
+            test_discrete_quantile_bounds
             test_laplace_basic
             test_laplace_enhanced
             test_cauchy_basic

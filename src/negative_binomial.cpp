@@ -13,6 +13,7 @@ using stats::detail::validatePositiveParameter;
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iomanip>
 #include <numeric>
 #include <random>
@@ -317,20 +318,41 @@ double NegativeBinomialDistribution::getQuantile(double prob) const {
     lock.unlock();
     const double mean = r * (detail::ONE - p) / p;
     const double stddev = std::sqrt(r * (detail::ONE - p) / (p * p));
-    const int max_k = static_cast<int>(std::ceil(mean + detail::TEN * stddev + detail::HUNDRED));
 
-    // Linear scan for small quantiles; bisection otherwise
-    if (mean <= detail::FIFTY) {
-        for (int k = 0; k <= max_k; ++k) {
-            if (getCumulativeProbability(static_cast<double>(k)) >= prob)
+    // The bound is formed in double and clamped BEFORE the only narrowing
+    // conversion (#116): for small p or large r it passes INT_MAX, and the
+    // unguarded cast to int yielded INT_MIN on x86, collapsing the search so
+    // every quantile came back 0. 2^53 is the largest count still exactly
+    // representable as a double, which every step below relies on.
+    constexpr double kMaxCount = 9007199254740992.0;  // 2^53
+    const double bound = mean + detail::TEN * stddev + detail::HUNDRED;
+    const std::int64_t max_k = (std::isfinite(bound) && bound < kMaxCount)
+                                   ? static_cast<std::int64_t>(std::ceil(bound))
+                                   : static_cast<std::int64_t>(kMaxCount);
+
+    // CDF at an integer count carried in double: the same I_p(r, k+1) that
+    // getCumulativeProbability computes, without its static_cast<int> of the
+    // argument — which the search must cross for exactly the parameters that
+    // motivate the widened bound.
+    const auto cdf_at = [&](std::int64_t k) {
+        return detail::beta_i(p, r, static_cast<double>(k) + detail::ONE);
+    };
+
+    // Linear scan for small quantiles; bisection otherwise. The scan is gated
+    // on the bound as well, since mean <= 50 no longer implies a small max_k
+    // now that the bound is not silently truncated.
+    constexpr std::int64_t kLinearScanMaxK = 100000;
+    if (mean <= detail::FIFTY && max_k <= kLinearScanMaxK) {
+        for (std::int64_t k = 0; k <= max_k; ++k) {
+            if (cdf_at(k) >= prob)
                 return static_cast<double>(k);
         }
         return static_cast<double>(max_k);
     }
-    int lo = 0, hi = max_k;
+    std::int64_t lo = 0, hi = max_k;
     while (lo < hi) {
-        const int mid = lo + (hi - lo) / 2;
-        if (getCumulativeProbability(static_cast<double>(mid)) < prob)
+        const std::int64_t mid = lo + (hi - lo) / 2;
+        if (cdf_at(mid) < prob)
             lo = mid + 1;
         else
             hi = mid;

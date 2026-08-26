@@ -364,10 +364,6 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
         return (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
     }
 
-    // Used only by the kappa>1000 wrapped-normal fallback below, which is kept
-    // verbatim from the pre-#51 implementation (wraps x alone, not the difference).
-    const double v = wrapAngle(x);
-
     double result = detail::ZERO_DOUBLE;
     withCacheSnapshot([&] {
         const double kappa = kappa_;
@@ -381,13 +377,16 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
             return;
         }
 
-        // kappa > 1000: unvalidated range for the #51 series -- keep the
-        // pre-#51 wrapped-normal approximation verbatim (guard moved from
-        // kappa>50 to kappa>1000). VM(mu, kappa) ~ N(mu, 1/kappa) on the
-        // circle; approximation error is ~0.043/kappa absolute (measured against a
-        // quadrature oracle at kappa = 1e3, 2e3, 1e4 -- O(1/kappa), not O(1/kappa^2)).
+        // kappa > 1000: unvalidated range for the #51 series -- use the
+        // pre-#51 wrapped-normal approximation. VM(mu, kappa) ~ N(mu, 1/kappa)
+        // on the circle; approximation error is ~0.043/kappa absolute (measured
+        // against a quadrature oracle at kappa = 1e3, 2e3, 1e4 -- O(1/kappa),
+        // not O(1/kappa^2)). The standardised argument is the WRAPPED
+        // DIFFERENCE, matching the series branch below: wrapping x alone and
+        // subtracting mu afterwards leaves a 2*pi offset for every x on the far
+        // side of the +-pi cut from mu (#106).
         if (kappa > kCdfSeriesKappaMax) {
-            const double z = (v - mu) * std::sqrt(kappa);
+            const double z = wrapAngle(x - mu) * std::sqrt(kappa);
             result = std::clamp(detail::HALF * (detail::ONE + std::erf(z * detail::INV_SQRT_2)),
                                 detail::ZERO_DOUBLE, detail::ONE);
             return;
