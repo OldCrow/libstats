@@ -164,6 +164,32 @@ inline void verify_simd_alignment(const T* ptr, std::size_t alignment,
 }
 
 /**
+ * @brief Test whether two same-length ranges share any storage
+ * @param first Start of the first range
+ * @param second Start of the second range
+ * @param count Number of elements in each range
+ * @return true if the two ranges overlap
+ *
+ * Compares addresses as integers rather than pointers: relational comparison of
+ * pointers into unrelated objects is unspecified, and the alignment helpers in
+ * this header already use the same uintptr_t idiom.
+ */
+template <typename T, typename U>
+[[nodiscard]] inline bool spans_overlap(const T* first, const U* second,
+                                        std::size_t count) noexcept {
+    if (first == nullptr || second == nullptr || count == 0) {
+        return false;
+    }
+
+    const uintptr_t first_begin = reinterpret_cast<uintptr_t>(first);
+    const uintptr_t first_end = first_begin + count * sizeof(T);
+    const uintptr_t second_begin = reinterpret_cast<uintptr_t>(second);
+    const uintptr_t second_end = second_begin + count * sizeof(U);
+
+    return first_begin < second_end && second_begin < first_end;
+}
+
+/**
  * @brief Debug-only bounds checking macros that compile to nothing in release builds
  */
 #ifdef NDEBUG
@@ -176,6 +202,9 @@ inline void verify_simd_alignment(const T* ptr, std::size_t alignment,
     #define LIBSTATS_ASSERT_ALIGNMENT(ptr, alignment, context)                                     \
         do {                                                                                       \
         } while (false)
+    #define LIBSTATS_ASSERT_NO_OVERLAP(in_ptr, out_ptr, count, context)                            \
+        do {                                                                                       \
+        } while (false)
 #else
     #define LIBSTATS_ASSERT_BOUNDS(index, size, context)                                           \
         assert((index) < (size) && "Bounds check failed in " context)
@@ -186,6 +215,10 @@ inline void verify_simd_alignment(const T* ptr, std::size_t alignment,
     #define LIBSTATS_ASSERT_ALIGNMENT(ptr, alignment, context)                                     \
         assert((reinterpret_cast<uintptr_t>(ptr) & ((alignment) - 1)) == 0 &&                      \
                "Alignment check failed in " context)
+
+    #define LIBSTATS_ASSERT_NO_OVERLAP(in_ptr, out_ptr, count, context)                            \
+        assert(!stats::detail::spans_overlap((in_ptr), (out_ptr), (count)) &&                      \
+               "Input and output ranges must not overlap in " context)
 #endif
 
 //==============================================================================

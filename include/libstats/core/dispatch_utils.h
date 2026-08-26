@@ -5,6 +5,7 @@
 #include "libstats/platform/thread_pool.h"  // For ParallelUtils
 #include "libstats/platform/work_stealing_pool.h"
 #include "performance_dispatcher.h"
+#include "safety.h"  // For LIBSTATS_ASSERT_NO_OVERLAP
 
 #include <functional>
 #include <span>
@@ -40,6 +41,21 @@ namespace detail {  // Performance utilities
  * template parameter and corresponding lambda are no longer accepted by these
  * templates. See issue #23 for the rationale and prerequisites for any future
  * GPU backend.
+ *
+ * ## Aliasing contract (#112)
+ *
+ * `values` and `results` must not overlap. This is the single point every batch
+ * span overload of every distribution funnels through, so the contract is
+ * stated once here and enforced once here: a debug-mode
+ * `LIBSTATS_ASSERT_NO_OVERLAP` sits beside the size check in both entry points
+ * and compiles to nothing under NDEBUG.
+ *
+ * The contract is not a formality. Several kernels re-read `values` after
+ * `results` has been written — the Gaussian and von Mises CDF tail fixups, the
+ * Gamma PDF pipeline, the LogNormal LogPDF support fixup — so an in-place call
+ * reads back computed probabilities instead of the caller's inputs and returns
+ * wrong values with no error. In-place safety at the lower `VectorOps` kernel
+ * layer does not extend to this layer.
  */
 class DispatchUtils {
    public:
@@ -62,6 +78,9 @@ class DispatchUtils {
      * @param batch_func Function to call for SIMD batch operations
      * @param parallel_func Function to call for parallel operations
      * @param work_stealing_func Function to call for work-stealing operations
+     *
+     * @pre `values` and `results` have the same size and do not overlap (#112).
+     *      The size mismatch throws; the overlap is a debug-mode assert.
      */
     template <stats::concepts::AnyDistribution Distribution, typename ScalarFunc,
               typename BatchFunc, typename ParallelFunc, typename WorkStealingFunc>
@@ -74,6 +93,8 @@ class DispatchUtils {
         if (values.size() != results.size()) {
             throw std::invalid_argument("Input and output spans must have the same size");
         }
+        LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), values.size(),
+                                   "batch auto-dispatch");
 
         const size_t count = values.size();
         if (count == 0)
@@ -152,6 +173,9 @@ class DispatchUtils {
      * @param batch_func Function to call for SIMD batch operations
      * @param parallel_func Function to call for parallel operations
      * @param work_stealing_func Function to call for work-stealing operations
+     *
+     * @pre `values` and `results` have the same size and do not overlap (#112).
+     *      The size mismatch throws; the overlap is a debug-mode assert.
      */
     template <typename Distribution, typename ScalarFunc, typename BatchFunc, typename ParallelFunc,
               typename WorkStealingFunc>
@@ -164,6 +188,8 @@ class DispatchUtils {
         if (values.size() != results.size()) {
             throw std::invalid_argument("Input and output spans must have the same size");
         }
+        LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), values.size(),
+                                   "batch explicit-strategy dispatch");
 
         const size_t count = values.size();
         if (count == 0)

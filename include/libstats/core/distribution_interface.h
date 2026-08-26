@@ -21,6 +21,18 @@ namespace stats {
  * - Random number generation
  * - Parameter estimation and fitting
  * - Distribution metadata
+ *
+ * @par Batch (span) overloads — aliasing contract (#112)
+ * Concrete distributions add three auto-dispatch batch overloads on top of this
+ * interface: `getProbability`, `getLogProbability` and
+ * `getCumulativeProbability`, each taking a `std::span<const double>` input and
+ * a `std::span<double>` output. For all of them the two spans must have the
+ * same size (enforced — a mismatch throws `std::invalid_argument`) and **must
+ * not overlap** (a debug-mode assert in `detail::DispatchUtils`; nothing checks
+ * it under NDEBUG). An in-place call such as
+ * `dist.getCumulativeProbability(buf, buf)` is undefined: several kernels
+ * re-read the input after writing the output, so it silently returns wrong
+ * values. In-place safety at the `VectorOps` kernel layer does not extend here.
  */
 class DistributionInterface {
    public:
