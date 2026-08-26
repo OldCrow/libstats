@@ -260,6 +260,19 @@ int main() {
         } else {
             cout << "Stream input failed" << endl;
         }
+        if (!(input_dist == dist1))
+            throw std::runtime_error("Uniform round-trip: input_dist != dist1");
+
+        // Round-trip: two distributions streamed back-to-back into the same stream
+        stringstream ss2;
+        ss2 << dist1 << "\n" << dist3;
+        auto rt1 = stats::UniformDistribution::create().unwrap();
+        auto rt2 = stats::UniformDistribution::create().unwrap();
+        ss2 >> rt1 >> rt2;
+        if (!ss2)
+            throw std::runtime_error("Uniform back-to-back stream extraction failed");
+        if (!(rt1 == dist1) || !(rt2 == dist3))
+            throw std::runtime_error("Uniform back-to-back round-trip mismatch");
 
         BasicTestFormatter::printTestSuccess("All comparison and stream operator tests passed");
         BasicTestFormatter::printNewline();

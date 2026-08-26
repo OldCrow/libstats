@@ -1130,34 +1130,46 @@ std::ostream& operator<<(std::ostream& os, const DiscreteDistribution& distribut
 }
 
 std::istream& operator>>(std::istream& is, DiscreteDistribution& distribution) {
-    std::string token;
+    std::string line;
     int a, b;
 
     // Expected format: "DiscreteUniform(a=<value>, b=<value>)"
-    // We'll parse this step by step
+    // Read the entire line to handle spaces in the format
 
-    // Skip whitespace and read the first part
-    is >> token;
-    if (!token.starts_with("DiscreteUniform(")) {
+    // Skip leading whitespace and read the entire formatted string
+    if (!std::getline(is, line)) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+
+    // Trim leading whitespace
+    size_t start = line.find_first_not_of(" \t\n\r");
+    if (start == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    line = line.substr(start);
+
+    if (!line.starts_with("DiscreteUniform(")) {
         is.setstate(std::ios::failbit);
         return is;
     }
 
     // Extract a value
-    if (token.find("a=") == std::string::npos) {
+    if (line.find("a=") == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
 
-    size_t a_pos = token.find("a=") + 2;
-    size_t comma_pos = token.find(",", a_pos);
+    size_t a_pos = line.find("a=") + 2;
+    size_t comma_pos = line.find(",", a_pos);
     if (comma_pos == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
 
     try {
-        std::string a_str = token.substr(a_pos, comma_pos - a_pos);
+        std::string a_str = line.substr(a_pos, comma_pos - a_pos);
         a = std::stoi(a_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
@@ -1165,21 +1177,21 @@ std::istream& operator>>(std::istream& is, DiscreteDistribution& distribution) {
     }
 
     // Extract b value
-    size_t b_pos = token.find("b=", comma_pos);
+    size_t b_pos = line.find("b=", comma_pos);
     if (b_pos == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
     b_pos += 2;
 
-    size_t close_paren = token.find(")", b_pos);
+    size_t close_paren = line.find(")", b_pos);
     if (close_paren == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
 
     try {
-        std::string b_str = token.substr(b_pos, close_paren - b_pos);
+        std::string b_str = line.substr(b_pos, close_paren - b_pos);
         b = std::stoi(b_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
