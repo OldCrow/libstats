@@ -280,8 +280,18 @@ history.
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
   together, verified 424/424 pytest on Windows against the fetched tag —
   a PyPI 0.6.1 on the new pin is a separate pylibstats decision).
-  Remaining for the v2.3.1 matrix: Kaby Lake + M1 native validation runs
-  (each also regenerates its characterization block on the 6063-row grid).
+  Remaining for the v2.3.1 matrix: M1 native validation run (also
+  regenerates its characterization block on the 6063-row grid).
+- **Kaby Lake v2.3.1 leg DONE 2026-08-26** (native, this machine):
+  correctness 58/58 (`ctest -LE "timing|benchmark"`, Dev build), timing
+  22/22 (`ctest -j1 -L timing`, run after ambient load settled below 2.0),
+  `isa=AVX2` block regenerated on the 6063-row grid (banner
+  `commit=6fa1c68`, 42/42 oracle self-checks) — **63 contract violations,
+  the same total and the same two classes as Zen 4** (±inf contracts #103
+  incl. the 12 poisson rows; large-param/extreme-quantile #113/#104).
+  Batch-NaN class 37 → 0 on AVX2, the widest v2.3.0 victim set — the
+  strongest per-tier confirmation of #102/#105 yet. Von Mises Tier 2 gap
+  (4.7e-7/8.5e-7) and student_t ~8e-10 rows persist unchanged (#47, #113).
 - **Follow-ups FILED 2026-08-25** [user-approved]: #125 (NegBin int
   narrowing), #126 (beta_i cancellation), #127 (parallelReduce harvest),
   #129 (flaky Uniform gate) → v2.3.2; #128 (SIMDPolicy dead ladder) →
@@ -425,9 +435,9 @@ session artifact; the issues carry the detail.
 1. **Close out v2.3.1**: land the bookkeeping commit, tag v2.3.1 + GitHub
    release, close milestone #7, bump pylibstats' pin (floor and FetchContent
    tag together; its `pin-currency` canary enforces), file the approved
-   follow-up issues (see In Progress), run Kaby Lake + M1 native
-   validation for the v2.3.1 matrix (also regenerates their
-   characterization blocks on the 6063-row grid).
+   follow-up issues (see In Progress), run Kaby Lake (~~done
+   2026-08-26~~) + M1 native validation for the v2.3.1 matrix (each
+   regenerates its characterization block on the 6063-row grid).
 2. v2.3.2 next (#113 first — it corrects the record #47/#52 rest on; #103
    gains the poisson logpdf(±inf) rows).
 3. Scope #47/#52 for v2.5.0 with #113's correction in hand, then

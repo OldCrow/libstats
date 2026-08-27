@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.3.1 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. Correctness patch over v2.3.0 (8 issues, 5 PRs, suite 53 → 58); validated natively on the Zen 4 AVX-512 reference machine 2026-08-25, Kaby Lake and M1 native runs pending. See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.3.1 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. Correctness patch over v2.3.0 (8 issues, 5 PRs, suite 53 → 58); validated natively on the Zen 4 AVX-512 reference machine 2026-08-25 and on Kaby Lake 2026-08-26; the M1 native run is pending. See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -70,7 +70,7 @@ run separately on a quiet machine).
 |---|---|---|---|---|
 | Asus TUF A16 (Windows) | AVX-512 | 58/58 ✅ | — | Native, 2026-08-25, MSVC Release; timing suite not re-run (nothing in v2.3.1 touches kernels' hot paths — the NaN branches are never taken for finite data) |
 | Mac Mini M1 | NEON | — | — | Native run pending for v2.3.1 (v2.3.0: 53/53 ✅, 2026-08-23) |
-| Kaby Lake (2017 MBP) | AVX2+FMA | — | — | Native run pending for v2.3.1 (v2.3.0: 53/53 ✅, 2026-08-22) |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 58/58 ✅ | 22/22 ✅ | Native, 2026-08-26, AppleClang Dev build; timing serial (`-j1`) after machine settled below load 2.0; `isa=AVX2` characterization block regenerated on the 6063-row grid (63 violations, matching Zen 4) |
 
 The correctness count grew 53 → 58 with v2.3.1's five new gate binaries:
 `test_log_special_gates`, `test_batch_nan_gates`, `test_discrete_quantile_bounds`,
