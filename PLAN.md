@@ -1,8 +1,10 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-08-25
-v2.3.1 is merged to main (all 5 PRs #120–#124 squash-merged 2026-08-25,
-8 issues closed; **tag not yet cut** — see Next Steps); 19 distributions
+## Status [DERIVED] — 2026-08-28
+v2.3.1 shipped (tagged 2026-08-25, all 5 PRs #120–#124 squash-merged,
+8 issues closed) and natively validated on all three fleet machines
+(Zen 4 2026-08-25, Kaby Lake 2026-08-26, M1 2026-08-27/28) — the
+v2.3.1 validation matrix in AGENTS.md is complete; 19 distributions
 across 7 families, API unchanged from v2.1.0. v2.3.0 was tagged
 2026-08-20; milestone #5 closed with all 5 issues shipped (#48, #95,
 #51, #49, #46).
@@ -280,8 +282,24 @@ history.
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
   together, verified 424/424 pytest on Windows against the fetched tag —
   a PyPI 0.6.1 on the new pin is a separate pylibstats decision).
-  Remaining for the v2.3.1 matrix: M1 native validation run (also
-  regenerates its characterization block on the 6063-row grid).
+  The v2.3.1 validation matrix is complete as of 2026-08-28 (all three
+  machines native — see AGENTS.md).
+- **M1 v2.3.1 leg DONE 2026-08-27/28** (native, this machine):
+  correctness 58/58 (`ctest -LE "timing|benchmark"`, Dev build,
+  2026-08-27), timing 22/22 (`ctest -j1 -L timing`, 2026-08-28, run
+  after post-boot load settled to ~2.0), `isa=NEON` block regenerated
+  on the 6063-row grid (banner `commit=b30cdb0`, 42/42 oracle
+  self-checks) — **61 contract violations vs 63 on both x86 machines,
+  same two classes** (±inf contracts #103 incl. the 12 poisson rows;
+  large-param/extreme-quantile #113/#104). The 2-row deficit is #125
+  from the AArch64 side: the two geometric logpdf x > INT_MAX rows
+  saturate to a finite wrong constant (max_rel 0.865 in the error
+  stats) instead of wrapping to −inf, so the contract checker cannot
+  see them — same defect, ISA-dependent symptom, as filed. Batch-NaN
+  class 27 → 0 on NEON, completing per-tier confirmation of #102/#105
+  on all three fleet ISAs (the strictly nested victim sets are all
+  cleared on native silicon). Von Mises Tier 2 gap (4.7e-7/8.5e-7) and
+  student_t ~8e-10 rows persist unchanged (#47, #113).
 - **Kaby Lake v2.3.1 leg DONE 2026-08-26** (native, this machine):
   correctness 58/58 (`ctest -LE "timing|benchmark"`, Dev build), timing
   22/22 (`ctest -j1 -L timing`, run after ambient load settled below 2.0),
@@ -432,12 +450,10 @@ session artifact; the issues carry the detail.
   tail); the von Mises fallback error is ≈ 0.04/κ, not O(1/κ²).
 
 ## Next Steps
-1. **Close out v2.3.1**: land the bookkeeping commit, tag v2.3.1 + GitHub
-   release, close milestone #7, bump pylibstats' pin (floor and FetchContent
-   tag together; its `pin-currency` canary enforces), file the approved
-   follow-up issues (see In Progress), run Kaby Lake (~~done
-   2026-08-26~~) + M1 native validation for the v2.3.1 matrix (each
-   regenerates its characterization block on the 6063-row grid).
+1. ~~Close out v2.3.1~~ **DONE 2026-08-28** — tag/release/milestone/pin
+   2026-08-25, follow-ups filed, Kaby Lake leg 2026-08-26, M1 leg
+   2026-08-27/28. The validation matrix and all three characterization
+   blocks are at v2.3.1.
 2. v2.3.2 next (#113 first — it corrects the record #47/#52 rest on; #103
    gains the poisson logpdf(±inf) rows).
 3. Scope #47/#52 for v2.5.0 with #113's correction in hand, then

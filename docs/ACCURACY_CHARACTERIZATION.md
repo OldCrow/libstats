@@ -121,6 +121,10 @@ against the Zen 4 tables below per (distribution, method, source) on
 
 ## Third machine: Mac Mini M1 NEON (2026-08-23)
 
+> Describes the v2.3.0-era sweep on the old 5928-row grid. The generated
+> NEON block below was regenerated at v2.3.1 on 2026-08-27 (see "Third
+> machine re-run"); this section stands as the record of the unfixed code.
+
 Same sweep (5928 rows, `accuracy_sweep` banner `commit=e9fac49 isa=NEON`),
 Apple M1, AppleClang 21 Release (`release` preset), libc++ — so, like Kaby
 Lake, no `std::cyl_bessel_i` and the Bessel Tier 2 fallback is active.
@@ -160,11 +164,11 @@ above compares against. What changed:
   been higher still — 16 of 19 distributions; see #102's closing comment).
   #105's `vector_log` blend also clears the mechanism behind the AVX2
   block's 37 extra rows — confirmed on native silicon by the Kaby Lake
-  v2.3.1 re-run (2026-08-26, below). **The M1 block still shows pre-fix
-  data** — its prose and tables describe the v2.3.0-era sweep and stand
-  until that machine's native v2.3.1 re-run regenerates its block.
-  The strictly-nested victim-set analysis above (NEON ⊂ AVX-512 ⊂ AVX2)
-  remains correct as a record of the unfixed code.
+  v2.3.1 re-run (2026-08-26, below) and on the M1 v2.3.1 re-run
+  (2026-08-27, below), completing per-tier confirmation on all three
+  fleet ISAs. The strictly-nested victim-set analysis above
+  (NEON ⊂ AVX-512 ⊂ AVX2) remains correct as a record of the unfixed
+  code.
 - **Total violations: 86 (old grid) → 63.** All remaining rows are two
   known classes: ±inf input contracts (#103 — including 12 newly visible
   poisson `logpdf(±inf) = −4605` rows the extended grid exposed, scalar
@@ -196,6 +200,37 @@ oracle self-checks. Compared against the Zen 4 v2.3.1 block:
   the #47 / v2.5.0 (corvus) line item; the CDF rows (own Bessel series)
   match Zen 4. student_t `pdf`/`logpdf` 7.2e-10 to 7.9e-10, identical to
   the v2.3.0-era figures (#113 iteration-cap class, not ISA-dependent).
+
+## Third machine re-run: Mac Mini M1 NEON at v2.3.1 (2026-08-27)
+
+The NEON generated block below now reflects **v2.3.1** (banner
+`commit=b30cdb0`, 6063-row grid), regenerated from a native sweep on the
+Apple M1, AppleClang Release, libc++ (Bessel Tier 2 active), 42/42
+oracle self-checks. Compared against the Zen 4 / Kaby Lake v2.3.1
+blocks:
+
+- **Contract violations: 61 vs 63 on both x86 machines**, and the same
+  two classes: ±inf input contracts (#103, including the 12 poisson
+  `logpdf(±inf) = −4605` rows) and large-parameter / extreme-quantile
+  behavior (#113/#104). The 2-row deficit is **#125 seen from the
+  AArch64 side**: the two geometric `logpdf` rows at x > INT_MAX are
+  contract violations on x86 (the `static_cast<int>` wraps, `logpdf`
+  → −inf against a finite reference) but AArch64 saturates the cast to
+  INT_MAX and returns a finite wrong constant — invisible to the
+  contract checker, surfacing instead as geometric `logpdf`
+  `max_rel = 0.865` at `worst_x = 1.6e+10` in the error statistics.
+  Same defect, ISA-dependent symptom, exactly as filed.
+- **The batch-NaN class is gone on NEON**: 0 "NaN input did not produce
+  NaN batch output" rows, down from 27 at v2.3.0. With the Zen 4
+  (2026-08-25) and Kaby Lake (2026-08-26) re-runs, all three strictly
+  nested victim sets (NEON ⊂ AVX-512 ⊂ AVX2) are now confirmed cleared
+  on native silicon — the per-tier exercise #102's re-scope demanded is
+  complete.
+- **The Tier 2 Bessel gap persists, unchanged**: von Mises `pdf`/`logpdf`
+  4.7e-7 / 8.5e-7 scalar and batch (vs ~1e-14 on Zen 4 Tier 1) — still
+  the #47 / v2.5.0 (corvus) line item; the CDF rows (own Bessel series)
+  match Zen 4. student_t `pdf`/`logpdf` 7.2e-10 to 7.9e-10, identical to
+  Kaby Lake (#113 iteration-cap class, not ISA-dependent).
 
 ## Findings
 
@@ -891,7 +926,7 @@ Sweep banner: `commit=6fa1c68  isa=AVX2  date=2026-08-26`
 
 ## Generated tables: NEON
 
-Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
+Sweep banner: `commit=b30cdb0  isa=NEON  date=2026-08-27`
 
 ### beta
 
@@ -935,7 +970,7 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 4.149e-6 | 8.298e-6 | 8.298e-6 | 1.614e+8 | - | 99999.3 |
 | cdf | batch | 4.149e-6 | 8.298e-6 | 8.298e-6 | 1.614e+8 | abs=0, rel=0 | 99999.3 |
-| cdf | *(contract)* | 6 violation(s) -- see appendix | | | | | |
+| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | logpdf | scalar | 6.377e-11 | 8.512e-12 | 8.512e-12 | - | - | 100231 |
 | logpdf | batch | 1.074e-10 | 1.393e-11 | 1.393e-11 | - | abs=5.093e-11, rel=7.245e-12 | 100056 |
 | logpdf | *(contract)* | 7 violation(s) -- see appendix | | | | | |
@@ -975,7 +1010,7 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 8.718e-8 | 1.768e-7 | 1.768e-7 | 6.558e+7 | - | 9.94789e+06 |
 | cdf | batch | 8.718e-8 | 1.768e-7 | 1.768e-7 | 6.558e+7 | abs=0, rel=0 | 9.94789e+06 |
-| cdf | *(contract)* | 6 violation(s) -- see appendix | | | | | |
+| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | logpdf | scalar | 2.062e-11 | 1.133e-12 | 1.133e-12 | - | - | 1.00122e+07 |
 | logpdf | batch | 2.629e-11 | 1.985e-12 | 1.985e-12 | - | abs=1.536e-11, rel=1.067e-12 | 9.87206e+06 |
 | logpdf | *(contract)* | 7 violation(s) -- see appendix | | | | | |
@@ -1015,13 +1050,10 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 6.021e-17 | 9.707e-14 | 5.422e-14 | 0.7911 | - | -4.51927e+08 |
 | cdf | batch | 5.79e-17 | 9.707e-14 | 3.504e-14 | 0.8694 | abs=1.11e-16, rel=5.686e-14 | -4.51927e+08 |
-| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | logpdf | scalar | 9.572e-14 | 0.01422 | 4.582e-7 | - | - | -1.31224e-05 |
 | logpdf | batch | 9.572e-14 | 0.9175 | 1.17e-5 | - | abs=5.684e-14, rel=0.9452 | -1.31224e-05 |
-| logpdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 4.957e-10 | 9.575e-14 | 5.504e-14 | - | - | -4.51927e+08 |
 | pdf | batch | 5.159e-10 | 9.575e-14 | 5.504e-14 | - | abs=6.403e-10, rel=5.689e-14 | -4.51927e+08 |
-| pdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 8.498e-9 | 1.601e-16 | 1.601e-16 | - | - | 1e-15 |
 
 ### lognormal
@@ -1069,6 +1101,7 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 | cdf | batch | 0.0007912 | 0.00158 | 0.00158 | 4.912e+5 | abs=0, rel=0 | 100000 |
 | logpdf | scalar | 2.935e-9 | 1.868e-11 | 1.868e-11 | - | - | 100632 |
 | logpdf | batch | 2.935e-9 | 1.868e-11 | 1.868e-11 | - | abs=0, rel=0 | 100632 |
+| logpdf | *(contract)* | 12 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 7.285e-7 | 0.004219 | 0.004219 | - | - | 99368 |
 | pdf | batch | 8.291e-14 | 1.62e-10 | 1.62e-10 | - | abs=7.285e-7, rel=0.004213 | 100632 |
 | quantile | scalar | 3.0 | 1.0 | 1.0 | - | - | 1e-300 |
@@ -1108,10 +1141,8 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 | cdf | batch | 1.813e-16 | 1.813e-16 | 1.709e-16 | 0.02343 | abs=0, rel=0 | 0.0009998 |
 | logpdf | scalar | 3.04e-16 | 4.891e-17 | 4.891e-17 | - | - | -0.001 |
 | logpdf | batch | 3.04e-16 | 4.891e-17 | 4.891e-17 | - | abs=0, rel=0 | -0.001 |
-| logpdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 1.041e-14 | 2.092e-17 | 2.092e-17 | - | - | -1e+08 |
 | pdf | batch | 1.041e-14 | 2.092e-17 | 2.092e-17 | - | abs=0, rel=0 | -1e+08 |
-| pdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 6.285e-9 | 6.285e-17 | 6.285e-17 | - | - | 1e-15 |
 
 ### von_mises
@@ -1122,10 +1153,8 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 | cdf | batch | 9.798e-16 | 8.341e+63 | 8.341e+63 | 2.039e+77 | abs=9.992e-16, rel=1.0 | -2.52455 |
 | logpdf | scalar | 4.728e-7 | 8.458e-7 | 8.458e-7 | - | - | 0.128412 |
 | logpdf | batch | 4.728e-7 | 8.458e-7 | 8.458e-7 | - | abs=7.105e-15, rel=5.696e-15 | 0.128412 |
-| logpdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | pdf | scalar | 1.884e-6 | 4.728e-7 | 4.728e-7 | - | - | -0.0519397 |
 | pdf | batch | 1.884e-6 | 4.728e-7 | 4.728e-7 | - | abs=2.442e-14, rel=7.139e-15 | -0.374577 |
-| pdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 6.283 | 1.97e+15 | 1.97e+15 | - | - | 0.5 |
 
 ### weibull
@@ -1144,15 +1173,12 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 
 ### Contract findings (appendix)
 
-76 contract violations across the sweep. `csv_line` indexes the sweep CSV this report was generated from (see the commit/isa banner in the regeneration log).
+61 contract violations across the sweep. `csv_line` indexes the sweep CSV this report was generated from (see the commit/isa banner in the regeneration log).
 
 | dist | method | source | csv_line | finding |
 |---|---|---|---|---|
-| chi_squared | cdf | batch | 3057 | NaN input did not produce NaN batch output |
 | chi_squared | cdf | batch | 3058 | reference is finite (1.0), batch_bits decoded to nan |
-| chi_squared | cdf | batch | 3163 | NaN input did not produce NaN batch output |
 | chi_squared | cdf | batch | 3164 | reference is finite (1.0), batch_bits decoded to nan |
-| chi_squared | cdf | batch | 3268 | NaN input did not produce NaN batch output |
 | chi_squared | cdf | batch | 3269 | reference is finite (1.0), batch_bits decoded to nan |
 | chi_squared | logpdf | scalar | 3027 | reference is -inf, scalar_bits decoded to nan |
 | chi_squared | logpdf | batch | 3027 | reference is -inf, batch_bits decoded to nan |
@@ -1164,11 +1190,8 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 | chi_squared | pdf | scalar | 2996 | reference is finite (0.0), scalar_bits decoded to nan |
 | chi_squared | pdf | scalar | 3209 | reference is finite (0.0), scalar_bits decoded to nan |
 | chi_squared | quantile | scalar | 3298 | reference is finite (84333.5), scalar_bits decoded to nan |
-| gamma | cdf | batch | 1436 | NaN input did not produce NaN batch output |
 | gamma | cdf | batch | 1437 | reference is finite (1.0), batch_bits decoded to nan |
-| gamma | cdf | batch | 1543 | NaN input did not produce NaN batch output |
 | gamma | cdf | batch | 1544 | reference is finite (1.0), batch_bits decoded to nan |
-| gamma | cdf | batch | 1648 | NaN input did not produce NaN batch output |
 | gamma | cdf | batch | 1649 | reference is finite (1.0), batch_bits decoded to nan |
 | gamma | logpdf | scalar | 1405 | reference is -inf, scalar_bits decoded to nan |
 | gamma | logpdf | batch | 1405 | reference is -inf, batch_bits decoded to nan |
@@ -1180,18 +1203,21 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 | gamma | pdf | scalar | 1373 | reference is finite (0.0), scalar_bits decoded to nan |
 | gamma | pdf | scalar | 1589 | reference is finite (0.0), scalar_bits decoded to nan |
 | gamma | quantile | scalar | 1678 | reference is finite (6.73769e+6), scalar_bits decoded to nan |
-| laplace | cdf | batch | 3403 | NaN input did not produce NaN batch output |
-| laplace | cdf | batch | 3553 | NaN input did not produce NaN batch output |
-| laplace | cdf | batch | 3703 | NaN input did not produce NaN batch output |
-| laplace | logpdf | batch | 3358 | NaN input did not produce NaN batch output |
-| laplace | logpdf | batch | 3508 | NaN input did not produce NaN batch output |
-| laplace | logpdf | batch | 3658 | NaN input did not produce NaN batch output |
-| laplace | pdf | batch | 3313 | NaN input did not produce NaN batch output |
-| laplace | pdf | batch | 3463 | NaN input did not produce NaN batch output |
-| laplace | pdf | batch | 3613 | NaN input did not produce NaN batch output |
 | pareto | quantile | scalar | 3961 | reference is finite (1.0e+594), scalar_bits decoded to inf |
 | pareto | quantile | scalar | 3962 | reference is finite (9.99992e+993), scalar_bits decoded to inf |
 | pareto | quantile | scalar | 3963 | reference is finite (1.08324e+1494), scalar_bits decoded to inf |
+| poisson | logpdf | scalar | 4734 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4734 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4735 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4735 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4825 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4825 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4826 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4826 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4916 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4916 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4917 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4917 | reference is -inf, batch_bits decoded to -4605.0 |
 | rayleigh | logpdf | scalar | 4101 | reference is -inf, scalar_bits decoded to nan |
 | rayleigh | logpdf | batch | 4101 | reference is -inf, batch_bits decoded to nan |
 | rayleigh | logpdf | scalar | 4209 | reference is -inf, scalar_bits decoded to nan |
@@ -1204,25 +1230,13 @@ Sweep banner: `commit=e9fac49  isa=NEON  date=2026-08-23`
 | student_t | quantile | scalar | 1783 | reference is finite (-1.56839e+60), scalar_bits decoded to -inf |
 | student_t | quantile | scalar | 1888 | reference is finite (-1.59857e+299), scalar_bits decoded to -inf |
 | student_t | quantile | scalar | 1993 | reference is finite (-37.0598), scalar_bits decoded to -inf |
-| uniform | logpdf | batch | 1015 | NaN input did not produce NaN batch output |
-| uniform | logpdf | batch | 1164 | NaN input did not produce NaN batch output |
-| uniform | logpdf | batch | 1289 | NaN input did not produce NaN batch output |
-| uniform | pdf | batch | 967 | NaN input did not produce NaN batch output |
-| uniform | pdf | batch | 1126 | NaN input did not produce NaN batch output |
-| uniform | pdf | batch | 1255 | NaN input did not produce NaN batch output |
-| von_mises | logpdf | batch | 2363 | NaN input did not produce NaN batch output |
-| von_mises | logpdf | batch | 2471 | NaN input did not produce NaN batch output |
-| von_mises | logpdf | batch | 2584 | NaN input did not produce NaN batch output |
-| von_mises | pdf | batch | 2332 | NaN input did not produce NaN batch output |
-| von_mises | pdf | batch | 2440 | NaN input did not produce NaN batch output |
-| von_mises | pdf | batch | 2548 | NaN input did not produce NaN batch output |
 | weibull | logpdf | scalar | 4425 | reference is -inf, scalar_bits decoded to nan |
 | weibull | logpdf | batch | 4425 | reference is -inf, batch_bits decoded to nan |
-| weibull | logpdf | batch | 4530 | reference is inf, batch_bits decoded to -inf |
+| weibull | logpdf | batch | 4530 | reference is +inf, batch_bits decoded to -inf |
 | weibull | logpdf | scalar | 4626 | reference is -inf, scalar_bits decoded to nan |
 | weibull | logpdf | batch | 4626 | reference is -inf, batch_bits decoded to nan |
 | weibull | pdf | scalar | 4394 | reference is finite (0.0), scalar_bits decoded to nan |
-| weibull | pdf | batch | 4504 | reference is inf, batch_bits decoded to 0.0 |
+| weibull | pdf | batch | 4504 | reference is +inf, batch_bits decoded to 0.0 |
 | weibull | pdf | scalar | 4595 | reference is finite (0.0), scalar_bits decoded to nan |
 
 <!-- END GENERATED isa=NEON -->
