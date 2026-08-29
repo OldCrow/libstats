@@ -51,9 +51,10 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-08-25 (v2.3.1 milestone
-issues all closed via PRs #120–#124; milestone #7 left open until the tag
-is cut).
+Last reconciled against live GitHub state: 2026-08-28 (milestone #8
+renamed version-neutral "Accuracy, contracts & kernel hygiene patch";
+#107/#108/#110/#113 moved to v2.5.0 with comments; milestone #7 closed at
+the tag).
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -149,7 +150,7 @@ history.
       closed and v2.3.0 was tagged the same day. Follow-up issues filed
       2026-08-20: #102 batch NaN propagation (bug; now v2.3.1), #103
       ±inf input contract and #104 quantile extreme-p contract (both
-      decision-gated; now v2.3.2).
+      decision-gated; now in the post-adoption patch, ex-"v2.3.2").
       [DERIVED] detail:
       replaced the issue's pylibstats route (pins to released v2.2.0,
       would characterize the wrong code) with tools/accuracy_sweep.cpp
@@ -202,12 +203,20 @@ history.
   plus the before/after scipy benchmark. (Historical: parked
   unmilestoned 2026-08-20; libhmm v4.4.0 had no adoptable interim #47
   fix — its Tier 2 is the same A&S polynomial.)
-- **Order of release: v2.3.1 → v2.3.2 → v2.4.0 → v2.5.0 → v2.6.0 →
-  v3.0.0.** Decided 2026-08-21 from the defensive review, on the libhmm
-  pattern: fix-now candidates grouped into two PATCH milestones (bug fixes,
-  no API change); the second exists because its items change numbers
-  (caps/tolerance, thresholds) or edge-case policy, so they must not gate
-  the correctness patch. Structural items go to the existing major.
+- **Order of release: v2.3.1 (SHIPPED 2026-08-26) → v2.4.0 → v2.5.0 →
+  post-adoption patch (version assigned at ship, likely v2.5.1) → v2.6.0 →
+  v3.0.0.** Reordered 2026-08-28 [user]: the second patch follows the
+  corvus adoption because adoption closes several of its items — its old
+  "v2.3.2" name was therefore semver-impossible, and the milestone is
+  renamed version-neutral ("Accuracy, contracts & kernel hygiene patch");
+  #107/#110/#113 moved onto v2.5.0 (and #108 from v3.0.0), since that is
+  the release that closes them. The 2026-08-21 rationale stands for the
+  split itself: fix-now candidates grouped into PATCH milestones (bug
+  fixes, no API change); the second's items change numbers or edge-case
+  policy, so they must not gate the correctness patch. Structural items
+  go to the existing major. Cross-project sequencing (corvus v0.6.0 →
+  v0.7.0 → v0.8.0 elementary family, corvus #32 → v0.9.0 fleet validation
+  → v1.0.0, all before v2.5.0 opens): corvus/PLAN.md.
 - **v2.3.1 — Correctness patch** (#7): 0 open / 8 closed + 5 merged PRs —
   all work merged 2026-08-25 (PRs #120–#124, squash); milestone open only
   until the tag is cut. Every exit criterion met: fail-first regression
@@ -223,53 +232,67 @@ history.
   Debug AND Dev configs); #118 parallelFor propagates (wait-all-then-
   harvest); WorkStealingPool still swallows by design — asymmetry
   documented, caller-visible, platform-dependent.
-- **v2.3.2 — Accuracy, contracts & kernel hygiene** (open, #8): 12 open /
-  0 closed.
-  - #113 OPEN — incomplete-gamma/beta iteration caps and Lentz tolerance
-    (corrects the accuracy premise recorded against #47/#52).
+- **Accuracy, contracts & kernel hygiene patch** (open, #8; renamed from
+  "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
+  likely v2.5.1): 9 open / 0 closed. #107/#110/#113 moved to v2.5.0 the
+  same day (the adoption release closes them).
   - #104 OPEN — quantile contract at extreme p (+ the verified Cauchy
-    split-form fix, on the issue); #103 OPEN — ±inf input contract (scope
+    split-form fix, on the issue; the gamma half is covered by corvus
+    gammainv at adoption); #103 OPEN — ±inf input contract (scope
     grew 2026-08-25: +12 poisson logpdf(±inf) = −4605 rows, see comment).
   - #109 OPEN — re-profile the Cauchy CDF thresholds (rows marked STALE).
   - #111 OPEN — von Mises batch CDF blocking + the noexcept/allocation
-    policy; #110 OPEN — one erfc tail-branch helper (bit-neutral).
-  - #107 OPEN — one clean-room trig table; #114 OPEN — review backlog.
+    policy; #114 OPEN — review backlog.
   - Filed 2026-08-25 from v2.3.1 findings: #125 OPEN — NegBin/Geometric
     public cdf/logpdf int-narrowing past INT_MAX (UB, ISA-dependent;
     quantile/CDF inconsistency); #126 OPEN — beta_i ~1e-6 abs at b ≳ 1e9
-    (lgamma cancellation; sequence with #113); #127 OPEN —
-    parallelReduce/parallelStatOperation early-rethrow harvest (the #118
-    shape); #129 OPEN — flaky Uniform speedup gate on Zen 4 (widen or
-    drop; was a PLAN Known Gap since v2.2.0, now filed).
-  Exit: `docs/ACCURACY_CHARACTERIZATION.md` attribution corrected and the
-  sweep regenerated; per-tier accuracy gates for #113.
+    (lgamma cancellation; likely absorbed by the corvus incomplete-beta
+    core — verify at adoption scoping and re-home to v2.5.0 if so); #127
+    OPEN — parallelReduce/parallelStatOperation early-rethrow harvest
+    (the #118 shape); #129 OPEN — flaky Uniform speedup gate on Zen 4
+    (widen or drop; was a PLAN Known Gap since v2.2.0, now filed).
+  Contingency (proposed 2026-08-28): #125/#127 are genuine bugs adoption
+  does not touch — if the corvus arc stalls, they justify an early patch
+  slice ahead of this milestone.
+  Exit: sweep regenerated on the milestone's fixes (the
+  `docs/ACCURACY_CHARACTERIZATION.md` attribution correction moved with
+  #113 to v2.5.0).
 - **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   (#102 moved to v2.3.1 on 2026-08-21)
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal.
-- **v2.5.0 — corvus adoption** (open, #6): 2 open / 0 closed — #47
-  bessel.h rewire, #52 Binomial beta_p CDF rewrite; the core-swap work
-  itself plus the before/after characterization sweeps. See the staging
-  entry above for rationale and prerequisites. Both annotated 2026-08-21:
-  scope against the cores' REAL accuracy once #113 (v2.3.2) lands — the
+- **v2.5.0 — corvus adoption** (open, #6): 6 open / 0 closed — #47
+  bessel.h rewire, #52 Binomial beta_p CDF rewrite, and (moved in on
+  2026-08-28, closed BY the adoption swap) #113 iteration caps/Lentz
+  tolerance (the corvus cores delete the capped iterations outright),
+  #110 erfc tail-branch helper (the corvus erfc core replaces the three
+  TU-local shapes), #107 one clean-room trig table and #108 trig-kernel
+  duplication (both dissolve when the local kernels yield to corvus's
+  elementary family, corvus #32); plus the core-swap work itself and the
+  before/after characterization sweeps. See the staging entry above for
+  rationale and prerequisites. #47/#52 annotated 2026-08-21: scope
+  against the cores' REAL accuracy with #113's correction in hand — the
   large-parameter rows that motivated them are iteration-cap artefacts.
+  Scope widened 2026-08-28: one swap round covers special functions AND
+  the elementary family (exp/log/log1p/cos/sin via corvus #32) — one
+  sweep, one pin bump, one pylibstats release.
 - **v2.6.0 — New Distributions (Extended)** (open, #3, renumbered from
   v2.5.0 on 2026-08-21): 5 open / 0 closed
   — #58 GEV (depends on #54), #59 LogLogistic (depends on #54),
   #60 Triangular, #61 Wald, #62 Hypergeometric + BetaBinomial + Zipf.
   #62's Zipf CDF design (summation vs Hurwitz-zeta closed form) must be
   settled before this milestone's planning — it scopes corvus P3 work.
-- **v3.0.0 — Architecture Refactor** (open, #4): 6 open / 0 closed —
+- **v3.0.0 — Architecture Refactor** (open, #4): 5 open / 0 closed —
   #40 split CMakeLists.txt into cmake/ modules, #41 unify the dual SIMD
   namespace, #42 decompose parallel_execution.h, #43 extract dispatch/cache
-  boilerplate into a CRTP or policy helper, #108 trig-kernel duplication
-  (record the `simd_neon.cpp:761` decision or a per-tier traits layer),
-  #128 SIMDPolicy::detectBestLevel dead-code ladder duplication (filed
-  2026-08-25, pairs with #41).
+  boilerplate into a CRTP or policy helper, #128 SIMDPolicy::detectBestLevel
+  dead-code ladder duplication (filed 2026-08-25, pairs with #41). #108
+  moved to v2.5.0 on 2026-08-28 (dissolves at adoption).
 
 ## GitHub Issues Without Milestone [DERIVED]
 - Open: none — #103/#104 and the 2026-08-21 review set #105–#118 are all
-  milestoned (v2.3.1, v2.3.2, v3.0.0; see GitHub Milestones above).
+  milestoned (v2.3.1, v2.5.0, the post-adoption patch, v3.0.0; see GitHub
+  Milestones above).
 - #84 closed 2026-08-16 — see Resolved log.
 - Closed: 15, none milestoned (#84 closed 2026-08-16; #90 and #94 2026-08-15 — see
   Resolved log). Note #90 was never listed here while open; this section is
@@ -396,8 +419,9 @@ log). Of the four v2.3.0 issues it once governed: #49 shipped in v2.3.0 by
 hand (bcbd570, 30745b8) — the defect was the formulation, not erf precision,
 so adoption never touched it; #51 shipped in v2.3.0 via Miller recurrence
 with no Bessel evaluated; #47 and #52 are parked in v2.5.0 and get re-scoped
-against the cores' real accuracy once #113 (v2.3.2) corrects the
-iteration-cap attribution. What stays open here is the dependency's cost to
+against the cores' real accuracy with #113's correction in hand (#113
+itself moved into v2.5.0 on 2026-08-28 — the corvus cores delete the
+capped iterations, so the adoption release is what closes it). What stays open here is the dependency's cost to
 pylibstats wheels: Highway becomes transitive, corvus's Apache-2.0 NOTICE
 must ship with binary artifacts, and `libstats-config.cmake` owes a
 `find_dependency(corvus)`.
@@ -454,10 +478,14 @@ session artifact; the issues carry the detail.
    2026-08-25, follow-ups filed, Kaby Lake leg 2026-08-26, M1 leg
    2026-08-27/28. The validation matrix and all three characterization
    blocks are at v2.3.1.
-2. v2.3.2 next (#113 first — it corrects the record #47/#52 rest on; #103
-   gains the poisson logpdf(±inf) rows).
-3. Scope #47/#52 for v2.5.0 with #113's correction in hand, then
-   v2.4.0/v2.5.0 or the v3.0.0 refactor.
+2. Sequence behind the corvus arc (v0.6.0 → v0.7.0 → v0.8.0 elementary
+   family #32 → v0.9.0 → v1.0.0), running v2.4.0 in parallel if desired;
+   then v2.5.0 adoption (now also closing #107/#108/#110/#113) in ONE
+   swap round; the renamed post-adoption patch after it. Contingency:
+   #125/#127 justify an early patch slice if the corvus arc stalls.
+3. At v2.5.0 scoping: re-scope #47/#52 against the cores' real accuracy
+   (#113's record correction), and verify whether the corvus
+   incomplete-beta core absorbs #126 (re-home it to v2.5.0 if so).
 4. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
    0.6.0 released on the v2.3.0 pin; re-bump at v2.3.1 (step 1).
 
