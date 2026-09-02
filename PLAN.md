@@ -191,8 +191,9 @@ history.
   Prerequisites, tracked on the milestone description: (a) M1 + Kaby
   Lake native validation legs run DURING v2.4.0 (both projects need the
   same machine time; corvus per-tier claims and this repo's PROVISIONAL
-  characterization share the gap); (b) corvus API stable — pair with
-  corvus v1.0.0 if near; (c) #103/#104 contract decisions settled
+  characterization share the gap); (b) corvus API stable — SATISFIED
+  2026-09-01: corvus v1.0.0 tagged and released (surface frozen under
+  corvus docs/VERSIONING.md; milestone #6 description updated); (c) #103/#104 contract decisions settled
   before v2.4.0 starts authoring distributions (cheap policy calls,
   not corvus-gated — every distribution written first multiplies the
   inconsistency #46 found).
