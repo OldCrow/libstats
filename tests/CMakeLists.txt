@@ -417,6 +417,14 @@ create_libstats_gtest(test_laplace_enhanced test_laplace_enhanced.cpp)
 create_libstats_test(test_cauchy_basic test_cauchy_basic.cpp)
 create_libstats_gtest(test_cauchy_enhanced test_cauchy_enhanced.cpp)
 
+# bernoulli.h - Bernoulli distribution (discrete, delegation wrapper over Binomial(n=1))
+create_libstats_test(test_bernoulli_basic test_bernoulli_basic.cpp)
+create_libstats_gtest(test_bernoulli_enhanced test_bernoulli_enhanced.cpp)
+
+# erlang.h - Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
+create_libstats_test(test_erlang_basic test_erlang_basic.cpp)
+create_libstats_gtest(test_erlang_enhanced test_erlang_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
@@ -486,6 +494,8 @@ if(GTEST_FOUND)
         test_geometric_enhanced
         test_laplace_enhanced
         test_cauchy_enhanced
+        test_bernoulli_enhanced
+        test_erlang_enhanced
         PROPERTIES LABELS "timing")
 
     # test_benchmark is a benchmark, not a correctness test. It used to be kept
@@ -587,6 +597,10 @@ add_custom_target(
             test_laplace_enhanced
             test_cauchy_basic
             test_cauchy_enhanced
+            test_bernoulli_basic
+            test_bernoulli_enhanced
+            test_erlang_basic
+            test_erlang_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow
