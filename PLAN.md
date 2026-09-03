@@ -51,10 +51,11 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-09-02 (#103/#104 contract
-decisions settled and recorded as issue comments; milestone #6 description
-updated — prerequisite (c) marked SATISFIED, and the description had
-drifted: it never listed (c) until this pass added it).
+Last reconciled against live GitHub state: 2026-09-03 (v2.4.0 execution day:
+PRs #130–#135 and #139 created and squash-merged into dev/v2.4.0; issues
+#136/#137/#138 filed into milestone #8 from workstream findings; cross-repo
+libhmm#103 filed — libhmm's own PLAN.md not updated in that change set, its
+next session reconciles per its own convention).
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -263,6 +264,16 @@ history.
     OPEN — parallelReduce/parallelStatOperation early-rethrow harvest
     (the #118 shape); #129 OPEN — flaky Uniform speedup gate on Zen 4
     (widen or drop; was a PLAN Known Gap since v2.2.0, now filed).
+  - Filed 2026-09-03 from v2.4.0 workstream findings (all with corvus-
+    absorption checks noted for v2.5.0 scoping, the #126 pattern):
+    #136 OPEN — detail::erf_inv extreme-tail band wrong/non-monotone +
+    1.4e-8 small-arg floor (Gaussian getQuantile inherits, p ≳ 1−1e-9;
+    TruncatedNormal's in-tree survival-domain solver is the reference
+    fix). #137 OPEN — inverse_beta_i absolute stop + clamp, unusable
+    below p~1e-8 (Beta getQuantile inherits; F's steered solver is the
+    reference). #138 OPEN — digamma ~1.3e-8 binds entropies (libhmm's
+    2e-14 psi_functions.h is the in-fleet reference). Cross-repo:
+    libhmm#103 (errorf_inv saturation-class investigation, low sev).
   Contingency (proposed 2026-08-28): #125/#127 are genuine bugs adoption
   does not touch — if the corvus arc stalls, they justify an early patch
   slice ahead of this milestone.
@@ -415,18 +426,22 @@ history.
     the #103/#104 contract gates live in them; a timing label would
     exclude the gates from CI's correctness run (the #97 trap). Rule
     recorded at the label block in tests/CMakeLists.txt.
-  - Upstream findings from the workstreams, TO FILE as issues [OPEN,
-    needs user go-ahead]: (a) detail::erf_inv extreme-tail band wrong
-    and non-monotone (erf_inv(1−1e-14)=7.59 vs true 5.46) + ~1.4e-8
-    small-argument relative floor; Gaussian getQuantile shares it for
-    p ≳ 1−1e-9 (#104-adjacent). (b) detail::inverse_beta_i absolute
-    stop + [1e-8,1−1e-8] clamp — unusable below p~1e-8; Beta
-    getQuantile inherits. (c) detail::digamma ~1.3e-8 absolute binds
-    the new entropies (trigamma is 2e-14). (d) detail::f_cdf/
-    inverse_f_cdf unsteered, tail-inaccurate, apparently unused for
-    tails. (e) test_integration_workflow's "all 19 distributions"
-    sweep doesn't cover the new eight. (f) Erlang's now-redundant
-    defensive ±inf guards (post-#130 cleanup, optional).
+  - Upstream findings CLOSED OUT 2026-09-03 [user-approved split]:
+    in-version items shipped via PR #139 (hygiene, −130 net lines):
+    dead f_cdf/inverse_f_cdf DELETED (pre-v2.4.0 stubs superseded by
+    FDistribution — verified zero callers; provenance checked: NOT new
+    code), Erlang PDF/LogPDF simplified to pure delegation (contract
+    tests pass unchanged — guards empirically redundant),
+    test_integration_workflow extended to all 27. Pre-existing defects
+    filed as #136/#137/#138 (milestone #8) + libhmm#103 — see the
+    milestone #8 entry. Post-hygiene integrated suite: 74/74.
+  - Sweep/oracle extension READY TO SPAWN: brief prepared (session
+    scratchpad, sweep-extension-brief.md) — registration patterns
+    mapped in both tools, instance triples proposed, hard constraints
+    from the #46 oracle-hardening history (reuse Lentz CF internals,
+    never raw mp.betainc/gammainc), #56's exact-double-of-p rule and
+    #57's survival-form rule baked in; append-only vs the 63-violation
+    baseline rows.
   - Environment hardening this session: per-project Defender exclusions
     added [user, elevated shell] after cloud-ML quarantine
     (`Trojan:Win32/Wacatac.B!ml`) ate rotating test EXEs mid-suite —
