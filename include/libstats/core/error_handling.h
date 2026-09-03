@@ -371,6 +371,57 @@ inline VoidResult validateRayleighParameters(double sigma) noexcept {
 }
 
 /**
+ * @brief Validate Half-Normal distribution parameters without throwing exceptions
+ * @param sigma Scale parameter σ (must be positive)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateHalfNormalParameters(double sigma) noexcept {
+    if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Sigma (σ) must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Truncated Normal distribution parameters without throwing exceptions
+ *
+ * Checks the basic parameter constraints only: mean finite, sigma positive
+ * finite, bounds not NaN, and a < b (either bound may be ±infinity — the
+ * doubly-infinite window degenerates to the plain Gaussian and is allowed).
+ * The representability of the normalization constant Z = Φ(β) − Φ(α) is a
+ * numerical-regime constraint checked separately by
+ * TruncatedNormalDistribution's factory and setters, which reject windows so
+ * deep in a tail that Z underflows double precision.
+ *
+ * @param mean Location parameter μ of the parent Gaussian (must be finite)
+ * @param sigma Scale parameter σ of the parent Gaussian (must be positive)
+ * @param a Lower truncation bound (may be −infinity, not NaN)
+ * @param b Upper truncation bound (may be +infinity, not NaN; must exceed a)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateTruncatedNormalParameters(double mean, double sigma, double a,
+                                                    double b) noexcept {
+    if (std::isnan(mean) || std::isinf(mean)) {
+        return VoidResult::makeError(ValidationError::InvalidMean, "Mean must be a finite number");
+    }
+    if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Standard deviation must be a positive finite number");
+    }
+    if (std::isnan(a) || std::isnan(b)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Truncation bounds must not be NaN");
+    }
+    if (!(a < b)) {
+        return VoidResult::makeError(
+            ValidationError::InvalidRange,
+            "Upper truncation bound (b) must be strictly greater than lower bound (a)");
+    }
+    return VoidResult::ok({});
+}
+
+/**
  * @brief Validate Von Mises distribution parameters without throwing exceptions
  * @param mu Mean direction (must be finite)
  * @param kappa Concentration parameter (must be non-negative and finite)
@@ -513,6 +564,42 @@ inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
     if (std::isnan(gamma) || std::isinf(gamma) || gamma <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter gamma must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Logistic distribution parameters without throwing exceptions
+ * @param mu Location parameter (must be finite)
+ * @param s  Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateLogisticParameters(double mu, double s) noexcept {
+    if (!std::isfinite(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter mu must be a finite number");
+    }
+    if (std::isnan(s) || std::isinf(s) || s <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter s must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Gumbel distribution parameters without throwing exceptions
+ * @param mu   Location parameter (must be finite)
+ * @param beta Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateGumbelParameters(double mu, double beta) noexcept {
+    if (!std::isfinite(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter mu must be a finite number");
+    }
+    if (std::isnan(beta) || std::isinf(beta) || beta <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter beta must be a positive finite number");
     }
     return VoidResult::ok({});
 }
