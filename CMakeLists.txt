@@ -406,6 +406,8 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/cauchy.cpp # Cauchy distribution (delegation wrapper over StudentT(nu=1))
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
+    src/bernoulli.cpp # Bernoulli distribution (discrete delegation wrapper over Binomial(n=1))
+    src/erlang.cpp # Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
     src/poisson_analysis.cpp # Poisson-specific analysis
     src/exponential_analysis.cpp # Exponential-specific analysis
