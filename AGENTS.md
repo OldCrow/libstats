@@ -328,6 +328,14 @@ flag cleans Release artifacts but leaves existing Debug EXEs untouched if their 
   - Auto-detect installation path (any edition): `& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`
 - **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings).
   SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
+- **Defender exclusion for the project directory is required** (elevated PowerShell:
+  `Add-MpPreference -ExclusionPath "<repo root>"`). Without it, cloud-delivered
+  protection intermittently quarantines freshly linked test EXEs, which surfaces as
+  ctest `BAD_COMMAND`/"Not Run" on a rotating subset of tests (observed 2026-09-03:
+  two consecutive suite runs each lost a different 3–5 binaries). The detection is
+  consistently `Trojan:Win32/Wacatac.B!ml` — Defender's ML heuristic (`!ml`) false-
+  positiving on unsigned locally linked binaries, not a real finding. If a test EXE
+  vanishes after a successful build, suspect quarantine before suspecting the build.
 - CMake ≥ 3.25 required. Install from https://cmake.org/download/, `winget install Kitware.CMake`, or `choco install cmake`.
 - GTest needs no manual install: `tests/CMakeLists.txt` tries `find_package(GTest)`, then a Homebrew probe, then a `FetchContent` fallback — the same path CI uses (`cmake -B build ... -A x64`, no toolchain file). A vcpkg-installed GTest is picked up by step 1 if you pass `-DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake`, but it is optional.
 - Configure: `cmake .. -A x64` (CMake selects the newest installed Visual Studio; pin one with e.g. `-G "Visual Studio 17 2022"` if several are installed)

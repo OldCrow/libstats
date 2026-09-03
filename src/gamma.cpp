@@ -269,6 +269,15 @@ VoidResult GammaDistribution::trySetParameters(double alpha, double beta) noexce
 //==========================================================================
 
 double GammaDistribution::getProbability(double x) const {
+    if (!std::isfinite(x)) {
+        // +inf → density limit is 0 (#103); -inf → outside support → 0
+        // NaN  → propagate NaN
+        // Guard required: for alpha >= 1 the log-space formula below hits
+        // 0*log(inf) (alpha == 1) or inf - inf (alpha > 1) at x = +inf → NaN.
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        return detail::ZERO_DOUBLE;
+    }
     if (x < detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
     }
@@ -292,6 +301,13 @@ double GammaDistribution::getProbability(double x) const {
 }
 
 double GammaDistribution::getLogProbability(double x) const {
+    if (!std::isfinite(x)) {
+        // ±inf → log-density limit is -inf (#103); NaN → propagate NaN.
+        // Same 0*log(inf) / inf - inf hazard as getProbability at x = +inf.
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        return detail::NEGATIVE_INFINITY;
+    }
     if (x < detail::ZERO_DOUBLE) {
         return detail::NEGATIVE_INFINITY;
     }
@@ -1071,7 +1087,11 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] < detail::ZERO_DOUBLE) {
+            if (!std::isfinite(values[i])) {
+                // #103: pdf(±inf) = 0, NaN propagates — the formula is NaN at
+                // +inf for alpha >= 1 (0*log(inf) / inf - inf), matching scalar.
+                results[i] = std::isnan(values[i]) ? values[i] : detail::ZERO_DOUBLE;
+            } else if (values[i] < detail::ZERO_DOUBLE) {
                 results[i] = detail::ZERO_DOUBLE;
             } else if (values[i] == detail::ZERO_DOUBLE) {
                 fixup_zero(i);
@@ -1100,9 +1120,12 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
     arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
     // Step 6: results = exp(log-space result)
     arch::simd::VectorOps::vector_exp(results, results, count);
-    // Fixup: x < 0 → 0; x = 0 → depends on alpha (EDGE-4).
+    // Fixup: non-finite per #103 (pdf(±inf) = 0, NaN propagates — the SIMD
+    // pipeline yields NaN at +inf for alpha >= 1); x < 0 → 0; x = 0 → EDGE-4.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] < detail::ZERO_DOUBLE) {
+        if (!std::isfinite(values[i])) {
+            results[i] = std::isnan(values[i]) ? values[i] : detail::ZERO_DOUBLE;
+        } else if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
         } else if (values[i] == detail::ZERO_DOUBLE) {
             fixup_zero(i);
@@ -1120,7 +1143,11 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
-            if (values[i] <= detail::ZERO_DOUBLE) {
+            if (!std::isfinite(values[i])) {
+                // #103: logpdf(±inf) = -inf, NaN propagates — the formula is
+                // NaN at +inf for alpha >= 1, matching the scalar guard.
+                results[i] = std::isnan(values[i]) ? values[i] : detail::NEGATIVE_INFINITY;
+            } else if (values[i] <= detail::ZERO_DOUBLE) {
                 results[i] = detail::NEGATIVE_INFINITY;
             } else {
                 results[i] = alpha_log_beta - log_gamma_alpha +
@@ -1145,11 +1172,15 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
     arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
     // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
     arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
-    // Fixup: x <= 0 is outside support. Use MIN_LOG_PROBABILITY (finite proxy for -inf)
-    // to match the single-value getLogProbability() behaviour for alpha > 1 at x = 0,
+    // Fixup: non-finite per #103 (logpdf(±inf) = -inf, NaN propagates; the
+    // finite MIN_LOG_PROBABILITY clamp must never escape for ±inf inputs).
+    // Finite x <= 0 keeps MIN_LOG_PROBABILITY (finite proxy for -inf) to match
+    // the single-value getLogProbability() behaviour for alpha > 1 at x = 0,
     // which avoids -inf propagation in log-probability summation algorithms.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE) {
+        if (!std::isfinite(values[i])) {
+            results[i] = std::isnan(values[i]) ? values[i] : detail::NEGATIVE_INFINITY;
+        } else if (values[i] <= detail::ZERO_DOUBLE) {
             results[i] = detail::MIN_LOG_PROBABILITY;
         }
     }

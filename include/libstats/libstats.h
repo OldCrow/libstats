@@ -157,11 +157,13 @@
     #include "core/performance_dispatcher.h"
 
     // Distribution implementations
+    #include "distributions/bernoulli.h"
     #include "distributions/beta.h"
     #include "distributions/binomial.h"
     #include "distributions/cauchy.h"
     #include "distributions/chi_squared.h"
     #include "distributions/discrete.h"
+    #include "distributions/erlang.h"
     #include "distributions/exponential.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
@@ -205,6 +207,8 @@ using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
 using Logistic = LogisticDistribution;
 using Gumbel = GumbelDistribution;
+using Bernoulli = BernoulliDistribution;
+using Erlang = ErlangDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 

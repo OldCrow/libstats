@@ -553,4 +553,47 @@ inline VoidResult validateGumbelParameters(double mu, double beta) noexcept {
     return VoidResult::ok({});
 }
 
+/**
+ * @brief Validate Bernoulli distribution parameters without throwing exceptions
+ * @param p Success probability (must be in [0, 1])
+ * @return VoidResult indicating success or failure
+ *
+ * @note Deliberately [0, 1] inclusive -- matching BinomialDistribution's own
+ * convention exactly, since Bernoulli(p) is a thin delegation wrapper over
+ * Binomial(n=1, p) and both endpoints are valid degenerate distributions
+ * (p=0: point mass at 0; p=1: point mass at 1). This differs from Geometric's
+ * (0, 1] convention, where p=0 would make the infinite support un-summable.
+ */
+inline VoidResult validateBernoulliParameters(double p) noexcept {
+    if (std::isnan(p) || std::isinf(p) || p < 0.0 || p > 1.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Success probability p must be in [0, 1]");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Erlang distribution parameters without throwing exceptions
+ * @param k Shape parameter (must be a positive integer, k >= 1)
+ * @param lambda Rate parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ *
+ * @note k is accepted as `int` (mirroring BinomialDistribution's `int n`
+ * convention for its own integer-only parameter) rather than `double` with a
+ * runtime integrality check -- there is then no separate validation path for
+ * "how close to an integer counts as integral", and no int-narrowing cast is
+ * ever needed just to validate the shape parameter.
+ */
+inline VoidResult validateErlangParameters(int k, double lambda) noexcept {
+    if (k < 1) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Shape parameter k must be a positive integer (k >= 1)");
+    }
+    if (std::isnan(lambda) || std::isinf(lambda) || lambda <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Rate parameter lambda must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
 }  // namespace stats
