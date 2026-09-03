@@ -367,10 +367,12 @@ history.
 - **v2.4.0 OPENED 2026-09-02**: execution plan decided (branch topology,
   working order, sweep extension, Gumbel-min deferral, subagent
   alignment — full detail on the milestone entry above);
-  `dev/v2.4.0` branched from main. Next concrete steps: (1) post the
-  kickoff corrections on #55/#56 (rate-vs-scale) and the Gumbel-min
-  deferral decision on #54; (2) scaffolding commit on `dev/v2.4.0`;
-  (3) spawn the four workstreams per the alignment above.
+  `dev/v2.4.0` branched from main. Kickoff comments POSTED 2026-09-02:
+  Gumbel-min deferral decision on #54, rate-vs-scale corrections on
+  #55/#56 (each also names its workstream's reference implementations
+  and the #49-class complement-cancellation caution for #56). Next
+  concrete steps: (1) scaffolding commit on `dev/v2.4.0`; (2) spawn the
+  four workstreams per the alignment above.
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
