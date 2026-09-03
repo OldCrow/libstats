@@ -272,7 +272,59 @@ history.
 - **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
   (#102 moved to v2.3.1 on 2026-08-21)
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
-  #57 HalfNormal + TruncatedNormal.
+  #57 HalfNormal + TruncatedNormal. Library grows 19 → 27 distributions.
+  **Execution plan decided 2026-09-02 [user]:**
+  - Branch topology: integration branch `dev/v2.4.0` off main. One
+    **scaffolding commit first** — all 8 enum values (append-only, order
+    fixed then and permanent), `kDistributionMeta` rows, 4×8 NEVER
+    threshold rows, `static_assert` bump — because the shared append-only
+    files are the merge hotspot, so they land once. Then one feature
+    branch per issue PR'd into `dev/v2.4.0` (CI per PR), and one final
+    reviewed PR `dev/v2.4.0` → main.
+  - Working order #55 → #56 → #54 → #57: wrappers exercise the 6-step
+    checklist with least math first; TruncatedNormal (cached
+    normalization invalidation, iterative MLE, ±∞ bounds) is the slip
+    risk and goes last. Executed as parallel subagent workstreams after
+    scaffolding (v2.3.1 pattern: agents implement, orchestrator does
+    QA/integration/verification).
+  - Subagent model/effort alignment [user, 2026-09-02] — smallest model
+    that can do the job, per workstream: **#55 sonnet** (rote delegation
+    pattern, ChiSquared/Geometric are the templates); **#56 opus** (the
+    InvGamma upper-tail complement 1 − CDF_Gamma(1/x) and the F beta
+    transform carry #49-class cancellation hazards); **#54 opus**
+    (new SIMD pipelines; logistic tail log1p/expm1 stability, Gumbel
+    double-exp underflow); **#57 opus/fable-class, high effort**
+    (TruncatedNormal Z = Φ(β)−Φ(α) cancels catastrophically for
+    same-tail truncation — needs erfc-difference forms per the #49
+    lesson); **sweep/oracle extension opus** (the v2.3.1 oracle
+    hardening history says mpmath references are subtle). Every brief
+    is explicit — goal, inputs by path (reference impls: `laplace.cpp`
+    for #54, `chi_squared.*`/`geometric.*` for wrappers, `gaussian.*`
+    for #57), the born-compliant contract list, SIMD kernel conventions,
+    the 6-step checklist, done-criteria (build + suite green + contract
+    assertions passing), and report format; workstreams expected to run
+    >30 min report at per-distribution milestones, no synthetic pings.
+  - Scope: `accuracy_sweep` + mpmath oracle EXTEND to the 8 new
+    distributions in this release (19 → 27 in the sweep — the v2.5.0
+    before/after adoption evidence must include them in the "before"
+    baseline). Gumbel ships max-stable (`gumbel_r`) only; the min
+    variant is DEFERRED (user-side −X reflection; follow-up issue only
+    on demand — enum values are permanent, so no speculative slot).
+  - Born-compliant contracts (requirement, asserted by the enhanced
+    tests from birth): #103 ±inf limits (pdf→0, logpdf→−inf, cdf→0/1,
+    scalar ≡ batch), #104 finite best-effort quantiles with the
+    right-continuous discrete inverse (Bernoulli), #102-style batch NaN
+    propagation, #112 no-aliasing, no #125-class int narrowing
+    (Bernoulli/Erlang casts).
+  - Issue corrections to record on GitHub at kickoff: #55/#56 were
+    written assuming a scale-parameterized Gamma; libstats' Gamma β is a
+    RATE, so Erlang(k, λ) delegates to Gamma(k, λ) directly (no 1/λ) and
+    the InverseGamma x → 1/x transform needs the same rate-vs-scale care.
+  - Validation: correctness suite per PR on Zen 4;
+    `strategy_profile` + `threshold_validator` calibration for #54/#57
+    (delegation wrappers copy their delegates' threshold rows);
+    three-machine native validation (Zen 4, Kaby Lake, M1) before the
+    tag, matching v2.3.1 precedent.
 - **v2.5.0 — corvus adoption** (open, #6): 6 open / 0 closed — #47
   bessel.h rewire, #52 Binomial beta_p CDF rewrite, and (moved in on
   2026-08-28, closed BY the adoption swap) #113 iteration caps/Lentz
@@ -312,6 +364,13 @@ history.
   than trusting it between passes.
 
 ## In Progress [OPEN]
+- **v2.4.0 OPENED 2026-09-02**: execution plan decided (branch topology,
+  working order, sweep extension, Gumbel-min deferral, subagent
+  alignment — full detail on the milestone entry above);
+  `dev/v2.4.0` branched from main. Next concrete steps: (1) post the
+  kickoff corrections on #55/#56 (rate-vs-scale) and the Gumbel-min
+  deferral decision on #54; (2) scaffolding commit on `dev/v2.4.0`;
+  (3) spawn the four workstreams per the alignment above.
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
@@ -490,9 +549,10 @@ session artifact; the issues carry the detail.
    2026-08-25, follow-ups filed, Kaby Lake leg 2026-08-26, M1 leg
    2026-08-27/28. The validation matrix and all three characterization
    blocks are at v2.3.1.
-2. Sequence behind the corvus arc (v0.6.0 → v0.7.0 → v0.8.0 elementary
-   family #32 → v0.9.0 → v1.0.0), running v2.4.0 in parallel if desired;
-   then v2.5.0 adoption (now also closing #107/#108/#110/#113) in ONE
+2. **v2.4.0 is the active work** (opened 2026-09-02; plan on the
+   milestone entry, status under In Progress). All corvus-arc
+   prerequisites for v2.5.0 are satisfied, so after v2.4.0 ships:
+   v2.5.0 adoption (now also closing #107/#108/#110/#113) in ONE
    swap round; the renamed post-adoption patch after it. Contingency:
    #125/#127 justify an early patch slice if the corvus arc stalls.
 3. At v2.5.0 scoping: re-scope #47/#52 against the cores' real accuracy
