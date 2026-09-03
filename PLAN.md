@@ -364,15 +364,47 @@ history.
   than trusting it between passes.
 
 ## In Progress [OPEN]
-- **v2.4.0 OPENED 2026-09-02**: execution plan decided (branch topology,
-  working order, sweep extension, Gumbel-min deferral, subagent
-  alignment — full detail on the milestone entry above);
-  `dev/v2.4.0` branched from main. Kickoff comments POSTED 2026-09-02:
-  Gumbel-min deferral decision on #54, rate-vs-scale corrections on
-  #55/#56 (each also names its workstream's reference implementations
-  and the #49-class complement-cancellation caution for #56). Next
-  concrete steps: (1) scaffolding commit on `dev/v2.4.0`; (2) spawn the
-  four workstreams per the alignment above.
+- **v2.4.0 UNDERWAY 2026-09-03** (plan decided 2026-09-02; kickoff
+  comments on #54/#55/#56 posted then). State on `dev/v2.4.0`:
+  - Scaffolding SHIPPED (a55e627): all 8 enum/meta/threshold slots; found
+    and fixed AGENTS.md's checklist saying four `kXxx` tables — there are
+    FIVE (`kNone` takes T1/T2/T3 tier values, not NEVER). Verified 58/58
+    before commit.
+  - **#55 MERGED** (PR #131, squash 0e0a753): Bernoulli + Erlang. Agent
+    (sonnet) report held up under QA except one #125-class defect I fixed
+    on the branch: `operator>>` did an unguarded
+    `static_cast<int>(std::stod(...))`. Decisions: p ∈ [0,1] inclusive
+    (Binomial's convention); `int k` shape (no integrality policy);
+    quantile via Binomial's #104 right-continuous inverse. New shared-file
+    surface: two validators appended to `error_handling.h` — expect
+    trivial append conflicts with the other three workstream PRs.
+  - **Gamma #103 guards MERGED** (PR #130, squash 828553a): scalar and
+    batch PDF/LogPDF `isfinite` guards (formula was NaN at +inf for every
+    α ≥ 1: 0·log(inf) / inf−inf; batch LogPDF also let the
+    MIN_LOG_PROBABILITY clamp escape at −inf). Fail-first gates in
+    gamma + chi-squared enhanced tests; found via Erlang's delegation
+    during #55 (user-filed from the agent's flag). Heals ChiSquared
+    (k ≥ 2) and Erlang; Erlang's defensive guards now redundant —
+    optional cleanup. Partially advances #103 ahead of milestone #8.
+  - Integrated verification on dev at 0e0a753: **60/60** correctness
+    (58 + 2 new basics; both new enhanced binaries are timing-labelled
+    per precedent, 18/18 + 17/17 run directly).
+  - #54/#56/#57 workstreams IN FLIGHT (worktree agents, resumed ~16:25
+    UTC after Anthropic's 2026-09-03 13:26–16:16 UTC elevated-errors
+    incident on Opus 5/Fable 5 knocked all three out; #55's sonnet agent
+    was unaffected).
+  - Environment hardening this session: per-project Defender exclusions
+    added [user, elevated shell] after cloud-ML quarantine
+    (`Trojan:Win32/Wacatac.B!ml`) ate rotating test EXEs mid-suite —
+    AGENTS.md Windows setup now documents both; YubiKey commit-signing
+    protocol for agents (stage-and-pause when AFK) worked as designed.
+  - NOTE: PR #131's "Closes #55" targets dev, so GitHub auto-close fires
+    only when dev merges to main — #55 stays open on the milestone until
+    then, intentionally.
+  - Next: QA + merge #54/#56/#57 PRs as they land; then the sweep/oracle
+    extension workstream (19 → 27); then threshold profiling for the four
+    new-kernel distributions on Zen 4; three-machine validation; final
+    reviewed PR dev/v2.4.0 → main.
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
