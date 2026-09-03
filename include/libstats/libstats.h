@@ -174,6 +174,7 @@
     #include "distributions/poisson.h"
     #include "distributions/rayleigh.h"
     #include "distributions/student_t.h"
+    #include "distributions/truncated_normal.h"
     #include "distributions/uniform.h"
     #include "distributions/von_mises.h"
     #include "distributions/weibull.h"
@@ -203,6 +204,7 @@ using Laplace = LaplaceDistribution;
 using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
 using HalfNormal = HalfNormalDistribution;
+using TruncatedNormal = TruncatedNormalDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 

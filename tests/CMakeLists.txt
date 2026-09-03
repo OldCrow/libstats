@@ -424,6 +424,13 @@ create_libstats_gtest(test_cauchy_enhanced test_cauchy_enhanced.cpp)
 create_libstats_test(test_half_normal_basic test_half_normal_basic.cpp)
 create_libstats_gtest(test_half_normal_enhanced test_half_normal_enhanced.cpp)
 
+# truncated_normal.h - Truncated Normal (regime-split erf/erfc normalization) (#57)
+# Same reasoning as test_half_normal_*: no speedup assertions, so NOT
+# timing-labelled — the same-tail cancellation gates must run in CI's
+# correctness pass.
+create_libstats_test(test_truncated_normal_basic test_truncated_normal_basic.cpp)
+create_libstats_gtest(test_truncated_normal_enhanced test_truncated_normal_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
@@ -596,6 +603,8 @@ add_custom_target(
             test_cauchy_enhanced
             test_half_normal_basic
             test_half_normal_enhanced
+            test_truncated_normal_basic
+            test_truncated_normal_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow

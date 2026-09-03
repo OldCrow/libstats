@@ -407,6 +407,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
     src/half_normal.cpp # Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline)
+    src/truncated_normal.cpp # Truncated Normal distribution (regime-split erf/erfc normalization)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
     src/poisson_analysis.cpp # Poisson-specific analysis
     src/exponential_analysis.cpp # Exponential-specific analysis
