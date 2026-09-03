@@ -130,5 +130,5 @@ message(
 )
 message(
     STATUS
-        "  - accuracy_sweep: Issue #46 deterministic bit-exact scalar/batch pdf/logpdf/cdf/quantile sweep across all 19 distributions for the mpmath oracle comparison"
+        "  - accuracy_sweep: Issue #46 deterministic bit-exact scalar/batch pdf/logpdf/cdf/quantile sweep across all 27 distributions for the mpmath oracle comparison"
 )

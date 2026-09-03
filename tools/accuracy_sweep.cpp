@@ -1,6 +1,6 @@
 /**
  * @file accuracy_sweep.cpp
- * @brief Issue #46: deterministic bit-exact accuracy sweep across all 19 distributions.
+ * @brief Issue #46: deterministic bit-exact accuracy sweep across all 27 distributions.
  *
  * Evaluates the scalar AND batch (span/SIMD) code paths of every distribution's
  * pdf/logpdf/cdf/quantile methods over fixed, support-aware characterization grids
@@ -27,7 +27,7 @@
  */
 
 // Use tool_utils.h for the consolidated (LIBSTATS_FULL_INTERFACE) libstats.h include,
-// which pulls in all 19 distribution headers.
+// which pulls in all 27 distribution headers.
 #include "tool_utils.h"
 
 #include "libstats/platform/simd_policy.h"
@@ -122,11 +122,18 @@ Row makeRow(const std::string& dist, const std::string& method, double p1, doubl
 // Fixed, dependency-ordered dist name list (matches the issue #46 contract and
 // drives both the summary table and the skip-count trailer, so both keep a
 // deterministic dist order regardless of sweep call order).
-constexpr std::array<const char*, 19> kDistNames = {
-    "gaussian",  "lognormal",         "exponential", "uniform", "poisson",
-    "gamma",     "discrete",          "student_t",   "cauchy",  "von_mises",
-    "binomial",  "negative_binomial", "geometric",   "beta",    "chi_squared",
-    "laplace",   "pareto",            "rayleigh",    "weibull"};
+// The v2.4.0 eight are APPENDED, never interleaved: the sweep's row order is
+// the sweepAll() call order, and the #46 comparison baseline (63 violations on
+// the 6063-row grid) is only meaningful if every pre-v2.4.0 row keeps its
+// byte-for-byte identity and its CSV line number, which the appendix table of
+// docs/ACCURACY_CHARACTERIZATION.md indexes by.
+constexpr std::array<const char*, 27> kDistNames = {
+    "gaussian",      "lognormal",         "exponential",   "uniform",      "poisson",
+    "gamma",         "discrete",          "student_t",     "cauchy",       "von_mises",
+    "binomial",      "negative_binomial", "geometric",     "beta",         "chi_squared",
+    "laplace",       "pareto",            "rayleigh",      "weibull",      "logistic",
+    "gumbel",        "erlang",            "fisher_f",      "inverse_gamma", "half_normal",
+    "truncated_normal", "bernoulli"};
 
 class Sink {
    public:
@@ -266,9 +273,19 @@ std::vector<double> buildContinuousXGrid(Dist& dist, bool boundedBothSides) {
     if (boundedBothSides) {
         double lo = dist.getSupportLowerBound();
         double hi = dist.getSupportUpperBound();
+        // Finiteness guard, added with the v2.4.0 eight: truncated_normal is the
+        // first distribution whose support bounds are RUNTIME parameters, and its
+        // doubly-infinite instance would otherwise push +/-inf in here as ordinary
+        // grid points, duplicating the specials block. A no-op for uniform and
+        // beta, whose bounds are finite for every swept instance (verified by
+        // diffing the pre-change CSV against the head of the post-change one).
         for (double eps : boundaryEpsilons()) {
-            xs.push_back(lo + eps);
-            xs.push_back(hi - eps);
+            if (std::isfinite(lo)) {
+                xs.push_back(lo + eps);
+            }
+            if (std::isfinite(hi)) {
+                xs.push_back(hi - eps);
+            }
         }
     }
     std::sort(xs.begin(), xs.end());
@@ -405,6 +422,31 @@ void sweepContinuous(const std::string& distName, Factory factory,
     }
 }
 
+// Drives one FOUR-parameter continuous distribution (truncated_normal is the
+// only one) across its 3 parameter instances.
+//
+// The CSV carries exactly two parameter columns and widening it is not an
+// option -- p3_bits/p4_bits would rewrite all 6063 pre-v2.4.0 rows, which the
+// characterization baseline forbids. So p1_bits/p2_bits keep their documented
+// meaning ("the two constructor parameters in DECLARATION order", here mean and
+// standardDeviation) and the oracle recovers the truncation window from a small
+// instance table keyed on that pair -- which is why the three instances below
+// must have PAIRWISE-DISTINCT (mean, sd). tools/accuracy_vs_mpmath.py's
+// _TN_WINDOWS is the other half of this contract and raises rather than guesses
+// on an unknown key, so the two tables cannot drift apart silently.
+template <typename Dist, typename Factory>
+void sweepContinuous4(const std::string& distName, Factory factory,
+                      const std::array<std::array<double, 4>, 3>& instances,
+                      bool boundedBothSides, Sink& sink) {
+    for (const auto& inst : instances) {
+        Dist dist = factory(inst[0], inst[1], inst[2], inst[3]);
+        std::vector<double> xs = buildContinuousXGrid(dist, boundedBothSides);
+        emitPdfLogpdfCdfRows(dist, distName, inst[0], inst[1], /*hasP2=*/true, xs,
+                             /*includeSpecials=*/true, sink);
+        emitQuantileRows(dist, distName, inst[0], inst[1], /*hasP2=*/true, sink);
+    }
+}
+
 // Drives one discrete distribution across its 3 parameter instances.
 template <typename Dist, typename Factory>
 void sweepDiscrete(const std::string& distName, Factory factory,
@@ -428,22 +470,30 @@ void sweepDiscrete(const std::string& distName, Factory factory,
 //==============================================================================
 
 void sweepAll(Sink& sink) {
+    using stats::BernoulliDistribution;
     using stats::BetaDistribution;
     using stats::BinomialDistribution;
     using stats::CauchyDistribution;
     using stats::ChiSquaredDistribution;
     using stats::DiscreteDistribution;
+    using stats::ErlangDistribution;
     using stats::ExponentialDistribution;
+    using stats::FDistribution;
     using stats::GammaDistribution;
     using stats::GaussianDistribution;
     using stats::GeometricDistribution;
+    using stats::GumbelDistribution;
+    using stats::HalfNormalDistribution;
+    using stats::InverseGammaDistribution;
     using stats::LaplaceDistribution;
+    using stats::LogisticDistribution;
     using stats::LogNormalDistribution;
     using stats::NegativeBinomialDistribution;
     using stats::ParetoDistribution;
     using stats::PoissonDistribution;
     using stats::RayleighDistribution;
     using stats::StudentTDistribution;
+    using stats::TruncatedNormalDistribution;
     using stats::UniformDistribution;
     using stats::VonMisesDistribution;
     using stats::WeibullDistribution;
@@ -549,6 +599,103 @@ void sweepAll(Sink& sink) {
     sweepDiscrete<GeometricDistribution>(
         "geometric", [](double a, double) { return GeometricDistribution(a); },
         {{{0.3, 0.0}, {1.0, 0.0}, {1e-6, 0.0}}}, false, sink);
+
+    // ------------------------------------------------------------------------
+    // v2.4.0 distributions (#54/#55/#56/#57). APPENDED, never interleaved --
+    // see the kDistNames comment: every row above must keep its byte identity
+    // and its CSV line number.
+    // ------------------------------------------------------------------------
+
+    // logistic(mu, s): s > 0 (SCALE). Laplace's instance shape: same location-
+    // scale family geometry, so the same three points stress the same seams
+    // (degenerate scale, then a large location where mu + s*logit(p) cancels).
+    sweepContinuous<LogisticDistribution>(
+        "logistic", [](double a, double b) { return LogisticDistribution(a, b); },
+        {{{0.0, 1.0}, {0.0, 1e-6}, {1e8, 1e6}}}, true, false, sink);
+
+    // gumbel(mu, beta): beta > 0 (SCALE). Same location-scale ladder, but the
+    // family is ASYMMETRIC -- the two tails are exp(-e^-z) and 1-exp(-e^-z),
+    // so the grid probes two structurally different tail laws per instance.
+    sweepContinuous<GumbelDistribution>(
+        "gumbel", [](double a, double b) { return GumbelDistribution(a, b); },
+        {{{0.0, 1.0}, {0.0, 1e-6}, {1e8, 1e6}}}, true, false, sink);
+
+    // erlang(k, lambda): k >= 1 INTEGER shape, lambda > 0 (RATE -- Gamma's
+    // convention, not a scale). k=1 is the exponential special case; k=10000
+    // is the large-shape regime where the oracle's lower-gamma series stops
+    // converging and the upper-gamma continued fraction takes over.
+    sweepContinuous<ErlangDistribution>(
+        "erlang",
+        [](double a, double b) { return ErlangDistribution(static_cast<int>(a), b); },
+        {{{2.0, 1.0}, {1.0, 1e-3}, {10000.0, 1e-3}}}, true, false, sink);
+
+    // fisher_f(d1, d2): both > 0, real-valued. CDF is I_y(d1/2, d2/2) at
+    // y = d1*x/(d1*x + d2). (1e4, 1e4) puts BOTH incomplete-beta parameters at
+    // 5000 -- exactly the min(a,b) >= 5000 regime where mp.betainc hangs and
+    // the oracle's Lentz continued fraction is the only usable reference.
+    sweepContinuous<FDistribution>(
+        "fisher_f", [](double a, double b) { return FDistribution(a, b); },
+        {{{5.0, 10.0}, {0.01, 0.01}, {1e4, 1e4}}}, true, false, sink);
+
+    // inverse_gamma(alpha, beta): alpha > 0 (shape), beta > 0 (SCALE -- scipy's
+    // invgamma(a, scale=beta); it is passed unchanged to a Gamma delegate whose
+    // same-named parameter is a RATE, which is consistent only because the
+    // reciprocal is taken on the variate, never on the parameter). Gamma's
+    // instance ladder, since the CDF is Q(alpha, beta/x) -- the same incomplete
+    // gamma read from the opposite tail.
+    sweepContinuous<InverseGammaDistribution>(
+        "inverse_gamma",
+        [](double a, double b) { return InverseGammaDistribution(a, b); },
+        {{{3.0, 2.0}, {0.01, 0.01}, {1e4, 1e-3}}}, true, false, sink);
+
+    // half_normal(sigma): sigma > 0. Rayleigh's single-scale ladder; CDF is
+    // erf(x/(sigma*sqrt(2))) and the quantile is the erf_inv path #136 files
+    // against, so the extreme-p rows here are expected to be the loud ones.
+    sweepContinuous<HalfNormalDistribution>(
+        "half_normal", [](double a, double) { return HalfNormalDistribution(a); },
+        {{{1.0, 0.0}, {1e-6, 0.0}, {1e6, 0.0}}}, false, false, sink);
+
+    // truncated_normal(mean, sd, lower, upper). Instances must have pairwise-
+    // distinct (mean, sd) -- see sweepContinuous4's comment. Windows:
+    //   (0, 1)      -> [-2, 2]    symmetric, straddling: Z from the erf
+    //                             difference branch (opposite signs, no
+    //                             cancellation).
+    //   (0, 2)      -> [10, 12]   SAME-TAIL window at alpha=5, beta=6 sigma:
+    //                             Z = Q(5) - Q(6) ~ 2.86e-7 from the
+    //                             right-tail branch. This is the #57 seam --
+    //                             a Phi-difference reference cancels here and
+    //                             the oracle must be built survival-form. The
+    //                             sigma=2 realization keeps (mean, sd) unique
+    //                             while holding the STANDARDIZED window fixed
+    //                             at the brief's (5, 6), so Z is unchanged.
+    //   (1e3, 1e2)  -> (-inf,+inf) degenerate: reduces exactly to the plain
+    //                             Gaussian, and is the reason
+    //                             buildContinuousXGrid grew its finiteness
+    //                             guard. The factory accepts +/-inf bounds
+    //                             (error_handling.h: "either bound may be
+    //                             +/-infinity ... and is allowed"), so no
+    //                             finite-window substitution was needed.
+    // boundedBothSides=true: the near-boundary epsilon points are exactly where
+    // a truncated density is most worth probing; the guard drops them for the
+    // infinite instance rather than emitting +/-inf twice.
+    sweepContinuous4<TruncatedNormalDistribution>(
+        "truncated_normal",
+        [](double m, double s, double lo, double hi) {
+            return TruncatedNormalDistribution(m, s, lo, hi);
+        },
+        {{{{0.0, 1.0, -2.0, 2.0}},
+          {{0.0, 2.0, 10.0, 12.0}},
+          {{1e3, 1e2, -std::numeric_limits<double>::infinity(),
+            std::numeric_limits<double>::infinity()}}}},
+        true, sink);
+
+    // --- v2.4.0 discrete ---
+
+    // bernoulli(p): p in [0, 1] -- validation is deliberately CLOSED, so p=0
+    // and p=1 are legal; 1e-6 / 1-1e-6 stay just inside without relying on it.
+    sweepDiscrete<BernoulliDistribution>(
+        "bernoulli", [](double a, double) { return BernoulliDistribution(a); },
+        {{{0.5, 0.0}, {1e-6, 0.0}, {1.0 - 1e-6, 0.0}}}, false, sink);
 }
 
 //==============================================================================
