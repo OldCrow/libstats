@@ -837,6 +837,59 @@ TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "  Edge case testing completed\n";
 }
 
+TEST_F(GammaEnhancedTest, InfinityAndNaNInputGates) {
+    // #103 contract gates for PDF/LogPDF at non-finite inputs, scalar and batch:
+    // pdf(±inf) = 0, logpdf(±inf) = -inf, NaN in → NaN out, scalar ≡ batch.
+    // Fail-first record: the unguarded log-space formula returns NaN at x = +inf
+    // for every alpha ≥ 1 (alpha = 1: 0·log(inf); alpha > 1: inf − inf), and the
+    // batch LogPDF fixup mapped x = -inf to the finite MIN_LOG_PROBABILITY clamp.
+    // alpha < 1 is the control case that was always correct via exp(-inf).
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    for (double alpha : {1.0, 2.5, 0.5}) {
+        auto d = stats::GammaDistribution::create(alpha, 1.5).unwrap();
+
+        // Scalar
+        EXPECT_EQ(d.getProbability(inf), 0.0) << "scalar pdf(+inf), alpha=" << alpha;
+        EXPECT_EQ(d.getProbability(-inf), 0.0) << "scalar pdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(d.getProbability(nan))) << "scalar pdf(NaN), alpha=" << alpha;
+        double lp_pos = d.getLogProbability(inf);
+        double lp_neg = d.getLogProbability(-inf);
+        EXPECT_TRUE(std::isinf(lp_pos) && lp_pos < 0) << "scalar logpdf(+inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isinf(lp_neg) && lp_neg < 0) << "scalar logpdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(d.getLogProbability(nan))) << "scalar logpdf(NaN), alpha=" << alpha;
+
+        // Batch: specials FIRST so wide SIMD tiers evaluate them in-vector
+        // (v2.3.0 review lesson), padded past the SIMD threshold with finite
+        // values; FORCE_VECTORIZED pins the strategy to the SIMD kernel path.
+        std::vector<double> values = {inf, -inf, nan, 0.5, 1.0, 2.0, 4.0, 8.0};
+        values.resize(64, 1.25);
+        std::vector<double> pdf(values.size()), logpdf(values.size());
+        detail::PerformanceHint hint;
+        hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+        d.getProbability(std::span<const double>(values), std::span<double>(pdf), hint);
+        d.getLogProbability(std::span<const double>(values), std::span<double>(logpdf), hint);
+
+        EXPECT_EQ(pdf[0], 0.0) << "batch pdf(+inf), alpha=" << alpha;
+        EXPECT_EQ(pdf[1], 0.0) << "batch pdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(pdf[2])) << "batch pdf(NaN), alpha=" << alpha;
+        EXPECT_TRUE(std::isinf(logpdf[0]) && logpdf[0] < 0)
+            << "batch logpdf(+inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isinf(logpdf[1]) && logpdf[1] < 0)
+            << "batch logpdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(logpdf[2])) << "batch logpdf(NaN), alpha=" << alpha;
+
+        // Finite lanes sharing a vector with the specials must match scalar.
+        for (std::size_t i = 3; i < 8; ++i) {
+            EXPECT_DOUBLE_EQ(pdf[i], d.getProbability(values[i]))
+                << "batch/scalar pdf mismatch at i=" << i << ", alpha=" << alpha;
+            EXPECT_DOUBLE_EQ(logpdf[i], d.getLogProbability(values[i]))
+                << "batch/scalar logpdf mismatch at i=" << i << ", alpha=" << alpha;
+        }
+    }
+}
+
 }  // namespace stats
 
 int main(int argc, char** argv) {
