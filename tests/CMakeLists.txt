@@ -417,6 +417,20 @@ create_libstats_gtest(test_laplace_enhanced test_laplace_enhanced.cpp)
 create_libstats_test(test_cauchy_basic test_cauchy_basic.cpp)
 create_libstats_gtest(test_cauchy_enhanced test_cauchy_enhanced.cpp)
 
+# half_normal.h - Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline) (#57)
+# Deliberately NOT in the "timing" label block: the enhanced binary carries the
+# Born-compliant edge contracts (#103/#104) and mpmath accuracy gates but no
+# speedup assertions, and CI's correctness run is -LE "timing|benchmark".
+create_libstats_test(test_half_normal_basic test_half_normal_basic.cpp)
+create_libstats_gtest(test_half_normal_enhanced test_half_normal_enhanced.cpp)
+
+# truncated_normal.h - Truncated Normal (regime-split erf/erfc normalization) (#57)
+# Same reasoning as test_half_normal_*: no speedup assertions, so NOT
+# timing-labelled — the same-tail cancellation gates must run in CI's
+# correctness pass.
+create_libstats_test(test_truncated_normal_basic test_truncated_normal_basic.cpp)
+create_libstats_gtest(test_truncated_normal_enhanced test_truncated_normal_enhanced.cpp)
+
 # bernoulli.h - Bernoulli distribution (discrete, delegation wrapper over Binomial(n=1))
 create_libstats_test(test_bernoulli_basic test_bernoulli_basic.cpp)
 create_libstats_gtest(test_bernoulli_enhanced test_bernoulli_enhanced.cpp)
@@ -618,6 +632,10 @@ add_custom_target(
             test_logistic_enhanced
             test_gumbel_basic
             test_gumbel_enhanced
+            test_half_normal_basic
+            test_half_normal_enhanced
+            test_truncated_normal_basic
+            test_truncated_normal_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow

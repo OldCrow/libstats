@@ -410,6 +410,8 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
                               # Gamma-Poisson sampling)
     src/bernoulli.cpp # Bernoulli distribution (discrete delegation wrapper over Binomial(n=1))
     src/erlang.cpp # Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
+    src/half_normal.cpp # Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline)
+    src/truncated_normal.cpp # Truncated Normal distribution (regime-split erf/erfc normalization)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
     src/poisson_analysis.cpp # Poisson-specific analysis
     src/exponential_analysis.cpp # Exponential-specific analysis

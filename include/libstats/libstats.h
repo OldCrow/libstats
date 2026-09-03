@@ -169,6 +169,7 @@
     #include "distributions/gaussian.h"
     #include "distributions/geometric.h"
     #include "distributions/gumbel.h"
+    #include "distributions/half_normal.h"
     #include "distributions/laplace.h"
     #include "distributions/logistic.h"
     #include "distributions/lognormal.h"
@@ -177,6 +178,7 @@
     #include "distributions/poisson.h"
     #include "distributions/rayleigh.h"
     #include "distributions/student_t.h"
+    #include "distributions/truncated_normal.h"
     #include "distributions/uniform.h"
     #include "distributions/von_mises.h"
     #include "distributions/weibull.h"
@@ -209,6 +211,8 @@ using Logistic = LogisticDistribution;
 using Gumbel = GumbelDistribution;
 using Bernoulli = BernoulliDistribution;
 using Erlang = ErlangDistribution;
+using HalfNormal = HalfNormalDistribution;
+using TruncatedNormal = TruncatedNormalDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 
