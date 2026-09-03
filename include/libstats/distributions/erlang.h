@@ -50,23 +50,17 @@ namespace stats {
  * in sync as Gamma(k, lambda). Moments, entropy, median, mode, CDF, quantile,
  * and sampling are one-line pass-throughs to `gamma_`.
  *
- * @par ±inf / NaN handling — NOT a pure pass-through for PDF/LogPDF:
- * `GammaDistribution::getProbability` / `getLogProbability` have no top-of-
- * function `!std::isfinite(x)` guard (unlike `getCumulativeProbability`,
- * which does — see gamma.cpp). For any alpha >= 1, the log-space formula's
- * `alpha_minus_one * log(x) - beta * x` term evaluates `0*inf` (alpha=1) or
- * `inf - inf` (alpha>1) at x=+inf, both NaN per IEEE 754 §5.4.1 -- verified
- * empirically while implementing this distribution. Because Erlang's shape k
- * is *always* a positive integer (alpha = k >= 1, always), this dead code
- * path in Gamma is *always* live for every Erlang instance, unlike e.g. a
- * Gamma(alpha<1, *) caller who never reaches it. Fixing this belongs in
- * gamma.cpp, which is out of scope here (existing distributions are not to
- * be modified for this task) -- so ErlangDistribution::getProbability /
- * getLogProbability (scalar and batch) special-case non-finite x themselves,
- * before/after delegating finite inputs to `gamma_`. getCumulativeProbability
- * has no such issue (Gamma's CDF already guards `!isfinite(x)`) and is a pure
- * delegate. See src/erlang.cpp for the implementation and #103/#104 contract
- * tests in tests/test_erlang_enhanced.cpp that pin this down.
+ * @par ±inf / NaN handling — pure pass-through since #130:
+ * PDF/LogPDF are pure delegates too. At first landing they carried their own
+ * non-finite guards, because `GammaDistribution::getProbability` /
+ * `getLogProbability` then lacked an `isfinite(x)` guard and their log-space
+ * formula was NaN at x=+inf for every alpha >= 1 (`0*log(inf)` at alpha=1,
+ * `inf - inf` above) — a path *always* live for Erlang since alpha = k >= 1.
+ * That defect was fixed at the source in gamma.cpp (#130: scalar guards plus
+ * batch fixup handling; pdf(±inf)=0, logpdf(±inf)=-inf, NaN propagates,
+ * scalar == batch), so the wrapper-side guards were removed as redundant.
+ * The #103/#104 contract tests in tests/test_erlang_enhanced.cpp still pin
+ * the behaviour through the delegation.
  *
  * @par MLE:
  * Method of moments: k_hat = round(x_bar^2 / s^2), clamped to >= 1; then
