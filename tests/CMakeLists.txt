@@ -529,8 +529,14 @@ if(GTEST_FOUND)
         test_geometric_enhanced
         test_laplace_enhanced
         test_cauchy_enhanced
-        test_bernoulli_enhanced
-        test_erlang_enhanced
+        # v2.4.0 note: NO new enhanced binary carries the timing label. None of
+        # the eight new distributions' enhanced tests asserts a speedup ratio
+        # (Bernoulli's VectorizedSpeedup only PRINTS the ratio and asserts
+        # parallel==scalar values), and the #103/#104 contract gates live in
+        # these binaries — a timing label would exclude them from CI's
+        # correctness run (-LE "timing|benchmark"), the #97 guard-that-never-
+        # runs trap. test_bernoulli_enhanced/test_erlang_enhanced were labelled
+        # at first landing and unlabelled here for exactly that reason.
         PROPERTIES LABELS "timing")
 
     # test_benchmark is a benchmark, not a correctness test. It used to be kept
