@@ -51,10 +51,10 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-08-28 (milestone #8
-renamed version-neutral "Accuracy, contracts & kernel hygiene patch";
-#107/#108/#110/#113 moved to v2.5.0 with comments; milestone #7 closed at
-the tag).
+Last reconciled against live GitHub state: 2026-09-02 (#103/#104 contract
+decisions settled and recorded as issue comments; milestone #6 description
+updated — prerequisite (c) marked SATISFIED, and the description had
+drifted: it never listed (c) until this pass added it).
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -193,10 +193,13 @@ history.
   same machine time; corvus per-tier claims and this repo's PROVISIONAL
   characterization share the gap); (b) corvus API stable — SATISFIED
   2026-09-01: corvus v1.0.0 tagged and released (surface frozen under
-  corvus docs/VERSIONING.md; milestone #6 description updated); (c) #103/#104 contract decisions settled
-  before v2.4.0 starts authoring distributions (cheap policy calls,
-  not corvus-gated — every distribution written first multiplies the
-  inconsistency #46 found).
+  corvus docs/VERSIONING.md; milestone #6 description updated); (c) #103/#104 contract decisions —
+  SATISFIED 2026-09-02 [user]: limits-at-±inf with a documented von Mises
+  saturation exception (#103), finite-best-effort quantile with
+  right-continuous discrete inverse (#104); decision records on the
+  issues, milestone #6 description updated. All three prerequisites are
+  now satisfied ((a) per Known Gaps 2026-08-23, completed by the v2.3.1
+  matrix); v2.4.0 authoring is unblocked on the contract side.
   #47 and #52 moved from parked/unmilestoned into milestone #6 with
   un-parking comments, 2026-08-21. Each still closes with `Fixes #NN`
   from the adoption change set: #47 the bessel.h rewire (and whether
@@ -237,10 +240,18 @@ history.
   "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
   likely v2.5.1): 9 open / 0 closed. #107/#110/#113 moved to v2.5.0 the
   same day (the adoption release closes them).
-  - #104 OPEN — quantile contract at extreme p (+ the verified Cauchy
-    split-form fix, on the issue; the gamma half is covered by corvus
-    gammainv at adoption); #103 OPEN — ±inf input contract (scope
-    grew 2026-08-25: +12 poisson logpdf(±inf) = −4605 rows, see comment).
+  - #104 OPEN, **contract DECIDED 2026-09-02** [user] — finite best-effort:
+    never NaN for valid p ∈ (0,1), ±inf only on true double overflow;
+    per-family documented accuracy (gamma/chi-squared deep tail improves
+    at corvus adoption but NaN→finite does not wait); Cauchy adopts the
+    verified split form (regression rows = gate vectors); discrete
+    quantiles are the right-continuous inverse Q(p) = min{k : F(k) ≥ p}.
+    #103 OPEN, **contract DECIDED 2026-09-02** [user] — return the
+    mathematical limit where one exists (pdf→0, logpdf→−inf, cdf→0/1),
+    scalar and batch identical, −4605 clamp never escapes (incl. the 12
+    poisson rows added 2026-08-25); von Mises keeps saturation as a
+    documented periodic-density exception. Decision records are comments
+    on both issues; enforcement ships with this milestone.
   - #109 OPEN — re-profile the Cauchy CDF thresholds (rows marked STALE).
   - #111 OPEN — von Mises batch CDF blocking + the noexcept/allocation
     policy; #114 OPEN — review backlog.
