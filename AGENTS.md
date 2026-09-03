@@ -332,7 +332,9 @@ flag cleans Release artifacts but leaves existing Debug EXEs untouched if their 
   `Add-MpPreference -ExclusionPath "<repo root>"`). Without it, cloud-delivered
   protection intermittently quarantines freshly linked test EXEs, which surfaces as
   ctest `BAD_COMMAND`/"Not Run" on a rotating subset of tests (observed 2026-09-03:
-  two consecutive suite runs each lost a different 3–5 binaries). If a test EXE
+  two consecutive suite runs each lost a different 3–5 binaries). The detection is
+  consistently `Trojan:Win32/Wacatac.B!ml` — Defender's ML heuristic (`!ml`) false-
+  positiving on unsigned locally linked binaries, not a real finding. If a test EXE
   vanishes after a successful build, suspect quarantine before suspecting the build.
 - CMake ≥ 3.25 required. Install from https://cmake.org/download/, `winget install Kitware.CMake`, or `choco install cmake`.
 - GTest needs no manual install: `tests/CMakeLists.txt` tries `find_package(GTest)`, then a Homebrew probe, then a `FetchContent` fallback — the same path CI uses (`cmake -B build ... -A x64`, no toolchain file). A vcpkg-installed GTest is picked up by step 1 if you pass `-DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake`, but it is optional.
