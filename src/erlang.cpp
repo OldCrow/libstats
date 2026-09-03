@@ -193,21 +193,12 @@ VoidResult ErlangDistribution::validateCurrentParameters() const noexcept {
 //==============================================================================
 
 double ErlangDistribution::getProbability(double x) const {
-    // GammaDistribution::getProbability has no !isfinite(x) guard, and its
-    // log-space formula evaluates 0*inf / inf-inf (both NaN) at x=+inf for
-    // alpha>=1 -- always true for Erlang (alpha=k>=1). See class-level note.
-    if (std::isnan(x))
-        return std::numeric_limits<double>::quiet_NaN();
-    if (std::isinf(x))
-        return detail::ZERO_DOUBLE;
+    // Pure delegation (ChiSquared pattern): GammaDistribution guards
+    // non-finite x itself since #130 (pdf(±inf)=0, NaN propagates).
     return gamma_.getProbability(x);
 }
 
 double ErlangDistribution::getLogProbability(double x) const {
-    if (std::isnan(x))
-        return std::numeric_limits<double>::quiet_NaN();
-    if (std::isinf(x))
-        return detail::NEGATIVE_INFINITY;
     return gamma_.getLogProbability(x);
 }
 
@@ -282,82 +273,22 @@ std::string ErlangDistribution::toString() const {
 // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
 //==============================================================================
 
-namespace {
-
-// See ErlangDistribution's class-level "±inf / NaN handling" note: scrub
-// non-finite inputs to a safe finite placeholder before delegating a batch
-// call to gamma_, so its unguarded log-space kernel never sees +-inf.
-void scrubNonFinite(std::span<const double> values, std::vector<double>& scratch) {
-    scratch.assign(values.begin(), values.end());
-    for (double& v : scratch) {
-        if (!std::isfinite(v))
-            v = detail::ONE;  // arbitrary finite placeholder in the support interior
-    }
-}
-
-}  // namespace
+// Pure batch delegation (ChiSquared pattern). The scrub-delegate-fixup
+// machinery that lived here at first landing was a workaround for Gamma's
+// missing non-finite guards; #130 moved that handling into Gamma's own
+// scalar entry points and batch fixup loops (scalar == batch at specials),
+// so the wrapper adds nothing. Size checks and the no-overlap debug assert
+// happen inside the delegate's DispatchUtils path.
 
 void ErlangDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                         const detail::PerformanceHint& hint) const {
-    if (values.size() != results.size())
-        throw std::invalid_argument("Input and output spans must have the same size");
-    const std::size_t count = values.size();
-    if (count == 0)
-        return;
-
-    bool has_nonfinite = false;
-    for (double v : values) {
-        if (!std::isfinite(v)) {
-            has_nonfinite = true;
-            break;
-        }
-    }
-    if (!has_nonfinite) {
-        gamma_.getProbability(values, results, hint);
-        return;
-    }
-
-    std::vector<double> scratch;
-    scrubNonFinite(values, scratch);
-    gamma_.getProbability(std::span<const double>(scratch), results, hint);
-    for (std::size_t i = 0; i < count; ++i) {
-        if (std::isnan(values[i]))
-            results[i] = std::numeric_limits<double>::quiet_NaN();
-        else if (std::isinf(values[i]))
-            results[i] = detail::ZERO_DOUBLE;
-    }
+    gamma_.getProbability(values, results, hint);
 }
 
 void ErlangDistribution::getLogProbability(std::span<const double> values,
                                            std::span<double> results,
                                            const detail::PerformanceHint& hint) const {
-    if (values.size() != results.size())
-        throw std::invalid_argument("Input and output spans must have the same size");
-    const std::size_t count = values.size();
-    if (count == 0)
-        return;
-
-    bool has_nonfinite = false;
-    for (double v : values) {
-        if (!std::isfinite(v)) {
-            has_nonfinite = true;
-            break;
-        }
-    }
-    if (!has_nonfinite) {
-        gamma_.getLogProbability(values, results, hint);
-        return;
-    }
-
-    std::vector<double> scratch;
-    scrubNonFinite(values, scratch);
-    gamma_.getLogProbability(std::span<const double>(scratch), results, hint);
-    for (std::size_t i = 0; i < count; ++i) {
-        if (std::isnan(values[i]))
-            results[i] = std::numeric_limits<double>::quiet_NaN();
-        else if (std::isinf(values[i]))
-            results[i] = detail::NEGATIVE_INFINITY;
-    }
+    gamma_.getLogProbability(values, results, hint);
 }
 
 //==============================================================================

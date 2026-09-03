@@ -201,6 +201,15 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
     auto cauchy = CauchyDistribution::create(0.0, 1.0).unwrap();
     auto poisson = PoissonDistribution::create(3.0).unwrap();
     auto discrete = DiscreteDistribution::create(0, 9).unwrap();
+    // v2.4.0 additions (#54-#57)
+    auto logistic = LogisticDistribution::create(0.0, 1.0).unwrap();
+    auto gumbel = GumbelDistribution::create(0.0, 1.0).unwrap();
+    auto bernoulli = BernoulliDistribution::create(0.5).unwrap();
+    auto erlang = ErlangDistribution::create(2, 1.0).unwrap();
+    auto fisherf = FDistribution::create(5.0, 10.0).unwrap();
+    auto invgamma = InverseGammaDistribution::create(3.0, 2.0).unwrap();
+    auto halfnormal = HalfNormalDistribution::create(1.0).unwrap();
+    auto truncnormal = TruncatedNormalDistribution::create(0.0, 1.0, -2.0, 2.0).unwrap();
 
     check("Gaussian", gaussian);
     check("Exponential", exponential);
@@ -221,6 +230,14 @@ TEST(IntegrationWorkflow, NaNInputPropagatesNaNOutput) {
     check("Cauchy", cauchy);
     check("Poisson", poisson);
     check("Discrete", discrete);
+    check("Logistic", logistic);
+    check("Gumbel", gumbel);
+    check("Bernoulli", bernoulli);
+    check("Erlang", erlang);
+    check("FisherF", fisherf);
+    check("InverseGamma", invgamma);
+    check("HalfNormal", halfnormal);
+    check("TruncatedNormal", truncnormal);
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -382,6 +399,26 @@ TEST(IntegrationWorkflow, CDFBoundaryValues) {
     check_cdf("Weibull", weibull);
     check_cdf("Pareto", pareto);
     check_cdf("Exponential", exponential);
+
+    // v2.4.0 additions (#54-#57) — CDF(±inf) is part of the #103 contract
+    // these distributions were born under.
+    auto logistic = LogisticDistribution::create(0.0, 1.0).unwrap();
+    auto gumbel = GumbelDistribution::create(0.0, 1.0).unwrap();
+    auto bernoulli = BernoulliDistribution::create(0.5).unwrap();
+    auto erlang = ErlangDistribution::create(2, 1.0).unwrap();
+    auto fisherf = FDistribution::create(5.0, 10.0).unwrap();
+    auto invgamma = InverseGammaDistribution::create(3.0, 2.0).unwrap();
+    auto halfnormal = HalfNormalDistribution::create(1.0).unwrap();
+    auto truncnormal = TruncatedNormalDistribution::create(0.0, 1.0, -2.0, 2.0).unwrap();
+
+    check_cdf("Logistic", logistic);
+    check_cdf("Gumbel", gumbel);
+    check_cdf("Bernoulli", bernoulli);
+    check_cdf("Erlang", erlang);
+    check_cdf("FisherF", fisherf);
+    check_cdf("InverseGamma", invgamma);
+    check_cdf("HalfNormal", halfnormal);
+    check_cdf("TruncatedNormal", truncnormal);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

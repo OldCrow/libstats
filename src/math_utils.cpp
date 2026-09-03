@@ -1062,73 +1062,7 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
     return x;
 }
 
-double f_cdf(double x, double df1, double df2) noexcept {
-    // F-distribution CDF using regularized incomplete beta function
-    if (x < detail::ZERO_DOUBLE || df1 <= detail::ZERO_DOUBLE || df2 <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    // F-distribution relationship with beta function:
-    // F_cdf(x, df1, df2) = I_y(df1/2, df2/2) where y = (df1*x)/(df1*x + df2)
-    double y = (df1 * x) / (df1 * x + df2);
-    return beta_i(y, df1 * detail::HALF, df2 * detail::HALF);
-}
-
-double inverse_f_cdf(double p, double df1, double df2) noexcept {
-    // Inverse F-distribution CDF using iterative methods
-    if (p < detail::ZERO_DOUBLE || p > detail::ONE || df1 <= detail::ZERO_DOUBLE ||
-        df2 <= detail::ZERO_DOUBLE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    if (p == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (p == detail::ONE) {
-        return std::numeric_limits<double>::infinity();
-    }
-
-    // Initial guess using approximation
-    double z = inverse_normal_cdf(p);
-    double initial_guess = std::max(detail::ONE, detail::ONE + z * std::sqrt(detail::TWO / df1));
-
-    // Newton-Raphson iteration
-    double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf_val = f_cdf(x, df1, df2);
-        double error = cdf_val - p;
-
-        if (std::abs(error) < tolerance) {
-            break;
-        }
-
-        // Calculate derivative (PDF)
-        double log_pdf = lgamma((df1 + df2) * detail::HALF) - lgamma(df1 * detail::HALF) -
-                         lgamma(df2 * detail::HALF) +
-                         (df1 * detail::HALF - detail::ONE) * std::log(x) -
-                         (df1 + df2) * detail::HALF * std::log(detail::ONE + df1 * x / df2) +
-                         df1 * detail::HALF * std::log(df1 / df2);
-
-        double pdf_val = std::exp(log_pdf);
-
-        if (pdf_val <= detail::ZERO_DOUBLE) {
-            break;  // Avoid division by zero
-        }
-
-        double delta = error / pdf_val;
-        x = std::max(detail::ZERO, x - delta);  // Ensure x stays positive
-    }
-
-    return x;
-}
+// f_cdf / inverse_f_cdf removed in v2.4.0 — see the note in math_utils.h.
 
 double gamma_cdf(double x, double shape, double scale) noexcept {
     // Gamma distribution CDF using regularized incomplete gamma function

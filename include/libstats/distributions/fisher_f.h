@@ -68,9 +68,9 @@ namespace stats {
  * - **Survival** (used internally by the quantile solver) is
  *   `I_ybar(b, a)` -- computed, never `1 - CDF`.
  *
- * Note that `detail::f_cdf` in math_utils.h is the older, unsteered form
- * (`beta_i(y, a, b)` with y formed directly); it is left untouched and is not
- * used here.
+ * The older, unsteered `detail::f_cdf`/`inverse_f_cdf` stubs that predated
+ * this class were removed in v2.4.0 (they formed 1-y by subtraction; this
+ * class is the only F CDF/quantile in the library).
  *
  * @par Quantile accuracy (#104):
  * `getQuantile(p)` is a safeguarded bisection in log-x against the steered CDF
