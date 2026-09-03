@@ -168,6 +168,7 @@
     #include "distributions/fisher_f.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
+    #include "distributions/inverse_gamma.h"
     #include "distributions/geometric.h"
     #include "distributions/laplace.h"
     #include "distributions/lognormal.h"
@@ -207,6 +208,7 @@ using NegativeBinomial = NegativeBinomialDistribution;
 using Bernoulli = BernoulliDistribution;
 using Erlang = ErlangDistribution;
 using FisherF = FDistribution;
+using InverseGamma = InverseGammaDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 

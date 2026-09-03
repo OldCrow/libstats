@@ -410,6 +410,8 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/erlang.cpp # Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
     src/fisher_f.cpp # F (Fisher-Snedecor) distribution (Beta(d1/2,d2/2) transform wrapper;
                      # steered incomplete-beta tails)
+    src/inverse_gamma.cpp # Inverse Gamma distribution (reciprocal-transform wrapper over
+                          # Gamma(alpha, RATE beta); upper-incomplete-gamma CDF)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
     src/poisson_analysis.cpp # Poisson-specific analysis
     src/exponential_analysis.cpp # Exponential-specific analysis

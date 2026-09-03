@@ -429,6 +429,10 @@ create_libstats_gtest(test_erlang_enhanced test_erlang_enhanced.cpp)
 create_libstats_test(test_fisher_f_basic test_fisher_f_basic.cpp)
 create_libstats_gtest(test_fisher_f_enhanced test_fisher_f_enhanced.cpp)
 
+# inverse_gamma.h - Inverse Gamma distribution (reciprocal-transform wrapper over Gamma)
+create_libstats_test(test_inverse_gamma_basic test_inverse_gamma_basic.cpp)
+create_libstats_gtest(test_inverse_gamma_enhanced test_inverse_gamma_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
@@ -607,6 +611,8 @@ add_custom_target(
             test_erlang_enhanced
             test_fisher_f_basic
             test_fisher_f_enhanced
+            test_inverse_gamma_basic
+            test_inverse_gamma_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow

@@ -93,14 +93,18 @@ namespace stats {
  *   across the whole test grid.
  * - **CDF and survival**: bounded by `detail::beta_i`'s continued fraction,
  *   which stops on |delta - 1| < `detail::DEFAULT_TOLERANCE` (1e-8). Measured
- *   worst case over the test grid (central and both tails, d1 and d2 from 1 to
- *   200) is 4.3e-10 relative. That is a property of the shared math layer,
- *   equal on both branches, and is *not* what the tail steering fixes: the
- *   steering is what stops the upper tail from collapsing to exactly 0 or 1,
- *   which is a total loss rather than a 1e-10 one.
+ *   worst case over the test grid (d1 and d2 from 1 to 200) is 4.3e-10
+ *   relative, and it sits in the *central* region (F(100,200) at x = 1), where
+ *   the continued fraction needs the most terms. The extreme tails are far
+ *   tighter -- 2e-15 to 7e-15 relative at CDF(1e-6) and SF(1e6) for F(5,10) --
+ *   because a small incomplete-beta argument converges almost immediately.
+ *   All of this is a property of the shared math layer, equal on both
+ *   branches, and is *not* what the tail steering fixes: the steering is what
+ *   stops the upper tail from collapsing to exactly 0 or 1, which is a total
+ *   loss rather than a 1e-10 one.
  * - **Quantile**: inherits the CDF's relative error divided by the local tail
  *   elasticity |d ln F / d ln x|, so it is better than the CDF rather than
- *   worse. Measured < 1e-9 relative down to p = 1e-12 and up to 1 - 1e-12.
+ *   worse. Measured 1e-15 to 2e-13 relative from p = 1e-12 up to 1 - 1e-12.
  * - **Quantile at p near 1 is limited by the caller's argument, not by this
  *   code.** A double p in [1/2, 1) carries its own complement only to
  *   ulp(1)/2 = 1.11e-16 absolute, so the 1-p that reaches any implementation
