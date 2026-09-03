@@ -389,10 +389,44 @@ history.
   - Integrated verification on dev at 0e0a753: **60/60** correctness
     (58 + 2 new basics; both new enhanced binaries are timing-labelled
     per precedent, 18/18 + 17/17 run directly).
-  - #54/#56/#57 workstreams IN FLIGHT (worktree agents, resumed ~16:25
-    UTC after Anthropic's 2026-09-03 13:26–16:16 UTC elevated-errors
-    incident on Opus 5/Fable 5 knocked all three out; #55's sonnet agent
-    was unaffected).
+  - **ALL FOUR WORKSTREAMS MERGED 2026-09-03** (PRs #131 #55, #132 #54,
+    #133 #57, #134 #56, plus #135 label alignment — all squash into dev;
+    each feature branch got a dev-merge with append-collision resolution
+    and a full-suite run before its PR). Integrated on dev at 42b7285:
+    **74/74 correctness, 22 timing, 2 benchmark** (= 82 prior targets +
+    16 new). Library is 27 distributions. The #54/#56/#57 agents were
+    knocked out mid-morning by Anthropic's 2026-09-03 13:26–16:16 UTC
+    elevated-errors incident (Opus 5/Fable 5) and resumed losslessly
+    from transcripts after it cleared.
+  - Workstream deltas worth remembering: #54 — Gumbel deep-tail batch
+    LogPDF differs from scalar by 5.96e-8 ABSOLUTE at x=−20 while
+    4.4e-16 relative (value ≈ −4.85e8; 1 ULP of vector_exp) — correct,
+    documented at the tolerance sites. #57 — TruncatedNormal
+    regime-split erfc Z; constructor REJECTS windows whose Z underflows
+    double (~±37.5σ); inverse-CDF sampling; its own mpmath reference
+    hit the Φ-difference cancellation and was rewritten in survival
+    form. #56 — complement-native tails via existing detail::gamma_q /
+    steered beta_i; F is closed-form PDF + steered detail:: CDF, NOT a
+    pure Beta delegation (Cauchy #48 precedent); upper-tail quantile
+    references must use the EXACT DOUBLE of p (double(1−1e-12) carries
+    complement 9.99978e-13).
+  - Test-label convention DECIDED 2026-09-03 (PR #135): v2.4.0 enhanced
+    binaries carry NO timing label — none asserts a speedup ratio, and
+    the #103/#104 contract gates live in them; a timing label would
+    exclude the gates from CI's correctness run (the #97 trap). Rule
+    recorded at the label block in tests/CMakeLists.txt.
+  - Upstream findings from the workstreams, TO FILE as issues [OPEN,
+    needs user go-ahead]: (a) detail::erf_inv extreme-tail band wrong
+    and non-monotone (erf_inv(1−1e-14)=7.59 vs true 5.46) + ~1.4e-8
+    small-argument relative floor; Gaussian getQuantile shares it for
+    p ≳ 1−1e-9 (#104-adjacent). (b) detail::inverse_beta_i absolute
+    stop + [1e-8,1−1e-8] clamp — unusable below p~1e-8; Beta
+    getQuantile inherits. (c) detail::digamma ~1.3e-8 absolute binds
+    the new entropies (trigamma is 2e-14). (d) detail::f_cdf/
+    inverse_f_cdf unsteered, tail-inaccurate, apparently unused for
+    tails. (e) test_integration_workflow's "all 19 distributions"
+    sweep doesn't cover the new eight. (f) Erlang's now-redundant
+    defensive ±inf guards (post-#130 cleanup, optional).
   - Environment hardening this session: per-project Defender exclusions
     added [user, elevated shell] after cloud-ML quarantine
     (`Trojan:Win32/Wacatac.B!ml`) ate rotating test EXEs mid-suite —
@@ -401,10 +435,17 @@ history.
   - NOTE: PR #131's "Closes #55" targets dev, so GitHub auto-close fires
     only when dev merges to main — #55 stays open on the milestone until
     then, intentionally.
-  - Next: QA + merge #54/#56/#57 PRs as they land; then the sweep/oracle
-    extension workstream (19 → 27); then threshold profiling for the four
-    new-kernel distributions on Zen 4; three-machine validation; final
-    reviewed PR dev/v2.4.0 → main.
+  - Next: (1) sweep/oracle extension workstream (accuracy_sweep +
+    accuracy_vs_mpmath.py, 19 → 27 — opus per the alignment; the v2.5.0
+    before/after baseline must include the new eight); (2) threshold
+    profiling on Zen 4 for the four new-kernel distributions
+    (Logistic/Gumbel/HalfNormal/TruncatedNormal; wrappers keep delegate
+    rows), strategy_profile --large + threshold_validator; (3) AGENTS.md
+    current-state refresh (19→27 dists, counts 74/22/2, validation
+    matrix) with the release PR; (4) three-machine native validation;
+    (5) file the upstream-findings issues above; (6) final reviewed PR
+    dev/v2.4.0 → main + tag; (7) worktree cleanup for the four finished
+    agents.
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
