@@ -408,6 +408,8 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
                               # Gamma-Poisson sampling)
     src/bernoulli.cpp # Bernoulli distribution (discrete delegation wrapper over Binomial(n=1))
     src/erlang.cpp # Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
+    src/fisher_f.cpp # F (Fisher-Snedecor) distribution (Beta(d1/2,d2/2) transform wrapper;
+                     # steered incomplete-beta tails)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
     src/poisson_analysis.cpp # Poisson-specific analysis
     src/exponential_analysis.cpp # Exponential-specific analysis

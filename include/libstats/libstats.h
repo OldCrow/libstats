@@ -165,6 +165,7 @@
     #include "distributions/discrete.h"
     #include "distributions/erlang.h"
     #include "distributions/exponential.h"
+    #include "distributions/fisher_f.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
     #include "distributions/geometric.h"
@@ -205,6 +206,7 @@ using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
 using Bernoulli = BernoulliDistribution;
 using Erlang = ErlangDistribution;
+using FisherF = FDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 

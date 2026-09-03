@@ -560,4 +560,52 @@ inline VoidResult validateErlangParameters(int k, double lambda) noexcept {
     return VoidResult::ok({});
 }
 
+/**
+ * @brief Validate F (Fisher-Snedecor) distribution parameters without throwing
+ * @param d1 Numerator degrees of freedom (must be positive and finite)
+ * @param d2 Denominator degrees of freedom (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ *
+ * @note Both degrees of freedom are accepted as real-valued doubles, matching
+ * ChiSquaredDistribution's `double k` convention rather than Erlang's `int k`:
+ * F(d1, d2) is well defined for any positive real d1, d2 (it is a
+ * reparameterized Beta(d1/2, d2/2)), and non-integer degrees of freedom arise
+ * routinely from Welch-Satterthwaite and Kenward-Roger approximations.
+ */
+inline VoidResult validateFisherFParameters(double d1, double d2) noexcept {
+    if (std::isnan(d1) || std::isinf(d1) || d1 <= 0.0) {
+        return VoidResult::makeError(
+            ValidationError::InvalidParameter,
+            "Numerator degrees of freedom d1 must be a positive finite number");
+    }
+    if (std::isnan(d2) || std::isinf(d2) || d2 <= 0.0) {
+        return VoidResult::makeError(
+            ValidationError::InvalidParameter,
+            "Denominator degrees of freedom d2 must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Inverse Gamma distribution parameters without throwing
+ * @param alpha Shape parameter α (must be positive and finite)
+ * @param beta  SCALE parameter β (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ *
+ * @note β here is a **scale**, the standard InvGamma parameterization (and
+ * scipy's `invgamma(a, scale=β)`), not a rate. It maps to the *rate* of the
+ * internal GammaDistribution delegate unchanged — see inverse_gamma.h.
+ */
+inline VoidResult validateInverseGammaParameters(double alpha, double beta) noexcept {
+    if (std::isnan(alpha) || std::isinf(alpha) || alpha <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Shape parameter alpha must be a positive finite number");
+    }
+    if (std::isnan(beta) || std::isinf(beta) || beta <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter beta must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
 }  // namespace stats
