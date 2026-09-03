@@ -439,6 +439,14 @@ create_libstats_gtest(test_bernoulli_enhanced test_bernoulli_enhanced.cpp)
 create_libstats_test(test_erlang_basic test_erlang_basic.cpp)
 create_libstats_gtest(test_erlang_enhanced test_erlang_enhanced.cpp)
 
+# fisher_f.h - F (Fisher-Snedecor) distribution (Beta(d1/2,d2/2) transform wrapper)
+create_libstats_test(test_fisher_f_basic test_fisher_f_basic.cpp)
+create_libstats_gtest(test_fisher_f_enhanced test_fisher_f_enhanced.cpp)
+
+# inverse_gamma.h - Inverse Gamma distribution (reciprocal-transform wrapper over Gamma)
+create_libstats_test(test_inverse_gamma_basic test_inverse_gamma_basic.cpp)
+create_libstats_gtest(test_inverse_gamma_enhanced test_inverse_gamma_enhanced.cpp)
+
 # logistic.h - Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline,
 # conditional-MLE scale via safeguarded Newton).
 # Deliberately NOT added to the "timing" label block below: the enhanced binary
@@ -636,6 +644,10 @@ add_custom_target(
             test_half_normal_enhanced
             test_truncated_normal_basic
             test_truncated_normal_enhanced
+            test_fisher_f_basic
+            test_fisher_f_enhanced
+            test_inverse_gamma_basic
+            test_inverse_gamma_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow

@@ -165,8 +165,10 @@
     #include "distributions/discrete.h"
     #include "distributions/erlang.h"
     #include "distributions/exponential.h"
+    #include "distributions/fisher_f.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
+    #include "distributions/inverse_gamma.h"
     #include "distributions/geometric.h"
     #include "distributions/gumbel.h"
     #include "distributions/half_normal.h"
@@ -211,6 +213,8 @@ using Logistic = LogisticDistribution;
 using Gumbel = GumbelDistribution;
 using Bernoulli = BernoulliDistribution;
 using Erlang = ErlangDistribution;
+using FisherF = FDistribution;
+using InverseGamma = InverseGammaDistribution;
 using HalfNormal = HalfNormalDistribution;
 using TruncatedNormal = TruncatedNormalDistribution;
 }  // namespace stats
