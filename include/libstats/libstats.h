@@ -166,6 +166,7 @@
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
     #include "distributions/geometric.h"
+    #include "distributions/half_normal.h"
     #include "distributions/laplace.h"
     #include "distributions/lognormal.h"
     #include "distributions/negative_binomial.h"
@@ -201,6 +202,7 @@ using Geometric = GeometricDistribution;
 using Laplace = LaplaceDistribution;
 using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
+using HalfNormal = HalfNormalDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 

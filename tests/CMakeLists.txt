@@ -417,6 +417,13 @@ create_libstats_gtest(test_laplace_enhanced test_laplace_enhanced.cpp)
 create_libstats_test(test_cauchy_basic test_cauchy_basic.cpp)
 create_libstats_gtest(test_cauchy_enhanced test_cauchy_enhanced.cpp)
 
+# half_normal.h - Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline) (#57)
+# Deliberately NOT in the "timing" label block: the enhanced binary carries the
+# Born-compliant edge contracts (#103/#104) and mpmath accuracy gates but no
+# speedup assertions, and CI's correctness run is -LE "timing|benchmark".
+create_libstats_test(test_half_normal_basic test_half_normal_basic.cpp)
+create_libstats_gtest(test_half_normal_enhanced test_half_normal_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
@@ -587,6 +594,8 @@ add_custom_target(
             test_laplace_enhanced
             test_cauchy_basic
             test_cauchy_enhanced
+            test_half_normal_basic
+            test_half_normal_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow

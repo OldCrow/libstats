@@ -406,6 +406,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/cauchy.cpp # Cauchy distribution (delegation wrapper over StudentT(nu=1))
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
+    src/half_normal.cpp # Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
     src/poisson_analysis.cpp # Poisson-specific analysis
     src/exponential_analysis.cpp # Exponential-specific analysis
