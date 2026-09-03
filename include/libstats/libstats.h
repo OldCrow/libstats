@@ -168,7 +168,9 @@
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
     #include "distributions/geometric.h"
+    #include "distributions/gumbel.h"
     #include "distributions/laplace.h"
+    #include "distributions/logistic.h"
     #include "distributions/lognormal.h"
     #include "distributions/negative_binomial.h"
     #include "distributions/pareto.h"
@@ -203,6 +205,8 @@ using Geometric = GeometricDistribution;
 using Laplace = LaplaceDistribution;
 using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
+using Logistic = LogisticDistribution;
+using Gumbel = GumbelDistribution;
 using Bernoulli = BernoulliDistribution;
 using Erlang = ErlangDistribution;
 }  // namespace stats

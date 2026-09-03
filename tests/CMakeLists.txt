@@ -425,6 +425,19 @@ create_libstats_gtest(test_bernoulli_enhanced test_bernoulli_enhanced.cpp)
 create_libstats_test(test_erlang_basic test_erlang_basic.cpp)
 create_libstats_gtest(test_erlang_enhanced test_erlang_enhanced.cpp)
 
+# logistic.h - Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline,
+# conditional-MLE scale via safeguarded Newton).
+# Deliberately NOT added to the "timing" label block below: the enhanced binary
+# carries no speedup assertion, only a FORCE_VECTORIZED-vs-FORCE_SCALAR equality
+# check, so it must run in the correctness suite (-LE "timing|benchmark").
+create_libstats_test(test_logistic_basic test_logistic_basic.cpp)
+create_libstats_gtest(test_logistic_enhanced test_logistic_enhanced.cpp)
+
+# gumbel.h - Gumbel distribution (Type I extreme value, max-stable / gumbel_r only;
+# double-exponential CDF, method-of-moments fit). Same no-timing-label reasoning.
+create_libstats_test(test_gumbel_basic test_gumbel_basic.cpp)
+create_libstats_gtest(test_gumbel_enhanced test_gumbel_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
@@ -601,6 +614,10 @@ add_custom_target(
             test_bernoulli_enhanced
             test_erlang_basic
             test_erlang_enhanced
+            test_logistic_basic
+            test_logistic_enhanced
+            test_gumbel_basic
+            test_gumbel_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow
