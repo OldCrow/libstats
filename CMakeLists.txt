@@ -405,6 +405,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/laplace.cpp # Laplace distribution (double-exponential, standalone)
     src/cauchy.cpp # Cauchy distribution (delegation wrapper over StudentT(nu=1))
     src/logistic.cpp # Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline)
+    src/gumbel.cpp # Gumbel distribution (Type I extreme value, max-stable; double-exp CDF)
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
     src/gaussian_analysis.cpp # Gaussian-specific analysis

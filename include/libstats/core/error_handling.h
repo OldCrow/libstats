@@ -535,4 +535,22 @@ inline VoidResult validateLogisticParameters(double mu, double s) noexcept {
     return VoidResult::ok({});
 }
 
+/**
+ * @brief Validate Gumbel distribution parameters without throwing exceptions
+ * @param mu   Location parameter (must be finite)
+ * @param beta Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateGumbelParameters(double mu, double beta) noexcept {
+    if (!std::isfinite(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter mu must be a finite number");
+    }
+    if (std::isnan(beta) || std::isinf(beta) || beta <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter beta must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
 }  // namespace stats

@@ -425,6 +425,11 @@ create_libstats_gtest(test_cauchy_enhanced test_cauchy_enhanced.cpp)
 create_libstats_test(test_logistic_basic test_logistic_basic.cpp)
 create_libstats_gtest(test_logistic_enhanced test_logistic_enhanced.cpp)
 
+# gumbel.h - Gumbel distribution (Type I extreme value, max-stable / gumbel_r only;
+# double-exponential CDF, method-of-moments fit). Same no-timing-label reasoning.
+create_libstats_test(test_gumbel_basic test_gumbel_basic.cpp)
+create_libstats_gtest(test_gumbel_enhanced test_gumbel_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
@@ -597,6 +602,8 @@ add_custom_target(
             test_cauchy_enhanced
             test_logistic_basic
             test_logistic_enhanced
+            test_gumbel_basic
+            test_gumbel_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow
