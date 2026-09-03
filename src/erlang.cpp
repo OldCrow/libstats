@@ -411,8 +411,18 @@ std::istream& operator>>(std::istream& is, ErlangDistribution& dist) {
     int k;
     double lambda;
     try {
-        k = static_cast<int>(std::stod(token.substr(k_pos + 2, k_comma - k_pos - 2)));
+        const double k_raw = std::stod(token.substr(k_pos + 2, k_comma - k_pos - 2));
         lambda = std::stod(token.substr(lambda_pos + 7, lambda_close - lambda_pos - 7));
+        // #125-class guard: static_cast<int> of a double outside int's range is
+        // UB. A serialized k beyond INT_MAX cannot be a valid round-trip, so
+        // reject it (failbit) rather than saturate. The comparison also rejects
+        // NaN (all comparisons false) and non-integral k values.
+        constexpr double kMaxKAsDouble = 2147483647.0;  // INT_MAX, exact as double
+        if (!(k_raw >= 1.0 && k_raw <= kMaxKAsDouble && k_raw == std::floor(k_raw))) {
+            is.setstate(std::ios::failbit);
+            return is;
+        }
+        k = static_cast<int>(k_raw);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
