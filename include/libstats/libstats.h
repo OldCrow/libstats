@@ -167,6 +167,7 @@
     #include "distributions/gaussian.h"
     #include "distributions/geometric.h"
     #include "distributions/laplace.h"
+    #include "distributions/logistic.h"
     #include "distributions/lognormal.h"
     #include "distributions/negative_binomial.h"
     #include "distributions/pareto.h"
@@ -201,6 +202,7 @@ using Geometric = GeometricDistribution;
 using Laplace = LaplaceDistribution;
 using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
+using Logistic = LogisticDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 

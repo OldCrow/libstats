@@ -517,4 +517,22 @@ inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
     return VoidResult::ok({});
 }
 
+/**
+ * @brief Validate Logistic distribution parameters without throwing exceptions
+ * @param mu Location parameter (must be finite)
+ * @param s  Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateLogisticParameters(double mu, double s) noexcept {
+    if (!std::isfinite(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter mu must be a finite number");
+    }
+    if (std::isnan(s) || std::isinf(s) || s <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter s must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
 }  // namespace stats

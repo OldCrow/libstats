@@ -417,6 +417,14 @@ create_libstats_gtest(test_laplace_enhanced test_laplace_enhanced.cpp)
 create_libstats_test(test_cauchy_basic test_cauchy_basic.cpp)
 create_libstats_gtest(test_cauchy_enhanced test_cauchy_enhanced.cpp)
 
+# logistic.h - Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline,
+# conditional-MLE scale via safeguarded Newton).
+# Deliberately NOT added to the "timing" label block below: the enhanced binary
+# carries no speedup assertion, only a FORCE_VECTORIZED-vs-FORCE_SCALAR equality
+# check, so it must run in the correctness suite (-LE "timing|benchmark").
+create_libstats_test(test_logistic_basic test_logistic_basic.cpp)
+create_libstats_gtest(test_logistic_enhanced test_logistic_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
@@ -587,6 +595,8 @@ add_custom_target(
             test_laplace_enhanced
             test_cauchy_basic
             test_cauchy_enhanced
+            test_logistic_basic
+            test_logistic_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow
