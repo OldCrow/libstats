@@ -191,6 +191,17 @@ constexpr ArchTable kNeon = {{
                                                    // LogPDF: floor artefact (64); CDF: consistent
     /* CAUCHY(18)            */ {25000, 50000, 512},  // new: PDF {10k,10k,25k}→25k; LogPDF  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
                                                       // {25k,25k,50k}→50k
+    // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
+    // delegation wrappers copy their delegate's measured row on this arch
+    // (Bernoulli←Binomial, Erlang/InverseGamma←Gamma, FisherF←Beta).
+    /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
+    /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
+    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},  // ← BINOMIAL(14)
+    /* ERLANG(22)            */ {25000, 256, 64},       // ← GAMMA(5)
+    /* FISHER_F(23)          */ {NEVER, NEVER, 256},    // ← BETA(7)
+    /* INVERSE_GAMMA(24)     */ {25000, 256, 64},       // ← GAMMA(5)
+    /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
+    /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
 }};
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
@@ -268,6 +279,16 @@ constexpr ArchTable kAvx = {{
                                                    // boundaries as kAvx2).
                                                    // CDF: kAvx2=256÷2=128
     /* CAUCHY(18)            */ {37500, 37500, 64},  // PDF/LogPDF: kAvx2=75k÷2  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
+    // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
+    // delegation wrappers copy their delegate's row on this arch.
+    /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
+    /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
+    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},    // ← BINOMIAL(14)
+    /* ERLANG(22)            */ {12500, 256, 64},       // ← GAMMA(5)
+    /* FISHER_F(23)          */ {128, 128, 256},        // ← BETA(7)
+    /* INVERSE_GAMMA(24)     */ {12500, 256, 64},       // ← GAMMA(5)
+    /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
+    /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
 }};
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---
@@ -361,6 +382,16 @@ constexpr ArchTable kAvx2 = {{
                                                     // trough N=5k 107M; clean entry from
                                                     // N=25k; see issue #50)
     /* CAUCHY(18)            */ {75000, 75000, 128},  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
+    // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
+    // delegation wrappers copy their delegate's row on this arch.
+    /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
+    /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
+    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},  // ← BINOMIAL(14)
+    /* ERLANG(22)            */ {25000, 512, 64},       // ← GAMMA(5)
+    /* FISHER_F(23)          */ {256, 256, 512},        // ← BETA(7)
+    /* INVERSE_GAMMA(24)     */ {25000, 512, 64},       // ← GAMMA(5)
+    /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
+    /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
 }};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---
@@ -506,6 +537,16 @@ constexpr ArchTable kAvx512 = {{
     /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
                                                            // (6-run set with StudentT CDF; 50/50
                                                            // split → conservative)
+    // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
+    // delegation wrappers copy their delegate's row on this arch.
+    /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
+    /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
+    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},    // ← BINOMIAL(14)
+    /* ERLANG(22)            */ {10000, 256, 64},       // ← GAMMA(5)
+    /* FISHER_F(23)          */ {2048, 512, 8192},      // ← BETA(7)
+    /* INVERSE_GAMMA(24)     */ {10000, 256, 64},       // ← GAMMA(5)
+    /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
+    /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
 }};
 
 /**
@@ -608,6 +649,15 @@ constexpr ArchTable kNone = {{
     /* GEOMETRIC(16)         */ {2048, 2048, 2048},     // T1: delegates to NegBinomial
     /* LAPLACE(17)           */ {8192, 8192, 8192},     // T2: fabs + exp
     /* CAUCHY(18)            */ {2048, 2048, 2048},     // T1: PDF/LogPDF delegate to StudentT; CDF column stale since #48
+    // v2.4.0 scaffolding (#54–#57): tier assignment by per-element cost class.
+    /* LOGISTIC(19)          */ {8192, 8192, 8192},     // T2: exp pipeline
+    /* GUMBEL(20)            */ {8192, 8192, 8192},     // T2: double-exp pipeline
+    /* BERNOULLI(21)         */ {2048, 2048, 2048},     // T1: delegates to Binomial
+    /* ERLANG(22)            */ {2048, 2048, 2048},     // T1: delegates to Gamma
+    /* FISHER_F(23)          */ {2048, 2048, 2048},     // T1: incomplete beta via Beta
+    /* INVERSE_GAMMA(24)     */ {2048, 2048, 2048},     // T1: delegates to Gamma
+    /* HALF_NORMAL(25)       */ {8192, 8192, 8192},     // T2: exp + erf
+    /* TRUNCATED_NORMAL(26)  */ {8192, 8192, 8192},     // T2: exp + erf (Gaussian pipeline)
 }};
 constexpr std::size_t none_parallel_threshold(DistributionType dist, OperationType op) {
     return parallelThresholdFromTable(kNone, dist, op);

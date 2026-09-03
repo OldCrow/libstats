@@ -485,8 +485,9 @@ The registration checklist is authoritative in `include/libstats/core/distributi
 2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/libstats/core/distribution_meta.h`
    (enum name, display name, `is_discrete`, `is_delegation_wrapper`). Bump the
    `static_assert(kDistributionTypeCount >= N, ...)` minimum to match the new count.
-3. **Append** one `ThresholdRow` to each of the four `kXxx` tables in
-   `include/libstats/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
+3. **Append** one `ThresholdRow` to each of the five `kXxx` tables in
+   `include/libstats/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled;
+   the fifth table, `kNone`, takes a T1/T2/T3 tier value per its header comment, not NEVER).
    For delegation wrappers (e.g. Geometric→NegBinomial, Cauchy→StudentT), the delegate's
    thresholds apply — copy them or leave NEVER and profile after implementation.
 
@@ -556,7 +557,7 @@ The registration checklist is authoritative in `include/libstats/core/distributi
    - Run `./build/tools/strategy_profile --large --export` to produce a CSV.
    - Run `./build/tools/threshold_validator <csv>` to compare measured crossovers against
      the current NEVER entries and identify which need updating.
-   - Update the four `kXxx` tables in `dispatch_thresholds.h` accordingly.
+   - Update the five `kXxx` tables in `dispatch_thresholds.h` accordingly.
    - For delegation wrappers, verify the delegate's thresholds apply (skip if identical).
 
 The `consteval validateMetaOrdering()` in `distribution_meta.h` enforces step 1↔2 alignment at
