@@ -404,8 +404,12 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/geometric.cpp # Geometric distribution (discrete delegation wrapper over NegBinomial(r=1))
     src/laplace.cpp # Laplace distribution (double-exponential, standalone)
     src/cauchy.cpp # Cauchy distribution (delegation wrapper over StudentT(nu=1))
+    src/logistic.cpp # Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline)
+    src/gumbel.cpp # Gumbel distribution (Type I extreme value, max-stable; double-exp CDF)
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
                               # Gamma-Poisson sampling)
+    src/bernoulli.cpp # Bernoulli distribution (discrete delegation wrapper over Binomial(n=1))
+    src/erlang.cpp # Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
     src/half_normal.cpp # Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline)
     src/truncated_normal.cpp # Truncated Normal distribution (regime-split erf/erfc normalization)
     src/gaussian_analysis.cpp # Gaussian-specific analysis

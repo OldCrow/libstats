@@ -431,6 +431,27 @@ create_libstats_gtest(test_half_normal_enhanced test_half_normal_enhanced.cpp)
 create_libstats_test(test_truncated_normal_basic test_truncated_normal_basic.cpp)
 create_libstats_gtest(test_truncated_normal_enhanced test_truncated_normal_enhanced.cpp)
 
+# bernoulli.h - Bernoulli distribution (discrete, delegation wrapper over Binomial(n=1))
+create_libstats_test(test_bernoulli_basic test_bernoulli_basic.cpp)
+create_libstats_gtest(test_bernoulli_enhanced test_bernoulli_enhanced.cpp)
+
+# erlang.h - Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
+create_libstats_test(test_erlang_basic test_erlang_basic.cpp)
+create_libstats_gtest(test_erlang_enhanced test_erlang_enhanced.cpp)
+
+# logistic.h - Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline,
+# conditional-MLE scale via safeguarded Newton).
+# Deliberately NOT added to the "timing" label block below: the enhanced binary
+# carries no speedup assertion, only a FORCE_VECTORIZED-vs-FORCE_SCALAR equality
+# check, so it must run in the correctness suite (-LE "timing|benchmark").
+create_libstats_test(test_logistic_basic test_logistic_basic.cpp)
+create_libstats_gtest(test_logistic_enhanced test_logistic_enhanced.cpp)
+
+# gumbel.h - Gumbel distribution (Type I extreme value, max-stable / gumbel_r only;
+# double-exponential CDF, method-of-moments fit). Same no-timing-label reasoning.
+create_libstats_test(test_gumbel_basic test_gumbel_basic.cpp)
+create_libstats_gtest(test_gumbel_enhanced test_gumbel_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
@@ -500,6 +521,8 @@ if(GTEST_FOUND)
         test_geometric_enhanced
         test_laplace_enhanced
         test_cauchy_enhanced
+        test_bernoulli_enhanced
+        test_erlang_enhanced
         PROPERTIES LABELS "timing")
 
     # test_benchmark is a benchmark, not a correctness test. It used to be kept
@@ -601,6 +624,14 @@ add_custom_target(
             test_laplace_enhanced
             test_cauchy_basic
             test_cauchy_enhanced
+            test_bernoulli_basic
+            test_bernoulli_enhanced
+            test_erlang_basic
+            test_erlang_enhanced
+            test_logistic_basic
+            test_logistic_enhanced
+            test_gumbel_basic
+            test_gumbel_enhanced
             test_half_normal_basic
             test_half_normal_enhanced
             test_truncated_normal_basic

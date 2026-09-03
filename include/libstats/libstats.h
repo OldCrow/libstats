@@ -157,17 +157,21 @@
     #include "core/performance_dispatcher.h"
 
     // Distribution implementations
+    #include "distributions/bernoulli.h"
     #include "distributions/beta.h"
     #include "distributions/binomial.h"
     #include "distributions/cauchy.h"
     #include "distributions/chi_squared.h"
     #include "distributions/discrete.h"
+    #include "distributions/erlang.h"
     #include "distributions/exponential.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
     #include "distributions/geometric.h"
+    #include "distributions/gumbel.h"
     #include "distributions/half_normal.h"
     #include "distributions/laplace.h"
+    #include "distributions/logistic.h"
     #include "distributions/lognormal.h"
     #include "distributions/negative_binomial.h"
     #include "distributions/pareto.h"
@@ -203,6 +207,10 @@ using Geometric = GeometricDistribution;
 using Laplace = LaplaceDistribution;
 using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
+using Logistic = LogisticDistribution;
+using Gumbel = GumbelDistribution;
+using Bernoulli = BernoulliDistribution;
+using Erlang = ErlangDistribution;
 using HalfNormal = HalfNormalDistribution;
 using TruncatedNormal = TruncatedNormalDistribution;
 }  // namespace stats
