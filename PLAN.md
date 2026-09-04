@@ -509,7 +509,8 @@ history.
     parallel slowdowns on AVX2/NEON. This differs from the v2.3.1
     precedent (tag before remaining legs), whose legs were pure
     validation; these legs change threshold tables.
-    (1) Kaby Lake leg, then M1 leg — each on its own machine, on dev:
+    (1) ~~Kaby Lake leg~~ **DONE 2026-09-03/04** (7c2ca49 on dev),
+    then M1 leg — each on its own machine, on dev:
     (a) correctness suite (74 expected), (b) timing suite serial on a
     quiet machine, (c) characterization regen on the 27-dist grid +
     oracle overflow rule (expect the pareto quantile triple to
@@ -518,6 +519,23 @@ history.
     beta/gamma/lognormal rows re-measured post-repair, sustained-
     crossover methodology (do NOT trust threshold_validator's
     first-crossing heuristic raw — it reports 64-element noise ties).
+    Kaby Lake results: 74/74; 22/22 timing twice (pre- and
+    post-recalibration; the #129 uniform gate PASSES here); sweep 9213
+    rows → 34 violations, appendix class-for-class identical to Zen 4,
+    pareto triple reclassified as predicted. kAvx2 recalibrated from 3
+    quiet runs: **Beta PDF/LogPDF → NEVER on AVX2 too** (0.65–0.73× at
+    2M, memory-bound — the old row dispatched parallel at 256, the
+    exact slowdown class the reorder guarded against); Gamma
+    {25000,25000,4096}, LogNormal {50000,50000,4096}; new kernels
+    Logistic {100000,100000,50000}, Gumbel {50000,50000,100000},
+    HalfNormal {75000,75000,50000}, TruncatedNormal {50000,50000,4096};
+    FisherF {1024,6144,512} and InverseGamma cdf 2048 measured;
+    Bernoulli stays NEVER (Binomial measured NEVER on this arch).
+    Post-fix forks at 2M: gamma 5.3–5.4×/5.9×, F cdf 3.6×, invgamma
+    cdf 2.7–3.0×, lognormal cdf 3.3–4.2×. Raw CSVs + logs preserved
+    untracked in data/profiles/dispatcher/2026-09-04T02-36-22Z_….
+    Bonus data: Cauchy CDF sustained crossover measured ~4096–8192 vs
+    the STALE 128 row — direct input for #109 (noted on the issue).
     (2) AGENTS.md current-state refresh (19→27 dists, counts 74/22/2,
     full three-machine validation matrix) — after the legs, so the
     matrix is written once, complete. (3) Final reviewed PR
