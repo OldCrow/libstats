@@ -51,7 +51,13 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-09-04 (second pass: #145
+Last reconciled against live GitHub state: 2026-09-04 (third pass,
+post-leg lessons triage: #146 filed into milestone #8 — promote the
+sustained-crossover methodology into threshold_validator, de-duplicate
+the per-bundle analyze_crossovers.py copies; memory-bound-parallel
+category-policy investigation added to #111 as a comment; cross-repo
+corvus#37 filed — x86 erf per-element throughput gap vs NEON, benchmark
+corvus's own gap before v2.5.0 adoption. Second pass: #145
 CLOSED via 919a857 on dev — families demo now covers all 27, including
 Laplace/Cauchy/Geometric which the original 19-claim had silently omitted;
 milestone #2 back to holding only #54-#57 and #144. First pass, leg-findings
@@ -265,7 +271,14 @@ history.
     on both issues; enforcement ships with this milestone.
   - #109 OPEN — re-profile the Cauchy CDF thresholds (rows marked STALE).
   - #111 OPEN — von Mises batch CDF blocking + the noexcept/allocation
-    policy; #114 OPEN — review backlog.
+    policy — 2026-09-04 comment adds the memory-bound-parallel category
+    question (Beta/vonMises/HalfNormal fleet data: measure the
+    restructured kernel, or set NEVER by policy); #114 OPEN — review
+    backlog; #146 OPEN (filed 2026-09-04) — threshold_validator
+    implements the distrusted first-crossing heuristic while the
+    sustained-crossover method lives only as per-bundle script copies;
+    promote it into the tool, acceptance = reproducing the encoded
+    kAvx2/kNeon rows from the two v2.4.0 bundles.
   - Filed 2026-08-25 from v2.3.1 findings: #125 OPEN — NegBin/Geometric
     public cdf/logpdf int-narrowing past INT_MAX (UB, ISA-dependent;
     quantile/CDF inconsistency); #126 OPEN — beta_i ~1e-6 abs at b ≳ 1e9
