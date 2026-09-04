@@ -500,16 +500,29 @@ history.
     20/22 = Zen 4 timing leg of the matrix (#129 uniform flake, same
     signature as v2.2.0/v2.3.1, + one timer-resolution caching flake,
     3/3 standalone).
-  - Next: (1) AGENTS.md current-state refresh (19→27 dists, counts
-    74/22/2, validation matrix incl. Zen 4 timing leg) with the release
-    PR; (2) three-machine native validation — the AVX2/NEON legs must
-    ALSO (a) regen characterization on the 27-dist grid + oracle
-    overflow rule (expect their pareto triples to reclassify
-    identically), and (b) RE-PROFILE thresholds: the fork defect was
-    platform-independent, so kNeon/kAvx2 beta/gamma/lognormal rows
-    carry the same June skew and the new-kernel rows are still NEVER
-    there; (3) final reviewed PR dev/v2.4.0 → main + tag (the "Closes
-    #54–#57" lines fire then); (4) pylibstats pin bump at release.
+  - Next — ORDER MATTERS, machine legs BEFORE the release [user-settled
+    2026-09-03]: the parallelForSlices repair changes dispatch behavior
+    under the EXISTING kNeon/kAvx2 rows (June-calibrated against the
+    non-forking parallel path), and Zen 4 shows a real fork can go
+    either way (gamma 7.5–8.4× gain, Beta 0.80–0.87× LOSS) — tagging
+    before those tables are re-measured risks shipping Beta-class
+    parallel slowdowns on AVX2/NEON. This differs from the v2.3.1
+    precedent (tag before remaining legs), whose legs were pure
+    validation; these legs change threshold tables.
+    (1) Kaby Lake leg, then M1 leg — each on its own machine, on dev:
+    (a) correctness suite (74 expected), (b) timing suite serial on a
+    quiet machine, (c) characterization regen on the 27-dist grid +
+    oracle overflow rule (expect the pareto quantile triple to
+    reclassify identically to Zen 4), (d) threshold RE-PROFILE with the
+    extended 27-dist strategy_profile: new-kernel rows off NEVER,
+    beta/gamma/lognormal rows re-measured post-repair, sustained-
+    crossover methodology (do NOT trust threshold_validator's
+    first-crossing heuristic raw — it reports 64-element noise ties).
+    (2) AGENTS.md current-state refresh (19→27 dists, counts 74/22/2,
+    full three-machine validation matrix) — after the legs, so the
+    matrix is written once, complete. (3) Final reviewed PR
+    dev/v2.4.0 → main + tag (the "Closes #54–#57" lines fire then).
+    (4) pylibstats pin bump at release.
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
