@@ -274,6 +274,10 @@ history.
     reference). #138 OPEN — digamma ~1.3e-8 binds entropies (libhmm's
     2e-14 psi_functions.h is the in-fleet reference). Cross-repo:
     libhmm#103 (errorf_inv saturation-class investigation, low sev).
+    #141 OPEN (filed later the same day, from the extended sweep) —
+    detail::gamma_p ~1.7e-7 rel at shape ~1e4 bounds Gamma/Erlang/
+    InverseGamma CDF accuracy; proper fix is a Temme uniform asymptotic,
+    corvus-absorption check first.
   Contingency (proposed 2026-08-28): #125/#127 are genuine bugs adoption
   does not touch — if the corvus arc stalls, they justify an early patch
   slice ahead of this milestone.
@@ -435,13 +439,38 @@ history.
     test_integration_workflow extended to all 27. Pre-existing defects
     filed as #136/#137/#138 (milestone #8) + libhmm#103 — see the
     milestone #8 entry. Post-hygiene integrated suite: 74/74.
-  - Sweep/oracle extension READY TO SPAWN: brief prepared (session
-    scratchpad, sweep-extension-brief.md) — registration patterns
-    mapped in both tools, instance triples proposed, hard constraints
-    from the #46 oracle-hardening history (reuse Lentz CF internals,
-    never raw mp.betainc/gammainc), #56's exact-double-of-p rule and
-    #57's survival-form rule baked in; append-only vs the 63-violation
-    baseline rows.
+  - Sweep/oracle extension LANDED 2026-09-03 (PR #140, squash-merged by
+    user): accuracy_sweep + accuracy_vs_mpmath.py cover all 27
+    (6063 → 9030 rows, oracle self-checks 42 → 68), Zen 4 AVX-512 block
+    regenerated. Baseline finding: the 63-violation Zen 4 baseline was
+    already 45 at dev (v2.4.0's gamma #103 guards fixed 16 rows, 2
+    changed sentinel) → 57 with the 12 new-distribution rows. Agent's
+    "Erlang delegation divergence" claim DISPROVED in orchestrator QA
+    (CSV rows bitwise identical; nan was the pre-v2.4.0 sentinel) —
+    correction recorded in the characterization doc.
+  - Accuracy-fix pass LANDED 2026-09-03 (PR #142, same day) [user:
+    "fix all three" + invited the comparator fix]: (1) gamma deep-tail
+    quantile escape (log-domain seed, relative-in-p stopping — which
+    also exposed and fixed a silently-wrong deep-tail band the absolute
+    tolerance had been accepting, e.g. quantile(1e-15) with true CDF
+    ~1e-50) + batch CDF(+inf) lanes (the #130 class, inherited by
+    ChiSquared/Erlang); (2) fisher_f denormal-band beta argument
+    y = x/(x + d2/d1); (3) truncated_normal near-lower-bound Hermite-
+    series CDF (0.32–0.45 rel at lo+1ulp → ~1e-14; OneSidedTail budget
+    gains the previously error-correlation-hidden pdf(q)·ulp(q) term);
+    (4) oracle overflow rule: |ref| ≥ 2^1024 − 2^970 scores matching-
+    sign ±inf as correctly rounded (self-checks 68 → 72). All behind
+    fail-first gates shown failing on the unfixed build. Violations
+    57 → 45 (library, 12 rows) → 34 (comparator: 8 F/InvGamma artifacts
+    + 3 pareto phantoms present in every prior baseline). Grid
+    9030 → 9210 (+180 newly finite gamma-family quantile grid points);
+    byte-diff perimeter: all 22 untouched distributions identical.
+    Suite 74/74. Remaining 34 violations = filed classes only
+    (#136/#137/#103-weibull); #141 filed for the last visible genuine
+    accuracy limit (gamma_p at large shape).
+  - Worktree/branch cleanup DONE 2026-09-03: all five finished agent
+    worktrees removed, merged feature branches deleted; local topology
+    is dev/v2.4.0 + main only.
   - Environment hardening this session: per-project Defender exclusions
     added [user, elevated shell] after cloud-ML quarantine
     (`Trojan:Win32/Wacatac.B!ml`) ate rotating test EXEs mid-suite —
@@ -450,17 +479,17 @@ history.
   - NOTE: PR #131's "Closes #55" targets dev, so GitHub auto-close fires
     only when dev merges to main — #55 stays open on the milestone until
     then, intentionally.
-  - Next: (1) sweep/oracle extension workstream (accuracy_sweep +
-    accuracy_vs_mpmath.py, 19 → 27 — opus per the alignment; the v2.5.0
-    before/after baseline must include the new eight); (2) threshold
-    profiling on Zen 4 for the four new-kernel distributions
-    (Logistic/Gumbel/HalfNormal/TruncatedNormal; wrappers keep delegate
-    rows), strategy_profile --large + threshold_validator; (3) AGENTS.md
-    current-state refresh (19→27 dists, counts 74/22/2, validation
-    matrix) with the release PR; (4) three-machine native validation;
-    (5) file the upstream-findings issues above; (6) final reviewed PR
-    dev/v2.4.0 → main + tag; (7) worktree cleanup for the four finished
-    agents.
+  - Next: (1) threshold profiling on Zen 4 for the four new-kernel
+    distributions (Logistic/Gumbel/HalfNormal/TruncatedNormal; wrappers
+    keep delegate rows), strategy_profile --large + threshold_validator,
+    quiet machine per the PB2 caveat; (2) AGENTS.md current-state
+    refresh (19→27 dists, counts 74/22/2, validation matrix) with the
+    release PR; (3) three-machine native validation — the AVX2/NEON
+    characterization regens pick up the 27-dist grid AND the oracle
+    overflow rule (expect their pareto triples to reclassify
+    identically); (4) final reviewed PR dev/v2.4.0 → main + tag (the
+    "Closes #54–#57" lines fire then); (5) pylibstats pin bump at
+    release.
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
