@@ -1,0 +1,15 @@
+{
+  "captured_at_utc": "2026-09-04T02-36-22Z",
+  "run_id": "2026-09-04T02-36-22Z_darwin-x86_64_dev-v2.4.0_sha-5f27ee1",
+  "git_branch": "dev/v2.4.0",
+  "git_sha": "5f27ee1",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build-release",
+  "build_type": "Release",
+  "cxx_compiler": "/usr/bin/c++",
+  "os": "darwin",
+  "arch": "x86_64",
+  "cpu_brand": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}
