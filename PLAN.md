@@ -479,17 +479,37 @@ history.
   - NOTE: PR #131's "Closes #55" targets dev, so GitHub auto-close fires
     only when dev merges to main — #55 stays open on the milestone until
     then, intentionally.
-  - Next: (1) threshold profiling on Zen 4 for the four new-kernel
-    distributions (Logistic/Gumbel/HalfNormal/TruncatedNormal; wrappers
-    keep delegate rows), strategy_profile --large + threshold_validator,
-    quiet machine per the PB2 caveat; (2) AGENTS.md current-state
-    refresh (19→27 dists, counts 74/22/2, validation matrix) with the
-    release PR; (3) three-machine native validation — the AVX2/NEON
-    characterization regens pick up the 27-dist grid AND the oracle
+  - Threshold profiling DONE 2026-09-03 (PR #143) — and it caught a real
+    concurrency defect. strategy_profile extended 19 → 27 (wrappers
+    profiled per the existing Chi-squared/Geometric/Cauchy convention;
+    user call). Profiling showed forced-PARALLEL ≡ VECTORIZED bitwise
+    for every SLICED batch path: the 18 lambda sites in
+    beta/gamma/lognormal (old) + fisher_f/inverse_gamma (new) passed
+    their slice COUNT (~N/1024) as the parallelFor range, and both
+    pools' serial gates are ELEMENT-denominated (8192 on AVX-512) — so
+    those parallel paths NEVER FORKED below ~8.4M elements, and the
+    June threshold calibration measured secretly-serial paths. Fixed
+    via ParallelUtils/WorkStealingPool::parallelForSlices (element
+    gates, SIMD-slice callbacks, serial fallback = one full-range
+    slice). Post-fix at 2M: gamma pdf/logpdf 7.5×/8.4×, F cdf 6.3×,
+    invgamma cdf 6.4×, lognormal cdf 6.5×; BETA pdf/logpdf LOSE under a
+    real fork (0.80–0.87×, memory-bound) → rows now NEVER. kAvx512
+    calibrated from 3 quiet-machine runs using SUSTAINED crossovers
+    (validator's first-crossing heuristic reports 64-element noise
+    ties — do not trust it raw). Suites: 74/74 correctness; timing
+    20/22 = Zen 4 timing leg of the matrix (#129 uniform flake, same
+    signature as v2.2.0/v2.3.1, + one timer-resolution caching flake,
+    3/3 standalone).
+  - Next: (1) AGENTS.md current-state refresh (19→27 dists, counts
+    74/22/2, validation matrix incl. Zen 4 timing leg) with the release
+    PR; (2) three-machine native validation — the AVX2/NEON legs must
+    ALSO (a) regen characterization on the 27-dist grid + oracle
     overflow rule (expect their pareto triples to reclassify
-    identically); (4) final reviewed PR dev/v2.4.0 → main + tag (the
-    "Closes #54–#57" lines fire then); (5) pylibstats pin bump at
-    release.
+    identically), and (b) RE-PROFILE thresholds: the fork defect was
+    platform-independent, so kNeon/kAvx2 beta/gamma/lognormal rows
+    carry the same June skew and the new-kernel rows are still NEVER
+    there; (3) final reviewed PR dev/v2.4.0 → main + tag (the "Closes
+    #54–#57" lines fire then); (4) pylibstats pin bump at release.
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
