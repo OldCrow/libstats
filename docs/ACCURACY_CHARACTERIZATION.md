@@ -91,19 +91,22 @@ that row, not a defect:
   `rel = 1.0` rows at exact lattice probabilities (`F(k) == p`) are a
   right-continuous-inverse convention difference, one integer off, not
   an accuracy defect.
-- **`reference is finite (…e+NNN), … decoded to inf` where the reference
-  exceeds `DBL_MAX`.** The comparator's finiteness test is `mp.isfinite`,
-  which is *mpf*-finiteness, not double-representability — an mpf can
-  hold `1e+2939` quite happily. When the true value is above
-  `1.797693e+308` the library's `inf` is the correct IEEE double answer,
-  so these rows are a **comparator artifact, not a contract violation**,
-  and must be excluded by hand when comparing violation totals. Read the
-  reference exponent in the appendix message: above 308, discount the
-  row. Introduced as a visible class at v2.4.0 by the shape-0.01 tails of
-  `fisher_f` and `inverse_gamma` (8 rows on the 9030-row AVX-512 block).
-  Deliberately not fixed in the comparator: that code is shared with the
-  frozen pre-v2.4.0 rows, and silently reclassifying any of them would
-  destroy the very baseline these blocks exist to preserve.
+- **References beyond double range score a matching-sign `±inf` as
+  correct (comparator rule since 2026-09-03).** A reference with
+  `|ref| ≥ 2^1024 − 2^970` (the binary64 rounds-to-inf midpoint) has
+  `±inf` as its correctly rounded double, so a library `±inf` of the
+  reference's sign is scored correct; a finite library value there
+  *failed to overflow* and is still flagged, and references between
+  `DBL_MAX` and the midpoint keep the relative-error path. History: the
+  comparator originally tested `mp.isfinite` — *mpf*-finiteness, not
+  double-representability — and flagged 8 such rows on the v2.4.0
+  AVX-512 grid (`fisher_f`/`inverse_gamma` shape-0.01 tails, references
+  `2.5e+317` … `7.4e+2939`) as `reference is finite (…), decoded to inf`
+  violations; the extension pass documented them as a hand-exclusion
+  artifact rather than change classification mid-PR. The rule was then
+  adopted deliberately in the same-day accuracy-fix pass (see that
+  section below), with the reclassification of any same-shape frozen
+  rows recorded there instead of left to per-comparison hand exclusion.
 
 ## Second machine: Kaby Lake AVX2 (2026-08-23)
 
@@ -293,7 +296,10 @@ New baseline for regenerations on this grid and ISA: **57 total = 45
 pre-v2.4.0 + 12 new-distribution**, of which 8 are the `DBL_MAX`
 comparator artifact described under "Reading the tables" and only 4 are
 real. Every one of the 45 pre-existing rows is bit-for-bit the same set
-before and after the extension.
+before and after the extension. *(Superseded the same day: the
+accuracy-fix pass below cleared the 4 real new-distribution rows, their
+8 gamma/chi-squared siblings, and the comparator artifact class — see
+that section for the current baseline.)*
 
 ### The 12 new-distribution contract rows
 
@@ -306,17 +312,29 @@ before and after the extension.
   three rows in the frozen baseline, same message, same shape; Erlang is
   Gamma at integer shape, so this is the same #103 defect seen through a
   wrapper, not a v2.4.0 leak.
-- **1 is a delegation-consistency finding.** `erlang`
-  `quantile(p = 1e-300)` at (k=10000, λ=1e-3) returns `+inf`; `gamma` at
-  the numerically identical instance (α=1e4, β=1e-3) returns `nan`, with
-  the same reference 6.73769e+6. Both are wrong in the same #104/#113
-  way, but they are wrong *differently* — Erlang's quantile is not
-  reaching Gamma's path unchanged.
+- **1 is the same Gamma extreme-quantile escape, seen through the
+  wrapper.** `erlang` `quantile(p = 1e-300)` at (k=10000, λ=1e-3) returns
+  `+inf` against reference 6.73769e+6. *Correction (same day):* this was
+  first written up as a delegation-consistency finding — "gamma at the
+  identical instance returns `nan`" — but the CSV itself refutes that:
+  the `gamma` (α=1e4, β=1e-3) and `erlang` quantile rows are bitwise
+  identical, `+inf` included, and a direct probe confirmed
+  `ErlangDistribution::getQuantile` ≡ `GammaDistribution::getQuantile`
+  bit for bit at every probed `p`. The `nan` in the earlier claim was
+  the *pre-v2.4.0* sentinel (see "2 rows changed sentinel" above). The
+  defect is Gamma's own quantile solver escaping to `+inf` for
+  `p < ~5.6e-17` at large α — fixed in the same-day accuracy-fix pass
+  below.
 
 ### Two accuracy findings worth carrying forward
 
 Neither is a contract violation, and neither was fixed here — this is a
-characterization pass.
+characterization pass. *(Both were fixed the same day in the
+accuracy-fix pass below; kept as the record of what the extension sweep
+measured. The TruncatedNormal fix ended up one level deeper than the
+survival-form suggestion here: near the bound, `q_alpha − q_xi` is still
+a difference of two independently rounded values, so the numerator is
+evaluated directly by a Hermite series instead.)*
 
 - **`truncated_normal` `cdf` loses relative accuracy approaching the
   lower bound**: `max_rel = 0.318` at `x = lo + 1 ulp` on the (10, 12)
@@ -348,6 +366,71 @@ on this grid, since the half-normal form takes `erfinv(p)` rather than
 `inverse_beta_i` (#137) and extreme-quantile (#104/#113) classes.
 Digamma-bound entropies (#138) are not exercised by this sweep, which
 covers pdf/logpdf/cdf/quantile only.
+
+## v2.4.0 accuracy fixes: 57 → 34 on the 9210-row grid (2026-09-03, same day)
+
+The extension's findings were fixed the same day — four library fixes
+plus one comparator rule, each behind a fail-first gate shown failing on
+the unfixed build (MSVC/Zen 4):
+
+- `fix(gamma)`: deep-tail quantile escape (log-domain small-p seed,
+  mean fallback, relative-in-p stopping, self-repairing bisection
+  bracket) and batch-CDF `+inf` lanes pinned to 1. En route the relative
+  stopping test exposed that the old absolute `|cdf − p| < 1e-12` had
+  been silently accepting wrong deep-tail quantiles without any
+  violation — `quantile(1e-15)` at (α=1e4, β=1e-3) returned a point
+  whose true CDF is ~1e-50.
+- `fix(fisher_f)`: the CDF/SF beta argument switches to
+  `y = x/(x + d2/d1)` when `d1·x` is subnormal, so the far power-law
+  tail no longer collapses to 0 and quantile→cdf closes down to
+  `DBL_TRUE_MIN`.
+- `fix(truncated_normal)`: near-lower-bound CDF numerator by Hermite
+  series (|α|·d ≤ 1/4 band); all eight gate points now ~1e-14 from
+  the dps=60 references, batch lanes bit-identical to scalar.
+- `fix(oracle)`: the beyond-double-range rule under "Reading the
+  tables" (self-checks 68 → 72).
+
+**Grid: 9030 → 9210 rows.** The +180 are gamma/chi_squared/erlang grid
+points whose quantile-derived `x` probes were `±inf`/`nan` before the
+quantile fix and are finite now. Perimeter verified by byte-diff of
+pre-fix vs post-fix sweeps at the same commit: all 22 distributions
+outside the fix set byte-identical; changes confined to gamma-family
+quantile rows (plus the new grid points), 9 `fisher_f` rows, and 20
+`truncated_normal` rows.
+
+**Violations: 57 → 45 (library fixes) → 34 (comparator rule).** Exact
+decomposition of the 23 cleared rows, from diffing the two appendix
+tables:
+
+- **12 by the library fixes**: batch `cdf(+inf) = NaN` on all three
+  instances of each of `gamma`, `chi_squared`, `erlang` (9 — the
+  chi-squared triple was latent in the 45 "pre-v2.4.0" set, mirroring
+  gamma through delegation), plus the three quantile-escape rows
+  (`gamma` 6.73769e+6, `chi_squared` 84333.5, `erlang` 6.73769e+6 —
+  all now solved to ~5e-12 relative).
+- **11 by the comparator rule**: the 8 `fisher_f`/`inverse_gamma`
+  artifact rows the extension documented, **plus 3 `pareto` quantile
+  rows (references 1.0e+594, 1.0e+994, 1.1e+1494) that had been phantom
+  violations in the 63- and 45-row baselines all along** — the
+  deliberate frozen-row reclassification the rule was adopted for.
+
+The two extension accuracy findings clear from the error statistics as
+well: `truncated_normal` cdf `max_rel` 0.318 → ~1e-14 band, `fisher_f`
+cdf `max_rel` 1.0 → the denormal band now matches the oracle to ~3e-16
+at exactly representable points. `gamma`/`erlang`/`inverse_gamma` cdf
+`max_rel ~ 1.7e-7` at shape 1e4 remains — that is `detail::gamma_p`'s
+large-shape limit, filed as #141 (Temme uniform asymptotic; corvus
+absorption check at v2.5.0).
+
+**New baseline for regenerations on this grid and ISA: 34**, all in the
+pre-v2.4.0 classes (#136 erf_inv tails, #137 `inverse_beta_i`, the
+weibull/geometric `#103`-class rows). The generated block's banner is
+`commit=f99a82b` — the library state that produced the rows; the
+comparator that scored them is the `fix(oracle)` commit on the same
+branch. The AVX2 and NEON blocks still hold their 6063-row v2.3.1
+sweeps and pre-rule scoring; regenerating them natively during release
+validation applies the same reclassification there (expect their pareto
+triple to clear identically).
 
 ## Findings
 
@@ -399,7 +482,7 @@ oracle or the gate, not to silently prefer one over the other:
 
 ## Generated tables: AVX-512
 
-Sweep banner: `commit=8506f5a  isa=AVX-512  date=2026-09-03`
+Sweep banner: `commit=f99a82b  isa=AVX-512  date=2026-09-03`
 
 ### bernoulli
 
@@ -453,15 +536,13 @@ Sweep banner: `commit=8506f5a  isa=AVX-512  date=2026-09-03`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 4.149e-6 | 8.298e-6 | 8.298e-6 | 1.614e+8 | - | 99999.3 |
-| cdf | batch | 4.149e-6 | 8.298e-6 | 8.298e-6 | 1.614e+8 | abs=0, rel=0 | 99999.3 |
-| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
-| logpdf | scalar | 9.381e-11 | 1.197e-11 | 1.197e-11 | - | - | 99427.3 |
-| logpdf | batch | 1.136e-10 | 1.541e-11 | 1.541e-11 | - | abs=1.164e-10, rel=1.627e-11 | 99622.7 |
-| pdf | scalar | 1.923e+93 | 9.382e-11 | 9.382e-11 | - | - | 99427.3 |
-| pdf | batch | 2.086e+93 | 1.136e-10 | 1.136e-10 | - | abs=4.009e+93, rel=1.164e-10 | 99622.7 |
-| quantile | scalar | 3540.0 | 4.136e+189 | 4.136e+189 | - | - | 1e-300 |
-| quantile | *(contract)* | 1 violation(s) -- see appendix | | | | | |
+| cdf | scalar | 4.149e-6 | 8.298e-6 | 5.082e-6 | 1.614e+8 | - | 99999.3 |
+| cdf | batch | 4.149e-6 | 8.298e-6 | 5.082e-6 | 1.614e+8 | abs=0, rel=0 | 99999.3 |
+| logpdf | scalar | 1.126e-10 | 1.197e-11 | 1.157e-11 | - | - | 99427.3 |
+| logpdf | batch | 1.205e-10 | 1.197e-11 | 1.157e-11 | - | abs=1.164e-10, rel=1.627e-11 | 99427.3 |
+| pdf | scalar | 1.923e+93 | 1.126e-10 | 9.821e-11 | - | - | 101043 |
+| pdf | batch | 2.086e+93 | 1.205e-10 | 1.192e-10 | - | abs=4.009e+93, rel=1.164e-10 | 98345.4 |
+| quantile | scalar | 3540.0 | 8.025e+141 | 8.025e+141 | - | - | 1e-300 |
 
 ### discrete
 
@@ -479,15 +560,13 @@ Sweep banner: `commit=8506f5a  isa=AVX-512  date=2026-09-03`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 8.718e-8 | 1.768e-7 | 1.768e-7 | 6.558e+7 | - | 9.94789e+06 |
-| cdf | batch | 8.718e-8 | 1.768e-7 | 1.768e-7 | 6.558e+7 | abs=0, rel=0 | 9.94789e+06 |
-| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
-| logpdf | scalar | 2.694e-11 | 2.144e-12 | 2.144e-12 | - | - | 9.94789e+06 |
-| logpdf | batch | 3.42e-11 | 2.674e-12 | 2.674e-12 | - | abs=5.821e-11, rel=4.55e-12 | 1.00842e+07 |
-| pdf | scalar | 1.018e-16 | 2.694e-11 | 2.694e-11 | - | - | 9.94789e+06 |
-| pdf | batch | 1.018e-16 | 3.42e-11 | 3.42e-11 | - | abs=1.618e-16, rel=5.821e-11 | 1.00842e+07 |
-| quantile | scalar | 8.256e+5 | 7.071e+139 | 7.071e+139 | - | - | 1e-300 |
-| quantile | *(contract)* | 1 violation(s) -- see appendix | | | | | |
+| cdf | scalar | 8.717e-8 | 1.768e-7 | 1.763e-7 | 6.559e+7 | - | 9.94789e+06 |
+| cdf | batch | 8.717e-8 | 1.768e-7 | 1.763e-7 | 6.559e+7 | abs=0, rel=0 | 9.94789e+06 |
+| logpdf | scalar | 2.694e-11 | 2.144e-12 | 1.847e-12 | - | - | 9.94789e+06 |
+| logpdf | batch | 3.085e-11 | 2.341e-12 | 2.144e-12 | - | abs=2.91e-11, rel=2.335e-12 | 1.00842e+07 |
+| pdf | scalar | 9.427e-17 | 2.694e-11 | 2.658e-11 | - | - | 9.94789e+06 |
+| pdf | batch | 9.683e-17 | 3.085e-11 | 2.995e-11 | - | abs=1.123e-16, rel=2.91e-11 | 6.93661e+06 |
+| quantile | scalar | 8.256e+5 | 5.303e+139 | 5.303e+139 | - | - | 1e-300 |
 
 ### exponential
 
@@ -505,29 +584,25 @@ Sweep banner: `commit=8506f5a  isa=AVX-512  date=2026-09-03`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 0.01233 | 1.0 | 3.927e-9 | 8.123e+5 | - | 2.42092e-322 |
-| cdf | batch | 0.01233 | 1.0 | 3.927e-9 | 8.123e+5 | abs=0, rel=0 | 2.42092e-322 |
+| cdf | scalar | 1.902e-9 | 3.927e-9 | 3.83e-9 | 8.123e+5 | - | 0.99749 |
+| cdf | batch | 1.902e-9 | 3.927e-9 | 3.83e-9 | 8.123e+5 | abs=0, rel=0 | 0.99749 |
 | logpdf | scalar | 2.679e-11 | 1.453e-11 | 1.453e-11 | - | - | 1.06376 |
 | logpdf | batch | 2.679e-11 | 1.453e-11 | 1.453e-11 | - | abs=0, rel=0 | 1.06376 |
 | pdf | scalar | 8.273e+122 | 2.679e-11 | 2.195e-11 | - | - | 1.06376 |
 | pdf | batch | 8.273e+122 | 2.679e-11 | 2.195e-11 | - | abs=0, rel=0 | 1.06376 |
-| pdf | *(contract)* | 1 violation(s) -- see appendix | | | | | |
 | quantile | scalar | 7.051e+126 | 9.536e-11 | 9.536e-11 | - | - | 0.5 |
-| quantile | *(contract)* | 4 violation(s) -- see appendix | | | | | |
 
 ### gamma
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 8.718e-8 | 1.768e-7 | 1.768e-7 | 6.558e+7 | - | 9.94789e+06 |
-| cdf | batch | 8.718e-8 | 1.768e-7 | 1.768e-7 | 6.558e+7 | abs=0, rel=0 | 9.94789e+06 |
-| cdf | *(contract)* | 3 violation(s) -- see appendix | | | | | |
-| logpdf | scalar | 2.694e-11 | 2.144e-12 | 2.144e-12 | - | - | 9.94789e+06 |
-| logpdf | batch | 3.42e-11 | 2.674e-12 | 2.674e-12 | - | abs=5.821e-11, rel=4.55e-12 | 1.00842e+07 |
-| pdf | scalar | 1.54e+93 | 2.694e-11 | 2.694e-11 | - | - | 9.94789e+06 |
-| pdf | batch | 6.271e+92 | 3.42e-11 | 3.42e-11 | - | abs=2.167e+93, rel=5.821e-11 | 1.00842e+07 |
-| quantile | scalar | 8.256e+5 | 7.071e+139 | 7.071e+139 | - | - | 1e-300 |
-| quantile | *(contract)* | 1 violation(s) -- see appendix | | | | | |
+| cdf | scalar | 8.717e-8 | 1.768e-7 | 1.763e-7 | 6.559e+7 | - | 9.94789e+06 |
+| cdf | batch | 8.717e-8 | 1.768e-7 | 1.763e-7 | 6.559e+7 | abs=0, rel=0 | 9.94789e+06 |
+| logpdf | scalar | 2.694e-11 | 2.144e-12 | 1.847e-12 | - | - | 9.94789e+06 |
+| logpdf | batch | 3.085e-11 | 2.341e-12 | 2.144e-12 | - | abs=2.91e-11, rel=2.335e-12 | 1.00842e+07 |
+| pdf | scalar | 1.54e+93 | 2.694e-11 | 2.658e-11 | - | - | 9.94789e+06 |
+| pdf | batch | 6.271e+92 | 3.085e-11 | 2.995e-11 | - | abs=2.167e+93, rel=2.91e-11 | 6.93661e+06 |
+| quantile | scalar | 8.256e+5 | 5.303e+139 | 5.303e+139 | - | - | 1e-300 |
 
 ### gaussian
 
@@ -589,7 +664,6 @@ Sweep banner: `commit=8506f5a  isa=AVX-512  date=2026-09-03`
 | pdf | scalar | 0.006726 | 1.848e-11 | 1.807e-11 | - | - | 9.77125e-08 |
 | pdf | batch | 0.006726 | 1.848e-11 | 1.807e-11 | - | abs=4.441e-16, rel=4.595e-16 | 9.77125e-08 |
 | quantile | scalar | 1.138e+185 | 5.602e-9 | 5.602e-9 | - | - | 0.001 |
-| quantile | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 
 ### laplace
 
@@ -650,7 +724,6 @@ Sweep banner: `commit=8506f5a  isa=AVX-512  date=2026-09-03`
 | pdf | scalar | 1.697e-11 | 2.325e-13 | 2.325e-13 | - | - | 1.00921e+06 |
 | pdf | batch | 9.756e-12 | 1.562e-13 | 1.562e-13 | - | abs=1.819e-11, rel=2.274e-13 | 1.09648e+06 |
 | quantile | scalar | 9.731e+179 | 9.731e-15 | 9.731e-15 | - | - | 0.99 |
-| quantile | *(contract)* | 3 violation(s) -- see appendix | | | | | |
 
 ### poisson
 
@@ -696,8 +769,8 @@ Sweep banner: `commit=8506f5a  isa=AVX-512  date=2026-09-03`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 1.491e-15 | 0.3184 | 0.1576 | 4.345e+13 | - | 10 |
-| cdf | batch | 1.491e-15 | 0.3184 | 0.1576 | 4.345e+13 | abs=1.11e-16, rel=1.85e-16 | 10 |
+| cdf | scalar | 1.153e-15 | 1.483e-13 | 1.183e-13 | 1.81 | - | -2447.35 |
+| cdf | batch | 1.153e-15 | 1.483e-13 | 1.183e-13 | 1.81 | abs=1.11e-16, rel=1.85e-16 | -2447.35 |
 | logpdf | scalar | 1.048e-13 | 4.832e-14 | 2.685e-14 | - | - | 10.3951 |
 | logpdf | batch | 1.048e-13 | 4.832e-14 | 2.685e-14 | - | abs=0, rel=0 | 10.3951 |
 | pdf | scalar | 7.752e-15 | 1.047e-13 | 7.58e-14 | - | - | -2447.35 |
@@ -744,67 +817,44 @@ Sweep banner: `commit=8506f5a  isa=AVX-512  date=2026-09-03`
 
 ### Contract findings (appendix)
 
-57 contract violations across the sweep. `csv_line` indexes the sweep CSV this report was generated from (see the commit/isa banner in the regeneration log).
+34 contract violations across the sweep. `csv_line` indexes the sweep CSV this report was generated from (see the commit/isa banner in the regeneration log).
 
 | dist | method | source | csv_line | finding |
 |---|---|---|---|---|
-| chi_squared | cdf | batch | 3058 | reference is finite (1.0), batch_bits decoded to nan |
-| chi_squared | cdf | batch | 3164 | reference is finite (1.0), batch_bits decoded to nan |
-| chi_squared | cdf | batch | 3269 | reference is finite (1.0), batch_bits decoded to nan |
-| chi_squared | quantile | scalar | 3298 | reference is finite (84333.5), scalar_bits decoded to inf |
-| erlang | cdf | batch | 7032 | reference is finite (1.0), batch_bits decoded to nan |
-| erlang | cdf | batch | 7139 | reference is finite (1.0), batch_bits decoded to nan |
-| erlang | cdf | batch | 7244 | reference is finite (1.0), batch_bits decoded to nan |
-| erlang | quantile | scalar | 7273 | reference is finite (6.73769e+6), scalar_bits decoded to inf |
-| fisher_f | pdf | scalar | 7441 | reference is finite (2.54623e+317), scalar_bits decoded to inf |
-| fisher_f | quantile | scalar | 7500 | reference is finite (6.27403e+339), scalar_bits decoded to inf |
-| fisher_f | quantile | scalar | 7501 | reference is finite (6.27403e+1139), scalar_bits decoded to inf |
-| fisher_f | quantile | scalar | 7502 | reference is finite (6.27393e+1939), scalar_bits decoded to inf |
-| fisher_f | quantile | scalar | 7503 | reference is finite (7.36205e+2939), scalar_bits decoded to inf |
-| gamma | cdf | batch | 1437 | reference is finite (1.0), batch_bits decoded to nan |
-| gamma | cdf | batch | 1544 | reference is finite (1.0), batch_bits decoded to nan |
-| gamma | cdf | batch | 1649 | reference is finite (1.0), batch_bits decoded to nan |
-| gamma | quantile | scalar | 1678 | reference is finite (6.73769e+6), scalar_bits decoded to inf |
-| geometric | logpdf | scalar | 6019 | reference is finite (-4014.82), scalar_bits decoded to -inf |
-| geometric | logpdf | scalar | 6020 | reference is finite (-16014.8), scalar_bits decoded to -inf |
-| inverse_gamma | quantile | scalar | 7936 | reference is finite (1.76655e+598), scalar_bits decoded to inf |
-| inverse_gamma | quantile | scalar | 7937 | reference is finite (1.76654e+998), scalar_bits decoded to inf |
-| inverse_gamma | quantile | scalar | 7938 | reference is finite (1.91361e+1498), scalar_bits decoded to inf |
-| pareto | quantile | scalar | 3961 | reference is finite (1.0e+594), scalar_bits decoded to inf |
-| pareto | quantile | scalar | 3962 | reference is finite (9.99992e+993), scalar_bits decoded to inf |
-| pareto | quantile | scalar | 3963 | reference is finite (1.08324e+1494), scalar_bits decoded to inf |
-| poisson | logpdf | scalar | 4734 | reference is -inf, scalar_bits decoded to -4605.0 |
-| poisson | logpdf | batch | 4734 | reference is -inf, batch_bits decoded to -4605.0 |
-| poisson | logpdf | scalar | 4735 | reference is -inf, scalar_bits decoded to -4605.0 |
-| poisson | logpdf | batch | 4735 | reference is -inf, batch_bits decoded to -4605.0 |
-| poisson | logpdf | scalar | 4825 | reference is -inf, scalar_bits decoded to -4605.0 |
-| poisson | logpdf | batch | 4825 | reference is -inf, batch_bits decoded to -4605.0 |
-| poisson | logpdf | scalar | 4826 | reference is -inf, scalar_bits decoded to -4605.0 |
-| poisson | logpdf | batch | 4826 | reference is -inf, batch_bits decoded to -4605.0 |
-| poisson | logpdf | scalar | 4916 | reference is -inf, scalar_bits decoded to -4605.0 |
-| poisson | logpdf | batch | 4916 | reference is -inf, batch_bits decoded to -4605.0 |
-| poisson | logpdf | scalar | 4917 | reference is -inf, scalar_bits decoded to -4605.0 |
-| poisson | logpdf | batch | 4917 | reference is -inf, batch_bits decoded to -4605.0 |
-| rayleigh | logpdf | scalar | 4101 | reference is -inf, scalar_bits decoded to nan |
-| rayleigh | logpdf | batch | 4101 | reference is -inf, batch_bits decoded to nan |
-| rayleigh | logpdf | scalar | 4209 | reference is -inf, scalar_bits decoded to nan |
-| rayleigh | logpdf | batch | 4209 | reference is -inf, batch_bits decoded to nan |
-| rayleigh | logpdf | scalar | 4317 | reference is -inf, scalar_bits decoded to nan |
-| rayleigh | logpdf | batch | 4317 | reference is -inf, batch_bits decoded to nan |
-| rayleigh | pdf | scalar | 4070 | reference is finite (0.0), scalar_bits decoded to nan |
-| rayleigh | pdf | scalar | 4178 | reference is finite (0.0), scalar_bits decoded to nan |
-| rayleigh | pdf | scalar | 4286 | reference is finite (0.0), scalar_bits decoded to nan |
-| student_t | quantile | scalar | 1783 | reference is finite (-1.56839e+60), scalar_bits decoded to -inf |
-| student_t | quantile | scalar | 1888 | reference is finite (-1.59857e+299), scalar_bits decoded to -inf |
-| student_t | quantile | scalar | 1993 | reference is finite (-37.0598), scalar_bits decoded to -inf |
-| weibull | logpdf | scalar | 4425 | reference is -inf, scalar_bits decoded to nan |
-| weibull | logpdf | batch | 4425 | reference is -inf, batch_bits decoded to nan |
-| weibull | logpdf | batch | 4530 | reference is inf, batch_bits decoded to -inf |
-| weibull | logpdf | scalar | 4626 | reference is -inf, scalar_bits decoded to nan |
-| weibull | logpdf | batch | 4626 | reference is -inf, batch_bits decoded to nan |
-| weibull | pdf | scalar | 4394 | reference is finite (0.0), scalar_bits decoded to nan |
-| weibull | pdf | batch | 4504 | reference is inf, batch_bits decoded to 0.0 |
-| weibull | pdf | scalar | 4595 | reference is finite (0.0), scalar_bits decoded to nan |
+| geometric | logpdf | scalar | 6130 | reference is finite (-4014.82), scalar_bits decoded to -inf |
+| geometric | logpdf | scalar | 6131 | reference is finite (-16014.8), scalar_bits decoded to -inf |
+| poisson | logpdf | scalar | 4845 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4845 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4846 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4846 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4936 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4936 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 4937 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 4937 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 5027 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 5027 | reference is -inf, batch_bits decoded to -4605.0 |
+| poisson | logpdf | scalar | 5028 | reference is -inf, scalar_bits decoded to -4605.0 |
+| poisson | logpdf | batch | 5028 | reference is -inf, batch_bits decoded to -4605.0 |
+| rayleigh | logpdf | scalar | 4212 | reference is -inf, scalar_bits decoded to nan |
+| rayleigh | logpdf | batch | 4212 | reference is -inf, batch_bits decoded to nan |
+| rayleigh | logpdf | scalar | 4320 | reference is -inf, scalar_bits decoded to nan |
+| rayleigh | logpdf | batch | 4320 | reference is -inf, batch_bits decoded to nan |
+| rayleigh | logpdf | scalar | 4428 | reference is -inf, scalar_bits decoded to nan |
+| rayleigh | logpdf | batch | 4428 | reference is -inf, batch_bits decoded to nan |
+| rayleigh | pdf | scalar | 4181 | reference is finite (0.0), scalar_bits decoded to nan |
+| rayleigh | pdf | scalar | 4289 | reference is finite (0.0), scalar_bits decoded to nan |
+| rayleigh | pdf | scalar | 4397 | reference is finite (0.0), scalar_bits decoded to nan |
+| student_t | quantile | scalar | 1834 | reference is finite (-1.56839e+60), scalar_bits decoded to -inf |
+| student_t | quantile | scalar | 1939 | reference is finite (-1.59857e+299), scalar_bits decoded to -inf |
+| student_t | quantile | scalar | 2044 | reference is finite (-37.0598), scalar_bits decoded to -inf |
+| weibull | logpdf | scalar | 4536 | reference is -inf, scalar_bits decoded to nan |
+| weibull | logpdf | batch | 4536 | reference is -inf, batch_bits decoded to nan |
+| weibull | logpdf | batch | 4641 | reference is inf, batch_bits decoded to -inf |
+| weibull | logpdf | scalar | 4737 | reference is -inf, scalar_bits decoded to nan |
+| weibull | logpdf | batch | 4737 | reference is -inf, batch_bits decoded to nan |
+| weibull | pdf | scalar | 4505 | reference is finite (0.0), scalar_bits decoded to nan |
+| weibull | pdf | batch | 4615 | reference is inf, batch_bits decoded to 0.0 |
+| weibull | pdf | scalar | 4706 | reference is finite (0.0), scalar_bits decoded to nan |
 
 <!-- END GENERATED isa=AVX-512 -->
 
