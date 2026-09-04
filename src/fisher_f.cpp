@@ -666,16 +666,10 @@ void FDistribution::getProbability(std::span<const double> values, std::span<dou
                 c = dist.logPdfConst_;
             });
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    pdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
-                });
-            } else {
-                pdfKernel(vals.data(), res.data(), count, a, b, d1, d2, c);
-            }
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
+                pdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
+            });
         },
         [](const FDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -693,10 +687,7 @@ void FDistribution::getProbability(std::span<const double> values, std::span<dou
                 c = dist.logPdfConst_;
             });
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 pdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
             pool.waitForAll();
@@ -734,16 +725,10 @@ void FDistribution::getLogProbability(std::span<const double> values, std::span<
                 c = dist.logPdfConst_;
             });
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    logPdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
-                });
-            } else {
-                logPdfKernel(vals.data(), res.data(), count, a, b, d1, d2, c);
-            }
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
+                logPdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
+            });
         },
         [](const FDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -761,10 +746,7 @@ void FDistribution::getLogProbability(std::span<const double> values, std::span<
                 c = dist.logPdfConst_;
             });
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 logPdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
             pool.waitForAll();
@@ -805,16 +787,10 @@ void FDistribution::getCumulativeProbability(std::span<const double> values,
                 pfx = dist.logBetaPrefix_;
             });
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    cdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, pfx);
-                });
-            } else {
-                cdfKernel(vals.data(), res.data(), count, a, b, d1, d2, pfx);
-            }
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
+                cdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, pfx);
+            });
         },
         [](const FDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -832,10 +808,7 @@ void FDistribution::getCumulativeProbability(std::span<const double> values,
                 pfx = dist.logBetaPrefix_;
             });
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, pfx);
             });
             pool.waitForAll();

@@ -129,9 +129,8 @@ static_assert(validateMetaOrdering(),
               "used as array indices and any reordering silently corrupts dispatch.");
 
 // Belt-and-suspenders: catches accidental deletions or enum reorderings.
-// 19 distributions are implemented; 8 more (LOGISTIC…TRUNCATED_NORMAL) are
-// scaffolded for v2.4.0 (#54–#57). Bump to 28 only when a genuinely new
-// DistributionType enum value is appended.
+// All 27 distributions are implemented as of v2.4.0 (#54–#57). Bump to 28
+// only when a genuinely new DistributionType enum value is appended.
 static_assert(kDistributionTypeCount >= 27,
               "Distribution count regressed below 27 — a DistributionType entry was removed "
               "or the enum was reordered. Values are used as array indices; never remove or "

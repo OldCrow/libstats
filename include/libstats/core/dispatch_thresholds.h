@@ -510,12 +510,20 @@ constexpr ArchTable kAvx512 = {{
                                                            // profiling-order warm-pool; aligns with
                                                            // LogPDF same runs); CDF: 75k→NEVER
     /* POISSON(4)            */ {512, 25000, 256},         // PDF: 8192→512; CDF: 2048→256
-    /* GAMMA(5)              */ {10000, 256, 64},          // PDF: 150k→10k; LogPDF: 150k→256
+    // GAMMA/BETA/LOG_NORMAL PDF/LogPDF (and LOG_NORMAL CDF) re-measured
+    // 2026-09-03 after the parallelForSlices repair: their sliced PARALLEL
+    // paths had never actually forked (the chunk-count/element-threshold
+    // unit mismatch), so the previous rows were calibrated against a
+    // secretly-serial parallel strategy. Values are sustained V→P
+    // crossovers on this machine. Beta PDF/LogPDF go NEVER deliberately:
+    // with the fork repaired, parallel LOSES to the memory-bound SIMD
+    // kernel at every measured size (0.80–0.87× at 2M) — the old 2048/512
+    // rows would now dispatch batches to a strictly slower strategy.
+    /* GAMMA(5)              */ {25000, 75000, 6144},       // re-measured post-repair
     /* STUDENT_T(6)          */ {2000000, 2000000, NEVER},  // PDF/LogPDF: NEVER→2M; CDF: 256→NEVER
-    /* BETA(7)               */ {2048, 512, 8192},          // PDF: 256→2048; LogPDF: 128→512; CDF:
-                                                            // 6144→8192
+    /* BETA(7)               */ {NEVER, NEVER, 8192},       // PDF/LogPDF: parallel loses post-repair
     /* CHI_SQUARED(8)        */ {1024, 2048, 128},          // PDF: 150k→1024; LogPDF: 150k→2048
-    /* LOG_NORMAL(9)         */ {150000, 150000, 2048},     // CDF: 50k→2048
+    /* LOG_NORMAL(9)         */ {150000, 100000, 6144},     // re-measured post-repair
     /* PARETO(10)            */ {2000000, 1500000, 2000000},  // LogPDF: 1M→1.5M; CDF: NEVER→2M
     /* WEIBULL(11)           */ {150000, 150000, 2000000},    // CDF: 1.5M→2M
     /* RAYLEIGH(12)          */ {150000, 150000, 300000},     // unchanged
@@ -539,14 +547,21 @@ constexpr ArchTable kAvx512 = {{
                                                            // split → conservative)
     // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
     // delegation wrappers copy their delegate's row on this arch.
-    /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
-    /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
-    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},    // ← BINOMIAL(14)
-    /* ERLANG(22)            */ {10000, 256, 64},       // ← GAMMA(5)
-    /* FISHER_F(23)          */ {2048, 512, 8192},      // ← BETA(7)
-    /* INVERSE_GAMMA(24)     */ {10000, 256, 64},       // ← GAMMA(5)
-    /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
-    /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
+    // v2.4.0 new-kernel rows: sustained V→P crossovers measured on this
+    // machine 2026-09-03 (strategy_profile --large, two runs, larger value
+    // kept where they differed; "sustained" = parallel beats VECTORIZED at
+    // that size and every larger one, not the first noise tie).
+    /* LOGISTIC(19)          */ {75000, 50000, 50000},
+    /* GUMBEL(20)            */ {25000, 50000, 50000},
+    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},        // ← BINOMIAL(14) (pure pass-through:
+                                                            //   dispatch runs under BINOMIAL's row)
+    /* ERLANG(22)            */ {25000, 75000, 6144},       // ← GAMMA(5) (pure pass-through:
+                                                            //   dispatch runs under GAMMA's row)
+    /* FISHER_F(23)          */ {8192, 8192, 4096},         // own kernels; measured post-repair
+    /* INVERSE_GAMMA(24)     */ {25000, 75000, 2048},       // pdf/log_pdf ← GAMMA(5) (pass-through
+                                                            //   via the log path); cdf own, measured
+    /* HALF_NORMAL(25)       */ {150000, 400000, 50000},
+    /* TRUNCATED_NORMAL(26)  */ {75000, 75000, 25000},
 }};
 
 /**

@@ -565,17 +565,11 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
-                                                       lnc, am1, bm1);
-                });
-            } else {
-                dist.getProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, lnc, am1, bm1);
-            }
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   lnc, am1, bm1);
+            });
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -591,10 +585,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
@@ -629,18 +620,11 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
-                                                          len, lnc, am1, bm1);
-                });
-            } else {
-                dist.getLogProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, lnc, am1,
-                                                      bm1);
-            }
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      lnc, am1, bm1);
+            });
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -656,10 +640,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
