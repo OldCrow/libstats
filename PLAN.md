@@ -51,7 +51,11 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-09-04 (leg-findings triage:
+Last reconciled against live GitHub state: 2026-09-04 (second pass: #145
+CLOSED via 919a857 on dev — families demo now covers all 27, including
+Laplace/Cauchy/Geometric which the original 19-claim had silently omitted;
+milestone #2 back to holding only #54-#57 and #144. First pass, leg-findings
+triage:
 #144 von-Mises-CDF-thresholds and #145 examples-gap filed into milestone #2;
 #109 promoted #8 → #2 and CLOSED via e0b04f9 on dev — direct close, not a
 merge-fired "Closes", since the fix is a dev table edit; #111 and #125 stay
