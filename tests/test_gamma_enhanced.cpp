@@ -880,14 +880,47 @@ TEST_F(GammaEnhancedTest, InfinityAndNaNInputGates) {
             << "batch logpdf(-inf), alpha=" << alpha;
         EXPECT_TRUE(std::isnan(logpdf[2])) << "batch logpdf(NaN), alpha=" << alpha;
 
+        // Batch CDF: the kernels' per-lane guards handled NaN and x ≤ 0 but
+        // let x = +inf through to gamma_p(α, +inf) = NaN (the v2.4.0 sweep's
+        // three gamma rows, copied into Erlang by delegation). Scalar was
+        // always guarded — the batch lane must agree with it.
+        std::vector<double> cdf(values.size());
+        d.getCumulativeProbability(std::span<const double>(values), std::span<double>(cdf), hint);
+        EXPECT_EQ(cdf[0], 1.0) << "batch cdf(+inf), alpha=" << alpha;
+        EXPECT_EQ(cdf[1], 0.0) << "batch cdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(cdf[2])) << "batch cdf(NaN), alpha=" << alpha;
+
         // Finite lanes sharing a vector with the specials must match scalar.
         for (std::size_t i = 3; i < 8; ++i) {
             EXPECT_DOUBLE_EQ(pdf[i], d.getProbability(values[i]))
                 << "batch/scalar pdf mismatch at i=" << i << ", alpha=" << alpha;
             EXPECT_DOUBLE_EQ(logpdf[i], d.getLogProbability(values[i]))
                 << "batch/scalar logpdf mismatch at i=" << i << ", alpha=" << alpha;
+            EXPECT_DOUBLE_EQ(cdf[i], d.getCumulativeProbability(values[i]))
+                << "batch/scalar cdf mismatch at i=" << i << ", alpha=" << alpha;
         }
     }
+}
+
+TEST_F(GammaEnhancedTest, ExtremeTailQuantileFinite) {
+    // #104 gate. For p < ~5.6e-17, 2p−1 rounds to exactly −1 and the
+    // Wilson–Hilferty seed's normal quantile is −inf, so the small-p
+    // asymptotic seed runs instead; computed as p·exp(lgamma(α+1)) it
+    // overflows for α ≳ 170 (lgamma(10001) ≈ 82100) and the solver
+    // escaped to +inf. Reference quantile: mpmath dps=60 findroot on
+    // log gammainc(α, 0, βx, regularized) = log p at the exact double p.
+    auto g = GammaDistribution::create(10000.0, 1e-3).unwrap();
+    const double q = g.getQuantile(1e-300);
+    ASSERT_TRUE(std::isfinite(q)) << "quantile(1e-300) not finite: " << q;
+    ASSERT_GT(q, 0.0);
+    EXPECT_NEAR(q / 6737687.1915903291, 1.0, 1e-9);
+    // The returned point really is deep in the lower tail…
+    EXPECT_LE(g.getCumulativeProbability(q), 1e-250);
+    // …and the deep tail stays monotone.
+    const double q200 = g.getQuantile(1e-200);
+    ASSERT_TRUE(std::isfinite(q200));
+    EXPECT_LE(q, q200);
+    EXPECT_LE(q200, g.getQuantile(0.5));
 }
 
 }  // namespace stats

@@ -1203,6 +1203,8 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
                 results[i] = values[i];
             } else if (values[i] <= detail::ZERO_DOUBLE) {
                 results[i] = detail::ZERO_DOUBLE;
+            } else if (values[i] == std::numeric_limits<double>::infinity()) {
+                results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
             } else {
                 results[i] = detail::gamma_p(alpha, beta * values[i]);
             }
@@ -1226,6 +1228,8 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
             results[i] = values[i];
         } else if (values[i] <= detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
+        } else if (values[i] == std::numeric_limits<double>::infinity()) {
+            results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
         } else {
             results[i] = detail::gamma_p(alpha, scaled_values[i]);
         }
@@ -1289,14 +1293,21 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
         if (wh > detail::ZERO_DOUBLE) {
             initial_guess = alpha_ * std::pow(wh, 3) / beta_;
         } else {
-            // WH failed; small-p asymptotic: x ~ (p * Gamma(alpha+1))^(1/alpha) / beta
-            initial_guess =
-                std::pow(p * std::exp(std::lgamma(alpha_ + detail::ONE)), detail::ONE / alpha_) /
-                beta_;
+            // WH failed; small-p asymptotic: x ~ (p * Gamma(alpha+1))^(1/alpha) / beta.
+            // Computed in the log domain: the linear form
+            // p * exp(lgamma(alpha+1)) overflows for alpha >~ 170
+            // (lgamma(10001) ~ 82100) long before x does — and this branch
+            // runs exactly when p < ~5.6e-17 rounds 2p−1 to −1 and the WH
+            // normal quantile is −inf, so large-alpha deep tails land here.
+            initial_guess = std::exp((std::log(p) + std::lgamma(alpha_ + detail::ONE)) / alpha_ -
+                                     std::log(beta_));
         }
     } else {
         // For alpha <= 1, use exponential approximation
         initial_guess = -std::log(detail::ONE - p) / beta_;
+    }
+    if (!std::isfinite(initial_guess)) {
+        initial_guess = alpha_ / beta_;  // seed at the mean rather than escaping to ±inf
     }
 
     // Newton-Raphson iteration with positive-x guard.
@@ -1308,32 +1319,44 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
         double cdf = getCumulativeProbability(x);
         double pdf = getProbability(x);
 
-        if (std::abs(cdf - p) < tolerance) {
+        // Convergence is relative in p: for deep-tail targets (p ~ 1e-300)
+        // an absolute test accepts cdf = 0 immediately and returns whatever
+        // seed the solver happened to hold.
+        if (std::abs(cdf - p) < tolerance * p) {
             break;
         }
 
         if (pdf < detail::ULTRA_SMALL_THRESHOLD) {
-            // PDF underflow: fall back to bisection between current x and a
-            // simple upper bound so the solver doesn't stall.
+            // PDF underflow: fall back to bisection. Expand the upper bound
+            // until it brackets the root — a crude tail seed can sit far
+            // below it — and always keep the final midpoint: the old code
+            // discarded the bracket when 60 iterations met neither stopping
+            // test and returned the unimproved Newton iterate.
             double lo = detail::NEWTON_RAPHSON_TOLERANCE, hi = x;
-            if (cdf < p)
-                hi = x * 10.0;  // need to go higher
-            for (int j = 0; j < 60; ++j) {
-                double mid = (lo + hi) * detail::HALF;
-                double cmid = getCumulativeProbability(mid);
-                if (std::abs(cmid - p) < tolerance) {
-                    x = mid;
+            if (cdf < p) {
+                hi = x * 10.0;
+                for (int j = 0; j < 64 && getCumulativeProbability(hi) < p; ++j)
+                    hi *= 10.0;
+                if (!std::isfinite(hi))
+                    hi = std::numeric_limits<double>::max();
+            }
+            double mid = (lo + hi) * detail::HALF;
+            for (int j = 0; j < 128; ++j) {
+                mid = (lo + hi) * detail::HALF;
+                const double cmid = getCumulativeProbability(mid);
+                if (std::abs(cmid - p) < tolerance * p) {
                     break;
                 }
                 if (cmid < p)
                     lo = mid;
                 else
                     hi = mid;
-                if (hi - lo < tolerance) {
-                    x = (lo + hi) * detail::HALF;
+                if (hi - lo <= tolerance * mid) {
+                    mid = (lo + hi) * detail::HALF;
                     break;
                 }
             }
+            x = mid;
             break;
         }
 
