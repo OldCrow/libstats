@@ -41,20 +41,22 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
 - **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
-### 📊 **Available Distributions** (19 across 7 families)
+### 📊 **Available Distributions** (27 across 7 families)
 
 **Symmetric, unbounded continuous**
-- Gaussian (Normal) N(μ, σ²) · Student's t t(ν)
+- Gaussian (Normal) N(μ, σ²) · Student's t t(ν) · Logistic L(μ, s)
 
 **Positive-support continuous** (x ≥ 0)
 - Exponential Exp(λ) · Gamma Γ(α, β) · Chi-squared χ²(ν)
 - Log-Normal LogN(μ, σ) · Weibull W(k, λ) · Rayleigh R(σ)
+- Erlang Erl(k, λ) · Inverse-Gamma IG(α, β) · Fisher F F(d₁, d₂)
+- Half-Normal HN(σ)
 
 **Heavy-tailed / power-law** (x ≥ x_m)
 - Pareto Pareto(x_m, α)
 
 **Bounded continuous**
-- Uniform U(a, b) · Beta Beta(α, β)
+- Uniform U(a, b) · Beta Beta(α, β) · Truncated Normal TN(μ, σ, a, b)
 
 **Circular / directional**
 - Von Mises VM(μ, κ)
@@ -62,9 +64,10 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 **Discrete**
 - Poisson P(λ) · Discrete (integer range)
 - Binomial B(n, p) · Negative Binomial NB(r, p) · Geometric Geo(p)
+- Bernoulli Bern(p)
 
-**Heavy-tailed / real-line continuous**
-- Laplace Laplace(μ, b) · Cauchy Cauchy(x₀, γ)
+**Real-line continuous (asymmetric / heavy-tailed)**
+- Laplace Laplace(μ, b) · Cauchy Cauchy(x₀, γ) · Gumbel G(μ, β)
 
 ### ⚡ **Modern C++20 Design**
 - **Thread-Safe**: Concurrent read access with safe cache management
@@ -174,7 +177,7 @@ libstats/
 
 ### 🎯 **Statistical Completeness**
 - PDF, CDF, quantiles, parameter estimation, and validation
-- 19 distributions across 7 families (symmetric, positive-support, power-law, bounded, circular, discrete, real-line)
+- 27 distributions across 7 families (symmetric, positive-support, power-law, bounded, circular, discrete, real-line)
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
@@ -211,7 +214,7 @@ libstats/
 ### 📚 **Examples** (`examples/` directory)
 - `quick_start_tutorial.cpp` - 5-minute introduction to the core API
 - `basic_usage.cpp` - End-to-end usage of creation, evaluation, sampling, fitting, and batch APIs
-- `distribution_families_demo.cpp` - The 19 distributions organized by family: what each models, when to use it, and how to choose within a family
+- `distribution_families_demo.cpp` - The core distributions organized by family: what each models, when to use it, and how to choose within a family (not yet extended to the v2.4.0 eight)
 - `statistical_validation_demo.cpp` - Goodness-of-fit tests, cross-validation, bootstrap CIs, and model selection
 - `parallel_execution_demo.cpp` - Batch-processing and dispatch workflow
 
@@ -337,9 +340,13 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.3.1 is released. v1.5.3 was the final v1.x release.
+v2.4.0 (on `dev/v2.4.0`) adds eight distributions — Logistic, Gumbel,
+Half-Normal, Truncated Normal, Bernoulli, Erlang, Fisher F, and
+Inverse-Gamma — with per-tier dispatch thresholds recalibrated from
+native profiling on all three fleet machines. v2.3.1 is the latest
+tagged release; v1.5.3 was the final v1.x release.
 
-**19 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
+**27 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
 - Span-based SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds

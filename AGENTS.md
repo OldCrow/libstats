@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.3.1 on `main` — 19 distributions across 7 families, API unchanged from v2.1.0. Correctness patch over v2.3.0 (8 issues, 5 PRs, suite 53 → 58); validated natively on all three fleet machines (Zen 4 AVX-512 2026-08-25, Kaby Lake 2026-08-26, M1 NEON 2026-08-27/28). See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.4.0 in endgame on `dev/v2.4.0` (v2.3.1 on `main`) — 27 distributions across 7 families (#54–#57 added Logistic, Gumbel, Bernoulli, Erlang, HalfNormal, TruncatedNormal, FisherF, InverseGamma), API additive over v2.1.0. Suite 58 → 74; all three machine legs done (Zen 4 2026-09-03, Kaby Lake 2026-09-03/04, M1 2026-09-04): per-tier threshold recalibration post-parallelForSlices repair (#143) plus characterization regens. See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -60,41 +60,39 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **Windows/MSVC:** Follow Platform-Specific Notes below and use the Visual Studio x64 Release commands (VS 2022 17.8+ or later; defaults shown for Asus TUF A16, whose toolchain is now VS 18 (2026) — paths and generator names vary by version and edition, so users creating forks should verify their setup).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current validation matrix (v2.3.1)
+### Current validation matrix (v2.4.0, on dev)
 
-Correctness column = `ctest -LE "timing|benchmark"` (58 registered; the two
+Correctness column = `ctest -LE "timing|benchmark"` (74 registered; the two
 `benchmark`-labelled tests are excluded by definition, the 22 `timing` ones
 run separately on a quiet machine).
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
-| Asus TUF A16 (Windows) | AVX-512 | 58/58 ✅ | — | Native, 2026-08-25, MSVC Release; timing suite not re-run (nothing in v2.3.1 touches kernels' hot paths — the NaN branches are never taken for finite data) |
-| Mac Mini M1 | NEON | 58/58 ✅ | 22/22 ✅ | Native, 2026-08-27/28, AppleClang Dev build; timing serial (`-j1`) after post-boot load settled to ~2.0; `isa=NEON` characterization block regenerated on the 6063-row grid (61 violations — 63 minus the two geometric #125 rows AArch64 saturation renders finite) |
-| Kaby Lake (2017 MBP) | AVX2+FMA | 58/58 ✅ | 22/22 ✅ | Native, 2026-08-26, AppleClang Dev build; timing serial (`-j1`) after machine settled below load 2.0; `isa=AVX2` characterization block regenerated on the 6063-row grid (63 violations, matching Zen 4) |
+| Asus TUF A16 (Windows) | AVX-512 | 74/74 ✅ | 20/22 | Native, 2026-09-03, MSVC Release (#143); kAvx512 recalibrated (sustained crossovers, 3 quiet runs); the two timing failures are the #129 uniform flake (1.62× vs the 1.8× adaptive gate, same signature as v2.2.0/v2.3.1) and a one-off timer-resolution caching flake (3/3 standalone); `isa=AVX-512` block regenerated on the 9210-row grid (34 violations) |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 74/74 ✅ | 22/22 ✅ | Native, 2026-09-03/04, AppleClang (7c2ca49); timing serial passed twice (pre- and post-recalibration; #129 passes here); kAvx2 recalibrated; `isa=AVX2` block regenerated on the 9210-row grid (34 violations, class-for-class matching Zen 4); calibration bundle checked in (`data/profiles/dispatcher/2026-09-04T02-36-22Z_…`) |
+| Mac Mini M1 | NEON | 74/74 ✅ | 22/22 ✅ | Native, 2026-09-04, AppleClang (5f9bb5e); correctness re-run before/after the table change and after merging the Kaby Lake leg; timing serial at load < 2.0 (#129 passes here); kNeon recalibrated; `isa=NEON` block regenerated on the 9210-row grid (32 violations — 34 minus the two geometric #125 rows AArch64 saturation renders finite); calibration bundle checked in (`data/profiles/dispatcher/2026-09-04T04-22-28Z_…`) |
 
-The correctness count grew 53 → 58 with v2.3.1's five new gate binaries:
-`test_log_special_gates`, `test_batch_nan_gates`, `test_discrete_quantile_bounds`,
-`test_simd_dispatch_gates`, `test_parallel_exception_propagation`.
-(v2.3.0 had grown it 49 → 53 with the four accuracy gates.)
+The correctness count grew 58 → 74 with the v2.4.0 eight's sixteen new
+basic+enhanced binaries (#131–#134); the v2.4.0 enhanced binaries carry no
+timing label (#135), so the timing count stays 22.
+(History: 53 → 58 at v2.3.1, 49 → 53 at v2.3.0 — see
+`docs/VALIDATION_HISTORY.md`.)
 
-The Zen 4 timing failure is the same `UniformEnhancedTest.
-SIMDAndParallelBatchImplementations` speedup assertion carried from the
-v2.2.0 matrix (1.5x on that run, 1.44x on this one, both against a 1.8x
-adaptive threshold at 5000 elements on a settled machine) — flaky, not a
-regression;
-nothing in v2.3.0 touches uniform kernels or the dispatch thresholds it
-measures. Timing tests carry the `timing` label and are excluded from CI
-everywhere, so this is a real-hardware finding, not a CI one.
-On Kaby Lake the same gate passed twice (Vectorized 22.9x at 5000
-elements), both runs serial (`ctest -j1 -L timing`) with one core held by
-a stray `exchangesyncd` — a handicap on the parallel path, so the pass is
-conservative.
+The #129 uniform speedup flake remains Zen 4-only in this matrix: the same
+gate passed on both Mac tiers this round. It has flaked on Zen 4 in three
+consecutive matrices (v2.2.0, v2.3.1, v2.4.0) against the 1.8× adaptive
+threshold — flaky, not a regression; timing tests carry the `timing` label
+and are excluded from CI everywhere, so this is a real-hardware finding,
+not a CI one.
 
 The mpmath accuracy characterization (`docs/ACCURACY_CHARACTERIZATION.md`,
-#46) covers all three fleet ISAs as of 2026-08-23 (Zen 4 AVX-512, Kaby Lake
-AVX2, M1 NEON — each a generated block labelled by its sweep banner, with
-per-machine delta prose). It is a characterization, not an audited per-tier
-claim: bounds hold per ISA block only.
+#46) covers all three fleet ISAs on the 27-distribution, 9210-row grid as
+of 2026-09-04 (each a generated block labelled by its sweep banner, with
+per-machine delta prose). All remaining contract violations are the two
+known classes (#103 ±inf contracts; #113/#104 large-param/extreme-quantile),
+with #125 masking two geometric rows on NEON only. It is a
+characterization, not an audited per-tier claim: bounds hold per ISA block
+only.
 
 For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
 
@@ -664,7 +662,7 @@ does not reproduce on MSVC at all.
 - **All levels**: GTest-based tests registered with CTest
 - Correctness tests: run `ctest -LE "timing|benchmark"` (parallel-safe)
 - Timing tests: run `ctest -j1 -L timing` on a quiet machine
-- **Coverage**: 82 CTest targets — 58 correctness (`ctest -C <cfg> -LE "timing|benchmark"`), 22 timing (`-L timing`), 2 benchmark (each basic and enhanced test file registers as one target;
+- **Coverage**: 98 CTest targets — 74 correctness (`ctest -C <cfg> -LE "timing|benchmark"`), 22 timing (`-L timing`), 2 benchmark (each basic and enhanced test file registers as one target;
   each enhanced binary runs additional typed test cases from the shared `DistributionEnhancedTest` suite)
 
 ### Performance Validation
