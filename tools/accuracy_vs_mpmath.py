@@ -2012,6 +2012,28 @@ def run_self_checks() -> list:
         and not mp.isfinite(SQRT2 * mp.erfinv(2 * mp.mpf("1e-300") - 1)),
     )
 
+    # --- comparator overflow rule (references beyond double range) ---
+    check(
+        "overflow_rule.inf_is_correctly_rounded_beyond_double_range",
+        _overflow_correct(mp.mpf("1e400"), math.inf),
+    )
+    check(
+        "overflow_rule.sign_must_match",
+        not _overflow_correct(mp.mpf("1e400"), -math.inf)
+        and _overflow_correct(-mp.mpf("1e400"), -math.inf),
+    )
+    check(
+        # Two-sided: a library value that FAILED to overflow is still flagged.
+        "overflow_rule.finite_library_value_still_flags",
+        not _overflow_correct(mp.mpf("1e400"), 1.7976931348623157e308),
+    )
+    check(
+        # DBL_MAX itself is below the rounds-to-inf midpoint; 2^1024 is above.
+        "overflow_rule.threshold_is_binary64_rounding_midpoint",
+        not _overflow_correct(mp.mpf("1.7976931348623157e308"), math.inf)
+        and _overflow_correct(mp.mpf(2) ** 1024, math.inf),
+    )
+
     # --- logistic ---
     check("logistic.cdf(mu)==0.5", LogisticRef.cdf(3.0, 2.0, 3.0) == mp.mpf("0.5"))
     check(
@@ -2307,6 +2329,25 @@ def is_nan(v: float) -> bool:
     return isinstance(v, float) and math.isnan(v)
 
 
+# Overflow threshold of IEEE binary64 under round-to-nearest-even: any real
+# with |v| >= 2^1024 - 2^970 (the midpoint above DBL_MAX; ties-to-even sends
+# the midpoint itself up) rounds to +-inf, so a library +-inf of the
+# reference's sign IS the correctly rounded double there — score it correct,
+# not as a "reference is finite" contract violation. The v2.4.0 extension's
+# fisher_f pdf/quantile and inverse_gamma quantile references run 2.5e+317
+# ... 7.4e+2939; the mpf-finiteness test used before 2026-09-03 flagged all
+# eight such rows as violations. References in (DBL_MAX, midpoint) still
+# take the relative-error path: the correctly rounded double there is
+# DBL_MAX, and a library inf would be a genuine one-step overflow error.
+with mp.workprec(80):
+    _DBL_ROUNDS_TO_INF = mp.mpf(2) ** 1024 - mp.mpf(2) ** 970
+
+
+def _overflow_correct(ref, got: float) -> bool:
+    """True iff |ref| rounds to double +-inf and got is that infinity."""
+    return abs(ref) >= _DBL_ROUNDS_TO_INF and math.isinf(got) and (got > 0) == (ref > 0)
+
+
 def compare(rows: list) -> "tuple[dict, list]":
     groups: dict = {}
     skipped = []
@@ -2406,6 +2447,24 @@ def compare(rows: list) -> "tuple[dict, list]":
                     g.violations.append(
                         (row.lineno, "batch", f"reference is {ref}, batch_bits decoded to {row.batch}")
                     )
+            continue
+
+        if abs(ref) >= _DBL_ROUNDS_TO_INF:
+            # Finite in mpf but beyond double range: the correctly rounded
+            # double is +-inf. Two-sided — a finite library value here is
+            # still flagged (it failed to overflow).
+            if not _overflow_correct(ref, row.scalar):
+                g.violations.append(
+                    (row.lineno, "scalar",
+                     f"reference {mp.nstr(ref, 6)} rounds to double +-inf, "
+                     f"scalar_bits decoded to {row.scalar}")
+                )
+            if row.batch is not None and not _overflow_correct(ref, row.batch):
+                g.violations.append(
+                    (row.lineno, "batch",
+                     f"reference {mp.nstr(ref, 6)} rounds to double +-inf, "
+                     f"batch_bits decoded to {row.batch}")
+                )
             continue
 
         is_cdf_tail = row.method == "cdf" and ref < mp.mpf("1e-3")

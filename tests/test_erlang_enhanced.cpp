@@ -219,6 +219,23 @@ TEST_F(ErlangEnhancedTest, InfAndNaNContractBatch) {
     EXPECT_TRUE(std::isnan(cdf_b[4])) << "CDF(NaN)";
 }
 
+TEST_F(ErlangEnhancedTest, ExtremeTailQuantileFinite) {
+    // #104 gate, inherited from Gamma by pure delegation: the v2.4.0 sweep's
+    // erlang(10000, 1e-3) instance hits Gamma's extreme-tail quantile escape
+    // to +inf (small-p asymptotic seed overflow for α ≳ 170; see the same
+    // gate in test_gamma_enhanced.cpp). Reference: mpmath dps=60.
+    auto e = ErlangDistribution::create(10000, 1e-3).unwrap();
+    auto g = GammaDistribution::create(10000.0, 1e-3).unwrap();
+    const double ps[] = {1e-300, 1e-200, 1e-15, 0.5, 1.0 - 1e-12};
+    for (double p : ps) {
+        const double qe = e.getQuantile(p);
+        EXPECT_TRUE(std::isfinite(qe)) << "erlang quantile(" << p << ") not finite: " << qe;
+        // Pure delegation: bit-identical to the underlying Gamma.
+        EXPECT_EQ(qe, g.getQuantile(p)) << "delegation mismatch at p=" << p;
+    }
+    EXPECT_NEAR(e.getQuantile(1e-300) / 6737687.1915903291, 1.0, 1e-9);
+}
+
 //==============================================================================
 // #104: quantile never NaN for p in (0,1)
 //==============================================================================

@@ -497,6 +497,34 @@ TEST_F(FisherFEnhancedTest, QuantileNeverNaN) {
     }
 }
 
+TEST_F(FisherFEnhancedTest, CDFSurvivesDenormalArguments) {
+    // d1·x underflows to zero for x below ~DBL_TRUE_MIN/d1 even though the
+    // beta argument y = x/(x + d2/d1) is representable, so the CDF collapsed
+    // to 0 at points where its true value is ~0.0123 — and F(0.01,0.01)'s
+    // own quantile(1e-300) output lands exactly there, so quantile→cdf did
+    // not close. The x literals below are exact stored doubles; references
+    // are mpmath dps=60 lead-term I_y(0.005, 0.005) at those doubles.
+    auto f = FDistribution::create(0.01, 0.01).unwrap();
+    EXPECT_LT(relErr(f.getCumulativeProbability(2.4209216646221081e-322), 0.012328426155182170),
+              1e-3)
+        << "CDF at a sub-(DBL_TRUE_MIN/d1) denormal";
+    // One rounding step up: today this row survives only by the accident of
+    // d1·x rounding to DBL_TRUE_MIN, with ~3.4e-3 relative error.
+    EXPECT_LT(relErr(f.getCumulativeProbability(2.5e-322), 0.012330892415900902), 1e-3)
+        << "CDF at a denormal where d1*x holds a single bit";
+    // Accuracy is preserved where the current form is already fine.
+    EXPECT_LT(relErr(f.getCumulativeProbability(1e-310), 0.014092489973099284), 1e-10)
+        << "CDF at a many-bit denormal";
+    // Complement-native survival must not saturate to 1 there.
+    EXPECT_LT(relErr(f.getSurvivalProbability(2.4209216646221081e-322), 0.98767157384481783),
+              1e-3)
+        << "SF at a sub-(DBL_TRUE_MIN/d1) denormal";
+    // quantile→cdf closes instead of collapsing to zero.
+    const double q = f.getQuantile(1e-300);
+    ASSERT_TRUE(std::isfinite(q));
+    EXPECT_GT(f.getCumulativeProbability(q), 0.0) << "CDF(quantile(1e-300)) collapsed to 0";
+}
+
 //==============================================================================
 // (d) Batch size mismatch throws on all three overloads
 //==============================================================================

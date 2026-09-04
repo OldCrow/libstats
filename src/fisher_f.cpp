@@ -324,6 +324,39 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
 //
 // The log-beta prefix lgamma(a+b)-lgamma(a)-lgamma(b) is symmetric in (a,b),
 // so one cached value serves both branches.
+// Forms y = d1·x/(d1·x + d2) and ybar = d2/(d1·x + d2), both by division
+// (#49). For x below ~DBL_TRUE_MIN/d1 the product d1·x is subnormal and
+// loses relative precision bit by bit — collapsing to y = 0 at the bottom —
+// even though y itself is representable (F(0.01,0.01)'s own quantile(1e-300)
+// output lands there, so quantile→cdf did not close). That band switches to
+// the algebraically identical
+//   y = x/(x + d2/d1),  ybar = (d2/d1)/(x + d2/d1)
+// where x enters exactly. If d2/d1 itself overflows, y underflows to 0 in
+// every form, so the pre-switch result is restored. Returns false when
+// d1·x + d2 overflows: y is 1 to every bit available.
+static inline bool f_beta_args(double x, double d1, double d2, double& y,
+                               double& ybar) noexcept {
+    const double dx = d1 * x;
+    if (!std::isfinite(dx + d2))
+        return false;
+    if (dx >= std::numeric_limits<double>::min()) {
+        const double denom = dx + d2;
+        y = dx / denom;
+        ybar = d2 / denom;
+    } else {
+        const double c = d2 / d1;
+        if (std::isfinite(c)) {
+            const double denom = x + c;
+            y = x / denom;
+            ybar = c / denom;
+        } else {
+            y = detail::ZERO_DOUBLE;
+            ybar = detail::ONE;
+        }
+    }
+    return true;
+}
+
 double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2,
                               double log_beta_prefix) noexcept {
     if (std::isnan(x))
@@ -333,12 +366,10 @@ double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2
     if (x == kInf)
         return detail::ONE;
 
-    const double denom = d1 * x + d2;
-    if (!std::isfinite(denom))
+    double y, ybar;
+    if (!f_beta_args(x, d1, d2, y, ybar))
         return detail::ONE;  // d1*x overflowed: y is 1 to every bit available
 
-    const double y = (d1 * x) / denom;
-    const double ybar = d2 / denom;
     const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
 
     if (y < switch_point)
@@ -358,12 +389,10 @@ double FDistribution::sfImpl(double x, double a, double b, double d1, double d2,
     if (x == kInf)
         return detail::ZERO_DOUBLE;
 
-    const double denom = d1 * x + d2;
-    if (!std::isfinite(denom))
+    double y, ybar;
+    if (!f_beta_args(x, d1, d2, y, ybar))
         return detail::ZERO_DOUBLE;
 
-    const double y = (d1 * x) / denom;
-    const double ybar = d2 / denom;
     const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
 
     // Mirror of cdfImpl: whichever argument is on its small side is the one
