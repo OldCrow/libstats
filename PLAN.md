@@ -51,11 +51,17 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-09-03 (v2.4.0 execution day:
-PRs #130–#135 and #139 created and squash-merged into dev/v2.4.0; issues
-#136/#137/#138 filed into milestone #8 from workstream findings; cross-repo
-libhmm#103 filed — libhmm's own PLAN.md not updated in that change set, its
-next session reconciles per its own convention).
+Last reconciled against live GitHub state: 2026-09-04 (leg-findings triage:
+#144 von-Mises-CDF-thresholds and #145 examples-gap filed into milestone #2;
+#109 promoted #8 → #2 and CLOSED via e0b04f9 on dev — direct close, not a
+merge-fired "Closes", since the fix is a dev table edit; #111 and #125 stay
+in #8 deliberately: real work, not release-gating. Milestone #2 otherwise
+still holds #54–#57, whose auto-close fires at the dev→main merge).
+Prior reconcile 2026-09-03 (v2.4.0 execution day: PRs #130–#135 and #139
+created and squash-merged into dev/v2.4.0; issues #136/#137/#138 filed into
+milestone #8 from workstream findings; cross-repo libhmm#103 filed —
+libhmm's own PLAN.md not updated in that change set, its next session
+reconciles per its own convention).
 - GitHub is the collaborator-facing source for issues and milestones; this
   PLAN.md is the agent-facing durable project state. Keep both in sync.
 - When creating, closing, reopening, retitling, or moving a GitHub issue or
@@ -560,11 +566,32 @@ history.
     one-OOM window (worst 3×), max-across-runs absorbs the skew
     conservatively. The sweep grids are row-for-row identical across
     machines (the Kaby Lake "9213" is 9210 rows + 3 banner lines).
-    (2) AGENTS.md current-state refresh (19→27 dists, counts 74/22/2,
-    full three-machine validation matrix) — after the legs, so the
-    matrix is written once, complete. (3) Final reviewed PR
-    dev/v2.4.0 → main + tag (the "Closes #54–#57" lines fire then).
-    (4) pylibstats pin bump at release.
+    Leg-findings package (e0b04f9, 2026-09-04) [user-approved]:
+    provisional/stale CDF rows retired from the legs' data — von Mises
+    CDF → NEVER on kNeon/kAvx2 (#144; both Mac tiers measured parallel
+    never sustaining — #111's memory-bound batch CDF; kAvx512 25000
+    still provisional, Zen 4 re-measure owed, tracked on #144); Cauchy
+    CDF kNeon 512→25000, kAvx2 128→8192, kAvx 64→4096 inferred (#109
+    promoted to milestone #2 and CLOSED); Laplace PDF kNeon trial
+    35000→50000. HalfNormal-CDF NEON "divergence" root-caused as
+    economics, not defect: parallel path is per-element libm erf (~21
+    ns/elem/core) vs vector_erf at 2.2 ns/elem single-thread — a ~10×
+    gap 8 cores cannot cover (0.83× measured); x86 vector_erf is ~5×
+    slower per element, so parallel wins there. Mechanism recorded at
+    the kNeon row. NOTE for corvus/v2.5.0: x86 vector_erf being ~5×
+    slower per element than NEON's is a real optimization target.
+    (2) ~~AGENTS.md current-state refresh~~ **DONE 2026-09-04**
+    (04e8b53): 19→27, counts 74/22/2 (98 targets), full three-machine
+    v2.4.0 matrix (v2.3.1 matrix archived to VALIDATION_HISTORY.md);
+    README roster 19→27 with family placements + mutability doc count
+    [user-extended scope]; registration checklist step 7 added — README
+    roster + families demo are a distribution's definition of done
+    (3c535af, after #145 found the v2.4.0 eight missed example
+    coverage; #145 in milestone #2, a spun-off session picked it up).
+    (3) Final reviewed PR dev/v2.4.0 → main + tag (the "Closes
+    #54–#57" lines fire then; #144 closes when the kAvx512 von Mises
+    cell is measured or explicitly deferred; reword README's "on dev"
+    release paragraph at tag time). (4) pylibstats pin bump at release.
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
