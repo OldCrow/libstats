@@ -568,6 +568,12 @@ The registration checklist is authoritative in `include/libstats/core/distributi
    - Update the five `kXxx` tables in `dispatch_thresholds.h` accordingly.
    - For delegation wrappers, verify the delegate's thresholds apply (skip if identical).
 
+7. **Extend the user-facing docs and examples**: add the distribution to the
+   README roster (family placement + count) and to
+   `examples/distribution_families_demo.cpp` in its family section. The
+   v2.4.0 eight missed this step at first landing (#145) — it is part of a
+   distribution's definition of done, not release polish.
+
 The `consteval validateMetaOrdering()` in `distribution_meta.h` enforces step 1↔2 alignment at
 compile time. A clean build after any enum or table change verifies consistency.
 
