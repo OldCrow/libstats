@@ -363,11 +363,16 @@ constexpr ArchTable kAvx2 = {{
                                                          // at N=100k 277M; see issue #50)
     /* DISCRETE(3)           */ {50000, 50000, 1024},
     /* POISSON(4)            */ {128, 128, 256},
-    /* GAMMA(5)              */ {25000, 512, 64},  // PDF: warm-pool override; see note above
+    // GAMMA/BETA/LOG_NORMAL PDF/LogPDF (and GAMMA/BETA/LOG_NORMAL CDF) re-measured
+    // 2026-09-03 post parallelForSlices repair (Kaby Lake native, 3 quiet runs,
+    // sustained V→P crossovers): the June rows measured secretly-serial paths.
+    /* GAMMA(5)              */ {25000, 25000, 4096},  // re-measured post-repair
     /* STUDENT_T(6)          */ {25000, 25000, 64},
-    /* BETA(7)               */ {256, 256, 512},
+    /* BETA(7)               */ {NEVER, NEVER, 4096},  // PDF/LogPDF: parallel loses post-repair
+                                                       // (0.65–0.73× at 2M; memory-bound,
+                                                       // matches kAvx512)
     /* CHI_SQUARED(8)        */ {2048, 128, 64},
-    /* LOG_NORMAL(9)         */ {25000, 64, 128},
+    /* LOG_NORMAL(9)         */ {50000, 50000, 4096},  // re-measured post-repair
     /* PARETO(10)            */ {25000, 25000, 75000},
     /* WEIBULL(11)           */ {50000, 10000, 50000},  // LogPDF: bimodal {10k,64,8k}→10k
     /* RAYLEIGH(12)          */ {25000, 64, 25000},
@@ -382,16 +387,19 @@ constexpr ArchTable kAvx2 = {{
                                                     // trough N=5k 107M; clean entry from
                                                     // N=25k; see issue #50)
     /* CAUCHY(18)            */ {75000, 75000, 128},  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
-    // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
-    // delegation wrappers copy their delegate's row on this arch.
-    /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
-    /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
-    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},  // ← BINOMIAL(14)
-    /* ERLANG(22)            */ {25000, 512, 64},       // ← GAMMA(5)
-    /* FISHER_F(23)          */ {256, 256, 512},        // ← BETA(7)
-    /* INVERSE_GAMMA(24)     */ {25000, 512, 64},       // ← GAMMA(5)
-    /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
-    /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
+    // v2.4.0 rows calibrated 2026-09-03 (Kaby Lake native, 3 quiet runs,
+    // sustained V→P crossovers — not the validator's first-crossing heuristic).
+    /* LOGISTIC(19)          */ {100000, 100000, 50000},
+    /* GUMBEL(20)            */ {50000, 50000, 100000},
+    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},   // ← BINOMIAL(14) (pure pass-through:
+                                                         // documentation mirror, measured NEVER)
+    /* ERLANG(22)            */ {25000, 25000, 4096},    // ← GAMMA(5) (pure pass-through:
+                                                         // documentation mirror)
+    /* FISHER_F(23)          */ {1024, 6144, 512},       // own kernels; measured post-repair
+    /* INVERSE_GAMMA(24)     */ {25000, 25000, 2048},    // pdf/log_pdf ← GAMMA(5) (pass-through
+                                                         // mirror); cdf is a live row, measured
+    /* HALF_NORMAL(25)       */ {75000, 75000, 50000},
+    /* TRUNCATED_NORMAL(26)  */ {50000, 50000, 4096},
 }};
 
 // --- AVX-512 (AMD Ryzen 7 7445HS Zen 4, 512-bit, 6P/12T, Windows/MSVC) ---

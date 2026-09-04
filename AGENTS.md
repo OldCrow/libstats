@@ -562,7 +562,9 @@ The registration checklist is authoritative in `include/libstats/core/distributi
    - Add `using DistName = DistNameDistribution;` in the `namespace stats { ... }` type-alias block.
 
 6. **Profile and calibrate thresholds** (after correctness tests pass on all target machines):
-   - Run `./build/tools/strategy_profile --large --export` to produce a CSV.
+   - Run `./build-release/tools/strategy_profile --large -o <path.csv>` (release build;
+     there is no `--export` flag) to produce a CSV — three quiet-machine runs, read with
+     sustained V→P crossovers, not the validator's first-crossing heuristic.
    - Run `./build/tools/threshold_validator <csv>` to compare measured crossovers against
      the current NEVER entries and identify which need updating.
    - Update the five `kXxx` tables in `dispatch_thresholds.h` accordingly.
