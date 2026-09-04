@@ -727,23 +727,15 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                 cached_alpha_minus_one = dist.alphaMinusOne_;
             });
 
-            // Chunk so each parallel task runs the SIMD log+exp pipeline
+            // Slice so each parallel task runs the SIMD log+exp pipeline
             // rather than computing log(x) per element in each task.
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    dist.getProbabilityBatchUnsafeImpl(
-                        vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
-                        cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
-                });
-            } else {
-                dist.getProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, cached_alpha,
-                                                   cached_beta, cached_log_gamma_alpha,
-                                                   cached_alpha_log_beta, cached_alpha_minus_one);
-            }
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
+                    cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -766,12 +758,9 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                 cached_alpha_minus_one = dist.alphaMinusOne_;
             });
 
-            // Chunk into SIMD-sized slices so pool tasks use the SIMD pipeline.
+            // Slice into SIMD-sized pieces so pool tasks use the SIMD pipeline.
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
@@ -816,22 +805,14 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                 cached_alpha_minus_one = dist.alphaMinusOne_;
             });
 
-            // Chunk so each parallel task runs the SIMD log pipeline.
+            // Slice so each parallel task runs the SIMD log pipeline.
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    dist.getLogProbabilityBatchUnsafeImpl(
-                        vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
-                        cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
-                });
-            } else {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(
-                    vals.data(), res.data(), count, cached_alpha, cached_beta,
+                    vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
-            }
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -855,10 +836,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
             });
 
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);

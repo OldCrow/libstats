@@ -595,16 +595,10 @@ void InverseGammaDistribution::getCumulativeProbability(
                 b = dist.beta_;
             });
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    cdfKernel(vals.data() + start, res.data() + start, len, a, b);
-                });
-            } else {
-                cdfKernel(vals.data(), res.data(), count, a, b);
-            }
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
+                cdfKernel(vals.data() + start, res.data() + start, len, a, b);
+            });
         },
         [](const InverseGammaDistribution& dist, std::span<const double> vals,
            std::span<double> res, WorkStealingPool& pool) {
@@ -619,10 +613,7 @@ void InverseGammaDistribution::getCumulativeProbability(
                 b = dist.beta_;
             });
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b);
             });
             pool.waitForAll();

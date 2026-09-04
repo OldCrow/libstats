@@ -237,7 +237,11 @@ class ParallelUtils {
         if (range == 0)
             return;
 
-        // Use constants from Level 0 for optimal thresholds
+        // Use constants from Level 0 for optimal thresholds. NOTE: this gate
+        // is denominated in RANGE ITEMS. Callers iterating pre-chunked slices
+        // must not pass a slice COUNT here — that compares slices against an
+        // element threshold and silently serializes (the v2.4.0 profiling
+        // finding); they use parallelForSlices below instead.
         const std::size_t minParallelSize = arch::get_min_elements_for_parallel();
         if (range < minParallelSize) {
             // Execute sequentially for small ranges
@@ -246,6 +250,54 @@ class ParallelUtils {
             }
             return;
         }
+
+        parallelForUngated(start, end, std::forward<Func>(task), grainSize);
+    }
+
+    /// Slice-parallel loop over `count` ELEMENTS: task(start, len) receives
+    /// contiguous [start, start+len) slices of at most `slice` elements, so
+    /// each parallel task runs a SIMD batch kernel on its slice instead of a
+    /// per-index scalar body.
+    ///
+    /// The serial-fallback gate here is denominated in ELEMENTS (`count`),
+    /// unlike parallelFor's range gate. The sliced batch paths of
+    /// Beta/Gamma/LogNormal/FisherF/InverseGamma originally passed their
+    /// slice count as a parallelFor range, which compared ~count/1024 slices
+    /// against MIN_ELEMENTS_FOR_PARALLEL and silently serialized every batch
+    /// below ~8.4M elements on AVX-512 (found by the v2.4.0 Zen 4 threshold
+    /// profiling: forced-PARALLEL timings identical to VECTORIZED at every
+    /// size). Below the gate the whole range is handed to task as ONE slice,
+    /// preserving the single SIMD-pipeline call of the old serial branches.
+    ///
+    /// Exception contract: identical to parallelFor (#118) on both branches.
+    template <typename Func>
+    static void parallelForSlices(std::size_t count, std::size_t slice, Func&& task) {
+        if (count == 0)
+            return;
+        if (slice == 0)
+            slice = 1;
+        if (count < arch::get_min_elements_for_parallel()) {
+            task(std::size_t{0}, count);
+            return;
+        }
+        const std::size_t num_slices = (count + slice - 1) / slice;
+        parallelForUngated(
+            std::size_t{0}, num_slices,
+            [&task, slice, count](std::size_t ci) {
+                const std::size_t begin = ci * slice;
+                task(begin, std::min(slice, count - begin));
+            },
+            std::size_t{1});
+    }
+
+   private:
+    /// Shared parallel body of parallelFor/parallelForSlices: grain sizing,
+    /// submission, the wait-all-then-harvest exception contract (#118). The
+    /// serial-fallback gates live in the public wrappers, in their own units.
+    template <typename Func>
+    static void parallelForUngated(std::size_t start, std::size_t end, Func&& task,
+                                   std::size_t grainSize) {
+        const std::size_t range = end - start;
 
         // Calculate optimal grain size using Level 0 constants
         const std::size_t actualGrainSize =
@@ -295,6 +347,7 @@ class ParallelUtils {
         }
     }
 
+   public:
     /// Parallel reduction operation
     /// @param start Start index (inclusive)
     /// @param end End index (exclusive)
