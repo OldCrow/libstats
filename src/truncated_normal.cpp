@@ -75,6 +75,49 @@ inline double inv_survival_normal(double s) noexcept {
     return u;
 }
 
+// Near-lower-bound band: within d = (x−a)/σ of the bound such that
+// |α|·d ≤ 1/4, every difference-form regime below subtracts two
+// independently rounded normal-CDF pieces whose absolute rounding error
+// does not shrink with the vanishing true numerator — relative error
+// reaches ~0.45 at a+1ulp (v2.4.0 sweep finding). Inside the band the
+// numerator is evaluated directly by truncnorm_cdf_near_lower; at the band
+// edge the difference forms are still good to a few ε (their term scale is
+// ≥ φ(α)·d/ε there), so the handoff is seamless. Non-finite α or d (a or
+// α = −∞) makes the product +∞/NaN and the predicate false, which is the
+// intended routing — an infinite lower bound has no near-bound band.
+inline bool truncnorm_near_lower_band(double d, double alpha) noexcept {
+    return d * std::max(detail::ONE, std::fabs(alpha)) <= 0.25;
+}
+
+// CDF numerator via the probabilists'-Hermite expansion
+//   Φ(α+d) − Φ(α) = φ(α) · Σ_{n≥1} (−1)^{n−1} He_{n−1}(α) dⁿ/n!,
+// He_{k+1} = α·He_k − k·He_{k−1}. d is formed from x−a, which is exact for
+// x this close to a (Sterbenz), so the sum carries full relative precision.
+// |α|·d ≤ 1/4 bounds the term ratio: ~20 terms reach 1e-17, so the 64-term
+// cap is unreachable slack. φ(α) stays representable for every accepted
+// window (the factory rejects windows whose Z — of the same exp scale —
+// underflows).
+inline double truncnorm_cdf_near_lower(double d, double alpha, double inv_z) noexcept {
+    double hkm1 = detail::ONE;   // He_0(α)
+    double hk = alpha;           // He_1(α)
+    double dn = d;               // dⁿ/n! at n = 1
+    double sum = dn;             // n = 1 term: He_0 · d
+    double sign = -detail::ONE;  // sign of the n = 2 term
+    for (int n = 2; n <= 64; ++n) {
+        dn *= d / static_cast<double>(n);
+        const double term = sign * hk * dn;
+        sum += term;
+        if (std::fabs(term) <= std::fabs(sum) * 1e-17)
+            break;
+        const double hn = alpha * hk - static_cast<double>(n - 1) * hkm1;  // He_n
+        hkm1 = hk;
+        hk = hn;
+        sign = -sign;
+    }
+    const double phi_alpha_pdf = detail::INV_SQRT_2PI * std::exp(-detail::HALF * alpha * alpha);
+    return clamp01(phi_alpha_pdf * inv_z * sum);
+}
+
 // Regime-split scalar CDF (single source of truth: the scalar method, the
 // batch scalar kernel, the batch per-lane fixups, and the parallel lambdas
 // all call this, so every path is expression-identical).
@@ -85,6 +128,11 @@ inline double truncnorm_cdf_scalar(double x, double mu, double sigma, double a, 
         return detail::ZERO_DOUBLE;  // exact, also covers x = −∞
     if (x >= b)
         return detail::ONE;  // exact, also covers x = +∞
+    {
+        const double d = (x - a) / sigma;
+        if (truncnorm_near_lower_band(d, alpha))
+            return truncnorm_cdf_near_lower(d, alpha, inv_z);
+    }
     const double xi = (x - mu) / sigma;
     if (alpha >= detail::ZERO_DOUBLE) {
         // Whole window in the right tail (ξ ≥ α ≥ 0): survival difference
@@ -1208,6 +1256,12 @@ void TruncatedNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             results[i] = detail::ZERO_DOUBLE;
         } else if (x >= b) {
             results[i] = detail::ONE;
+        } else if (truncnorm_near_lower_band((x - a) / sigma, alpha)) {
+            // Near-lower-bound lanes take the series path in every regime —
+            // route through the scalar kernel so the lane is bit-identical
+            // to getCumulativeProbability(x).
+            results[i] = truncnorm_cdf_scalar(x, mu, sigma, a, b, alpha, q_alpha, phi_alpha,
+                                              erf_alpha, inv_z, half_inv_z);
         } else {
             const double xi = (x - mu) / sigma;
             if (xi <= detail::ZERO_DOUBLE) {

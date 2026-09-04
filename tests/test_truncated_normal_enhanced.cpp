@@ -223,10 +223,17 @@ TEST_F(TruncatedNormalEnhancedTest, OneSidedTail_10_Inf) {
     EXPECT_LE(relerr(t.getQuantile(1e-6), 10.000000099028646), 1e-12);
     EXPECT_LE(relerr(t.getQuantile(0.5), 10.068411836081429), 1e-13);
     EXPECT_LE(relerr(t.getQuantile(0.999999), 11.286852290251097), 1e-12);
-    // Round trips including the eps/p amplification at p = 1e-6 (~4.4e-10).
+    // Round trips including the eps/p amplification at p = 1e-6 (~4.4e-10)
+    // and the cdf's quantization across one ulp of q, pdf(q)·ulp(q) —
+    // ~1.8e-8 relative at p = 1e-6. The old budget without that term was
+    // met only while the CDF and the quantile inverted the same erfc
+    // expressions, so the quantization cancelled; the near-lower-bound
+    // series CDF evaluates independently and sits ~1e-14 from the true
+    // value at the stored q (mpmath dps=60 check, 2026-09-03).
     for (double p : {1e-6, 0.5, 0.999999}) {
         const double q = t.getQuantile(p);
-        EXPECT_LE(relerr(t.getCumulativeProbability(q), p), 1e-15 / p + 1e-11)
+        const double quant = t.getProbability(q) * (std::nextafter(q, kInf) - q);
+        EXPECT_LE(relerr(t.getCumulativeProbability(q), p), quant / p + 1e-15 / p + 1e-11)
             << "round trip p=" << p;
     }
 }
@@ -492,6 +499,62 @@ TEST_F(TruncatedNormalEnhancedTest, SameTailBatchIdenticalToScalar) {
     t.getCumulativeProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     for (size_t i = 0; i < N; ++i)
         EXPECT_EQ(out_vec[i], out_scl[i]) << "same-tail CDF lane not bit-identical x=" << xs[i];
+}
+
+TEST_F(TruncatedNormalEnhancedTest, CDFNearLowerBoundRelativeAccuracy) {
+    // Every difference-form CDF regime subtracts two independently rounded
+    // normal-CDF pieces, so as x → a⁺ the true numerator vanishes while the
+    // absolute rounding error of the pieces does not: relative error reaches
+    // 0.32–0.45 at a+1ulp (v2.4.0 sweep finding). References: mpmath dps=60,
+    // (Q(α)−Q(ξ))/(Q(α)−Q(β)) evaluated at the exact double of x.
+    struct Case {
+        double mu, sigma, a, b, x, ref;
+    };
+    const Case cases[] = {
+        // Straddling window (−2,2): left-half Φ-difference regime.
+        {0.0, 1.0, -2.0, 2.0, std::nextafter(-2.0, 0.0), 1.2559880716027472e-17},
+        {0.0, 1.0, -2.0, 2.0, -2.0 + 1e-12, 5.6569702745044295e-14},
+        {0.0, 1.0, -2.0, 2.0, -2.0 + 1e-9, 5.6564678849265993e-11},
+        {0.0, 1.0, -2.0, 2.0, -2.0 + 1e-6, 5.6564730672568188e-8},
+        // Same-tail right window (10,12) on N(0,2): α=5, β=6, Q-difference regime.
+        {0.0, 2.0, 10.0, 12.0, std::nextafter(10.0, 11.0), 4.6224502897130269e-15},
+        {0.0, 2.0, 10.0, 12.0, 10.0 + 1e-12, 2.6024395131051866e-12},
+        {0.0, 2.0, 10.0, 12.0, 10.0 + 1e-9, 2.6022083873411935e-9},
+        {0.0, 2.0, 10.0, 12.0, 10.0 + 1e-6, 2.6022049205811786e-6},
+    };
+    for (const auto& c : cases) {
+        auto t = TruncatedNormalDistribution::create(c.mu, c.sigma, c.a, c.b).unwrap();
+        const double got = t.getCumulativeProbability(c.x);
+        EXPECT_NEAR(got / c.ref, 1.0, 1e-12)
+            << "CDF(" << c.x << ") in [" << c.a << "," << c.b << "]: got " << got << ", ref "
+            << c.ref;
+    }
+
+    // Both sides of the near-bound/difference-form handoff stay accurate
+    // (these pass before and after the fix and pin the switch).
+    {
+        auto t = TruncatedNormalDistribution::create(0.0, 1.0, -2.0, 2.0).unwrap();
+        EXPECT_NEAR(t.getCumulativeProbability(-1.9) / 0.0062508428678860847, 1.0, 1e-13);
+        EXPECT_NEAR(t.getCumulativeProbability(-1.8) / 0.013808476489002885, 1.0, 1e-13);
+        auto u = TruncatedNormalDistribution::create(0.0, 2.0, 10.0, 12.0).unwrap();
+        EXPECT_NEAR(u.getCumulativeProbability(10.05) / 0.12229466549084977, 1.0, 1e-13);
+        EXPECT_NEAR(u.getCumulativeProbability(10.5) / 0.73723409706272864, 1.0, 1e-13);
+    }
+
+    // Near-bound batch lanes are bit-identical to scalar in both window
+    // regimes (they are routed through the scalar regime-split kernel).
+    {
+        detail::PerformanceHint hint_vec;
+        hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+        for (const auto& c : cases) {
+            auto t = TruncatedNormalDistribution::create(c.mu, c.sigma, c.a, c.b).unwrap();
+            vector<double> xs(64, c.x), out(64);
+            xs[63] = 0.5 * (c.a + c.b);  // one mid-window lane alongside
+            t.getCumulativeProbability(span<const double>(xs), span<double>(out), hint_vec);
+            EXPECT_EQ(out[0], t.getCumulativeProbability(c.x))
+                << "near-bound batch lane not bit-identical at x=" << c.x;
+        }
+    }
 }
 
 //==============================================================================
