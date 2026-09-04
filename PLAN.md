@@ -510,7 +510,9 @@ history.
     precedent (tag before remaining legs), whose legs were pure
     validation; these legs change threshold tables.
     (1) ~~Kaby Lake leg~~ **DONE 2026-09-03/04** (7c2ca49 on dev),
-    then M1 leg — each on its own machine, on dev:
+    ~~then M1 leg~~ **DONE 2026-09-04** (5f9bb5e on dev) — BOTH MACHINE
+    LEGS COMPLETE, the release gate is cleared; each ran on its own
+    machine, on dev:
     (a) correctness suite (74 expected), (b) timing suite serial on a
     quiet machine, (c) characterization regen on the 27-dist grid +
     oracle overflow rule (expect the pareto quantile triple to
@@ -532,10 +534,32 @@ history.
     FisherF {1024,6144,512} and InverseGamma cdf 2048 measured;
     Bernoulli stays NEVER (Binomial measured NEVER on this arch).
     Post-fix forks at 2M: gamma 5.3–5.4×/5.9×, F cdf 3.6×, invgamma
-    cdf 2.7–3.0×, lognormal cdf 3.3–4.2×. Raw CSVs + logs preserved
-    untracked in data/profiles/dispatcher/2026-09-04T02-36-22Z_….
+    cdf 2.7–3.0×, lognormal cdf 3.3–4.2×. Raw CSVs + logs since
+    committed as a bundle (4e81fe1,
+    data/profiles/dispatcher/2026-09-04T02-36-22Z_…).
     Bonus data: Cauchy CDF sustained crossover measured ~4096–8192 vs
     the STALE 128 row — direct input for #109 (noted on the issue).
+    M1 results (5f9bb5e + bundle 68d95d4, 2026-09-04): 74/74 before and
+    after the table change and again after merging the Kaby Lake leg;
+    timing 22/22 serial quiet (the #129 uniform gate passes on M1 this
+    run); sweep 9210 rows → **32 violations = the x86 34 minus the two
+    geometric logpdf rows #125's AArch64 saturation renders finite**
+    (same 2-row deficit as v2.3.1's 61-vs-63), classes otherwise
+    identical, pareto triple reclassified as predicted. kNeon
+    recalibrated from 3 --large runs, sustained crossovers, max across
+    runs: **Beta PDF/LogPDF NEVER on NEON too** (V best at 2M all runs
+    — parallel-loses now confirmed on all three measured tiers), CDF
+    4096; Gamma {50000,75000,4096}, LogNormal {50000,50000,25000}; new
+    kernels Logistic {50000,50000,50000}, Gumbel {75000,50000,50000},
+    HalfNormal {100000,200000,NEVER} (CDF VECTORIZED-best at 2M all
+    runs — per-machine divergence from both x86 tiers), TruncatedNormal
+    {50000,75000,25000}; FisherF {8192,10000,2048} and InverseGamma cdf
+    2048 measured; Bernoulli stays NEVER. Quiet-machine caveat recorded
+    in the bundle manifest: runs 2–3 contended with hourly Time Machine
+    + mediaanalysisd; every in-scope cell stayed within the Step 3
+    one-OOM window (worst 3×), max-across-runs absorbs the skew
+    conservatively. The sweep grids are row-for-row identical across
+    machines (the Kaby Lake "9213" is 9210 rows + 3 banner lines).
     (2) AGENTS.md current-state refresh (19→27 dists, counts 74/22/2,
     full three-machine validation matrix) — after the legs, so the
     matrix is written once, complete. (3) Final reviewed PR
