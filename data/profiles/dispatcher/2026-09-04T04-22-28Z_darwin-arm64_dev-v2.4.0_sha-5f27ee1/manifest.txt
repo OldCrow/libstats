@@ -1,0 +1,45 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-09-04T04-22-28Z_darwin-arm64_dev-v2.4.0_sha-5f27ee1
+Captured at (UTC): 2026-09-04T04-22-28Z
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- sweep_m1.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- logs/correctness.log
+- logs/timing.log
+
+Capture notes (differs from the capture_dispatcher_profile.sh bundles):
+- Captured directly via `build-release/tools/strategy_profile --large -o <csv>`,
+  three sequential runs, NOT via scripts/capture_dispatcher_profile.sh — so
+  there is no crossovers.csv/best_strategies.csv/summary.json from that
+  harness. Same capture shape as the Kaby Lake v2.4.0 bundle
+  (2026-09-04T02-36-22Z).
+- Crossovers were read with the SUSTAINED V->P rule (parallel wins at that
+  size and every larger grid size; see analyze_crossovers.py), matching the
+  Zen 4 v2.4.0 calibration (PR #143), not the first-crossing heuristic.
+  sustained_crossovers.txt is the per-run extraction the kNeon table update
+  was derived from (aggregation: max across runs, PROFILING_METHOD.md Step 3).
+- Quiet-machine caveat: run 1 started at 1-min load 2.16 after the nightly
+  Time Machine backup completed; the tail of run 2 and all of run 3 contended
+  with the next hourly TM backup plus mediaanalysisd and Backblaze. Every
+  in-scope cell still agreed across runs within the Step 3 one-OOM window
+  (worst spread 3x), so no run was discarded — max-across-runs absorbs the
+  skew conservatively. The visible contamination signature is the
+  out-of-scope Weibull run-3 crossovers at ~750k-1M; those were not encoded.
+- sweep_m1.csv is the same session's accuracy_sweep output (9210 rows, banner
+  commit=5f27ee1 isa=NEON) backing the ACCURACY_CHARACTERIZATION.md NEON
+  block regen. Row-for-row the same grid as the Kaby Lake bundle's sweep
+  (per-(dist,method) counts verified identical; the Kaby Lake file's 9213
+  lines are 9210 rows plus 3 banner/header lines).
+- logs/timing.log is the leg's Dev-build timing suite (22/22, ctest -j1
+  -L timing, serial, load 1.87, no TM backup). logs/correctness.log is the
+  post-sync re-run of the Dev-build correctness suite on the merged tree
+  (kNeon + kAvx2 recalibrations together); the leg's own pre-merge runs were
+  74/74 before and after the kNeon table change as well.
