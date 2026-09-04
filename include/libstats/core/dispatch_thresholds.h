@@ -55,9 +55,10 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 // Table layout: {pdf, log_pdf, cdf} per distribution row.
 // GEOMETRIC: NEVER on measured SIMD tiers when vectorized/delegate path stays dominant.
 // LAPLACE/CAUCHY: measured on kAvx2/kAvx512 (sha-1b564ec); kAvx inferred.
-// BETA: NEVER on kAvx (retired hardware, no re-measure); kNeon PDF/LogPDF
-// reverted to NEVER in sha-641bf62 (BEST=VECTORIZED at 2M all runs); kNeon
-// CDF=256 and kAvx2/kAvx512 retain measured thresholds.
+// BETA: NEVER on kAvx (retired hardware, no re-measure); PDF/LogPDF NEVER
+// re-confirmed post-parallelForSlices-repair on all three measured tiers
+// (BEST=VECTORIZED at 2M all runs — kAvx512 2026-09-03, kAvx2/kNeon
+// 2026-09-04; first seen on kNeon in sha-641bf62); CDF re-measured per tier.
 //
 // Measurement resolution caveat (applies to all architectures):
 //   Profiler timing resolution floors out around 0.1–0.2 µs. At batch sizes
@@ -156,15 +157,25 @@ constexpr ArchTable kNeon = {{
     /* DISCRETE(3)           */ {50000, 50000, 1000000},  // CDF: bimodal {750k,1M,64}; R3 warm;
                                                           // upper pair→1M
     /* POISSON(4)            */ {4096, 256, 256},
-    /* GAMMA(5)              */ {25000, 256, 64},  // PDF: warm-pool override from {1024,512,64};
-                                                   // kAvx2=25k
+    // GAMMA/BETA/LOG_NORMAL rows re-measured 2026-09-04 after the
+    // parallelForSlices repair (#143): their sliced PARALLEL paths had never
+    // actually forked, so the June rows were calibrated against a
+    // secretly-serial parallel strategy. Values are sustained V→P crossovers
+    // (parallel beats VECTORIZED at that size and every larger one — not the
+    // first noise tie), max across three --large Release runs per
+    // PROFILING_METHOD.md Step 3. Beta PDF/LogPDF stay NEVER: parallel loses
+    // to the memory-bound SIMD kernel at every measured size, as on kAvx512.
+    /* GAMMA(5)              */ {50000, 75000, 4096},  // re-measured post-repair
+                                                       // ({25k,25k,50k}/{75k×3}/{4096,4096,2048})
     /* STUDENT_T(6)          */ {50000, 25000, 64},
-    /* BETA(7)               */ {NEVER, NEVER, 256},  // PDF/LogPDF: BEST=VECTORIZED all 3 runs at
-                                                      // 2M
+    /* BETA(7)               */ {NEVER, NEVER, 4096},  // PDF/LogPDF: BEST=VECTORIZED all 3 runs
+                                                       // at 2M (post-repair); CDF {4096×3}
     /* CHI_SQUARED(8)        */ {512, 128, 64},
-    /* LOG_NORMAL(9)         */ {25000, 64, 256},  // PDF: 10000→25000 (pylibstats sweep: trough at
-                                                   // N=10k–15k; parallel beats VECTORIZED reliably
-                                                   // from N=20k; 25k is conservative safe zone)
+    /* LOG_NORMAL(9)         */ {50000, 50000, 25000},  // re-measured post-repair
+                                                        // ({50k×3}/{50k×3}/{10k,10k,25k}); CDF was
+                                                        // the sliced path. Prior PDF=25k
+                                                        // (pylibstats sweep) superseded by the
+                                                        // sustained-crossover re-measure
     /* PARETO(10)            */ {75000, 50000, 50000},
     /* WEIBULL(11)           */ {25000, 50000, 50000},
     /* RAYLEIGH(12)          */ {20000, 25000, 25000},  // PDF: 10000→20000 (pylibstats sweep:
@@ -178,10 +189,10 @@ constexpr ArchTable kNeon = {{
                                                            // trapezoid CDF -- initial value,
                                                            // pending benchmark tuning for the
                                                            // #51 Bessel-series CDF)
-    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},  // CDF: prior 64 reversed;
-                                                        // BEST=VECTORIZED/SCALAR
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},  // CDF: prior 256 reversed;
-                                                        // BEST=VECTORIZED/SCALAR
+    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},     // CDF: prior 64 reversed;
+                                                           // BEST=VECTORIZED/SCALAR
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},     // CDF: prior 256 reversed;
+                                                           // BEST=VECTORIZED/SCALAR
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},  // PDF/LogPDF VECTORIZED; CDF SCALAR all 3
                                                         // runs
     /* LAPLACE(17)           */ {35000, 64, 256},  // PDF: 6144→25000→30000→35000 (pylibstats sweep:
@@ -189,19 +200,30 @@ constexpr ArchTable kNeon = {{
                                                    // entry dip 363M vs VECTORIZED 385M (6%); 35k
                                                    // trial to see if entry dip clears further).
                                                    // LogPDF: floor artefact (64); CDF: consistent
-    /* CAUCHY(18)            */ {25000, 50000, 512},  // new: PDF {10k,10k,25k}→25k; LogPDF  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
+    /* CAUCHY(18)            */ {25000, 50000, 512},  // new: PDF {10k,10k,25k}→25k; LogPDF  //
+                                                      // STALE CDF column: measured against the
+                                                      // pre-#48 StudentT delegation (incomplete
+                                                      // beta); #48 made it one std::atan per
+                                                      // element. Re-profile (#109).
                                                       // {25k,25k,50k}→50k
-    // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
-    // delegation wrappers copy their delegate's measured row on this arch
-    // (Bernoulli←Binomial, Erlang/InverseGamma←Gamma, FisherF←Beta).
-    /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
-    /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
-    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},  // ← BINOMIAL(14)
-    /* ERLANG(22)            */ {25000, 256, 64},       // ← GAMMA(5)
-    /* FISHER_F(23)          */ {NEVER, NEVER, 256},    // ← BETA(7)
-    /* INVERSE_GAMMA(24)     */ {25000, 256, 64},       // ← GAMMA(5)
-    /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
-    /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
+    // v2.4.0 new-kernel rows: sustained V→P crossovers measured on this
+    // machine 2026-09-04 (strategy_profile --large, three runs, max across
+    // runs per PROFILING_METHOD.md Step 3; "sustained" = parallel beats
+    // VECTORIZED at that size and every larger one, not the first noise tie).
+    /* LOGISTIC(19)          */ {50000, 50000, 50000},
+    /* GUMBEL(20)            */ {75000, 50000, 50000},
+    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},    // ← BINOMIAL(14) (pure pass-through:
+                                                          //   dispatch runs under BINOMIAL's row)
+    /* ERLANG(22)            */ {50000, 75000, 4096},     // ← GAMMA(5) (pure pass-through:
+                                                          //   dispatch runs under GAMMA's row)
+    /* FISHER_F(23)          */ {8192, 10000, 2048},      // own kernels; measured post-repair
+    /* INVERSE_GAMMA(24)     */ {50000, 75000, 2048},     // pdf/log_pdf ← GAMMA(5) (pass-through
+                                                          //   via the log path); cdf own, measured
+                                                          //   ({2048×3})
+    /* HALF_NORMAL(25)       */ {100000, 200000, NEVER},  // CDF: BEST=VECTORIZED all 3 runs at 2M
+                                                          //   (differs from kAvx512's 50000 —
+                                                          //   per-machine)
+    /* TRUNCATED_NORMAL(26)  */ {50000, 75000, 25000},
 }};
 
 // --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
@@ -242,51 +264,55 @@ constexpr ArchTable kNeon = {{
 //   Note: Binomial/NegBinomial/Geometric PDF/LogPDF remain NEVER.
 // SSE2 delegates to kAvx; both updated together.
 constexpr ArchTable kAvx = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},    // CDF: 64→NEVER (kAvx2=NEVER)
-    /* GAUSSIAN(1)           */ {65000, 13000, 4096},     // PDF: 25k→65k (kAvx2=130k÷2;
-                                                          // exp-heavy, ÷2 correct).
-                                                          // LogPDF: 64→13k (kAvx2=20k÷1.5;
-                                                          // polynomial-only, FMA delta small;
-                                                          // same L1/L2 boundaries as kAvx2).
-                                                          // CDF: unchanged (kAvx2=8192÷2)
-    /* EXPONENTIAL(2)        */ {60000, 17000, 50000},    // PDF: 12.5k→60k (kAvx2=120k÷2;
-                                                          // exp-heavy, ÷2 correct).
-                                                          // LogPDF: 64→17k (kAvx2=25k÷1.5;
-                                                          // linear only, FMA delta small).
-                                                          // CDF: 12.5k→50k (kAvx2=100k÷2;
-                                                          // exp-heavy, ÷2 correct)
-    /* DISCRETE(3)           */ {50000, 50000, 512},  // PDF: kAvx2=50k; CDF: 1024÷2=512
+    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},  // CDF: 64→NEVER (kAvx2=NEVER)
+    /* GAUSSIAN(1)           */ {65000, 13000, 4096},   // PDF: 25k→65k (kAvx2=130k÷2;
+                                                        // exp-heavy, ÷2 correct).
+                                                        // LogPDF: 64→13k (kAvx2=20k÷1.5;
+                                                        // polynomial-only, FMA delta small;
+                                                        // same L1/L2 boundaries as kAvx2).
+                                                        // CDF: unchanged (kAvx2=8192÷2)
+    /* EXPONENTIAL(2)        */ {60000, 17000, 50000},  // PDF: 12.5k→60k (kAvx2=120k÷2;
+                                                        // exp-heavy, ÷2 correct).
+                                                        // LogPDF: 64→17k (kAvx2=25k÷1.5;
+                                                        // linear only, FMA delta small).
+                                                        // CDF: 12.5k→50k (kAvx2=100k÷2;
+                                                        // exp-heavy, ÷2 correct)
+    /* DISCRETE(3)           */ {50000, 50000, 512},    // PDF: kAvx2=50k; CDF: 1024÷2=512
     /* POISSON(4)            */ {128, 128, 128},
-    /* GAMMA(5)              */ {12500, 256, 64},       // PDF: 10000→12500; LogPDF: kAvx2=512÷2
-    /* STUDENT_T(6)          */ {12500, 12500, 64},     // PDF: 25k→12500; LogPDF: 25k→12500
-    /* BETA(7)               */ {128, 128, 256},        // PDF/LogPDF: 512→128; CDF: 512→256
-    /* CHI_SQUARED(8)        */ {1024, 64, 64},         // PDF: 25000→1024 (kAvx2=2048÷2)
-    /* LOG_NORMAL(9)         */ {12500, 64, 64},        // PDF: 10k→12500; CDF: 6144→64
-    /* PARETO(10)            */ {12500, 12500, 37500},  // kAvx2=25k/25k/75k ÷2
-    /* WEIBULL(11)           */ {25000, 5000, 25000},   // LogPDF: 25000→5000 (kAvx2=10k÷2)
-    /* RAYLEIGH(12)          */ {12500, 64, 12500},     // PDF: 25k→12500; CDF: 50k→12500
+    /* GAMMA(5)              */ {12500, 256, 64},          // PDF: 10000→12500; LogPDF: kAvx2=512÷2
+    /* STUDENT_T(6)          */ {12500, 12500, 64},        // PDF: 25k→12500; LogPDF: 25k→12500
+    /* BETA(7)               */ {128, 128, 256},           // PDF/LogPDF: 512→128; CDF: 512→256
+    /* CHI_SQUARED(8)        */ {1024, 64, 64},            // PDF: 25000→1024 (kAvx2=2048÷2)
+    /* LOG_NORMAL(9)         */ {12500, 64, 64},           // PDF: 10k→12500; CDF: 6144→64
+    /* PARETO(10)            */ {12500, 12500, 37500},     // kAvx2=25k/25k/75k ÷2
+    /* WEIBULL(11)           */ {25000, 5000, 25000},      // LogPDF: 25000→5000 (kAvx2=10k÷2)
+    /* RAYLEIGH(12)          */ {12500, 64, 12500},        // PDF: 25k→12500; CDF: 50k→12500
     /* VON_MISES(13)         */ {100000, 400000, 100000},  // LogPDF: 300k→400k (kAvx2 GCD-dom).
                                                            // CDF: 128->100000 (matches PDF;
                                                            // initial value, pending benchmark
                                                            // tuning for the #51 Bessel-series
                                                            // CDF)
-    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},    // CDF: held from kAvx512=128
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 256},    // CDF: held; kNeon/kAvx2=NEVER
+    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},       // CDF: held from kAvx512=128
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 256},       // CDF: held; kNeon/kAvx2=NEVER
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},
-    /* LAPLACE(17)           */ {64, 17000, 128},  // LogPDF: 64→17k (kAvx2=25k÷1.5;
-                                                   // fabs+linear, no transcendental;
-                                                   // FMA delta small; same L1/L2
-                                                   // boundaries as kAvx2).
-                                                   // CDF: kAvx2=256÷2=128
-    /* CAUCHY(18)            */ {37500, 37500, 64},  // PDF/LogPDF: kAvx2=75k÷2  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
+    /* LAPLACE(17)           */ {64, 17000, 128},    // LogPDF: 64→17k (kAvx2=25k÷1.5;
+                                                     // fabs+linear, no transcendental;
+                                                     // FMA delta small; same L1/L2
+                                                     // boundaries as kAvx2).
+                                                     // CDF: kAvx2=256÷2=128
+    /* CAUCHY(18)            */ {37500, 37500, 64},  // PDF/LogPDF: kAvx2=75k÷2  // STALE CDF
+                                                     // column: measured against the pre-#48
+                                                     // StudentT delegation (incomplete beta); #48
+                                                     // made it one std::atan per element.
+                                                     // Re-profile (#109).
     // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
     // delegation wrappers copy their delegate's row on this arch.
     /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
     /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
-    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},    // ← BINOMIAL(14)
-    /* ERLANG(22)            */ {12500, 256, 64},       // ← GAMMA(5)
-    /* FISHER_F(23)          */ {128, 128, 256},        // ← BETA(7)
-    /* INVERSE_GAMMA(24)     */ {12500, 256, 64},       // ← GAMMA(5)
+    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},  // ← BINOMIAL(14)
+    /* ERLANG(22)            */ {12500, 256, 64},     // ← GAMMA(5)
+    /* FISHER_F(23)          */ {128, 128, 256},      // ← BETA(7)
+    /* INVERSE_GAMMA(24)     */ {12500, 256, 64},     // ← GAMMA(5)
     /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
     /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
 }};
@@ -340,27 +366,27 @@ constexpr ArchTable kAvx = {{
 //   - VonMises LogPDF:  500000 → 400000  ({400k,250k,250k} → max=400k)
 //   - VonMises CDF:        128 → 256     ({64,64,256} → max=256)
 constexpr ArchTable kAvx2 = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},   // CDF: 128→NEVER (pylibstats sweep:
-                                                         // trough at N=5k 105M vs 292M;
-                                                         // parallel never recovers within
-                                                         // practical range; see issue #50)
-    /* GAUSSIAN(1)           */ {130000, 20000, 8192},   // PDF: 50k→100k→130k (trough N=50k-75k
-                                                         // 341M→240M; parallel first exceeds
-                                                         // VECTORIZED at N=130k 368M;
-                                                         // sweep 2 confirmed; see issue #50).
-                                                         // LogPDF: 64→20k (floor artefact;
-                                                         // trough N=7.5k 140M; clean entry
-                                                         // at N=20k 404M; see issue #50)
+    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},    // CDF: 128→NEVER (pylibstats sweep:
+                                                          // trough at N=5k 105M vs 292M;
+                                                          // parallel never recovers within
+                                                          // practical range; see issue #50)
+    /* GAUSSIAN(1)           */ {130000, 20000, 8192},    // PDF: 50k→100k→130k (trough N=50k-75k
+                                                          // 341M→240M; parallel first exceeds
+                                                          // VECTORIZED at N=130k 368M;
+                                                          // sweep 2 confirmed; see issue #50).
+                                                          // LogPDF: 64→20k (floor artefact;
+                                                          // trough N=7.5k 140M; clean entry
+                                                          // at N=20k 404M; see issue #50)
     /* EXPONENTIAL(2)        */ {120000, 25000, 100000},  // PDF: 25k→75k→120k (trough N=25k-35k;
                                                           // 267M→151M; first clean entry at
                                                           // N=120k 280M > 240M VECTORIZED;
                                                           // sweep 2 confirmed; see issue #50).
-                                                         // LogPDF: 64→25k (floor artefact;
-                                                         // trough N=5k 117M; clean entry
-                                                         // from N=25k-30k).
-                                                         // CDF: 25k→100k (trough N=25k-30k;
-                                                         // 249M→139M; clean entry confirmed
-                                                         // at N=100k 277M; see issue #50)
+                                                          // LogPDF: 64→25k (floor artefact;
+                                                          // trough N=5k 117M; clean entry
+                                                          // from N=25k-30k).
+                                                          // CDF: 25k→100k (trough N=25k-30k;
+                                                          // 249M→139M; clean entry confirmed
+                                                          // at N=100k 277M; see issue #50)
     /* DISCRETE(3)           */ {50000, 50000, 1024},
     /* POISSON(4)            */ {128, 128, 256},
     // GAMMA/BETA/LOG_NORMAL PDF/LogPDF (and GAMMA/BETA/LOG_NORMAL CDF) re-measured
@@ -383,21 +409,24 @@ constexpr ArchTable kAvx2 = {{
     /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},
     /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},
-    /* LAPLACE(17)           */ {64, 25000, 256},   // LogPDF: 64→25k (floor artefact;
-                                                    // trough N=5k 107M; clean entry from
-                                                    // N=25k; see issue #50)
-    /* CAUCHY(18)            */ {75000, 75000, 128},  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
+    /* LAPLACE(17)           */ {64, 25000, 256},     // LogPDF: 64→25k (floor artefact;
+                                                      // trough N=5k 107M; clean entry from
+                                                      // N=25k; see issue #50)
+    /* CAUCHY(18)            */ {75000, 75000, 128},  // STALE CDF column: measured against the
+                                                      // pre-#48 StudentT delegation (incomplete
+                                                      // beta); #48 made it one std::atan per
+                                                      // element. Re-profile (#109).
     // v2.4.0 rows calibrated 2026-09-03 (Kaby Lake native, 3 quiet runs,
     // sustained V→P crossovers — not the validator's first-crossing heuristic).
     /* LOGISTIC(19)          */ {100000, 100000, 50000},
     /* GUMBEL(20)            */ {50000, 50000, 100000},
-    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},   // ← BINOMIAL(14) (pure pass-through:
-                                                         // documentation mirror, measured NEVER)
-    /* ERLANG(22)            */ {25000, 25000, 4096},    // ← GAMMA(5) (pure pass-through:
-                                                         // documentation mirror)
-    /* FISHER_F(23)          */ {1024, 6144, 512},       // own kernels; measured post-repair
-    /* INVERSE_GAMMA(24)     */ {25000, 25000, 2048},    // pdf/log_pdf ← GAMMA(5) (pass-through
-                                                         // mirror); cdf is a live row, measured
+    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},  // ← BINOMIAL(14) (pure pass-through:
+                                                        // documentation mirror, measured NEVER)
+    /* ERLANG(22)            */ {25000, 25000, 4096},   // ← GAMMA(5) (pure pass-through:
+                                                        // documentation mirror)
+    /* FISHER_F(23)          */ {1024, 6144, 512},      // own kernels; measured post-repair
+    /* INVERSE_GAMMA(24)     */ {25000, 25000, 2048},   // pdf/log_pdf ← GAMMA(5) (pass-through
+                                                        // mirror); cdf is a live row, measured
     /* HALF_NORMAL(25)       */ {75000, 75000, 50000},
     /* TRUNCATED_NORMAL(26)  */ {50000, 50000, 4096},
 }};
@@ -504,16 +533,17 @@ constexpr ArchTable kAvx512 = {{
                                           // 960M at N=45k drops to 463M at N=50k and
                                           // does not recover within measured range)
     /* GAUSSIAN(1)           */ {1000000, 400000, 25000},  // LogPDF bimodal override; CDF: 50k→25k.
-                                                           // PDF/LogPDF thresholds confirmed correct
-                                                           // via cold-machine targeted sweep
-                                                           // (2026-07-04): N=90k cliff in loaded runs
-                                                           // is AMD Precision Boost expiry, not
-                                                           // dispatch — see section header note above.
+                                                           // PDF/LogPDF thresholds confirmed
+                                                           // correct via cold-machine targeted
+                                                           // sweep (2026-07-04): N=90k cliff in
+                                                           // loaded runs is AMD Precision Boost
+                                                           // expiry, not dispatch — see section
+                                                           // header note above.
     /* EXPONENTIAL(2)        */ {250000, 400000, 250000},  // LogPDF: NEVER→400k; PDF/CDF reduced.
                                                            // PDF threshold confirmed correct via
-                                                           // cold-machine sweep (2026-07-04): shallow
-                                                           // N=40-50k valley in loaded runs is
-                                                           // Precision Boost expiry — see above.
+                                                           // cold-machine sweep (2026-07-04):
+                                                           // shallow N=40-50k valley in loaded runs
+                                                           // is Precision Boost expiry — see above.
     /* DISCRETE(3)           */ {150000, 150000, NEVER},   // PDF: held 150000 (512 was
                                                            // profiling-order warm-pool; aligns with
                                                            // LogPDF same runs); CDF: 75k→NEVER
@@ -529,20 +559,20 @@ constexpr ArchTable kAvx512 = {{
     // rows would now dispatch batches to a strictly slower strategy.
     /* GAMMA(5)              */ {25000, 75000, 6144},       // re-measured post-repair
     /* STUDENT_T(6)          */ {2000000, 2000000, NEVER},  // PDF/LogPDF: NEVER→2M; CDF: 256→NEVER
-    /* BETA(7)               */ {NEVER, NEVER, 8192},       // PDF/LogPDF: parallel loses post-repair
-    /* CHI_SQUARED(8)        */ {1024, 2048, 128},          // PDF: 150k→1024; LogPDF: 150k→2048
-    /* LOG_NORMAL(9)         */ {150000, 100000, 6144},     // re-measured post-repair
+    /* BETA(7)               */ {NEVER, NEVER, 8192},    // PDF/LogPDF: parallel loses post-repair
+    /* CHI_SQUARED(8)        */ {1024, 2048, 128},       // PDF: 150k→1024; LogPDF: 150k→2048
+    /* LOG_NORMAL(9)         */ {150000, 100000, 6144},  // re-measured post-repair
     /* PARETO(10)            */ {2000000, 1500000, 2000000},  // LogPDF: 1M→1.5M; CDF: NEVER→2M
     /* WEIBULL(11)           */ {150000, 150000, 2000000},    // CDF: 1.5M→2M
     /* RAYLEIGH(12)          */ {150000, 150000, 300000},     // unchanged
-    /* VON_MISES(13)         */ {25000, 75000, 25000},  // PDF: 50k→25k; LogPDF: 100k→75k;
-                                                        // CDF: 64→128→25000 (matches PDF;
-                                                        // initial value, pending benchmark
-                                                        // tuning for the #51 Bessel-series CDF)
-    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},  // unchanged
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},  // CDF: 2048→512
-    /* GEOMETRIC(16)         */ {NEVER, NEVER, 512},  // new: PDF/LogPDF NEVER; CDF 512 (6-run set
-                                                      // with NegBinomial; max of lower cluster)
+    /* VON_MISES(13)         */ {25000, 75000, 25000},        // PDF: 50k→25k; LogPDF: 100k→75k;
+                                                              // CDF: 64→128→25000 (matches PDF;
+                                                              // initial value, pending benchmark
+    // tuning for the #51 Bessel-series CDF)
+    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},    // unchanged
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 512},    // CDF: 2048→512
+    /* GEOMETRIC(16)         */ {NEVER, NEVER, 512},    // new: PDF/LogPDF NEVER; CDF 512 (6-run set
+                                                        // with NegBinomial; max of lower cluster)
     /* LAPLACE(17)           */ {35000, 50000, 20000},  // PDF: 64→25k→35k (mild N=25k dip
                                                         // 233M→184M; recovers by N=30k; 35k clears
                                                         // it). LogPDF: 64→25k→50k (severe N=25k dip
@@ -550,9 +580,13 @@ constexpr ArchTable kAvx512 = {{
                                                         // see issue #50).
                                                         // CDF: 1024→20k (minor; threshold fires at
                                                         // N=20k but overhead amortises by N=30k)
-    /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER  // STALE CDF column: measured against the pre-#48 StudentT delegation (incomplete beta); #48 made it one std::atan per element. Re-profile (#109).
-                                                           // (6-run set with StudentT CDF; 50/50
-                                                           // split → conservative)
+    /* CAUCHY(18)            */ {2000000, 750000, NEVER},  // new: PDF 2M; LogPDF 750k; CDF NEVER //
+                                                           // STALE CDF column: measured against the
+                                                           // pre-#48 StudentT delegation
+                                                           // (incomplete beta); #48 made it one
+                                                           // std::atan per element. Re-profile
+                                                           // (#109). (6-run set with StudentT CDF;
+                                                           // 50/50 split → conservative)
     // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
     // delegation wrappers copy their delegate's row on this arch.
     // v2.4.0 new-kernel rows: sustained V→P crossovers measured on this
@@ -561,13 +595,13 @@ constexpr ArchTable kAvx512 = {{
     // that size and every larger one, not the first noise tie).
     /* LOGISTIC(19)          */ {75000, 50000, 50000},
     /* GUMBEL(20)            */ {25000, 50000, 50000},
-    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},        // ← BINOMIAL(14) (pure pass-through:
-                                                            //   dispatch runs under BINOMIAL's row)
-    /* ERLANG(22)            */ {25000, 75000, 6144},       // ← GAMMA(5) (pure pass-through:
-                                                            //   dispatch runs under GAMMA's row)
-    /* FISHER_F(23)          */ {8192, 8192, 4096},         // own kernels; measured post-repair
-    /* INVERSE_GAMMA(24)     */ {25000, 75000, 2048},       // pdf/log_pdf ← GAMMA(5) (pass-through
-                                                            //   via the log path); cdf own, measured
+    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},   // ← BINOMIAL(14) (pure pass-through:
+                                                       //   dispatch runs under BINOMIAL's row)
+    /* ERLANG(22)            */ {25000, 75000, 6144},  // ← GAMMA(5) (pure pass-through:
+                                                       //   dispatch runs under GAMMA's row)
+    /* FISHER_F(23)          */ {8192, 8192, 4096},    // own kernels; measured post-repair
+    /* INVERSE_GAMMA(24)     */ {25000, 75000, 2048},  // pdf/log_pdf ← GAMMA(5) (pass-through
+                                                       //   via the log path); cdf own, measured
     /* HALF_NORMAL(25)       */ {150000, 400000, 50000},
     /* TRUNCATED_NORMAL(26)  */ {75000, 75000, 25000},
 }};
@@ -671,16 +705,17 @@ constexpr ArchTable kNone = {{
     /* NEGATIVE_BINOMIAL(15) */ {2048, 2048, 2048},     // T1: lgamma + digamma/trigamma
     /* GEOMETRIC(16)         */ {2048, 2048, 2048},     // T1: delegates to NegBinomial
     /* LAPLACE(17)           */ {8192, 8192, 8192},     // T2: fabs + exp
-    /* CAUCHY(18)            */ {2048, 2048, 2048},     // T1: PDF/LogPDF delegate to StudentT; CDF column stale since #48
+    /* CAUCHY(18)            */ {2048, 2048, 2048},     // T1: PDF/LogPDF delegate to StudentT; CDF
+                                                        // column stale since #48
     // v2.4.0 scaffolding (#54–#57): tier assignment by per-element cost class.
-    /* LOGISTIC(19)          */ {8192, 8192, 8192},     // T2: exp pipeline
-    /* GUMBEL(20)            */ {8192, 8192, 8192},     // T2: double-exp pipeline
-    /* BERNOULLI(21)         */ {2048, 2048, 2048},     // T1: delegates to Binomial
-    /* ERLANG(22)            */ {2048, 2048, 2048},     // T1: delegates to Gamma
-    /* FISHER_F(23)          */ {2048, 2048, 2048},     // T1: incomplete beta via Beta
-    /* INVERSE_GAMMA(24)     */ {2048, 2048, 2048},     // T1: delegates to Gamma
-    /* HALF_NORMAL(25)       */ {8192, 8192, 8192},     // T2: exp + erf
-    /* TRUNCATED_NORMAL(26)  */ {8192, 8192, 8192},     // T2: exp + erf (Gaussian pipeline)
+    /* LOGISTIC(19)          */ {8192, 8192, 8192},  // T2: exp pipeline
+    /* GUMBEL(20)            */ {8192, 8192, 8192},  // T2: double-exp pipeline
+    /* BERNOULLI(21)         */ {2048, 2048, 2048},  // T1: delegates to Binomial
+    /* ERLANG(22)            */ {2048, 2048, 2048},  // T1: delegates to Gamma
+    /* FISHER_F(23)          */ {2048, 2048, 2048},  // T1: incomplete beta via Beta
+    /* INVERSE_GAMMA(24)     */ {2048, 2048, 2048},  // T1: delegates to Gamma
+    /* HALF_NORMAL(25)       */ {8192, 8192, 8192},  // T2: exp + erf
+    /* TRUNCATED_NORMAL(26)  */ {8192, 8192, 8192},  // T2: exp + erf (Gaussian pipeline)
 }};
 constexpr std::size_t none_parallel_threshold(DistributionType dist, OperationType op) {
     return parallelThresholdFromTable(kNone, dist, op);
