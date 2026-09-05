@@ -642,6 +642,19 @@ history.
     #148 filed for the UML diagram regeneration. Deliberately
     unchanged: README's v2.3.1 intro (flips at tag), NEON audits'
     historical numbers (status headers added instead).
+    **Strict CI GREEN 2026-09-05 night** after a three-round
+    dangling-else saga (85abb0c → 41d7b8b → c7d9fe8): GCC flags
+    unbraced `if`/`else if` wrapping a gtest EXPECT_* macro
+    (macro expands to if/else); AppleClang/MSVC don't, so every
+    native leg missed it, and GCC's per-round error list stops at
+    the first failing TUs — never trust one round's list as the
+    full inventory. Terminal verification that closed it: build
+    the WHOLE tree with `-Werror=dangling-else` under AppleClang
+    (zero diagnostics = nothing left for GCC). At session end the
+    remaining checks on PR #147's final round (c7d9fe8) were
+    12 pass / 7 pending / 3 skipping with Strict already green;
+    PR review + merge is the user's next-session step, then
+    tag + pylibstats pin bump per the release checklist.
     (2) ~~AGENTS.md current-state refresh~~ **DONE 2026-09-04**
     (04e8b53): 19→27, counts 74/22/2 (98 targets), full three-machine
     v2.4.0 matrix (v2.3.1 matrix archived to VALIDATION_HISTORY.md);
