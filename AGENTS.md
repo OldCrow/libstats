@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.4.0 in endgame on `dev/v2.4.0` (v2.3.1 on `main`) — 27 distributions across 7 families (#54–#57 added Logistic, Gumbel, Bernoulli, Erlang, HalfNormal, TruncatedNormal, FisherF, InverseGamma), API additive over v2.1.0. Suite 58 → 74; all three machine legs done (Zen 4 2026-09-03, Kaby Lake 2026-09-03/04, M1 2026-09-04): per-tier threshold recalibration post-parallelForSlices repair (#143) plus characterization regens. See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.4.0 in endgame on `dev/v2.4.0` (v2.3.1 on `main`) — 27 distributions across 7 families (#54–#57 added Logistic, Gumbel, Bernoulli, Erlang, HalfNormal, TruncatedNormal, FisherF, InverseGamma), API additive over v2.1.0. Suite 58 → 74; all three machine legs done (Zen 4 2026-09-03, Kaby Lake 2026-09-03/04, M1 2026-09-04) plus a capped-build kAvx leg (Kaby Lake via `LIBSTATS_MAX_SIMD_TIER=AVX`, 2026-09-04): per-tier threshold recalibration post-parallelForSlices repair (#143) plus characterization regens; every threshold table is now measurement-backed. See the validation matrix below. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -71,6 +71,7 @@ run separately on a quiet machine).
 | Asus TUF A16 (Windows) | AVX-512 | 74/74 ✅ | 20/22 | Native, 2026-09-03, MSVC Release (#143); kAvx512 recalibrated (sustained crossovers, 3 quiet runs); the two timing failures are the #129 uniform flake (1.62× vs the 1.8× adaptive gate, same signature as v2.2.0/v2.3.1) and a one-off timer-resolution caching flake (3/3 standalone); `isa=AVX-512` block regenerated on the 9210-row grid (34 violations) |
 | Kaby Lake (2017 MBP) | AVX2+FMA | 74/74 ✅ | 22/22 ✅ | Native, 2026-09-03/04, AppleClang (7c2ca49); timing serial passed twice (pre- and post-recalibration; #129 passes here); kAvx2 recalibrated; `isa=AVX2` block regenerated on the 9210-row grid (34 violations, class-for-class matching Zen 4); calibration bundle checked in (`data/profiles/dispatcher/2026-09-04T02-36-22Z_…`) |
 | Mac Mini M1 | NEON | 74/74 ✅ | 22/22 ✅ | Native, 2026-09-04, AppleClang (5f9bb5e); correctness re-run before/after the table change and after merging the Kaby Lake leg; timing serial at load < 2.0 (#129 passes here); kNeon recalibrated; `isa=NEON` block regenerated on the 9210-row grid (32 violations — 34 minus the two geometric #125 rows AArch64 saturation renders finite); calibration bundle checked in (`data/profiles/dispatcher/2026-09-04T04-22-28Z_…`) |
+| Kaby Lake, capped build | AVX (`LIBSTATS_MAX_SIMD_TIER=AVX`) | 74/74 ✅ | — | Capped-build leg 2026-09-04 (cb13f34): AVX2/AVX512 compiled out, tier asserted (active AVX, zero `vector_*_avx2` kernel symbols) — first native AVX-tier validation since the 2012 MBP retired, and the first MEASURED kAvx table (replaces the June kAvx2÷2 inference; SSE2 delegates to kAvx, so both bottom x86 tiers are healed). Timing suite deliberately not run: it asserts speedups for the shipping config, not capped diagnostics. Bundle `data/profiles/dispatcher/2026-09-04T23-51-14Z_…` |
 
 The correctness count grew 58 → 74 with the v2.4.0 eight's sixteen new
 basic+enhanced binaries (#131–#134); the v2.4.0 enhanced binaries carry no
@@ -563,6 +564,12 @@ The registration checklist is authoritative in `include/libstats/core/distributi
    - Run `./build-release/tools/strategy_profile --large -o <path.csv>` (release build;
      there is no `--export` flag) to produce a CSV — three quiet-machine runs, read with
      sustained V→P crossovers, not the validator's first-crossing heuristic.
+   - For a tier with no native hardware in the fleet (kAvx since the 2012 MBP retired):
+     configure a capped Release build (`-DLIBSTATS_MAX_SIMD_TIER=AVX`) on the closest
+     machine class, ASSERT the tier before profiling (`system_inspector --quick` active
+     tier + no higher-tier `vector_*` kernel symbols in the archive), then profile as
+     above. Label the rows as a capped-build measurement — precedent: the 2026-09-04
+     kAvx leg (bundle `2026-09-04T23-51-14Z_…`).
    - Run `./build/tools/threshold_validator <csv>` to compare measured crossovers against
      the current NEVER entries and identify which need updating.
    - Update the five `kXxx` tables in `dispatch_thresholds.h` accordingly.
