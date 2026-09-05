@@ -12,6 +12,10 @@ Resolved work from v1.4.0 through v2.0.0:
 - NEON native `vector_exp`, `vector_log`, and table-based `vector_erf`
 - AVX-512 native `vector_exp`, `vector_log`, `vector_erf`, and `vector_cos`
 - dispatch thresholds calibrated per architecture and operation
+- v2.4.0: all four threshold tables (kAvx512/kAvx2/kAvx/kNeon) re-measured
+  with sustained crossovers after the parallelForSlices fork repair (#143);
+  kAvx measured for the first time via a `LIBSTATS_MAX_SIMD_TIER=AVX`
+  capped build
 
 ## Active SIMD tiers
 
@@ -82,6 +86,36 @@ Distributions whose per-element SIMD cost is very low (Uniform, Laplace at small
 - The trough-at-threshold depth exceeds 50% throughput loss.
 
 For AVX-512 v2.0.2, Uniform PDF, Uniform LogPDF, and Uniform CDF are all NEVER.
+
+### The secretly-serial parallel path signature (v2.4.0)
+
+If forced-PARALLEL timings are **bitwise identical to VECTORIZED at every
+batch size**, the parallel path never actually forked — every threshold
+derived from that data calibrates a serial path and is invalid. The v2.4.0
+instance (#143): 18 sliced batch sites passed slice COUNTS (~N/1024) to
+element-denominated `parallelFor` gates, so PARALLEL ran serial below
+~8.4M elements, and the June tables encoded exactly that. Check for this
+signature FIRST when profiling: a genuine parallel path differs from
+VECTORIZED at least in noise.
+
+### NEVER for memory-bound kernels (v2.4.0)
+
+Distinct from the trivial-op class above: a kernel can be expensive enough
+to vectorise well and still lose under a REAL fork because it is
+memory-bound — the fork adds coordination without adding usable bandwidth.
+Beta PDF/LogPDF measures 0.65–0.92× at 2M on every tier (AVX-512, AVX2,
+capped AVX, NEON); von Mises batch CDF is the same class (#111/#144).
+Encode NEVER. Corollary: per-tier kernel economics can flip the verdict
+for compute-bound kernels — HalfNormal CDF is NEVER on NEON (2.2 ns/elem
+`vector_erf`, nothing left for 8 cores to win) but 1.3–2.1× parallel on
+x86, whose `vector_erf` is ~5× slower per element (corvus#37).
+
+### Extraction rule: sustained crossovers (v2.4.0)
+
+Read profiles with the sustained V→P crossover — parallel wins at that
+size AND every larger size — not the first crossing, which reports
+64-element noise ties. Binding statement: the 2026-09-04 amendment in
+`scripts/PROFILING_METHOD.md`; tool enforcement tracked as #146.
 
 ### Clean-entry criterion for iterative calibration
 

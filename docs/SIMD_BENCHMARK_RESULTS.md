@@ -14,6 +14,41 @@ Current release validation targets:
 
 Record new release measurements here after each real-machine validation pass.
 
+## v2.4.0 dispatch recalibration measurements (2026-09-03/04)
+
+Forced-strategy parallel speedup over VECTORIZED at N = 2M
+(median-of-timings ratio VECTORIZED/PARALLEL from `strategy_profile
+--large`, three quiet runs per tier; ranges span the three runs), taken
+during the post-parallelForSlices-repair recalibration (#143 and the
+machine legs). Values below 1.0 mean a real fork LOSES — those rows are
+encoded NEVER. Source bundles under `data/profiles/dispatcher/`
+(2026-09-04T02-36-22Z Kaby Lake, T04-22-28Z M1, T23-51-14Z capped AVX);
+Zen 4 figures are from the PR #143 record (no bundle checked in).
+
+| Distribution / Op | Zen 4 AVX-512 | Kaby Lake AVX2 | Kaby Lake AVX (capped) | M1 NEON |
+|---|---|---|---|---|
+| Gamma PDF | 7.5× | 5.3–5.4× | 4.9–5.2× | 4.9–5.5× |
+| Gamma LogPDF | 8.4× | 5.9–6.0× | 4.7–6.3× | 4.4–5.6× |
+| LogNormal CDF | 6.5× | 3.3–4.2× | 4.1–4.2× | 4.7–5.2× |
+| FisherF CDF | 6.3× | 3.6–3.7× | 3.4–3.9× | 5.3–5.4× |
+| InverseGamma CDF | 6.4× | 2.7–3.0× | 3.1–3.4× | 5.4–5.5× |
+| TruncatedNormal CDF | — | 3.1–3.6× | 4.0–4.1× | 4.3–4.5× |
+| Gumbel PDF | — | 1.9–2.0× | 2.4–2.6× | 2.6–2.9× |
+| Logistic PDF | — | 1.5× | 1.7–1.8× | 2.2–2.4× |
+| HalfNormal CDF | — | 1.3–1.6× | 1.9–2.1× | **0.84×** |
+| Beta PDF | **0.80–0.87×** | **0.73×** | **0.82–0.89×** | **0.79×** |
+| Beta LogPDF | **0.80–0.87×** | **0.65×** | **0.70×** | **0.76–0.92×** |
+
+Two findings these numbers carry:
+
+- **Beta PDF/LogPDF loses under a real fork on every measured tier** —
+  memory-bound kernels do not amortise the fork; encoded NEVER
+  everywhere (von Mises CDF is the same class, #111/#144).
+- **HalfNormal CDF inverts by kernel economics, not defect**: NEON's
+  `vector_erf` (~2.2 ns/elem) is too fast for 8 cores to beat; the ~5×
+  slower x86 `vector_erf` leaves parallel a 1.3–2.1× win. Mechanism
+  recorded at the kNeon table row; cross-repo follow-up corvus#37.
+
 ## v2.0.2 scipy comparison benchmark
 
 Cross-library throughput and accuracy comparison run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, scipy 1.18.0, numpy 2.4.4). Results capture the state after the `perf/dispatch-threshold-recalibration` threshold updates.
