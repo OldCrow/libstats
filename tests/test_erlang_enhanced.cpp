@@ -190,22 +190,25 @@ TEST_F(ErlangEnhancedTest, InfAndNaNContractBatch) {
     for (size_t i = 0; i < N; ++i) {
         const bool pdf_scalar_nan = std::isnan(dist4_.getProbability(xs[i]));
         EXPECT_EQ(std::isnan(pdf_b[i]), pdf_scalar_nan) << "PDF batch/scalar NaN mismatch i=" << i;
-        if (!pdf_scalar_nan)
+        if (!pdf_scalar_nan) {
             EXPECT_NEAR(pdf_b[i], dist4_.getProbability(xs[i]), 1e-12)
                 << "PDF batch/scalar mismatch i=" << i;
+        }
 
         const bool lpdf_scalar_nan = std::isnan(dist4_.getLogProbability(xs[i]));
         EXPECT_EQ(std::isnan(lpdf_b[i]), lpdf_scalar_nan)
             << "LogPDF batch/scalar NaN mismatch i=" << i;
-        if (!lpdf_scalar_nan)
+        if (!lpdf_scalar_nan) {
             EXPECT_NEAR(lpdf_b[i], dist4_.getLogProbability(xs[i]), 1e-10)
                 << "LogPDF batch/scalar mismatch i=" << i;
+        }
 
         const bool cdf_scalar_nan = std::isnan(dist4_.getCumulativeProbability(xs[i]));
         EXPECT_EQ(std::isnan(cdf_b[i]), cdf_scalar_nan) << "CDF batch/scalar NaN mismatch i=" << i;
-        if (!cdf_scalar_nan)
+        if (!cdf_scalar_nan) {
             EXPECT_NEAR(cdf_b[i], dist4_.getCumulativeProbability(xs[i]), 1e-10)
                 << "CDF batch/scalar mismatch i=" << i;
+        }
     }
     // Explicit finite-value pins at the non-finite indices (2=+inf, 3=-inf, 4=NaN)
     EXPECT_EQ(pdf_b[2], 0.0) << "PDF(+inf)";

@@ -147,8 +147,9 @@ TEST_F(BernoulliEnhancedTest, QuantileContract) {
     for (double q : {0.01, 0.1, 0.5, 0.69, 0.7, 0.71, 0.9, 0.99}) {
         const double qv = b03.getQuantile(q);
         EXPECT_FALSE(std::isnan(qv)) << "quantile must never be NaN for q=" << q;
-        if (q <= 0.7)
+        if (q <= 0.7) {
             EXPECT_EQ(qv, 0.0) << "q=" << q << " <= 1-p=0.7";
+        }
         else
             EXPECT_EQ(qv, 1.0) << "q=" << q << " > 1-p=0.7";
     }

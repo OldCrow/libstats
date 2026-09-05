@@ -390,16 +390,19 @@ TEST_F(FisherFEnhancedTest, InfAndNaNContractBatch) {
         const double s_cdf = f_.getCumulativeProbability(xs[i]);
 
         EXPECT_EQ(std::isnan(pdf_b[i]), std::isnan(s_pdf)) << "PDF NaN mismatch i=" << i;
-        if (!std::isnan(s_pdf))
+        if (!std::isnan(s_pdf)) {
             EXPECT_EQ(pdf_b[i], s_pdf) << "PDF batch != scalar i=" << i;
+        }
 
         EXPECT_EQ(std::isnan(lpdf_b[i]), std::isnan(s_lpdf)) << "LogPDF NaN mismatch i=" << i;
-        if (!std::isnan(s_lpdf))
+        if (!std::isnan(s_lpdf)) {
             EXPECT_EQ(lpdf_b[i], s_lpdf) << "LogPDF batch != scalar i=" << i;
+        }
 
         EXPECT_EQ(std::isnan(cdf_b[i]), std::isnan(s_cdf)) << "CDF NaN mismatch i=" << i;
-        if (!std::isnan(s_cdf))
+        if (!std::isnan(s_cdf)) {
             EXPECT_EQ(cdf_b[i], s_cdf) << "CDF batch != scalar i=" << i;
+        }
     }
 
     // Explicit pins at the non-finite / edge slots.

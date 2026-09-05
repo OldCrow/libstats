@@ -432,22 +432,25 @@ TEST_F(InverseGammaEnhancedTest, InfAndNaNContractBatch) {
         const double s_cdf = ig_.getCumulativeProbability(xs[i]);
 
         EXPECT_EQ(std::isnan(pdf_b[i]), std::isnan(s_pdf)) << "PDF NaN mismatch i=" << i;
-        if (!std::isnan(s_pdf))
+        if (!std::isnan(s_pdf)) {
             EXPECT_LT(relErr(pdf_b[i], s_pdf), kBatchUlpRelTol)
                 << "PDF batch != scalar i=" << i;
+        }
 
         EXPECT_EQ(std::isnan(lpdf_b[i]), std::isnan(s_lpdf)) << "LogPDF NaN mismatch i=" << i;
-        if (!std::isnan(s_lpdf) && std::isfinite(s_lpdf))
+        if (!std::isnan(s_lpdf) && std::isfinite(s_lpdf)) {
             EXPECT_LT(relErr(lpdf_b[i], s_lpdf), kBatchUlpRelTol)
                 << "LogPDF batch != scalar i=" << i;
+        }
         else if (!std::isnan(s_lpdf))
             EXPECT_EQ(lpdf_b[i], s_lpdf) << "LogPDF batch != scalar (infinite) i=" << i;
 
         // The CDF is this class's own scalar kernel on every dispatch tier, so
         // batch and scalar must agree bit for bit.
         EXPECT_EQ(std::isnan(cdf_b[i]), std::isnan(s_cdf)) << "CDF NaN mismatch i=" << i;
-        if (!std::isnan(s_cdf))
+        if (!std::isnan(s_cdf)) {
             EXPECT_EQ(cdf_b[i], s_cdf) << "CDF batch != scalar i=" << i;
+        }
     }
 
     EXPECT_EQ(pdf_b[2], 0.0) << "PDF(+inf)";

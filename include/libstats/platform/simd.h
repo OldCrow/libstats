@@ -609,8 +609,9 @@ class VectorOps {
     /// @param values Input vector
     /// @param results Output vector (erf(values))
     /// @param size Number of elements
-    /// @note Uses Abramowitz & Stegun approximation (max error ~1.5e-7).
-    ///       Below the SIMD threshold, falls back to std::erf for full precision.
+    /// @note x86 tiers use the musl-derived four-region rational polynomial
+    ///       (< 1 ULP); NEON uses the clean-room table kernel (Issue #67).
+    ///       Below the SIMD threshold, falls back to std::erf.
     static void vector_erf(const double* values, double* results, std::size_t size) noexcept;
 
     /// Vectorized cosine computation
