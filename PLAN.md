@@ -631,7 +631,11 @@ history.
     roster + families demo are a distribution's definition of done
     (3c535af, after #145 found the v2.4.0 eight missed example
     coverage; #145 in milestone #2, a spun-off session picked it up).
-    (3) Final reviewed PR dev/v2.4.0 → main + tag (the "Closes
+    (3) **PR #147 OPENED 2026-09-05** [user: skip the optional isa=AVX
+    characterization block] — the final reviewed dev/v2.4.0 → main PR
+    (21 commits, 88 files), awaiting CI + review; merge fires the
+    "Closes #54–#57" lines. Then tag + pylibstats bump per (4).
+    Original step: Final reviewed PR dev/v2.4.0 → main + tag (the "Closes
     #54–#57" lines fire then; #144 closes when the kAvx512 von Mises
     cell is measured or explicitly deferred; reword README's "on dev"
     release paragraph at tag time). (4) pylibstats pin bump at release.
