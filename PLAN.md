@@ -51,7 +51,10 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-09-04 (third pass,
+Last reconciled against live GitHub state: 2026-09-05 (fourth pass:
+#148 filed into milestone #8 — regenerate the v2.0.0-era UML diagrams
+for the 27-distribution surface; found by the comprehensive doc audit,
+below). Third pass 2026-09-04 (
 post-leg lessons triage: #146 filed into milestone #8 — promote the
 sustained-crossover methodology into threshold_validator, de-duplicate
 the per-bundle analyze_crossovers.py copies; memory-bound-parallel
@@ -623,6 +626,22 @@ history.
     slower per element, so parallel wins there. Mechanism recorded at
     the kNeon row. NOTE for corvus/v2.5.0: x86 vector_erf being ~5×
     slower per element than NEON's is a real optimization target.
+    **Comprehensive doc audit DONE 2026-09-05** (16d9eed on dev; user
+    directed full-read review): four parallel reviewers read all 34
+    doc files line-by-line against a v2.4.0 fact sheet, ~60 findings
+    fixed. Notables: THIRD_PARTY_NOTICES was missing the musl/Sun
+    fdlibm erf attribution and understated SLEEF scope; README linked
+    the non-installable `libstats::static` find_package target;
+    MIGRATION_GUIDE had the v1/v2 target names reversed;
+    PROJECT_CONCEPT was two majors stale; PROFILING_METHOD still
+    called kAvx inferred. Two CODE fixes fell out (41d7b8b): the
+    dangling-else sweep completed repo-wide (10 sites — the first CI
+    round only reported what GCC reached before stopping), and
+    copy_move_stress extended 19 → 27 (the workstreams missed it
+    because test_architecture.md misdescribed the tool; 27/27 PASS).
+    #148 filed for the UML diagram regeneration. Deliberately
+    unchanged: README's v2.3.1 intro (flips at tag), NEON audits'
+    historical numbers (status headers added instead).
     (2) ~~AGENTS.md current-state refresh~~ **DONE 2026-09-04**
     (04e8b53): 19→27, counts 74/22/2 (98 targets), full three-machine
     v2.4.0 matrix (v2.3.1 matrix archived to VALIDATION_HISTORY.md);
