@@ -429,10 +429,14 @@ history.
   provisional row is low-risk (both Mac tiers measured NEVER; #111
   memory-bound signature). Library at 27 distributions, suite 74/74 on
   all fleet machines, every dispatch-threshold table
-  measurement-backed. OUTSTANDING from the ship checklist: pylibstats
-  pin bump to v2.4.0; milestone #8 reassessment pass (bucket its 15
-  open issues post-v2.4.0 vs post-v2.5.0 — several share #144's
-  "adoption changes the answer" dependency).
+  measurement-backed. ~~pylibstats pin bump~~ DONE 2026-09-05:
+  pylibstats 0.7.0 shipped on the v2.4.0 pin WITH bindings for all
+  eight new distributions (not a bare bump — full parity, 27 bound;
+  pylibstats PR #18, tag v0.7.0, PyPI live). OUTSTANDING from the ship
+  checklist: milestone #8 reassessment pass (bucket its 15 open issues
+  post-v2.4.0 vs post-v2.5.0 — several share #144's "adoption changes
+  the answer" dependency; candidate buckets proposed in session
+  2026-09-04, decision pending).
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
