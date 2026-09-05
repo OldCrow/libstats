@@ -260,9 +260,11 @@ TEST_F(HalfNormalEnhancedTest, VectorizedMatchesScalar) {
     h1_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     for (size_t i = 0; i < N; ++i)
         EXPECT_EQ(std::isinf(out_vec[i]), std::isinf(out_scl[i])) << "LogPDF inf at i=" << i;
-    for (size_t i = 0; i < N; ++i)
-        if (std::isfinite(out_scl[i]))
+    for (size_t i = 0; i < N; ++i) {
+        if (std::isfinite(out_scl[i])) {
             EXPECT_NEAR(out_vec[i], out_scl[i], 1e-12) << "LogPDF mismatch at i=" << i;
+        }
+    }
 
     h1_.getCumulativeProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
     h1_.getCumulativeProbability(span<const double>(xs), span<double>(out_scl), hint_scl);

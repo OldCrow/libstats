@@ -191,20 +191,23 @@ TEST_F(BernoulliEnhancedTest, InfAndNaNContractBatch) {
     for (size_t i = 0; i < N; ++i) {
         EXPECT_EQ(std::isnan(pdf_b[i]), std::isnan(b05_.getProbability(xs[i])))
             << "PDF batch/scalar NaN mismatch at i=" << i;
-        if (!std::isnan(pdf_b[i]))
+        if (!std::isnan(pdf_b[i])) {
             EXPECT_EQ(pdf_b[i], b05_.getProbability(xs[i])) << "PDF batch/scalar mismatch i=" << i;
+        }
 
         EXPECT_EQ(std::isnan(lpdf_b[i]), std::isnan(b05_.getLogProbability(xs[i])))
             << "LogPDF batch/scalar NaN mismatch at i=" << i;
-        if (!std::isnan(lpdf_b[i]))
+        if (!std::isnan(lpdf_b[i])) {
             EXPECT_EQ(lpdf_b[i], b05_.getLogProbability(xs[i]))
                 << "LogPDF batch/scalar mismatch i=" << i;
+        }
 
         EXPECT_EQ(std::isnan(cdf_b[i]), std::isnan(b05_.getCumulativeProbability(xs[i])))
             << "CDF batch/scalar NaN mismatch at i=" << i;
-        if (!std::isnan(cdf_b[i]))
+        if (!std::isnan(cdf_b[i])) {
             EXPECT_EQ(cdf_b[i], b05_.getCumulativeProbability(xs[i]))
                 << "CDF batch/scalar mismatch i=" << i;
+        }
     }
     // Explicit finite-value pins
     EXPECT_EQ(pdf_b[2], 0.0) << "PDF(+inf)";
