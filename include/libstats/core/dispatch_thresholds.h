@@ -55,10 +55,12 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 // Table layout: {pdf, log_pdf, cdf} per distribution row.
 // GEOMETRIC: NEVER on measured SIMD tiers when vectorized/delegate path stays dominant.
 // LAPLACE/CAUCHY: measured on kAvx2/kAvx512 (sha-1b564ec); kAvx inferred.
-// BETA: NEVER on kAvx (retired hardware, no re-measure); PDF/LogPDF NEVER
-// re-confirmed post-parallelForSlices-repair on all three measured tiers
-// (BEST=VECTORIZED at 2M all runs — kAvx512 2026-09-03, kAvx2/kNeon
-// 2026-09-04; first seen on kNeon in sha-641bf62); CDF re-measured per tier.
+// BETA: PDF/LogPDF NEVER on ALL FOUR measured tiers post-parallelForSlices-
+// repair (BEST=VECTORIZED at 2M all runs — kAvx512 2026-09-03, kAvx2/kNeon
+// 2026-09-04, kAvx 2026-09-04 via LIBSTATS_MAX_SIMD_TIER=AVX capped build;
+// first seen on kNeon in sha-641bf62); CDF re-measured per tier. NOTE: the
+// June kAvx row was {128,128,256} — an inference table that dispatched Beta
+// parallel from 128 elements; the capped-build measurement corrected it.
 //
 // Measurement resolution caveat (applies to all architectures):
 //   Profiler timing resolution floors out around 0.1–0.2 µs. At batch sizes
@@ -234,96 +236,72 @@ constexpr ArchTable kNeon = {{
     /* TRUNCATED_NORMAL(26)  */ {50000, 75000, 25000},
 }};
 
-// --- AVX (Intel Ivy Bridge i7-3820QM, 128/256-bit, 4P/8T, macOS/GCD) ---
-// data/profiles/dispatcher/2026-06-15T05-25-42Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
-// data/profiles/dispatcher/2026-06-15T05-40-12Z_darwin-x86_64_fix-audit-remediation_sha-65b1c61
+// --- AVX (capped-build measurement: Kaby Lake i7-7820HQ, LIBSTATS_MAX_SIMD_TIER=AVX,
+//          4P/8T, macOS/GCD; AVX-only silicon retired — Ivy Bridge i7-3820QM was 4P/8T
+//          mobile too, so the machine class matches) ---
+// data/profiles/dispatcher/2026-09-04T23-51-14Z_darwin-x86_64_dev-v2.4.0_sha-919a857
 //
-// Two Release-mode bundles on fix/audit-remediation (Ivy Bridge retired; hardware
-// no longer in the ecosystem).  Re-inferred from recalibrated kNeon (641bf62)
-// and kAvx2 (sha-1b564ec) reference tables.
+// First MEASURED kAvx table (2026-09-04): three --large Release runs on a quiet
+// machine with AVX2/AVX512 compiled out (LIBSTATS_MAX_SIMD_TIER=AVX; tier asserted
+// via system_inspector — active AVX, zero vector_*_avx2 symbols in the archive),
+// replacing the June inference table (kAvx2÷2), which was derived from pre-
+// parallelForSlices-repair data and carried wrong-direction Beta/FisherF rows.
+// Sustained V→P crossovers, median of 3 runs, conservative (max) pick when the
+// spread exceeds 2×, sub-64 artifacts clamped per the resolution caveat above.
 //
-// Inference principle:
-//   kAvx VECTORIZED lacks FMA — roughly 2× less efficient than kAvx2 for
-//   transcendental operations.  GCD pool overhead is identical (same OS).
-//   SIMD-bound distributions: threshold ≈ kAvx2/2.
-//   GCD-overhead-dominated (VonMises PDF/CDF, Discrete PDF/LogPDF): ≈ kAvx2
-//   (same GCD cost; weaker SIMD lowers threshold slightly, balanced by GCD).
-//   Compute-bound iterative (Beta, StudentT): use kAvx2/2 (log-space paths
-//   are SIMD-accelerated; iterative overhead is architecture-independent).
-//
-// Key inference updates vs prior kAvx (sha-fb8e8b6/sha-1b564ec reference):
-//   - Gaussian CDF:       10000 → 4096    (kAvx2 8192÷2)
-//   - Exponential PDF/CDF:25000 → 12500/12500  (kAvx2 25k÷2)
-//   - Discrete PDF/CDF:   75000/25000 → 50000/512  (kAvx2 recalibrated)
-//   - Gamma PDF:          10000 → 12500   (kAvx2 override 25k÷2)
-//   - Gamma LogPDF:          64 → 256     (kAvx2 512÷2)
-//   - StudentT PDF/LogPDF:25000/10000 → 12500/12500  (kAvx2 25k÷2)
-//   - Beta:           512/512/512 → 128/128/256  (kAvx2 256/256/512÷2)
-//   - ChiSquared PDF:    25000 → 1024    (kAvx2 2048÷2)
-//   - LogNormal PDF/CDF: 10000/6144 → 12500/64  (kAvx2 25k/128÷2)
-//   - Pareto:       50k/50k/100k → 12500/12500/37500  (kAvx2 25k/25k/75k÷2)
-//   - Weibull LogPDF:    25000 → 5000    (kAvx2 10k÷2)
-//   - Weibull CDF:       50000 → 25000   (kAvx2 50k÷2; was coincidentally same)
-//   - Rayleigh PDF/CDF:  25000/50000 → 12500/12500  (kAvx2 25k÷2)
-//   - VonMises LogPDF:  300000 → 400000  (kAvx2 recalibrated to 400k; GCD-dom)
-//   - Cauchy PDF/LogPDF: 50000 → 37500   (kAvx2 75k÷2)
-//   - Binomial CDF: held 128 (kAvx512=128; kNeon/kAvx2=NEVER; retired hardware)
-//   - NegBinomial CDF: held 256 (kNeon/kAvx2=NEVER; retired hardware)
-//   Note: Binomial/NegBinomial/Geometric PDF/LogPDF remain NEVER.
+// Direction sanity: measured thresholds sit mostly BELOW kAvx2's, as no-FMA
+// vectorized economics predicts (slower VECTORIZED → parallel pays off sooner) —
+// the old ÷2 instinct was directionally right, wrong per-row. Biggest inference
+// misses the measurement corrected: Beta/FisherF PDF/LogPDF were {128,128,…}
+// (parallel-loses in reality, matching every measured tier); Gaussian/Exponential
+// PDF were 2–3× too high; several 64-valued rows were resolution noise.
 // SSE2 delegates to kAvx; both updated together.
 constexpr ArchTable kAvx = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, NEVER},  // CDF: 64→NEVER (kAvx2=NEVER)
-    /* GAUSSIAN(1)           */ {65000, 13000, 4096},   // PDF: 25k→65k (kAvx2=130k÷2;
-                                                        // exp-heavy, ÷2 correct).
-                                                        // LogPDF: 64→13k (kAvx2=20k÷1.5;
-                                                        // polynomial-only, FMA delta small;
-                                                        // same L1/L2 boundaries as kAvx2).
-                                                        // CDF: unchanged (kAvx2=8192÷2)
-    /* EXPONENTIAL(2)        */ {60000, 17000, 50000},  // PDF: 12.5k→60k (kAvx2=120k÷2;
-                                                        // exp-heavy, ÷2 correct).
-                                                        // LogPDF: 64→17k (kAvx2=25k÷1.5;
-                                                        // linear only, FMA delta small).
-                                                        // CDF: 12.5k→50k (kAvx2=100k÷2;
-                                                        // exp-heavy, ÷2 correct)
-    /* DISCRETE(3)           */ {50000, 50000, 512},    // PDF: kAvx2=50k; CDF: 1024÷2=512
-    /* POISSON(4)            */ {128, 128, 128},
-    /* GAMMA(5)              */ {12500, 256, 64},          // PDF: 10000→12500; LogPDF: kAvx2=512÷2
-    /* STUDENT_T(6)          */ {12500, 12500, 64},        // PDF: 25k→12500; LogPDF: 25k→12500
-    /* BETA(7)               */ {128, 128, 256},           // PDF/LogPDF: 512→128; CDF: 512→256
-    /* CHI_SQUARED(8)        */ {1024, 64, 64},            // PDF: 25000→1024 (kAvx2=2048÷2)
-    /* LOG_NORMAL(9)         */ {12500, 64, 64},           // PDF: 10k→12500; CDF: 6144→64
-    /* PARETO(10)            */ {12500, 12500, 37500},     // kAvx2=25k/25k/75k ÷2
-    /* WEIBULL(11)           */ {25000, 5000, 25000},      // LogPDF: 25000→5000 (kAvx2=10k÷2)
-    /* RAYLEIGH(12)          */ {12500, 64, 12500},        // PDF: 25k→12500; CDF: 50k→12500
-    /* VON_MISES(13)         */ {100000, 400000, 100000},  // LogPDF: 300k→400k (kAvx2 GCD-dom).
-                                                           // CDF: 128->100000 (matches PDF;
-                                                           // initial value, pending benchmark
-                                                           // tuning for the #51 Bessel-series
-                                                           // CDF)
-    /* BINOMIAL(14)          */ {NEVER, NEVER, 128},       // CDF: held from kAvx512=128
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, 256},       // CDF: held; kNeon/kAvx2=NEVER
+    /* UNIFORM(0)            */ {NEVER, NEVER, 25000},     // CDF: parallel sustains from 25k
+                                                           // (all 3 runs) — differs from
+                                                           // kAvx2=NEVER; weaker SIMD leaves
+                                                           // room for the fork
+    /* GAUSSIAN(1)           */ {50000, 150000, 4096},
+    /* EXPONENTIAL(2)        */ {25000, 100000, 25000},
+    /* DISCRETE(3)           */ {50000, 50000, 50000},
+    /* POISSON(4)            */ {4096, 8192, 4096},        // CDF {64,2048,4096}: conservative
+                                                           // 4096 (64 is resolution noise)
+    /* GAMMA(5)              */ {6144, 25000, 4096},       // CDF {64,64,4096}: conservative
+                                                           // 4096 (64s are resolution noise)
+    /* STUDENT_T(6)          */ {25000, 50000, NEVER},     // CDF only sustains ≥750k and not in
+                                                           // every run — not a usable threshold
+    /* BETA(7)               */ {NEVER, NEVER, 4096},      // PDF/LogPDF: parallel loses on AVX
+                                                           // too — NEVER on all four measured
+                                                           // tiers now
+    /* CHI_SQUARED(8)        */ {8192, 25000, 4096},
+    /* LOG_NORMAL(9)         */ {25000, 25000, 256},       // CDF {256,64,128}: conservative 256
+    /* PARETO(10)            */ {25000, 50000, 50000},
+    /* WEIBULL(11)           */ {25000, 25000, 25000},
+    /* RAYLEIGH(12)          */ {25000, 25000, 50000},
+    /* VON_MISES(13)         */ {25000, 50000, NEVER},     // CDF NEVER: memory-bound batch CDF
+                                                           // (#111/#144), matches kNeon/kAvx2
+    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},     // CDF: measured NEVER (June's held
+                                                           // 128 came from kAvx512)
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},     // CDF: measured NEVER (was held 256)
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},
-    /* LAPLACE(17)           */ {64, 17000, 128},      // LogPDF: 64→17k (kAvx2=25k÷1.5;
-                                                       // fabs+linear, no transcendental;
-                                                       // FMA delta small; same L1/L2
-                                                       // boundaries as kAvx2).
-                                                       // CDF: kAvx2=256÷2=128
-    /* CAUCHY(18)            */ {37500, 37500, 4096},  // PDF/LogPDF: kAvx2=75k÷2; CDF: re-inferred
-                                                       // kAvx2=8192÷2 after the #109 re-measure
-                                                       // column: measured against the pre-#48
-                                                       // StudentT delegation (incomplete beta); #48
-                                                       // made it one std::atan per element.
-                                                       // Re-profile (#109).
-    // v2.4.0 scaffolding (#54–#57): PROVISIONAL — NEVER until profiled;
-    // delegation wrappers copy their delegate's row on this arch.
-    /* LOGISTIC(19)          */ {NEVER, NEVER, NEVER},
-    /* GUMBEL(20)            */ {NEVER, NEVER, NEVER},
-    /* BERNOULLI(21)         */ {NEVER, NEVER, 128},  // ← BINOMIAL(14)
-    /* ERLANG(22)            */ {12500, 256, 64},     // ← GAMMA(5)
-    /* FISHER_F(23)          */ {128, 128, 256},      // ← BETA(7)
-    /* INVERSE_GAMMA(24)     */ {12500, 256, 64},     // ← GAMMA(5)
-    /* HALF_NORMAL(25)       */ {NEVER, NEVER, NEVER},
-    /* TRUNCATED_NORMAL(26)  */ {NEVER, NEVER, NEVER},
+    /* LAPLACE(17)           */ {25000, 50000, 10000},
+    /* CAUCHY(18)            */ {50000, 50000, 6144},
+    // v2.4.0 rows measured in the same capped-build runs:
+    /* LOGISTIC(19)          */ {25000, 50000, 25000},
+    /* GUMBEL(20)            */ {25000, 25000, 25000},
+    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},     // ← BINOMIAL(14) (pure pass-through:
+                                                           // documentation mirror, measured NEVER)
+    /* ERLANG(22)            */ {6144, 25000, 4096},       // ← GAMMA(5) (pure pass-through:
+                                                           // documentation mirror)
+    /* FISHER_F(23)          */ {4096, 6144, 4096},        // own kernels; measured (June's
+                                                           // ← BETA {128,128,256} inference was
+                                                           // wrong-direction)
+    /* INVERSE_GAMMA(24)     */ {6144, 25000, 2048},       // pdf/log_pdf ← GAMMA(5) (pass-through
+                                                           // mirror); cdf is a live row, measured
+    /* HALF_NORMAL(25)       */ {25000, 100000, 10000},    // CDF 10000: parallel WINS on AVX
+                                                           // (slow vector_erf) — the kNeon NEVER
+                                                           // economics inverts here, see kNeon note
+    /* TRUNCATED_NORMAL(26)  */ {25000, 50000, 4096},
 }};
 
 // --- AVX2+FMA (Intel Kaby Lake i7-7820HQ, 256-bit, 4P/8T, macOS/GCD) ---

@@ -1,0 +1,49 @@
+-- macOS deployment target: compiler default (minimum supported: 13.0; set -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 for Ventura-compatible binaries)
+-- std::cyl_bessel_i: unavailable -- Bessel A&S fallback active
+-- macOS: system AppleClang with libc++ (GCD parallel path active)
+-- Detecting SIMD features...
+-- SIMDDetection: CMAKE_CXX_COMPILER_ID='AppleClang' CMAKE_CXX_COMPILER='/usr/bin/c++' MSVC='' WIN32=''
+-- Runtime sse2 test: PASSED
+-- SIMD: SSE2 enabled (compiler + runtime)
+-- Runtime avx test: PASSED
+-- SIMD: AVX enabled (compiler + runtime)
+-- Runtime avx2 test: PASSED
+-- SIMD: AVX2 enabled (compiler + runtime)
+-- SIMDDetection: Checking AVX-512 support...
+-- Runtime avx512 test: FAILED (exit code: Illegal instruction)
+-- SIMD: AVX-512 disabled (runtime check failed)
+-- SIMD: NEON disabled (not ARM architecture)
+-- SIMD: capped at AVX via LIBSTATS_MAX_SIMD_TIER; disabled: AVX2
+-- SIMD detection complete:
+--   SSE2: TRUE
+--   AVX:  TRUE
+--   AVX2: FALSE
+--   AVX-512: FALSE
+--   NEON: FALSE
+--   Sources: src/simd_sse2.cpp;src/simd_avx.cpp;src/simd_fallback.cpp;src/simd_dispatch.cpp
+-- macOS detected with GCD available - TBB detection skipped (GCD preferred)
+--   To force TBB usage on macOS, set -DLIBSTATS_FORCE_TBB=ON
+-- Release build (AppleClang): Optimized for performance
+-- SIMD interface target created with definitions: LIBSTATS_HAS_SSE2=1;LIBSTATS_HAS_AVX=1
+-- GTest found via find_package
+-- Test infrastructure enabled
+-- SIMD dev tools disabled (LIBSTATS_BUILD_SIMD_DEV_TOOLS=OFF)
+-- Tools enabled:
+--   - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)
+--   - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests
+--   - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing
+--   - strategy_profile: Canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes
+--   - simd_verification: Architecture-agnostic SIMD operations correctness verification across all distributions and edge cases
+--   - parallel_correctness_verification: Platform-aware parallel execution correctness validation across different threading systems (GCD, OpenMP, ThreadPool)
+--   - toctou_validator: Concurrent writer/reader race stress test for TOCTOU cache inconsistency detection across all 19 distributions
+--   - copy_move_stress: Concurrent copy/move throughput stress test across all 19 distributions (replaces test_copy_move_stress)
+--   - accuracy_sweep: Issue #46 deterministic bit-exact scalar/batch pdf/logpdf/cdf/quantile sweep across all 27 distributions for the mpmath oracle comparison
+-- libstats Configuration Summary:
+--   Version: 2.3.1
+--   C++ Standard: 20
+--   Build Type: Release
+--   Testing: Enabled
+--   GTest: Available
+-- Configuring done (9.8s)
+-- Generating done (1.1s)
+-- Build files have been written to: /Users/wolfman/Development/libstats/build-avx-cap

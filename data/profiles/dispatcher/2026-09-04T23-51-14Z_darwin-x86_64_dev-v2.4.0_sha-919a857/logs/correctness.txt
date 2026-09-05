@@ -1,0 +1,153 @@
+Test project /Users/wolfman/Development/libstats/build-avx-cap
+      Start  1: test_constants
+      Start  2: test_cpu_detection
+      Start  3: test_simd_comprehensive
+      Start  4: test_platform_optimizations
+      Start  5: test_simd_policy
+      Start  6: test_simd_dispatch_gates
+      Start  7: test_simd_neon_exp_accuracy
+      Start  8: test_simd_neon_log_accuracy
+ 1/74 Test  #1: test_constants ..........................   Passed    0.47 sec
+      Start  9: test_simd_neon_cos_accuracy
+ 2/74 Test  #2: test_cpu_detection ......................   Passed    0.86 sec
+      Start 11: test_numerical_safety
+ 3/74 Test  #4: test_platform_optimizations .............   Passed    1.80 sec
+      Start 12: test_error_handling_comprehensive
+ 4/74 Test  #3: test_simd_comprehensive .................   Passed    1.86 sec
+      Start 14: test_statistical_utilities
+ 5/74 Test  #5: test_simd_policy ........................   Passed    2.13 sec
+      Start 15: test_discrete_analysis
+ 6/74 Test  #6: test_simd_dispatch_gates ................   Passed    2.53 sec
+      Start 16: test_goodness_of_fit
+ 7/74 Test  #7: test_simd_neon_exp_accuracy .............   Passed    2.94 sec
+      Start 17: test_thread_pool
+ 8/74 Test  #8: test_simd_neon_log_accuracy .............   Passed    3.50 sec
+      Start 18: test_work_stealing_pool
+ 9/74 Test  #9: test_simd_neon_cos_accuracy .............   Passed    3.48 sec
+      Start 19: test_parallel_execution_integration
+10/74 Test #11: test_numerical_safety ...................   Passed    3.69 sec
+      Start 20: test_parallel_execution_comprehensive
+11/74 Test #12: test_error_handling_comprehensive .......   Passed    2.99 sec
+      Start 21: test_benchmark_basic
+12/74 Test #14: test_statistical_utilities ..............   Passed    3.32 sec
+      Start 25: test_performance_initialization
+13/74 Test #15: test_discrete_analysis ..................   Passed    3.43 sec
+      Start 26: test_gaussian_basic
+14/74 Test #16: test_goodness_of_fit ....................   Passed    3.46 sec
+      Start 28: test_gaussian_analysis
+15/74 Test #17: test_thread_pool ........................   Passed    3.49 sec
+      Start 29: test_poisson_analysis
+16/74 Test #18: test_work_stealing_pool .................   Passed    3.41 sec
+      Start 30: test_distribution_analysis
+17/74 Test #19: test_parallel_execution_integration .....   Passed    3.36 sec
+      Start 31: test_batch_math_regressions
+18/74 Test #20: test_parallel_execution_comprehensive ...   Passed    3.18 sec
+      Start 32: test_exponential_basic
+19/74 Test #21: test_benchmark_basic ....................   Passed    3.40 sec
+      Start 34: test_discrete_basic
+20/74 Test #25: test_performance_initialization .........   Passed    3.36 sec
+      Start 36: test_atomic_parameters
+21/74 Test #26: test_gaussian_basic .....................   Passed    3.36 sec
+      Start 37: test_uniform_basic
+22/74 Test #28: test_gaussian_analysis ..................   Passed    3.37 sec
+      Start 39: test_poisson_basic
+23/74 Test #29: test_poisson_analysis ...................   Passed    3.34 sec
+      Start 41: test_gamma_basic
+24/74 Test #30: test_distribution_analysis ..............   Passed    3.25 sec
+      Start 43: test_chi_squared_basic
+25/74 Test #31: test_batch_math_regressions .............   Passed    3.26 sec
+      Start 45: test_student_t_basic
+26/74 Test #32: test_exponential_basic ..................   Passed    3.25 sec
+      Start 47: test_beta_basic
+27/74 Test #34: test_discrete_basic .....................   Passed    3.17 sec
+      Start 49: test_lognormal_basic
+28/74 Test #36: test_atomic_parameters ..................   Passed    3.44 sec
+      Start 51: test_pareto_basic
+29/74 Test #37: test_uniform_basic ......................   Passed    3.35 sec
+      Start 53: test_weibull_basic
+30/74 Test #39: test_poisson_basic ......................   Passed    3.31 sec
+      Start 55: test_rayleigh_basic
+31/74 Test #41: test_gamma_basic ........................   Passed    3.30 sec
+      Start 57: test_von_mises_basic
+32/74 Test #43: test_chi_squared_basic ..................   Passed    3.34 sec
+      Start 59: test_bessel_tier
+33/74 Test #45: test_student_t_basic ....................   Passed    3.32 sec
+      Start 60: test_trig_ulp_gates
+34/74 Test #47: test_beta_basic .........................   Passed    3.34 sec
+      Start 61: test_log_special_gates
+35/74 Test #49: test_lognormal_basic ....................   Passed    3.32 sec
+      Start 62: test_batch_nan_gates
+36/74 Test #51: test_pareto_basic .......................   Passed    3.13 sec
+      Start 63: test_vonmises_cdf_accuracy
+37/74 Test #53: test_weibull_basic ......................   Passed    3.21 sec
+      Start 64: test_lognormal_cdf_accuracy
+38/74 Test #55: test_rayleigh_basic .....................   Passed    3.28 sec
+      Start 65: test_gaussian_cdf_accuracy
+39/74 Test #57: test_von_mises_basic ....................   Passed    3.27 sec
+      Start 66: test_parallel_exception_propagation
+40/74 Test #59: test_bessel_tier ........................   Passed    3.23 sec
+      Start 67: test_binomial_basic
+41/74 Test #60: test_trig_ulp_gates .....................   Passed    3.28 sec
+      Start 69: test_negative_binomial_basic
+42/74 Test #61: test_log_special_gates ..................   Passed    3.30 sec
+      Start 71: test_geometric_basic
+43/74 Test #62: test_batch_nan_gates ....................   Passed    3.38 sec
+      Start 73: test_discrete_quantile_bounds
+44/74 Test #63: test_vonmises_cdf_accuracy ..............   Passed    3.37 sec
+      Start 74: test_laplace_basic
+45/74 Test #64: test_lognormal_cdf_accuracy .............   Passed    3.44 sec
+      Start 76: test_cauchy_basic
+46/74 Test #65: test_gaussian_cdf_accuracy ..............   Passed    3.39 sec
+      Start 78: test_half_normal_basic
+47/74 Test #66: test_parallel_exception_propagation .....   Passed    3.68 sec
+      Start 79: test_half_normal_enhanced
+48/74 Test #67: test_binomial_basic .....................   Passed    3.48 sec
+      Start 80: test_truncated_normal_basic
+49/74 Test #69: test_negative_binomial_basic ............   Passed    3.42 sec
+      Start 81: test_truncated_normal_enhanced
+50/74 Test #71: test_geometric_basic ....................   Passed    3.40 sec
+      Start 82: test_bernoulli_basic
+51/74 Test #73: test_discrete_quantile_bounds ...........   Passed    3.36 sec
+      Start 83: test_bernoulli_enhanced
+52/74 Test #74: test_laplace_basic ......................   Passed    3.43 sec
+      Start 84: test_erlang_basic
+53/74 Test #76: test_cauchy_basic .......................   Passed    3.40 sec
+      Start 85: test_erlang_enhanced
+54/74 Test #78: test_half_normal_basic ..................   Passed    3.40 sec
+      Start 86: test_fisher_f_basic
+55/74 Test #79: test_half_normal_enhanced ...............   Passed    3.13 sec
+      Start 87: test_fisher_f_enhanced
+56/74 Test #80: test_truncated_normal_basic .............   Passed    3.36 sec
+      Start 88: test_inverse_gamma_basic
+57/74 Test #81: test_truncated_normal_enhanced ..........   Passed    3.41 sec
+      Start 89: test_inverse_gamma_enhanced
+58/74 Test #82: test_bernoulli_basic ....................   Passed    3.37 sec
+      Start 90: test_logistic_basic
+59/74 Test #83: test_bernoulli_enhanced .................   Passed    3.37 sec
+      Start 91: test_logistic_enhanced
+60/74 Test #84: test_erlang_basic .......................   Passed    3.27 sec
+      Start 92: test_gumbel_basic
+61/74 Test #85: test_erlang_enhanced ....................   Passed    3.29 sec
+      Start 93: test_gumbel_enhanced
+62/74 Test #86: test_fisher_f_basic .....................   Passed    3.29 sec
+      Start 94: test_integration_workflow
+63/74 Test #87: test_fisher_f_enhanced ..................   Passed    3.39 sec
+      Start 95: test_copy_move_fix
+64/74 Test #88: test_inverse_gamma_basic ................   Passed    3.43 sec
+      Start 96: test_dynamic_linking
+65/74 Test #89: test_inverse_gamma_enhanced .............   Passed    3.41 sec
+      Start 97: test_gaussian_basic_dynamic
+66/74 Test #90: test_logistic_basic .....................   Passed    3.42 sec
+      Start 98: test_exponential_basic_dynamic
+67/74 Test #91: test_logistic_enhanced ..................   Passed    3.43 sec
+68/74 Test #92: test_gumbel_basic .......................   Passed    3.53 sec
+69/74 Test #93: test_gumbel_enhanced ....................   Passed    3.51 sec
+70/74 Test #94: test_integration_workflow ...............   Passed    3.58 sec
+71/74 Test #95: test_copy_move_fix ......................   Passed    3.49 sec
+72/74 Test #96: test_dynamic_linking ....................   Passed    4.79 sec
+73/74 Test #98: test_exponential_basic_dynamic ..........   Passed    3.99 sec
+74/74 Test #97: test_gaussian_basic_dynamic .............   Passed    4.38 sec
+
+100% tests passed out of 74
+
+Total Test time (real) =  31.81 sec

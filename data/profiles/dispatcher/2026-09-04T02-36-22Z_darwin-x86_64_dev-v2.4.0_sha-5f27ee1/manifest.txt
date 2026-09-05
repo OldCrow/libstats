@@ -12,8 +12,8 @@ Files:
 - sweep_kabylake.csv
 - analyze_crossovers.py
 - sustained_crossovers.txt
-- logs/correctness.log
-- logs/timing.log
+- logs/correctness.txt
+- logs/timing.txt
 
 Capture notes (differs from the capture_dispatcher_profile.sh bundles):
 - Captured directly via `build-release/tools/strategy_profile --large -o <csv>`,

@@ -1,0 +1,17 @@
+{
+  "captured_at_utc": "2026-09-04T23-51-14Z",
+  "run_id": "2026-09-04T23-51-14Z_darwin-x86_64_dev-v2.4.0_sha-919a857",
+  "git_branch": "dev/v2.4.0",
+  "git_sha": "919a857",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build-avx-cap",
+  "build_type": "Release",
+  "cmake_options": "LIBSTATS_MAX_SIMD_TIER=AVX",
+  "cxx_compiler": "/usr/bin/c++",
+  "os": "darwin",
+  "arch": "x86_64",
+  "simd_tier_capped": "AVX",
+  "cpu_brand": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}
