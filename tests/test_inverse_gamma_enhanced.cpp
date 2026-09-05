@@ -442,8 +442,9 @@ TEST_F(InverseGammaEnhancedTest, InfAndNaNContractBatch) {
             EXPECT_LT(relErr(lpdf_b[i], s_lpdf), kBatchUlpRelTol)
                 << "LogPDF batch != scalar i=" << i;
         }
-        else if (!std::isnan(s_lpdf))
+        else if (!std::isnan(s_lpdf)) {
             EXPECT_EQ(lpdf_b[i], s_lpdf) << "LogPDF batch != scalar (infinite) i=" << i;
+        }
 
         // The CDF is this class's own scalar kernel on every dispatch tier, so
         // batch and scalar must agree bit for bit.
