@@ -1,5 +1,10 @@
 # Derivation — double-precision NEON `sin(x)` / `cos(x)` (clean-room)
 
+> **Workspace-name mapping**: `SPEC.md` and `gen_coeffs.py` are clean-room
+> workspace files; the in-tree regenerators are
+> `scripts/gen_neon_trig_cleanroom_table.py` (NEON) and
+> `scripts/gen_trig_cleanroom_table.py` (x86 mirror).
+
 Date: 2026-07-19.
 Author: Claude (Fable 5), working solely from `SPEC.md` and the mathematics below.
 Everything here — algorithm structure, split constants, polynomial

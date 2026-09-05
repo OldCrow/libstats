@@ -91,7 +91,7 @@ Available preferences:
 
 | Hint | Meaning |
 |---|---|
-| `AUTO_SELECT` | Let libstats choose the strategy |
+| `AUTO` | Let libstats choose the strategy (default) |
 | `FORCE_SCALAR` | Use scalar loop |
 | `FORCE_VECTORIZED` | Use SIMD/vectorized path |
 | `FORCE_PARALLEL` | Use standard parallel path |
@@ -116,7 +116,7 @@ Thresholds live in:
 include/libstats/core/dispatch_thresholds.h
 ```
 
-These thresholds are architecture-specific. Performance results from AVX2, NEON, and AVX-512 systems should not be compared directly.
+These thresholds are architecture-specific. Performance results from AVX, AVX2, NEON, and AVX-512 systems should not be compared directly.
 
 ## Output storage
 
@@ -146,7 +146,7 @@ NaN handling is distribution-specific, but the base `getLogProbability(NaN)` def
 
 ## Parallel batch fitting
 
-Several distributions expose:
+All 27 distributions expose:
 
 ```cpp
 Distribution::parallelBatchFit(datasets, results);

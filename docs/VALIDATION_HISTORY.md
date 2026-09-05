@@ -9,6 +9,20 @@ git-cliff). For SIMD methodology, see `docs/SIMD_OPTIMIZATION_REFERENCE.md` and
 
 ## Validation matrices by release
 
+### v2.3.1 — validation matrix
+
+Correctness column = `ctest -LE "timing|benchmark"` (58 registered at v2.3.1).
+
+| Machine | SIMD | Correctness | Timing | Notes |
+|---|---|---|---|---|
+| Asus TUF A16 (Windows) | AVX-512 | 58/58 ✅ | — | Native, 2026-08-25, MSVC Release; timing suite not re-run (nothing in v2.3.1 touches kernels' hot paths — the NaN branches are never taken for finite data) |
+| Mac Mini M1 | NEON | 58/58 ✅ | 22/22 ✅ | Native, 2026-08-27/28, AppleClang Dev build; timing serial (`-j1`) after post-boot load settled to ~2.0; `isa=NEON` characterization block regenerated on the 6063-row grid (61 violations — 63 minus the two geometric #125 rows AArch64 saturation renders finite) |
+| Kaby Lake (2017 MBP) | AVX2+FMA | 58/58 ✅ | 22/22 ✅ | Native, 2026-08-26, AppleClang Dev build; timing serial (`-j1`) after machine settled below load 2.0; `isa=AVX2` characterization block regenerated on the 6063-row grid (63 violations, matching Zen 4) |
+
+The correctness count grew 53 → 58 with v2.3.1's five new gate binaries:
+`test_log_special_gates`, `test_batch_nan_gates`, `test_discrete_quantile_bounds`,
+`test_simd_dispatch_gates`, `test_parallel_exception_propagation`.
+
 ### v2.3.0 — validation matrix
 
 Carried here verbatim from `AGENTS.md` when v2.3.1 shipped.

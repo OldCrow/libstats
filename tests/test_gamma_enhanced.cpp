@@ -837,6 +837,92 @@ TEST_F(GammaEnhancedTest, NumericalStabilityAndEdgeCases) {
     std::cout << "  Edge case testing completed\n";
 }
 
+TEST_F(GammaEnhancedTest, InfinityAndNaNInputGates) {
+    // #103 contract gates for PDF/LogPDF at non-finite inputs, scalar and batch:
+    // pdf(±inf) = 0, logpdf(±inf) = -inf, NaN in → NaN out, scalar ≡ batch.
+    // Fail-first record: the unguarded log-space formula returns NaN at x = +inf
+    // for every alpha ≥ 1 (alpha = 1: 0·log(inf); alpha > 1: inf − inf), and the
+    // batch LogPDF fixup mapped x = -inf to the finite MIN_LOG_PROBABILITY clamp.
+    // alpha < 1 is the control case that was always correct via exp(-inf).
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    for (double alpha : {1.0, 2.5, 0.5}) {
+        auto d = stats::GammaDistribution::create(alpha, 1.5).unwrap();
+
+        // Scalar
+        EXPECT_EQ(d.getProbability(inf), 0.0) << "scalar pdf(+inf), alpha=" << alpha;
+        EXPECT_EQ(d.getProbability(-inf), 0.0) << "scalar pdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(d.getProbability(nan))) << "scalar pdf(NaN), alpha=" << alpha;
+        double lp_pos = d.getLogProbability(inf);
+        double lp_neg = d.getLogProbability(-inf);
+        EXPECT_TRUE(std::isinf(lp_pos) && lp_pos < 0) << "scalar logpdf(+inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isinf(lp_neg) && lp_neg < 0) << "scalar logpdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(d.getLogProbability(nan))) << "scalar logpdf(NaN), alpha=" << alpha;
+
+        // Batch: specials FIRST so wide SIMD tiers evaluate them in-vector
+        // (v2.3.0 review lesson), padded past the SIMD threshold with finite
+        // values; FORCE_VECTORIZED pins the strategy to the SIMD kernel path.
+        std::vector<double> values = {inf, -inf, nan, 0.5, 1.0, 2.0, 4.0, 8.0};
+        values.resize(64, 1.25);
+        std::vector<double> pdf(values.size()), logpdf(values.size());
+        detail::PerformanceHint hint;
+        hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+        d.getProbability(std::span<const double>(values), std::span<double>(pdf), hint);
+        d.getLogProbability(std::span<const double>(values), std::span<double>(logpdf), hint);
+
+        EXPECT_EQ(pdf[0], 0.0) << "batch pdf(+inf), alpha=" << alpha;
+        EXPECT_EQ(pdf[1], 0.0) << "batch pdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(pdf[2])) << "batch pdf(NaN), alpha=" << alpha;
+        EXPECT_TRUE(std::isinf(logpdf[0]) && logpdf[0] < 0)
+            << "batch logpdf(+inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isinf(logpdf[1]) && logpdf[1] < 0)
+            << "batch logpdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(logpdf[2])) << "batch logpdf(NaN), alpha=" << alpha;
+
+        // Batch CDF: the kernels' per-lane guards handled NaN and x ≤ 0 but
+        // let x = +inf through to gamma_p(α, +inf) = NaN (the v2.4.0 sweep's
+        // three gamma rows, copied into Erlang by delegation). Scalar was
+        // always guarded — the batch lane must agree with it.
+        std::vector<double> cdf(values.size());
+        d.getCumulativeProbability(std::span<const double>(values), std::span<double>(cdf), hint);
+        EXPECT_EQ(cdf[0], 1.0) << "batch cdf(+inf), alpha=" << alpha;
+        EXPECT_EQ(cdf[1], 0.0) << "batch cdf(-inf), alpha=" << alpha;
+        EXPECT_TRUE(std::isnan(cdf[2])) << "batch cdf(NaN), alpha=" << alpha;
+
+        // Finite lanes sharing a vector with the specials must match scalar.
+        for (std::size_t i = 3; i < 8; ++i) {
+            EXPECT_DOUBLE_EQ(pdf[i], d.getProbability(values[i]))
+                << "batch/scalar pdf mismatch at i=" << i << ", alpha=" << alpha;
+            EXPECT_DOUBLE_EQ(logpdf[i], d.getLogProbability(values[i]))
+                << "batch/scalar logpdf mismatch at i=" << i << ", alpha=" << alpha;
+            EXPECT_DOUBLE_EQ(cdf[i], d.getCumulativeProbability(values[i]))
+                << "batch/scalar cdf mismatch at i=" << i << ", alpha=" << alpha;
+        }
+    }
+}
+
+TEST_F(GammaEnhancedTest, ExtremeTailQuantileFinite) {
+    // #104 gate. For p < ~5.6e-17, 2p−1 rounds to exactly −1 and the
+    // Wilson–Hilferty seed's normal quantile is −inf, so the small-p
+    // asymptotic seed runs instead; computed as p·exp(lgamma(α+1)) it
+    // overflows for α ≳ 170 (lgamma(10001) ≈ 82100) and the solver
+    // escaped to +inf. Reference quantile: mpmath dps=60 findroot on
+    // log gammainc(α, 0, βx, regularized) = log p at the exact double p.
+    auto g = GammaDistribution::create(10000.0, 1e-3).unwrap();
+    const double q = g.getQuantile(1e-300);
+    ASSERT_TRUE(std::isfinite(q)) << "quantile(1e-300) not finite: " << q;
+    ASSERT_GT(q, 0.0);
+    EXPECT_NEAR(q / 6737687.1915903291, 1.0, 1e-9);
+    // The returned point really is deep in the lower tail…
+    EXPECT_LE(g.getCumulativeProbability(q), 1e-250);
+    // …and the deep tail stays monotone.
+    const double q200 = g.getQuantile(1e-200);
+    ASSERT_TRUE(std::isfinite(q200));
+    EXPECT_LE(q, q200);
+    EXPECT_LE(q200, g.getQuantile(0.5));
+}
+
 }  // namespace stats
 
 int main(int argc, char** argv) {

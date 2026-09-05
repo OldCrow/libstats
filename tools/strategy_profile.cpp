@@ -171,6 +171,14 @@ class StrategyProfiler {
         profile_geometric_distribution();
         profile_laplace_distribution();
         profile_cauchy_distribution();
+        profile_logistic_distribution();
+        profile_gumbel_distribution();
+        profile_half_normal_distribution();
+        profile_truncated_normal_distribution();
+        profile_bernoulli_distribution();
+        profile_erlang_distribution();
+        profile_fisher_f_distribution();
+        profile_inverse_gamma_distribution();
     }
 
     template <typename Distribution, typename Generator>
@@ -481,6 +489,117 @@ class StrategyProfiler {
         profile_distribution("Cauchy", cauchy, [this](std::size_t count) {
             std::vector<double> values(count);
             std::uniform_real_distribution<double> dist(-10.0, 10.0);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    // v2.4.0 distributions — all eight, matching the existing convention
+    // (Chi-squared, Geometric, and Cauchy above are delegation wrappers and
+    // have always been profiled): wrappers carry real end-to-end cost, and
+    // threshold_validator compares measured crossovers against the wrapper's
+    // own table rows. Names must match kDistributionMeta display names —
+    // that is how threshold_validator maps rows back to DistributionType.
+
+    void profile_logistic_distribution() {
+        // Logistic(mu=0, s=1): full real line, ~99.99% of mass within ±10s.
+        const auto logistic = stats::LogisticDistribution::create(ZERO_DOUBLE, ONE).unwrap();
+        profile_distribution("Logistic", logistic, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(-10.0, 10.0);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    void profile_gumbel_distribution() {
+        // Gumbel(mu=0, beta=1): right-skewed; cover the left wall and the
+        // heavy right tail.
+        const auto gumbel = stats::GumbelDistribution::create(ZERO_DOUBLE, ONE).unwrap();
+        profile_distribution("Gumbel", gumbel, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(-3.0, 10.0);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    void profile_half_normal_distribution() {
+        // HalfNormal(sigma=1): support [0, inf), mass below ~4 sigma.
+        const auto half_normal = stats::HalfNormalDistribution::create(ONE).unwrap();
+        profile_distribution("HalfNormal", half_normal, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(0.0, 4.0);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    void profile_truncated_normal_distribution() {
+        // TruncatedNormal(0, 1, -2, 2): straddling window — the CDF batch
+        // path runs the vector_erf chain with per-lane fixups. Inputs reach
+        // slightly past both bounds so the bound-clamp lanes are exercised,
+        // matching the Uniform profile's out-of-support convention.
+        const auto truncated =
+            stats::TruncatedNormalDistribution::create(ZERO_DOUBLE, ONE, -2.0, 2.0).unwrap();
+        profile_distribution("TruncatedNormal", truncated, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(-2.5, 2.5);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    void profile_bernoulli_distribution() {
+        // Bernoulli(p=0.5): delegates to Binomial(n=1); lattice inputs {0, 1}.
+        const auto bernoulli = stats::BernoulliDistribution::create(HALF).unwrap();
+        profile_distribution("Bernoulli", bernoulli, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_int_distribution<int> dist(0, 1);
+            for (auto& value : values)
+                value = static_cast<double>(dist(gen_));
+            return values;
+        });
+    }
+
+    void profile_erlang_distribution() {
+        // Erlang(k=2, lambda=1): pure pass-through over Gamma(2, 1) — same
+        // instance as the Gamma profile above, so the wrapper's overhead is
+        // directly readable by comparing the two sections.
+        const auto erlang = stats::ErlangDistribution::create(2, ONE).unwrap();
+        profile_distribution("Erlang", erlang, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::gamma_distribution<double> dist(2.0, 1.0);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    void profile_fisher_f_distribution() {
+        // F(d1=5, d2=10): support (0, inf), mass below ~5 at these dof.
+        const auto fisher_f = stats::FDistribution::create(5.0, 10.0).unwrap();
+        profile_distribution("FisherF", fisher_f, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(0.0, 5.0);
+            for (auto& value : values)
+                value = dist(gen_);
+            return values;
+        });
+    }
+
+    void profile_inverse_gamma_distribution() {
+        // InverseGamma(alpha=3, beta=2): support (0, inf), mode at 0.5,
+        // mass concentrated below ~4.
+        const auto inverse_gamma = stats::InverseGammaDistribution::create(3.0, 2.0).unwrap();
+        profile_distribution("InverseGamma", inverse_gamma, [this](std::size_t count) {
+            std::vector<double> values(count);
+            std::uniform_real_distribution<double> dist(0.05, 4.0);
             for (auto& value : values)
                 value = dist(gen_);
             return values;

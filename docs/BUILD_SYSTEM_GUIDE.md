@@ -9,7 +9,7 @@ libstats v2.x requires C++20 and the following minimum compilers:
 | Platform | Minimum compiler | Notes |
 |---|---|---|
 | macOS | AppleClang 15 | macOS 13 Ventura or newer |
-| Linux | GCC 13 or Clang 17 | GCC 14 also validated in CI |
+| Linux | GCC 13 or Clang 17 | CI exercises GCC 14 and Clang 17; GCC 13 is the CMake-enforced floor (AVX-512 compile workflow only) |
 | Windows | MSVC 19.38 | Visual Studio 2022 17.8 or newer |
 
 macOS builds use system AppleClang and Apple libc++. The v2.x build path does not support alternate LLVM toolchain setup.
@@ -53,6 +53,15 @@ cmake -B build -DLIBSTATS_ENABLE_RUNTIME_CHECKS=ON
 
 # Disable tools or tests
 cmake -B build -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF
+
+# Cap the highest compiled x86 SIMD tier (SSE2|AVX|AVX2|AVX512; empty = no cap).
+# Runtime dispatch normally picks the highest tier the CPU supports, so lower-tier
+# kernels never execute on capable hardware; a cap compiles the higher tiers OUT,
+# letting a lower tier run — and be validated or profiled — natively. Used for the
+# first native SSE2 run (exposed #74) and the measured kAvx table (2026-09-04
+# capped leg). Assert the active tier afterwards: system_inspector --quick, and
+# check the archive has no higher-tier vector_* kernel symbols.
+cmake -B build-avx-cap -DCMAKE_BUILD_TYPE=Release -DLIBSTATS_MAX_SIMD_TIER=AVX
 ```
 
 ## Target layout
@@ -114,7 +123,7 @@ Runtime dispatch still checks CPU capabilities before selecting SIMD paths.
 
 ## Threading detection
 
-Threading detection is unified in one CMake function and sets cache variables for:
+Threading detection lives in `cmake/Threading.cmake` (`detect_threading_systems()` plus `detect_tbb_unified()`) and sets cache variables for:
 
 - OpenMP
 - POSIX threads

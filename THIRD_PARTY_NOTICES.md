@@ -11,13 +11,14 @@ This project incorporates or derives work from the following third-party project
 **Usage**: Polynomial coefficients and range-reduction constants in the AVX
 vectorized `exp` and `log` implementations are derived from SLEEF.
 
-Affected file:
+Affected files:
 - `src/simd_avx.cpp` — AVX `vector_exp_avx` and `vector_log_avx`
   (SLEEF `xexp_u10`/`xlog_u1` polynomial coefficients and constants)
-
-`src/simd_avx2.cpp` and `src/simd_avx512.cpp` delegate their transcendental
-calls to the AVX implementation above and contain no additional SLEEF-derived
-code of their own.
+- `src/simd_avx2.cpp` — FMA-accelerated ports of the same SLEEF-derived
+  exp/log kernels (`vector_exp_avx2`, `vector_log_avx2` — SLEEF `xlog_u1`
+  coefficients, 2·atanh series)
+- `src/simd_avx512.cpp` — 512-bit ports of the same SLEEF-derived exp/log
+  kernels (`vector_exp_avx512`, `vector_log_avx512`)
 
 The NEON `vector_log_neon` (`src/simd_neon.cpp`), which previously carried the
 SLEEF `xlog_u1` coefficients via a port of the AVX2 kernel, was replaced
@@ -161,13 +162,41 @@ opinion.
 Functions*, National Bureau of Standards Applied Mathematics Series 55,
 1964. Public domain (US Government publication).
 
-**Usage**: The AVX vectorized `erf` approximation (`vector_erf_avx` in
-`src/simd_avx.cpp`) uses the rational polynomial from §7.1.26 with
-coefficients `p=0.3275911`, `a1..a5 = {0.254829592, -0.284496736,
-1.421413741, -1.453152027, 1.061405429}`. Maximum error: 1.5×10⁻⁷.
+**Usage**: Polynomial approximations from A&S are used in:
+- `include/libstats/core/bessel.h` — Bessel I₀/I₁ Tier 2 fallback
+  (§9.8.1–9.8.4 polynomial approximations)
+- `src/half_normal.cpp` — §26.2.23 rational approximation as the Newton
+  seed for the inverse normal CDF (|error| < 4.5e-4, refined to full
+  precision by iteration)
+
+Historical note: the x86 `vector_erf` kernels used the §7.1.26 rational
+polynomial (max error 1.5×10⁻⁷) until v1.5.0, when they were replaced by
+the musl-derived four-region kernels below. No §7.1.26 erf code ships.
 
 No license is required for public-domain material; attribution is included
 for scientific accuracy.
+
+---
+
+## musl libc / FreeBSD msun `s_erf.c` (origin: Sun Microsystems fdlibm)
+
+**Project**: https://musl.libc.org/ (algorithm lineage: Sun Microsystems
+fdlibm via FreeBSD msun)
+**License**: MIT (musl); the underlying fdlibm code carries Sun's permissive
+notice ("Permission to use, copy, modify, and distribute this software is
+freely granted, provided that this notice is preserved.")
+
+**Usage**: The four-region rational-polynomial `erf` derivation (< 1 ULP)
+in all four x86 SIMD tiers:
+- `src/simd_avx.cpp` — `vector_erf_avx` (four-region rational polynomial
+  derived from musl libc `erf.c`)
+- `src/simd_sse2.cpp` — `vector_erf_sse2` (`__m128d` port, same coefficients)
+- `src/simd_avx2.cpp` — `vector_erf_avx2` (FMA-native port)
+- `src/simd_avx512.cpp` — `vector_erf_avx512` (512-bit port)
+
+The NEON `vector_erf_neon` does NOT derive from this lineage — it is the
+independent clean-room table kernel of Issue #67 (see
+`docs/NEON_ERF_DERIVATION.md`).
 
 ---
 

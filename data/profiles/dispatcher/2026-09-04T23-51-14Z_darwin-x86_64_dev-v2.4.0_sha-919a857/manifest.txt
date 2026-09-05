@@ -1,0 +1,39 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-09-04T23-51-14Z_darwin-x86_64_dev-v2.4.0_sha-919a857
+Captured at (UTC): 2026-09-04T23-51-14Z
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- logs/configure.txt
+- logs/correctness.txt
+- logs/tier.txt
+
+Capture notes:
+- CAPPED-BUILD kAvx measurement: Release with LIBSTATS_MAX_SIMD_TIER=AVX
+  (build-avx-cap/), so AVX2/AVX512 are compiled out and runtime dispatch
+  tops out at the AVX tier — on Kaby Lake i7-7820HQ silicon, since the
+  fleet's AVX-only machine (2012 MBP, Ivy Bridge i7-3820QM) is retired.
+  Both are 4-core/8-thread mobile quads, so the machine class matches;
+  still, read these as "AVX code paths on Kaby Lake", not Ivy Bridge
+  numbers.
+- Tier asserted before profiling (logs/tier.txt): system_inspector active
+  tier AVX; libstats.a carries zero vector_*_avx2 kernel symbols (only
+  supports_avx2() and the constexpr kAvx2 data table). logs/configure.txt
+  has the cap line ("capped at AVX ... disabled: AVX2").
+- Three sequential quiet-machine `strategy_profile --large -o <csv>` runs
+  (loads before runs 2-3 are residual from the preceding run), captured
+  directly rather than via capture_dispatcher_profile.sh — see #146 for
+  the tooling consolidation.
+- Crossovers read with the SUSTAINED V->P rule (analyze_crossovers.py;
+  sustained_crossovers.txt is the per-run extraction). The kAvx table
+  update derived from this bundle replaces the June inference table
+  (kAvx2/2) wholesale — first measured kAvx values ever.
+- logs/correctness.txt: 74/74 on the capped build — first native
+  AVX-tier correctness validation since the 2012 MBP retired.

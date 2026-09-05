@@ -9,6 +9,10 @@ This document lists algorithmic references used by libstats.
 - Agner Fog. *Optimizing software in C++* and instruction tables for SIMD performance analysis.
 - Abramowitz, M. and Stegun, I. A. (1964). *Handbook of Mathematical Functions*. Used for several classical approximations and special-function references.
 
+- ARM optimized-routines (MIT): https://github.com/ARM-software/optimized-routines —
+  acknowledged source of the NEON `vector_exp` table-kernel design and the
+  comparison target of the NEON divergence audits.
+
 ## Statistical inference
 
 - Hosking, J. R. M. (1990). "L-moments: Analysis and estimation of distributions using linear combinations of order statistics." *Journal of the Royal Statistical Society: Series B*, 52(1), 105–124.
@@ -21,7 +25,7 @@ This document lists algorithmic references used by libstats.
 ## Distribution algorithms
 
 - Devroye, L. (1986). *Non-Uniform Random Variate Generation*. Springer.
-- Johnson, N. L., Kotz, S., and Balakrishnan, N. (1994–1997). *Continuous Univariate Distributions* and *Discrete Multivariate Distributions*.
+- Johnson, N. L., Kotz, S., and Balakrishnan, N. (1994–1997). *Continuous Univariate Distributions* and *Univariate Discrete Distributions*.
 - Press, W. H. et al. (2007). *Numerical Recipes: The Art of Scientific Computing*, 3rd ed.
 
 ## Parallelism and dispatch

@@ -10,7 +10,16 @@ Quick reference for the actively useful tools in `tools/`.
 
 ### SIMD and performance validation
 - `simd_verification` — validate SIMD correctness and measure speedups across distributions
-- `strategy_profile` — canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes
+- `strategy_profile` — canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes (flags: `-l/--large`, `-o/--output-csv PATH`; there is no `--runs` — that belongs to the capture script)
+- `accuracy_sweep` — deterministic bit-exact accuracy sweep over all 27 distributions (CSV consumed by `accuracy_vs_mpmath.py`)
+- `threshold_validator` — compares measured crossovers against `dispatch_thresholds.h` (first-crossing heuristic — read with the sustained-crossover rule instead; #146)
+- `quantile_accuracy` — quantile accuracy probe
+- `toctou_validator` — TOCTOU validation for the cache/dispatch fast paths
+- `copy_move_stress` — concurrent copy/move stress over all 27 distributions (replaced `test_copy_move_stress.cpp`)
+- `parameter_recovery_benchmark` — MLE parameter-recovery benchmark
+- `gather_throughput_probe`, `neon_table_transcendental_probe` — SIMD design probes (#33-era, kept for re-measurement)
+- `accuracy_vs_mpmath.py` — the mpmath accuracy oracle (run with a python that has mpmath; regenerates the ACCURACY_CHARACTERIZATION generated blocks)
+- `math_cache_benchmark.py` — math-cache micro-benchmark
 - `parallel_batch_fitting_benchmark` — benchmark batch fitting behavior across distributions
 - `parallel_correctness_verification` — validate batch correctness under parallel execution
 

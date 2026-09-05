@@ -37,10 +37,18 @@
 #include "libstats/distributions/laplace.h"
 #include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/negative_binomial.h"
+#include "libstats/distributions/bernoulli.h"
+#include "libstats/distributions/erlang.h"
+#include "libstats/distributions/fisher_f.h"
+#include "libstats/distributions/gumbel.h"
+#include "libstats/distributions/half_normal.h"
+#include "libstats/distributions/inverse_gamma.h"
+#include "libstats/distributions/logistic.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
 #include "libstats/distributions/rayleigh.h"
 #include "libstats/distributions/student_t.h"
+#include "libstats/distributions/truncated_normal.h"
 #include "libstats/distributions/uniform.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/distributions/weibull.h"
@@ -308,6 +316,70 @@ StressResult stress_cauchy(int dur, int nt) {
     }, dur, nt);
 }
 
+StressResult stress_logistic(int dur, int nt) {
+    return run_stress<LogisticDistribution>([](int t) {
+        return std::make_pair(
+            LogisticDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+            LogisticDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
+    }, dur, nt);
+}
+
+StressResult stress_gumbel(int dur, int nt) {
+    return run_stress<GumbelDistribution>([](int t) {
+        return std::make_pair(
+            GumbelDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+            GumbelDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
+    }, dur, nt);
+}
+
+StressResult stress_bernoulli(int dur, int nt) {
+    return run_stress<BernoulliDistribution>([](int t) {
+        return std::make_pair(
+            BernoulliDistribution::create(0.2 + (t % 500) * 0.001).unwrap(),
+            BernoulliDistribution::create(0.5 + (t % 400) * 0.001).unwrap());
+    }, dur, nt);
+}
+
+StressResult stress_erlang(int dur, int nt) {
+    return run_stress<ErlangDistribution>([](int t) {
+        return std::make_pair(
+            ErlangDistribution::create(2 + t % 5, 1.0 + t * 0.001).unwrap(),
+            ErlangDistribution::create(3 + t % 4, 0.5 + t * 0.001).unwrap());
+    }, dur, nt);
+}
+
+StressResult stress_fisher_f(int dur, int nt) {
+    return run_stress<FDistribution>([](int t) {
+        return std::make_pair(
+            FDistribution::create(3.0 + t * 0.001, 5.0).unwrap(),
+            FDistribution::create(8.0 + t * 0.001, 10.0).unwrap());
+    }, dur, nt);
+}
+
+StressResult stress_inverse_gamma(int dur, int nt) {
+    return run_stress<InverseGammaDistribution>([](int t) {
+        return std::make_pair(
+            InverseGammaDistribution::create(2.0 + t * 0.001, 1.0).unwrap(),
+            InverseGammaDistribution::create(3.0 + t * 0.001, 2.0).unwrap());
+    }, dur, nt);
+}
+
+StressResult stress_half_normal(int dur, int nt) {
+    return run_stress<HalfNormalDistribution>([](int t) {
+        return std::make_pair(
+            HalfNormalDistribution::create(1.0 + t * 0.001).unwrap(),
+            HalfNormalDistribution::create(2.0 + t * 0.001).unwrap());
+    }, dur, nt);
+}
+
+StressResult stress_truncated_normal(int dur, int nt) {
+    return run_stress<TruncatedNormalDistribution>([](int t) {
+        return std::make_pair(
+            TruncatedNormalDistribution::create(0.0, 1.0 + t * 0.001, -2.0, 3.0).unwrap(),
+            TruncatedNormalDistribution::create(1.0, 0.5 + t * 0.001, 0.0, 4.0).unwrap());
+    }, dur, nt);
+}
+
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
 struct Entry {
@@ -336,6 +408,14 @@ std::vector<Entry> build_registry() {
         {"Geometric",        stress_geometric},
         {"Laplace",          stress_laplace},
         {"Cauchy",           stress_cauchy},
+        {"Logistic",         stress_logistic},
+        {"Gumbel",           stress_gumbel},
+        {"Bernoulli",        stress_bernoulli},
+        {"Erlang",           stress_erlang},
+        {"FisherF",          stress_fisher_f},
+        {"InverseGamma",     stress_inverse_gamma},
+        {"HalfNormal",       stress_half_normal},
+        {"TruncatedNormal",  stress_truncated_normal},
     };
 }
 

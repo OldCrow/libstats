@@ -161,7 +161,7 @@
   <text x="216" y="476" text-anchor="middle" font-size="10" fill="#8a7a10">informationCriteria · bootstrapMeanCI · kFoldCrossValidation</text>
 
   <rect x="444" y="432" width="400" height="52" rx="4" fill="#FAFAF0" stroke="#b8a830" stroke-width="0.5"/>
-  <text x="644" y="450" text-anchor="middle" font-size="12" font-weight="500" fill="#6b5e00">stats::analysis::gaussian (+ 15 per-distribution namespaces)</text>
+  <text x="644" y="450" text-anchor="middle" font-size="12" font-weight="500" fill="#6b5e00">stats::analysis::gaussian (+ per-distribution namespaces)</text>
   <text x="644" y="464" text-anchor="middle" font-size="10" fill="#8a7a10">shapiroWilkTest · jarqueBeraTest · oneSampleTTest</text>
   <text x="644" y="476" text-anchor="middle" font-size="10" fill="#8a7a10">confidenceIntervalMean · confidenceIntervalVariance</text>
 

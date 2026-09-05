@@ -58,9 +58,9 @@ crossover, which the Step 2 rule clamps to the minimum encodable threshold
 timer granularity, not an actual performance advantage at that batch size.
 
 **The grid floor requirement**: the profiler's measurement grid must start at
-no lower than 64 elements.  The `capture_dispatcher_profile.sh` script
-enforces this.  Do not add sub-64 batch sizes to `strategy_profile.cpp`'s
-measurement grid.
+no lower than 64 elements.  The grid lives in `strategy_profile.cpp`
+(`initialize_batch_sizes`), which is what enforces this.  Do not add sub-64
+batch sizes to it.
 
 **Effect on historical data**: the kNeon table encoded from sha-2904d63
 bundles (2026-06-22) used a grid starting at 8 elements.  Approximately 12
@@ -152,15 +152,15 @@ bash scripts/capture_dispatcher_profile.sh --sleep 0
 
 ### Windows (PowerShell)
 
-The Bash script has a PS1 translation guide embedded in its header comments.
-Generate `scripts/capture_dispatcher_profile.ps1` by following those comments.
+`scripts/capture_dispatcher_profile.ps1` is the maintained PS1 translation
+(originally generated from the Bash script's header-comment guide).
 Key differences:
 - `.exe` suffix on tool binaries
 - `python` instead of `python3`
 - `(Get-Date).ToUniversalTime().ToString(...)` for timestamps
 - `Copy-Item -Recurse` instead of `cp -R`
 
-The script automatically commits bundles to `data/profiles/dispatcher/`.
+The script copies bundles into `data/profiles/dispatcher/` (it does NOT git-commit them).
 **Commit the bundles before deriving the table** so the raw data is always
 available for re-analysis.
 
@@ -198,6 +198,23 @@ else:
 > (e.g., GCD put all 500k elements on the calling thread).  Treat as NEVER.
 
 ---
+
+### Amendment 2026-09-04 — sustained-crossover extraction (supersedes the V2P read above)
+
+The v2.4.0 recalibrations (kAvx512/kAvx2/kNeon/kAvx, bundles of
+2026-09-03/04) replaced the V2P-column read with the **sustained
+crossover**: the smallest batch size at which PARALLEL beats VECTORIZED
+*at that size and at every larger size in the grid*; NEVER when no such
+suffix exists. The BEST-at-max guard above is necessary but not
+sufficient — it still encodes a threshold from an early transient win
+that reverses through the mid-range (observed as 64-element noise ties
+in `threshold_validator` output), whereas the sustained rule cannot.
+Multi-run combination stays per Step 3, read on the sustained values
+(the v2.4.0 legs used median-of-3 with a conservative max pick when the
+spread exceeds 2×, plus the sub-64 clamp). Reference implementation:
+`analyze_crossovers.py` inside the v2.4.0 bundles; #146 tracks folding
+this rule into `threshold_validator` so the extraction is tool-enforced
+rather than script-copied.
 
 ## Step 3 — Three-run aggregation
 
@@ -316,10 +333,10 @@ constexpr ArchTable kArch = {
 
 | SIMD tier | Machine | Status |
 |---|---|---|
-| AVX2+FMA (kAvx2) | Kaby Lake i7-7820HQ | ✅ current (3-run --large, sha-1b564ec; full recalibration from sha-1b564ec bundles) |
-| NEON (kNeon)     | Mac Mini M1         | ✅ current (3-run --large, 641bf62; Geometric/Laplace/Cauchy + full recalibration) |
-| AVX-512 (kAvx512)| Asus TUF A16 Zen 4  | ✅ current (3-run --large, canonical method, 1b564ec; covers Geometric/Laplace/Cauchy) |
-| AVX (kAvx)       | Ivy Bridge (retired) | ⚠ hardware gone; values inferred from kAvx2 trends |
+| AVX2+FMA (kAvx2) | Kaby Lake i7-7820HQ | ✅ current (2026-09-03/04 native re-measure post-#143, sustained crossovers, bundle 2026-09-04T02-36-22Z, 7c2ca49) |
+| NEON (kNeon)     | Mac Mini M1         | ✅ current (2026-09-04 native re-measure post-#143, bundle 2026-09-04T04-22-28Z, 5f9bb5e) |
+| AVX-512 (kAvx512)| Asus TUF A16 Zen 4  | ✅ current (2026-09-03 native re-measure post-#143, PR #143; von Mises CDF cell still provisional — #144) |
+| AVX (kAvx)       | Kaby Lake, capped build | ✅ MEASURED for the first time 2026-09-04 (`LIBSTATS_MAX_SIMD_TIER=AVX`, bundle 2026-09-04T23-51-14Z, cb13f34) — no longer inferred |
 | SSE2 (kSse2)     | no dedicated hardware | delegates to kAvx by design |
 
 ---
@@ -340,8 +357,14 @@ PowerShell 5.x which lacks the `utf8NoBOM` encoding identifier.
 
 ## Known issues with historical bundles
 
-*No outstanding issues.  All active bundles contain the full set of required
-files.*  Resolved issues are recorded below for reference.
+*The "required files" set is bundle-class dependent since v2.4.0*: the
+June harness bundles carry the full `capture_dispatcher_profile.sh` layout
+(crossovers.csv / best_strategies.csv / summary.json), while the three
+v2.4.0 bundles (2026-09-04T*) were captured directly via
+`strategy_profile -o` and instead carry raw per-run CSVs +
+`analyze_crossovers.py` + `sustained_crossovers.txt` (see
+`data/profiles/dispatcher/README.md`; #146 consolidates the tooling).
+Resolved issues are recorded below for reference.
 
 **kAvx512 (Windows, 2026-06-22):** Three bundles under
 `2026-06-22T02-*_sha-9b2c1a3` contained only `strategy_profile_output.txt`

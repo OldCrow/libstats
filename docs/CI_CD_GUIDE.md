@@ -17,24 +17,34 @@ CI does not replace release validation on real SIMD hardware. GitHub-hosted runn
 
 ## Supported CI baseline
 
-The v2.x baseline is:
+The v2.x build matrix (ci.yml) is four legs, all Release — Debug legs were
+deliberately dropped:
 
 | Platform | Compiler | Build | Purpose |
 |---|---|---|---|
-| Ubuntu latest | GCC 13 | Debug | Minimum Linux compiler baseline |
 | Ubuntu latest | GCC 14 | Release | Current stable GCC |
 | Ubuntu latest | Clang 17 | Release | Minimum Clang baseline |
-| macOS 15 | AppleClang 15+ | Release | macOS Ventura+ baseline |
-| Windows latest | MSVC 19.38+ | Debug | Debug CRT and DLL validation |
+| macOS 15 | AppleClang | Release | macOS baseline |
 | Windows latest | MSVC 19.38+ | Release | Production Windows validation |
 
-The project requires C++20. Do not reintroduce matrix entries below the baseline unless a maintenance branch explicitly needs them.
+GCC 13 is the CMake-enforced minimum but is exercised only by the AVX-512
+compilation workflow, not the main matrix. The project requires C++20. Do
+not reintroduce matrix entries below the baseline unless a maintenance
+branch explicitly needs them.
 
 ## Workflows
 
-### Main CI workflow
+### Main CI workflow (`ci.yml`)
 
-The main workflow runs on pull requests and pushes to supported branches. It builds the library, runs the correctness suite, and executes code-quality checks.
+Runs on pull requests and pushes to supported branches (doc-only changes are
+skipped via `paths-ignore: ['**.md', 'docs/**', 'LICENSE']` — note that on
+pull_request events the filter applies to the PR's full changed-file set),
+plus a monthly scheduled canary that catches runner-image/toolchain drift.
+Beyond the build matrix and correctness suite it runs: code-quality checks,
+Strict warnings (Linux, `-Werror`), Sanitizers (ASan/UBSan), a Ninja
+generator configure, an export-stability-across-reconfigure job (the #90
+class), coverage, and an install + `consumer_example` + pkg-config
+consumption job.
 
 Correctness tests should exclude timing-sensitive labels:
 
@@ -46,11 +56,11 @@ ctest --test-dir build --output-on-failure -LE "timing|benchmark"
 
 The AVX-512 workflow checks that AVX-512 sources compile with toolchains that support AVX-512 flags. GitHub-hosted runners do not guarantee AVX-512 hardware, so this workflow is a compile-time validation, not a runtime performance validation.
 
-Keep AVX-512 workflow triggers narrow:
-
-- `main`
-- `release/*`
-- pull requests that touch SIMD sources or CMake SIMD detection
+It triggers on pushes/PRs to main (doc-only changes excluded via
+paths-ignore) plus a monthly scheduled canary. A separate runtime workflow
+(`avx512-testing.yml`) builds AND runs the suite, gated on the
+`avx512-test` PR label; `docs.yml` builds documentation and
+`lint-workflows.yml` lints the workflows themselves (actionlint/zizmor).
 
 ## Local reproduction
 

@@ -25,8 +25,8 @@ overlap — the contract is now documented and debug-asserted.
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
 [![CMake](https://img.shields.io/badge/CMake-3.25%2B-blue.svg)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#safety-features)
-[![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#performance-features)
+[![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#-safety--numerical-stability)
+[![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#-performance-features)
 
 A modern C++20 statistical distributions library demonstrating how to build statistical software correctly — with genuine SIMD vectorization, parallel dispatch, thread safety, and zero external dependencies.
 
@@ -41,20 +41,22 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
 - **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
-### 📊 **Available Distributions** (19 across 7 families)
+### 📊 **Available Distributions** (27 across 7 families)
 
 **Symmetric, unbounded continuous**
-- Gaussian (Normal) N(μ, σ²) · Student's t t(ν)
+- Gaussian (Normal) N(μ, σ²) · Student's t t(ν) · Logistic L(μ, s)
 
 **Positive-support continuous** (x ≥ 0)
 - Exponential Exp(λ) · Gamma Γ(α, β) · Chi-squared χ²(ν)
 - Log-Normal LogN(μ, σ) · Weibull W(k, λ) · Rayleigh R(σ)
+- Erlang Erl(k, λ) · Inverse-Gamma IG(α, β) · Fisher F F(d₁, d₂)
+- Half-Normal HN(σ)
 
 **Heavy-tailed / power-law** (x ≥ x_m)
 - Pareto Pareto(x_m, α)
 
 **Bounded continuous**
-- Uniform U(a, b) · Beta Beta(α, β)
+- Uniform U(a, b) · Beta Beta(α, β) · Truncated Normal TN(μ, σ, a, b)
 
 **Circular / directional**
 - Von Mises VM(μ, κ)
@@ -62,9 +64,10 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 **Discrete**
 - Poisson P(λ) · Discrete (integer range)
 - Binomial B(n, p) · Negative Binomial NB(r, p) · Geometric Geo(p)
+- Bernoulli Bern(p)
 
-**Heavy-tailed / real-line continuous**
-- Laplace Laplace(μ, b) · Cauchy Cauchy(x₀, γ)
+**Real-line continuous (asymmetric / heavy-tailed)**
+- Laplace Laplace(μ, b) · Cauchy Cauchy(x₀, γ) · Gumbel G(μ, β)
 
 ### ⚡ **Modern C++20 Design**
 - **Thread-Safe**: Concurrent read access with safe cache management
@@ -94,7 +97,7 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **C++20 Parallel Algorithms**: Safe wrappers for `std::execution` policies
 - **Cache Optimization**: Thread-safe caching with lock-free fast paths
 
-**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/AVX-512/NEON instruction sets with runtime safety verification. Validated on Intel (Ivy Bridge/Kaby Lake), Apple Silicon (M1/NEON), AMD Ryzen Zen 4 (AVX-512), and Linux CI.
+**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/AVX-512/NEON instruction sets with runtime safety verification. Validated on Intel Kaby Lake (AVX2+FMA natively; the AVX tier via a `LIBSTATS_MAX_SIMD_TIER=AVX` capped build), Apple Silicon (M1/NEON), AMD Ryzen Zen 4 (AVX-512), and Linux CI.
 
 ## Quick Start
 
@@ -174,7 +177,7 @@ libstats/
 
 ### 🎯 **Statistical Completeness**
 - PDF, CDF, quantiles, parameter estimation, and validation
-- 19 distributions across 7 families (symmetric, positive-support, power-law, bounded, circular, discrete, real-line)
+- 27 distributions across 7 families (symmetric, positive-support, power-law, bounded, circular, discrete, real-line)
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
@@ -211,7 +214,7 @@ libstats/
 ### 📚 **Examples** (`examples/` directory)
 - `quick_start_tutorial.cpp` - 5-minute introduction to the core API
 - `basic_usage.cpp` - End-to-end usage of creation, evaluation, sampling, fitting, and batch APIs
-- `distribution_families_demo.cpp` - The 19 distributions organized by family: what each models, when to use it, and how to choose within a family
+- `distribution_families_demo.cpp` - All 27 distributions organized by family: what each models, when to use it, and how to choose within a family
 - `statistical_validation_demo.cpp` - Goodness-of-fit tests, cross-validation, bootstrap CIs, and model selection
 - `parallel_execution_demo.cpp` - Batch-processing and dispatch workflow
 
@@ -226,7 +229,7 @@ libstats/
 
 ```bash
 # Correctness suite — parallel-safe, always reliable
-make run_tests                           # or: ctest -LE "timing|benchmark"
+ctest -LE "timing|benchmark"             # 74 tests; make run_tests runs a further-filtered 67-test subset
 
 # Timing/speedup tests — run serially for accurate results
 make run_tests_timing                    # or: ctest -j1 -L timing
@@ -241,7 +244,7 @@ make run_all_tests
 ctest -R test_gaussian_basic
 ```
 
-Tests are labelled: **no label** = correctness (parallel-safe); **timing** = speedup assertions (run serially); **benchmark** = performance tools (not in standard suite). The `*_enhanced` GTest tests require GTest installed; they are silently skipped when GTest is absent.
+Tests are labelled: **no label** = correctness (parallel-safe); **timing** = speedup assertions (run serially); **benchmark** = performance tools (not in standard suite). The `*_enhanced` GTest tests use the system GTest when present and otherwise fetch googletest automatically (FetchContent), so they always build.
 
 ### System Requirements
 - **C++20 compatible compiler**: GCC 13+, Clang 17+, AppleClang 15+, MSVC 19.38+
@@ -303,7 +306,7 @@ In your project's `CMakeLists.txt`:
 
 ```cmake
 find_package(libstats REQUIRED)
-target_link_libraries(your_target PRIVATE libstats::static)
+target_link_libraries(your_target PRIVATE libstats::libstats_static)
 ```
 
 Configure with `-DCMAKE_PREFIX_PATH=/path/to/install`.
@@ -337,15 +340,19 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.3.1 is released. v1.5.3 was the final v1.x release.
+v2.4.0 (on `dev/v2.4.0`) adds eight distributions — Logistic, Gumbel,
+Half-Normal, Truncated Normal, Bernoulli, Erlang, Fisher F, and
+Inverse-Gamma — with per-tier dispatch thresholds recalibrated from
+native profiling on all three fleet machines. v2.3.1 is the latest
+tagged release; v1.5.3 was the final v1.x release.
 
-**19 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
+**27 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
 - Span-based SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds
 - Thread-safe with reader-writer locks and lock-free atomic fast paths
 
-**Validated on four architectures:** Intel Ivy Bridge/AVX, Intel Kaby Lake/AVX2+FMA, Apple Silicon M1/NEON, AMD Zen 4/AVX-512. 61/61 SIMD verification tests pass on all four machines.
+**Validated on four SIMD tiers:** AVX (capped build on Kaby Lake — the Ivy Bridge machine is retired), AVX2+FMA (Kaby Lake), NEON (Apple M1), AVX-512 (AMD Zen 4). 70/70 SIMD verification tests pass on every fleet machine.
 
 For the full release history, see [CHANGELOG.md](CHANGELOG.md).
 

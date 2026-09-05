@@ -340,27 +340,13 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  */
 [[nodiscard]] double inverse_normal_cdf(double p) noexcept;
 
-/**
- * @brief F-distribution CDF
- * @param x value (x >= 0)
- * @param df1 numerator degrees of freedom (df1 > 0)
- * @param df2 denominator degrees of freedom (df2 > 0)
- * @return P(F <= x) where F ~ F(df1, df2)
- */
-[[nodiscard]] double f_cdf(double x, double df1, double df2) noexcept;
-
-/**
- * @brief Inverse F-distribution CDF (quantile function)
- * @param p probability value in (0, 1)
- * @param df1 numerator degrees of freedom (df1 > 0)
- * @param df2 denominator degrees of freedom (df2 > 0)
- * @return x such that P(F <= x) = p where F ~ F(df1, df2)
- */
-// DEFERRED: inverse_f_cdf
-// Forward-looking stub for the F-distribution quantile function.
-// Will be called by FDistribution::getQuantile() once an F-distribution is
-// implemented. Currently has no callers.
-[[nodiscard]] double inverse_f_cdf(double p, double df1, double df2) noexcept;
+// REMOVED in v2.4.0: f_cdf / inverse_f_cdf. They were forward-looking stubs
+// pre-staged for an F distribution; FDistribution (#56) ships its own
+// tail-steered CDF/quantile (small-side incomplete-beta argument, survival
+// form) and deliberately does not use them. The stubs formed 1-y by
+// subtraction and inverted through an absolute-tolerance Newton, so keeping
+// them beside the correct implementation was a misuse trap. Zero callers at
+// removal.
 
 /**
  * @brief Gamma distribution CDF

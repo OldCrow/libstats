@@ -617,17 +617,11 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 iss2 = d.invSigmaSqrt2_;
             });
             constexpr std::size_t CHUNK = 1024;
-            if (arch::should_use_parallel(count)) {
-                const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-                ParallelUtils::parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                    const std::size_t start = ci * CHUNK;
-                    const std::size_t len = std::min(CHUNK, count - start);
-                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
-                                                              res.data() + start, len, mu, iss2);
-                });
-            } else {
-                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, mu, iss2);
-            }
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
+                                                               std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, mu, iss2);
+            });
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -643,10 +637,7 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 iss2 = d.invSigmaSqrt2_;
             });
             constexpr std::size_t CHUNK = 1024;
-            const std::size_t num_chunks = (count + CHUNK - 1) / CHUNK;
-            pool.parallelFor(std::size_t{0}, num_chunks, [&](std::size_t ci) {
-                const std::size_t start = ci * CHUNK;
-                const std::size_t len = std::min(CHUNK, count - start);
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
                                                           len, mu, iss2);
             });

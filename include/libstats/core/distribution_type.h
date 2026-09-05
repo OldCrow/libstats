@@ -46,6 +46,15 @@ enum class DistributionType : uint8_t {
     GEOMETRIC,  ///< Geometric distribution (delegates to NegativeBinomial with r=1)
     LAPLACE,    ///< Laplace (double-exponential) distribution
     CAUCHY,     ///< Cauchy distribution (delegates to StudentT with ν=1)
+    // --- v2.4.0 additions (append only; existing values must never change) ---
+    LOGISTIC,          ///< Logistic distribution
+    GUMBEL,            ///< Gumbel (Type I extreme-value, max-stable) distribution
+    BERNOULLI,         ///< Bernoulli distribution (delegates to Binomial with n=1)
+    ERLANG,            ///< Erlang distribution (delegates to Gamma with integer shape)
+    FISHER_F,          ///< F (Fisher–Snedecor) distribution (delegates to Beta)
+    INVERSE_GAMMA,     ///< Inverse Gamma distribution (delegates to Gamma via x → 1/x)
+    HALF_NORMAL,       ///< Half-Normal distribution
+    TRUNCATED_NORMAL,  ///< Truncated Normal distribution (renormalized Gaussian)
 };
 
 }  // namespace detail

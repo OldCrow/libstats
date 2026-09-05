@@ -157,22 +157,30 @@
     #include "core/performance_dispatcher.h"
 
     // Distribution implementations
+    #include "distributions/bernoulli.h"
     #include "distributions/beta.h"
     #include "distributions/binomial.h"
     #include "distributions/cauchy.h"
     #include "distributions/chi_squared.h"
     #include "distributions/discrete.h"
+    #include "distributions/erlang.h"
     #include "distributions/exponential.h"
+    #include "distributions/fisher_f.h"
     #include "distributions/gamma.h"
     #include "distributions/gaussian.h"
+    #include "distributions/inverse_gamma.h"
     #include "distributions/geometric.h"
+    #include "distributions/gumbel.h"
+    #include "distributions/half_normal.h"
     #include "distributions/laplace.h"
+    #include "distributions/logistic.h"
     #include "distributions/lognormal.h"
     #include "distributions/negative_binomial.h"
     #include "distributions/pareto.h"
     #include "distributions/poisson.h"
     #include "distributions/rayleigh.h"
     #include "distributions/student_t.h"
+    #include "distributions/truncated_normal.h"
     #include "distributions/uniform.h"
     #include "distributions/von_mises.h"
     #include "distributions/weibull.h"
@@ -201,6 +209,14 @@ using Geometric = GeometricDistribution;
 using Laplace = LaplaceDistribution;
 using Cauchy = CauchyDistribution;
 using NegativeBinomial = NegativeBinomialDistribution;
+using Logistic = LogisticDistribution;
+using Gumbel = GumbelDistribution;
+using Bernoulli = BernoulliDistribution;
+using Erlang = ErlangDistribution;
+using FisherF = FDistribution;
+using InverseGamma = InverseGammaDistribution;
+using HalfNormal = HalfNormalDistribution;
+using TruncatedNormal = TruncatedNormalDistribution;
 }  // namespace stats
 #endif  // LIBSTATS_FULL_INTERFACE
 

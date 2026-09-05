@@ -11,6 +11,14 @@ Header checks should verify:
 - umbrella includes expose stable public APIs
 - private helpers remain in `stats::detail`
 
+## Python analysis tools
+
+Deeper header analysis lives in `tools/`: `header_analysis.py`,
+`header_dashboard.py`, `header_insights.py`,
+`header_optimization_analysis.py`, `header_optimization_summary.py`
+(run with python3 from the repo root). The commands below are the quick
+grep/cmake-level checks.
+
 ## Important commands
 
 ```bash

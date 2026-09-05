@@ -198,6 +198,46 @@ TEST_F(ChiSquaredEnhancedTest, SupportBoundaries) {
     EXPECT_NEAR(dist4_.getCumulativeProbability(1e6), 1.0, 1e-10);
 }
 
+TEST_F(ChiSquaredEnhancedTest, InfinityAndNaNInputGates) {
+    // #103 contract gates through the Gamma delegation: pdf(±inf) = 0,
+    // logpdf(±inf) = -inf, NaN in → NaN out, scalar and batch. Fail-first
+    // record: ChiSquared(k) delegates to Gamma(k/2, 0.5), whose unguarded
+    // log-space formula returned NaN at x = +inf for every alpha = k/2 ≥ 1,
+    // i.e. every k ≥ 2 (k = 2 is the 0·log(inf) case, k > 2 the inf − inf case).
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    for (double k : {2.0, 4.0}) {
+        auto d = ChiSquaredDistribution::create(k).unwrap();
+
+        EXPECT_EQ(d.getProbability(inf), 0.0) << "scalar pdf(+inf), k=" << k;
+        EXPECT_EQ(d.getProbability(-inf), 0.0) << "scalar pdf(-inf), k=" << k;
+        EXPECT_TRUE(std::isnan(d.getProbability(nan))) << "scalar pdf(NaN), k=" << k;
+        double lp_pos = d.getLogProbability(inf);
+        double lp_neg = d.getLogProbability(-inf);
+        EXPECT_TRUE(std::isinf(lp_pos) && lp_pos < 0) << "scalar logpdf(+inf), k=" << k;
+        EXPECT_TRUE(std::isinf(lp_neg) && lp_neg < 0) << "scalar logpdf(-inf), k=" << k;
+        EXPECT_TRUE(std::isnan(d.getLogProbability(nan))) << "scalar logpdf(NaN), k=" << k;
+
+        // Batch through the delegated span overloads; specials first, padded
+        // past the SIMD threshold, strategy pinned to the SIMD kernel path.
+        std::vector<double> values = {inf, -inf, nan, 1.0, 2.0, 4.0, 8.0, 16.0};
+        values.resize(64, 3.0);
+        std::vector<double> pdf(values.size()), logpdf(values.size());
+        detail::PerformanceHint hint;
+        hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+        d.getProbability(std::span<const double>(values), std::span<double>(pdf), hint);
+        d.getLogProbability(std::span<const double>(values), std::span<double>(logpdf), hint);
+
+        EXPECT_EQ(pdf[0], 0.0) << "batch pdf(+inf), k=" << k;
+        EXPECT_EQ(pdf[1], 0.0) << "batch pdf(-inf), k=" << k;
+        EXPECT_TRUE(std::isnan(pdf[2])) << "batch pdf(NaN), k=" << k;
+        EXPECT_TRUE(std::isinf(logpdf[0]) && logpdf[0] < 0) << "batch logpdf(+inf), k=" << k;
+        EXPECT_TRUE(std::isinf(logpdf[1]) && logpdf[1] < 0) << "batch logpdf(-inf), k=" << k;
+        EXPECT_TRUE(std::isnan(logpdf[2])) << "batch logpdf(NaN), k=" << k;
+    }
+}
+
 }  // namespace stats
 
 //==============================================================================

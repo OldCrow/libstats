@@ -6,24 +6,21 @@ libstats is a modern C++20 statistical distributions library built as a design a
 
 ## Current Status
 
-The library is at **v1.5.0** on `main`.
+The library is at **v2.3.1** on `main`, with **v2.4.0** in release endgame on
+`dev/v2.4.0` (27 distributions).
 
-Sixteen distributions are fully implemented across four target architectures:
+Twenty-seven distributions are fully implemented, all sharing a uniform API:
 
 - Gaussian, Exponential, Uniform, Poisson, Discrete, Gamma, Chi-squared, Student's t, Beta
-- Log-Normal, Pareto, Weibull, Rayleigh, Von Mises
-- Binomial, Negative Binomial
+- Log-Normal, Pareto, Weibull, Rayleigh, Von Mises, Logistic, Gumbel, Laplace, Cauchy
+- HalfNormal, TruncatedNormal, Erlang, InverseGamma, FisherF
+- Binomial, Negative Binomial, Geometric, Bernoulli
 
-All sixteen distributions share a uniform API.
-
-Cross-platform SIMD validation status (v1.5.0, 61/61 SIMD tests per machine):
-
-| Machine | SIMD | Correctness | simd_verification | PDF geomean | LogPDF geomean | CDF geomean |
-|---|---|---|---|---|---|---|
-| Ivy Bridge (2012 MBP) | AVX | 38/38 ✅ | 61/61 ✅ | 5.6x | 6.0x | 2.6x |
-| Kaby Lake (2017 MBP) | AVX2+FMA | 39/39 ✅ | 61/61 ✅ | 8.0x | 9.6x | 3.3x |
-| Mac Mini M1 | NEON | 39/39 ✅ | 61/61 ✅ | 5.9x | 7.3x | 3.1x |
-| Asus TUF A16 (Windows) | AVX-512 | 39/39 ✅ | 61/61 ✅ | 4.8x | 5.1x | 2.2x |
+The current per-machine validation matrix lives in AGENTS.md (74 correctness
+targets, 22 timing, 70/70 `simd_verification`); historical matrices are in
+`docs/VALIDATION_HISTORY.md`. Fleet coverage: Kaby Lake (AVX2+FMA natively,
+the AVX tier via a `LIBSTATS_MAX_SIMD_TIER=AVX` capped build), Mac Mini M1
+(NEON), Asus TUF A16 (AVX-512).
 
 ## Design Goals
 
@@ -66,19 +63,29 @@ The codebase is meant to be readable as well as usable. Architectural choices il
 
 ## Distribution Families
 
-The sixteen distributions span six statistical families.
+The twenty-seven distributions span seven statistical families.
 
 ### Symmetric, unbounded continuous
 - Gaussian
 - Student's t
+- Logistic
+- Laplace
+- Cauchy
+
+### Asymmetric, unbounded continuous
+- Gumbel (max-stable, `gumbel_r`)
 
 ### Positive-support continuous (x ≥ 0)
 - Exponential
 - Gamma
+- Erlang
 - Chi-squared
 - Log-Normal
 - Weibull
 - Rayleigh
+- HalfNormal
+- InverseGamma
+- FisherF
 
 ### Heavy-tailed / power-law (x ≥ x_m)
 - Pareto
@@ -86,6 +93,7 @@ The sixteen distributions span six statistical families.
 ### Bounded continuous
 - Uniform
 - Beta
+- TruncatedNormal (bounds per instance)
 
 ### Circular / directional
 - Von Mises
@@ -95,6 +103,8 @@ The sixteen distributions span six statistical families.
 - Discrete
 - Binomial
 - Negative Binomial
+- Geometric
+- Bernoulli
 
 ## Architecture
 
@@ -129,7 +139,7 @@ The library supports four execution strategies:
 - **PARALLEL** — multi-threaded execution for larger workloads
 - **WORK_STEALING** — dynamic load balancing for large or irregular workloads
 
-Strategy selection uses empirically-derived per-architecture thresholds (from profiling bundles across four machines) stored as a constexpr lookup table in `include/libstats/core/dispatch_thresholds.h`. Power users can override strategy selection explicitly via `getXxxWithStrategy()` variants.
+Strategy selection uses empirically-derived per-architecture thresholds (profiling bundles in `data/profiles/dispatcher/`) stored as a constexpr lookup table in `include/libstats/core/dispatch_thresholds.h`. Power users can override strategy selection explicitly by passing a `detail::PerformanceHint` to the span-based batch overloads (the v1.x `getXxxWithStrategy()` variants were removed in v2.0.0).
 
 ## Repository Structure
 
@@ -161,4 +171,4 @@ Validate correctness, SIMD behaviour, thresholds, and runtime capabilities:
 - `parallel_batch_fitting_benchmark` — parallel MLE performance analysis
 
 ### Test infrastructure
-All tests use GTest and are registered with CTest. Tests are labelled `timing` when they contain speedup assertions sensitive to CPU load; correctness tests carry no label and are safe to run in parallel (`ctest -j8 -LE timing`).
+All tests use GTest and are registered with CTest. Tests are labelled `timing` when they contain speedup assertions sensitive to CPU load; correctness tests carry no label and are safe to run in parallel (`ctest -j8 -LE "timing|benchmark"`).

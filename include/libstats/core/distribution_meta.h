@@ -89,6 +89,20 @@ inline constexpr DistributionMeta kDistributionMeta[] = {
      true},  // delegates to NegativeBinomial(r=1)
     {DistributionType::LAPLACE, "LAPLACE", "Laplace", false, false},
     {DistributionType::CAUCHY, "CAUCHY", "Cauchy", false, true},  // PDF/LogPDF only; CDF/Quantile closed-form (#48)
+    // v2.4.0 additions — scaffolded 2026-09-03 (#54–#57) -----------------------
+    {DistributionType::LOGISTIC, "LOGISTIC", "Logistic", false, false},
+    {DistributionType::GUMBEL, "GUMBEL", "Gumbel", false, false},
+    {DistributionType::BERNOULLI, "BERNOULLI", "Bernoulli", true,
+     true},  // delegates to Binomial(n=1)
+    {DistributionType::ERLANG, "ERLANG", "Erlang", false,
+     true},  // delegates to Gamma(k, λ) — libstats Gamma β is a RATE
+    {DistributionType::FISHER_F, "FISHER_F", "FisherF", false,
+     true},  // delegates to Beta(d₁/2, d₂/2) via x → d₁x/(d₁x+d₂)
+    {DistributionType::INVERSE_GAMMA, "INVERSE_GAMMA", "InverseGamma", false,
+     true},  // delegates to Gamma via x → 1/x (upper-tail complement)
+    {DistributionType::HALF_NORMAL, "HALF_NORMAL", "HalfNormal", false, false},
+    {DistributionType::TRUNCATED_NORMAL, "TRUNCATED_NORMAL", "TruncatedNormal", false,
+     true},  // renormalized internal Gaussian
 };
 
 /// Number of defined distribution types (= std::size(kDistributionMeta)).
@@ -115,10 +129,10 @@ static_assert(validateMetaOrdering(),
               "used as array indices and any reordering silently corrupts dispatch.");
 
 // Belt-and-suspenders: catches accidental deletions or enum reorderings.
-// All 19 distributions are implemented. Bump to 20 only when a genuinely new
-// DistributionType enum value is appended.
-static_assert(kDistributionTypeCount >= 19,
-              "Distribution count regressed below 19 — a DistributionType entry was removed "
+// All 27 distributions are implemented as of v2.4.0 (#54–#57). Bump to 28
+// only when a genuinely new DistributionType enum value is appended.
+static_assert(kDistributionTypeCount >= 27,
+              "Distribution count regressed below 27 — a DistributionType entry was removed "
               "or the enum was reordered. Values are used as array indices; never remove or "
               "reorder entries.");
 

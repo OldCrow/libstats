@@ -1,5 +1,12 @@
 # Divergence Audit — clean-room NEON `sin`/`cos` (attempt_A) vs ARM optimized-routines
 
+> **Status**: the clean-room quadrant kernel audited here IS production
+> `vector_cos_neon`/`vector_sin_neon` (and, via #95, every x86 tier).
+> References to "libstats' current vector_cos_neon" below mean the
+> PRE-replacement kernel, as of the audit date. `attempt_A/` /
+> `attempt_B_stopped/` are clean-room workspace paths; the surviving
+> derivation is `docs/NEON_TRIG_DERIVATION.md`.
+
 Date: 2026-07-19
 Author: orchestrator (not the clean-room implementer). Purpose: document that the
 clean-room implementation in `attempt_A/` does not reuse the expression of any existing
@@ -42,7 +49,7 @@ this comparison does not feed back into the authored code.
      coefficient (see below).
    - `D_max = 2^23` in both. Convergent, not copied: ARM's `range_val = 0x1p23` bounds
      its scheme's fast path; attempt_A *derives* 2^23 from its own 30-significant-bit
-     split parts (products `n·p_k` exact for `|n| < 2^53−30 = 2^23`, and
+     split parts (products `n·p_k` exact for `|n| < 2^(53−30) = 2^23`, and
      `n_max = round(2^23·2/π) = 5,340,354 < 2^23`), documented in DERIVATION.md §2
      before any exposure to anything. 2^23 is a natural binade bound for
      double-precision trig reduction; the rationales are different and independent.

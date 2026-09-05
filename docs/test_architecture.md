@@ -27,17 +27,17 @@ Distribution-specific analysis coverage:
 
 - `test_gaussian_analysis.cpp`
 - `test_poisson_analysis.cpp`
+- `test_discrete_analysis.cpp`
 - `test_distribution_analysis.cpp` (exponential, gamma, binomial)
 
 ## Copy/move tests
 
-`test_copy_move_stress.cpp` includes static assertions for the original 16 distributions
-(Geometric, Laplace, Cauchy not yet added to the stress test):
-
-- `std::is_nothrow_move_constructible_v<D>`
-- `std::is_nothrow_move_assignable_v<D>`
-
-It also stress-tests concurrent copy/move operations for representative distributions.
+Concurrent copy/move stress-testing lives in the TOOL
+`tools/copy_move_stress.cpp` (it replaced the old `test_copy_move_stress.cpp`),
+covering all 27 distributions under multi-threaded copy/move load. The
+`noexcept`-move static assertions
+(`std::is_nothrow_move_constructible_v<D>` / `_assignable_v<D>`) live in
+`tests/test_copy_move_fix.cpp`.
 
 ## SIMD tests
 
@@ -51,6 +51,6 @@ CI can validate SIMD compilation, but real-machine SIMD runtime validation is st
 
 ## Adding tests
 
-Use GTest for new correctness tests unless a small standalone executable is more appropriate. Register new GTest files with `create_libstats_gtest` in `CMakeLists.txt`.
+Use GTest for new correctness tests unless a small standalone executable is more appropriate. Register new GTest files with `create_libstats_gtest` in `tests/CMakeLists.txt`.
 
 Keep timing assertions out of correctness tests. If a test depends on wall-clock speed, label it `timing`.

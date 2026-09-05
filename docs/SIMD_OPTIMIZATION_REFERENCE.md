@@ -12,6 +12,10 @@ Resolved work from v1.4.0 through v2.0.0:
 - NEON native `vector_exp`, `vector_log`, and table-based `vector_erf`
 - AVX-512 native `vector_exp`, `vector_log`, `vector_erf`, and `vector_cos`
 - dispatch thresholds calibrated per architecture and operation
+- v2.4.0: all four threshold tables (kAvx512/kAvx2/kAvx/kNeon) re-measured
+  with sustained crossovers after the parallelForSlices fork repair (#143);
+  kAvx measured for the first time via a `LIBSTATS_MAX_SIMD_TIER=AVX`
+  capped build
 
 ## Active SIMD tiers
 
@@ -83,6 +87,36 @@ Distributions whose per-element SIMD cost is very low (Uniform, Laplace at small
 
 For AVX-512 v2.0.2, Uniform PDF, Uniform LogPDF, and Uniform CDF are all NEVER.
 
+### The secretly-serial parallel path signature (v2.4.0)
+
+If forced-PARALLEL timings are **bitwise identical to VECTORIZED at every
+batch size**, the parallel path never actually forked — every threshold
+derived from that data calibrates a serial path and is invalid. The v2.4.0
+instance (#143): 18 sliced batch sites passed slice COUNTS (~N/1024) to
+element-denominated `parallelFor` gates, so PARALLEL ran serial below
+~8.4M elements, and the June tables encoded exactly that. Check for this
+signature FIRST when profiling: a genuine parallel path differs from
+VECTORIZED at least in noise.
+
+### NEVER for memory-bound kernels (v2.4.0)
+
+Distinct from the trivial-op class above: a kernel can be expensive enough
+to vectorise well and still lose under a REAL fork because it is
+memory-bound — the fork adds coordination without adding usable bandwidth.
+Beta PDF/LogPDF measures 0.65–0.92× at 2M on every tier (AVX-512, AVX2,
+capped AVX, NEON); von Mises batch CDF is the same class (#111/#144).
+Encode NEVER. Corollary: per-tier kernel economics can flip the verdict
+for compute-bound kernels — HalfNormal CDF is NEVER on NEON (2.2 ns/elem
+`vector_erf`, nothing left for 8 cores to win) but 1.3–2.1× parallel on
+x86, whose `vector_erf` is ~5× slower per element (corvus#37).
+
+### Extraction rule: sustained crossovers (v2.4.0)
+
+Read profiles with the sustained V→P crossover — parallel wins at that
+size AND every larger size — not the first crossing, which reports
+64-element noise ties. Binding statement: the 2026-09-04 amendment in
+`scripts/PROFILING_METHOD.md`; tool enforcement tracked as #146.
+
 ### Clean-entry criterion for iterative calibration
 
 When iterating threshold values, the target state is a parallel entry that exceeds the last VECTORIZED point in the sweep. If the first benchmark measurement at the new threshold T falls below the VECTORIZED level just below T, the parallel path has not yet amortised its threading overhead — raise the threshold further.
@@ -139,7 +173,7 @@ VonMises PDF and LogPDF accuracy differs between MSVC and AppleClang builds beca
 | Zen4 / MSVC (Tier 1) | ~1 ULP (~8×10⁻¹⁶) | ~5×10⁻¹¹ |
 | Kaby Lake / AppleClang (Tier 2) | ~2×10⁻⁹ | ~3×10⁻⁹ |
 
-The `vector_cos` implementations between AVX2 and AVX-512 are algorithmically identical (same 7-term FMA Horner polynomial), confirmed by cross-machine analysis. The accuracy difference is entirely in the scalar Bessel normalisation path, not in any SIMD kernel. See issue #47 for the proposed Tier 2 upgrade.
+The `vector_cos`/`vector_sin` implementations are the clean-room quadrant-reduction kernel of #95 on every tier (shared `trig_cleanroom_data.inc`, max 1 ULP), so AVX2 and AVX-512 remain algorithmically identical. The accuracy difference is entirely in the scalar Bessel normalisation path, not in any SIMD kernel. See issue #47 for the proposed Tier 2 upgrade.
 
 ### Scipy version independence
 
@@ -153,11 +187,11 @@ These distributions have throughput limitations that are inherent to their algor
 
 ### VonMises CDF
 
-The CDF has no closed form. The current implementation is a scalar integration loop. Throughput: ~200–900k elements/second vs ~30–50M/s for scipy (which uses Cephes adaptive quadrature, also scalar, but more efficient). No SIMD kernel or threshold change will address this. See issue #51 for a precomputed table design.
+The CDF has no closed form. Historically a scalar integration loop (~200–900k elem/s vs scipy's ~30–50M/s Cephes quadrature — the numbers in the tables above date from that era). #51 shipped the current implementation in v2.3.0: a per-instance cached Bessel-series CDF for κ ≤ 1000 with a wrapped-normal fallback above. The batch path remains memory-bound (#111); its dispatch rows are NEVER on the measured Mac tiers (#144).
 
 ### Cauchy CDF
 
-Cauchy is implemented as a delegation wrapper over StudentT(ν=1). The CDF therefore evaluates the regularised incomplete-beta function rather than the trivial closed form `arctan((x-x₀)/γ)/π + 0.5`. This makes Cauchy CDF 2–5× slower than scipy on Zen4 where scipy vectorises the arctan path. See issue #48.
+Cauchy PDF/LogPDF (and sampling) delegate to StudentT(ν=1), but the CDF has been the closed-form arctan since #48 (v2.3.0) — one `std::atan` per element, ~2 ULP. The sub-unity scipy ratios in the tables above predate that change; #109 (closed 2026-09-04) retired the matching stale dispatch rows with measured values.
 
 ### Binomial CDF and PDF
 

@@ -371,6 +371,57 @@ inline VoidResult validateRayleighParameters(double sigma) noexcept {
 }
 
 /**
+ * @brief Validate Half-Normal distribution parameters without throwing exceptions
+ * @param sigma Scale parameter σ (must be positive)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateHalfNormalParameters(double sigma) noexcept {
+    if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Sigma (σ) must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Truncated Normal distribution parameters without throwing exceptions
+ *
+ * Checks the basic parameter constraints only: mean finite, sigma positive
+ * finite, bounds not NaN, and a < b (either bound may be ±infinity — the
+ * doubly-infinite window degenerates to the plain Gaussian and is allowed).
+ * The representability of the normalization constant Z = Φ(β) − Φ(α) is a
+ * numerical-regime constraint checked separately by
+ * TruncatedNormalDistribution's factory and setters, which reject windows so
+ * deep in a tail that Z underflows double precision.
+ *
+ * @param mean Location parameter μ of the parent Gaussian (must be finite)
+ * @param sigma Scale parameter σ of the parent Gaussian (must be positive)
+ * @param a Lower truncation bound (may be −infinity, not NaN)
+ * @param b Upper truncation bound (may be +infinity, not NaN; must exceed a)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateTruncatedNormalParameters(double mean, double sigma, double a,
+                                                    double b) noexcept {
+    if (std::isnan(mean) || std::isinf(mean)) {
+        return VoidResult::makeError(ValidationError::InvalidMean, "Mean must be a finite number");
+    }
+    if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Standard deviation must be a positive finite number");
+    }
+    if (std::isnan(a) || std::isnan(b)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Truncation bounds must not be NaN");
+    }
+    if (!(a < b)) {
+        return VoidResult::makeError(
+            ValidationError::InvalidRange,
+            "Upper truncation bound (b) must be strictly greater than lower bound (a)");
+    }
+    return VoidResult::ok({});
+}
+
+/**
  * @brief Validate Von Mises distribution parameters without throwing exceptions
  * @param mu Mean direction (must be finite)
  * @param kappa Concentration parameter (must be non-negative and finite)
@@ -513,6 +564,133 @@ inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
     if (std::isnan(gamma) || std::isinf(gamma) || gamma <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter gamma must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Logistic distribution parameters without throwing exceptions
+ * @param mu Location parameter (must be finite)
+ * @param s  Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateLogisticParameters(double mu, double s) noexcept {
+    if (!std::isfinite(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter mu must be a finite number");
+    }
+    if (std::isnan(s) || std::isinf(s) || s <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter s must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Gumbel distribution parameters without throwing exceptions
+ * @param mu   Location parameter (must be finite)
+ * @param beta Scale parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ */
+inline VoidResult validateGumbelParameters(double mu, double beta) noexcept {
+    if (!std::isfinite(mu)) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Location parameter mu must be a finite number");
+    }
+    if (std::isnan(beta) || std::isinf(beta) || beta <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter beta must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Bernoulli distribution parameters without throwing exceptions
+ * @param p Success probability (must be in [0, 1])
+ * @return VoidResult indicating success or failure
+ *
+ * @note Deliberately [0, 1] inclusive -- matching BinomialDistribution's own
+ * convention exactly, since Bernoulli(p) is a thin delegation wrapper over
+ * Binomial(n=1, p) and both endpoints are valid degenerate distributions
+ * (p=0: point mass at 0; p=1: point mass at 1). This differs from Geometric's
+ * (0, 1] convention, where p=0 would make the infinite support un-summable.
+ */
+inline VoidResult validateBernoulliParameters(double p) noexcept {
+    if (std::isnan(p) || std::isinf(p) || p < 0.0 || p > 1.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Success probability p must be in [0, 1]");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Erlang distribution parameters without throwing exceptions
+ * @param k Shape parameter (must be a positive integer, k >= 1)
+ * @param lambda Rate parameter (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ *
+ * @note k is accepted as `int` (mirroring BinomialDistribution's `int n`
+ * convention for its own integer-only parameter) rather than `double` with a
+ * runtime integrality check -- there is then no separate validation path for
+ * "how close to an integer counts as integral", and no int-narrowing cast is
+ * ever needed just to validate the shape parameter.
+ */
+inline VoidResult validateErlangParameters(int k, double lambda) noexcept {
+    if (k < 1) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Shape parameter k must be a positive integer (k >= 1)");
+    }
+    if (std::isnan(lambda) || std::isinf(lambda) || lambda <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Rate parameter lambda must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate F (Fisher-Snedecor) distribution parameters without throwing
+ * @param d1 Numerator degrees of freedom (must be positive and finite)
+ * @param d2 Denominator degrees of freedom (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ *
+ * @note Both degrees of freedom are accepted as real-valued doubles, matching
+ * ChiSquaredDistribution's `double k` convention rather than Erlang's `int k`:
+ * F(d1, d2) is well defined for any positive real d1, d2 (it is a
+ * reparameterized Beta(d1/2, d2/2)), and non-integer degrees of freedom arise
+ * routinely from Welch-Satterthwaite and Kenward-Roger approximations.
+ */
+inline VoidResult validateFisherFParameters(double d1, double d2) noexcept {
+    if (std::isnan(d1) || std::isinf(d1) || d1 <= 0.0) {
+        return VoidResult::makeError(
+            ValidationError::InvalidParameter,
+            "Numerator degrees of freedom d1 must be a positive finite number");
+    }
+    if (std::isnan(d2) || std::isinf(d2) || d2 <= 0.0) {
+        return VoidResult::makeError(
+            ValidationError::InvalidParameter,
+            "Denominator degrees of freedom d2 must be a positive finite number");
+    }
+    return VoidResult::ok({});
+}
+
+/**
+ * @brief Validate Inverse Gamma distribution parameters without throwing
+ * @param alpha Shape parameter α (must be positive and finite)
+ * @param beta  SCALE parameter β (must be positive and finite)
+ * @return VoidResult indicating success or failure
+ *
+ * @note β here is a **scale**, the standard InvGamma parameterization (and
+ * scipy's `invgamma(a, scale=β)`), not a rate. It maps to the *rate* of the
+ * internal GammaDistribution delegate unchanged — see inverse_gamma.h.
+ */
+inline VoidResult validateInverseGammaParameters(double alpha, double beta) noexcept {
+    if (std::isnan(alpha) || std::isinf(alpha) || alpha <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Shape parameter alpha must be a positive finite number");
+    }
+    if (std::isnan(beta) || std::isinf(beta) || beta <= 0.0) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter beta must be a positive finite number");
     }
     return VoidResult::ok({});
 }

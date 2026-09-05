@@ -1,0 +1,32 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-09-04T02-36-22Z_darwin-x86_64_dev-v2.4.0_sha-5f27ee1
+Captured at (UTC): 2026-09-04T02-36-22Z
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- sweep_kabylake.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- logs/correctness.txt
+- logs/timing.txt
+
+Capture notes (differs from the capture_dispatcher_profile.sh bundles):
+- Captured directly via `build-release/tools/strategy_profile --large -o <csv>`,
+  three sequential quiet-machine runs (screen locked, 1-min load < 2.0 at
+  entry; loads before runs 2-3 are residual from the preceding run itself),
+  NOT via scripts/capture_dispatcher_profile.sh — so there is no
+  crossovers.csv/best_strategies.csv/summary.json from that harness.
+- Crossovers were read with the SUSTAINED V->P rule (parallel wins at that
+  size and every larger grid size; see analyze_crossovers.py), matching the
+  Zen 4 v2.4.0 calibration (PR #143), not the first-crossing heuristic.
+  sustained_crossovers.txt is the per-run extraction the kAvx2 table
+  update (7c2ca49) was derived from.
+- sweep_kabylake.csv is the same session's accuracy_sweep output (9213 rows,
+  banner commit=5f27ee1 isa=AVX2) backing the ACCURACY_CHARACTERIZATION.md
+  AVX2 block regen; logs/ holds the Kaby Lake leg's Dev-build suite runs
+  (74/74 correctness, 22/22 timing serial).

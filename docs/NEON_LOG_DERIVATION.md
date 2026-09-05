@@ -3,8 +3,9 @@
 Date: 2026-07-19.
 Author: derived from first principles per SPEC.md §2. No existing
 implementation of `log` (or any related routine) was consulted; every
-constant below is produced by `gen_table.py` from the mathematics in this
-document, and every bound is re-verified numerically by the generator or the
+constant below is produced by `gen_table.py` (clean-room workspace name;
+the in-tree regenerator is `scripts/gen_neon_log_cleanroom_table.py`) from
+the mathematics in this document, and every bound is re-verified numerically by the generator or the
 harness. Only general mathematics is cited (Taylor series, Chebyshev
 interpolation, standard floating-point lemmas, IEEE-754 encoding).
 

@@ -417,11 +417,54 @@ create_libstats_gtest(test_laplace_enhanced test_laplace_enhanced.cpp)
 create_libstats_test(test_cauchy_basic test_cauchy_basic.cpp)
 create_libstats_gtest(test_cauchy_enhanced test_cauchy_enhanced.cpp)
 
+# half_normal.h - Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline) (#57)
+# Deliberately NOT in the "timing" label block: the enhanced binary carries the
+# Born-compliant edge contracts (#103/#104) and mpmath accuracy gates but no
+# speedup assertions, and CI's correctness run is -LE "timing|benchmark".
+create_libstats_test(test_half_normal_basic test_half_normal_basic.cpp)
+create_libstats_gtest(test_half_normal_enhanced test_half_normal_enhanced.cpp)
+
+# truncated_normal.h - Truncated Normal (regime-split erf/erfc normalization) (#57)
+# Same reasoning as test_half_normal_*: no speedup assertions, so NOT
+# timing-labelled — the same-tail cancellation gates must run in CI's
+# correctness pass.
+create_libstats_test(test_truncated_normal_basic test_truncated_normal_basic.cpp)
+create_libstats_gtest(test_truncated_normal_enhanced test_truncated_normal_enhanced.cpp)
+
+# bernoulli.h - Bernoulli distribution (discrete, delegation wrapper over Binomial(n=1))
+create_libstats_test(test_bernoulli_basic test_bernoulli_basic.cpp)
+create_libstats_gtest(test_bernoulli_enhanced test_bernoulli_enhanced.cpp)
+
+# erlang.h - Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
+create_libstats_test(test_erlang_basic test_erlang_basic.cpp)
+create_libstats_gtest(test_erlang_enhanced test_erlang_enhanced.cpp)
+
+# fisher_f.h - F (Fisher-Snedecor) distribution (Beta(d1/2,d2/2) transform wrapper)
+create_libstats_test(test_fisher_f_basic test_fisher_f_basic.cpp)
+create_libstats_gtest(test_fisher_f_enhanced test_fisher_f_enhanced.cpp)
+
+# inverse_gamma.h - Inverse Gamma distribution (reciprocal-transform wrapper over Gamma)
+create_libstats_test(test_inverse_gamma_basic test_inverse_gamma_basic.cpp)
+create_libstats_gtest(test_inverse_gamma_enhanced test_inverse_gamma_enhanced.cpp)
+
+# logistic.h - Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline,
+# conditional-MLE scale via safeguarded Newton).
+# Deliberately NOT added to the "timing" label block below: the enhanced binary
+# carries no speedup assertion, only a FORCE_VECTORIZED-vs-FORCE_SCALAR equality
+# check, so it must run in the correctness suite (-LE "timing|benchmark").
+create_libstats_test(test_logistic_basic test_logistic_basic.cpp)
+create_libstats_gtest(test_logistic_enhanced test_logistic_enhanced.cpp)
+
+# gumbel.h - Gumbel distribution (Type I extreme value, max-stable / gumbel_r only;
+# double-exponential CDF, method-of-moments fit). Same no-timing-label reasoning.
+create_libstats_test(test_gumbel_basic test_gumbel_basic.cpp)
+create_libstats_gtest(test_gumbel_enhanced test_gumbel_enhanced.cpp)
+
 # =======================================================================
 # LEVEL 6 TESTS: Integration and cross-distribution workflow
 # =======================================================================
 # End-to-end API interoperability (factory, fit, moments, survival, batch, KS test, bootstrap,
-# NaN/±inf boundary values across all 19 distributions)
+# NaN/±inf boundary values across all 27 distributions)
 create_libstats_gtest(test_integration_workflow test_integration_workflow.cpp)
 
 # =======================================================================
@@ -486,6 +529,14 @@ if(GTEST_FOUND)
         test_geometric_enhanced
         test_laplace_enhanced
         test_cauchy_enhanced
+        # v2.4.0 note: NO new enhanced binary carries the timing label. None of
+        # the eight new distributions' enhanced tests asserts a speedup ratio
+        # (Bernoulli's VectorizedSpeedup only PRINTS the ratio and asserts
+        # parallel==scalar values), and the #103/#104 contract gates live in
+        # these binaries — a timing label would exclude them from CI's
+        # correctness run (-LE "timing|benchmark"), the #97 guard-that-never-
+        # runs trap. test_bernoulli_enhanced/test_erlang_enhanced were labelled
+        # at first landing and unlabelled here for exactly that reason.
         PROPERTIES LABELS "timing")
 
     # test_benchmark is a benchmark, not a correctness test. It used to be kept
@@ -587,6 +638,22 @@ add_custom_target(
             test_laplace_enhanced
             test_cauchy_basic
             test_cauchy_enhanced
+            test_bernoulli_basic
+            test_bernoulli_enhanced
+            test_erlang_basic
+            test_erlang_enhanced
+            test_logistic_basic
+            test_logistic_enhanced
+            test_gumbel_basic
+            test_gumbel_enhanced
+            test_half_normal_basic
+            test_half_normal_enhanced
+            test_truncated_normal_basic
+            test_truncated_normal_enhanced
+            test_fisher_f_basic
+            test_fisher_f_enhanced
+            test_inverse_gamma_basic
+            test_inverse_gamma_enhanced
             # Level 6: Integration tests
             test_dynamic_linking
             test_integration_workflow

@@ -87,6 +87,22 @@ class WorkStealingPool {
     void parallelFor(std::size_t start, std::size_t end, Func func, std::size_t grainSize = 0);
 
     /**
+     * @brief Slice-parallel loop over `count` ELEMENTS: func(start, len)
+     * receives contiguous slices of at most `slice` elements, so each task
+     * runs a SIMD batch kernel on its slice.
+     *
+     * The serial-fallback gate is denominated in ELEMENTS, unlike
+     * parallelFor's range gate — passing a slice COUNT as a parallelFor
+     * range compares slices against MIN_ELEMENTS_FOR_PARALLEL and silently
+     * serializes (the v2.4.0 profiling finding; see
+     * ParallelUtils::parallelForSlices). Below the gate the whole range is
+     * handed to func as ONE slice. Shares parallelFor's exception contract
+     * (swallow; the latch must always decrement).
+     */
+    template <typename Func>
+    void parallelForSlices(std::size_t count, std::size_t slice, Func func);
+
+    /**
      * @brief Wait for all currently submitted tasks to complete
      */
     void waitForAll();
@@ -124,6 +140,13 @@ class WorkStealingPool {
     static std::size_t getOptimalThreadCount() noexcept;
 
    private:
+    /// Shared parallel body of parallelFor/parallelForSlices: grain sizing,
+    /// task submission, and the per-call completion latch (POOL-1 / A-2).
+    /// The serial-fallback gates live in the public wrappers, in their own
+    /// units (range items vs elements).
+    template <typename Func>
+    void parallelForImpl(std::size_t start, std::size_t end, Func func, std::size_t grainSize);
+
 #if defined(_MSC_VER)
     #pragma warning(push)
     #pragma warning(disable : 4324)
@@ -226,17 +249,50 @@ void WorkStealingPool::parallelFor(std::size_t start, std::size_t end, Func func
     if (start >= end)
         return;
 
-    const std::size_t totalWork = end - start;
-    const std::size_t numWorkers = getThreadCount();
-
-    // Use Level 0 constants for thresholds
-    if (totalWork < arch::get_min_elements_for_parallel()) {
+    // Use Level 0 constants for thresholds. NOTE: this gate is denominated
+    // in RANGE ITEMS — do not pass a pre-chunked slice count here (see
+    // parallelForSlices).
+    if (end - start < arch::get_min_elements_for_parallel()) {
         // Execute sequentially for small workloads
         for (std::size_t i = start; i < end; ++i) {
             func(i);
         }
         return;
     }
+
+    parallelForImpl(start, end, std::move(func), grainSize);
+}
+
+template <typename Func>
+void WorkStealingPool::parallelForSlices(std::size_t count, std::size_t slice, Func func) {
+    if (count == 0)
+        return;
+    if (slice == 0)
+        slice = 1;
+    if (count < arch::get_min_elements_for_parallel()) {
+        func(std::size_t{0}, count);  // one full-range slice, single SIMD-kernel call
+        return;
+    }
+    const std::size_t num_slices = (count + slice - 1) / slice;
+    // Grain is in SLICE units here; aim for ~4 tasks per worker rather than
+    // letting the impl's element-denominated auto-grain lump the whole range
+    // into a handful of tasks.
+    const std::size_t grain =
+        std::max<std::size_t>(1, num_slices / (std::max<std::size_t>(1, getThreadCount()) * 4));
+    parallelForImpl(
+        std::size_t{0}, num_slices,
+        [func, slice, count](std::size_t ci) {
+            const std::size_t begin = ci * slice;
+            func(begin, std::min(slice, count - begin));
+        },
+        grain);
+}
+
+template <typename Func>
+void WorkStealingPool::parallelForImpl(std::size_t start, std::size_t end, Func func,
+                                       std::size_t grainSize) {
+    const std::size_t totalWork = end - start;
+    const std::size_t numWorkers = getThreadCount();
 
     // Auto-calculate grain size if not specified using Level 0-2 integration
     if (grainSize == 0) {

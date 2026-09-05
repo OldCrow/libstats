@@ -9,10 +9,46 @@ Current release validation targets:
 | Machine class | SIMD | Validation goal |
 |---|---|---|
 | Intel Kaby Lake | AVX2+FMA | correctness + `simd_verification` |
+| Intel Kaby Lake (capped build) | AVX via `LIBSTATS_MAX_SIMD_TIER=AVX` | correctness + threshold profiling |
 | Apple Silicon M1 | NEON | correctness + `simd_verification` |
 | AMD Zen 4 | AVX-512 | correctness + `simd_verification` |
 
 Record new release measurements here after each real-machine validation pass.
+
+## v2.4.0 dispatch recalibration measurements (2026-09-03/04)
+
+Forced-strategy parallel speedup over VECTORIZED at N = 2M
+(median-of-timings ratio VECTORIZED/PARALLEL from `strategy_profile
+--large`, three quiet runs per tier; ranges span the three runs), taken
+during the post-parallelForSlices-repair recalibration (#143 and the
+machine legs). Values below 1.0 mean a real fork LOSES — those rows are
+encoded NEVER. Source bundles under `data/profiles/dispatcher/`
+(2026-09-04T02-36-22Z Kaby Lake, T04-22-28Z M1, T23-51-14Z capped AVX);
+Zen 4 figures are from the PR #143 record (no bundle checked in).
+
+| Distribution / Op | Zen 4 AVX-512 | Kaby Lake AVX2 | Kaby Lake AVX (capped) | M1 NEON |
+|---|---|---|---|---|
+| Gamma PDF | 7.5× | 5.3–5.4× | 4.9–5.2× | 4.9–5.5× |
+| Gamma LogPDF | 8.4× | 5.9–6.0× | 4.7–6.3× | 4.4–5.6× |
+| LogNormal CDF | 6.5× | 3.3–4.2× | 4.1–4.2× | 4.7–5.2× |
+| FisherF CDF | 6.3× | 3.6–3.7× | 3.4–3.9× | 5.3–5.4× |
+| InverseGamma CDF | 6.4× | 2.7–3.0× | 3.1–3.4× | 5.4–5.5× |
+| TruncatedNormal CDF | — | 3.1–3.6× | 4.0–4.1× | 4.3–4.5× |
+| Gumbel PDF | — | 1.9–2.0× | 2.4–2.6× | 2.6–2.9× |
+| Logistic PDF | — | 1.5× | 1.7–1.8× | 2.2–2.4× |
+| HalfNormal CDF | — | 1.3–1.6× | 1.9–2.1× | **0.84×** |
+| Beta PDF | **0.80–0.87×** | **0.73×** | **0.82–0.89×** | **0.79×** |
+| Beta LogPDF | **0.80–0.87×** | **0.65×** | **0.70×** | **0.76–0.92×** |
+
+Two findings these numbers carry:
+
+- **Beta PDF/LogPDF loses under a real fork on every measured tier** —
+  memory-bound kernels do not amortise the fork; encoded NEVER
+  everywhere (von Mises CDF is the same class, #111/#144).
+- **HalfNormal CDF inverts by kernel economics, not defect**: NEON's
+  `vector_erf` (~2.2 ns/elem) is too fast for 8 cores to beat; the ~5×
+  slower x86 `vector_erf` leaves parallel a 1.3–2.1× win. Mechanism
+  recorded at the kNeon table row; cross-repo follow-up corvus#37.
 
 ## v2.0.2 scipy comparison benchmark
 
@@ -49,11 +85,11 @@ Speedup ratios vary with N. N=100k is representative for sustained throughput ab
 | VonMises | log_PDF | 25× | 24× |
 | StudentT | PDF | 35× | 23× |
 | Uniform | PDF | 19× | 25× |
-| Cauchy | CDF | 0.2× | 1.1× | |
+| Cauchy | CDF | 0.2× | 1.1× |
 | VonMises | CDF | 0.1× | 0.1× |
 | Binomial | CDF | 0.9× | 0.4× |
 
-Negative ratios (<1×) indicate distributions with structural algorithm limitations; see `SIMD_OPTIMIZATION_REFERENCE.md §Known structural performance ceilings`.
+Sub-unity ratios (<1×) indicate distributions with structural algorithm limitations; see `SIMD_OPTIMIZATION_REFERENCE.md §Known structural performance ceilings`.
 
 ### Accuracy vs scipy (max relative error, N=50k uniform grid)
 
@@ -93,7 +129,7 @@ Sweep run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, sc
 
 | Machine | CPU | SIMD | OS | Python |
 |---|---|---|---|---|
-| MacBook Pro (14,1, 2017) | Apple M1 | NEON | macOS | 3.14.6 |
+| Mac Mini M1 | Apple M1 | NEON | macOS | 3.14.6 |
 
 ### Key finding: L1 cache boundary at N ≈ 5k
 
@@ -146,7 +182,7 @@ Primitive speedups from the v1.5.x validation cycle:
 
 Evaluates whether a table-lookup + short-polynomial transcendental using
 hardware gather can beat the current SLEEF-derived polynomial
-`vector_exp`/`vector_log` (see PLAN.md "Issue #33 Experiment" for full gates
+`vector_exp`/`vector_log` (see the "Issue #33 Experiment" section in PLAN.md's git history for full gates
 and governance). Tool: `tools/gather_throughput_probe.cpp` (opt-in,
 `LIBSTATS_BUILD_SIMD_DEV_TOOLS=ON`).
 
@@ -248,13 +284,15 @@ and AVX-512); only the NEON Q1 path (needs the M1) remains open.
 ### NEON (Mac Mini M1) Q1 result (2026-07-19): exp productionized
 
 Following the Q1 prototype win (exp <1 ULP, ~+20% stream / ~+21% hot; see
-PLAN.md "Issue #33 Experiment -> NEON Q1" for the full prototype numbers),
+the "Issue #33 Experiment -> NEON Q1" section in PLAN.md's git history for the full prototype numbers),
 `vector_exp_neon` (`src/simd_neon.cpp`) was productionized on branch
 `experiment/issue-33-neon-table-transcendentals`: the 10-term SLEEF
 polynomial body was replaced with the validated 2x-unrolled, tail-corrected
 N=128 table + order-5 polynomial kernel (software `vld1q` gather -- NEON has
-no hardware gather instruction). `vector_log_neon` is unchanged (perf-null,
-per the productionize-exp-only decision).
+no hardware gather instruction). `vector_log_neon` was left unchanged at the time (perf-null, per the
+productionize-exp-only decision); it has since been replaced by the
+clean-room table-anchored kernel (`docs/NEON_LOG_DERIVATION.md`), which
+supersedes that null.
 
 Accuracy vs the arch-neutral 1018-point mpmath correctly-rounded reference
 (`src/exp_ulp_vectors.inc`, renamed from `avx512_exp_ulp_vectors.inc` now that
@@ -291,8 +329,9 @@ codebase: never re-read the input array after the corresponding store when
 in-place calls (`a == result`) are possible -- decide fixups only from
 already-loaded registers.
 
-With this, Issue #33 Q1 is complete: exp is production on NEON; log remains
-un-productionized (accuracy-only finding tracked on #46). The entire Issue
+With this, Issue #33 Q1 was complete: exp production on NEON; log was
+un-productionized at the time (since superseded — the clean-room log
+kernel is production on NEON). The entire Issue
 #33 experiment (x86 Q2 null, NEON Q1 exp win) is closed pending PR merge.
 
 ## Running benchmarks

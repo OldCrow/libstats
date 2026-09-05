@@ -234,20 +234,8 @@ def main():
         else:
             failed_tests.append(test_name)
 
-    # Test F-distribution CDF
-    f_tests = [
-        ("f_cdf(0,1,1)", 0.0, stats.f.cdf(0.0, 1.0, 1.0)),
-        ("f_cdf(1,10,10)", 0.5, stats.f.cdf(1.0, 10.0, 10.0)),  # By symmetry
-    ]
-
-    for test_name, our_val, scipy_val in f_tests:
-        total_tests += 1
-        passed, diff, msg = compare_values(test_name, our_val, scipy_val, 1e-6)
-        print(f"{test_name:20} | Our: {our_val:15.10f} | SciPy: {scipy_val:15.10f} | {msg}")
-        if passed:
-            passed_tests += 1
-        else:
-            failed_tests.append(test_name)
+    # (f_cdf rows removed in v2.4.0 along with detail::f_cdf itself;
+    # FDistribution's steered CDF is covered by test_fisher_f_enhanced.)
 
     print("\n" + "=" * 50)
     print("SPECIAL VERIFICATION TESTS")
