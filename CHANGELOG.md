@@ -5,6 +5,73 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 2.4.0
+
+New Distributions (Foundation) — the library grows 19 → 27. Four issues
+closed (#54, #55, #56, #57) across ten squash-merged PRs into
+`dev/v2.4.0` (#130–#135, #139, #140, #142, #143); correctness suite
+grows 58 → 74; every dispatch-threshold table is now measurement-backed.
+
+### Added
+- Logistic and Gumbel distributions (#54): new `vector_exp` SIMD batch
+  pipelines; log1p/expm1 tail stability; Gumbel ships max-stable
+  (`gumbel_r`) only — the min variant is a user-side −X reflection.
+- Bernoulli and Erlang distributions (#55): delegation wrappers
+  (Binomial n=1, Gamma with integer shape, rate-parameterized); Erlang
+  PDF/LogPDF is pure Gamma delegation.
+- FisherF and InverseGamma distributions (#56): complement-native
+  steered tails via `detail::gamma_q`/steered `beta_i`; F is
+  closed-form PDF + steered CDF, not a Beta delegation.
+- HalfNormal and TruncatedNormal distributions (#57): regime-split
+  erfc normalization Z = Φ(β)−Φ(α) in survival form; the constructor
+  rejects truncation windows whose Z underflows double (~±37.5σ);
+  inverse-CDF sampling.
+- All eight are born compliant with the #103 ±inf-limit and #104
+  finite-best-effort-quantile contracts, batch NaN propagation (#102
+  class), the no-aliasing contract (#112), and carry no #125-class int
+  narrowing — asserted by their enhanced tests from birth.
+- `accuracy_sweep` + the mpmath oracle cover all 27 distributions
+  (6063 → 9210 rows, oracle self-checks 42 → 72); characterization
+  blocks regenerated for AVX-512, AVX2, and NEON.
+- `ParallelUtils::parallelForSlices` / `WorkStealingPool::
+  parallelForSlices`: element-denominated serial gates with SIMD-slice
+  callbacks (#143).
+- `LIBSTATS_MAX_SIMD_TIER` capped-build calibration recipe (AGENTS.md
+  step 6) and the first measured kAvx table via a capped AVX build —
+  also the first native AVX-tier validation since the AVX-only machine
+  retired.
+
+### Fixed
+- Sliced batch paths never actually forked: 18 lambda sites in
+  beta/gamma/lognormal (and the new fisher_f/inverse_gamma) passed
+  slice counts to element-denominated `parallelFor` gates, so their
+  PARALLEL strategy ran serial below ~8.4M elements — and the June
+  threshold calibration measured those secretly-serial paths (#143).
+  Post-repair, every tier's thresholds re-measured with sustained
+  V→P crossovers; Beta PDF/LogPDF dispatches to VECTORIZED everywhere
+  (a real fork is a 0.65–0.87× loss on every measured tier).
+- Gamma PDF/LogPDF returned NaN at +inf for every α ≥ 1 and the batch
+  LogPDF let the −4605 clamp escape at −inf; scalar and batch guarded,
+  healing ChiSquared (k ≥ 2) and Erlang (#130).
+- Gamma deep-tail quantiles escaped to garbage (absolute-tolerance
+  stop accepted a silently-wrong band, e.g. quantile(1e-15) with true
+  CDF ~1e-50): log-domain seed + relative-in-p stopping; batch
+  CDF(+inf) lanes fixed for the Gamma family (#142).
+- fisher_f denormal-band CDF: beta argument reformulated as
+  y = x/(x + d2/d1) (#142).
+- truncated_normal near-lower-bound CDF: Hermite-series form takes
+  0.32–0.45 relative error at lo+1ulp down to ~1e-14 (#142).
+- Stale/provisional dispatch rows retired on measured data: Cauchy CDF
+  (#109, closed), von Mises CDF → NEVER on kNeon/kAvx2/kAvx (#144
+  tracks the owed kAvx512 cell), Laplace kNeon trial value.
+
+### Changed
+- Dead pre-v2.4.0 `f_cdf`/`inverse_f_cdf` stubs deleted; Erlang
+  simplified to pure delegation; integration workflow covers all 27
+  (#139, #145).
+- Enhanced test binaries carry no timing label — the contract gates
+  they contain must run in CI's correctness pass (#135).
+
 ## [2.3.1] - 2026-08-25
 
 Correctness patch — no API change. Eight issues closed (#102, #105, #106,

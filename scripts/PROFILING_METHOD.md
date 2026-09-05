@@ -199,6 +199,23 @@ else:
 
 ---
 
+### Amendment 2026-09-04 — sustained-crossover extraction (supersedes the V2P read above)
+
+The v2.4.0 recalibrations (kAvx512/kAvx2/kNeon/kAvx, bundles of
+2026-09-03/04) replaced the V2P-column read with the **sustained
+crossover**: the smallest batch size at which PARALLEL beats VECTORIZED
+*at that size and at every larger size in the grid*; NEVER when no such
+suffix exists. The BEST-at-max guard above is necessary but not
+sufficient — it still encodes a threshold from an early transient win
+that reverses through the mid-range (observed as 64-element noise ties
+in `threshold_validator` output), whereas the sustained rule cannot.
+Multi-run combination stays per Step 3, read on the sustained values
+(the v2.4.0 legs used median-of-3 with a conservative max pick when the
+spread exceeds 2×, plus the sub-64 clamp). Reference implementation:
+`analyze_crossovers.py` inside the v2.4.0 bundles; #146 tracks folding
+this rule into `threshold_validator` so the extraction is tool-enforced
+rather than script-copied.
+
 ## Step 3 — Three-run aggregation
 
 Given per-run thresholds `{t1, t2, t3}` where NEVER is represented as `None`:

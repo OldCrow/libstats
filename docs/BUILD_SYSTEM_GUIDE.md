@@ -53,6 +53,15 @@ cmake -B build -DLIBSTATS_ENABLE_RUNTIME_CHECKS=ON
 
 # Disable tools or tests
 cmake -B build -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF
+
+# Cap the highest compiled x86 SIMD tier (SSE2|AVX|AVX2|AVX512; empty = no cap).
+# Runtime dispatch normally picks the highest tier the CPU supports, so lower-tier
+# kernels never execute on capable hardware; a cap compiles the higher tiers OUT,
+# letting a lower tier run — and be validated or profiled — natively. Used for the
+# first native SSE2 run (exposed #74) and the measured kAvx table (2026-09-04
+# capped leg). Assert the active tier afterwards: system_inspector --quick, and
+# check the archive has no higher-tier vector_* kernel symbols.
+cmake -B build-avx-cap -DCMAKE_BUILD_TYPE=Release -DLIBSTATS_MAX_SIMD_TIER=AVX
 ```
 
 ## Target layout
