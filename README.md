@@ -2,24 +2,24 @@
 
 ---
 
-### v2.3.1 released
+### v2.4.0 released
 
-**v2.3.1 is the current release.** v1.5.3 was the final v1.x release.
+**v2.4.0 is the current release.** v1.5.3 was the final v1.x release.
 See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade instructions.
 
-v2.3.1 is a correctness patch — no API change, upgrading is a drop-in
-swap. NaN inputs now propagate through every batch path on every SIMD
-tier (previously several returned finite, plausible-looking values); the
-von Mises CDF is correct across the ±π seam for κ > 1000; NegBin and
-Geometric quantiles work past INT_MAX; stream round-trips work for
-Discrete, Uniform and Beta; AVX-512 dispatch verifies the DQ and XCR0
-state the kernels actually require; and `parallelFor` now propagates
-exceptions thrown in chunks. Batch input and output spans must not
-overlap — the contract is now documented and debug-asserted.
+v2.4.0 grows the library 19 → 27 distributions — Logistic, Gumbel,
+Bernoulli, Erlang, Fisher F, Inverse-Gamma, Half-Normal, and Truncated
+Normal — all born compliant with the ±inf-limit, finite-quantile,
+batch-NaN-propagation, and no-aliasing contracts. Every parallel
+dispatch threshold table is now measurement-backed: profiling exposed
+that 18 sliced batch sites never actually forked below ~8.4M elements,
+and every SIMD tier was re-measured on the repaired code (AVX-512,
+AVX2, NEON native; AVX via a capped build). The API is additive over
+v2.3.1 — upgrading is a drop-in swap.
 
 ---
 
-[![Version](https://img.shields.io/badge/version-v2.3.1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.3.1)
+[![Version](https://img.shields.io/badge/version-v2.4.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.4.0)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -340,11 +340,11 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.4.0 (on `dev/v2.4.0`) adds eight distributions — Logistic, Gumbel,
-Half-Normal, Truncated Normal, Bernoulli, Erlang, Fisher F, and
-Inverse-Gamma — with per-tier dispatch thresholds recalibrated from
-native profiling on all three fleet machines. v2.3.1 is the latest
-tagged release; v1.5.3 was the final v1.x release.
+v2.4.0 is the latest tagged release. It adds eight distributions —
+Logistic, Gumbel, Half-Normal, Truncated Normal, Bernoulli, Erlang,
+Fisher F, and Inverse-Gamma — with per-tier dispatch thresholds
+recalibrated from native profiling on all three fleet machines.
+v1.5.3 was the final v1.x release.
 
 **27 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
 - PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
