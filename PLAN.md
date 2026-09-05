@@ -562,6 +562,32 @@ history.
     data/profiles/dispatcher/2026-09-04T02-36-22Z_…).
     Bonus data: Cauchy CDF sustained crossover measured ~4096–8192 vs
     the STALE 128 row — direct input for #109 (noted on the issue).
+    **kAvx CAPPED-BUILD LEG DONE 2026-09-04** (cb13f34 on dev,
+    unplanned third leg): the post-leg lessons review found the kAvx
+    table was still June inference (kAvx2÷2 from pre-repair data) with
+    wrong-direction Beta/FisherF rows ({128,128,…} where every measured
+    tier says parallel loses), and the "BETA: NEVER on kAvx" header
+    comment contradicting the actual row. Rather than re-infer,
+    measured for real: `LIBSTATS_MAX_SIMD_TIER=AVX` Release build on
+    Kaby Lake (tier asserted — active AVX, zero vector_*_avx2 kernel
+    symbols), 3 quiet --large runs, sustained crossovers → first
+    MEASURED kAvx table ever, replacing the inference table wholesale;
+    also the first native AVX-tier correctness validation (74/74)
+    since the 2012 MBP retired. Read as "AVX code paths on Kaby Lake
+    silicon" (same 4C/8T mobile-quad class as the retired Ivy Bridge).
+    Runs agreed more tightly than the AVX2 leg; notable per-tier
+    economics: Uniform CDF sustains from 25k (NEVER on kAvx2),
+    HalfNormal CDF 10000 (NEVER on kNeon — the vector_erf economics
+    invert with the slower x86 kernel, corvus#37's pattern), StudentT
+    CDF and von Mises CDF → NEVER, Binomial/NegBinomial CDF June
+    "held" values were kAvx512 artifacts → NEVER. SSE2 still delegates
+    to kAvx, so this heals both bottom x86 tiers. Bundle checked in
+    (2026-09-04T23-51-14Z_…); the Kaby AVX2 bundle's logs backfilled
+    as .txt in the same commit (.gitignore *.log had silently excluded
+    bundle logs — the M1 bundle 68d95d4 has the same gap: its
+    manifest lists logs/ that never got committed; re-add as .txt
+    from that machine, next M1 session). The capped-build pattern is
+    portable to libhmm when its thresholds get the same treatment.
     M1 results (5f9bb5e + bundle 68d95d4, 2026-09-04): 74/74 before and
     after the table change and again after merging the Kaby Lake leg;
     timing 22/22 serial quiet (the #129 uniform gate passes on M1 this
