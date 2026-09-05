@@ -1,13 +1,13 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-08-28
-v2.3.1 shipped (tagged 2026-08-25, all 5 PRs #120–#124 squash-merged,
-8 issues closed) and natively validated on all three fleet machines
-(Zen 4 2026-08-25, Kaby Lake 2026-08-26, M1 2026-08-27/28) — the
-v2.3.1 validation matrix in AGENTS.md is complete; 19 distributions
-across 7 families, API unchanged from v2.1.0. v2.3.0 was tagged
-2026-08-20; milestone #5 closed with all 5 issues shipped (#48, #95,
-#51, #49, #46).
+## Status [DERIVED] — 2026-09-04
+v2.4.0 shipped (tagged 2026-09-04 at e868fc1, signed; PR #147 merge
+commit c3d27e2; milestone #2 closed at 0 open after #144 moved to
+milestone #8) — 27 distributions across 7 families, API additive over
+v2.1.0; every dispatch-threshold table is measurement-backed
+(kAvx512/kAvx2/kNeon native + capped-build kAvx), validated 74/74 on
+all three fleet machines plus the capped AVX leg. v2.3.1 (tagged
+2026-08-25) was the prior release.
 
 **Why 2.2.0 and not 2.1.1.** The Bessel work (#92/#93/#96/#97) and the
 export fix (#90) are patch-shaped, but three things landed alongside them
@@ -258,8 +258,13 @@ history.
   documented, caller-visible, platform-dependent.
 - **Accuracy, contracts & kernel hygiene patch** (open, #8; renamed from
   "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
-  likely v2.5.1): 9 open / 0 closed. #107/#110/#113 moved to v2.5.0 the
-  same day (the adoption release closes them).
+  likely v2.5.1): 15 open / 0 closed. #107/#110/#113 moved to v2.5.0 the
+  same day (the adoption release closes them). #136/#137/#138 filed onto
+  it 2026-09-03, #146/#148 during the v2.4.0 endgame, #144 at the
+  2026-09-04 close-out (kAvx512 von Mises cell — re-measure scheduled
+  post-adoption; see In Progress). A reassessment pass is owed: bucket
+  the 15 into post-v2.4.0 vs post-v2.5.0 by whether corvus adoption
+  changes the answer.
   - #104 OPEN, **contract DECIDED 2026-09-02** [user] — finite best-effort:
     never NaN for valid p ∈ (0,1), ±inf only on true double overflow;
     per-family documented accuracy (gamma/chi-squared deep tail improves
@@ -310,8 +315,10 @@ history.
   Exit: sweep regenerated on the milestone's fixes (the
   `docs/ACCURACY_CHARACTERIZATION.md` attribution correction moved with
   #113 to v2.5.0).
-- **v2.4.0 — New Distributions (Foundation)** (open, #2): 4 open / 0 closed
-  (#102 moved to v2.3.1 on 2026-08-21)
+- **v2.4.0 — New Distributions (Foundation)** (CLOSED 2026-09-04, #2):
+  0 open / 6 closed — #54–#57 closed by the PR #147 merge, #145 earlier;
+  #144 moved to milestone #8 at close-out. (#102 moved to v2.3.1 on
+  2026-08-21)
   — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
   #57 HalfNormal + TruncatedNormal. Library grows 19 → 27 distributions.
   **Execution plan decided 2026-09-02 [user]:**
@@ -405,272 +412,27 @@ history.
   than trusting it between passes.
 
 ## In Progress [OPEN]
-- **v2.4.0 UNDERWAY 2026-09-03** (plan decided 2026-09-02; kickoff
-  comments on #54/#55/#56 posted then). State on `dev/v2.4.0`:
-  - Scaffolding SHIPPED (a55e627): all 8 enum/meta/threshold slots; found
-    and fixed AGENTS.md's checklist saying four `kXxx` tables — there are
-    FIVE (`kNone` takes T1/T2/T3 tier values, not NEVER). Verified 58/58
-    before commit.
-  - **#55 MERGED** (PR #131, squash 0e0a753): Bernoulli + Erlang. Agent
-    (sonnet) report held up under QA except one #125-class defect I fixed
-    on the branch: `operator>>` did an unguarded
-    `static_cast<int>(std::stod(...))`. Decisions: p ∈ [0,1] inclusive
-    (Binomial's convention); `int k` shape (no integrality policy);
-    quantile via Binomial's #104 right-continuous inverse. New shared-file
-    surface: two validators appended to `error_handling.h` — expect
-    trivial append conflicts with the other three workstream PRs.
-  - **Gamma #103 guards MERGED** (PR #130, squash 828553a): scalar and
-    batch PDF/LogPDF `isfinite` guards (formula was NaN at +inf for every
-    α ≥ 1: 0·log(inf) / inf−inf; batch LogPDF also let the
-    MIN_LOG_PROBABILITY clamp escape at −inf). Fail-first gates in
-    gamma + chi-squared enhanced tests; found via Erlang's delegation
-    during #55 (user-filed from the agent's flag). Heals ChiSquared
-    (k ≥ 2) and Erlang; Erlang's defensive guards now redundant —
-    optional cleanup. Partially advances #103 ahead of milestone #8.
-  - Integrated verification on dev at 0e0a753: **60/60** correctness
-    (58 + 2 new basics; both new enhanced binaries are timing-labelled
-    per precedent, 18/18 + 17/17 run directly).
-  - **ALL FOUR WORKSTREAMS MERGED 2026-09-03** (PRs #131 #55, #132 #54,
-    #133 #57, #134 #56, plus #135 label alignment — all squash into dev;
-    each feature branch got a dev-merge with append-collision resolution
-    and a full-suite run before its PR). Integrated on dev at 42b7285:
-    **74/74 correctness, 22 timing, 2 benchmark** (= 82 prior targets +
-    16 new). Library is 27 distributions. The #54/#56/#57 agents were
-    knocked out mid-morning by Anthropic's 2026-09-03 13:26–16:16 UTC
-    elevated-errors incident (Opus 5/Fable 5) and resumed losslessly
-    from transcripts after it cleared.
-  - Workstream deltas worth remembering: #54 — Gumbel deep-tail batch
-    LogPDF differs from scalar by 5.96e-8 ABSOLUTE at x=−20 while
-    4.4e-16 relative (value ≈ −4.85e8; 1 ULP of vector_exp) — correct,
-    documented at the tolerance sites. #57 — TruncatedNormal
-    regime-split erfc Z; constructor REJECTS windows whose Z underflows
-    double (~±37.5σ); inverse-CDF sampling; its own mpmath reference
-    hit the Φ-difference cancellation and was rewritten in survival
-    form. #56 — complement-native tails via existing detail::gamma_q /
-    steered beta_i; F is closed-form PDF + steered detail:: CDF, NOT a
-    pure Beta delegation (Cauchy #48 precedent); upper-tail quantile
-    references must use the EXACT DOUBLE of p (double(1−1e-12) carries
-    complement 9.99978e-13).
-  - Test-label convention DECIDED 2026-09-03 (PR #135): v2.4.0 enhanced
-    binaries carry NO timing label — none asserts a speedup ratio, and
-    the #103/#104 contract gates live in them; a timing label would
-    exclude the gates from CI's correctness run (the #97 trap). Rule
-    recorded at the label block in tests/CMakeLists.txt.
-  - Upstream findings CLOSED OUT 2026-09-03 [user-approved split]:
-    in-version items shipped via PR #139 (hygiene, −130 net lines):
-    dead f_cdf/inverse_f_cdf DELETED (pre-v2.4.0 stubs superseded by
-    FDistribution — verified zero callers; provenance checked: NOT new
-    code), Erlang PDF/LogPDF simplified to pure delegation (contract
-    tests pass unchanged — guards empirically redundant),
-    test_integration_workflow extended to all 27. Pre-existing defects
-    filed as #136/#137/#138 (milestone #8) + libhmm#103 — see the
-    milestone #8 entry. Post-hygiene integrated suite: 74/74.
-  - Sweep/oracle extension LANDED 2026-09-03 (PR #140, squash-merged by
-    user): accuracy_sweep + accuracy_vs_mpmath.py cover all 27
-    (6063 → 9030 rows, oracle self-checks 42 → 68), Zen 4 AVX-512 block
-    regenerated. Baseline finding: the 63-violation Zen 4 baseline was
-    already 45 at dev (v2.4.0's gamma #103 guards fixed 16 rows, 2
-    changed sentinel) → 57 with the 12 new-distribution rows. Agent's
-    "Erlang delegation divergence" claim DISPROVED in orchestrator QA
-    (CSV rows bitwise identical; nan was the pre-v2.4.0 sentinel) —
-    correction recorded in the characterization doc.
-  - Accuracy-fix pass LANDED 2026-09-03 (PR #142, same day) [user:
-    "fix all three" + invited the comparator fix]: (1) gamma deep-tail
-    quantile escape (log-domain seed, relative-in-p stopping — which
-    also exposed and fixed a silently-wrong deep-tail band the absolute
-    tolerance had been accepting, e.g. quantile(1e-15) with true CDF
-    ~1e-50) + batch CDF(+inf) lanes (the #130 class, inherited by
-    ChiSquared/Erlang); (2) fisher_f denormal-band beta argument
-    y = x/(x + d2/d1); (3) truncated_normal near-lower-bound Hermite-
-    series CDF (0.32–0.45 rel at lo+1ulp → ~1e-14; OneSidedTail budget
-    gains the previously error-correlation-hidden pdf(q)·ulp(q) term);
-    (4) oracle overflow rule: |ref| ≥ 2^1024 − 2^970 scores matching-
-    sign ±inf as correctly rounded (self-checks 68 → 72). All behind
-    fail-first gates shown failing on the unfixed build. Violations
-    57 → 45 (library, 12 rows) → 34 (comparator: 8 F/InvGamma artifacts
-    + 3 pareto phantoms present in every prior baseline). Grid
-    9030 → 9210 (+180 newly finite gamma-family quantile grid points);
-    byte-diff perimeter: all 22 untouched distributions identical.
-    Suite 74/74. Remaining 34 violations = filed classes only
-    (#136/#137/#103-weibull); #141 filed for the last visible genuine
-    accuracy limit (gamma_p at large shape).
-  - Worktree/branch cleanup DONE 2026-09-03: all five finished agent
-    worktrees removed, merged feature branches deleted; local topology
-    is dev/v2.4.0 + main only.
-  - Environment hardening this session: per-project Defender exclusions
-    added [user, elevated shell] after cloud-ML quarantine
-    (`Trojan:Win32/Wacatac.B!ml`) ate rotating test EXEs mid-suite —
-    AGENTS.md Windows setup now documents both; YubiKey commit-signing
-    protocol for agents (stage-and-pause when AFK) worked as designed.
-  - NOTE: PR #131's "Closes #55" targets dev, so GitHub auto-close fires
-    only when dev merges to main — #55 stays open on the milestone until
-    then, intentionally.
-  - Threshold profiling DONE 2026-09-03 (PR #143) — and it caught a real
-    concurrency defect. strategy_profile extended 19 → 27 (wrappers
-    profiled per the existing Chi-squared/Geometric/Cauchy convention;
-    user call). Profiling showed forced-PARALLEL ≡ VECTORIZED bitwise
-    for every SLICED batch path: the 18 lambda sites in
-    beta/gamma/lognormal (old) + fisher_f/inverse_gamma (new) passed
-    their slice COUNT (~N/1024) as the parallelFor range, and both
-    pools' serial gates are ELEMENT-denominated (8192 on AVX-512) — so
-    those parallel paths NEVER FORKED below ~8.4M elements, and the
-    June threshold calibration measured secretly-serial paths. Fixed
-    via ParallelUtils/WorkStealingPool::parallelForSlices (element
-    gates, SIMD-slice callbacks, serial fallback = one full-range
-    slice). Post-fix at 2M: gamma pdf/logpdf 7.5×/8.4×, F cdf 6.3×,
-    invgamma cdf 6.4×, lognormal cdf 6.5×; BETA pdf/logpdf LOSE under a
-    real fork (0.80–0.87×, memory-bound) → rows now NEVER. kAvx512
-    calibrated from 3 quiet-machine runs using SUSTAINED crossovers
-    (validator's first-crossing heuristic reports 64-element noise
-    ties — do not trust it raw). Suites: 74/74 correctness; timing
-    20/22 = Zen 4 timing leg of the matrix (#129 uniform flake, same
-    signature as v2.2.0/v2.3.1, + one timer-resolution caching flake,
-    3/3 standalone).
-  - Next — ORDER MATTERS, machine legs BEFORE the release [user-settled
-    2026-09-03]: the parallelForSlices repair changes dispatch behavior
-    under the EXISTING kNeon/kAvx2 rows (June-calibrated against the
-    non-forking parallel path), and Zen 4 shows a real fork can go
-    either way (gamma 7.5–8.4× gain, Beta 0.80–0.87× LOSS) — tagging
-    before those tables are re-measured risks shipping Beta-class
-    parallel slowdowns on AVX2/NEON. This differs from the v2.3.1
-    precedent (tag before remaining legs), whose legs were pure
-    validation; these legs change threshold tables.
-    (1) ~~Kaby Lake leg~~ **DONE 2026-09-03/04** (7c2ca49 on dev),
-    ~~then M1 leg~~ **DONE 2026-09-04** (5f9bb5e on dev) — BOTH MACHINE
-    LEGS COMPLETE, the release gate is cleared; each ran on its own
-    machine, on dev:
-    (a) correctness suite (74 expected), (b) timing suite serial on a
-    quiet machine, (c) characterization regen on the 27-dist grid +
-    oracle overflow rule (expect the pareto quantile triple to
-    reclassify identically to Zen 4), (d) threshold RE-PROFILE with the
-    extended 27-dist strategy_profile: new-kernel rows off NEVER,
-    beta/gamma/lognormal rows re-measured post-repair, sustained-
-    crossover methodology (do NOT trust threshold_validator's
-    first-crossing heuristic raw — it reports 64-element noise ties).
-    Kaby Lake results: 74/74; 22/22 timing twice (pre- and
-    post-recalibration; the #129 uniform gate PASSES here); sweep 9213
-    rows → 34 violations, appendix class-for-class identical to Zen 4,
-    pareto triple reclassified as predicted. kAvx2 recalibrated from 3
-    quiet runs: **Beta PDF/LogPDF → NEVER on AVX2 too** (0.65–0.73× at
-    2M, memory-bound — the old row dispatched parallel at 256, the
-    exact slowdown class the reorder guarded against); Gamma
-    {25000,25000,4096}, LogNormal {50000,50000,4096}; new kernels
-    Logistic {100000,100000,50000}, Gumbel {50000,50000,100000},
-    HalfNormal {75000,75000,50000}, TruncatedNormal {50000,50000,4096};
-    FisherF {1024,6144,512} and InverseGamma cdf 2048 measured;
-    Bernoulli stays NEVER (Binomial measured NEVER on this arch).
-    Post-fix forks at 2M: gamma 5.3–5.4×/5.9×, F cdf 3.6×, invgamma
-    cdf 2.7–3.0×, lognormal cdf 3.3–4.2×. Raw CSVs + logs since
-    committed as a bundle (4e81fe1,
-    data/profiles/dispatcher/2026-09-04T02-36-22Z_…).
-    Bonus data: Cauchy CDF sustained crossover measured ~4096–8192 vs
-    the STALE 128 row — direct input for #109 (noted on the issue).
-    **kAvx CAPPED-BUILD LEG DONE 2026-09-04** (cb13f34 on dev,
-    unplanned third leg): the post-leg lessons review found the kAvx
-    table was still June inference (kAvx2÷2 from pre-repair data) with
-    wrong-direction Beta/FisherF rows ({128,128,…} where every measured
-    tier says parallel loses), and the "BETA: NEVER on kAvx" header
-    comment contradicting the actual row. Rather than re-infer,
-    measured for real: `LIBSTATS_MAX_SIMD_TIER=AVX` Release build on
-    Kaby Lake (tier asserted — active AVX, zero vector_*_avx2 kernel
-    symbols), 3 quiet --large runs, sustained crossovers → first
-    MEASURED kAvx table ever, replacing the inference table wholesale;
-    also the first native AVX-tier correctness validation (74/74)
-    since the 2012 MBP retired. Read as "AVX code paths on Kaby Lake
-    silicon" (same 4C/8T mobile-quad class as the retired Ivy Bridge).
-    Runs agreed more tightly than the AVX2 leg; notable per-tier
-    economics: Uniform CDF sustains from 25k (NEVER on kAvx2),
-    HalfNormal CDF 10000 (NEVER on kNeon — the vector_erf economics
-    invert with the slower x86 kernel, corvus#37's pattern), StudentT
-    CDF and von Mises CDF → NEVER, Binomial/NegBinomial CDF June
-    "held" values were kAvx512 artifacts → NEVER. SSE2 still delegates
-    to kAvx, so this heals both bottom x86 tiers. Bundle checked in
-    (2026-09-04T23-51-14Z_…); the Kaby AVX2 bundle's logs backfilled
-    as .txt in the same commit (.gitignore *.log had silently excluded
-    bundle logs — the M1 bundle 68d95d4 has the same gap: its
-    manifest lists logs/ that never got committed; re-add as .txt
-    from that machine, next M1 session). The capped-build pattern is
-    portable to libhmm when its thresholds get the same treatment.
-    M1 results (5f9bb5e + bundle 68d95d4, 2026-09-04): 74/74 before and
-    after the table change and again after merging the Kaby Lake leg;
-    timing 22/22 serial quiet (the #129 uniform gate passes on M1 this
-    run); sweep 9210 rows → **32 violations = the x86 34 minus the two
-    geometric logpdf rows #125's AArch64 saturation renders finite**
-    (same 2-row deficit as v2.3.1's 61-vs-63), classes otherwise
-    identical, pareto triple reclassified as predicted. kNeon
-    recalibrated from 3 --large runs, sustained crossovers, max across
-    runs: **Beta PDF/LogPDF NEVER on NEON too** (V best at 2M all runs
-    — parallel-loses now confirmed on all three measured tiers), CDF
-    4096; Gamma {50000,75000,4096}, LogNormal {50000,50000,25000}; new
-    kernels Logistic {50000,50000,50000}, Gumbel {75000,50000,50000},
-    HalfNormal {100000,200000,NEVER} (CDF VECTORIZED-best at 2M all
-    runs — per-machine divergence from both x86 tiers), TruncatedNormal
-    {50000,75000,25000}; FisherF {8192,10000,2048} and InverseGamma cdf
-    2048 measured; Bernoulli stays NEVER. Quiet-machine caveat recorded
-    in the bundle manifest: runs 2–3 contended with hourly Time Machine
-    + mediaanalysisd; every in-scope cell stayed within the Step 3
-    one-OOM window (worst 3×), max-across-runs absorbs the skew
-    conservatively. The sweep grids are row-for-row identical across
-    machines (the Kaby Lake "9213" is 9210 rows + 3 banner lines).
-    Leg-findings package (e0b04f9, 2026-09-04) [user-approved]:
-    provisional/stale CDF rows retired from the legs' data — von Mises
-    CDF → NEVER on kNeon/kAvx2 (#144; both Mac tiers measured parallel
-    never sustaining — #111's memory-bound batch CDF; kAvx512 25000
-    still provisional, Zen 4 re-measure owed, tracked on #144); Cauchy
-    CDF kNeon 512→25000, kAvx2 128→8192, kAvx 64→4096 inferred (#109
-    promoted to milestone #2 and CLOSED); Laplace PDF kNeon trial
-    35000→50000. HalfNormal-CDF NEON "divergence" root-caused as
-    economics, not defect: parallel path is per-element libm erf (~21
-    ns/elem/core) vs vector_erf at 2.2 ns/elem single-thread — a ~10×
-    gap 8 cores cannot cover (0.83× measured); x86 vector_erf is ~5×
-    slower per element, so parallel wins there. Mechanism recorded at
-    the kNeon row. NOTE for corvus/v2.5.0: x86 vector_erf being ~5×
-    slower per element than NEON's is a real optimization target.
-    **Comprehensive doc audit DONE 2026-09-05** (16d9eed on dev; user
-    directed full-read review): four parallel reviewers read all 34
-    doc files line-by-line against a v2.4.0 fact sheet, ~60 findings
-    fixed. Notables: THIRD_PARTY_NOTICES was missing the musl/Sun
-    fdlibm erf attribution and understated SLEEF scope; README linked
-    the non-installable `libstats::static` find_package target;
-    MIGRATION_GUIDE had the v1/v2 target names reversed;
-    PROJECT_CONCEPT was two majors stale; PROFILING_METHOD still
-    called kAvx inferred. Two CODE fixes fell out (41d7b8b): the
-    dangling-else sweep completed repo-wide (10 sites — the first CI
-    round only reported what GCC reached before stopping), and
-    copy_move_stress extended 19 → 27 (the workstreams missed it
-    because test_architecture.md misdescribed the tool; 27/27 PASS).
-    #148 filed for the UML diagram regeneration. Deliberately
-    unchanged: README's v2.3.1 intro (flips at tag), NEON audits'
-    historical numbers (status headers added instead).
-    **Strict CI GREEN 2026-09-05 night** after a three-round
-    dangling-else saga (85abb0c → 41d7b8b → c7d9fe8): GCC flags
-    unbraced `if`/`else if` wrapping a gtest EXPECT_* macro
-    (macro expands to if/else); AppleClang/MSVC don't, so every
-    native leg missed it, and GCC's per-round error list stops at
-    the first failing TUs — never trust one round's list as the
-    full inventory. Terminal verification that closed it: build
-    the WHOLE tree with `-Werror=dangling-else` under AppleClang
-    (zero diagnostics = nothing left for GCC). At session end the
-    remaining checks on PR #147's final round (c7d9fe8) were
-    12 pass / 7 pending / 3 skipping with Strict already green;
-    PR review + merge is the user's next-session step, then
-    tag + pylibstats pin bump per the release checklist.
-    (2) ~~AGENTS.md current-state refresh~~ **DONE 2026-09-04**
-    (04e8b53): 19→27, counts 74/22/2 (98 targets), full three-machine
-    v2.4.0 matrix (v2.3.1 matrix archived to VALIDATION_HISTORY.md);
-    README roster 19→27 with family placements + mutability doc count
-    [user-extended scope]; registration checklist step 7 added — README
-    roster + families demo are a distribution's definition of done
-    (3c535af, after #145 found the v2.4.0 eight missed example
-    coverage; #145 in milestone #2, a spun-off session picked it up).
-    (3) **PR #147 OPENED 2026-09-05** [user: skip the optional isa=AVX
-    characterization block] — the final reviewed dev/v2.4.0 → main PR
-    (21 commits, 88 files), awaiting CI + review; merge fires the
-    "Closes #54–#57" lines. Then tag + pylibstats bump per (4).
-    Original step: Final reviewed PR dev/v2.4.0 → main + tag (the "Closes
-    #54–#57" lines fire then; #144 closes when the kAvx512 von Mises
-    cell is measured or explicitly deferred; reword README's "on dev"
-    release paragraph at tag time). (4) pylibstats pin bump at release.
+- **v2.4.0 SHIPPED 2026-09-04** (full development record: `git show
+  eb75a45:PLAN.md`, "In Progress"; release contents in CHANGELOG
+  [2.4.0]): PR #147 (21 branch commits, 10 squash-merged feature PRs)
+  merged to main via merge commit c3d27e2 with CI fully green (the one
+  PR-side blemish was a coverage-runner apt hang, 20-min job timeout —
+  infra, not code); release commit e868fc1 (version 2.3.1 → 2.4.0,
+  CHANGELOG sealed, README/AGENTS reworded off the dev branch); tag
+  v2.4.0 at e868fc1 (signed, verified); GitHub release published from
+  the CHANGELOG section; milestone #2 CLOSED at 0 open (#54–#57 closed
+  by the merge; #145 closed earlier). #144 moved to milestone #8 with a
+  scheduling note [user-approved]: the von Mises CDF sits on the Bessel
+  path #47's corvus rewire replaces in v2.5.0, so the owed kAvx512
+  sustained re-measure happens in the first POST-adoption Zen 4 session
+  — a pre-adoption measurement would be immediately stale, and the
+  provisional row is low-risk (both Mac tiers measured NEVER; #111
+  memory-bound signature). Library at 27 distributions, suite 74/74 on
+  all fleet machines, every dispatch-threshold table
+  measurement-backed. OUTSTANDING from the ship checklist: pylibstats
+  pin bump to v2.4.0; milestone #8 reassessment pass (bucket its 15
+  open issues post-v2.4.0 vs post-v2.5.0 — several share #144's
+  "adoption changes the answer" dependency).
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
@@ -849,12 +611,14 @@ session artifact; the issues carry the detail.
    2026-08-25, follow-ups filed, Kaby Lake leg 2026-08-26, M1 leg
    2026-08-27/28. The validation matrix and all three characterization
    blocks are at v2.3.1.
-2. **v2.4.0 is the active work** (opened 2026-09-02; plan on the
-   milestone entry, status under In Progress). All corvus-arc
-   prerequisites for v2.5.0 are satisfied, so after v2.4.0 ships:
-   v2.5.0 adoption (now also closing #107/#108/#110/#113) in ONE
-   swap round; the renamed post-adoption patch after it. Contingency:
-   #125/#127 justify an early patch slice if the corvus arc stalls.
+2. ~~v2.4.0 is the active work~~ **SHIPPED 2026-09-04** —
+   tag/release/milestone closed (record under In Progress). Remaining
+   from its checklist: pylibstats pin bump to v2.4.0; milestone #8
+   reassessment pass. All corvus-arc prerequisites for v2.5.0 are
+   satisfied: v2.5.0 adoption (now also closing #107/#108/#110/#113)
+   in ONE swap round; the renamed post-adoption patch after it.
+   Contingency: #125/#127 justify an early patch slice if the corvus
+   arc stalls.
 3. At v2.5.0 scoping: re-scope #47/#52 against the cores' real accuracy
    (#113's record correction), and verify whether the corvus
    incomplete-beta core absorbs #126 (re-home it to v2.5.0 if so).
@@ -864,6 +628,11 @@ session artifact; the issues carry the detail.
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
 file's git history.
+- 2026-09-04 **v2.4.0 shipped** — PR #147 merged (c3d27e2), tag v2.4.0
+  at e868fc1 (signed), GitHub release published, milestone #2 closed at
+  0 open (#144 → milestone #8, re-measure post-adoption). 27
+  distributions, suite 74, all threshold tables measurement-backed.
+  Detail in CHANGELOG [2.4.0] and the In Progress record.
 - 2026-08-25 **v2.3.1 milestone work merged** — 8 issues (#102, #105, #106,
   #112, #115, #116, #117, #118) via 5 squash-merged PRs (#120–#124), each
   with fail-first gates; suite 53 → 58; five-agent workstream execution
