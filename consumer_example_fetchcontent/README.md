@@ -24,6 +24,6 @@ FetchContent_Declare(libstats SOURCE_DIR /path/to/libstats)
 ## What it tests
 
 - `FetchContent_MakeAvailable(libstats)` builds libstats as a subdirectory
-- `libstats_static` target is available without `find_package`
+- the `libstats::static` build-tree alias is available without `find_package`
 - `#include "libstats/libstats.h"` resolves correctly from the build tree
 - Gaussian PDF/CDF computation produces correct values

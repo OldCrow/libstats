@@ -25,8 +25,8 @@ overlap — the contract is now documented and debug-asserted.
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
 [![CMake](https://img.shields.io/badge/CMake-3.25%2B-blue.svg)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#safety-features)
-[![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#performance-features)
+[![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#-safety--numerical-stability)
+[![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#-performance-features)
 
 A modern C++20 statistical distributions library demonstrating how to build statistical software correctly — with genuine SIMD vectorization, parallel dispatch, thread safety, and zero external dependencies.
 
@@ -97,7 +97,7 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **C++20 Parallel Algorithms**: Safe wrappers for `std::execution` policies
 - **Cache Optimization**: Thread-safe caching with lock-free fast paths
 
-**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/AVX-512/NEON instruction sets with runtime safety verification. Validated on Intel (Ivy Bridge/Kaby Lake), Apple Silicon (M1/NEON), AMD Ryzen Zen 4 (AVX-512), and Linux CI.
+**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/AVX-512/NEON instruction sets with runtime safety verification. Validated on Intel Kaby Lake (AVX2+FMA natively; the AVX tier via a `LIBSTATS_MAX_SIMD_TIER=AVX` capped build), Apple Silicon (M1/NEON), AMD Ryzen Zen 4 (AVX-512), and Linux CI.
 
 ## Quick Start
 
@@ -229,7 +229,7 @@ libstats/
 
 ```bash
 # Correctness suite — parallel-safe, always reliable
-make run_tests                           # or: ctest -LE "timing|benchmark"
+ctest -LE "timing|benchmark"             # 74 tests; make run_tests runs a further-filtered 67-test subset
 
 # Timing/speedup tests — run serially for accurate results
 make run_tests_timing                    # or: ctest -j1 -L timing
@@ -244,7 +244,7 @@ make run_all_tests
 ctest -R test_gaussian_basic
 ```
 
-Tests are labelled: **no label** = correctness (parallel-safe); **timing** = speedup assertions (run serially); **benchmark** = performance tools (not in standard suite). The `*_enhanced` GTest tests require GTest installed; they are silently skipped when GTest is absent.
+Tests are labelled: **no label** = correctness (parallel-safe); **timing** = speedup assertions (run serially); **benchmark** = performance tools (not in standard suite). The `*_enhanced` GTest tests use the system GTest when present and otherwise fetch googletest automatically (FetchContent), so they always build.
 
 ### System Requirements
 - **C++20 compatible compiler**: GCC 13+, Clang 17+, AppleClang 15+, MSVC 19.38+
@@ -306,7 +306,7 @@ In your project's `CMakeLists.txt`:
 
 ```cmake
 find_package(libstats REQUIRED)
-target_link_libraries(your_target PRIVATE libstats::static)
+target_link_libraries(your_target PRIVATE libstats::libstats_static)
 ```
 
 Configure with `-DCMAKE_PREFIX_PATH=/path/to/install`.
@@ -352,7 +352,7 @@ tagged release; v1.5.3 was the final v1.x release.
 - Profiling-derived architecture-aware parallel dispatch thresholds
 - Thread-safe with reader-writer locks and lock-free atomic fast paths
 
-**Validated on four architectures:** Intel Ivy Bridge/AVX, Intel Kaby Lake/AVX2+FMA, Apple Silicon M1/NEON, AMD Zen 4/AVX-512. 61/61 SIMD verification tests pass on all four machines.
+**Validated on four SIMD tiers:** AVX (capped build on Kaby Lake — the Ivy Bridge machine is retired), AVX2+FMA (Kaby Lake), NEON (Apple M1), AVX-512 (AMD Zen 4). 70/70 SIMD verification tests pass on every fleet machine.
 
 For the full release history, see [CHANGELOG.md](CHANGELOG.md).
 

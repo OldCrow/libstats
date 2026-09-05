@@ -49,7 +49,7 @@ grows 58 → 74; every dispatch-threshold table is now measurement-backed.
   threshold calibration measured those secretly-serial paths (#143).
   Post-repair, every tier's thresholds re-measured with sustained
   V→P crossovers; Beta PDF/LogPDF dispatches to VECTORIZED everywhere
-  (a real fork is a 0.65–0.87× loss on every measured tier).
+  (a real fork is a 0.65–0.92× loss on every measured tier).
 - Gamma PDF/LogPDF returned NaN at +inf for every α ≥ 1 and the batch
   LogPDF let the −4605 clamp escape at −inf; scalar and batch guarded,
   healing ChiSquared (k ≥ 2) and Erlang (#130).
@@ -1463,7 +1463,7 @@ the installed set. The library API itself is unchanged.
 ### Validation (all four machines, 54/54 SIMD tests)
 
 | Machine | SIMD | Correctness | simd_verification | Speedup |
-|---|---|---|---|
+|---|---|---|---|---|
 | Ivy Bridge (2012 MBP) | AVX | 34/34 ✅ | 54/54 ✅ | 4.10x |
 | Kaby Lake (2017 MBP) | AVX2 | 33/33 ✅ | 54/54 ✅ | 3.49x |
 | Mac Mini M1 | NEON | 33/33 ✅ | 54/54 ✅ | 2.31x |

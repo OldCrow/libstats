@@ -351,11 +351,12 @@ if (result.isOk()) {
 ### CMake target name
 
 ```cmake
-# v1.5.3 install target name
+# Install target name — unchanged from v1.5.3 through v2.x
 target_link_libraries(your_target PRIVATE libstats::libstats_static)
 
-# v2.0.0 install target name
-target_link_libraries(your_target PRIVATE libstats::static)
+# Build-tree only (FetchContent / add_subdirectory): the alias libstats::static
+# also works, but it is NOT installed — find_package consumers must use
+# libstats::libstats_static (see cmake/libstats-config.cmake.in).
 ```
 
 ### Build type `CROSS_PLATFORM` removed

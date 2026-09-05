@@ -89,9 +89,10 @@ not a CI one.
 The mpmath accuracy characterization (`docs/ACCURACY_CHARACTERIZATION.md`,
 #46) covers all three fleet ISAs on the 27-distribution, 9210-row grid as
 of 2026-09-04 (each a generated block labelled by its sweep banner, with
-per-machine delta prose). All remaining contract violations are the two
-known classes (#103 ±inf contracts; #113/#104 large-param/extreme-quantile),
-with #125 masking two geometric rows on NEON only. It is a
+per-machine delta prose). All remaining contract violations are
+filed classes — #103 ±inf rows (weibull/rayleigh/poisson), #136 erf_inv
+extreme tail, #137 inverse_beta_i, #138 digamma, #141 gamma_p at large
+shape — with #125 masking two geometric rows on NEON only. It is a
 characterization, not an audited per-tier claim: bounds hold per ISA block
 only.
 
@@ -362,7 +363,7 @@ Level 5: Complete Library Interface (libstats.h)
 - **Explicit strategy API**: Direct control over SIMD/parallel execution for power users
 
 #### Performance Systems
-- **SIMD Optimization**: Cross-platform runtime detection (SSE2/AVX/AVX2/NEON)
+- **SIMD Optimization**: Cross-platform runtime detection (SSE2/AVX/AVX2/AVX-512/NEON)
 - **Parallel Execution**: Auto-dispatching between scalar, SIMD, and parallel strategies
 - **Adaptive Cache**: Performance-aware caching with memory optimization
 - **Performance History**: Machine learning for strategy selection improvement
@@ -374,7 +375,7 @@ Level 5: Complete Library Interface (libstats.h)
 
 ### Core Components
 
-#### Statistical Distributions (19 implemented, across 7 families)
+#### Statistical Distributions (27 implemented, across 7 families)
 1. **Gaussian** (Normal) - N(μ, σ²)
 2. **Exponential** - Exp(λ)
 3. **Uniform** - U(a, b)
@@ -394,6 +395,14 @@ Level 5: Complete Library Interface (libstats.h)
 17. **Geometric** - Geo(p) — discrete, delegate over NegBinomial(r=1); MLE: p̂=1/(1+x̄)
 18. **Laplace** - Laplace(μ, b) — standalone, fabs+vector_exp SIMD; MLE: median/MAD
 19. **Cauchy** - Cauchy(x₀, γ) — PDF/LogPDF delegate to StudentT(ν=1), CDF/Quantile closed-form (#48); moments NaN; Fisher-scoring MLE
+20. **Logistic** - Logistic(μ, s) — vector_exp pipeline, log1p/expm1 tail stability (#54)
+21. **Gumbel** - Gumbel(μ, β) — max-stable (`gumbel_r`) only; double-exp pipeline (#54)
+22. **Bernoulli** - Bern(p) — delegation wrapper over Binomial(n=1); p ∈ [0,1] inclusive (#55)
+23. **Erlang** - Erlang(k, λ) — pure delegation over Gamma(k, λ); RATE-parameterized, int k (#55)
+24. **FisherF** - F(d₁, d₂) — closed-form PDF + steered `detail::` CDF (NOT a Beta delegation) (#56)
+25. **InverseGamma** - InvGamma(α, β) — x → 1/x transform over Gamma, complement-native tails (#56)
+26. **HalfNormal** - HN(σ) — erf/erfc pipeline over Gaussian machinery (#57)
+27. **TruncatedNormal** - TN(μ, σ, a, b) — regime-split erfc normalization; rejects Z-underflow windows (#57)
 
 Each implemented distribution provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
 
@@ -483,7 +492,7 @@ Object library architecture: the build compiles the sources in seven OBJECT libr
 
 ### Creating New Distributions
 
-The registration checklist is authoritative in `include/libstats/core/distribution_meta.h`. Geometric (16), Laplace (17), and Cauchy (18) are the most recently implemented (2026-06-28); for any future distribution (N+1), follow all 6 steps below.
+The registration checklist is authoritative in `include/libstats/core/distribution_meta.h`. The v2.4.0 eight — Logistic through TruncatedNormal (19–26 in enum order) — are the most recently implemented (2026-09-03); for any future distribution (N+1), follow all 7 steps below.
 
 **Steps for any future distribution (N+1):**
 

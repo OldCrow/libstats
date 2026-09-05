@@ -66,6 +66,7 @@ Generic analysis headers:
 - `stats/analysis/information_criteria.h`
 - `stats/analysis/cross_validation.h`
 - `stats/analysis/bootstrap.h`
+- `stats/analysis/statistical_utilities.h`
 - `stats/analysis/analysis.h` (generic umbrella only)
 
 Distribution-specific analysis headers must be included explicitly:
@@ -75,6 +76,7 @@ Distribution-specific analysis headers must be included explicitly:
 - `stats/analysis/exponential_analysis.h`
 - `stats/analysis/gamma_analysis.h`
 - `stats/analysis/binomial_analysis.h`
+- `stats/analysis/discrete_analysis.h`
 
 Do not add distribution-specific analysis headers to `analysis.h`; that umbrella is intentionally generic.
 

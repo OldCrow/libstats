@@ -6,11 +6,12 @@ Issue #46. Full sweep of `pdf`/`logpdf`/`cdf`/`quantile` — scalar and batch
 `tools/accuracy_vs_mpmath.py`.
 
 > **Grid generations.** 5928 rows (v2.3.0-era) → 6063 (v2.3.1, discrete
-> specials added) → **9030 (v2.4.0, the eight new distributions)**. Row
-> counts, CSV line numbers and violation totals are only comparable
-> within a generation. As of 2026-09-03 only the AVX-512 block is on the
-> 9030-row grid; the AVX2 and NEON blocks below are still the 6063-row
-> v2.3.1 sweeps and get regenerated natively on their own machines.
+> specials added) → 9030 (v2.4.0, the eight new distributions) →
+> **9210 (v2.4.0 accuracy-fix pass, +180 newly finite gamma-family
+> quantile grid points)**. Row counts, CSV line numbers and violation
+> totals are only comparable within a generation. As of 2026-09-04 all
+> three blocks (AVX-512, AVX2, NEON) are native 9210-row sweeps under
+> the oracle overflow rule: 34 / 34 / 32 violations.
 
 > **CHARACTERIZATION, not an audited claim.** All three fleet ISAs have
 > generated blocks: Zen 4 (AVX-512, MSVC Release, UCRT libm), Kaby Lake
@@ -261,9 +262,9 @@ The Zen 4 AVX-512 generated block below now covers **all 27
 distributions** (banner `commit=8506f5a`, 9030 rows, 68/68 oracle
 self-checks), extending the grid to the eight added in v2.4.0: logistic,
 gumbel, bernoulli, erlang, fisher_f, inverse_gamma, half_normal,
-truncated_normal. The AVX2 and NEON blocks are untouched and still hold
-their 6063-row v2.3.1 sweeps; they get regenerated natively on their own
-machines. **Do not compare a 9030-row total against a 6063-row one.**
+truncated_normal. The AVX2 and NEON blocks were regenerated
+natively on their own machines on 2026-09-03/04 (9210-row grid: 34 and
+32 violations). **Do not compare totals across grid generations.**
 
 Grid extension is append-only by construction: the eight registrations
 sit after every existing one in `sweepAll()`, so all 6063 pre-v2.4.0 rows
@@ -427,15 +428,19 @@ pre-v2.4.0 classes (#136 erf_inv tails, #137 `inverse_beta_i`, the
 weibull/geometric `#103`-class rows). The generated block's banner is
 `commit=f99a82b` — the library state that produced the rows; the
 comparator that scored them is the `fix(oracle)` commit on the same
-branch. The AVX2 and NEON blocks still hold their 6063-row v2.3.1
-sweeps and pre-rule scoring; regenerating them natively during release
-validation applies the same reclassification there (expect their pareto
-triple to clear identically).
+branch. The AVX2 and NEON blocks were regenerated natively during
+release validation (2026-09-03/04) and the reclassification applied as
+predicted — the pareto quantile triple cleared identically on both,
+landing at 34 (AVX2, class-for-class matching Zen 4) and 32 (NEON).
 
-## Findings
+## Findings (historical — v2.3.0 initial characterization, 2026-08-19)
 
-What the sweep actually surfaced, beyond confirming the four pinned
-gates (details row-by-row in the generated appendix):
+What the FIRST sweep surfaced, beyond confirming the four pinned gates.
+Status 2026-09-04: the batch-NaN class was fixed in v2.3.1 (#102/#105 —
+0 rows on all three ISAs); the gamma-family ±inf and deep-tail-quantile
+items were fixed in v2.4.0 (#130, the `fix(gamma)` pass); the remaining
+±inf rows are #103's enforcement scope and the rest are filed as
+#136/#137/#138/#141. Kept as the record of what characterization finds:
 
 - **Batch NaN propagation is inconsistent** (35 rows, 8 distributions:
   uniform, gamma, chi-squared, laplace, pareto, weibull, beta,

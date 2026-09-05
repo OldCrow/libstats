@@ -1,5 +1,10 @@
 # Divergence Audit — clean-room NEON `log` vs ARM optimized-routines `advsimd/log.c`
 
+> **Status**: the clean-room kernel audited here IS production
+> `vector_log_neon` (it replaced the SLEEF-family kernel this audit
+> compares against). References to "libstats' current vector_log_neon"
+> below mean the PRE-replacement kernel, as of the audit date.
+
 Date: 2026-07-19
 Author: orchestrator (not the clean-room implementer). Purpose: document that the
 clean-room implementation in this directory does not reuse the expression of any

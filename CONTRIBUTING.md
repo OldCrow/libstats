@@ -122,14 +122,17 @@ checklist in `include/libstats/core/distribution_meta.h` (authoritative), then i
 1. **Append** the `DistributionType` enum value to `include/libstats/core/distribution_type.h`
    (append-only — values are used as array indices).
 2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/libstats/core/distribution_meta.h`.
-3. **Append** one `ThresholdRow` to each of the four `kXxx` tables in
+3. **Append** one `ThresholdRow` to each of the FIVE `kXxx` tables in
    `include/libstats/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled).
 4. **Implement** the distribution (see `exponential.h`/`.cpp` as the reference template):
    - Inherit from `DistributionBase`, implement all pure virtual methods.
    - Full statistical interface: PDF/LogPDF/CDF/quantile/sampling/MLE/`parallelBatchFit`.
    - Parameter validation and factory methods (`Result<T>`/`VoidResult` API).
    - SIMD-optimized batch operations via the `VectorOps` pipeline in `*BatchUnsafeImpl`.
-   - Tests: `*_basic.cpp` standalone + `*_enhanced.cpp` GTest with speedup assertions.
+   - Tests: `*_basic.cpp` standalone + `*_enhanced.cpp` GTest asserting the birth
+     contracts (#103 ±inf limits, #104 quantiles, batch NaN propagation). Enhanced
+     binaries carry NO timing label and no speedup assertions (#135) so the
+     contract gates run in CI's correctness pass.
 5. **Register** in `CMakeLists.txt` and `include/libstats/libstats.h`.
 
 ### SIMD Development
@@ -262,8 +265,9 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **New Distributions**: All 19 distributions are fully implemented as of v2.0.0.
-   Inverse Gamma is scheduled in the v2.4.0 milestone (issue #56); KDE (kernel
+1. **New Distributions**: All 27 distributions are fully implemented as of v2.4.0
+   (the v2.4.0 milestone added Logistic, Gumbel, Bernoulli, Erlang, FisherF,
+   InverseGamma, HalfNormal, TruncatedNormal). KDE (kernel
    density estimation) and GMM (Gaussian mixture models) are wanted but
    unscheduled. See the [milestones](https://github.com/OldCrow/libstats/milestones)
    for what is currently planned rather than a version named here.

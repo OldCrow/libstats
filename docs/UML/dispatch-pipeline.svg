@@ -31,7 +31,7 @@
   <rect x="20" y="172" width="170" height="72" rx="4" fill="#FAFAF0" stroke="#b8a830" stroke-width="0.5"/>
   <text x="105" y="190" text-anchor="middle" font-size="12" font-weight="500" fill="#6b5e00">PerformanceDispatcher</text>
   <text x="105" y="204" text-anchor="middle" font-size="10" fill="#8a7a10">SIMDPolicy::getBestLevel()</text>
-  <text x="105" y="216" text-anchor="middle" font-size="10" fill="#8a7a10">→ kNeon / kAvx2 / kAvx512</text>
+  <text x="105" y="216" text-anchor="middle" font-size="10" fill="#8a7a10">→ kNeon / kAvx / kAvx2 / kAvx512</text>
   <text x="105" y="228" text-anchor="middle" font-size="10" fill="#8a7a10">lookup threshold[dist][op]</text>
   <text x="105" y="240" text-anchor="middle" font-size="10" fill="#8a7a10">count ≥ threshold? → PARALLEL</text>
 
@@ -110,14 +110,14 @@
   <text x="430" y="522" text-anchor="middle" font-size="12" font-weight="500" fill="#444">Threshold tables in dispatch_thresholds.h  —  count ≥ threshold[dist][op] → PARALLEL beats VECTORIZED</text>
 
   <text x="90" y="542" text-anchor="middle" font-size="11" font-weight="500" fill="#555">kNeon (M1)</text>
-  <text x="90" y="556" text-anchor="middle" font-size="10" fill="#666">Gaussian PDF ≥ 25 000</text>
+  <text x="90" y="556" text-anchor="middle" font-size="10" fill="#666">Gaussian PDF ≥ 50 000</text>
   <text x="90" y="568" text-anchor="middle" font-size="10" fill="#666">Gaussian logPDF ≥ 64</text>
   <text x="90" y="580" text-anchor="middle" font-size="10" fill="#666">Gaussian CDF: NEVER</text>
 
   <text x="265" y="542" text-anchor="middle" font-size="11" font-weight="500" fill="#555">kAvx2 (Kaby Lake)</text>
-  <text x="265" y="556" text-anchor="middle" font-size="10" fill="#666">Gamma PDF ≥ 50 000</text>
-  <text x="265" y="568" text-anchor="middle" font-size="10" fill="#666">Gamma logPDF ≥ 64</text>
-  <text x="265" y="580" text-anchor="middle" font-size="10" fill="#666">Gamma CDF ≥ 64</text>
+  <text x="265" y="556" text-anchor="middle" font-size="10" fill="#666">Gamma PDF ≥ 25 000</text>
+  <text x="265" y="568" text-anchor="middle" font-size="10" fill="#666">Gamma logPDF ≥ 25 000</text>
+  <text x="265" y="580" text-anchor="middle" font-size="10" fill="#666">Gamma CDF ≥ 4 096</text>
 
   <text x="450" y="542" text-anchor="middle" font-size="11" font-weight="500" fill="#555">kAvx512 (Zen 4)</text>
   <text x="450" y="556" text-anchor="middle" font-size="10" fill="#666">wider SIMD → thresholds</text>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>libstats v2.0.0 — Architecture Diagrams</title>
+<title>libstats Architecture Diagrams (v2.0.0 snapshot)</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -108,8 +108,8 @@
 <body>
 
 <header>
-  <h1>libstats v2.0.0 — Architecture Diagrams</h1>
-  <p>Four structural and process-flow diagrams covering the class hierarchy, batch dispatch pipeline, thread-safety model, and Result&lt;T&gt; factory pattern.</p>
+  <h1>libstats Architecture Diagrams <small>(v2.0.0 snapshot)</small></h1>
+  <p>Four structural and process-flow diagrams covering the class hierarchy, batch dispatch pipeline, thread-safety model, and Result&lt;T&gt; factory pattern. <strong>Snapshot note:</strong> the diagrams were generated at v2.0.0 (16 distributions, pre-#48/#95 kernels, June threshold values). The structural shapes still hold at v2.4.0, but the library now has 27 distributions across 7 families, five threshold tables (kNeon, kAvx, kAvx2, kAvx512, kNone — kAvx measured via a capped build, SSE2 delegating to it), and re-measured threshold values; treat all counts and example numbers in the diagrams as v2.0.0-era.</p>
 </header>
 
 <div class="tabs">
@@ -126,7 +126,7 @@
     <div class="index-card" onclick="show('hier', document.querySelectorAll('.tab')[1])">
       <div class="badge badge-blue">UML class diagram</div>
       <h3>Class hierarchy</h3>
-      <p>Full inheritance tree from <code>DistributionInterface</code> through <code>DistributionBase</code> to all 16 concrete distributions, colour-coded by family. Includes <code>ThreadSafeCacheManager</code> mixin and the <code>stats::analysis</code> namespace.</p>
+      <p>Full inheritance tree from <code>DistributionInterface</code> through <code>DistributionBase</code> to all concrete distributions as of v2.0.0 (16 of today's 27), colour-coded by family. Includes <code>ThreadSafeCacheManager</code> mixin and the <code>stats::analysis</code> namespace.</p>
     </div>
     <div class="index-card" onclick="show('disp', document.querySelectorAll('.tab')[2])">
       <div class="badge badge-green">Flow diagram</div>
@@ -150,7 +150,7 @@
 <div class="panel" id="hier">
   <div class="diagram-card">
     <h2>Class hierarchy</h2>
-    <p>DistributionInterface (pure abstract) → DistributionBase (+ ThreadSafeCacheManager mixin) → 16 concrete distributions grouped by family. The span-based batch API and stats::analysis namespace are shown at the bottom.</p>
+    <p>DistributionInterface (pure abstract) → DistributionBase (+ ThreadSafeCacheManager mixin) → the concrete distributions grouped by family (16 at v2.0.0; 27 today). The span-based batch API and stats::analysis namespace are shown at the bottom.</p>
     <img src="class-hierarchy.svg" alt="libstats class hierarchy diagram">
   </div>
 </div>
@@ -159,7 +159,7 @@
 <div class="panel" id="disp">
   <div class="diagram-card">
     <h2>Batch dispatch pipeline</h2>
-    <p>A call to any span-based batch method flows through DispatchUtils::autoDispatch, which either runs PerformanceDispatcher (AUTO mode: SIMD capability + threshold table lookup) or maps a forced PerformanceHint directly to a strategy. The four execution strategies are SCALAR, VECTORIZED (SIMD via VectorOps), PARALLEL (GCD / std::execution::par / Win32 Thread Pool), and WORK_STEALING. Threshold tables are architecture-specific (kNeon, kAvx2, kAvx512, kNone).</p>
+    <p>A call to any span-based batch method flows through DispatchUtils::autoDispatch, which either runs PerformanceDispatcher (AUTO mode: SIMD capability + threshold table lookup) or maps a forced PerformanceHint directly to a strategy. The four execution strategies are SCALAR, VECTORIZED (SIMD via VectorOps), PARALLEL (GCD / std::execution::par / Win32 Thread Pool), and WORK_STEALING. Threshold tables are architecture-specific (kNeon, kAvx, kAvx2, kAvx512, kNone; SSE2 delegates to kAvx).</p>
     <img src="dispatch-pipeline.svg" alt="libstats batch dispatch pipeline diagram">
   </div>
 </div>
