@@ -538,6 +538,23 @@ history.
   margin for cheap-PDF distributions or drops the assertion, since a gate
   that fails two thirds of the time on the reference machine is not
   measuring what it claims.
+- AGENTS.md context trim, not yet done (~3.9 KB of eagerly-loaded text).
+  Raised by the 2026-09-07 fleet-wide AGENTS.md audit (durable vs
+  on-demand context). AGENTS.md is imported eagerly by CLAUDE.md, so all
+  of it is paid in every session in this repo; docs/ costs nothing until
+  read. Sizes measured, line numbers current as of that date.
+  - AGENTS.md:70 `### CMake standard`, ~1,500 B of historical detail (Phase 3B
+    landing, grandfathered build types, the full presets table) -> already-linked
+    `docs/BUILD_SYSTEM_GUIDE.md`.
+  - Same section, ~1,200 B duplicating CMAKE-HOUSE-STYLE.md rather than stating
+    only this repo's deviation — including the config-header rule, which
+    libhmm/AGENTS.md states near-verbatim. Candidate to live once in the
+    standard instead.
+  - AGENTS.md:244-246, ~1,240 B — the #97 regression-guard case study. The
+    rule ("a guard must be shown to fail against the unfixed state") is
+    steering and stays; the narrative is reference material -> `docs/`.
+  - Kept deliberately: the fleet/SIMD table. Which machine validates which SIMD
+    path is what this repo's validation strategy turns on.
 
 ## Cross-Repo Dependencies [OPEN]
 pylibstats consumes this repo two ways — a `find_package` version floor and
