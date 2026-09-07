@@ -345,6 +345,11 @@ backup_*/
 *.bak
 *.bak2
 *.bak3
-.claude/
+# Claude Code: local/machine-specific settings stay out; shared project
+# context (path-scoped rules, skills) is versioned like any other config.
+.claude/*
+!.claude/rules/
+!.claude/skills/
+.claude/settings.local.json
 __pycache__/
 *.pyc

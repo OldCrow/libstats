@@ -126,3 +126,39 @@ include/libstats/
 The source tree mirrors this layout directly (`<src>/include/libstats/`), so
 the build tree and the install tree resolve `#include "libstats/core/foo.h"`
 identically with no shim, symlink, or copy step involved.
+
+## Distribution roster (27 implemented, across 7 families)
+1. **Gaussian** (Normal) - N(μ, σ²)
+2. **Exponential** - Exp(λ)
+3. **Uniform** - U(a, b)
+4. **Poisson** - P(λ)
+5. **Discrete** - Custom discrete distributions
+6. **Gamma** - Γ(α, β)
+7. **Chi-squared** - χ²(ν) — delegation wrapper over Gamma(α=ν/2, β=1/2)
+8. **Student's t** - t(ν) — SIMD log-space PDF/LogPDF and CDF via incomplete beta
+9. **Beta** - Beta(α, β) — two-log SIMD PDF/LogPDF and CDF via regularized incomplete beta
+10. **Log-Normal** - LogN(μ, σ) — log+exp pipeline
+11. **Pareto** - Pareto(xₘ, α) — log-only pipeline, power-law tail
+12. **Weibull** - W(k, λ) — log+exp pipeline, reliability engineering
+13. **Rayleigh** - R(σ) — x² pipeline, signal processing
+14. **Von Mises** - VM(μ, κ) — circular distribution, SIMD via vector_cos
+15. **Binomial** - B(n, p) — discrete, PMF via lgamma
+16. **Negative Binomial** - NB(r, p) — discrete, real-valued r, Newton–Raphson MLE
+17. **Geometric** - Geo(p) — discrete, delegate over NegBinomial(r=1); MLE: p̂=1/(1+x̄)
+18. **Laplace** - Laplace(μ, b) — standalone, fabs+vector_exp SIMD; MLE: median/MAD
+19. **Cauchy** - Cauchy(x₀, γ) — PDF/LogPDF delegate to StudentT(ν=1), CDF/Quantile closed-form (#48); moments NaN; Fisher-scoring MLE
+20. **Logistic** - Logistic(μ, s) — vector_exp pipeline, log1p/expm1 tail stability (#54)
+21. **Gumbel** - Gumbel(μ, β) — max-stable (`gumbel_r`) only; double-exp pipeline (#54)
+22. **Bernoulli** - Bern(p) — delegation wrapper over Binomial(n=1); p ∈ [0,1] inclusive (#55)
+23. **Erlang** - Erlang(k, λ) — pure delegation over Gamma(k, λ); RATE-parameterized, int k (#55)
+24. **FisherF** - F(d₁, d₂) — closed-form PDF + steered `detail::` CDF (NOT a Beta delegation) (#56)
+25. **InverseGamma** - InvGamma(α, β) — x → 1/x transform over Gamma, complement-native tails (#56)
+26. **HalfNormal** - HN(σ) — erf/erfc pipeline over Gaussian machinery (#57)
+27. **TruncatedNormal** - TN(μ, σ, a, b) — regime-split erfc normalization; rejects Z-underflow windows (#57)
+
+Each implemented distribution provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
+
+Parenthetical notes record how each distribution is implemented — a
+delegation wrapper, a transform over another distribution, or a standalone
+pipeline — and the issue that introduced it. Moved here from AGENTS.md on
+2026-09-07: the roster is reference material, not per-turn orientation.
