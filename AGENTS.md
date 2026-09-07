@@ -5,12 +5,13 @@ every turn of every session in this repo, so it carries orientation and routing
 only. Depth lives in `docs/` and in skills — see the reading map below.
 
 <!-- Path-scoped rules (.claude/rules/*.md with a paths: filter) were tried here
-     on 2026-09-07 and removed the same day. Across seven logged sessions an
-     InstructionsLoaded hook recorded no path_glob_match event, including in a
-     session that read src/gaussian.cpp, which three different pattern forms
-     matched. The rules never entered context. Conventions that must not be
-     missed therefore live in this file, where their loading is observed rather
-     than assumed. Re-test with the hook before trying that split again. -->
+     on 2026-09-07 and removed the same day. They do work, but only when a file
+     is opened with the Read tool: reading the same file with Bash `cat` fires
+     nothing, and auto mode steers file access toward Bash. So whether such a
+     rule is in context depends on which tool the agent happened to reach for.
+     Conventions that must not be missed therefore live in this file. Patterns,
+     if you ever do use them, must be repo-relative -- an absolute path matches
+     nothing. -->
 
 ## Project Overview
 
