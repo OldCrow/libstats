@@ -275,6 +275,8 @@ and `docs/CI_CD_GUIDE.md`.
   `docs/VALIDATION_HISTORY.md`
 - Adding a distribution → the `add-distribution` skill (invoke it; do not
   reconstruct the checklist from memory)
+- What each repo document is for, and how they cross-reference →
+  [DOC-CONVENTIONS.md](https://github.com/OldCrow/standards/blob/main/DOC-CONVENTIONS.md)
 - Session state, decisions, open questions → `PLAN.md`
 
 <!-- Maintainer note: HTML comments are stripped before this file enters context,
