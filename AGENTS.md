@@ -115,10 +115,9 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
 | Mac Mini M1 | macOS Tahoe | Apple Silicon M1 | NEON only | ARM/NEON path validation |
 | Asus TUF A16 (2025) | Windows 11 Pro | Ryzen 7 7445 (Zen 4) | +**AVX-512** | Windows/MSVC, only AVX-512 machine |
 
-macOS requires Ventura 13+. On the Zen 4 box, AMD Precision Boost 2 steps down
-from ~4.5–5 GHz to a TDP-limited sustained frequency under load. That is a
-power constraint, not thermal throttling, and it looks like a dispatch-threshold
-anomaly if you don't account for it (`docs/VALIDATION_HISTORY.md`, v2.0.3).
+macOS requires Ventura 13+. Timing runs on the Zen 4 box carry a
+frequency-scaling artifact that reads like a dispatch-threshold anomaly —
+see `docs/VALIDATION_HISTORY.md`, "Zen 4 frequency scaling".
 
 ### Windows Session Setup
 

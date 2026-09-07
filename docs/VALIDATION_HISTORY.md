@@ -162,3 +162,15 @@ Kaby Lake AVX2 (2017 MBP):
   Beta PDF 5.3x/LogPDF 4.1x
 
 All four machines validated at v1.0.0 (Ivy Bridge/Catalina dropped in v2.0.0).
+
+## Zen 4 frequency scaling
+
+Moved here from AGENTS.md on 2026-09-07: it is needed when interpreting a
+timing run, not in every session.
+
+On the Zen 4 box (Asus TUF A16, Ryzen 7 7445), AMD Precision Boost 2 steps
+down from ~4.5–5 GHz to a TDP-limited sustained frequency under load. That is
+a power constraint, not thermal throttling. Unaccounted for, it looks like a
+dispatch-threshold anomaly: measured throughput falls off at larger batch
+sizes for reasons that have nothing to do with the threshold under test.
+First characterized at v2.0.3.
