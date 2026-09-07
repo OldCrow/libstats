@@ -212,3 +212,30 @@ Several identifiers are reserved by Windows SDK headers and must not be used as 
 | `interface` | `objbase.h` | `struct` |
 
 Using these as identifiers causes parse errors on MSVC even though the code compiles cleanly on macOS/Linux. Use unambiguous alternatives (e.g. `tiny` instead of `small`, `within_tol` instead of `near`).
+
+## Where the build logic lives
+
+Moved here from AGENTS.md on 2026-09-07: navigation detail needed when
+editing the build, not in every session. The guarded-FORCE gotcha stayed in
+AGENTS.md, because it is a silent-failure trap rather than a signpost.
+
+  compiler-flag/warning-set logic live in `cmake/Threading.cmake` and
+  `cmake/CompilerFlags.cmake`; tests and tools are registered from their own
+  `tests/CMakeLists.txt` and `tools/CMakeLists.txt` via `add_subdirectory`.
+  Warnings are applied PRIVATE per-target through `libstats_apply_warnings(target)`
+  (defined in `cmake/CompilerFlags.cmake`), called on every object library,
+  the final static/shared libs, tests, and tools — GTest is exempt (fetched
+  sources never receive our warning flags). Optimization/debug-info flags
+  for the custom `Dev`/`Strict` build types come from `CMAKE_CXX_FLAGS_DEV`/
+
+## The #97 config-header incident
+
+Moved here from AGENTS.md on 2026-09-07. The rule it produced — a
+configure-time fact a public header branches on goes in the generated
+`libstats_config.h`, never in `target_compile_definitions` — stays in
+AGENTS.md next to the fleet rule it implements (CMake House Style §7).
+This is what happened when it was broken.
+
+  libstats #97 was the rule's second incident: `$<LINK_ONLY:>` stripped the
+  macro from the installed export, so every consumer compiled Tier 2 Bessel
+  and an ODR violation against the library's own TUs.
