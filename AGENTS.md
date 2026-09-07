@@ -6,7 +6,7 @@ This file provides project-scoped guidance to AI agents and contributors working
 
 libstats is a **design and teaching library**: a demonstration of how to build statistical software correctly in modern C++20, with genuine SIMD and parallel performance. Zero external dependencies.
 
-**Current status**: v2.4.0 released (tagged on `main`) — 27 distributions across 7 families (#54–#57 added Logistic, Gumbel, Bernoulli, Erlang, HalfNormal, TruncatedNormal, FisherF, InverseGamma), API additive over v2.1.0. Suite 58 → 74; all three machine legs done (Zen 4 2026-09-03, Kaby Lake 2026-09-03/04, M1 2026-09-04) plus a capped-build kAvx leg (Kaby Lake via `LIBSTATS_MAX_SIMD_TIER=AVX`, 2026-09-04): per-tier threshold recalibration post-parallelForSlices repair (#143) plus characterization regens; every threshold table is now measurement-backed. See the validation matrix below. v1.5.3 is the final v1.x release.
+**Current status**: v2.4.0 released (tagged on `main`) — 27 distributions across 7 families, API additive over v2.1.0. v1.5.3 is the final v1.x release.
 
 For the full commit-level history, see `CHANGELOG.md` (auto-generated via git-cliff). For historical per-version validation matrices and SIMD speedup benchmarks, see `docs/VALIDATION_HISTORY.md`. This file covers current-state guidance only.
 
@@ -15,27 +15,7 @@ See `MIGRATION_GUIDE.md` for the complete old→new call mapping.
 
 ## Session Start
 
-At the start of every session, perform these steps in order:
-
-1. Verify machine architecture before making SIMD assumptions.
-2. Select the matching build path (macOS vs Windows/MSVC, Intel vs Apple Silicon).
-3. Reconfigure/rebuild when the machine or architecture differs from the previous session context.
-
-Quick architecture checks:
-
-```bash
-# macOS/Linux shells
-uname -m
-uname -s
-sysctl -n machdep.cpu.brand_string 2>/dev/null || true
-```
-
-```powershell
-# PowerShell (Windows)
-[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
-[System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
-$env:PROCESSOR_IDENTIFIER
-```
+Follow the standard session-start architecture check: <https://github.com/OldCrow/standards/blob/main/SESSION-START.md>.
 
 ### Why SIMD detection matters
 
@@ -60,48 +40,9 @@ Platform routing rules (OS/toolchain selection — SIMD tier is determined autom
 - **Windows/MSVC:** Follow Platform-Specific Notes below and use the Visual Studio x64 Release commands (VS 2022 17.8+ or later; defaults shown for Asus TUF A16, whose toolchain is now VS 18 (2026) — paths and generator names vary by version and edition, so users creating forks should verify their setup).
 - **All platforms:** After architecture verification, run `./build/tools/system_inspector --quick` (Unix shells) or `.\build\tools\system_inspector.exe --quick` (Windows PowerShell) to confirm active SIMD capabilities before interpreting performance/test results.
 
-### Current validation matrix (v2.4.0, on dev)
+### Current validation matrix
 
-Correctness column = `ctest -LE "timing|benchmark"` (74 registered; the two
-`benchmark`-labelled tests are excluded by definition, the 22 `timing` ones
-run separately on a quiet machine).
-
-| Machine | SIMD | Correctness | Timing | Notes |
-|---|---|---|---|---|
-| Asus TUF A16 (Windows) | AVX-512 | 74/74 ✅ | 20/22 | Native, 2026-09-03, MSVC Release (#143); kAvx512 recalibrated (sustained crossovers, 3 quiet runs); the two timing failures are the #129 uniform flake (1.62× vs the 1.8× adaptive gate, same signature as v2.2.0/v2.3.1) and a one-off timer-resolution caching flake (3/3 standalone); `isa=AVX-512` block regenerated on the 9210-row grid (34 violations) |
-| Kaby Lake (2017 MBP) | AVX2+FMA | 74/74 ✅ | 22/22 ✅ | Native, 2026-09-03/04, AppleClang (7c2ca49); timing serial passed twice (pre- and post-recalibration; #129 passes here); kAvx2 recalibrated; `isa=AVX2` block regenerated on the 9210-row grid (34 violations, class-for-class matching Zen 4); calibration bundle checked in (`data/profiles/dispatcher/2026-09-04T02-36-22Z_…`) |
-| Mac Mini M1 | NEON | 74/74 ✅ | 22/22 ✅ | Native, 2026-09-04, AppleClang (5f9bb5e); correctness re-run before/after the table change and after merging the Kaby Lake leg; timing serial at load < 2.0 (#129 passes here); kNeon recalibrated; `isa=NEON` block regenerated on the 9210-row grid (32 violations — 34 minus the two geometric #125 rows AArch64 saturation renders finite); calibration bundle checked in (`data/profiles/dispatcher/2026-09-04T04-22-28Z_…`) |
-| Kaby Lake, capped build | AVX (`LIBSTATS_MAX_SIMD_TIER=AVX`) | 74/74 ✅ | — | Capped-build leg 2026-09-04 (cb13f34): AVX2/AVX512 compiled out, tier asserted (active AVX, zero `vector_*_avx2` kernel symbols) — first native AVX-tier validation since the 2012 MBP retired, and the first MEASURED kAvx table (replaces the June kAvx2÷2 inference; SSE2 delegates to kAvx, so both bottom x86 tiers are healed). Timing suite deliberately not run: it asserts speedups for the shipping config, not capped diagnostics. Bundle `data/profiles/dispatcher/2026-09-04T23-51-14Z_…` |
-
-The correctness count grew 58 → 74 with the v2.4.0 eight's sixteen new
-basic+enhanced binaries (#131–#134); the v2.4.0 enhanced binaries carry no
-timing label (#135), so the timing count stays 22.
-(History: 53 → 58 at v2.3.1, 49 → 53 at v2.3.0 — see
-`docs/VALIDATION_HISTORY.md`.)
-
-The #129 uniform speedup flake remains Zen 4-only in this matrix: the same
-gate passed on both Mac tiers this round. It has flaked on Zen 4 in three
-consecutive matrices (v2.2.0, v2.3.1, v2.4.0) against the 1.8× adaptive
-threshold — flaky, not a regression; timing tests carry the `timing` label
-and are excluded from CI everywhere, so this is a real-hardware finding,
-not a CI one.
-
-The mpmath accuracy characterization (`docs/ACCURACY_CHARACTERIZATION.md`,
-#46) covers all three fleet ISAs on the 27-distribution, 9210-row grid as
-of 2026-09-04 (each a generated block labelled by its sweep banner, with
-per-machine delta prose). All remaining contract violations are
-filed classes — #103 ±inf rows (weibull/rayleigh/poisson), #136 erf_inv
-extreme tail, #137 inverse_beta_i, #138 digamma, #141 gamma_p at large
-shape — with #125 masking two geometric rows on NEON only. It is a
-characterization, not an audited per-tier claim: bounds hold per ISA block
-only.
-
-For every prior release's validation matrix and SIMD speedup tables, see `docs/VALIDATION_HISTORY.md`.
-
-## Agent Workflow
-
-- When reviewing repository state or "what's changed" (e.g., syncing after time away, catching up on a branch), start with `git diff --stat` and `git log` rather than reading full file contents. Read complete files only for items you've determined are directly relevant to the task at hand.
-- For any subagent expected to run more than ~30 minutes, structure its brief to report interim progress at natural milestones (e.g., after each major deliverable) rather than running silently to a single final report.
+See `docs/VALIDATION_HISTORY.md` for the current per-machine validation matrix, SIMD speedup tables, and accuracy characterization.
 
 ## Build Commands
 
@@ -278,68 +219,21 @@ The Asus TUF A16 (Ryzen 7 7445, Zen 4) is the first machine in this ecosystem wi
 
 ### Windows Session Setup
 
-> **Windows tool paths vary** by installation method (direct installer, `winget`, `chocolatey`, Microsoft Store, etc.). The paths below are common defaults — adjust for your installation. VS Build Tools and full VS editions use different default directories; see One-time setup notes below for alternatives and auto-detection.
-
-Before building or running tests in a new PowerShell session on Windows:
+For toolchain activation, one-time setup, and the Smart App Control/Defender
+notes, see [Windows Toolchain](https://github.com/OldCrow/standards/blob/main/WINDOWS-TOOLCHAIN.md).
+libstats-specific steps after activating the toolchain:
 
 ```powershell
-# 1. Activate MSVC toolchain (required each session — not persistent in PowerShell)
-# Locate the newest installed Visual Studio (any version or edition) with vswhere:
-$vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
-$vcvars = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
-# Or pin an explicit path, e.g. VS 2022 Build Tools:
-#   "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
-# or a full edition: "C:\Program Files\Microsoft Visual Studio\{version}\{edition}\VC\Auxiliary\Build\vcvars64.bat"
-# ({version} is 2022 for VS 17.x and 18 for VS 2026; {edition} is Community/Professional/Enterprise).
-$envVars = cmd /c "`"$vcvars`" > nul && set"
-foreach ($line in $envVars) {
-    if ($line -match "^([^=]+)=(.*)$") {
-        [System.Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
-    }
-}
-
-# 2. Set UTF-8 output (required for Unicode glyphs in tool output)
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-# 3. Ensure stats.dll is accessible for dynamic linking tests
+# Ensure stats.dll is accessible for dynamic linking tests
 Copy-Item "build\Release\stats.dll" -Destination "build\tests\" -Force
 
-# 4. Run correctness tests
+# Run correctness tests
 ctest --test-dir build -C Release -LE "timing|benchmark" --output-on-failure
 ```
 
-**Important: After any clean rebuild on Windows, verify the dynamic test EXEs are Release builds:**
-```powershell
-dumpbin /imports build\tests\test_gaussian_basic_dynamic.exe | Select-String vcruntime
-# Must show VCRUNTIME140.dll (Release), NOT VCRUNTIME140D.dll (Debug)
-# If Debug CRT is shown, the EXE is a stale Debug binary. Fix:
-#   Remove-Item build\tests\test_gaussian_basic_dynamic.exe, test_exponential_basic_dynamic.exe -Force
-#   cmake --build build --config Release --target test_gaussian_basic_dynamic test_exponential_basic_dynamic
-```
-The VS generator puts Debug and Release test EXEs in the same `build\tests\` directory.
-A stale Debug EXE + Release DLL = CRT mismatch = heap corruption crash. The `cmake --build --clean-first`
-flag cleans Release artifacts but leaves existing Debug EXEs untouched if their timestamps appear current.
-
-**One-time setup notes:**
-- Visual Studio Build Tools (not full IDE) are sufficient; VS 2022 (17.8+) or later. Install from https://visualstudio.microsoft.com/downloads/ (Build Tools for 2022: https://aka.ms/vs/17/release/vs_buildtools.exe, `winget install Microsoft.VisualStudio.2022.BuildTools`, or `choco install visualstudio2022buildtools`).
-  - Build Tools default path: `C:\Program Files (x86)\Microsoft Visual Studio\{version}\BuildTools\`
-  - Full VS (Community/Professional/Enterprise) default path: `C:\Program Files\Microsoft Visual Studio\{version}\{edition}\` (`{version}` = 2022 for VS 17.x, 18 for VS 2026)
-  - Auto-detect installation path (any edition): `& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`
-- **Smart App Control must be Off** (Windows Security → App & Browser Control → SAC settings).
-  SAC blocks locally compiled executables. Cannot be re-enabled without a Windows reset.
-- **Defender exclusion for the project directory is required** (elevated PowerShell:
-  `Add-MpPreference -ExclusionPath "<repo root>"`). Without it, cloud-delivered
-  protection intermittently quarantines freshly linked test EXEs, which surfaces as
-  ctest `BAD_COMMAND`/"Not Run" on a rotating subset of tests (observed 2026-09-03:
-  two consecutive suite runs each lost a different 3–5 binaries). The detection is
-  consistently `Trojan:Win32/Wacatac.B!ml` — Defender's ML heuristic (`!ml`) false-
-  positiving on unsigned locally linked binaries, not a real finding. If a test EXE
-  vanishes after a successful build, suspect quarantine before suspecting the build.
-- CMake ≥ 3.25 required. Install from https://cmake.org/download/, `winget install Kitware.CMake`, or `choco install cmake`.
-- GTest needs no manual install: `tests/CMakeLists.txt` tries `find_package(GTest)`, then a Homebrew probe, then a `FetchContent` fallback — the same path CI uses (`cmake -B build ... -A x64`, no toolchain file). A vcpkg-installed GTest is picked up by step 1 if you pass `-DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake`, but it is optional.
-- Configure: `cmake .. -A x64` (CMake selects the newest installed Visual Studio; pin one with e.g. `-G "Visual Studio 17 2022"` if several are installed)
-- Build: `cmake --build . --config Release --parallel`
+After any clean rebuild, spot-check `test_gaussian_basic_dynamic.exe` and
+`test_exponential_basic_dynamic.exe` with `dumpbin /imports <exe> | Select-String vcruntime`
+for stale Debug CRT (`VCRUNTIME140D.dll` instead of `VCRUNTIME140.dll`).
 
 ## Architecture
 
@@ -468,25 +362,21 @@ Object library architecture: the build compiles the sources in seven OBJECT libr
 ### SIMD kernel conventions
 
 - **A SIMD kernel must never re-read its input array after the corresponding
-  store.** This binds the `VectorOps` kernel layer, where in-place calls are
-  legal (`LogSpaceOps::logSumExpArrayFallback` calls `vector_exp` with
-  `a == result`): a post-store re-read sees internally-computed values, not the
-  input. Decide every edge fixup from already-loaded registers. It cost a real
-  `exp(-inf)` bug during the #33 productionization. The distribution batch span
-  overloads are the opposite case and always were: they promise no in-place
-  safety at all (#112, decided 2026-08-25). In-place legality is a `VectorOps`
-  property; it stops at that layer.
+  store.** Decide every edge fixup from already-loaded registers. This binds
+  the `VectorOps` kernel layer, where in-place calls are legal
+  (`LogSpaceOps::logSumExpArrayFallback` calls `vector_exp` with
+  `a == result`); the distribution batch span overloads are the opposite case
+  and promise no in-place safety at all (#112). In-place legality is a
+  `VectorOps` property; it stops at that layer.
 - **Accuracy claims hold only for tiers validated on native silicon.**
   `LIBSTATS_MAX_SIMD_TIER` (cmake/SIMDDetection.cmake) caps the highest
   compiled x86 tier so lower tiers can run natively on capable hardware; the
   first-ever native SSE2 run is what exposed #74, invisible under Rosetta for
   years.
 - **Gather-vs-polynomial transcendentals are settled** (#33,
-  `docs/SIMD_BENCHMARK_RESULTS.md`): x86 hardware gather is too expensive on
-  both Kaby Lake (interleave 8.6× an FMA) and Zen 4 (1.70×); NEON is the
-  opposite — an Array-of-Structs table pulled by one `vld1q` makes a two-value
-  lookup nearly free. Table kernels are a NEON technique here, not an x86 one.
-  Do not reopen the x86 half without new hardware.
+  `docs/SIMD_BENCHMARK_RESULTS.md`): x86 hardware gather is too expensive to
+  beat a polynomial; NEON is the opposite, where a table lookup is nearly
+  free. Table kernels are a NEON technique here, not an x86 one.
 
 ## Common Development Tasks
 
@@ -586,9 +476,8 @@ The registration checklist is authoritative in `include/libstats/core/distributi
 
 7. **Extend the user-facing docs and examples**: add the distribution to the
    README roster (family placement + count) and to
-   `examples/distribution_families_demo.cpp` in its family section. The
-   v2.4.0 eight missed this step at first landing (#145) — it is part of a
-   distribution's definition of done, not release polish.
+   `examples/distribution_families_demo.cpp` in its family section — part of
+   a distribution's definition of done, not release polish.
 
 The `consteval validateMetaOrdering()` in `distribution_meta.h` enforces step 1↔2 alignment at
 compile time. A clean build after any enum or table change verifies consistency.
@@ -644,24 +533,15 @@ ctest --test-dir build -R test_gaussian_enhanced  # Contains timing assertions
 Timing tests fail under CPU contention because parallel strategies show less speedup
 when the machine is loaded. This is a measurement problem, not a correctness problem.
 
-**A new error-free transform must be contraction-proofed where it is written.**
-Kahan/Neumaier summation, TwoSum/Fast2Sum, and `fma(a,b,-a*b)` residual tricks
-are exact identities whose proofs assume each IEEE operation rounds as written.
-A compiler contraction landing inside one makes the "exact" correction term the
-error of an operation that never happened — and nothing fails, so a
-single-compiler suite cannot notice. No `-ffp-contract` flag is set anywhere in
-this build, so every TU takes its compiler default: GCC `fast`, AppleClang `on`,
-MSVC/clang-cl off.
-
-The three compensated sequences in `src/simd_neon.cpp` are safe today (#84,
-audited 2026-08-16) and are safe *because of how they are written*, not because
-of any build setting: every intended fusion is spelled as an explicit
-`vfmaq_f64`/`vfmsq_f64`, so no rounded multiply sits adjacent to an add; and the
-one remaining multiply-then-add, log's `e*ln2_hi + L_hi`, has a product that is
-exact by construction (42-bit constant × ≤11-bit exponent). Adding a compensated
-sequence that does neither would reintroduce the hazard silently. So: spell every
-fusion, or arrange for the product to be exact, or scope `-ffp-contract=off` to
-that file.
+**A new error-free transform (Kahan/Neumaier, TwoSum/Fast2Sum, `fma(a,b,-a*b)`
+residuals) must spell every intended fusion explicitly, or scope
+`-ffp-contract=off` to that file.** No `-ffp-contract` flag is set anywhere in
+this build, so every TU takes its compiler default (GCC `fast`, AppleClang
+`on`, MSVC/clang-cl off); an unspelled contraction silently breaks the exactness
+the transform's proof assumes. The three compensated sequences in
+`src/simd_neon.cpp` are safe today (#84, audited 2026-08-16) because every
+fusion is an explicit `vfmaq_f64`/`vfmsq_f64` and the one remaining
+multiply-then-add is exact by construction.
 
 **A new regression guard must be shown to fail against the unfixed state, on the
 platform it targets, before it is trusted.** Two ways a guard can be structurally
@@ -708,13 +588,5 @@ does not reproduce on MSVC at all.
 - SVE (AArch64 beyond NEON) — no hardware in the ecosystem
 - SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
 
-## Warp Terminal Saved Workflows (warp.dev only)
-
-> **Note for non-Warp users:** These workflows are available only in the Warp terminal. Users of other tools (Claude Code, Cursor, bare shells, etc.) should run the equivalent shell commands listed elsewhere in this file.
-
-Saved workflows in `.warp/workflows/` are available directly in the Warp terminal for common tasks:
-
-- **libstats: Clean Rebuild** — remove `build/` and rebuild from scratch; accepts `build_type` arg (default: `Dev`)
-- **libstats: Validate Machine** — architecture detection, SIMD capabilities, correctness suite, and `simd_verification`; requires a current build
-- **libstats: Switch Branch + Rebuild** — stash uncommitted changes, fetch, checkout target branch, pull, and clean rebuild in one step
-- **libstats: Warning Audit** — build with a strict warning mode and display deduplicated warning counts; accepts `build_type` arg (default: `Strict`; the legacy compiler-specific names are not build types since v2.0.0)
+## Open Items
+See PLAN.md for current status, in-progress work, and open questions.
