@@ -2,8 +2,15 @@
 
 Project-scoped guidance for AI agents and contributors. This file is loaded on
 every turn of every session in this repo, so it carries orientation and routing
-only. Depth lives in `docs/`, in the path-scoped rules under `.claude/rules/`,
-and in skills — see the reading map below.
+only. Depth lives in `docs/` and in skills — see the reading map below.
+
+<!-- Path-scoped rules (.claude/rules/*.md with a paths: filter) were tried here
+     on 2026-09-07 and removed the same day. Across seven logged sessions an
+     InstructionsLoaded hook recorded no path_glob_match event, including in a
+     session that read src/gaussian.cpp, which three different pattern forms
+     matched. The rules never entered context. Conventions that must not be
+     missed therefore live in this file, where their loading is observed rather
+     than assumed. Re-test with the hook before trying that split again. -->
 
 ## Project Overview
 
@@ -59,6 +66,46 @@ build directory map, and the header tooling are documented in
 
 Windows uses the Visual Studio x64 Release flow — see Platform-Specific Notes.
 
+### CMake standard
+
+Full rules: [CMake House Style](https://github.com/OldCrow/standards/blob/main/CMAKE-HOUSE-STYLE.md)
+in the fleet standards repo; this section is self-sufficient for this repo. libstats deviations:
+- Target-first scoping, `LIBSTATS_`-prefixed options, warnings PRIVATE and
+  `PROJECT_IS_TOP_LEVEL`-gated: landed (Phase 3B). Threading detection and
+  compiler-flag/warning-set logic live in `cmake/Threading.cmake` and
+  `cmake/CompilerFlags.cmake`; tests and tools are registered from their own
+  `tests/CMakeLists.txt` and `tools/CMakeLists.txt` via `add_subdirectory`.
+  Warnings are applied PRIVATE per-target through `libstats_apply_warnings(target)`
+  (defined in `cmake/CompilerFlags.cmake`), called on every object library,
+  the final static/shared libs, tests, and tools — GTest is exempt (fetched
+  sources never receive our warning flags). Optimization/debug-info flags
+  for the custom `Dev`/`Strict` build types come from `CMAKE_CXX_FLAGS_DEV`/
+  `CMAKE_CXX_FLAGS_STRICT`, set with the guarded-FORCE idiom
+  (`if(NOT var) set(... FORCE)`) — a plain unguarded `set(... CACHE STRING)`
+  is a silent no-op here because CMake auto-creates these per-config cache
+  entries empty for any custom `CMAKE_BUILD_TYPE` at `project()`, before this
+  file is ever included.
+- **Grandfathered custom build types**: `Dev` (default) and `Strict`
+  (the `-Werror` vehicle) — kept per house-style exception; not to be
+  copied into other repos.
+- **A configure-time fact that a public header branches on goes in the
+  generated `libstats_config.h`, never in `target_compile_definitions`.**
+  Template `cmake/libstats_config.h.in`, installed beside the hand-written
+  headers, the same mechanism as `libstats_version.h`. Fleet rule:
+  [CMake House Style §7](https://github.com/OldCrow/standards/blob/main/CMAKE-HOUSE-STYLE.md#7-install-contract-libhmm-libstats-corvus).
+  libstats #97 was the rule's second incident: `$<LINK_ONLY:>` stripped the
+  macro from the installed export, so every consumer compiled Tier 2 Bessel
+  and an ODR violation against the library's own TUs.
+- Install contract conforms: GNUInstallDirs, `libstats-targets` export
+  (namespace `libstats::`), kebab `libstats-config.cmake`, `SameMajorVersion`.
+- Presets (`CMakePresets.json`, schema 6, min CMake 3.25): `dev` → `build/`
+  (default workflow), `release` → `build-release/`, `debug` →
+  `build-debug/`, `rel-with-debug` → `build-relwithdebinfo/`, `strict` →
+  `build-strict/`. **Deviation from the shared vocabulary**: `release` maps
+  to `build-release/` rather than `build/`, because `build/` is already
+  claimed by the default `dev` workflow here — grandfathered alongside the
+  `Dev` build type.
+
 ## Platform-Specific Notes
 
 | Machine | OS | CPU | SIMD | Role |
@@ -105,6 +152,26 @@ Header layout, include styles, namespace hygiene, and the per-distribution and
 analysis header maps are in `docs/HEADER_ARCHITECTURE_GUIDE.md`. The
 distribution roster lives in the code and in that guide, not here.
 
+## Coding Conventions
+
+### Code Standards
+- **C++20 Required**: Modern features (concepts, spans, execution policies)
+- **Header Guards**: Use `#pragma once` (codebase convention)
+- **Naming**: CamelCase classes, snake_case functions/variables
+- **Memory Management**: Smart pointers, RAII, no raw pointers
+- **Error Handling**: Dual API (Result<T> for factories, exceptions for setters)
+
+### Performance Considerations
+- Always rebuild after source changes before running tests
+- Use `initialize_performance_systems()` for optimal batch performance
+- SIMD kernels impose no alignment requirement on caller data: every load/store of a caller buffer is unaligned (`loadu`/`storeu`); aligned ops are used only on internal `alignas` locals
+- Large batch operations (>1000 elements) benefit significantly from parallel execution
+
+### Platform-Specific Conventions
+- **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
+- **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`
+- **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
+
 ## Batch API contracts
 
 These two are deliberately kept in this file rather than a doc: violating either
@@ -127,6 +194,37 @@ produces silently wrong results or a deadlock, not a build error.
 Dispatch thresholds are per-(architecture, distribution, operation) in
 `dispatch_thresholds.h`, derived from the profiling data in
 `data/profiles/dispatcher/`.
+
+## SIMD kernel conventions
+
+- **A SIMD kernel must never re-read its input array after the corresponding
+  store.** Decide every edge fixup from already-loaded registers. This binds
+  the `VectorOps` kernel layer, where in-place calls are legal
+  (`LogSpaceOps::logSumExpArrayFallback` calls `vector_exp` with
+  `a == result`); the distribution batch span overloads are the opposite case
+  and promise no in-place safety at all (#112). In-place legality is a
+  `VectorOps` property; it stops at that layer.
+- **Accuracy claims hold only for tiers validated on native silicon.**
+  `LIBSTATS_MAX_SIMD_TIER` (cmake/SIMDDetection.cmake) caps the highest
+  compiled x86 tier so lower tiers can run natively on capable hardware; the
+  first-ever native SSE2 run is what exposed #74, invisible under Rosetta for
+  years.
+- **Gather-vs-polynomial transcendentals are settled** (#33,
+  `docs/SIMD_BENCHMARK_RESULTS.md`): x86 hardware gather is too expensive to
+  beat a polynomial; NEON is the opposite, where a table lookup is nearly
+  free. Table kernels are a NEON technique here, not an x86 one.
+
+### FP-contraction rule
+
+**A new error-free transform (Kahan/Neumaier, TwoSum/Fast2Sum, `fma(a,b,-a*b)`
+residuals) must spell every intended fusion explicitly, or scope
+`-ffp-contract=off` to that file.** No `-ffp-contract` flag is set anywhere in
+this build, so every TU takes its compiler default (GCC `fast`, AppleClang
+`on`, MSVC/clang-cl off); an unspelled contraction silently breaks the exactness
+the transform's proof assumes. The three compensated sequences in
+`src/simd_neon.cpp` are safe today (#84, audited 2026-08-16) because every
+fusion is an explicit `vfmaq_f64`/`vfmsq_f64` and the one remaining
+multiply-then-add is exact by construction.
 
 ## Testing
 
@@ -185,17 +283,6 @@ and `docs/CI_CD_GUIDE.md`.
      anything that only matters for one part of the tree belongs in
      .claude/rules/ with a paths: filter, and any multi-step procedure belongs
      in a skill. -->
-
-## Rules that load automatically
-
-These are `.claude/rules/*.md` with `paths:` filters — they enter context only
-when a matching file is read, so they cost nothing on unrelated turns:
-
-| Rule | Applies when reading |
-|---|---|
-| `cpp-conventions.md` | `include/**/*.h`, `src`/`tests`/`tools`/`examples` `**/*.cpp` |
-| `simd-kernels.md` | `src/simd_*.cpp`, SIMD headers |
-| `cmake.md` | `CMakeLists.txt`, `*.cmake`, `CMakePresets.json` |
 
 ## Deferred Items
 
