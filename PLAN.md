@@ -567,6 +567,36 @@ history.
   - Kept deliberately: the fleet/SIMD table. Which machine validates which SIMD
     path is what this repo's validation strategy turns on.
 
+- [2026-09-07] **Three stale local branches survive on the M1, unreconciled;
+  do not run `clean_gone` here until they are.** A branch sweep that day cut
+  15 local branches to 4: nine were merged into `main` (plain `-d`), and two
+  more — `fix/benchmark-simd-headers-docs`, `fix/windows-portable-and-sync-docs`
+  — were squash-merged, which leaves them non-ancestors of `main` even though
+  `git cherry` marks their commits `-` (content present). Both were force-
+  deleted only after that check. The remaining three each hold at least one
+  commit `git cherry` marks `+`, absent from `main` by content:
+  - `fix/v1.5.3` — tip `4470429` ("v1.5.3 — bugfixes, deprecation sweep,
+    VonMises pass, CI/docs hygiene"). Notably **not reachable from any tag**,
+    including `v1.5.3` and `v1.5.3_1`, so the branch sits ahead of its own
+    release tag.
+  - `windows-support` — `4d4e847` (cross-platform/Windows, UTF-8 and platform
+    fixes) and `0207f75` (work_stealing_pool bug under `_WIN32_WINNT=0x0600`).
+    `main` does carry a `_WIN32_WINNT >= 0x0600` guard in
+    `platform/parallel_execution.h`, so the fix may have landed in another
+    form, but the commits are not equivalent.
+  - `simd-architecture-repair` — `d8a3509` ("Remove debug output from SIMD
+    implementations"), 2 ahead / 500 behind, last touched 2025-09-04.
+  All three are `GONE` on the remote, so `clean_gone` — or any routine stale-
+  branch sweep — would delete exactly the three that were deliberately kept.
+  Two stashes were dropped the same day; the `simd-architecture-repair` one
+  (an 860-line `src/simd_neon.cpp` against today's 932, plus committed
+  `debug_erf` binaries since untracked) was exported first to
+  `~/Development/libstats-stash-simd-architecture-repair-2026-04-09.patch`
+  — 73 KB, 5 files, and the **only copy, outside any repo**.
+  Expectation: most or all of this is OBE after the v2.3.0-and-later work, and
+  the reconciliation likely ends in three deletions. That has not been shown
+  yet, which is the whole point of the entry.
+
 ## Cross-Repo Dependencies [OPEN]
 pylibstats consumes this repo two ways — a `find_package` version floor and
 a `FetchContent` `GIT_TAG`, both in `pylibstats/CMakeLists.txt`. **That file
@@ -656,6 +686,14 @@ session artifact; the issues carry the detail.
    incomplete-beta core absorbs #126 (re-home it to v2.5.0 if so).
 4. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
    0.6.0 released on the v2.3.0 pin; re-bump at v2.3.1 (step 1).
+
+5. On the M1, reconcile the three surviving stale branches and the exported
+   NEON patch (see Known Gaps, 2026-09-07). For each, diff against current
+   `main` and decide: superseded → delete; still wanted → cherry-pick onto
+   `main` or preserve as an `archive/*` tag, so the commit stops depending on
+   a local branch. Settle the patch file the same way — fold in or discard;
+   do not leave it loose in `~/Development`. Until this is done, do not run
+   `clean_gone` or any stale-branch sweep on this repo.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
