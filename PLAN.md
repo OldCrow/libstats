@@ -632,13 +632,15 @@ must ship with binary artifacts, and `libstats-config.cmake` owes a
 corvus filed **#37** (its v1.1.0) against this repo's fleet data — x86
 `vector_erf` ~5x slower per element than the NEON one, the root cause of a
 HalfNormal-CDF dispatch divergence — asking whether the gap is ours or
-generic x86. Partly answered 2026-09-13 from corvus's already-committed
-`docs/bench-evidence/`: corvus's OWN x86 erf is not uniformly slower than
-its NEON one (Zen 4 1.67 ns/el vs M1 NEON 2.20; Kaby Lake 7.38), which
-points at ours, i.e. the adoption swap fixes it at no cost. Two caveats
-travel with that: the M1 row is INDICATIVE under the 10% fallback gate,
-never promoted; and the machine-provenance confound in Next Steps 3(a) has
-not been excluded. Do not treat it as settled before adoption scoping.
+generic x86. **Resolved 2026-09-13: the premise does not hold.** The ~5x
+was never measured — it is an inference in a kNeon code comment, its x86
+side back-derived from dispatch ratios on a 2017 Kaby Lake, its NEON side
+the one real measurement (M1, 2.2 ns/elem), with Zen 4 absent. Corvus's
+erf on the same two machines shows 3.35x from hardware generation alone,
+and the two kernels are different algorithms besides. What survives is a
+possible ~1.5x same-machine x86 gap, to be settled inside the adoption
+sweep. Full record in Next Steps 3(a); corvus #37 comment carries the
+same finding.
 
 ## Defensive Review 2026-08-21 [DERIVED]
 Between-milestone review of v2.3.0 (metrics, architecture, numerical,
@@ -703,20 +705,41 @@ session artifact; the issues carry the detail.
 3. At v2.5.0 scoping: re-scope #47/#52 against the cores' real accuracy
    (#113's record correction), and verify whether the corvus
    incomplete-beta core absorbs #126 (re-home it to v2.5.0 if so).
-   Also in this prep, three erf-throughput items carried over from corvus
-   #37 (deferred here 2026-09-13 rather than run as a standalone session):
-   (a) establish WHICH fleet machines produced this repo's x86-vs-NEON
-   `vector_erf` numbers — corvus's own committed data has Zen 4 erf at
-   1.67 ns/el BEATING M1 NEON at 2.20, with Kaby Lake at 7.38, so a
-   Kaby-vs-M1 comparison reproduces most of a ~5x ratio from hardware
-   generation alone and may account for the gap without any kernel defect;
-   (b) if the gap survives that control, it is this repo's kernel and the
-   corvus swap closes it for free — confirm in the before/after
-   characterization sweep rather than optimizing the doomed kernel;
-   (c) the per-tier half is genuinely open — `quiet_bench.sh` runs native
-   only, so no capped SSE4/SSSE3/SSE2 erf throughput exists on any machine.
-   Run it on the Kaby Lake box (proven quiet recipe, 5% gate) only if the
-   adoption sweep actually needs the capped rows.
+   Also in this prep, the erf-throughput work carried over from corvus #37
+   (deferred here 2026-09-13 rather than run as a standalone session).
+   (a) **DONE 2026-09-13 — provenance established, and it retires the
+   premise.** The `~5x` is a code comment at `dispatch_thresholds.h:226`
+   (kNeon table, written 2026-09-04), not a measurement: the ONLY measured
+   per-element figure in the chain is the M1's `vector_erf` at 2.2 ns/elem.
+   The x86 side was back-derived from HalfNormal-CDF DISPATCH RATIOS
+   (parallel wins on x86, loses on NEON), and both x86 data points are the
+   same physical machine — Kaby Lake i7-7820HQ native AVX2 and capped AVX.
+   Zen 4 is `—` for HalfNormal CDF in the v2.4.0 recalibration table and
+   its kAvx512 row (line 594) carries no mechanism comment, so the fleet's
+   fastest x86 machine never entered the comparison. Against corvus's own
+   erf on those same two machines (Kaby 7.38 ns/el vs M1 2.20 = 3.35x),
+   hardware generation alone reproduces most of the inferred ~5x, leaving
+   a ~1.5x residual that rests on a number nobody measured. Two further
+   facts: libstats' M1 NEON erf (2.2) matches corvus's (2.20), so adoption
+   is throughput-NEUTRAL on NEON and any win is x86-only; and the two
+   sides are DIFFERENT ALGORITHMS — NEON is the ARM glibc `erf_advsimd`
+   769-entry table (clean-room, #67), x86 the musl four-region rational
+   polynomial (THIRD_PARTY_NOTICES.md) — so x86-vs-NEON here was never a
+   statement about ISAs. **There is no established ~5x x86 erf deficit.**
+   (b) RESTATED accordingly: the open question is no longer "is the gap
+   ours or generic x86" but the much smaller "is there a same-machine gap
+   between our musl-polynomial x86 kernel and corvus's, and does the swap
+   close it". Time this repo's x86 `vector_erf` on ONE machine inside the
+   before/after characterization sweep — it needs no separate session, and
+   ~1.5x is the figure to expect, not ~5x.
+   (c) The capped per-tier rows stay genuinely absent — `quiet_bench.sh`
+   runs native targets only, so no SSE4/SSSE3/SSE2 erf throughput exists
+   on any machine. Run it on the Kaby Lake box (proven quiet recipe, 5%
+   gate) only if the adoption sweep actually needs the capped rows.
+   NOT AFFECTED: the dispatch decisions themselves. kNeon's `NEVER` and
+   the x86 thresholds came from measured HalfNormal ratios, not from the
+   erf comparison — it is the prose explaining WHY that was unsound, not
+   the tables.
 4. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
    0.6.0 released on the v2.3.0 pin; re-bump at v2.3.1 (step 1).
 
