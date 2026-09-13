@@ -588,6 +588,14 @@ history.
     implementations"), 2 ahead / 500 behind, last touched 2025-09-04.
   All three are `GONE` on the remote, so `clean_gone` — or any routine stale-
   branch sweep — would delete exactly the three that were deliberately kept.
+  **Scope: this hazard is M1-ONLY** (clarified 2026-09-13). The three branches
+  and the exported patch exist on that machine and nowhere else; the Kaby Lake
+  and Ryzen checkouts carry no kept-on-purpose branches, so the block below
+  does not apply to them. Confirmed on the Kaby Lake box 2026-09-13: its only
+  `[gone]` branch was `dev/v2.4.0` (tip `c7d9fe8`), verified individually —
+  0 commits ahead of `main`, `git cherry` zero `+` — and deleted, its content
+  having shipped in v2.4.0 via PR #147 (`c3d27e2`). Restore with
+  `git branch dev/v2.4.0 c7d9fe8` if ever needed.
   Two stashes were dropped the same day; the `simd-architecture-repair` one
   (an 860-line `src/simd_neon.cpp` against today's 932, plus committed
   `debug_erf` binaries since untracked) was exported first to
@@ -620,6 +628,17 @@ capped iterations, so the adoption release is what closes it). What stays open h
 pylibstats wheels: Highway becomes transitive, corvus's Apache-2.0 NOTICE
 must ship with binary artifacts, and `libstats-config.cmake` owes a
 `find_dependency(corvus)`.
+
+corvus filed **#37** (its v1.1.0) against this repo's fleet data — x86
+`vector_erf` ~5x slower per element than the NEON one, the root cause of a
+HalfNormal-CDF dispatch divergence — asking whether the gap is ours or
+generic x86. Partly answered 2026-09-13 from corvus's already-committed
+`docs/bench-evidence/`: corvus's OWN x86 erf is not uniformly slower than
+its NEON one (Zen 4 1.67 ns/el vs M1 NEON 2.20; Kaby Lake 7.38), which
+points at ours, i.e. the adoption swap fixes it at no cost. Two caveats
+travel with that: the M1 row is INDICATIVE under the 10% fallback gate,
+never promoted; and the machine-provenance confound in Next Steps 3(a) has
+not been excluded. Do not treat it as settled before adoption scoping.
 
 ## Defensive Review 2026-08-21 [DERIVED]
 Between-milestone review of v2.3.0 (metrics, architecture, numerical,
@@ -684,6 +703,20 @@ session artifact; the issues carry the detail.
 3. At v2.5.0 scoping: re-scope #47/#52 against the cores' real accuracy
    (#113's record correction), and verify whether the corvus
    incomplete-beta core absorbs #126 (re-home it to v2.5.0 if so).
+   Also in this prep, three erf-throughput items carried over from corvus
+   #37 (deferred here 2026-09-13 rather than run as a standalone session):
+   (a) establish WHICH fleet machines produced this repo's x86-vs-NEON
+   `vector_erf` numbers — corvus's own committed data has Zen 4 erf at
+   1.67 ns/el BEATING M1 NEON at 2.20, with Kaby Lake at 7.38, so a
+   Kaby-vs-M1 comparison reproduces most of a ~5x ratio from hardware
+   generation alone and may account for the gap without any kernel defect;
+   (b) if the gap survives that control, it is this repo's kernel and the
+   corvus swap closes it for free — confirm in the before/after
+   characterization sweep rather than optimizing the doomed kernel;
+   (c) the per-tier half is genuinely open — `quiet_bench.sh` runs native
+   only, so no capped SSE4/SSSE3/SSE2 erf throughput exists on any machine.
+   Run it on the Kaby Lake box (proven quiet recipe, 5% gate) only if the
+   adoption sweep actually needs the capped rows.
 4. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
    0.6.0 released on the v2.3.0 pin; re-bump at v2.3.1 (step 1).
 
@@ -693,7 +726,10 @@ session artifact; the issues carry the detail.
    `main` or preserve as an `archive/*` tag, so the commit stops depending on
    a local branch. Settle the patch file the same way — fold in or discard;
    do not leave it loose in `~/Development`. Until this is done, do not run
-   `clean_gone` or any stale-branch sweep on this repo.
+   `clean_gone` or any stale-branch sweep **on the M1 checkout of this repo**.
+   The restriction is machine-scoped, not repo-scoped: other machines' stale
+   branches are ordinary housekeeping, verified per branch (`git cherry`
+   against `main`) rather than swept blind.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
