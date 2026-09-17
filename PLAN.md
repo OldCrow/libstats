@@ -258,8 +258,10 @@ history.
   documented, caller-visible, platform-dependent.
 - **Accuracy, contracts & kernel hygiene patch** (open, #8; renamed from
   "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
-  likely v2.5.1): 15 open / 0 closed. #107/#110/#113 moved to v2.5.0 the
-  same day (the adoption release closes them). #136/#137/#138 filed onto
+  likely v2.5.1): 10 open / 0 closed (15 → 10 on 2026-09-17:
+  #126/#136/#137/#138/#141 re-homed to v2.5.0 at scoping, all absorbed
+  by the corvus cores). #107/#110/#113 moved to v2.5.0 on 2026-08-28
+  (the adoption release closes them). #136/#137/#138 filed onto
   it 2026-09-03, #146/#148 during the v2.4.0 endgame, #144 at the
   2026-09-04 close-out (kAvx512 von Mises cell — re-measure scheduled
   post-adoption; see In Progress). A reassessment pass is owed: bucket
@@ -373,7 +375,40 @@ history.
     (delegation wrappers copy their delegates' threshold rows);
     three-machine native validation (Zen 4, Kaby Lake, M1) before the
     tag, matching v2.3.1 precedent.
-- **v2.5.0 — corvus adoption** (open, #6): 6 open / 0 closed — #47
+- **v2.5.0 — corvus adoption** (open, #6): 11 open / 0 closed. SCOPED
+  2026-09-17 (records on each issue; milestone description updated).
+  Width RATIFIED [user]: FULL SWAP — every `detail::` special function
+  corvus covers goes in this release; #126/#136/#137/#138/#141 re-homed
+  here from milestone #8 (15 → 10) because each is "swap the backend and
+  re-run the sweep" once corvus is linked. Findings that changed the
+  plan: (1) #52's premise was wrong — `binomial.cpp:323` has used the
+  `beta_i` closed form since the distribution landed (42460c4); the
+  slower-than-scipy CDF is the #113 100-iteration Lentz cap run once per
+  element, not PMF summation. (2) #126 and #141 ABSORBED, MEASURED on
+  Kaby Lake against corvus v1.0.0: `beta_p(1, k+1, p)` at k ∈ {1e8, 1e9,
+  1e10} worst 0.49 ULP vs the Geometric closed form (libstats loses
+  ~1e-6 absolute); `lbeta` 0.39 ULP; `gamma_p`/`gamma_q` at a ∈ {1e3, 1e4,
+  1e5} worst 0.48/0.47 ULP (libstats 1.7e-7). Tier-asserted AVX2 native +
+  SSSE3 capped, byte-identical. (3) #47 unaffected by #113 — the A&S floor
+  is the kernel; five cold-scalar sites in `von_mises.cpp`, both tiers
+  and `LIBSTATS_HAS_CXX17_BESSEL` go, retiring the #97 class by
+  construction. (4) Call-site inventory: 69 sites across 21 files — 42
+  cold-scalar (span-of-1 wrappers), 21 scalar-in-loop (Gamma CDF ×4,
+  Poisson CDF ×4, Beta CDF ×3, Binomial/NegBin PMF batch, erf/erfc
+  fallback + tail-fixup loops ×7, five SIMD-backend tail remainders), 6
+  already span-shaped (`math_utils.cpp` `vector_gamma_p/q`,
+  `vector_beta_i`, `vector_lgamma`, `simd_fallback.cpp` `vector_erf`) —
+  the lowest-friction adoption point, and the "`vector_lgamma`
+  indefinitely deferred" AGENTS.md entry dissolves. (5) `fisher_f.cpp`
+  377/401 form complements as `ONE − beta_i`; `beta_q` makes them direct.
+  OPEN DESIGN POINT for the swap session: corvus takes every argument as
+  a same-length span with NO broadcast, so the 21 constant-plus-x sites
+  need a filled constant span (stack scratch / reusable buffer), or an
+  additive broadcast overload requested from corvus v1.1.0. Poisson is
+  the odd shape — `gamma_q(k+1, λ)` varies the FIRST argument.
+  Also at swap time: AGENTS.md "Zero external dependencies" positioning
+  sentence; `docs/ACCURACY_CHARACTERIZATION.md` #113 attribution
+  paragraph. Original entry follows. — #47
   bessel.h rewire, #52 Binomial beta_p CDF rewrite, and (moved in on
   2026-08-28, closed BY the adoption swap) #113 iteration caps/Lentz
   tolerance (the corvus cores delete the capped iterations outright),
@@ -702,9 +737,13 @@ session artifact; the issues carry the detail.
    in ONE swap round; the renamed post-adoption patch after it.
    Contingency: #125/#127 justify an early patch slice if the corvus
    arc stalls.
-3. At v2.5.0 scoping: re-scope #47/#52 against the cores' real accuracy
-   (#113's record correction), and verify whether the corvus
-   incomplete-beta core absorbs #126 (re-home it to v2.5.0 if so).
+3. ~~At v2.5.0 scoping: re-scope #47/#52 …~~ **DONE 2026-09-17** (Kaby
+   Lake, away-from-fleet session; decisions and measurements on the
+   issues, summary under GitHub Milestones v2.5.0). #47/#52 re-scoped,
+   #113 disposition confirmed, #126 AND #141 absorbed with measured
+   evidence, #136/#137/#138 absorbed on the audit record; full-swap width
+   ratified and five issues re-homed. The swap session on return starts
+   from the call-site inventory and the no-broadcast design point.
    Also in this prep, the erf-throughput work carried over from corvus #37
    (deferred here 2026-09-13 rather than run as a standalone session).
    (a) **DONE 2026-09-13 — provenance established, and it retires the
