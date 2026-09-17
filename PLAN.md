@@ -258,7 +258,7 @@ history.
   documented, caller-visible, platform-dependent.
 - **Accuracy, contracts & kernel hygiene patch** (open, #8; renamed from
   "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
-  likely v2.5.1): 10 open / 0 closed (15 → 10 on 2026-09-17:
+  likely v2.5.1): 9 open / 0 closed (15 → 10 on 2026-09-17; #148 UML regeneration closed 2026-09-17:
   #126/#136/#137/#138/#141 re-homed to v2.5.0 at scoping, all absorbed
   by the corvus cores). #107/#110/#113 moved to v2.5.0 on 2026-08-28
   (the adoption release closes them). #136/#137/#138 filed onto

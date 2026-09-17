@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>libstats Architecture Diagrams (v2.0.0 snapshot)</title>
+<title>libstats Architecture Diagrams (v2.4.0)</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -103,13 +103,14 @@
     color: #aaa;
     text-align: center;
   }
+.diagram-card img { background: #161b23; border-radius: 10px; display: block; width: 100%; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>libstats Architecture Diagrams <small>(v2.0.0 snapshot)</small></h1>
-  <p>Four structural and process-flow diagrams covering the class hierarchy, batch dispatch pipeline, thread-safety model, and Result&lt;T&gt; factory pattern. <strong>Snapshot note:</strong> the diagrams were generated at v2.0.0 (16 distributions, pre-#48/#95 kernels, June threshold values). The structural shapes still hold at v2.4.0, but the library now has 27 distributions across 7 families, five threshold tables (kNeon, kAvx, kAvx2, kAvx512, kNone — kAvx measured via a capped build, SSE2 delegating to it), and re-measured threshold values; treat all counts and example numbers in the diagrams as v2.0.0-era.</p>
+  <h1>libstats Architecture Diagrams <small>(v2.4.0)</small></h1>
+  <p>Four structural and process-flow diagrams covering the class hierarchy, batch dispatch pipeline, thread-safety model, and Result&lt;T&gt; factory pattern. Regenerated at v2.4.0: 27 distributions across 7 families, five dispatch-threshold tables (kNeon, kAvx, kAvx2, kAvx512, kNone), and the current measured threshold values.</p>
 </header>
 
 <div class="tabs">
@@ -126,12 +127,12 @@
     <div class="index-card" onclick="show('hier', document.querySelectorAll('.tab')[1])">
       <div class="badge badge-blue">UML class diagram</div>
       <h3>Class hierarchy</h3>
-      <p>Full inheritance tree from <code>DistributionInterface</code> through <code>DistributionBase</code> to all concrete distributions as of v2.0.0 (16 of today's 27), colour-coded by family. Includes <code>ThreadSafeCacheManager</code> mixin and the <code>stats::analysis</code> namespace.</p>
+      <p>Full inheritance tree from <code>DistributionInterface</code> through <code>DistributionBase</code> to all 27 concrete distributions, grouped into 7 family bands, with the internal delegations (ChiSquared/Erlang/InverseGamma → Gamma, Bernoulli → Binomial, Geometric → NegativeBinomial, Cauchy → StudentT) drawn as dashed arrows. Includes the <code>ThreadSafeCacheManager</code> mixin and the <code>stats::analysis</code> namespaces.</p>
     </div>
     <div class="index-card" onclick="show('disp', document.querySelectorAll('.tab')[2])">
       <div class="badge badge-green">Flow diagram</div>
       <h3>Batch dispatch pipeline</h3>
-      <p>End-to-end flow from a span-based batch call through <code>DispatchUtils::autoDispatch</code>, strategy selection (AUTO vs. forced hint), threshold table lookup, and all four execution strategies: SCALAR, VECTORIZED, PARALLEL, WORK_STEALING.</p>
+      <p>End-to-end flow from a span-based batch call through <code>DispatchUtils::autoDispatch</code>, strategy selection (AUTO vs. forced hint), threshold table lookup, and all four execution strategies: SCALAR, VECTORIZED, PARALLEL (<code>parallelForSlices</code>, #143), WORK_STEALING. Shows all five threshold tables with the Gaussian row from each.</p>
     </div>
     <div class="index-card" onclick="show('cache', document.querySelectorAll('.tab')[3])">
       <div class="badge badge-orange">Concurrency diagram</div>
@@ -150,7 +151,7 @@
 <div class="panel" id="hier">
   <div class="diagram-card">
     <h2>Class hierarchy</h2>
-    <p>DistributionInterface (pure abstract) → DistributionBase (+ ThreadSafeCacheManager mixin) → the concrete distributions grouped by family (16 at v2.0.0; 27 today). The span-based batch API and stats::analysis namespace are shown at the bottom.</p>
+    <p>DistributionInterface (pure abstract) → DistributionBase (+ ThreadSafeCacheManager mixin) → the 27 concrete distributions in 7 family bands. A solid arrow into a band means every class in it inherits DistributionBase; dashed arrows are internal delegations. The span-based batch API and the stats::analysis namespaces are shown as well.</p>
     <img src="class-hierarchy.svg" alt="libstats class hierarchy diagram">
   </div>
 </div>
@@ -159,7 +160,7 @@
 <div class="panel" id="disp">
   <div class="diagram-card">
     <h2>Batch dispatch pipeline</h2>
-    <p>A call to any span-based batch method flows through DispatchUtils::autoDispatch, which either runs PerformanceDispatcher (AUTO mode: SIMD capability + threshold table lookup) or maps a forced PerformanceHint directly to a strategy. The four execution strategies are SCALAR, VECTORIZED (SIMD via VectorOps), PARALLEL (GCD / std::execution::par / Win32 Thread Pool), and WORK_STEALING. Threshold tables are architecture-specific (kNeon, kAvx, kAvx2, kAvx512, kNone; SSE2 delegates to kAvx).</p>
+    <p>A call to any span-based batch method flows through DispatchUtils::autoDispatch, which either runs PerformanceDispatcher (AUTO mode: SIMD capability + threshold table lookup) or maps a forced PerformanceHint directly to a strategy. The four execution strategies are SCALAR, VECTORIZED (SIMD via VectorOps), PARALLEL (ParallelUtils::parallelForSlices, #143: element-denominated serial gate with SIMD-slice callbacks, over GCD / std::execution::par / Win32 thread pool), and WORK_STEALING. Threshold tables are architecture-specific — kNeon, kAvx (measured via a capped build), kAvx2, kAvx512, kNone — and SSE2 delegates to kAvx.</p>
     <img src="dispatch-pipeline.svg" alt="libstats batch dispatch pipeline diagram">
   </div>
 </div>
@@ -182,7 +183,7 @@
   </div>
 </div>
 
-<footer>libstats v2.0.0 · docs/UML/ · generated 2026-06-28</footer>
+<footer>libstats v2.4.0 · docs/UML/ · regenerated 2026-09-17 (corvid-cartography style)</footer>
 
 <script>
 function show(id, tabEl) {
