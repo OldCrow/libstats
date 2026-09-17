@@ -659,10 +659,91 @@ so adoption never touched it; #51 shipped in v2.3.0 via Miller recurrence
 with no Bessel evaluated; #47 and #52 are parked in v2.5.0 and get re-scoped
 against the cores' real accuracy with #113's correction in hand (#113
 itself moved into v2.5.0 on 2026-08-28 — the corvus cores delete the
-capped iterations, so the adoption release is what closes it). What stays open here is the dependency's cost to
-pylibstats wheels: Highway becomes transitive, corvus's Apache-2.0 NOTICE
-must ship with binary artifacts, and `libstats-config.cmake` owes a
-`find_dependency(corvus)`.
+capped iterations, so the adoption release is what closes it). The
+dependency's cost to pylibstats wheels — Highway transitive, NOTICE with
+binaries, `find_dependency(corvus)` — is PRICED below.
+
+[PRICED 2026-09-17] **corvus dependency cost to pylibstats wheels** —
+task 2 of the away-from-fleet plan; replaces the "what stays open here"
+clause above. Chain inside a cibuildwheel build: pylibstats
+`FetchContent(libstats)` → libstats must **find-or-fetch corvus**
+(`find_package(corvus 1.0 CONFIG)` first, FetchContent fallback pinned to
+`v1.0.0` — the spike's bare `find_package(corvus REQUIRED)` is
+wheel-hostile, since manylinux/macOS/Windows cibuildwheel images carry no
+corvus) → corvus find-or-fetches Highway 1.4.0 (its own
+`cmake/FindOrFetchHighway.cmake`). Build-tree targets only, no install
+step, so corvus's "install target disabled when Highway was fetched" rule
+does NOT bite wheels. Mock of the full chain with fetched Highway on Kaby
+Lake (AppleClang 15): LINKS AND RUNS. Mock: shared module → static consumer lib → FetchContent(corvus v1.0.0) → corvus FetchContents Highway 1.4.0 (`-DCMAKE_DISABLE_FIND_PACKAGE_hwy=ON` to hide brew's copy; configure log confirms "fetched Highway 1.4.0 via FetchContent" and "'install' target disabled"). dlopen'd module reports active_target AVX2, erf within 1 ulp of libm, beta_p(2,3,0.5) = 0.6875 exact. Cost scale on the 4-core Kaby Lake: configure 11 s, build 7 min wall for corvus (19 objects, libcorvus.a 4.7 MB) + Highway (39 objects incl. hwy_contrib, which corvus needs for hwy/contrib/math; libhwy.a 71 KB).
+- **Where the install rule DOES bite — libstats' own package.**
+  `libstats-config.cmake.in` owes `find_dependency(corvus CONFIG)` (spike
+  finding: `configure_simd_target` links PRIVATE, so on the static lib
+  corvus lands in `INTERFACE_LINK_LIBRARIES` as `$<LINK_ONLY:>`). That is
+  only valid when corvus came from a package; with a fetched corvus the
+  export references a target outside the export set — the exact breakage
+  corvus guards against. Adopt corvus's rule: libstats `install` is
+  supported only with a system corvus (and therefore a system Highway).
+  Homebrew-style consumers install corvus first. Decide in the swap PR;
+  the wheel path is unaffected either way.
+- **Header hygiene (recommend, decide in the swap PR):** corvus must not
+  appear in any INSTALLED libstats header. `bessel.h`'s inline functions
+  are installed, and the spike put corvus calls there. Move the wrappers
+  into a TU so corvus is a PRIVATE link dependency: static consumers get
+  `$<LINK_ONLY:corvus::corvus>` (find_dependency still required), shared
+  consumers need nothing, and no consumer compiles corvus or Highway
+  headers — C++20-span and Highway never leak. This is also the finish of
+  #97's lesson: no tier-switched code in installed headers.
+- **PIC on Linux:** libstats adds `-fPIC` via `add_compile_options`
+  (CMakeLists:163) at directory scope, so a corvus fetched below that line
+  inherits it; corvus sets `POSITION_INDEPENDENT_CODE ON` on itself;
+  Highway: Highway's own CMakeLists sets `POSITION_INDEPENDENT_CODE ON` on the `hwy` target (line 546 of the 1.4.0 source) and `-fPIC` is present in the compile line of every Highway object in the mock — not inherited from a platform default. No PIC risk on Linux.
+- **Windows wheels — two real costs, one OPEN decision.** cibuildwheel
+  builds with MSVC. (a) Highway lists every AVX3* target as broken under
+  MSVC, so corvus's kernels top out at AVX2 in Windows wheels while
+  libstats' own AVX-512 kernels still dispatch — a mixed-tier binary.
+  Accuracy is unaffected (bounds are per tier and cell-identical);
+  throughput of the corvus families on Zen 4 Windows users is. (b) Build
+  budget: the Windows wheel job runs 19 min today under
+  `timeout-minutes: 30`; corvus's own MSVC CI job is 11 min. The job
+  would breach its timeout. Options: (1) raise the timeout and accept the
+  AVX2 cap — zero-risk, one line; (2) build the Windows wheel with
+  clang-cl (`CMAKE_GENERATOR=Ninja`, `CC/CXX=clang-cl`, or `-T ClangCL`)
+  — restores AVX-512 and compiles faster, keeps the MSVC ABI so the
+  nanobind/CPython link is untouched, but it is a toolchain change to a
+  workflow that only runs on tags and needs a `workflow_dispatch` trial
+  before the tag. Decide at the v0.8.0 bump. Record on pylibstats
+  #20.
+- **macOS / Linux wheels:** macOS 11 min today and builds x86_64 + arm64,
+  so corvus compiles twice — corvus's macOS CI job is ~1 min, expect
+  +2–4 min. Linux 7 / 6 min; a plain corvus build is 2–3 min. Both
+  inside budget.
+- **Linux aarch64 — a validation gap, not a build cost.** corvus's NEON
+  tier was validated on Apple silicon with AppleClang only. The manylinux
+  aarch64 wheel ships corvus NEON compiled by GCC 14 — a compiler × ISA
+  cell corvus has never run. Cheapest closure is an `ubuntu-24.04-arm` leg
+  in corvus `ci.yml` (runner minutes — weigh per the CI economics rule);
+  flagged to corvus v1.1.0 rather than decided here.
+- **License / NOTICE.** Wheels will bundle Highway object code, so the
+  Apache-2.0 §4 obligations corvus's NOTICE describes attach to the wheel
+  for the first time: ship corvus's NOTICE text and the Apache-2.0 license
+  text inside the wheel, and state MIT + Apache-2.0 (Highway) in the PyPI
+  metadata (corvus RELEASING.md "per-channel metadata"; pyproject today:
+  `license = { text = "MIT" }`). Mechanism: scikit-build-core 0.12's default `wheel.license-files` glob is `["LICEN[CS]E*", "COPYING*", "NOTICE*", "AUTHORS*"]`, so a root `NOTICE` plus a root `LICENSE-Apache-2.0` ship in the wheel with no config change. Pre-existing gap found while checking: **pylibstats tracks no LICENSE file at all** (pylibhmm likewise) — the MIT metadata has never been backed by license text in the wheel or sdist; add `LICENSE` in the same change. libstats
+  side: THIRD_PARTY_NOTICES.md gains corvus (MIT) and Highway (Apache-2.0,
+  elected) entries; libstats ships no binaries, so attribution is its only
+  obligation. The "Zero external dependencies" line in AGENTS.md and README
+  changes — write the sentence deliberately.
+- **Pins and canaries.** Three pins in a chain: pylibstats → libstats
+  (canary exists), libstats → corvus (new: floor + GIT_TAG, wants the same
+  pin-currency canary), corvus → Highway (bump only with a revalidation
+  pass, corvus's rule). sdist users already fetch libstats at build time;
+  this adds one fetch.
+- **Bottom line for the pylibstats v0.8.0 (MINOR) bump:** pyproject
+  license metadata + NOTICE inclusion; the Windows decision above; no
+  CMakeLists change beyond the pin bump — the chain is transparent through
+  FetchContent. Dev machines that satisfy `find_package(libstats)` from an
+  installed libstats will need corvus and Highway installed too;
+  `find_dependency` resolves them once they are.
 
 corvus filed **#37** (its v1.1.0) against this repo's fleet data — x86
 `vector_erf` ~5x slower per element than the NEON one, the root cause of a
@@ -779,6 +860,14 @@ session artifact; the issues carry the detail.
    the x86 thresholds came from measured HalfNormal ratios, not from the
    erf comparison — it is the prose explaining WHY that was unsound, not
    the tables.
+3b. ~~Cost out the corvus dependency for pylibstats wheels~~ **DONE
+   2026-09-17** — record under Cross-Repo Dependencies; tracker
+   pylibstats #20. Chain mocked end-to-end with fetched Highway: links
+   and runs. One OPEN decision (Windows wheel: raise timeout + AVX2 cap
+   vs clang-cl) deferred to the v0.8.0 bump; libstats-side items
+   (find-or-fetch corvus, install gated on system corvus, corvus out of
+   installed headers, `find_dependency`, THIRD_PARTY_NOTICES, corvus pin
+   canary) go in the swap PR.
 4. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
    0.6.0 released on the v2.3.0 pin; re-bump at v2.3.1 (step 1).
 
