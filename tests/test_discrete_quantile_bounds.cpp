@@ -160,6 +160,15 @@ double geometricCdf(double p, double k) {
     return -std::expm1((k + 1.0) * std::log1p(-p));
 }
 
+// Absolute CDF tolerance past INT_MAX. Derived, not measured: beta_i's
+// log-beta prefix differences lgamma values of ~1e11 (k ~ 4.6e9) to ~4.5e11
+// (r = k = 1e10), where one ulp is 1.5e-5 to 6e-5, and that error passes
+// through exp() onto a CDF of order 1. How much of it shows depends on the
+// libm's lgamma rounding: Apple's stays under 1e-5 at every point here, glibc
+// reaches 1.2e-5 at NB(1e10, 0.5), q = 0.5. This is #126, absorbed by the
+// v2.5.0 incomplete-beta core; tighten then. The #125 defect misses by >= 0.5.
+constexpr double kCdfTolBeyondIntMax = 2e-4;
+
 }  // namespace
 
 TEST(DiscreteCountNarrowing, GeometricPublicRoundTripBeyondIntMax) {
@@ -168,7 +177,7 @@ TEST(DiscreteCountNarrowing, GeometricPublicRoundTripBeyondIntMax) {
 
     const double k99 = g.getQuantile(0.99);
     ASSERT_GT(k99, kIntMax) << "test premise changed: the q=0.99 quantile fits an int";
-    EXPECT_NEAR(g.getCumulativeProbability(k99), 0.99, 1e-5)
+    EXPECT_NEAR(g.getCumulativeProbability(k99), 0.99, kCdfTolBeyondIntMax)
         << "the public CDF maps the library's own quantile " << k99 << " elsewhere";
 }
 
@@ -180,7 +189,8 @@ TEST(DiscreteCountNarrowing, GeometricScalarMatchesClosedFormBeyondIntMax) {
         const double ref_log = geometricLogPmf(p, k);
         EXPECT_NEAR(g.getLogProbability(k), ref_log, 1e-6 * std::fabs(ref_log)) << "k=" << k;
         EXPECT_NEAR(g.getProbability(k), std::exp(ref_log), 1e-5 * std::exp(ref_log)) << "k=" << k;
-        EXPECT_NEAR(g.getCumulativeProbability(k), geometricCdf(p, k), 1e-5) << "k=" << k;
+        EXPECT_NEAR(g.getCumulativeProbability(k), geometricCdf(p, k), kCdfTolBeyondIntMax)
+            << "k=" << k;
         // CDF floors a non-integer argument; pmf/logpmf round it.
         EXPECT_EQ(g.getCumulativeProbability(k + 0.75), g.getCumulativeProbability(k));
         EXPECT_EQ(g.getLogProbability(k + 0.25), g.getLogProbability(k));
@@ -200,7 +210,7 @@ TEST(DiscreteCountNarrowing, NegativeBinomialScalarBeyondIntMax) {
     for (double q : {0.5, 0.99}) {
         const double k = nb.getQuantile(q);
         ASSERT_GT(k, kIntMax);
-        EXPECT_NEAR(nb.getCumulativeProbability(k), q, 1e-5) << "q=" << q;
+        EXPECT_NEAR(nb.getCumulativeProbability(k), q, kCdfTolBeyondIntMax) << "q=" << q;
     }
 }
 
