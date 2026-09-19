@@ -1,6 +1,13 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-09-04
+## Status [DERIVED] — 2026-09-19
+v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
+#125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
+(parallelReduce/parallelStatOperation wait-all-then-harvest), PR #151,
+all CI legs green incl. macOS arm64 and ASan/UBSan. Validated on Kaby
+Lake + CI only (travel session); no fleet legs were run or are owed for
+it beyond the sweep confirmation noted under In Progress.
+
 v2.4.0 shipped (tagged 2026-09-04 at e868fc1, signed; PR #147 merge
 commit c3d27e2; milestone #2 closed at 0 open after #144 moved to
 milestone #8) — 27 distributions across 7 families, API additive over
@@ -258,7 +265,7 @@ history.
   documented, caller-visible, platform-dependent.
 - **Accuracy, contracts & kernel hygiene patch** (open, #8; renamed from
   "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
-  likely v2.5.1): 9 open / 0 closed (15 → 10 on 2026-09-17; #148 UML regeneration closed 2026-09-17:
+  likely v2.5.1): 7 open / 2 closed — #125/#127 shipped early as v2.4.1 on 2026-09-19 (15 → 10 on 2026-09-17; #148 UML regeneration closed 2026-09-17:
   #126/#136/#137/#138/#141 re-homed to v2.5.0 at scoping, all absorbed
   by the corvus cores). #107/#110/#113 moved to v2.5.0 on 2026-08-28
   (the adoption release closes them). #136/#137/#138 filed onto
@@ -447,41 +454,23 @@ history.
   than trusting it between passes.
 
 ## In Progress [OPEN]
-- **v2.4.1 early patch slice** [user, 2026-09-19; travel session, Kaby Lake
-  only]: the #125/#127 contingency is exercised — both ship as a v2.4.1
-  patch release ahead of v2.5.0 instead of waiting for milestone #8.
-  Scope is exactly these two self-contained bugs; nothing else from
-  milestone #8 starts before the fleet is back. Verification is local
-  AVX2 plus the CI legs (ASan/UBSan, strict, macOS arm64 for the
-  AArch64 half of #125).
-  - #127 — fix on branch `fix/127-parallel-reduce-harvest`:
-    `parallelReduce`/`parallelStatOperation` share parallelFor's
-    wait-all-then-harvest helper in `platform/thread_pool.h`. Guards in
-    `tests/test_parallel_exception_propagation.cpp` pin the chunk count
-    to 4 so "all siblings completed" is an exact equality; shown to fail
-    unfixed (reduce guard segfaults — the use-after-free itself; stat
-    guard 2 ≠ 3). Local: 74/74 correctness suite. Owed: PR + CI.
-  - #125 — scope [user]: scalar pmf/logpmf/cdf, both batch impls
-    (`negative_binomial.cpp` getProbabilityBatchImpl /
-    getLogProbabilityBatchImpl) AND `sample()`
-    (`std::poisson_distribution<int>` with λ past INT_MAX is the same
-    class). Fix in the same working tree: count carried in double
-    end-to-end (`roundedCount`/`flooredCount`, bit-identical below
-    INT_MAX); both `sample` overloads share `poissonCount`, which keeps
-    the `poisson_distribution<int>` stream below λ = 2^30 and draws the
-    normal limit above it. Guards: `DiscreteCountNarrowing.*` in
-    `tests/test_discrete_quantile_bounds.cpp` (two-sided vs closed forms
-    / mpmath; 6/6 shown to fail unfixed on x86). Local: 74/74 + the two
-    timing-labelled NegBin/Geometric enhanced binaries. Owed: PR + CI —
-    the macOS arm64 leg is the AArch64 half of the acceptance; the sweep
-    numbers (x86 63 → 61, NEON geometric logpdf max_rel 0.865 → ~1e-8)
-    are confirmed at the next fleet regen, not a blocker for the issue.
-    Finding, not fixed (not the narrowing bug): for general r,
-    lgamma(k+r) − lgamma(k+1) cancels to ~1e-4 absolute at k ~ 1e10;
-    exact for Geometric (r = 1). Candidate for the corvus-absorption
-    check rather than a new in-tree kernel.
-  - Owed at release: version bump 2.4.0 → 2.4.1, CHANGELOG seal, signed
-    tag, pylibstats pin decision.
+- **v2.4.1 SHIPPED 2026-09-19** [user; travel session, Kaby Lake only]:
+  the #125/#127 contingency exercised as an early patch slice ahead of
+  v2.5.0 (PR #151, merge commit 45a2d4a; release contents in CHANGELOG
+  [2.4.1]). Milestone #8 is otherwise untouched — nothing else from it
+  starts before the fleet is back.
+  - Owed at the next fleet sweep regen (confirmation, not a blocker):
+    x86 contract violations 63 → 61 (the two geometric wrap rows);
+    NEON geometric logpdf max_rel 0.865 → ~1e-8 class.
+  - Guard tolerance lesson: the past-INT_MAX CDF bound was first set from
+    Apple libm's measured error (< 1e-5) and failed on glibc AND MSVC at
+    an identical 1.22e-5. It is now derived from beta_i's lgamma ulp floor
+    (2e-4, #126); tighten it when the v2.5.0 incomplete-beta core lands.
+  - Finding, not fixed: for general r, lgamma(k+r) − lgamma(k+1) cancels
+    to ~1e-4 absolute at k ~ 1e10 (exact for Geometric). Add to the
+    v2.5.0 corvus-absorption check rather than a new in-tree kernel.
+  - Downstream: pylibstats pin v2.4.0 → v2.4.1 rides pylibstats PR #22
+    with Python regression tests for #125.
 - **v2.4.0 SHIPPED 2026-09-04** (full development record: `git show
   eb75a45:PLAN.md`, "In Progress"; release contents in CHANGELOG
   [2.4.0]): PR #147 (21 branch commits, 10 squash-merged feature PRs)

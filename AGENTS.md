@@ -19,7 +19,7 @@ libstats is a **design and teaching library**: a demonstration of how to build
 statistical software correctly in modern C++20, with genuine SIMD and parallel
 performance. Zero external dependencies.
 
-**Current status**: v2.4.0 released (tagged on `main`) — 27 distributions across
+**Current status**: v2.4.1 released (tagged on `main`; correctness patch over v2.4.0) — 27 distributions across
 7 families, API additive over v2.1.0. v1.5.3 is the final v1.x release; v2.0.0
 introduced breaking changes, and `MIGRATION_GUIDE.md` has the old→new call
 mapping.

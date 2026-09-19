@@ -6,8 +6,7 @@ libstats is a modern C++20 statistical distributions library built as a design a
 
 ## Current Status
 
-The library is at **v2.3.1** on `main`, with **v2.4.0** in release endgame on
-`dev/v2.4.0` (27 distributions).
+The library is at **v2.4.1** on `main` (27 distributions).
 
 Twenty-seven distributions are fully implemented, all sharing a uniform API:
 

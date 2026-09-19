@@ -80,7 +80,7 @@ endif()
 
 project(
     libstats
-    VERSION 2.4.0
+    VERSION 2.4.1
     LANGUAGES CXX)
 
 # GNUInstallDirs gives platform-correct, packager-overridable destinations (e.g. lib64 on some Linux

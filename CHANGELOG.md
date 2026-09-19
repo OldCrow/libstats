@@ -5,6 +5,38 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-09-19
+
+Correctness patch — no API change. Two issues closed (#125, #127) in one
+PR (#151), each with fail-first regression gates. Shipped ahead of v2.5.0
+as the early patch slice PLAN.md held in reserve for these two bugs.
+
+### Fixed
+- NegativeBinomial/Geometric: the public pmf/logpmf/cdf — scalar and both
+  batch paths — narrowed their count argument with `static_cast<int>`. Past
+  INT_MAX that is UB and ISA-dependent: x86 wrapped (cdf → 0, logpmf →
+  −inf), AArch64 saturated (cdf → 1, logpmf constant), so after #116
+  `getQuantile` could return a count its own CDF mapped to 0
+  (`Geometric(1e-9)`: `cdf(quantile(0.99))` = 0). The count now stays in
+  `double` end-to-end; results below INT_MAX are bit-identical (#125).
+- NegativeBinomial/Geometric `sample()`: the gamma-Poisson mixture drew
+  from `std::poisson_distribution<int>` with rates past INT_MAX (~12 % of
+  `Geometric(1e-9)` draws). Rates below 2^30 keep the int path, so seeded
+  streams are unchanged; above it the Poisson's normal limit is drawn in
+  `double` (#125).
+- `ParallelUtils::parallelReduce` and `parallelStatOperation` harvested
+  chunk futures with `get()` inside the combine loop, so the first exception
+  unwound the caller's frame while sibling chunks still held by-reference
+  captures — the use-after-free shape #118 fixed in `parallelFor`. All three
+  primitives now share one wait-all-then-harvest helper; the combine step
+  does not run when a chunk threw (#127).
+
+### Known limitations
+- Past INT_MAX the NegativeBinomial CDF carries up to ~1e-4 absolute error
+  from `detail::beta_i`'s log-beta prefix (#126), and for general r the
+  logpmf's `lgamma(k+r) − lgamma(k+1)` cancels to ~1e-4 absolute at
+  k ~ 1e10 (exact for Geometric). Both are addressed by the v2.5.0 cores.
+
 ## [2.4.0] - 2026-09-04
 
 New Distributions (Foundation) — the library grows 19 → 27. Four issues

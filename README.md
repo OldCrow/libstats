@@ -2,9 +2,9 @@
 
 ---
 
-### v2.4.0 released
+### v2.4.1 released
 
-**v2.4.0 is the current release.** v1.5.3 was the final v1.x release.
+**v2.4.1 is the current release.** v1.5.3 was the final v1.x release.
 See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade instructions.
 
 v2.4.0 grows the library 19 → 27 distributions — Logistic, Gumbel,
@@ -17,9 +17,14 @@ and every SIMD tier was re-measured on the repaired code (AVX-512,
 AVX2, NEON native; AVX via a capped build). The API is additive over
 v2.3.1 — upgrading is a drop-in swap.
 
+v2.4.1 is a correctness patch over v2.4.0 — no API change. It fixes
+NegativeBinomial/Geometric counts past INT_MAX (pmf, logpmf, cdf and
+`sample()`), and makes `parallelReduce`/`parallelStatOperation` wait for
+every chunk before rethrowing, as `parallelFor` already did.
+
 ---
 
-[![Version](https://img.shields.io/badge/version-v2.4.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.4.0)
+[![Version](https://img.shields.io/badge/version-v2.4.1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.4.1)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -340,7 +345,8 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.4.0 is the latest tagged release. It adds eight distributions —
+v2.4.1 is the latest tagged release, a correctness patch over v2.4.0.
+v2.4.0 added eight distributions —
 Logistic, Gumbel, Half-Normal, Truncated Normal, Bernoulli, Erlang,
 Fisher F, and Inverse-Gamma — with per-tier dispatch thresholds
 recalibrated from native profiling on all three fleet machines.
