@@ -68,7 +68,9 @@ before.
 
 `ParallelUtils::parallelFor`, which backs `Strategy::PARALLEL`, propagates an
 exception thrown inside a chunk: it waits for every chunk, then harvests the
-futures in order and rethrows the first exception (#118). The work-stealing
+futures in order and rethrows the first exception (#118).
+`ParallelUtils::parallelReduce` and `parallelStatOperation` share that contract
+(#127); their combine step does not run when a chunk threw. The work-stealing
 path does not — `WorkStealingPool::parallelFor` logs and swallows chunk
 exceptions because its completion latch must be decremented on every path.
 A batch call dispatched to `Strategy::WORK_STEALING` therefore loses a throwing

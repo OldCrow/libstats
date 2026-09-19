@@ -12,6 +12,7 @@
 #include <span>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 // Platform headers needed for template implementations
@@ -322,19 +323,33 @@ class ParallelUtils {
             futures.push_back(std::move(future));
         }
 
-        // Wait for every chunk to finish before touching any result. Harvesting
-        // with get() in this loop would rethrow out of the caller's frame while
-        // the remaining chunks still hold their by-reference captures of task.
+        waitAllThenRethrowFirst(futures);
+    }
+
+    /// The wait-all-then-harvest exception contract shared by every primitive
+    /// here (#118, #127). Waits for every chunk to finish before touching any
+    /// result: harvesting with get() in a single loop would rethrow out of the
+    /// caller's frame while the remaining chunks still hold their by-reference
+    /// captures of the caller's callables and data. Once all chunks are done it
+    /// is safe to unwind, so harvest in submission order and rethrow the first
+    /// exception; the rest are discarded.
+    static void harvestInto(std::future<void>& future, std::nullptr_t) { future.get(); }
+
+    template <typename T>
+    static void harvestInto(std::future<T>& future, std::vector<T>* results) {
+        results->push_back(future.get());
+    }
+
+    template <typename T, typename Sink>
+    static void waitAllThenHarvest(std::vector<std::future<T>>& futures, Sink sink) {
         for (auto& future : futures) {
             future.wait();
         }
 
-        // All chunks are done; now it is safe to unwind. Harvest in submission
-        // order and keep the first exception.
         std::exception_ptr firstException;
         for (auto& future : futures) {
             try {
-                future.get();
+                harvestInto(future, sink);
             } catch (...) {
                 if (!firstException) {
                     firstException = std::current_exception();
@@ -347,6 +362,20 @@ class ParallelUtils {
         }
     }
 
+    static void waitAllThenRethrowFirst(std::vector<std::future<void>>& futures) {
+        waitAllThenHarvest(futures, nullptr);
+    }
+
+    /// Value-returning form: the partial results in submission order. Reached
+    /// only when no chunk threw, so the vector is always complete.
+    template <typename T>
+    static std::vector<T> waitAllThenCollect(std::vector<std::future<T>>& futures) {
+        std::vector<T> results;
+        results.reserve(futures.size());
+        waitAllThenHarvest(futures, &results);
+        return results;
+    }
+
    public:
     /// Parallel reduction operation
     /// @param start Start index (inclusive)
@@ -356,6 +385,11 @@ class ParallelUtils {
     /// @param reduce Function to combine two values
     /// @param grainSize Minimum work per thread
     /// @return Reduced result
+    ///
+    /// @par Exception contract (#127)
+    /// Identical to parallelFor (#118): if @p task or @p reduce throws inside a
+    /// chunk, every chunk is waited on before the first exception in
+    /// chunk-submission order is rethrown, and the combine step does not run.
     template <typename T, typename TaskFunc, typename ReduceFunc>
     static T parallelReduce(std::size_t start, std::size_t end, T init, TaskFunc&& task,
                             ReduceFunc&& reduce, std::size_t grainSize = 1) {
@@ -393,10 +427,10 @@ class ParallelUtils {
             futures.push_back(std::move(future));
         }
 
-        // Combine partial results
+        // Combine partial results — only after every chunk has finished (#127)
         T finalResult = init;
-        for (auto& future : futures) {
-            finalResult = reduce(finalResult, future.get());
+        for (auto& partial : waitAllThenCollect(futures)) {
+            finalResult = reduce(finalResult, std::move(partial));
         }
 
         return finalResult;
@@ -535,6 +569,11 @@ class ParallelUtils {
     /// @param combiner Function to combine partial results
     /// @param grainSize Minimum work per thread (0 = auto-detect)
     /// @return Result of the statistical operation
+    ///
+    /// @par Exception contract (#127)
+    /// Identical to parallelFor (#118): every chunk is waited on before the
+    /// first exception in chunk-submission order is rethrown, and the
+    /// combiner does not run.
     template <typename T, typename Op, typename Combiner>
     static auto parallelStatOperation(std::span<const T> data, Op&& operation, Combiner&& combiner,
                                       std::size_t grainSize = 0) -> decltype(operation(data)) {
@@ -569,13 +608,8 @@ class ParallelUtils {
             futures.push_back(std::move(future));
         }
 
-        // Collect all partial results
-        std::vector<decltype(operation(data))> partialResults;
-        partialResults.reserve(futures.size());
-
-        for (auto& future : futures) {
-            partialResults.push_back(future.get());
-        }
+        // Collect all partial results — only after every chunk has finished (#127)
+        auto partialResults = waitAllThenCollect(futures);
 
         // Combine results using provided combiner
         auto result = partialResults[0];

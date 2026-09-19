@@ -177,8 +177,9 @@ produces silently wrong results or a deadlock, not a build error.
   `detail::DispatchUtils::autoDispatch`/`executeWithStrategy` compiles away under
   `NDEBUG`, so Release builds do not detect aliasing. Span sizes must match;
   every overload throws otherwise.
-- **Exception behaviour differs by strategy.** `ParallelUtils::parallelFor`
-  waits for all chunks, then rethrows the first exception in chunk order (#118).
+- **Exception behaviour differs by strategy.** `ParallelUtils::parallelFor`,
+  `parallelReduce` and `parallelStatOperation` wait for all chunks, then
+  rethrow the first exception in chunk order (#118, #127).
   `WorkStealingPool::parallelFor` deliberately swallows, because its completion
   latch must be decremented on every path or the caller deadlocks. So
   `Strategy::WORK_STEALING` loses what `Strategy::PARALLEL` reports.

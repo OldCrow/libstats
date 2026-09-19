@@ -23,6 +23,43 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+
+// The count argument stays in double end-to-end (#125). Every formula below
+// takes a real-valued k through lgamma / beta_i, so narrowing it to int bought
+// nothing and was UB past INT_MAX: x86 wraps to INT_MIN, AArch64 saturates to
+// INT_MAX, and the public CDF disagreed with getQuantile's own search (#116).
+// For counts that fit an int these produce the same double the int path did,
+// so results below INT_MAX are bit-identical. `+ 0.0` folds round(-0.4) = -0.0
+// into +0.0, which the int cast used to do implicitly.
+inline double roundedCount(double x) noexcept {
+    return std::round(x) + 0.0;
+}
+inline double flooredCount(double x) noexcept {
+    return std::floor(x);
+}
+
+// X ~ Poisson(lambda) as a count in double, for the gamma-Poisson sampler.
+// std::poisson_distribution<int> is UB once the rate nears INT_MAX (#125),
+// which Geometric(1e-9) reaches on ~12% of draws. Below 2^30 the int path is
+// kept exactly (same param_type reset per draw) so existing seeded streams do
+// not move. Above it the Poisson is its own normal limit to ~1/sqrt(lambda)
+// < 3.1e-5, so draw round(lambda + sqrt(lambda) Z) directly in double; the
+// clamp is unreachable in practice (Z < -32768) and only keeps the result a
+// valid count.
+inline double poissonCount(double lambda, std::poisson_distribution<int>& poisson_dist,
+                           std::mt19937& rng) {
+    constexpr double kIntPoissonMaxRate = 1073741824.0;  // 2^30
+    if (lambda < kIntPoissonMaxRate) {
+        poisson_dist.param(std::poisson_distribution<int>::param_type{lambda});
+        return static_cast<double>(poisson_dist(rng));
+    }
+    std::normal_distribution<double> normal_dist(lambda, std::sqrt(lambda));
+    return std::max(detail::ZERO_DOUBLE, std::round(normal_dist(rng)));
+}
+
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -242,7 +279,7 @@ double NegativeBinomialDistribution::getProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
-    const int k = static_cast<int>(std::round(x));
+    const double k = roundedCount(x);
     if (k < 0)
         return detail::ZERO_DOUBLE;
 
@@ -255,10 +292,9 @@ double NegativeBinomialDistribution::getProbability(double x) const {
         sl1mp = log1mP_;
     });
     if (sp >= detail::ONE)
-        return (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
-    const double lp_val = std::lgamma(static_cast<double>(k) + sr) -
-                          std::lgamma(static_cast<double>(k + 1)) - slgr + sr * slp +
-                          static_cast<double>(k) * sl1mp;
+        return (k == detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
+    const double lp_val =
+        std::lgamma(k + sr) - std::lgamma(k + detail::ONE) - slgr + sr * slp + k * sl1mp;
     return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
 }
 
@@ -267,7 +303,7 @@ double NegativeBinomialDistribution::getLogProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::NEGATIVE_INFINITY;  // ±inf → -∞
-    const int k = static_cast<int>(std::round(x));
+    const double k = roundedCount(x);
     if (k < 0)
         return detail::NEGATIVE_INFINITY;
 
@@ -280,9 +316,8 @@ double NegativeBinomialDistribution::getLogProbability(double x) const {
         sl1mp = log1mP_;
     });
     if (sp >= detail::ONE)
-        return (k == 0) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
-    return std::lgamma(static_cast<double>(k) + sr) - std::lgamma(static_cast<double>(k + 1)) -
-           slgr + sr * slp + static_cast<double>(k) * sl1mp;
+        return (k == detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
+    return std::lgamma(k + sr) - std::lgamma(k + detail::ONE) - slgr + sr * slp + k * sl1mp;
 }
 
 double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
@@ -292,7 +327,7 @@ double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
             return std::numeric_limits<double>::quiet_NaN();
         return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
     }
-    const int k = static_cast<int>(std::floor(x));
+    const double k = flooredCount(x);
     if (k < 0)
         return detail::ZERO_DOUBLE;
 
@@ -301,7 +336,7 @@ double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
         sp = p_;
         sr = r_;
     });
-    return detail::beta_i(sp, sr, static_cast<double>(k + 1));
+    return detail::beta_i(sp, sr, k + detail::ONE);
 }
 
 double NegativeBinomialDistribution::getQuantile(double prob) const {
@@ -331,9 +366,8 @@ double NegativeBinomialDistribution::getQuantile(double prob) const {
                                    : static_cast<std::int64_t>(kMaxCount);
 
     // CDF at an integer count carried in double: the same I_p(r, k+1) that
-    // getCumulativeProbability computes, without its static_cast<int> of the
-    // argument — which the search must cross for exactly the parameters that
-    // motivate the widened bound.
+    // getCumulativeProbability computes (which also carries its count in
+    // double, #125), so the public CDF agrees with this search everywhere.
     const auto cdf_at = [&](std::int64_t k) {
         return detail::beta_i(p, r, static_cast<double>(k) + detail::ONE);
     };
@@ -368,8 +402,8 @@ double NegativeBinomialDistribution::sample(std::mt19937& rng) const {
     // Gamma-Poisson mixture: λ ~ Gamma(r, (1-p)/p), then X ~ Poisson(λ)
     std::gamma_distribution<double> gamma_dist(r, (detail::ONE - p) / p);
     const double lambda = gamma_dist(rng);
-    std::poisson_distribution<int> poisson_dist(lambda);
-    return static_cast<double>(poisson_dist(rng));
+    std::poisson_distribution<int> poisson_dist(1.0);
+    return poissonCount(lambda, poisson_dist, rng);
 }
 
 std::vector<double> NegativeBinomialDistribution::sample(std::mt19937& rng, size_t count) const {
@@ -383,8 +417,7 @@ std::vector<double> NegativeBinomialDistribution::sample(std::mt19937& rng, size
     std::poisson_distribution<int> poisson_dist(1.0);
     for (size_t i = 0; i < count; ++i) {
         const double lambda = gamma_dist(rng);
-        poisson_dist.param(std::poisson_distribution<int>::param_type{lambda});
-        samples.push_back(static_cast<double>(poisson_dist(rng)));
+        samples.push_back(poissonCount(lambda, poisson_dist, rng));
     }
     return samples;
 }
@@ -741,18 +774,18 @@ void NegativeBinomialDistribution::getLogProbabilityBatchImpl(const double* valu
             results[i] = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
             continue;
         }
-        const int k = static_cast<int>(std::round(x));
+        const double k = roundedCount(x);
         if (k < 0) {
             results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
         if (p_is_one) {
-            results[i] = (k == 0) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
+            results[i] =
+                (k == detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
             continue;
         }
-        results[i] = std::lgamma(static_cast<double>(k) + cached_r) -
-                     std::lgamma(static_cast<double>(k + 1)) - cached_logGammaR +
-                     cached_r * cached_logP + static_cast<double>(k) * cached_log1mP;
+        results[i] = std::lgamma(k + cached_r) - std::lgamma(k + detail::ONE) - cached_logGammaR +
+                     cached_r * cached_logP + k * cached_log1mP;
     }
 }
 
@@ -768,18 +801,17 @@ void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values,
             results[i] = std::isnan(x) ? x : detail::ZERO_DOUBLE;
             continue;
         }
-        const int k = static_cast<int>(std::round(x));
+        const double k = roundedCount(x);
         if (k < 0) {
             results[i] = detail::ZERO_DOUBLE;
             continue;
         }
         if (p_is_one) {
-            results[i] = (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
+            results[i] = (k == detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
         }
-        const double lp = std::lgamma(static_cast<double>(k) + cached_r) -
-                          std::lgamma(static_cast<double>(k + 1)) - cached_logGammaR +
-                          cached_r * cached_logP + static_cast<double>(k) * cached_log1mP;
+        const double lp = std::lgamma(k + cached_r) - std::lgamma(k + detail::ONE) -
+                          cached_logGammaR + cached_r * cached_logP + k * cached_log1mP;
         results[i] = std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
     }
 }

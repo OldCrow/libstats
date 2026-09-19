@@ -447,6 +447,41 @@ history.
   than trusting it between passes.
 
 ## In Progress [OPEN]
+- **v2.4.1 early patch slice** [user, 2026-09-19; travel session, Kaby Lake
+  only]: the #125/#127 contingency is exercised — both ship as a v2.4.1
+  patch release ahead of v2.5.0 instead of waiting for milestone #8.
+  Scope is exactly these two self-contained bugs; nothing else from
+  milestone #8 starts before the fleet is back. Verification is local
+  AVX2 plus the CI legs (ASan/UBSan, strict, macOS arm64 for the
+  AArch64 half of #125).
+  - #127 — fix on branch `fix/127-parallel-reduce-harvest`:
+    `parallelReduce`/`parallelStatOperation` share parallelFor's
+    wait-all-then-harvest helper in `platform/thread_pool.h`. Guards in
+    `tests/test_parallel_exception_propagation.cpp` pin the chunk count
+    to 4 so "all siblings completed" is an exact equality; shown to fail
+    unfixed (reduce guard segfaults — the use-after-free itself; stat
+    guard 2 ≠ 3). Local: 74/74 correctness suite. Owed: PR + CI.
+  - #125 — scope [user]: scalar pmf/logpmf/cdf, both batch impls
+    (`negative_binomial.cpp` getProbabilityBatchImpl /
+    getLogProbabilityBatchImpl) AND `sample()`
+    (`std::poisson_distribution<int>` with λ past INT_MAX is the same
+    class). Fix in the same working tree: count carried in double
+    end-to-end (`roundedCount`/`flooredCount`, bit-identical below
+    INT_MAX); both `sample` overloads share `poissonCount`, which keeps
+    the `poisson_distribution<int>` stream below λ = 2^30 and draws the
+    normal limit above it. Guards: `DiscreteCountNarrowing.*` in
+    `tests/test_discrete_quantile_bounds.cpp` (two-sided vs closed forms
+    / mpmath; 6/6 shown to fail unfixed on x86). Local: 74/74 + the two
+    timing-labelled NegBin/Geometric enhanced binaries. Owed: PR + CI —
+    the macOS arm64 leg is the AArch64 half of the acceptance; the sweep
+    numbers (x86 63 → 61, NEON geometric logpdf max_rel 0.865 → ~1e-8)
+    are confirmed at the next fleet regen, not a blocker for the issue.
+    Finding, not fixed (not the narrowing bug): for general r,
+    lgamma(k+r) − lgamma(k+1) cancels to ~1e-4 absolute at k ~ 1e10;
+    exact for Geometric (r = 1). Candidate for the corvus-absorption
+    check rather than a new in-tree kernel.
+  - Owed at release: version bump 2.4.0 → 2.4.1, CHANGELOG seal, signed
+    tag, pylibstats pin decision.
 - **v2.4.0 SHIPPED 2026-09-04** (full development record: `git show
   eb75a45:PLAN.md`, "In Progress"; release contents in CHANGELOG
   [2.4.0]): PR #147 (21 branch commits, 10 squash-merged feature PRs)
@@ -817,7 +852,7 @@ session artifact; the issues carry the detail.
    satisfied: v2.5.0 adoption (now also closing #107/#108/#110/#113)
    in ONE swap round; the renamed post-adoption patch after it.
    Contingency: #125/#127 justify an early patch slice if the corvus
-   arc stalls.
+   arc stalls — **EXERCISED 2026-09-19** as v2.4.1 (see In Progress).
 3. ~~At v2.5.0 scoping: re-scope #47/#52 …~~ **DONE 2026-09-17** (Kaby
    Lake, away-from-fleet session; decisions and measurements on the
    issues, summary under GitHub Milestones v2.5.0). #47/#52 re-scoped,
