@@ -265,7 +265,7 @@ history.
   documented, caller-visible, platform-dependent.
 - **Accuracy, contracts & kernel hygiene patch** (open, #8; renamed from
   "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
-  likely v2.5.1): 7 open / 1 closed — #125/#127 shipped early as v2.4.1 on 2026-09-19 and were re-homed with PR #151 to their own closed milestone #9 "v2.4.1 — Correctness patch" (the v2.3.1 precedent) (15 → 10 on 2026-09-17; #148 UML regeneration closed 2026-09-17:
+  likely v2.5.1): 8 open / 1 closed — #125/#127 shipped early as v2.4.1 on 2026-09-19 and were re-homed with PR #151 to their own closed milestone #9 "v2.4.1 — Correctness patch" (the v2.3.1 precedent) (15 → 10 on 2026-09-17; #148 UML regeneration closed 2026-09-17:
   #126/#136/#137/#138/#141 re-homed to v2.5.0 at scoping, all absorbed
   by the corvus cores). #107/#110/#113 moved to v2.5.0 on 2026-08-28
   (the adoption release closes them). #136/#137/#138 filed onto
@@ -318,6 +318,14 @@ history.
     detail::gamma_p ~1.7e-7 rel at shape ~1e4 bounds Gamma/Erlang/
     InverseGamma CDF accuracy; proper fix is a Temme uniform asymptotic,
     corvus-absorption check first.
+  - Filed 2026-09-19: #152 OPEN — the 52 % Codecov figure is mostly
+    measurement error (enhanced tests excluded from the coverage run,
+    googletest in the denominator, per-tier SIMD TUs unreachable on the
+    runner, function coverage reading 0.0 % behind `--ignore-errors`).
+    Fix the measurement before reading the number; CI-only and
+    travel-safe. Fleet coverage scope [user]: libstats + libhmm
+    (libhmm#108, port after #152 settles lcov-vs-gcovr); corvus, the two
+    Python bindings and ewcalc deliberately do NOT adopt Codecov.
   Contingency (proposed 2026-08-28): #125/#127 are genuine bugs adoption
   does not touch — if the corvus arc stalls, they justify an early patch
   slice ahead of this milestone.
