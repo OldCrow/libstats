@@ -265,7 +265,7 @@ history.
   documented, caller-visible, platform-dependent.
 - **Accuracy, contracts & kernel hygiene patch** (open, #8; renamed from
   "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
-  likely v2.5.1): 7 open / 2 closed — #125/#127 shipped early as v2.4.1 on 2026-09-19 (15 → 10 on 2026-09-17; #148 UML regeneration closed 2026-09-17:
+  likely v2.5.1): 7 open / 1 closed — #125/#127 shipped early as v2.4.1 on 2026-09-19 and were re-homed with PR #151 to their own closed milestone #9 "v2.4.1 — Correctness patch" (the v2.3.1 precedent) (15 → 10 on 2026-09-17; #148 UML regeneration closed 2026-09-17:
   #126/#136/#137/#138/#141 re-homed to v2.5.0 at scoping, all absorbed
   by the corvus cores). #107/#110/#113 moved to v2.5.0 on 2026-08-28
   (the adoption release closes them). #136/#137/#138 filed onto
@@ -692,7 +692,13 @@ task 2 of the away-from-fleet plan; replaces the "what stays open here"
 clause above. Chain inside a cibuildwheel build: pylibstats
 `FetchContent(libstats)` → libstats must **find-or-fetch corvus**
 (`find_package(corvus 1.0 CONFIG)` first, FetchContent fallback pinned to
-`v1.0.0` — the spike's bare `find_package(corvus REQUIRED)` is
+`v1.0.1`, NOT `v1.0.0` [2026-09-19]: v1.0.1 is a build-system patch that
+adds corvus's configure-time Windows toolchain guard — mingw GCC with
+AVX2+ targets is refused (GCC PR 126741, builds clean then segfaults),
+and real MSVC is deliberately capped at AVX2 with a NOTICE when corvus is
+a subproject. Consequence to carry into the swap: on the Windows/MSVC leg
+corvus dispatches AVX2 even where libstats' own AVX-512 tier is active —
+the spike's bare `find_package(corvus REQUIRED)` is
 wheel-hostile, since manylinux/macOS/Windows cibuildwheel images carry no
 corvus) → corvus find-or-fetches Highway 1.4.0 (its own
 `cmake/FindOrFetchHighway.cmake`). Build-tree targets only, no install
