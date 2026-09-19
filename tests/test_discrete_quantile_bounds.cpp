@@ -1,8 +1,8 @@
 // tests/test_discrete_quantile_bounds.cpp
 //
-// Regression gate for issue #116: NegativeBinomialDistribution::getQuantile
-// derived its bisection upper bound from mean + 10*sigma + 100, computed in
-// double and cast to int without a guard. For small p or large r that bound
+// Regression gate for issues #116 and #125 (second section). #116:
+// NegativeBinomialDistribution::getQuantile derived its bisection upper bound from mean + 10*sigma
+// + 100, computed in double and cast to int without a guard. For small p or large r that bound
 // passes INT_MAX; on x86 the cast yields INT_MIN, the search range collapses
 // to a single point and every quantile comes back 0 --
 // Geometric(1e-9).getQuantile(0.5) returned 0 where the answer is 6.93e8.
@@ -30,8 +30,12 @@
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/negative_binomial.h"
 
+#include <array>
 #include <cmath>
 #include <gtest/gtest.h>
+#include <limits>
+#include <random>
+#include <span>
 
 namespace {
 
@@ -70,11 +74,9 @@ TEST(DiscreteQuantileBounds, GeometricQuantileBeyondIntMax) {
         EXPECT_LT(cdf_at(k - 1.0), q) << "Q(" << q << ") is not the smallest such k";
     }
 
-    // Round trip through the PUBLIC CDF, pinned at the one q whose quantile
-    // stays under INT_MAX: getCumulativeProbability narrows its own argument
-    // with static_cast<int>(std::floor(x)) and is separately broken past that
-    // point. That narrowing is a different, unfiled defect and is deliberately
-    // not exercised here.
+    // Round trip through the PUBLIC CDF at q = 0.5, whose quantile stays under
+    // INT_MAX, so this held even while getCumulativeProbability narrowed its
+    // argument to int. The past-INT_MAX round trip is the #125 section below.
     const double k50 = g.getQuantile(0.5);
     EXPECT_LT(k50, kIntMax) << "test premise changed: the q=0.5 quantile no longer fits an int";
     EXPECT_GT(k50, 0.0);
@@ -128,4 +130,141 @@ TEST(DiscreteQuantileBounds, SmallParametersUnchanged) {
         EXPECT_GE(k, 0.0);
         EXPECT_GE(g.getCumulativeProbability(k), q - 1e-12) << "CDF(Q(q)) >= q for q=" << q;
     }
+}
+
+// =========================================================================
+// Issue #125: the public pmf/logpmf/cdf narrowed their count argument with
+// static_cast<int>, which is UB past INT_MAX and ISA-dependent in practice:
+// x86 wraps to INT_MIN (cdf -> 0, logpmf -> -inf), AArch64 saturates to
+// INT_MAX (cdf -> 1, logpmf -> the constant value at INT_MAX). So after #116
+// getQuantile could return a count its own CDF mapped to 0. sample() had the
+// same class: std::poisson_distribution<int> with a rate past INT_MAX.
+//
+// Every assertion here is two-sided against a reference that is independent
+// of the library (the geometric closed forms, or mpmath at 50 digits), so it
+// fails on BOTH ISAs' wrong answers rather than encoding either one.
+// Tolerances are set by the formulas' own floors, not by the defect: beta_i
+// carries ~1e-6 absolute at b ~ 1e10 (see the header comment), the cached
+// log(1-p) is ~1e-7 relative at p = 1e-9, and lgamma(k+r) - lgamma(k+1)
+// cancels to ~1e-4 absolute at k ~ 1e10. The defect misses by 100%.
+// =========================================================================
+
+namespace {
+
+// Geometric closed forms: log pmf(k) = log p + k log1p(-p);
+// cdf(k) = -expm1((k+1) log1p(-p)).
+double geometricLogPmf(double p, double k) {
+    return std::log(p) + k * std::log1p(-p);
+}
+double geometricCdf(double p, double k) {
+    return -std::expm1((k + 1.0) * std::log1p(-p));
+}
+
+}  // namespace
+
+TEST(DiscreteCountNarrowing, GeometricPublicRoundTripBeyondIntMax) {
+    constexpr double p = 1e-9;
+    auto g = stats::GeometricDistribution::create(p).unwrap();
+
+    const double k99 = g.getQuantile(0.99);
+    ASSERT_GT(k99, kIntMax) << "test premise changed: the q=0.99 quantile fits an int";
+    EXPECT_NEAR(g.getCumulativeProbability(k99), 0.99, 1e-5)
+        << "the public CDF maps the library's own quantile " << k99 << " elsewhere";
+}
+
+TEST(DiscreteCountNarrowing, GeometricScalarMatchesClosedFormBeyondIntMax) {
+    constexpr double p = 1e-9;
+    auto g = stats::GeometricDistribution::create(p).unwrap();
+
+    for (double k : {4.6e9, 1.6e10}) {
+        const double ref_log = geometricLogPmf(p, k);
+        EXPECT_NEAR(g.getLogProbability(k), ref_log, 1e-6 * std::fabs(ref_log)) << "k=" << k;
+        EXPECT_NEAR(g.getProbability(k), std::exp(ref_log), 1e-5 * std::exp(ref_log)) << "k=" << k;
+        EXPECT_NEAR(g.getCumulativeProbability(k), geometricCdf(p, k), 1e-5) << "k=" << k;
+        // CDF floors a non-integer argument; pmf/logpmf round it.
+        EXPECT_EQ(g.getCumulativeProbability(k + 0.75), g.getCumulativeProbability(k));
+        EXPECT_EQ(g.getLogProbability(k + 0.25), g.getLogProbability(k));
+    }
+}
+
+TEST(DiscreteCountNarrowing, NegativeBinomialScalarBeyondIntMax) {
+    constexpr double r = 1e10, p = 0.5;
+    auto nb = stats::NegativeBinomialDistribution::create(r, p).unwrap();
+
+    // mpmath, 50 digits: loggamma(k+r) - loggamma(k+1) - loggamma(r)
+    //                    + r log p + k log(1-p).
+    EXPECT_NEAR(nb.getLogProbability(1e10), -12.778437588467374, 1e-3);
+    EXPECT_NEAR(nb.getLogProbability(1.00003e10), -15.028426338776742, 1e-3);
+    EXPECT_NEAR(nb.getProbability(1e10), std::exp(-12.778437588467374), 1e-8);
+
+    for (double q : {0.5, 0.99}) {
+        const double k = nb.getQuantile(q);
+        ASSERT_GT(k, kIntMax);
+        EXPECT_NEAR(nb.getCumulativeProbability(k), q, 1e-5) << "q=" << q;
+    }
+}
+
+TEST(DiscreteCountNarrowing, BatchAgreesWithScalarBeyondIntMax) {
+    auto nb = stats::NegativeBinomialDistribution::create(1e10, 0.5).unwrap();
+    auto g = stats::GeometricDistribution::create(1e-9).unwrap();
+
+    const std::array<double, 6> xs = {0.0, 3.0, 2147483647.0, 2147483648.0, 4.6e9, 1.6e10};
+    std::array<double, 6> out{};
+
+    const auto expect_same = [&](const char* what, auto scalar) {
+        for (std::size_t i = 0; i < xs.size(); ++i) {
+            const double s = scalar(xs[i]);
+            EXPECT_TRUE(out[i] == s)
+                << what << " batch " << out[i] << " vs scalar " << s << " at x=" << xs[i];
+            EXPECT_TRUE(std::isfinite(s)) << what << " scalar not finite at x=" << xs[i];
+        }
+    };
+
+    nb.getLogProbability(std::span<const double>(xs), std::span<double>(out));
+    expect_same("nb logpmf", [&](double x) { return nb.getLogProbability(x); });
+    nb.getProbability(std::span<const double>(xs), std::span<double>(out));
+    expect_same("nb pmf", [&](double x) { return nb.getProbability(x); });
+    nb.getCumulativeProbability(std::span<const double>(xs), std::span<double>(out));
+    expect_same("nb cdf", [&](double x) { return nb.getCumulativeProbability(x); });
+
+    g.getLogProbability(std::span<const double>(xs), std::span<double>(out));
+    expect_same("geometric logpmf", [&](double x) { return g.getLogProbability(x); });
+    // The batch path must also clear the closed form, not merely agree with a
+    // scalar path that could be wrong the same way.
+    EXPECT_NEAR(out[5], geometricLogPmf(1e-9, 1.6e10), 1e-6 * 37.0);
+}
+
+TEST(DiscreteCountNarrowing, LogPmfIsContinuousAcrossIntMax) {
+    // AArch64's saturating cast made logpmf constant past INT_MAX; x86's wrap
+    // made it -inf. Either breaks the strict decrease of the geometric pmf.
+    auto g = stats::GeometricDistribution::create(1e-9).unwrap();
+    const double below = g.getLogProbability(2147483647.0);
+    const double above = g.getLogProbability(2147483648.0);
+    const double far = g.getLogProbability(4294967296.0);
+    EXPECT_TRUE(std::isfinite(above));
+    EXPECT_LT(above, below);
+    EXPECT_NEAR(far - below, 2147483649.0 * std::log1p(-1e-9), 1e-6);
+}
+
+TEST(DiscreteCountNarrowing, SampleBeyondIntMax) {
+    // Geometric(1e-9): mean (1-p)/p ~ 1e9, P(X > INT_MAX) = exp(-2.147) ~ 0.117.
+    // The gamma-Poisson mixture draws rates past INT_MAX on ~12% of calls.
+    auto g = stats::GeometricDistribution::create(1e-9).unwrap();
+    std::mt19937 rng(125);
+
+    constexpr int kDraws = 4000;
+    double sum = 0.0;
+    int beyond = 0;
+    for (int i = 0; i < kDraws; ++i) {
+        const double x = g.sample(rng);
+        ASSERT_TRUE(std::isfinite(x)) << "draw " << i;
+        ASSERT_GE(x, 0.0) << "draw " << i;
+        ASSERT_EQ(x, std::floor(x)) << "draw " << i << " is not a count";
+        sum += x;
+        beyond += (x > kIntMax) ? 1 : 0;
+    }
+    // Standard error of the mean is 1e9/sqrt(4000) = 1.6%; 10% is ~6 sigma.
+    EXPECT_NEAR(sum / kDraws, 1e9, 1e8);
+    // Expected 0.117 * 4000 = 467, sigma ~ 20.
+    EXPECT_NEAR(beyond, 467, 120);
 }
