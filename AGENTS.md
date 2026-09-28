@@ -36,8 +36,8 @@ Follow the standard architecture check:
 Then, because the active SIMD tier changes fundamentally between machines and
 code paths, thresholds and test results all depend on it:
 
-- Run `./build/tools/system_inspector --quick` (`.\build\tools\system_inspector.exe --quick`
-  on Windows) to confirm the active SIMD capabilities before interpreting any
+- Run `./build/tools/system_inspector --quick` (`.\build\tools\Release\system_inspector.exe --quick`
+  on Windows, with `stats.dll` copied beside it) to confirm the active SIMD capabilities before interpreting any
   performance or test result.
 - If the machine changed since the last session, say so explicitly, and
   reconfigure — the build directory may not be current for this architecture.
@@ -161,7 +161,8 @@ distribution roster lives in the code and in that guide, not here.
 
 ### Platform-Specific Conventions
 - **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
-- **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`
+- **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`;
+  the Windows Visual Studio generator adds a per-config subdirectory (`build\tools\Release\`)
 - **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
 
 ## Batch API contracts

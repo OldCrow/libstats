@@ -932,8 +932,10 @@ session artifact; the issues carry the detail.
    file and in `docs/VALIDATION_HISTORY.md` before 2026-09-28 is a Tahoe
    record. On the M1: check the toolchain, wipe build directories, re-run
    v2.4.1 correctness natively, do step 5, then update the AGENTS.md
-   fleet table from the measured versions. On Zen 4: pull, fresh build,
-   v2.4.1 native smoke.
+   fleet table from the measured versions. On Zen 4: [DONE 2026-09-28]
+   pull, fresh VS x64 Release build (MSVC 19.51, CMake 4.4.3,
+   `/arch:AVX512`), v2.4.1 correctness ctest 74/74, `system_inspector`
+   reports AVX-512, no stale Debug CRT.
    (b) [OPEN] Pre-swap baseline: regenerate the characterization sweep
    at v2.4.1 on all three machines BEFORE the swap branch produces
    numbers. It discharges the confirmation owed under In Progress, and
