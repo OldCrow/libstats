@@ -58,7 +58,11 @@ what is decided, open, or next.
   on 2026-08-21.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-09-05 (fourth pass:
+Last reconciled against live GitHub state: 2026-09-28 (fifth pass, at
+the return from travel: open milestones #3 5/0, #4 5/0, #6 11/0, #8 8/1
+match this file; no issue drift. Open dependabot PRs #153
+codecov-action 7.1.1 and #155 actionlint 1.77.0, both CI-green — merge
+#153 before #152 work starts). Prior reconcile 2026-09-05 (fourth pass:
 #148 filed into milestone #8 — regenerate the v2.0.0-era UML diagrams
 for the 27-distribution surface; found by the comprehensive doc audit,
 below). Third pass 2026-09-04 (
@@ -919,6 +923,26 @@ session artifact; the issues carry the detail.
    The restriction is machine-scoped, not repo-scoped: other machines' stale
    branches are ordinary housekeeping, verified per branch (`git cherry`
    against `main`) rather than swept blind.
+6. **Return from travel 2026-09-28 — the fleet is available again.**
+   Cross-repo task order and machine needs:
+   [CORVUS-ADOPTION-WORKPLAN.md](https://github.com/OldCrow/standards/blob/main/records/CORVUS-ADOPTION-WORKPLAN.md).
+   This repo's share, in order:
+   (a) Per-machine catch-up first. The Mac Mini M1 moved from macOS
+   Tahoe 26 to macOS 28 during travel [user]: every M1 record in this
+   file and in `docs/VALIDATION_HISTORY.md` before 2026-09-28 is a Tahoe
+   record. On the M1: check the toolchain, wipe build directories, re-run
+   v2.4.1 correctness natively, do step 5, then update the AGENTS.md
+   fleet table from the measured versions. On Zen 4: pull, fresh build,
+   v2.4.1 native smoke.
+   (b) [OPEN] Pre-swap baseline: regenerate the characterization sweep
+   at v2.4.1 on all three machines BEFORE the swap branch produces
+   numbers. It discharges the confirmation owed under In Progress, and
+   on the M1 it separates what macOS 28 changed from what corvus
+   changes.
+   (c) [OPEN] The v2.5.0 swap itself (milestone #6), blocked on one
+   user decision: the no-broadcast design point.
+   (d) [OPEN] Still outstanding from the v2.4.0 ship checklist: the
+   milestone #8 bucketing pass.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
