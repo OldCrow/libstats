@@ -1,6 +1,8 @@
 /**
  * @file test_simd_neon_cos_accuracy.cpp
- * @brief Regression test: vector_cos_neon holds the <1 ULP accuracy floor.
+ * @brief Regression test: VectorOps::vector_cos holds the <1 ULP accuracy floor
+ *        on a NEON host (a corvus kernel since v2.5.0; the history below is the
+ *        retired local kernel's).
  *
  * vector_cos_neon was replaced 2026-07-19 with a clean-room quadrant-reduction
  * kernel (4-part exact-product pi/2 split, compensated reduced argument,

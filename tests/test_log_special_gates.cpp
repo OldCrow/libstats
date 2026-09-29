@@ -7,12 +7,10 @@
 // LogNormal returned cdf(NaN) = 1, pdf(NaN) = 0: finite, plausible values
 // for garbage input.
 //
-// Structure mirrors tests/test_trig_ulp_gates.cpp (issue #95): each
-// compiled-in tier's public static (VectorOps::vector_log_{sse2,avx,avx2,
-// avx512,neon}) is called directly, bypassing runtime dispatch, so a CPU
-// preferring a higher tier cannot hide a lower tier's regression; tiers the
-// CPU lacks are skipped at runtime via stats::arch::supports_*(). The
-// dispatched vector_log() entry point is gated too.
+// Since v2.5.0 vector_log is a corvus kernel (its own CPUID dispatch, its
+// own per-tier suite), so this gate holds the dispatched entry point on the
+// host's tier: body lanes, a special in the scalar-tail position, and the
+// mixed 21-lane layout below.
 //
 // Specials are placed FIRST in each input array: the sweep bug that hid
 // #105 (tools/accuracy_sweep.cpp, NV2) appended specials after the finite
@@ -100,8 +98,8 @@ void runBodyGate(const char* tier, LogFn log_fn) {
     std::vector<double> in(n), out(n);
     for (std::size_t i = 0; i < kSpecialsN; ++i)
         in[i] = kSpecials[i];
-    const double benign[] = {0.5, 1.0, 2.718281828459045, 10.0, 1e-10, 1e10, 3.5,
-                             0.125, 7.0, 42.0, 0.9999999999999999};
+    const double benign[] = {0.5, 1.0,  2.718281828459045, 10.0, 1e-10, 1e10, 3.5, 0.125,
+                             7.0, 42.0, 0.9999999999999999};
     for (std::size_t i = kSpecialsN; i < n; ++i)
         in[i] = benign[i - kSpecialsN];
 
@@ -129,68 +127,11 @@ void runTailGate(const char* tier, LogFn log_fn, std::size_t width) {
 
 using stats::arch::simd::VectorOps;
 
-// =========================================================================
-// Per-tier gates. Compile-guarded by LIBSTATS_HAS_<TIER> (wired via the
-// libstats::simd interface target every gtest links) so a
-// LIBSTATS_MAX_SIMD_TIER-capped build still compiles; runtime-guarded by
-// stats::arch::supports_<tier>().
-// =========================================================================
+using stats::arch::simd::VectorOps;
 
-#ifdef LIBSTATS_HAS_SSE2
-TEST(LogSpecialGates, Sse2) {
-    if (!stats::arch::supports_sse2()) {
-        GTEST_SKIP() << "SSE2 not supported on this CPU";
-    }
-    runBodyGate("sse2", VectorOps::vector_log_sse2);
-    runTailGate("sse2", VectorOps::vector_log_sse2, 2);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-TEST(LogSpecialGates, Avx) {
-    if (!stats::arch::supports_avx()) {
-        GTEST_SKIP() << "AVX not supported on this CPU";
-    }
-    runBodyGate("avx", VectorOps::vector_log_avx);
-    runTailGate("avx", VectorOps::vector_log_avx, 4);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-TEST(LogSpecialGates, Avx2) {
-    if (!stats::arch::supports_avx2()) {
-        GTEST_SKIP() << "AVX2 not supported on this CPU";
-    }
-    runBodyGate("avx2", VectorOps::vector_log_avx2);
-    runTailGate("avx2", VectorOps::vector_log_avx2, 4);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_AVX512
-TEST(LogSpecialGates, Avx512) {
-    if (!stats::arch::supports_avx512()) {
-        GTEST_SKIP() << "AVX-512 not supported on this CPU";
-    }
-    runBodyGate("avx512", VectorOps::vector_log_avx512);
-    runTailGate("avx512", VectorOps::vector_log_avx512, 8);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-TEST(LogSpecialGates, Neon) {
-    if (!stats::arch::supports_neon()) {
-        GTEST_SKIP() << "NEON not supported on this CPU";
-    }
-    runBodyGate("neon", VectorOps::vector_log_neon);
-    runTailGate("neon", VectorOps::vector_log_neon, 2);
-}
-#endif
-
-// Fallback kernel: always compiled, always runnable -- pins the reference
-// behavior the SIMD tiers are being held to.
-TEST(LogSpecialGates, Fallback) {
-    runBodyGate("fallback", VectorOps::vector_log_fallback);
-    runTailGate("fallback", VectorOps::vector_log_fallback, 8);
+TEST(LogSpecialGates, DispatchedBodyAndTail) {
+    runBodyGate("dispatched", VectorOps::vector_log);
+    runTailGate("dispatched", VectorOps::vector_log, 8);
 }
 
 // Dispatched entry point: whichever tier the CPU selects. 21 lanes with the

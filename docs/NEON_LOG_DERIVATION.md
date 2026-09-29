@@ -1,3 +1,7 @@
+> **Historical (v2.5.0).** The kernel this document derives and audits was
+> retired when corvus became the elementary-function engine; it is kept as
+> the provenance record of the v2.x clean-room work.
+
 # Derivation — clean-room NEON `log(x)` (binary64, AArch64)
 
 Date: 2026-07-19.

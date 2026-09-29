@@ -1,19 +1,16 @@
 // tests/test_trig_ulp_gates.cpp
 //
-// Per-tier ULP accuracy gate for the vector_cos_<tier> and vector_sin_<tier>
-// kernels (issue #95). Ground truth comes from tests/trig_ulp_vectors.inc:
-// cos/sin evaluated at 320-bit mpmath precision, each rounded once to
-// nearest double (scripts/gen_trig_ulp_vectors.py; ported from libhmm's #74
-// generator, same owner, MIT).
+// ULP accuracy gate for VectorOps::vector_cos and vector_sin (issue #95).
+// Ground truth comes from tests/trig_ulp_vectors.inc: cos/sin evaluated at
+// 320-bit mpmath precision, each rounded once to nearest double
+// (scripts/gen_trig_ulp_vectors.py; ported from libhmm's #74 generator,
+// same owner, MIT).
 //
-// libstats exposes each tier DIRECTLY as public statics on VectorOps
-// (stats::arch::simd::VectorOps::vector_cos_{sse2,avx,avx2,avx512,neon}),
-// each internally falling back if the CPU lacks the ISA -- so this test
-// needs no dispatch-defines plumbing. Every compiled-in tier's static is
-// called directly (bypassing the runtime-dispatched vector_cos()/
-// vector_sin() entry points), so a CPU that happens to prefer a higher tier
-// doesn't hide a lower tier's regression. Tiers the runtime CPU does not
-// support are skipped with GTEST_SKIP via stats::arch::supports_*().
+// Since v2.5.0 both entry points are corvus kernels, which dispatch on their
+// own CPUID; libstats no longer carries per-tier trig kernels, so this gate
+// holds the dispatched entry points on the host's tier (corvus's own suite
+// gates every tier). The tight budget applies everywhere: corvus's bound is
+// max 1 ULP over the full double range on every tier.
 //
 // Do not loosen any budget below without a matching kernel fix; a budget
 // miss here is a kernel bug for the orchestrator, not a test-tuning
@@ -151,8 +148,7 @@ namespace {
 constexpr double kBudgetTight = 1.0;  // avx2 / avx512 / neon
 // [[maybe_unused]]: on a NEON-only (no x86 tier) build this constant has no
 // reader, which trips -Wunused-const-variable under GCC/Clang -Wall.
-[[maybe_unused]] constexpr double kBudgetLoose = 2.0;    // sse2 / avx (no guaranteed FMA)
-constexpr double kBudgetSpecials = 4.0;                  // libm fixup path, every tier
+constexpr double kBudgetSpecials = 4.0;  // libm fixup path, every tier
 
 struct GateResult {
     double cos_max = 0.0, cos_mean = 0.0;
@@ -319,150 +315,35 @@ TEST(TrigUlpGates, MainVectorsRespectDomainBound) {
     }
 }
 
-// =========================================================================
-// Per-tier gates. Each calls vector_cos_<tier> (and, once #95 lands,
-// vector_sin_<tier>) directly (not through the VectorOps::vector_cos()
-// dispatch entry point) on the full main vector set in one batch call. No
-// dispatch-defines plumbing is needed: every x86 tier's static is
-// unconditionally declared once LIBSTATS_HAS_<TIER> is defined for this TU
-// (wired on via the libstats::simd interface target every gtest links --
-// tests/CMakeLists.txt), and gated here at runtime by
-// stats::arch::supports_<tier>().
-// =========================================================================
-
 using stats::arch::simd::VectorOps;
 
-// Each per-tier TEST is additionally guarded by the LIBSTATS_HAS_<TIER>
-// compile definition (reached for free via the libstats::simd interface
-// target every gtest links -- tests/CMakeLists.txt -- no new plumbing).
-// This is a compile-time guard only, distinct from the runtime
-// stats::arch::supports_<tier>() GTEST_SKIP inside each body: it keeps the
-// file compiling under a LIBSTATS_MAX_SIMD_TIER-capped build (a supported
-// validation configuration -- see CMakeLists.txt), where a lower cap
-// removes the tier's source file and its vector_cos_<tier> symbol entirely.
-
-#ifdef LIBSTATS_HAS_SSE2
-TEST(TrigUlpGates, Sse2) {
-    if (!stats::arch::supports_sse2()) {
-        GTEST_SKIP() << "SSE2 not supported on this CPU";
-    }
-    run_main_gate("sse2", VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2, kBudgetLoose);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_AVX
-TEST(TrigUlpGates, Avx) {
-    if (!stats::arch::supports_avx()) {
-        GTEST_SKIP() << "AVX not supported on this CPU";
-    }
-    run_main_gate("avx", VectorOps::vector_cos_avx, VectorOps::vector_sin_avx, kBudgetLoose);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_AVX2
-TEST(TrigUlpGates, Avx2) {
-    if (!stats::arch::supports_avx2()) {
-        GTEST_SKIP() << "AVX2 not supported on this CPU";
-    }
-    run_main_gate("avx2", VectorOps::vector_cos_avx2, VectorOps::vector_sin_avx2, kBudgetTight);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_AVX512
-TEST(TrigUlpGates, Avx512) {
-    if (!stats::arch::supports_avx512()) {
-        GTEST_SKIP() << "AVX-512 not supported on this CPU";
-    }
-    run_main_gate("avx512", VectorOps::vector_cos_avx512, VectorOps::vector_sin_avx512, kBudgetTight);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-TEST(TrigUlpGates, Neon) {
-    if (!stats::arch::supports_neon()) {
-        GTEST_SKIP() << "NEON not supported on this CPU";
-    }
-    run_main_gate("neon", VectorOps::vector_cos_neon, VectorOps::vector_sin_neon, kBudgetTight);
-}
-#endif
-
 // =========================================================================
-// Specials gate: domain-edge / beyond-domain / +/-Inf / NaN, at the libm
-// budget for every tier.
+// Main and specials gates on the dispatched entry points.
 // =========================================================================
 
-#ifdef LIBSTATS_HAS_SSE2
-TEST(TrigUlpSpecialsGates, Sse2) {
-    if (!stats::arch::supports_sse2()) {
-        GTEST_SKIP() << "SSE2 not supported on this CPU";
-    }
-    run_specials_gate("sse2", VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2, kBudgetSpecials);
+TEST(TrigUlpGates, Main) {
+    run_main_gate("dispatched", VectorOps::vector_cos, VectorOps::vector_sin, kBudgetTight);
 }
-#endif
 
-#ifdef LIBSTATS_HAS_AVX
-TEST(TrigUlpSpecialsGates, Avx) {
-    if (!stats::arch::supports_avx()) {
-        GTEST_SKIP() << "AVX not supported on this CPU";
-    }
-    run_specials_gate("avx", VectorOps::vector_cos_avx, VectorOps::vector_sin_avx, kBudgetSpecials);
+TEST(TrigUlpSpecialsGates, Dispatched) {
+    run_specials_gate("dispatched", VectorOps::vector_cos, VectorOps::vector_sin, kBudgetSpecials);
 }
-#endif
 
-#ifdef LIBSTATS_HAS_AVX2
-TEST(TrigUlpSpecialsGates, Avx2) {
-    if (!stats::arch::supports_avx2()) {
-        GTEST_SKIP() << "AVX2 not supported on this CPU";
-    }
-    run_specials_gate("avx2", VectorOps::vector_cos_avx2, VectorOps::vector_sin_avx2, kBudgetSpecials);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_AVX512
-TEST(TrigUlpSpecialsGates, Avx512) {
-    if (!stats::arch::supports_avx512()) {
-        GTEST_SKIP() << "AVX-512 not supported on this CPU";
-    }
-    run_specials_gate("avx512", VectorOps::vector_cos_avx512, VectorOps::vector_sin_avx512, kBudgetSpecials);
-}
-#endif
-
-#ifdef LIBSTATS_HAS_NEON
-TEST(TrigUlpSpecialsGates, Neon) {
-    if (!stats::arch::supports_neon()) {
-        GTEST_SKIP() << "NEON not supported on this CPU";
-    }
-    run_specials_gate("neon", VectorOps::vector_cos_neon, VectorOps::vector_sin_neon, kBudgetSpecials);
-}
-#endif
-
-// =========================================================================
-// Non-lane-multiple sub-span: exercises the masked-tail/scalar-tail path by
-// running a sub-span whose length (4999) is not a multiple of any lane
-// count (2/4/8), through the SSE2 tier (always present on this x86_64
-// baseline) so it's meaningful regardless of which tier the runtime CPU
-// prefers for the dispatched path.
-// =========================================================================
-
-#ifdef LIBSTATS_HAS_SSE2
+// Non-lane-multiple sub-span: a length (4999) that is not a multiple of any
+// lane count (2/4/8) exercises the masked tail on whatever tier corvus picks.
 TEST(TrigUlpGates, SubSpanNonLaneMultipleTailPath) {
     constexpr std::size_t n = 4999;
     static_assert(n < kMainN, "sub-span must fit inside the main vector set");
     static_assert(n % 2 != 0, "sub-span length must not be a multiple of any lane count");
-
-    if (!stats::arch::supports_sse2()) {
-        GTEST_SKIP() << "SSE2 not supported on this CPU";
-    }
-    const GateResult r = run_gate("sse2-subspan", "subspan_4999", kTrigUlpVectors, n,
-                                  VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2);
-    EXPECT_LE(r.cos_max, kBudgetLoose)
+    const GateResult r = run_gate("dispatched-subspan", "subspan_4999", kTrigUlpVectors, n,
+                                  VectorOps::vector_cos, VectorOps::vector_sin);
+    EXPECT_LE(r.cos_max, kBudgetTight)
         << "sub-span cos max ULP over budget (worst x=" << r.cos_worst_x << ")";
 #if LIBSTATS_TRIG_GATES_HAVE_SIN
-    EXPECT_LE(r.sin_max, kBudgetLoose)
+    EXPECT_LE(r.sin_max, kBudgetTight)
         << "sub-span sin max ULP over budget (worst x=" << r.sin_worst_x << ")";
 #endif
 }
-#endif
 
 // =========================================================================
 // Dispatch-entry coverage: the per-tier gates above deliberately bypass the
@@ -478,10 +359,10 @@ TEST(TrigUlpGates, DispatchedEntryPoints) {
     constexpr std::size_t n = 4999;
     const GateResult r = run_gate("dispatched", "main_4999", kTrigUlpVectors, n,
                                   VectorOps::vector_cos, VectorOps::vector_sin);
-    EXPECT_LE(r.cos_max, kBudgetLoose)
+    EXPECT_LE(r.cos_max, kBudgetTight)
         << "dispatched cos max ULP over budget (worst x=" << r.cos_worst_x << ")";
 #if LIBSTATS_TRIG_GATES_HAVE_SIN
-    EXPECT_LE(r.sin_max, kBudgetLoose)
+    EXPECT_LE(r.sin_max, kBudgetTight)
         << "dispatched sin max ULP over budget (worst x=" << r.sin_worst_x << ")";
 #endif
 }
@@ -505,10 +386,17 @@ TEST(TrigUlpGates, InPlaceAliasingMatchesOutOfPlace) {
     for (std::size_t i = 0; i < 4096; ++i)
         in.push_back(-7.0 + 14.0 * static_cast<double>(i) / 4095.0);
     // Lanes that exercise the register-decided fixup and the specials.
-    const double extras[] = {0.0, -0.0, 1e300, -1e300, 16777216.0, 8388608.0,
+    const double extras[] = {0.0,
+                             -0.0,
+                             1e300,
+                             -1e300,
+                             16777216.0,
+                             8388608.0,
                              std::numeric_limits<double>::infinity(),
                              -std::numeric_limits<double>::infinity(),
-                             std::numeric_limits<double>::quiet_NaN(), 1e9, -1e9};
+                             std::numeric_limits<double>::quiet_NaN(),
+                             1e9,
+                             -1e9};
     in.insert(in.end(), std::begin(extras), std::end(extras));
     const std::size_t n = in.size();  // 4107: not a lane multiple, so the tail runs too
 

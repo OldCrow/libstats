@@ -34,16 +34,11 @@ These are part of the normal development workflow and are expected to be used re
   were captured directly via `strategy_profile -o` and analyzed with the
   `analyze_crossovers.py` copy inside each bundle.
 - `PROFILING_METHOD.md` — the binding threshold-measurement method doc.
-- `gen_neon_erf_table.py` — regenerates `src/neon_erf_data.inc`, the
-  1537-entry precomputed erf table used by `vector_erf_neon`. Re-run if the
-  NEON erf approximation accuracy target or grid spacing is changed.
-- `gen_*` generators (13 more: `gen_neon_exp_table.py`,
-  `gen_neon_log_cleanroom_table.py`, `gen_neon_log_table.py`,
-  `gen_neon_trig_cleanroom_table.py`, `gen_trig_cleanroom_table.py`,
-  `gen_avx512_exp_table.py`, and the `gen_*_ulp_vectors.py` /
-  `gen_*_cdf_vectors.py` reference-vector generators) — each regenerates a
-  checked-in table or test-vector `.inc`; regenerate only when the method
-  or point selection changes, and re-run the matching gates after.
+- `gen_*_ulp_vectors.py` / `gen_*_cdf_vectors.py` — reference-vector
+  generators; each regenerates a checked-in test-vector `.inc`. Regenerate
+  only when the point selection changes, and re-run the matching gates
+  after. The kernel-table generators (`gen_*_table.py`) left with the local
+  exp/log/erf/trig kernels in v2.5.0; corvus owns those kernels now.
 
 ## Setup utilities
 

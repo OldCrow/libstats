@@ -1,3 +1,7 @@
+> **Historical (v2.5.0).** The kernel this document derives and audits was
+> retired when corvus became the elementary-function engine; it is kept as
+> the provenance record of the v2.x clean-room work.
+
 # Divergence Audit — clean-room NEON `erf` vs glibc `erf_advsimd`
 
 Date: 2026-07-19

@@ -1,6 +1,8 @@
 /**
  * @file test_simd_neon_log_accuracy.cpp
- * @brief Regression test: vector_log_neon holds the <1 ULP accuracy floor.
+ * @brief Regression test: VectorOps::vector_log holds the <1 ULP accuracy floor
+ *        on a NEON host (a corvus kernel since v2.5.0; the history below is the
+ *        retired local kernel's).
  *
  * vector_log_neon was replaced 2026-07-19 with a clean-room table+series
  * kernel (compensated anchors, no division; see docs/NEON_LOG_DERIVATION.md

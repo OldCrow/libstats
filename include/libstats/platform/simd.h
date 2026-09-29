@@ -577,6 +577,13 @@ class VectorOps {
     static void scalar_add(const double* a, double scalar, double* result,
                            std::size_t size) noexcept;
 
+    // Transcendentals (v2.5.0): exp, log, erf, cos and sin are corvus kernels
+    // (max 1 ULP on every tier, corvus docs/ACCURACY.md), called for every
+    // size — corvus dispatches on its own CPUID, so LIBSTATS_MAX_SIMD_TIER
+    // caps only the arithmetic kernels above, not these. vector_pow and
+    // vector_pow_elementwise are scalar std::pow loops (no in-library batch
+    // caller; corvus has no pow).
+
     /// Vectorized exponential computation
     /// @param values Input vector
     /// @param results Output vector (exp(values))
@@ -676,12 +683,6 @@ class VectorOps {
     /// @return String with detailed platform and optimization info
     static std::string get_platform_optimization_info() noexcept;
 
-    /// Portable scalar vector_log kernel (always compiled). Exposed for the
-    /// per-tier special-value gate (issue #105, tests/test_log_special_gates.cpp)
-    /// as the reference behavior the SIMD tiers are held to.
-    static void vector_log_fallback(const double* values, double* results,
-                                    std::size_t size) noexcept;
-
    private:
     // Fallback implementations
     static double dot_product_fallback(const double* a, const double* b, std::size_t size) noexcept;
@@ -695,18 +696,10 @@ class VectorOps {
                                          std::size_t size) noexcept;
     static void scalar_add_fallback(const double* a, double scalar, double* result,
                                     std::size_t size) noexcept;
-    static void vector_exp_fallback(const double* values, double* results,
-                                    std::size_t size) noexcept;
     static void vector_pow_fallback(const double* base, double exponent, double* results,
-                                    std::size_t size) noexcept;
-    static void vector_erf_fallback(const double* values, double* results,
                                     std::size_t size) noexcept;
     static void vector_pow_elementwise_fallback(const double* base, const double* exponent,
                                                 double* results, std::size_t size) noexcept;
-    static void vector_cos_fallback(const double* values, double* results,
-                                    std::size_t size) noexcept;
-    static void vector_sin_fallback(const double* values, double* results,
-                                    std::size_t size) noexcept;
 
     // DispatchTable: populated once at startup by makeDispatchTable().
     // To add a new SIMD tier: edit makeDispatchTable() in simd_dispatch.cpp only.
@@ -719,13 +712,6 @@ class VectorOps {
         void (*vector_multiply)(const double*, const double*, double*, std::size_t) noexcept;
         void (*scalar_multiply)(const double*, double, double*, std::size_t) noexcept;
         void (*scalar_add)(const double*, double, double*, std::size_t) noexcept;
-        void (*vector_exp)(const double*, double*, std::size_t) noexcept;
-        void (*vector_log)(const double*, double*, std::size_t) noexcept;
-        void (*vector_pow)(const double*, double, double*, std::size_t) noexcept;
-        void (*vector_pow_elementwise)(const double*, const double*, double*, std::size_t) noexcept;
-        void (*vector_erf)(const double*, double*, std::size_t) noexcept;
-        void (*vector_cos)(const double*, double*, std::size_t) noexcept;
-        void (*vector_sin)(const double*, double*, std::size_t) noexcept;
     };
     static DispatchTable makeDispatchTable() noexcept;
     static const DispatchTable& getDispatchTable() noexcept;
@@ -743,27 +729,7 @@ class VectorOps {
                                        std::size_t size) noexcept;
     static void scalar_add_avx512(const double* a, double scalar, double* result,
                                   std::size_t size) noexcept;
-    static void vector_exp_avx512(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_pow_avx512(const double* base, double exponent, double* results,
-                                  std::size_t size) noexcept;
-    static void vector_pow_elementwise_avx512(const double* base, const double* exponent,
-                                              double* results, std::size_t size) noexcept;
-    static void vector_erf_avx512(const double* values, double* results, std::size_t size) noexcept;
 
-   public:
-    // Exposed directly for the per-tier ULP accuracy gate (issue #95,
-    // tests/test_trig_ulp_gates.cpp): each guards itself internally via
-    // stats::arch::supports_<tier>() and falls back to vector_cos_fallback/
-    // vector_sin_fallback, so calling it directly on an unsupported CPU is
-    // still safe -- it is just redundant with the runtime dispatch.
-    static void vector_cos_avx512(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_sin_avx512(const double* values, double* results, std::size_t size) noexcept;
-    // Exposed for the per-tier special-value gate (issue #105,
-    // tests/test_log_special_gates.cpp); same internal guard-and-fallback
-    // safety as vector_cos/vector_sin above.
-    static void vector_log_avx512(const double* values, double* results, std::size_t size) noexcept;
-
-   private:
 #endif
 
 #ifdef LIBSTATS_HAS_AVX
@@ -778,23 +744,7 @@ class VectorOps {
                                     std::size_t size) noexcept;
     static void scalar_add_avx(const double* a, double scalar, double* result,
                                std::size_t size) noexcept;
-    static void vector_exp_avx(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_pow_avx(const double* base, double exponent, double* results,
-                               std::size_t size) noexcept;
-    static void vector_pow_elementwise_avx(const double* base, const double* exponent,
-                                           double* results, std::size_t size) noexcept;
-    static void vector_erf_avx(const double* values, double* results, std::size_t size) noexcept;
 
-   public:
-    // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
-    // block's comment above.
-    static void vector_cos_avx(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_sin_avx(const double* values, double* results, std::size_t size) noexcept;
-    // Exposed for the per-tier special-value gate (issue #105) -- see the
-    // AVX-512 block's comment above.
-    static void vector_log_avx(const double* values, double* results, std::size_t size) noexcept;
-
-   private:
 #endif
 
 #ifdef LIBSTATS_HAS_AVX2
@@ -809,23 +759,7 @@ class VectorOps {
                                      std::size_t size) noexcept;
     static void scalar_add_avx2(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept;
-    static void vector_exp_avx2(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_pow_avx2(const double* base, double exponent, double* results,
-                                std::size_t size) noexcept;
-    static void vector_pow_elementwise_avx2(const double* base, const double* exponent,
-                                            double* results, std::size_t size) noexcept;
-    static void vector_erf_avx2(const double* values, double* results, std::size_t size) noexcept;
 
-   public:
-    // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
-    // block's comment above.
-    static void vector_cos_avx2(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_sin_avx2(const double* values, double* results, std::size_t size) noexcept;
-    // Exposed for the per-tier special-value gate (issue #105) -- see the
-    // AVX-512 block's comment above.
-    static void vector_log_avx2(const double* values, double* results, std::size_t size) noexcept;
-
-   private:
 #endif
 
 #ifdef LIBSTATS_HAS_SSE2
@@ -840,23 +774,7 @@ class VectorOps {
                                      std::size_t size) noexcept;
     static void scalar_add_sse2(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept;
-    static void vector_exp_sse2(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_pow_sse2(const double* base, double exponent, double* results,
-                                std::size_t size) noexcept;
-    static void vector_pow_elementwise_sse2(const double* base, const double* exponent,
-                                            double* results, std::size_t size) noexcept;
-    static void vector_erf_sse2(const double* values, double* results, std::size_t size) noexcept;
 
-   public:
-    // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
-    // block's comment above.
-    static void vector_cos_sse2(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_sin_sse2(const double* values, double* results, std::size_t size) noexcept;
-    // Exposed for the per-tier special-value gate (issue #105) -- see the
-    // AVX-512 block's comment above.
-    static void vector_log_sse2(const double* values, double* results, std::size_t size) noexcept;
-
-   private:
 #endif
 
 #ifdef LIBSTATS_HAS_NEON
@@ -871,21 +789,7 @@ class VectorOps {
                                      std::size_t size) noexcept;
     static void scalar_add_neon(const double* a, double scalar, double* result,
                                 std::size_t size) noexcept;
-    static void vector_exp_neon(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_pow_neon(const double* base, double exponent, double* results,
-                                std::size_t size) noexcept;
-    static void vector_pow_elementwise_neon(const double* base, const double* exponent,
-                                            double* results, std::size_t size) noexcept;
-    static void vector_erf_neon(const double* values, double* results, std::size_t size) noexcept;
 
-   public:
-    // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
-    // block's comment above.
-    static void vector_cos_neon(const double* values, double* results, std::size_t size) noexcept;
-    static void vector_sin_neon(const double* values, double* results, std::size_t size) noexcept;
-    // Exposed for the per-tier special-value gate (issue #105) -- see the
-    // AVX-512 block's comment above.
-    static void vector_log_neon(const double* values, double* results, std::size_t size) noexcept;
 #endif
 };
 
