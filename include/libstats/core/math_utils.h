@@ -162,33 +162,24 @@ void vector_erf(std::span<const double> input, std::span<double> output) noexcep
 // (see gaussian.cpp getCumulativeProbabilityBatchUnsafeImpl). No distribution
 // batch path calls erfc, so a SIMD erfc primitive has no hot-path target.
 
-// DEFERRED: vector_gamma_p / vector_gamma_q
-// Target: Gamma/ChiSquared/Poisson CDF batch SIMD acceleration.
-// Prerequisite: SIMD series expansion for the regularized incomplete gamma
-//   function — requires branch-free iteration or a lookup table approach
-//   for the alternating series (hard to vectorize with early exit).
-// Estimated impact: moderate; Gamma CDF is already fast at 64 per scalar.
-void vector_gamma_p(double a, std::span<const double> x_values, std::span<double> output) noexcept;
-void vector_gamma_q(double a, std::span<const double> x_values, std::span<double> output) noexcept;
+// Batch special functions (v2.5.0: corvus-backed). Each hands corvus whole
+// spans; where one argument is a constant, the adapter fills it per block on
+// the stack (see math_utils.cpp). Sizes must match; mismatched spans are a
+// no-op. Hot loops in the distributions call these rather than the scalar
+// functions above.
 
-// DEFERRED: vector_beta_i
-// Target: Beta/Binomial-CDF/Student-t CDF SIMD batch acceleration.
-// Prerequisite: SIMD continued fraction for the regularized incomplete beta;
-//   Lentz's algorithm is sequential by nature. A table/polynomial substitute
-//   is needed for batched evaluation.
-// Estimated impact: high for Beta and StudentT CDF paths.
+/// out[i] = P(a, x[i]) — Gamma/ChiSquared/Erlang CDF shape.
+void vector_gamma_p(double a, std::span<const double> x_values, std::span<double> output) noexcept;
+/// out[i] = Q(a, x[i]).
+void vector_gamma_q(double a, std::span<const double> x_values, std::span<double> output) noexcept;
+/// out[i] = Q(a[i], x) — Poisson CDF shape, P(X <= k) = Q(k + 1, λ).
+void vector_gamma_q(std::span<const double> a_values, double x, std::span<double> output) noexcept;
+/// out[i] = I_{x[i]}(a, b) — Beta/Binomial/Student-t CDF shape.
 void vector_beta_i(std::span<const double> x_values, double a, double b,
                    std::span<double> output) noexcept;
-
-// DEFERRED: vector_lgamma — indefinitely deferred (see AGENTS.md Deferred Items).
-// Too complex to implement correctly as a SIMD primitive; low immediate
-// distribution impact given the existing scalar batch speeds.
+/// out[i] = lgamma(in[i]).
 void vector_lgamma(std::span<const double> input, std::span<double> output) noexcept;
-
-// DEFERRED: vector_lbeta
-// Target: NegativeBinomial PMF/CDF SIMD batch (lbeta appears in the lgamma-based PMF).
-// Prerequisite: vector_lgamma (itself indefinitely deferred; see above).
-//   Once vector_lgamma is available, vector_lbeta is a trivial wrapper.
+/// out[i] = lbeta(a[i], b[i]).
 void vector_lbeta(std::span<const double> a_values, std::span<const double> b_values,
                   std::span<double> output) noexcept;
 

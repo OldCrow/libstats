@@ -4,6 +4,7 @@ include(CMakeFindDependencyMacro)
 
 # Find dependencies
 find_dependency(Threads)
+find_dependency(corvus 1.0 CONFIG)
 if(@LIBSTATS_HAS_TBB@)
     find_dependency(TBB)
 endif()

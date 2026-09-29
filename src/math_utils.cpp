@@ -12,492 +12,101 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <corvus/corvus.h>
+#include <span>
 #include <stdexcept>
 
 namespace stats {
 namespace detail {
 
-// Forward declarations
-static double beta_continued_fraction(double x, double a, double b) noexcept;
-static double gamma_p_series(double a, double x) noexcept;
-double gamma_q(double a, double x) noexcept;
+// =============================================================================
+// SPECIAL MATHEMATICAL FUNCTIONS — corvus is the engine (v2.5.0)
+// =============================================================================
+//
+// Every special function here is a span-of-1 call into corvus, whose kernels
+// are SIMD-vectorised and validated per tier against an mpmath oracle (corvus
+// docs/ACCURACY.md). A scalar call pays the dispatch hop; hot loops use the
+// vector_* adapters further down, which hand corvus whole blocks.
+//
+// Domain semantics follow corvus, not the retired local cores: a negative or
+// out-of-range argument returns NaN rather than a clamped 0 or 1. Distribution
+// validators reject such parameters before any call reaches here.
 
-// =============================================================================
-// SPECIAL MATHEMATICAL FUNCTIONS
-// =============================================================================
+namespace {
+
+template <class Fn>
+[[nodiscard]] inline double corvus_scalar(Fn fn, double x) noexcept {
+    double out;
+    fn(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+template <class Fn>
+[[nodiscard]] inline double corvus_scalar(Fn fn, double a, double b) noexcept {
+    double out;
+    fn(std::span<const double>{&a, 1}, std::span<const double>{&b, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+template <class Fn>
+[[nodiscard]] inline double corvus_scalar(Fn fn, double a, double b, double c) noexcept {
+    double out;
+    fn(std::span<const double>{&a, 1}, std::span<const double>{&b, 1},
+       std::span<const double>{&c, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+}  // namespace
 
 double erf(double x) noexcept {
-    // Use std::erf for now, replace with a custom implementation if needed
-    return std::erf(x);
+    return corvus_scalar(corvus::erf, x);
 }
 
 double erfc(double x) noexcept {
-    return std::erfc(x);
+    return corvus_scalar(corvus::erfc, x);
 }
 
 double erf_inv(double x) noexcept {
-    // Standard inverse error function using rational approximation
-    // Based on Numerical Recipes and NIST algorithms
-
-    if (x < detail::NEG_ONE || x > detail::ONE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    if (x == detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
-    if (x >= detail::ONE)
-        return std::numeric_limits<double>::infinity();
-    if (x <= detail::NEG_ONE)
-        return -std::numeric_limits<double>::infinity();
-
-    // Use symmetry: erf_inv(-x) = -erf_inv(x)
-    double sign = (x < detail::ZERO_DOUBLE) ? detail::NEG_ONE : detail::ONE;
-    double a = std::abs(x);
-
-    // Rational approximation constants (Moro's method) — central region
-    static constexpr double a0 = 2.50662823884;
-    static constexpr double a1 = -18.61500062529;
-    static constexpr double a2 = 41.39119773534;
-    static constexpr double a3 = -25.44106049637;
-
-    static constexpr double b0 = -8.47351093090;
-    static constexpr double b1 = 23.08336743743;
-    static constexpr double b2 = -21.06224101826;
-    static constexpr double b3 = 3.13082909833;
-
-    // Acklam rational approximation coefficients shared by the moderate- and
-    // extreme-tail branches.  Hoisted to eliminate copy-paste and ensure both
-    // branches use identical values.
-    static constexpr double ACKLAM_D0 = 2.515517;
-    static constexpr double ACKLAM_D1 = 0.802853;
-    static constexpr double ACKLAM_D2 = 0.010328;
-    static constexpr double ACKLAM_E0 = 1.432788;
-    static constexpr double ACKLAM_E1 = 0.189269;
-    static constexpr double ACKLAM_E2 = 0.001308;
-
-    double result;
-
-    if (a <= detail::ERF_INV_CENTRAL_CUTOFF) {
-        // Moro's rational approximation for Phi^{-1}(p) converted to erf_inv.
-        //
-        // Identity: erf_inv(a) = Phi^{-1}((a+1)/2) / sqrt(2).
-        // Moro's formula is parameterised by y = p - 0.5 = a/2 (not by a).
-        //
-        // Bug that was here: used z = a*a instead of z = (a/2)*(a/2),
-        // evaluating the polynomial at 4x the correct argument. For a~0.5
-        // this produced ~2.8 instead of the true ~0.48, causing Halley's
-        // method to diverge over ~48 consecutive grid points.
-        double y = a * detail::HALF;  // y = a/2
-        double z = y * y;             // z = y^2 as required by Moro
-        result = y * (((a3 * z + a2) * z + a1) * z + a0) /
-                 ((((b3 * z + b2) * z + b1) * z + b0) * z + detail::ONE) *
-                 detail::INV_SQRT_2;  // Phi^{-1} / sqrt(2) = erf_inv
-    } else if (a < detail::ERF_INV_TAIL_CUTOFF) {
-        // Moderate tail region: use improved asymptotic expansion with better coefficients
-        double z = std::sqrt(-std::log((detail::ONE - a) * detail::HALF));
-
-        result = z - (ACKLAM_D0 + ACKLAM_D1 * z + ACKLAM_D2 * z * z) /
-                         (detail::ONE + ACKLAM_E0 * z + ACKLAM_E1 * z * z + ACKLAM_E2 * z * z * z);
-    } else {
-        // Extreme tail region: use specialized asymptotic series
-        // For erf(x) very close to 1, use high-precision asymptotic expansion
-        double eps = detail::ONE - a;  // Small positive number
-
-        if (eps < detail::ULTRA_HIGH_PRECISION_TOLERANCE) {
-            // Ultra-extreme tail: use logarithmic asymptotic expansion
-            double log_eps = std::log(eps);
-            double sqrt_log_eps = std::sqrt(-log_eps);
-
-            // Leading term from asymptotic series
-            result = sqrt_log_eps;
-
-            // Higher order corrections for better accuracy
-            double correction = std::log(sqrt_log_eps * detail::SQRT_PI * detail::HALF) /
-                                (detail::TWO * sqrt_log_eps);
-            result -= correction;
-
-            // Even higher order terms for extreme precision
-            if (eps > 1e-15) {
-                double log_correction = std::log(sqrt_log_eps * detail::SQRT_PI * detail::HALF);
-                double second_order = (log_correction * log_correction - detail::TWO) /
-                                      (8.0 * sqrt_log_eps * sqrt_log_eps * sqrt_log_eps);
-                result += second_order;
-            }
-        } else {
-            // Standard extreme tail: use refined asymptotic expansion
-            double t = std::sqrt(-detail::TWO * std::log(eps));
-
-            result =
-                t - (ACKLAM_D0 + ACKLAM_D1 * t + ACKLAM_D2 * t * t) /
-                        (detail::ONE + ACKLAM_E0 * t + ACKLAM_E1 * t * t + ACKLAM_E2 * t * t * t);
-
-            // Additional correction term for better accuracy
-            double correction = std::log(t * detail::SQRT_PI * detail::HALF) / (detail::TWO * t);
-            result -=
-                correction * detail::ERF_INV_HALLEY_DAMPING;  // Damped to avoid overcorrection
-        }
-    }
-
-    // Eight iterations of Halley's method for refinement
-    for (int i = 0; i < 8; ++i) {
-        double erf_result = erf(result);
-        double err = erf_result - a;
-
-        if (std::abs(err) < detail::HIGH_PRECISION_TOLERANCE) {
-            break;
-        }
-
-        // Halley's method: more stable than Newton-Raphson
-        double exp_term = std::exp(-result * result);
-        double f_prime = (detail::TWO / detail::SQRT_PI) * exp_term;
-        double f_double_prime = -detail::TWO * result * f_prime;
-
-        double denominator = f_prime - detail::HALF * err * f_double_prime / f_prime;
-        if (std::abs(denominator) > detail::ZERO) {
-            result -= err / denominator;
-        }
-    }
-
-    return sign * result;
+    return corvus_scalar(corvus::erfinv, x);
 }
 
 double lgamma(double x) noexcept {
-    return std::lgamma(x);
+    return corvus_scalar(corvus::lgamma, x);
 }
 
 double gamma_p(double a, double x) noexcept {
-    // Regularized incomplete gamma function P(a,x) = γ(a,x) / Γ(a)
-    // where γ(a,x) is the lower incomplete gamma function
-    if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (x > a + detail::ONE) {
-        // For large x, use the complementary function for better convergence
-        return detail::ONE - gamma_q(a, x);
-    }
-
-    // Use the dedicated series function that has the correct formula
-    return gamma_p_series(a, x);
+    return corvus_scalar(corvus::gamma_p, a, x);
 }
 
 double gamma_q(double a, double x) noexcept {
-    // Regularized complementary incomplete gamma function using continued fraction
-    // Q(a,x) = 1 - P(a,x) but for large x, use continued fraction for better convergence
-    if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
-        return detail::ONE;
-    }
-
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ONE;
-    }
-
-    if (x <= a + detail::ONE) {
-        // For small x, use the series expansion of P(a,x) and compute 1-P
-        return detail::ONE - gamma_p_series(a, x);
-    }
-
-    // For large x, use continued fraction expansion for Q(a,x)
-    // Guard b before dividing: when x = a-1 exactly, b = 0 and d would be ±inf
-    // before the abs(d)<ZERO clamp inside the loop executes. Mirror the pattern
-    // used in beta_continued_fraction.
-    double b = x + detail::ONE - a;
-    if (std::abs(b) < detail::ZERO)
-        b = detail::ZERO;
-    double c = detail::LARGE_CONTINUED_FRACTION_VALUE;
-    double d = detail::ONE / b;
-    double h = d;
-
-    const int max_iterations = detail::MAX_GAMMA_SERIES_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    for (int i = 1; i <= max_iterations; ++i) {
-        double an = -i * (i - a);
-        b += detail::TWO;
-        d = an * d + b;
-        if (std::abs(d) < detail::ZERO) {
-            d = detail::ZERO;
-        }
-        c = b + an / c;
-        if (std::abs(c) < detail::ZERO) {
-            c = detail::ZERO;
-        }
-        d = detail::ONE / d;
-        double del = d * c;
-        h *= del;
-        if (std::abs(del - detail::ONE) < tolerance) {
-            break;
-        }
-    }
-
-    double gamma_cf = std::exp(-x + a * std::log(x) - lgamma(a)) * h;
-    return gamma_cf;
+    return corvus_scalar(corvus::gamma_q, a, x);
 }
 
 double beta_i(double x, double a, double b) noexcept {
-    // Regularized incomplete beta function I_x(a,b)
-    if (x < detail::ZERO_DOUBLE || x > detail::ONE || a <= detail::ZERO_DOUBLE ||
-        b <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (x == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (x == detail::ONE) {
-        return detail::ONE;
-    }
-
-    // Use continued fraction approximation
-    double bt = std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) +
-                         b * std::log(detail::ONE - x));
-
-    if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
-        return bt * beta_continued_fraction(x, a, b);
-    } else {
-        return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, b, a);
-    }
+    return corvus_scalar(corvus::beta_p, a, b, x);
 }
 
-double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
-    if (x < detail::ZERO_DOUBLE || x > detail::ONE || a <= detail::ZERO_DOUBLE ||
-        b <= detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-    if (x == detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
-    if (x == detail::ONE)
-        return detail::ONE;
-
-    double bt = std::exp(log_beta_prefix + a * std::log(x) + b * std::log(detail::ONE - x));
-
-    if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
-        return bt * beta_continued_fraction(x, a, b);
-    } else {
-        return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, b, a);
-    }
-}
-
-// Helper function for beta incomplete function continued fraction
-// Based on Numerical Recipes algorithm
-static double beta_continued_fraction(double x, double a, double b) noexcept {
-    const int max_iterations = detail::MAX_BETA_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    double qab = a + b;
-    double qap = a + detail::ONE;
-    double qam = a - detail::ONE;
-
-    // Initial values for continued fraction
-    double c = detail::ONE;
-    double d = detail::ONE - qab * x / qap;
-
-    if (std::abs(d) < detail::ZERO) {
-        d = detail::ZERO;
-    }
-
-    d = detail::ONE / d;
-    double h = d;
-
-    for (int m = 1; m <= max_iterations; ++m) {
-        int m2 = detail::TWO_INT * m;
-
-        // Even step (positive): aa = m * (b - m) * x / [(a + m2 - 1) * (a + m2)]
-        double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
-
-        // Update d and c
-        d = detail::ONE + aa * d;
-        if (std::abs(d) < detail::ZERO) {
-            d = detail::ZERO;
-        }
-        c = detail::ONE + aa / c;
-        if (std::abs(c) < detail::ZERO) {
-            c = detail::ZERO;
-        }
-
-        d = detail::ONE / d;
-        h *= d * c;
-
-        // Odd step (negative): aa = -(a + m) * (qab + m) * x / [(a + m2) * (qap + m2)]
-        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
-
-        // Update d and c
-        d = detail::ONE + aa * d;
-        if (std::abs(d) < detail::ZERO) {
-            d = detail::ZERO;
-        }
-        c = detail::ONE + aa / c;
-        if (std::abs(c) < detail::ZERO) {
-            c = detail::ZERO;
-        }
-
-        d = detail::ONE / d;
-        double delta = d * c;
-        h *= delta;
-
-        // Check convergence
-        if (std::abs(delta - detail::ONE) < tolerance) {
-            break;
-        }
-    }
-
-    // Return the continued fraction value multiplied by 1/a
-    // This is part of the standard algorithm for regularized incomplete beta
-    return h / a;
-}
-
-static double gamma_p_series(double a, double x) noexcept {
-    // Compute the series expansion of the regularized incomplete gamma function
-    // Based on Numerical Recipes algorithm
-    if (x == detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
-
-    // Standard series: P(a,x) = exp(-x + a*ln(x) - ln(Gamma(a))) * sum
-    // where sum = 1/a * (1 + x/(a+1) + x^2/((a+1)*(a+2)) + ...)
-    // This is equivalent to: sum = sum(n=0 to inf) [x^n / (a * (a+1) * ... * (a+n))]
-
-    double ap = a;          // Start with 'a'
-    double sum = 1.0 / ap;  // First term: 1/a
-    double term = sum;      // Current term
-
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-    const int max_iterations = detail::MAX_GAMMA_SERIES_ITERATIONS;
-
-    for (int n = 1; n < max_iterations; ++n) {
-        ap += 1.0;       // ap = a + n
-        term *= x / ap;  // term *= x / (a + n)
-        sum += term;     // accumulate sum
-        if (std::abs(term) < tolerance * std::abs(sum)) {
-            break;
-        }
-    }
-
-    // The result is exp(-x + a*ln(x) - lgamma(a)) * sum
-    double log_result = -x + a * std::log(x) - lgamma(a);
-    double result = std::exp(log_result) * sum;
-    return std::min(1.0, std::max(0.0, result));  // Clamp to [0,1]
+double beta_i(double x, double a, double b, double /*log_beta_prefix*/) noexcept {
+    // The prefix was a hoisted lgamma triple for the retired local core; corvus
+    // forms its own prefactor in double-double. Kept for source compatibility;
+    // batch callers belong on vector_beta_i.
+    return beta_i(x, a, b);
 }
 
 double lbeta(double a, double b) noexcept {
-    return std::lgamma(a) + std::lgamma(b) - std::lgamma(a + b);
+    return corvus_scalar(corvus::lbeta, a, b);
 }
 
 double digamma(double x) noexcept {
-    // Digamma ψ(x) = d/dx lnΓ(x)
-    // Recurrence ψ(x+1) = ψ(x) + 1/x shifts x > 6 for the asymptotic series.
-    if (x <= detail::ZERO_DOUBLE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    double result = detail::ZERO_DOUBLE;
-    while (x < 6.0) {
-        result -= detail::ONE / x;
-        x += detail::ONE;
-    }
-
-    // Asymptotic expansion: ψ(x) ≈ ln(x) − 1/(2x) − 1/(12x²) + 1/(120x⁴) − 1/(252x⁶)
-    const double inv_x = detail::ONE / x;
-    const double inv_x2 = inv_x * inv_x;
-    result += std::log(x) - detail::HALF * inv_x -
-              inv_x2 * (detail::ONE / 12.0 - inv_x2 * (detail::ONE / 120.0 - inv_x2 / 252.0));
-    return result;
+    return corvus_scalar(corvus::digamma, x);
 }
 
 double trigamma(double x) noexcept {
-    // Trigamma ψ'(x) = d²/dx² lnΓ(x)  (A&S §6.4.12)
-    // Recurrence ψ'(x) = ψ'(x+1) + 1/x² shifts x ≥ 6 for the asymptotic series.
-    if (x <= detail::ZERO_DOUBLE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-    double result = detail::ZERO_DOUBLE;
-    while (x < 6.0) {
-        result += detail::ONE / (x * x);
-        x += detail::ONE;
-    }
-    const double r = detail::ONE / x;
-    const double r2 = r * r;
-    // Asymptotic series: 1/x + 1/(2x²) + 1/(6x³) - 1/(30x⁵) + 1/(42x⁷) - 1/(30x⁹)
-    result += r * (detail::ONE + detail::HALF * r +
-                   r2 * (detail::ONE / 6.0 -
-                         r2 * (detail::ONE / 30.0 - r2 * (detail::ONE / 42.0 - r2 / 30.0))));
-    return result;
+    return corvus_scalar(corvus::trigamma, x);
 }
 
 double inverse_beta_i(double p, double a, double b) noexcept {
-    // Inverse regularized incomplete beta I_x(a,b) = p  =>  solve for x in (0,1).
-    if (p <= detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
-    if (p >= detail::ONE)
-        return detail::ONE;
-    if (a <= detail::ZERO_DOUBLE || b <= detail::ZERO_DOUBLE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    // Initial estimate.
-    // The normal approximation N(a/(a+b), sqrt(ab/(a+b)^2/(a+b+1))) is accurate
-    // in the middle of [0,1] but can give x <= 0 or x >= 1 in the tails, after
-    // which Newton oscillates between the clamp boundaries and never converges.
-    //
-    // Tail asymptotic: I_x(a,b) ~ x^a / (a*B(a,b)) for small x
-    //   => x ~ (p * a * B(a,b))^(1/a)
-    // Symmetry for large p: use (1-p) and reversed parameters.
-    const double lb = lbeta(a, b);
-    double x;
-    {
-        const double mu = a / (a + b);
-        const double sigma = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
-        x = mu + sigma * inverse_normal_cdf(p);
-    }
-    // Blend normal approximation with the tail asymptotic.
-    // For small p the normal approximation can give x slightly above 0 (e.g. 4e-4
-    // instead of the true ~0.06 for Beta(2,3) at p=0.023).  Clamping a very small
-    // positive x to max(1e-8,...) leaves Newton too far from the root and the first
-    // step diverges.  Taking max(normal, asymptotic) for p<0.1 avoids this.
-    if (x <= detail::ZERO_DOUBLE) {
-        x = std::pow(p * a * std::exp(lb), 1.0 / a);
-    } else if (x >= detail::ONE) {
-        x = 1.0 - std::pow((1.0 - p) * b * std::exp(lb), 1.0 / b);
-    } else {
-        if (p < 0.1) {
-            const double x_asymp = std::pow(p * a * std::exp(lb), 1.0 / a);
-            x = std::max(x, x_asymp);  // never start below the asymptotic estimate
-        } else if (p > 0.9) {
-            const double x_asymp = 1.0 - std::pow((1.0 - p) * b * std::exp(lb), 1.0 / b);
-            x = std::min(x, x_asymp);
-        }
-    }
-    x = std::max(1e-8, std::min(1.0 - 1e-8, x));  // clamp to (0,1)
-
-    // Newton-Raphson: x_{n+1} = x_n - (I_{x_n}(a,b) - p) / f(x_n)
-    // where f(x) = x^(a-1)(1-x)^(b-1)/B(a,b) is the Beta PDF.
-    const int max_iter = detail::MAX_NEWTON_ITERATIONS;
-    const double tol = detail::DEFAULT_TOLERANCE;
-    const double log_norm = -lbeta(a, b);  // -ln B(a,b)
-
-    for (int i = 0; i < max_iter; ++i) {
-        const double cdf_val = beta_i(x, a, b);
-        const double error = cdf_val - p;
-
-        if (std::abs(error) < tol)
-            break;
-
-        // PDF = exp((a-1)*log(x) + (b-1)*log(1-x) + log_norm)
-        const double log_pdf = (a - detail::ONE) * std::log(x) +
-                               (b - detail::ONE) * std::log(detail::ONE - x) + log_norm;
-        const double pdf_val = std::exp(log_pdf);
-
-        if (pdf_val <= detail::ZERO_DOUBLE)
-            break;
-
-        x -= error / pdf_val;
-        x = std::max(1e-10, std::min(detail::ONE - 1e-10, x));
-    }
-    return x;
+    return corvus_scalar(corvus::beta_p_inv, a, b, p);
 }
 
 // =============================================================================
@@ -693,100 +302,95 @@ double calculate_ad_statistic(const std::vector<double>& data,
 // SIMD VECTORIZED SPECIAL FUNCTIONS
 // =============================================================================
 
+// Block length for the constant-argument fills below (PLAN.md Decided 2026-09-29):
+// a multiple of the widest lane count (8 doubles at AVX-512), so only the last
+// block is ragged, and corvus handles that itself. 256 doubles is 2 KB of stack
+// per filled argument.
+namespace {
+constexpr std::size_t kCorvusBlock = 256;
+}  // namespace
+
 void vector_erf(std::span<const double> input, std::span<double> output) noexcept {
-    if (input.size() != output.size() || input.empty()) {
+    if (input.size() != output.size()) {
         return;
     }
-
-    const std::size_t size = input.size();
-
-    // Use SIMD VectorOps for optimal performance
-    if (arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        arch::simd::VectorOps::vector_erf(input.data(), output.data(), size);
-    } else {
-        // Fallback to scalar implementation
-        for (std::size_t i = 0; i < size; ++i) {
-            output[i] = erf(input[i]);
-        }
-    }
+    corvus::erf(input, output);
 }
 
 void vector_gamma_p(double a, std::span<const double> x_values, std::span<double> output) noexcept {
-    if (x_values.size() != output.size() || x_values.empty()) {
+    if (x_values.size() != output.size()) {
         return;
     }
-
-    const std::size_t size = x_values.size();
-
-    // For now, use scalar implementation
-    // Future enhancement: SIMD optimization of the series expansion
-    for (std::size_t i = 0; i < size; ++i) {
-        output[i] = gamma_p(a, x_values[i]);
+    std::array<double, kCorvusBlock> a_fill;
+    a_fill.fill(a);
+    const std::size_t n = x_values.size();
+    for (std::size_t i = 0; i < n; i += kCorvusBlock) {
+        const std::size_t len = std::min(kCorvusBlock, n - i);
+        corvus::gamma_p(std::span<const double>{a_fill.data(), len}, x_values.subspan(i, len),
+                        output.subspan(i, len));
     }
 }
 
 void vector_gamma_q(double a, std::span<const double> x_values, std::span<double> output) noexcept {
-    if (x_values.size() != output.size() || x_values.empty()) {
+    if (x_values.size() != output.size()) {
         return;
     }
+    std::array<double, kCorvusBlock> a_fill;
+    a_fill.fill(a);
+    const std::size_t n = x_values.size();
+    for (std::size_t i = 0; i < n; i += kCorvusBlock) {
+        const std::size_t len = std::min(kCorvusBlock, n - i);
+        corvus::gamma_q(std::span<const double>{a_fill.data(), len}, x_values.subspan(i, len),
+                        output.subspan(i, len));
+    }
+}
 
-    const std::size_t size = x_values.size();
-
-    // For now, use scalar implementation
-    for (std::size_t i = 0; i < size; ++i) {
-        output[i] = gamma_q(a, x_values[i]);
+void vector_gamma_q(std::span<const double> a_values, double x, std::span<double> output) noexcept {
+    // Poisson's shape: Q(k+1, λ) varies the FIRST argument.
+    if (a_values.size() != output.size()) {
+        return;
+    }
+    std::array<double, kCorvusBlock> x_fill;
+    x_fill.fill(x);
+    const std::size_t n = a_values.size();
+    for (std::size_t i = 0; i < n; i += kCorvusBlock) {
+        const std::size_t len = std::min(kCorvusBlock, n - i);
+        corvus::gamma_q(a_values.subspan(i, len), std::span<const double>{x_fill.data(), len},
+                        output.subspan(i, len));
     }
 }
 
 void vector_beta_i(std::span<const double> x_values, double a, double b,
                    std::span<double> output) noexcept {
-    if (x_values.size() != output.size() || x_values.empty()) {
+    if (x_values.size() != output.size()) {
         return;
     }
-
-    const std::size_t size = x_values.size();
-
-    // Hoist the lgamma prefix: constant across all elements for fixed (a, b).
-    const double log_prefix = lgamma(a + b) - lgamma(a) - lgamma(b);
-    for (std::size_t i = 0; i < size; ++i) {
-        output[i] = beta_i(x_values[i], a, b, log_prefix);
+    std::array<double, kCorvusBlock> a_fill;
+    std::array<double, kCorvusBlock> b_fill;
+    a_fill.fill(a);
+    b_fill.fill(b);
+    const std::size_t n = x_values.size();
+    for (std::size_t i = 0; i < n; i += kCorvusBlock) {
+        const std::size_t len = std::min(kCorvusBlock, n - i);
+        corvus::beta_p(std::span<const double>{a_fill.data(), len},
+                       std::span<const double>{b_fill.data(), len}, x_values.subspan(i, len),
+                       output.subspan(i, len));
     }
 }
 
 void vector_lgamma(std::span<const double> input, std::span<double> output) noexcept {
-    if (input.size() != output.size() || input.empty()) {
+    if (input.size() != output.size()) {
         return;
     }
-
-    const std::size_t size = input.size();
-
-    // Use SIMD log operations if available
-    if (arch::simd::SIMDPolicy::shouldUseSIMD(size)) {
-        // For now, use scalar loop in SIMD-sized chunks for cache efficiency
-        for (std::size_t i = 0; i < size; ++i) {
-            output[i] = lgamma(input[i]);
-        }
-    } else {
-        // Fallback to scalar implementation
-        for (std::size_t i = 0; i < size; ++i) {
-            output[i] = lgamma(input[i]);
-        }
-    }
+    corvus::lgamma(input, output);
 }
 
 void vector_lbeta(std::span<const double> a_values, std::span<const double> b_values,
                   std::span<double> output) noexcept {
-    if (a_values.size() != b_values.size() || a_values.size() != output.size() ||
-        a_values.empty()) {
+    if (a_values.size() != b_values.size() || a_values.size() != output.size()) {
         return;
     }
-
-    const std::size_t size = a_values.size();
-
-    // For now, use scalar implementation
-    for (std::size_t i = 0; i < size; ++i) {
-        output[i] = lbeta(a_values[i], b_values[i]);
-    }
+    corvus::lbeta(a_values, b_values, output);
 }
 
 bool should_use_vectorized_math(std::size_t size) noexcept {
@@ -817,9 +421,8 @@ double normal_cdf(double z) noexcept {
     // own underflow floor (~1e-308), instead of pinning to a fixed
     // absolute floor.  Right tail (z >= 0) keeps the original form, which
     // is already well-conditioned there.
-    return z < detail::ZERO_DOUBLE
-               ? detail::HALF * erfc(-z * detail::INV_SQRT_2)
-               : detail::HALF * (detail::ONE + erf(z * detail::INV_SQRT_2));
+    return z < detail::ZERO_DOUBLE ? detail::HALF * erfc(-z * detail::INV_SQRT_2)
+                                   : detail::HALF * (detail::ONE + erf(z * detail::INV_SQRT_2));
 }
 
 double inverse_normal_cdf(double p) noexcept {

@@ -178,6 +178,11 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Threading.cmake")
 detect_threading_systems()
 # SIMD feature detection and compilation flags Use our comprehensive SIMD detection system
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDDetection.cmake")
+
+# cmake/FindOrFetchCorvus.cmake — the special-function engine (v2.5.0+). find_package first,
+# FetchContent pinned to a release tag otherwise; sets LIBSTATS_CORVUS_PROVIDER, which gates
+# `install` below.
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindOrFetchCorvus.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SIMDApplication.cmake")
 
 # Set options for SIMD detection behavior
@@ -694,6 +699,17 @@ add_library(libstats::headers ALIAS libstats_headers)
 add_library(libstats::static ALIAS libstats_static)
 add_library(libstats::shared ALIAS libstats_shared)
 
+# corvus (v2.5.0): the object libraries that include <corvus/corvus.h> need its usage requirements;
+# the library targets need the link. PRIVATE on the static library lands corvus in
+# INTERFACE_LINK_LIBRARIES as $<LINK_ONLY:corvus::corvus>, which is what in-tree consumers and the
+# installed package (system corvus only — see cmake/FindOrFetchCorvus.cmake) both need.
+foreach(_libstats_corvus_obj libstats_core_utilities_obj libstats_distributions_obj
+                             libstats_simd_obj)
+    target_link_libraries(${_libstats_corvus_obj} PRIVATE corvus::corvus)
+endforeach()
+target_link_libraries(libstats_static PRIVATE corvus::corvus)
+target_link_libraries(libstats_shared PRIVATE corvus::corvus)
+
 # Test infrastructure
 option(LIBSTATS_BUILD_TESTS "Build tests" ON)
 
@@ -723,69 +739,76 @@ if(LIBSTATS_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-# Install targets
-install(
-    TARGETS libstats_headers libstats_static libstats_shared libstats_simd_interface
-    EXPORT libstats-targets
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    INCLUDES
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# Install targets. Supported only with a system corvus: a fetched corvus is a build-tree target
+# outside the export set, and install(EXPORT) cannot express libstats_static's
+# $<LINK_ONLY:corvus::corvus> against it (cmake/FindOrFetchCorvus.cmake).
+if(LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
+    install(
+        TARGETS libstats_headers libstats_static libstats_shared libstats_simd_interface
+        EXPORT libstats-targets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# Install headers (exclude editor artifacts and macOS metadata). Note: no trailing slash on
-# "include/libstats" -- DIRECTORY installs the libstats/ directory itself into DESTINATION, landing
-# its contents at ${CMAKE_INSTALL_INCLUDEDIR}/libstats/... (same result as the old include/ ->
-# .../libstats mapping, now that the source tree already mirrors the install tree).
-# platform/internal/ is installed deliberately: platform/thread_pool.h and work_stealing_pool.h
-# #include "internal/type_traits.h" in their public interface, so excluding the directory would
-# break every installed consumer.
-install(
-    DIRECTORY include/libstats
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    PATTERN ".DS_Store" EXCLUDE
-    PATTERN "*.bak" EXCLUDE
-    PATTERN "*.bak2" EXCLUDE
-    PATTERN ".gitkeep" EXCLUDE)
+    # Install headers (exclude editor artifacts and macOS metadata). Note: no trailing slash on
+    # "include/libstats" -- DIRECTORY installs the libstats/ directory itself into DESTINATION,
+    # landing its contents at ${CMAKE_INSTALL_INCLUDEDIR}/libstats/... (same result as the old
+    # include/ -> .../libstats mapping, now that the source tree already mirrors the install tree).
+    # platform/internal/ is installed deliberately: platform/thread_pool.h and work_stealing_pool.h
+    # #include "internal/type_traits.h" in their public interface, so excluding the directory would
+    # break every installed consumer.
+    install(
+        DIRECTORY include/libstats
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        PATTERN ".DS_Store" EXCLUDE
+        PATTERN "*.bak" EXCLUDE
+        PATTERN "*.bak2" EXCLUDE
+        PATTERN ".gitkeep" EXCLUDE)
 
-# libstats.h #includes "libstats_version.h" (bare, unnamespaced), generated at configure time into
-# ${CMAKE_CURRENT_BINARY_DIR}/generated (see NEW-BS-1 above) and reachable at build time via
-# $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>. Without this, an installed
-# find_package(libstats) consumer fails to compile: the generated header was never part of the
-# installed tree.
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
+    # libstats.h #includes "libstats_version.h" (bare, unnamespaced), generated at configure time
+    # into ${CMAKE_CURRENT_BINARY_DIR}/generated (see NEW-BS-1 above) and reachable at build time
+    # via $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>. Without this, an installed
+    # find_package(libstats) consumer fails to compile: the generated header was never part of the
+    # installed tree.
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h"
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
 
-# Same reasoning for the generated config header, and with sharper consequences: bessel.h includes
-# it unconditionally, so omitting it from the install tree would not merely downgrade a consumer's
-# Bessel tier — it would fail to compile. #97.
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_config.h"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
+    # Same reasoning for the generated config header, and with sharper consequences: bessel.h
+    # includes it unconditionally, so omitting it from the install tree would not merely downgrade a
+    # consumer's Bessel tier — it would fail to compile. #97.
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_config.h"
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
 
-# Install CMake config files for find_package support
-install(
-    EXPORT libstats-targets
-    FILE libstats-targets.cmake
-    NAMESPACE libstats::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats)
-
-# Create and install config file
-include(CMakePackageConfigHelpers)
-set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
-write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion)
-
-configure_package_config_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats-config.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats
-    PATH_VARS INCLUDE_INSTALL_DIR)
-
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
-              "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
+    # Install CMake config files for find_package support
+    install(
+        EXPORT libstats-targets
+        FILE libstats-targets.cmake
+        NAMESPACE libstats::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats)
+
+    # Create and install config file
+    include(CMakePackageConfigHelpers)
+    set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion)
+
+    configure_package_config_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats-config.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats
+        PATH_VARS INCLUDE_INSTALL_DIR)
+
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
+                  "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats)
+else()
+    message(
+        STATUS "libstats: 'install' target disabled — corvus was fetched, not found as a package")
+endif()
 
 # ===============================================================================
 # Documentation Generation with Doxygen
@@ -825,8 +848,10 @@ endif()
 file(RELATIVE_PATH LIBSTATS_PC_PREFIX_REL "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig"
      "${CMAKE_INSTALL_PREFIX}")
 string(REGEX REPLACE "/$" "" LIBSTATS_PC_PREFIX_REL "${LIBSTATS_PC_PREFIX_REL}")
-if(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
-    set(LIBSTATS_PC_LIBS_PRIVATE "-pthread")
+if(NOT LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
+    # No install without a system corvus (see above); no .pc either.
+elseif(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
+    set(LIBSTATS_PC_LIBS_PRIVATE "-pthread -lcorvus -lhwy")
     if(LIBSTATS_HAS_TBB)
         string(APPEND LIBSTATS_PC_LIBS_PRIVATE " -ltbb")
     endif()
@@ -839,7 +864,7 @@ if(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
     message(STATUS "pkg-config file will be installed to ${CMAKE_INSTALL_LIBDIR}/pkgconfig/")
 elseif(APPLE)
     # On macOS with Homebrew, also generate pkg-config
-    set(LIBSTATS_PC_LIBS_PRIVATE "")
+    set(LIBSTATS_PC_LIBS_PRIVATE "-lcorvus -lhwy")
     if(LIBSTATS_HAS_TBB)
         string(APPEND LIBSTATS_PC_LIBS_PRIVATE " -ltbb")
     endif()
