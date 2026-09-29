@@ -18,8 +18,9 @@ per-tier transcendental kernel is retired. API additive over v2.4.1.
   whole spans, filling constant arguments per 256-lane block. Domain
   semantics follow corvus (NaN outside the domain, not a clamped 0/1).
 - Gamma ×5, Poisson ×4, Beta ×3, Student-t ×2 CDF batch loops run as block
-  kernels over 1024-slices; Binomial/NegBin PMF batch paths take their
-  lgamma terms through `vector_lgamma`.
+  kernels over 1024-slices. (Binomial/NegBin PMF paths keep
+  `std::lgamma`: the corvus route measured 2.5–6× slower on Apple libm,
+  corvus #31.)
 - Quantiles: probit via `erfc_inv` on the small side (Gaussian, LogNormal,
   HalfNormal, TruncatedNormal helpers); Student-t in closed form from the
   beta inverses; Gamma/Erlang/ChiSquared via `gamma_p_inv`. `t_cdf` loses

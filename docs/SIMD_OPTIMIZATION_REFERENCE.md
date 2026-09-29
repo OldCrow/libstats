@@ -187,7 +187,7 @@ Cauchy PDF/LogPDF (and sampling) delegate to StudentT(ν=1), but the CDF has bee
 
 ### Binomial CDF and PDF
 
-Binomial and NegativeBinomial PMF/log-PMF batch paths take their two lgamma terms through corvus in 256-lane blocks (`detail::vector_lgamma`, v2.5.0); the CDF has used the regularised incomplete beta since the distribution landed (#52's premise was wrong — the former ceiling was the #113 iteration cap, retired with the local cores). The throughput figures above predate both and are due for re-measurement (v2.5.0 task 3).
+Binomial and NegativeBinomial PMF/log-PMF paths keep `std::lgamma` per element: routing them through corvus `vector_lgamma` was tried in v2.5.0 and measured 2.5× (batch) to 6× (scalar) slower on Apple libm — corvus #31 is the lgamma gap — so it waits for that. The CDF has used the regularised incomplete beta since the distribution landed (#52's premise was wrong — the former ceiling was the #113 iteration cap, retired with the local cores). The throughput figures above are due for re-measurement (v2.5.0 task 3).
 
 ---
 

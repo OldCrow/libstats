@@ -61,7 +61,11 @@ the path pylibstats wheels use. The one exception is the install-contract leg
 v1.0.1 into `$GITHUB_WORKSPACE/_install` first, because libstats' `install`
 target is supported only with a system corvus (`docs/BUILD_SYSTEM_GUIDE.md`,
 "Dependencies"); `consumer_example` and the pkg-config smoke test then run
-against that prefix. `corvus-pin-currency` (monthly cron / manual dispatch)
+against that prefix. The `reconfigure-export` guard (#90) installs the same
+prefix, since the export exists only with a system corvus and `corvus::corvus`
+is itself an imported target of the class that guard watches; it now pins
+`corvus::corvus` in the export alongside `Threads::Threads`.
+`corvus-pin-currency` (monthly cron / manual dispatch)
 checks that the find_package floor and the FetchContent tag agree and that
 the pin has not fallen behind corvus's newest release.
 

@@ -1070,7 +1070,19 @@ session artifact; the issues carry the detail.
    0.029 → 1.0; now identical to both x86 blocks) moved with the OS /
    toolchain, not the code. Post-swap NEON diffs compare against the
    `9201eb7` block. Detail in `docs/ACCURACY_CHARACTERIZATION.md`.
-   (c) [IN PROGRESS] The v2.5.0 swap on `dev/v2.5.0-corvus` (milestone
+   (c) [PARKED 2026-09-29 — correctness-complete, gated on corvus
+   throughput] **Decision [user]: corvus performance first, then finish
+   v2.5.0.** Task 3's timing and threshold re-measure must run once,
+   against the final kernel costs, so the branch waits for corvus v1.1.0
+   (#42 incomplete gamma/beta throughput + scalar entry point, #43 NEON
+   elementary import, #31 lgamma; #37 x86 erf). Increment 5's PMF lgamma
+   routing was reverted the same day (2.5–6× slower on Apple libm).
+   Tracking issue here: the "perf: v2.5.0 throughput on the M1" issue on
+   milestone #6. Next concrete steps, in order: (1) check the three
+   benchmark programs in under `tools/bench/` and run them on the Kaby
+   Lake and Zen 4 checkouts of the branch — the increment-4 question is
+   per ISA; (2) corvus v1.1.0; (3) re-measure, rebase, then the remaining
+   list below. The swap on `dev/v2.5.0-corvus` (milestone
    #6), M1 session 2026-09-29, five increments, each ctest 74/74 and
    warning-clean with a NEON sweep archived under
    `~/Archive/libstats-v2.5.0-sweeps/` (M1): (1) engine + adapters +
@@ -1085,6 +1097,42 @@ session artifact; the issues carry the detail.
    8e-6 → 2e-16, gamma 1.8e-7 → 1.4e-13, poisson 1.6e-3 → 2.7e-16,
    Student-t 1e-3 → 1.4e-10; quantiles gamma family 1e139 → 1e-16,
    Gaussian 1.4e-5 → 4.7e-16; von Mises pdf 8e-7 → 1e-14.
+   **Performance comparatives, M1 NEON, 2026-09-29 (INDICATIVE — load
+   ~5; the ratios between the two binaries run back to back are solid).**
+   Same-source microbenchmark against v2.4.1 and the branch, ns/element,
+   min of 7 runs; batch at 1e6 under auto dispatch, scalar at 1e5,
+   quantile at 1e4:
+   - CDF batch: gamma 12 → 37 (3×), beta 7.6 → 175 (23×), poisson 13 → 57
+     (4×), student_t 20 → 240 (12×), binomial 137 → 2,504 (18×); von Mises
+     93 → 136; gaussian/lognormal/weibull/exponential unchanged.
+   - CDF scalar: gamma 75 → 925, beta 76 → 1,607, poisson 74 → 1,072,
+     student_t 127 → 2,138, binomial 137 → 2,505 (12–21×); others unchanged.
+   - Quantile: gamma 0.7 → 5.5 µs, beta 0.5 → 11.8 µs, poisson 0.5 → 8.4 µs,
+     student_t 0.7 → 38 µs, binomial 2.3 → 54 µs (8–66×); gaussian/lognormal
+     +40%; others unchanged.
+   - PDF/logPDF batch: gamma 1.2 → 4.7, beta 7.2 → 35.5, binomial 29 → 72;
+     student_t slightly faster; others unchanged. PDF/logPDF scalar:
+     unchanged except binomial 53 → 309 (increment 5 routed its scalar
+     lgamma through corvus).
+   Cause, from a per-call probe of corvus on this host (matches corvus's
+   own M1 evidence): per-element batch cost erf 2.2 ns, exp 4.5, lgamma 45,
+   gamma_p 190, beta_p 950, gamma_p_inv 2,400; a single-lane call costs
+   ~4× the per-element batch price (gamma_p 827 ns, beta_p 1.5 µs,
+   gamma_p_inv 4.3 µs). The retired cores were 1e-8-tolerance early-exit
+   loops (7–60 ns) and wrong in the tails; corvus's kernels are full-
+   precision, branch-free, fixed-iteration double-double, amortised least
+   on NEON's two lanes (expect ~2× better per element on AVX2, ~4× on
+   AVX-512; the single-call cost is tier-independent). Elementary family
+   through VectorOps at 1e6, retired NEON kernels → corvus: exp 1.0 → 4.6
+   ns (4.6×), log 1.7 → 13.7 (8×), cos/sin 2.5 → 4.1 (1.6×), erf 1.4 →
+   2.3 (1.6×) — both sides ≤ 1 ULP, so increment 4 is a throughput loss on
+   NEON with no accuracy gain; the x86 comparison (SLEEF-era kernels,
+   corvus #37) is unmeasured. Bessel (von Mises) is within 1.5×.
+   [OPEN, user]: accept as the accuracy release and take throughput to
+   corvus v1.1.0 (incomplete gamma/beta family and inverses, scalar entry
+   points, exp/log on NEON; #31 for lgamma), revert increment 4 and the
+   PMF lgamma routing while keeping the special-function swap, hybrid, or
+   hold — see the session record.
    Remaining before the PR: (i) Kaby Lake and Zen 4 native builds of the
    branch (AVX2/AVX-512 sweeps, the Windows leg with corvus's MSVC AVX2
    cap); (ii) task 3 — post-swap timing, dispatch-threshold re-measure

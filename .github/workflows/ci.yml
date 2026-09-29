@@ -351,14 +351,35 @@ jobs:
   reconfigure-export:
     name: Export stability across reconfigure (Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
 
+    # The export exists only with a system corvus (cmake/FindOrFetchCorvus.cmake),
+    # and corvus::corvus is itself an imported target — exactly the class this
+    # guard exists for — so the job installs Highway and corvus first, as the
+    # install-contract leg of `build` does.
+    - name: Install Highway 1.4.0 and corvus v1.0.1 to prefix
+      run: |
+        set -euo pipefail
+        PREFIX="$GITHUB_WORKSPACE/_install"
+        git clone --depth 1 --branch 1.4.0 https://github.com/google/highway.git _deps/highway
+        cmake -S _deps/highway -B _deps/highway/build -DCMAKE_BUILD_TYPE=Release \
+          -DHWY_ENABLE_TESTS=OFF -DHWY_ENABLE_EXAMPLES=OFF -DHWY_ENABLE_CONTRIB=ON \
+          -DHWY_FORCE_STATIC_LIBS=ON -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$PREFIX"
+        cmake --build _deps/highway/build --parallel 2
+        cmake --install _deps/highway/build
+        git clone --depth 1 --branch v1.0.1 https://github.com/OldCrow/corvus.git _deps/corvus
+        cmake -S _deps/corvus -B _deps/corvus/build -DCMAKE_BUILD_TYPE=Release \
+          -DCORVUS_BUILD_TESTS=OFF -DCORVUS_BUILD_EXAMPLES=OFF \
+          -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_INSTALL_PREFIX="$PREFIX"
+        cmake --build _deps/corvus/build --parallel 2
+        cmake --install _deps/corvus/build
+
     - name: Configure (first pass)
-      run: cmake -B build-recfg -DCMAKE_BUILD_TYPE=Release
+      run: cmake -B build-recfg -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/_install"
 
     - name: Capture the generated export
       run: cp build-recfg/CMakeFiles/Export/*/libstats-targets.cmake /tmp/pass1.cmake
@@ -366,7 +387,7 @@ jobs:
     # Any second configure reproduces it; the extra -D just makes the intent
     # explicit and guarantees CMake does not short-circuit the pass.
     - name: Reconfigure the same build directory
-      run: cmake -B build-recfg -DLIBSTATS_VERBOSE_BUILD=ON
+      run: cmake -B build-recfg -DLIBSTATS_VERBOSE_BUILD=ON -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/_install"
 
     - name: Capture the export again
       run: cp build-recfg/CMakeFiles/Export/*/libstats-targets.cmake /tmp/pass2.cmake
@@ -379,15 +400,17 @@ jobs:
         fi
 
     # The diff above catches the general class; this pins the specific
-    # regression, so a future change that drops Threads::Threads from BOTH
-    # passes cannot slip through as "stable".
-    - name: Threads::Threads must survive into the export
+    # regressions, so a future change that drops Threads::Threads or
+    # corvus::corvus from BOTH passes cannot slip through as "stable".
+    - name: Threads::Threads and corvus::corvus must survive into the export
       run: |
         for f in /tmp/pass1.cmake /tmp/pass2.cmake; do
-          if ! grep -q 'Threads::Threads' "$f"; then
-            echo "::error::$f has no Threads::Threads in INTERFACE_LINK_LIBRARIES (#90)."
-            exit 1
-          fi
+          for sym in 'Threads::Threads' 'corvus::corvus'; do
+            if ! grep -q "$sym" "$f"; then
+              echo "::error::$f has no $sym in INTERFACE_LINK_LIBRARIES (#90)."
+              exit 1
+            fi
+          done
         done
 
   lint:
