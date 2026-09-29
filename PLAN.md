@@ -476,7 +476,9 @@ history.
     was the 6063-row grid; on the current 9210-row grid it is 34 → 32);
     NEON geometric logpdf max_rel 0.865 → ~1e-8 class.
     AVX-512 CONFIRMED 2026-09-28 (Zen 4, `commit=103044b`): 34 → 32, only
-    the two geometric rows changed. AVX2 (Kaby Lake) and NEON (M1) owed.
+    the two geometric rows changed. AVX2 CONFIRMED 2026-09-28 (Kaby
+    Lake, `commit=82a8975`): 34 → 32, the same two rows, violation list
+    identical to AVX-512 entry for entry. NEON (M1) owed.
   - Guard tolerance lesson: the past-INT_MAX CDF bound was first set from
     Apple libm's measured error (< 1e-5) and failed on glibc AND MSVC at
     an identical 1.22e-5. It is now derived from beta_i's lgamma ulp floor
@@ -942,7 +944,7 @@ session artifact; the issues carry the detail.
    (b) [OPEN] Pre-swap baseline: regenerate the characterization sweep
    at v2.4.1 on all three machines BEFORE the swap branch produces
    numbers. Zen 4 DONE 2026-09-28 (AVX-512: 32 violations); Kaby Lake
-   and M1 owed. It discharges the confirmation owed under In Progress, and
+   DONE 2026-09-28 (AVX2: 32 violations); M1 owed. It discharges the confirmation owed under In Progress, and
    on the M1 it separates what macOS 28 changed from what corvus
    changes.
    (c) [OPEN] The v2.5.0 swap itself (milestone #6), blocked on one
