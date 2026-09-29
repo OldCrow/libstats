@@ -56,6 +56,12 @@ what is decided, open, or next.
   accuracy claims only for natively validated tiers / `LIBSTATS_MAX_SIMD_TIER`;
   gather-vs-polynomial settled) moved to AGENTS.md "SIMD kernel conventions"
   on 2026-08-21.
+- [2026-09-28] Project skills live once, in `.claude/skills/`;
+  `.agents/skills` is a tracked relative symlink to it, so agents that read
+  that path (e.g. for adversarial review) get the same files. Edit only
+  `.claude/skills/`. On Windows the symlink needs Developer Mode and
+  `core.symlinks=true`, or git writes it as a text file [OPEN: check on
+  Zen 4].
 
 ## GitHub Synchronization [DERIVED]
 Last reconciled against live GitHub state: 2026-09-28 (fifth pass, at
