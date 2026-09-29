@@ -512,8 +512,11 @@ def _std_normal_quantile(pm: "mp.mpf") -> "mp.mpf":
     on t > 0 keeps the target on its own small side at full precision, and
     1 - p is exact at dps 50 for a lifted double p >= 0.5 (Sterbenz).
 
-    GaussianRef.quantile keeps the erfinv form deliberately -- it is part of
-    the frozen pre-v2.4.0 baseline and is not this change's to alter.
+    GaussianRef.quantile and LogNormalRef.quantile use this form since
+    v2.5.0: libstats' probit went through erfc_inv on the small side (corvus
+    adoption), so the erfinv-form reference's spurious -inf at p ~ 1e-300
+    would have read as a libstats violation. Before v2.5.0 they kept the
+    erfinv form to freeze the pre-v2.4.0 baseline.
     """
     if pm == mp.mpf("0.5"):
         return mp.mpf(0)
@@ -763,7 +766,7 @@ class GaussianRef(Ref):
 
     @staticmethod
     def quantile(mean, sigma, p):
-        return mp.mpf(mean) + mp.mpf(sigma) * SQRT2 * mp.erfinv(2 * mp.mpf(p) - 1)
+        return mp.mpf(mean) + mp.mpf(sigma) * _std_normal_quantile(mp.mpf(p))
 
 
 @_reg("lognormal")
@@ -794,7 +797,7 @@ class LogNormalRef(Ref):
 
     @staticmethod
     def quantile(mu, sigma, p):
-        z = SQRT2 * mp.erfinv(2 * mp.mpf(p) - 1)
+        z = _std_normal_quantile(mp.mpf(p))
         return mp.e ** (mp.mpf(mu) + mp.mpf(sigma) * z)
 
 

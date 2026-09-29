@@ -588,6 +588,48 @@ history.
   GitHub Milestones above.
 
 ## Known Gaps [OPEN]
+
+- [2026-09-29] **v2.4.2 candidates: defects on `main` surfaced by the v2.5.0
+  sweep, independent of corvus.** The swap's accurate quantiles moved the
+  characterization grid into tails the old solvers never reached, and the
+  rows there fail on `main` too. Fix these on a branch off `main` regardless
+  of the corvus decision; each has a corvus-side fix on `dev/v2.5.0-corvus`
+  that shows the intended behaviour.
+  1. Oracle, `tools/accuracy_vs_mpmath.py`: `GaussianRef.quantile` and
+     `LogNormalRef.quantile` form `erfinv(2p − 1)` at dps 50, which rounds
+     to −inf for p ≲ 1e-50, so a −inf from libstats reads as correct. The
+     survival-form `_std_normal_quantile` already exists in the file; use
+     it (done on the dev branch).
+  2. `detail::inverse_normal_cdf`, `GaussianDistribution::getQuantile`,
+     `LogNormal` quantile: the same `erf_inv(2p − 1)` form returns −inf for
+     p < 2^-54 (#136 class; contract #104 says finite). `main` fix: promote
+     the `inv_survival_normal` helper duplicated in `half_normal.cpp` and
+     `truncated_normal.cpp` to `detail::` and route the probit through it
+     on the small side (p ≤ ½ via 2p, else 1 − p, both exact).
+  3. Student-t, four defects in one family: (a) `inverse_t_cdf`'s Newton
+     iteration returns −inf in the deep tail (two v2.4.1 sweep rows,
+     references −1.57e60 and −37.06); (b) `t_cdf`'s df ≥ 1000 normal-
+     approximation shortcut costs 1e-3 relative in the tail (measured:
+     max_rel 1.03e-3 → 1.4e-10 without it); (c) `t_cdf` returns 0 for
+     |t| ≳ 1e154 because x = ν/(ν + t²) underflows — the small-x asymptotic
+     I_x(a, ½) ≈ x^a/(a B(a, ½)) in log space keeps it finite; (d) pdf and
+     logpdf collapse to 0 / −inf for |t| ≳ 1e154 because t² overflows inside
+     `log1p(t²/ν)`; use 2 log|t| + log(1/ν) there (eight scalar sites, one
+     helper) and fix up the overflowed lanes after the SIMD batch pipeline,
+     whose `vector_multiply` x² overflows the same way.
+     (c) and (d) were invisible only because (a) kept the grid short.
+  4. Gamma family quantiles (Gamma, Erlang, ChiSquared via delegation):
+     `computeQuantile`'s Newton/bisection returns nonsense at p = 1e-300
+     (max_rel 5e139, the #104 rows). A `main`-only fix needs a log-domain
+     bracket on the CDF; the dev branch uses corvus `gamma_p_inv`.
+  5. Gamma/ChiSquared batch logpdf at x = 0 with α < 1 returns the −4605
+     `MIN_LOG_PROBABILITY` clamp while the scalar path returns +inf (the
+     density's true limit); batch/scalar must agree (#103). Weibull has the
+     identical pair in the v2.4.1 block. The oracle also scores pdf(0) as 0
+     for shape < 1 — decide the support-boundary rule once, for all three.
+  Filed nowhere yet [OPEN: open a `v2.4.2` milestone and one issue per item
+  when the user is at the keyboard].
+
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
   enable a branchless Discrete CDF and Uniform PDF/LogPDF. Low priority,
   not rejected — amortization already delivers the batch-path speedups.

@@ -12,12 +12,25 @@ using stats::detail::validatePositiveParameter;
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
 #include <stdexcept>
 
 namespace stats {
+
+namespace {
+// log(1 + t^2/nu) for the Student-t kernel. Past |t| ~ 1e154 t^2 overflows and
+// the direct form collapses the density to 0 / -inf; there the identity
+// log(1 + t^2/nu) = 2 log|t| + log(1/nu) + log1p(nu/t^2) holds with the last
+// term below double resolution. Both branches are relative-accurate.
+[[nodiscard]] inline double log1p_t2_over_nu(double t, double inv_nu) noexcept {
+    const double t2 = t * t;
+    return std::isfinite(t2) ? std::log1p(t2 * inv_nu)
+                             : 2.0 * std::log(std::fabs(t)) + std::log(inv_nu);
+}
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -204,7 +217,7 @@ double StudentTDistribution::getProbability(double x) const {
         nhnpo = negHalfNuPlusOne_;
         inv_nu = invNu_;
     });
-    return std::exp(lnc + nhnpo * std::log1p(x * x * inv_nu));
+    return std::exp(lnc + nhnpo * log1p_t2_over_nu(x, inv_nu));
 }
 
 double StudentTDistribution::getLogProbability(double x) const {
@@ -214,7 +227,7 @@ double StudentTDistribution::getLogProbability(double x) const {
         nhnpo = negHalfNuPlusOne_;
         inv_nu = invNu_;
     });
-    return lnc + nhnpo * std::log1p(x * x * inv_nu);
+    return lnc + nhnpo * log1p_t2_over_nu(x, inv_nu);
 }
 
 double StudentTDistribution::getCumulativeProbability(double x) const {
@@ -444,11 +457,11 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             // log(1 + x²/ν) loses precision there. See <cmath>: log1p(x) = log(1+x).
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
+                    res[i] = std::exp(lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu));
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
-                    res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
+                    res[i] = std::exp(lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu));
                 }
             }
         },
@@ -466,7 +479,7 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             const double inv_nu = dist.invNu_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = std::exp(lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu));
+                res[i] = std::exp(lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu));
             });
             pool.waitForAll();
         });
@@ -503,11 +516,11 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             lock.unlock();
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
+                    res[i] = lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
-                    res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
+                    res[i] = lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu);
                 }
             }
         },
@@ -525,7 +538,7 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             const double inv_nu = dist.invNu_;
             lock.unlock();
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = lnc + nhnpo * std::log1p(vals[i] * vals[i] * inv_nu);
+                res[i] = lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu);
             });
             pool.waitForAll();
         });
@@ -555,9 +568,11 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double cached_nu = dist.nu_;
             lock.unlock();
-            for (std::size_t i = 0; i < count; ++i) {
-                res[i] = detail::t_cdf(vals[i], cached_nu);
-            }
+            constexpr std::size_t CHUNK = 1024;
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, cached_nu);
+            });
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -570,8 +585,11 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double cached_nu = dist.nu_;
             lock.unlock();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = detail::t_cdf(vals[i], cached_nu); });
+            constexpr std::size_t CHUNK = 1024;
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, cached_nu);
+            });
             pool.waitForAll();
         });
 }
@@ -666,8 +684,7 @@ void StudentTDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             results[i] = std::exp(log_norm_const +
-                                  neg_half_nu_plus_one *
-                                      std::log(detail::ONE + values[i] * values[i] * inv_nu));
+                                  neg_half_nu_plus_one * log1p_t2_over_nu(values[i], inv_nu));
         }
         return;
     }
@@ -686,6 +703,14 @@ void StudentTDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
     arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
     // PDF: exponentiate
     arch::simd::VectorOps::vector_exp(results, results, count);
+    // Lanes where x² overflowed (|x| >~ 1e154) came out 0 from exp(−inf); redo
+    // them through the overflow-safe form the scalar path uses.
+    for (std::size_t i = 0; i < count; ++i) {
+        if (!std::isfinite(values[i] * values[i]) && std::isfinite(values[i])) {
+            results[i] = std::exp(log_norm_const +
+                                  neg_half_nu_plus_one * log1p_t2_over_nu(values[i], inv_nu));
+        }
+    }
 }
 
 void StudentTDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -698,8 +723,7 @@ void StudentTDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             results[i] =
-                log_norm_const +
-                neg_half_nu_plus_one * std::log(detail::ONE + values[i] * values[i] * inv_nu);
+                log_norm_const + neg_half_nu_plus_one * log1p_t2_over_nu(values[i], inv_nu);
         }
         return;
     }
@@ -716,15 +740,41 @@ void StudentTDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
     arch::simd::VectorOps::scalar_multiply(results, neg_half_nu_plus_one, results, count);
     // Step 6: results += log_norm_const → full LogPDF
     arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+    // Step 7: lanes where x² overflowed (|x| >~ 1e154) came out −inf; redo them
+    // through the overflow-safe form the scalar path uses.
+    for (std::size_t i = 0; i < count; ++i) {
+        if (!std::isfinite(values[i] * values[i]) && std::isfinite(values[i])) {
+            results[i] =
+                log_norm_const + neg_half_nu_plus_one * log1p_t2_over_nu(values[i], inv_nu);
+        }
+    }
 }
 
 void StudentTDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values,
                                                                    double* results,
                                                                    std::size_t count,
                                                                    double nu) const noexcept {
-    // Scalar per element. See section 18 header for the explanation.
+    // Same identity as detail::t_cdf, in three passes over the slice:
+    // x = nu / (nu + t^2) (t = +/-inf -> 0, t = 0 -> 1, NaN stays NaN), then
+    // I_x(nu/2, 1/2) in place through corvus, then the two-sided fold.
     for (std::size_t i = 0; i < count; ++i) {
-        results[i] = detail::t_cdf(values[i], nu);
+        const double tv = values[i];
+        results[i] = nu / (nu + tv * tv);
+    }
+    const double a = nu * detail::HALF;
+    detail::vector_beta_i(std::span<const double>{results, count}, a, detail::HALF,
+                          std::span<double>{results, count});
+    for (std::size_t i = 0; i < count; ++i) {
+        const double tv = values[i];
+        double r = results[i];
+        if (nu / (nu + tv * tv) < std::numeric_limits<double>::min() && std::isfinite(tv)) {
+            // x underflowed (|t| >~ 1e154): the same small-x asymptotic as
+            // detail::t_cdf, so scalar and batch agree bit for bit there.
+            r = std::exp(a * (std::log(nu) - detail::TWO * std::log(std::fabs(tv))) - std::log(a) -
+                         detail::lbeta(a, detail::HALF));
+        }
+        const double half_i = detail::HALF * r;
+        results[i] = (tv > detail::ZERO_DOUBLE) ? detail::ONE - half_i : half_i;
     }
 }
 

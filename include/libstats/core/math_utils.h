@@ -143,6 +143,21 @@ namespace detail {
  */
 [[nodiscard]] double inverse_beta_i(double p, double a, double b) noexcept;
 
+// v2.5.0 additions, in corvus argument order (parameters first, probability
+// last). Each solves against whichever of p and 1 - p is the smaller, so a
+// single call is accurate on both sides of the median; see corvus.h.
+
+/// Inverse complementary error function: erfc(erfc_inv(y)) = y, y in [0, 2].
+/// The probit route with no cancellation: Phi^-1(p) = -sqrt(2) * erfc_inv(2p).
+[[nodiscard]] double erfc_inv(double y) noexcept;
+/// x with P(a, x) = p: the Gamma(a, 1) quantile.
+[[nodiscard]] double gamma_p_inv(double a, double p) noexcept;
+/// x with Q(a, x) = q: the Gamma(a, 1) upper-tail quantile.
+[[nodiscard]] double gamma_q_inv(double a, double q) noexcept;
+/// x with 1 - I_x(a, b) = q. Also 1 - x of the Beta(b, a) quantile at full
+/// relative precision (the swap identity), which is how t quantiles use it.
+[[nodiscard]] double beta_q_inv(double a, double b, double q) noexcept;
+
 // =============================================================================
 // SIMD VECTORIZED SPECIAL FUNCTIONS
 // =============================================================================

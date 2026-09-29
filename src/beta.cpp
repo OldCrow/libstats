@@ -565,8 +565,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
@@ -620,8 +619,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
@@ -672,20 +670,11 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= 0.0)
-                        res[i] = 0.0;
-                    else if (x >= 1.0)
-                        res[i] = 1.0;
-                    else
-                        res[i] = detail::beta_i(x, a, b, log_prefix);
-                });
-            } else {
-                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, a, b);
-            }
+            constexpr std::size_t CHUNK = 1024;
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, a, b);
+            });
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -697,15 +686,10 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= 0.0)
-                    res[i] = 0.0;
-                else if (x >= 1.0)
-                    res[i] = 1.0;
-                else
-                    res[i] = detail::beta_i(x, a, b, log_prefix);
+            constexpr std::size_t CHUNK = 1024;
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, a, b);
             });
             pool.waitForAll();
         });
@@ -907,22 +891,16 @@ void BetaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* val
                                                                double* results, std::size_t count,
                                                                double alpha,
                                                                double beta) const noexcept {
-    // Scalar per element. See section 18 header for why beta_i cannot be
-    // vectorized without replacing it with a fixed-iteration approximation.
-    // Hoist the lgamma prefix: lgamma(a+b) - lgamma(a) - lgamma(b) is constant
-    // for fixed (alpha, beta), saving 3 lgamma calls per element.
-    const double log_prefix =
-        detail::lgamma(alpha + beta) - detail::lgamma(alpha) - detail::lgamma(beta);
+    // Clamp x into [0, 1] (NaN passes through), then corvus evaluates
+    // I_x(alpha, beta) in place: I_0 = 0 and I_1 = 1 are its specials.
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
-        if (x <= detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
-        } else if (x >= detail::ONE) {
-            results[i] = detail::ONE;
-        } else {
-            results[i] = detail::beta_i(x, alpha, beta, log_prefix);
-        }
+        results[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
+                     : (x >= detail::ONE)       ? detail::ONE
+                                                : x;
     }
+    detail::vector_beta_i(std::span<const double>{results, count}, alpha, beta,
+                          std::span<double>{results, count});
 }
 
 //==============================================================================

@@ -1,8 +1,7 @@
 #include "libstats/distributions/truncated_normal.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -48,31 +47,12 @@ inline double clamp01(double c) noexcept {
 }
 
 // Inverse of the standard normal survival function Q(u) = ½·erfc(u/√2) for
-// s ∈ (0, ½]. Identical to the helper in src/half_normal.cpp — see that
-// file's banner for the full rationale (detail::erf_inv's extreme-tail
-// branch is unreliable, measured during #57 bring-up; duplication follows
-// the cdf_from_erf_arg precedent between gaussian.cpp and lognormal.cpp).
+// s ∈ (0, ½]: u = √2·erfc⁻¹(2s). Identical to the helper in
+// src/half_normal.cpp (duplication follows the cdf_from_erf_arg precedent).
 inline double inv_survival_normal(double s) noexcept {
     if (s >= detail::HALF)
         return detail::ZERO_DOUBLE;
-    if (s < std::numeric_limits<double>::min())
-        s = std::numeric_limits<double>::min();  // best-effort clamp; keeps log(s) finite
-
-    const double t = std::sqrt(-detail::TWO * std::log(s));
-    // AS 26.2.23 seed (|error| < 4.5e-4), then Newton on the erfc residual.
-    double u = t - (2.515517 + t * (0.802853 + t * 0.010328)) /
-                       (detail::ONE + t * (1.432788 + t * (0.189269 + t * 0.001308)));
-    for (int i = 0; i < 4; ++i) {
-        const double pdf = detail::INV_SQRT_2PI * std::exp(-detail::HALF * u * u);
-        if (!(pdf > detail::ZERO_DOUBLE))
-            break;  // deeper than φ's underflow: keep the (law-limited) seed
-        const double r = detail::HALF * std::erfc(u * detail::INV_SQRT_2) - s;
-        const double step = r / pdf;
-        u += step;
-        if (std::fabs(step) <= 1e-15 * (detail::ONE + std::fabs(u)))
-            break;
-    }
-    return u;
+    return detail::SQRT_2 * detail::erfc_inv(detail::TWO * s);
 }
 
 // Near-lower-bound band: within d = (x−a)/σ of the bound such that
@@ -122,8 +102,8 @@ inline double truncnorm_cdf_near_lower(double d, double alpha, double inv_z) noe
 // batch scalar kernel, the batch per-lane fixups, and the parallel lambdas
 // all call this, so every path is expression-identical).
 inline double truncnorm_cdf_scalar(double x, double mu, double sigma, double a, double b,
-                                   double alpha, double q_alpha, double phi_alpha,
-                                   double erf_alpha, double inv_z, double half_inv_z) noexcept {
+                                   double alpha, double q_alpha, double phi_alpha, double erf_alpha,
+                                   double inv_z, double half_inv_z) noexcept {
     if (x <= a)
         return detail::ZERO_DOUBLE;  // exact, also covers x = −∞
     if (x >= b)
@@ -141,8 +121,7 @@ inline double truncnorm_cdf_scalar(double x, double mu, double sigma, double a, 
     }
     if (xi <= detail::ZERO_DOUBLE) {
         // Left half (α ≤ ξ ≤ 0): reflected erfc difference Φ(ξ) − Φ(α).
-        return clamp01(
-            (detail::HALF * std::erfc(-xi * detail::INV_SQRT_2) - phi_alpha) * inv_z);
+        return clamp01((detail::HALF * std::erfc(-xi * detail::INV_SQRT_2) - phi_alpha) * inv_z);
     }
     // Straddling lane (α < 0 < ξ): erf difference — both arguments benign,
     // and the expression matches the batch vector_erf chain term-for-term.
@@ -156,8 +135,8 @@ inline double truncnorm_cdf_scalar(double x, double mu, double sigma, double a, 
 // difference is ever reconstructed.
 inline double truncnorm_quantile_core(double p, double mu, double sigma, double a, double b,
                                       double phi_alpha, double q_beta, double z) noexcept {
-    const double q_low = phi_alpha + p * z;                   // Φ target from below
-    const double s_high = q_beta + (detail::ONE - p) * z;     // survival target from above
+    const double q_low = phi_alpha + p * z;                // Φ target from below
+    const double s_high = q_beta + (detail::ONE - p) * z;  // survival target from above
     double xi;
     if (q_low <= s_high) {
         xi = -inv_survival_normal(q_low);
@@ -417,8 +396,7 @@ double TruncatedNormalDistribution::getSkewness() const {
     const double pa = phi_std(al), pb = phi_std(be);
     const double m1 = (pa - pb) / z;
     const double m2 = detail::ONE + (zphi(al, pa) - zphi(be, pb)) / z;
-    const double m3 =
-        detail::TWO * m1 + (zphi(al, zphi(al, pa)) - zphi(be, zphi(be, pb))) / z;
+    const double m3 = detail::TWO * m1 + (zphi(al, zphi(al, pa)) - zphi(be, zphi(be, pb))) / z;
     const double c2 = m2 - m1 * m1;
     const double c3 = m3 - detail::THREE * m1 * m2 + detail::TWO * m1 * m1 * m1;
     return c3 / (c2 * std::sqrt(c2));
@@ -434,8 +412,7 @@ double TruncatedNormalDistribution::getKurtosis() const {
     const double pa = phi_std(al), pb = phi_std(be);
     const double m1 = (pa - pb) / z;
     const double m2 = detail::ONE + (zphi(al, pa) - zphi(be, pb)) / z;
-    const double m3 =
-        detail::TWO * m1 + (zphi(al, zphi(al, pa)) - zphi(be, zphi(be, pb))) / z;
+    const double m3 = detail::TWO * m1 + (zphi(al, zphi(al, pa)) - zphi(be, zphi(be, pb))) / z;
     const double m4 = detail::THREE * m2 +
                       (zphi(al, zphi(al, zphi(al, pa))) - zphi(be, zphi(be, zphi(be, pb)))) / z;
     const double c2 = m2 - m1 * m1;
@@ -649,8 +626,7 @@ double TruncatedNormalDistribution::sample(std::mt19937& rng) const {
     // Inverse-CDF transform — exact in every regime because the quantile is
     // computed tail-stably in the survival domain (see header). No rejection
     // step, so far-tail windows cost the same as central ones.
-    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
-                                                   detail::ONE);
+    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
     return truncnorm_quantile_core(uniform(rng), mu, sigma, a, b, pa, qb, z);
 }
 
@@ -668,8 +644,7 @@ std::vector<double> TruncatedNormalDistribution::sample(std::mt19937& rng, size_
         qb = qBeta_;
         z = z_;
     });
-    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(),
-                                                   detail::ONE);
+    std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
     for (size_t i = 0; i < n; ++i) {
         samples.push_back(truncnorm_quantile_core(uniform(rng), mu, sigma, a, b, pa, qb, z));
     }
@@ -714,8 +689,7 @@ void TruncatedNormalDistribution::fit(const std::vector<double>& values) {
     }
     const double s2 = ss / n;  // MLE (biased) second central moment
     if (!(s2 > detail::ZERO_DOUBLE)) {
-        throw std::invalid_argument(
-            "Data has zero variance - cannot fit Truncated Normal");
+        throw std::invalid_argument("Data has zero variance - cannot fit Truncated Normal");
     }
 
     // Fixed-point iteration on the exponential-family moment equations
@@ -755,8 +729,7 @@ void TruncatedNormalDistribution::fit(const std::vector<double>& values) {
         }
     }
     if (!converged) {
-        throw std::runtime_error(
-            "Truncated Normal MLE did not converge within 500 iterations");
+        throw std::runtime_error("Truncated Normal MLE did not converge within 500 iterations");
     }
     setParameters(mu, sig, a, b);
 }
@@ -988,8 +961,8 @@ void TruncatedNormalDistribution::getCumulativeProbability(
                 hiz = d.halfInvZ_;
                 iss2 = d.invSigmaSqrt2_;
             });
-            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, mu, sigma, a, b, al, be,
-                                                      qa, pa, ea, iz, hiz, iss2);
+            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, mu, sigma, a, b, al, be, qa,
+                                                      pa, ea, iz, hiz, iss2);
         },
         [](const TruncatedNormalDistribution& d, std::span<const double> vals,
            std::span<double> res) {
@@ -1012,8 +985,7 @@ void TruncatedNormalDistribution::getCumulativeProbability(
                 hiz = d.halfInvZ_;
             });
             const auto kernel = [&](std::size_t i) {
-                res[i] =
-                    truncnorm_cdf_scalar(vals[i], mu, sigma, a, b, al, qa, pa, ea, iz, hiz);
+                res[i] = truncnorm_cdf_scalar(vals[i], mu, sigma, a, b, al, qa, pa, ea, iz, hiz);
             };
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, kernel);
@@ -1039,8 +1011,7 @@ void TruncatedNormalDistribution::getCumulativeProbability(
                 hiz = d.halfInvZ_;
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] =
-                    truncnorm_cdf_scalar(vals[i], mu, sigma, a, b, al, qa, pa, ea, iz, hiz);
+                res[i] = truncnorm_cdf_scalar(vals[i], mu, sigma, a, b, al, qa, pa, ea, iz, hiz);
             });
             pool.waitForAll();
         });
@@ -1111,14 +1082,12 @@ std::istream& operator>>(std::istream& is, TruncatedNormalDistribution& d) {
         return line.substr(vs, ve - vs);
     };
     try {
-        const std::string ms = grab("mu="), ss = grab("sigma="), as = grab("a="),
-                          bs = grab("b=");
+        const std::string ms = grab("mu="), ss = grab("sigma="), as = grab("a="), bs = grab("b=");
         if (ms.empty() || ss.empty() || as.empty() || bs.empty()) {
             is.setstate(std::ios::failbit);
             return is;
         }
-        const double mu = std::stod(ms), sg = std::stod(ss), a = std::stod(as),
-                     b = std::stod(bs);
+        const double mu = std::stod(ms), sg = std::stod(ss), a = std::stod(as), b = std::stod(bs);
         auto result = d.trySetParameters(mu, sg, a, b);
         if (result.isError())
             is.setstate(std::ios::failbit);
@@ -1228,8 +1197,8 @@ void TruncatedNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // Run the regime-split scalar kernel per lane (see section banner).
     if (!use_simd || alpha >= detail::ZERO_DOUBLE || beta <= detail::ZERO_DOUBLE) {
         for (std::size_t i = 0; i < count; ++i) {
-            results[i] = truncnorm_cdf_scalar(values[i], mu, sigma, a, b, alpha, q_alpha,
-                                              phi_alpha, erf_alpha, inv_z, half_inv_z);
+            results[i] = truncnorm_cdf_scalar(values[i], mu, sigma, a, b, alpha, q_alpha, phi_alpha,
+                                              erf_alpha, inv_z, half_inv_z);
         }
         return;
     }

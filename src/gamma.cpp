@@ -730,8 +730,7 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             // Slice so each parallel task runs the SIMD log+exp pipeline
             // rather than computing log(x) per element in each task.
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
@@ -807,8 +806,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
 
             // Slice so each parallel task runs the SIMD log pipeline.
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
@@ -877,27 +875,12 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 cached_beta = dist.beta_;
             });
 
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                    }
-                });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                    }
-                }
-            }
+            // Slices, not elements: the kernel hands corvus whole blocks.
+            constexpr std::size_t CHUNK = 1024;
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_alpha, cached_beta);
+            });
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -916,14 +899,10 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 cached_beta = dist.beta_;
             });
 
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                }
+            constexpr std::size_t CHUNK = 1024;
+            pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_alpha, cached_beta);
             });
             pool.waitForAll();
         });
@@ -1168,50 +1147,16 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
                                                                 double* results, std::size_t count,
                                                                 double alpha,
                                                                 double beta) const noexcept {
-    // Check if vectorization is beneficial and CPU supports it
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
-
-    if (!use_simd) {
-        // Use scalar implementation for small arrays or unsupported SIMD.
-        // MC-1/MC-2: use the same log-space detail::gamma_p implementation as the
-        // scalar CDF. The old private regularizedIncompleteGamma divided by
-        // std::tgamma(alpha), overflowing for alpha > ~172 and diverging from scalar.
-        for (std::size_t i = 0; i < count; ++i) {
-            if (std::isnan(values[i])) {
-                results[i] = values[i];
-            } else if (values[i] <= detail::ZERO_DOUBLE) {
-                results[i] = detail::ZERO_DOUBLE;
-            } else if (values[i] == std::numeric_limits<double>::infinity()) {
-                results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
-            } else {
-                results[i] = detail::gamma_p(alpha, beta * values[i]);
-            }
-        }
-        return;
-    }
-
-    // Runtime CPU detection passed - use vectorized implementation
-    // Create aligned temporary array for beta * values
-    std::vector<double, arch::simd::aligned_allocator<double>> scaled_values(count);
-
-    // Step 1: Compute beta * values using SIMD
-    arch::simd::VectorOps::scalar_multiply(values, beta, scaled_values.data(), count);
-
-    // Step 2: Evaluate gamma_p per element — inherently scalar.
-    // gamma_p uses a continued fraction or series whose iteration count varies
-    // per input; no uniform SIMD sequence can express this. See section 18
-    // header for the full explanation.
+    // One clamp pass writes beta*x into results, then corvus evaluates
+    // P(alpha, .) in place (exact aliasing is allowed). The guards are the
+    // documented corvus specials: x <= 0 -> P(alpha, 0) = 0; x = +inf ->
+    // P(alpha, +inf) = 1 (#103); NaN propagates.
     for (std::size_t i = 0; i < count; ++i) {
-        if (std::isnan(values[i])) {
-            results[i] = values[i];
-        } else if (values[i] <= detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
-        } else if (values[i] == std::numeric_limits<double>::infinity()) {
-            results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
-        } else {
-            results[i] = detail::gamma_p(alpha, scaled_values[i]);
-        }
+        const double x = values[i];
+        results[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : beta * x;
     }
+    detail::vector_gamma_p(alpha, std::span<const double>{results, count},
+                           std::span<double>{results, count});
 }
 
 //==============================================================================
@@ -1243,110 +1188,17 @@ double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcep
 }
 
 double GammaDistribution::computeQuantile(double p) const noexcept {
-    // Quantile function using Newton-Raphson iteration with initial guess
+    // Gamma(alpha, rate beta): x with P(alpha, beta x) = p. corvus solves the
+    // inverse against the smaller of p and 1 - p, relative-accurate down to
+    // subnormal answers, so the Newton/bisection solver this replaced (and
+    // its Wilson-Hilferty seed) is gone.
     if (p <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
     }
     if (p >= detail::ONE) {
         return std::numeric_limits<double>::infinity();
     }
-
-    // Initial guess.
-    //
-    // Wilson-Hilferty (WH) is reliable for moderate p but can produce a
-    // negative value when alpha > 1 and p is very small (z << 0 with
-    // small h makes the cube negative).  Clamping a negative WH result to
-    // NEWTON_RAPHSON_TOLERANCE (1e-10) then causes the first Newton step
-    // to shoot x to ~p/pdf(1e-10) ~ 1e9, after which the PDF underflows
-    // and the solver exits without converging.
-    //
-    // Fix: when WH is negative use the small-x asymptotic expansion of the
-    // Gamma CDF: P(alpha,beta*x) ~ (beta*x)^alpha / (alpha * Gamma(alpha))
-    // => x ~ (p * Gamma(alpha+1))^(1/alpha) / beta.
-    double initial_guess;
-    if (alpha_ > detail::ONE) {
-        double h = detail::TWO / (detail::NINE * alpha_);
-        double z = detail::inverse_normal_cdf(p);
-        double wh = detail::ONE - h + z * std::sqrt(h);
-        if (wh > detail::ZERO_DOUBLE) {
-            initial_guess = alpha_ * std::pow(wh, 3) / beta_;
-        } else {
-            // WH failed; small-p asymptotic: x ~ (p * Gamma(alpha+1))^(1/alpha) / beta.
-            // Computed in the log domain: the linear form
-            // p * exp(lgamma(alpha+1)) overflows for alpha >~ 170
-            // (lgamma(10001) ~ 82100) long before x does — and this branch
-            // runs exactly when p < ~5.6e-17 rounds 2p−1 to −1 and the WH
-            // normal quantile is −inf, so large-alpha deep tails land here.
-            initial_guess = std::exp((std::log(p) + std::lgamma(alpha_ + detail::ONE)) / alpha_ -
-                                     std::log(beta_));
-        }
-    } else {
-        // For alpha <= 1, use exponential approximation
-        initial_guess = -std::log(detail::ONE - p) / beta_;
-    }
-    if (!std::isfinite(initial_guess)) {
-        initial_guess = alpha_ / beta_;  // seed at the mean rather than escaping to ±inf
-    }
-
-    // Newton-Raphson iteration with positive-x guard.
-    double x = std::max(initial_guess, detail::NEWTON_RAPHSON_TOLERANCE);
-    const double tolerance = detail::HIGH_PRECISION_TOLERANCE;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf = getCumulativeProbability(x);
-        double pdf = getProbability(x);
-
-        // Convergence is relative in p: for deep-tail targets (p ~ 1e-300)
-        // an absolute test accepts cdf = 0 immediately and returns whatever
-        // seed the solver happened to hold.
-        if (std::abs(cdf - p) < tolerance * p) {
-            break;
-        }
-
-        if (pdf < detail::ULTRA_SMALL_THRESHOLD) {
-            // PDF underflow: fall back to bisection. Expand the upper bound
-            // until it brackets the root — a crude tail seed can sit far
-            // below it — and always keep the final midpoint: the old code
-            // discarded the bracket when 60 iterations met neither stopping
-            // test and returned the unimproved Newton iterate.
-            double lo = detail::NEWTON_RAPHSON_TOLERANCE, hi = x;
-            if (cdf < p) {
-                hi = x * 10.0;
-                for (int j = 0; j < 64 && getCumulativeProbability(hi) < p; ++j)
-                    hi *= 10.0;
-                if (!std::isfinite(hi))
-                    hi = std::numeric_limits<double>::max();
-            }
-            double mid = (lo + hi) * detail::HALF;
-            for (int j = 0; j < 128; ++j) {
-                mid = (lo + hi) * detail::HALF;
-                const double cmid = getCumulativeProbability(mid);
-                if (std::abs(cmid - p) < tolerance * p) {
-                    break;
-                }
-                if (cmid < p)
-                    lo = mid;
-                else
-                    hi = mid;
-                if (hi - lo <= tolerance * mid) {
-                    mid = (lo + hi) * detail::HALF;
-                    break;
-                }
-            }
-            x = mid;
-            break;
-        }
-
-        double delta = (cdf - p) / pdf;
-        x = std::max(x - delta, x * 0.1);  // Ensure x stays positive
-
-        if (std::abs(delta) < tolerance * x) {
-            break;
-        }
-    }
-
-    return x;
+    return detail::gamma_p_inv(alpha_, p) / beta_;
 }
 
 double GammaDistribution::sampleMarsagliaTsang(std::mt19937& rng) const noexcept {

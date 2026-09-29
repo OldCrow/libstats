@@ -136,19 +136,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # C++20 <concepts> and <ranges> are available on all v2.0.0 baseline compilers.
 
-# Detect whether std::cyl_bessel_i is available (C++17 §29.9.3). GCC 6.1+, MSVC 2017 15.5+ support
-# it; AppleClang / macOS libc++ does not. VonMisesDistribution falls back to A&S polynomial
-# approximations when absent.
-check_cxx_source_compiles("#include <cmath>
-int main() { (void)std::cyl_bessel_i(0.0, 1.0); return 0; }" LIBSTATS_HAS_CXX17_BESSEL)
-if(LIBSTATS_HAS_CXX17_BESSEL)
-    message(STATUS "std::cyl_bessel_i (C++17 special functions): available")
-    # LP-4: defer scoping to the SIMD interface target (applied below after target creation). Do NOT
-    # use add_compile_definitions here — that would be global.
-else()
-    message(STATUS "std::cyl_bessel_i: unavailable -- Bessel A&S fallback active")
-endif()
-
 # Platform-specific configurations
 # =============================================================================
 # 2B: -stdlib=libc++ — AppleClang 15 defaults to libc++ on Ventura 13+. Use
@@ -448,16 +435,6 @@ set(LIBSTATS_BUILD_INCLUDE_DIRS
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_version.h.in"
                "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h" @ONLY)
 
-# #97: the Bessel tier goes in a generated header, not a compile definition. bessel.h is an
-# installed public header whose two implementation tiers are selected by LIBSTATS_HAS_CXX17_BESSEL,
-# and the definition used to live on libstats_simd_interface — which the library targets pull in as
-# $<LINK_ONLY:...>. LINK_ONLY propagates the link and strips usage requirements, so the macro
-# reached the library's TUs and the in-tree tests (they link libstats::simd directly) but never a
-# find_package consumer. Consumers silently compiled the A&S fallback, giving the same inline
-# functions two different bodies in one program.
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_config.h.in"
-               "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_config.h" @ONLY)
-
 # =============================================================================
 # CREATE OBJECT LIBRARIES FOR PARALLEL COMPILATION
 # =============================================================================
@@ -598,13 +575,6 @@ endif()
 
 # Create SIMD interface target for modern CMake approach
 create_simd_interface_target()
-
-# LIBSTATS_HAS_CXX17_BESSEL is deliberately NOT a compile definition on any target. It used to be
-# INTERFACE on libstats_simd_interface, which looked like it propagated "to all consumers" but did
-# not: the exported library targets reference that interface as $<LINK_ONLY:...>, and LINK_ONLY
-# strips usage requirements. The probe result now travels in the generated libstats_config.h
-# (configure_file above, installed below), which reaches every TU that includes a libstats header by
-# construction. See #97 and the header's own comment.
 
 # Apply per-source-file SIMD compile flags once (file-global properties).
 apply_simd_source_flags()
@@ -773,12 +743,6 @@ if(LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
     # find_package(libstats) consumer fails to compile: the generated header was never part of the
     # installed tree.
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h"
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
-
-    # Same reasoning for the generated config header, and with sharper consequences: bessel.h
-    # includes it unconditionally, so omitting it from the install tree would not merely downgrade a
-    # consumer's Bessel tier — it would fail to compile. #97.
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_config.h"
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
 
     # Install CMake config files for find_package support

@@ -3,6 +3,7 @@
 #include "libstats/common/cpu_detection_fwd.h"         // CPU feature queries (lightweight)
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/common/simd_policy_fwd.h"           // SIMD policy decisions (lightweight)
+#include "libstats/core/bessel.h"
 #include "libstats/core/distribution_base.h"
 #include "libstats/core/math_constants.h"
 #include "libstats/core/safety.h"
@@ -107,6 +108,82 @@ double trigamma(double x) noexcept {
 
 double inverse_beta_i(double p, double a, double b) noexcept {
     return corvus_scalar(corvus::beta_p_inv, a, b, p);
+}
+
+namespace {
+// corvus-order alias for local use alongside beta_q_inv.
+[[nodiscard]] inline double beta_p_inv_(double a, double b, double p) noexcept {
+    return inverse_beta_i(p, a, b);
+}
+}  // namespace
+
+// =============================================================================
+// MODIFIED BESSEL FUNCTIONS (bessel.h) — corvus i0 / i1 / i0e / i1e
+// =============================================================================
+
+double bessel_i0(double x) noexcept {
+    return corvus_scalar(corvus::i0, x);
+}
+
+double bessel_i1(double x) noexcept {
+    return corvus_scalar(corvus::i1, x);
+}
+
+double log_bessel_i0(double x) noexcept {
+    // |x| + log i0e(|x|): i0e = e^-|x| I0 never underflows on a finite double,
+    // so one form serves the whole axis and there is no seam to value-match
+    // (#92). Absolute error ~ulp(|x|), which is what the von Mises
+    // normaliser LN_2PI + log I0 needs; the relative error at small x is the
+    // x^2/4 cancellation's, and no consumer reads it relatively.
+    const double ax = std::fabs(x);
+    if (std::isinf(ax)) {
+        return ax;
+    }
+    return ax + std::log(corvus_scalar(corvus::i0e, ax));
+}
+
+double bessel_i1_i0_complement(double x) noexcept {
+    if (x >= kBesselRatioAsymptoticCut) {
+        // Horner in t = 1/x. Finite for every x up to +inf (t → 0 → 0).
+        const double t = 1.0 / x;
+        return t *
+               (0.5 +
+                t * (0.125 +
+                     t * (0.125 +
+                          t * (0.1953125 +
+                               t * (0.40625 +
+                                    t * (1.0478515625 +
+                                         t * (3.21875 + t * (11.466461181640625 +
+                                                             t * (46.478515625 +
+                                                                  t * 211.27614974975586)))))))));
+    }
+    return 1.0 - bessel_i1_over_i0(x);
+}
+
+double bessel_i1_over_i0(double x) noexcept {
+    // Past the cut the complement is small, so 1 − complement is the stable
+    // direction; below it the scaled ratio is direct (1 − complement would
+    // cancel as κ → 0). i1e/i0e never forms the overflowing I0/I1 (#93).
+    if (x >= kBesselRatioAsymptoticCut) {
+        return 1.0 - bessel_i1_i0_complement(x);
+    }
+    return corvus_scalar(corvus::i1e, x) / corvus_scalar(corvus::i0e, x);
+}
+
+double erfc_inv(double y) noexcept {
+    return corvus_scalar(corvus::erfcinv, y);
+}
+
+double gamma_p_inv(double a, double p) noexcept {
+    return corvus_scalar(corvus::gamma_p_inv, a, p);
+}
+
+double gamma_q_inv(double a, double q) noexcept {
+    return corvus_scalar(corvus::gamma_q_inv, a, q);
+}
+
+double beta_q_inv(double a, double b, double q) noexcept {
+    return corvus_scalar(corvus::beta_q_inv, a, b, q);
 }
 
 // =============================================================================
@@ -435,9 +512,12 @@ double inverse_normal_cdf(double p) noexcept {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    // Use relationship: inverse_normal_cdf(p) = sqrt(2) * erf_inv(2*p - 1)
-    double erf_arg = detail::TWO * p - detail::ONE;
-    return detail::SQRT_2 * erf_inv(erf_arg);
+    // Phi^-1(p) = -sqrt(2) * erfc_inv(2p). The erf_inv(2p - 1) form loses the
+    // whole tail: 2p - 1 rounds to -1 for p < 2^-54. Both 2p and 1 - p (for
+    // p >= 1/2, Sterbenz) are exact, so each side is solved from a small,
+    // exact argument.
+    return p <= detail::HALF ? -detail::SQRT_2 * erfc_inv(detail::TWO * p)
+                             : detail::SQRT_2 * erfc_inv(detail::TWO * (detail::ONE - p));
 }
 
 double t_cdf(double t, double df) noexcept {
@@ -454,17 +534,19 @@ double t_cdf(double t, double df) noexcept {
         return detail::HALF;
     }
 
-    // For very large degrees of freedom, use normal approximation for better accuracy
-    if (df >= 1000.0) {
-        return normal_cdf(t);
-    }
-
     // Use relationship with incomplete beta function:
     // t_cdf(t, df) = 1/2 + (t/sqrt(df)) * B(1/2, df/2) / B(1/2, df/2)
     // This is simplified using the symmetry of t-distribution
 
-    double x = df / (df + t * t);
-    double result = beta_i(x, detail::HALF * df, detail::HALF);
+    // Past |t| ~ 1e154 t^2 overflows and x underflows; there I_x(a, 1/2) ~
+    // x^a / (a B(a, 1/2)) with x = df / t^2, formed in the log domain so the
+    // tail stays finite down to its true underflow.
+    const double a = detail::HALF * df;
+    const double x = df / (df + t * t);
+    const double result = (x >= std::numeric_limits<double>::min())
+                              ? beta_i(x, a, detail::HALF)
+                              : std::exp(a * (std::log(df) - detail::TWO * std::log(std::fabs(t))) -
+                                         std::log(a) - lbeta(a, detail::HALF));
 
     if (t > detail::ZERO_DOUBLE) {
         return detail::ONE - detail::HALF * result;
@@ -487,43 +569,29 @@ double inverse_t_cdf(double p, double df) noexcept {
         return detail::ZERO_DOUBLE;
     }
 
-    // Use approximate initial guess from normal distribution
-    double z = inverse_normal_cdf(p);
-
-    // For large degrees of freedom, t-distribution approaches normal.
-    // Use 1000 as the cutoff (consistent with t_cdf) — at df=120 the
-    // normal approximation still has ~0.02 error in the tails.
-    if (df > detail::THOUSAND) {
-        return z;
+    // Two-sided tail q = 2 min(p, 1 - p) satisfies I_x(df/2, 1/2) = q with
+    // x = df / (df + t^2), so t^2 = df (1 - x) / x. Take x from beta_p_inv and
+    // 1 - x from beta_q_inv (the swap identity): each is the small side of
+    // its own call, so neither is formed by subtraction. 1 - p is exact for
+    // p >= 1/2 (Sterbenz).
+    const bool upper = p > detail::HALF;
+    const double q = detail::TWO * (upper ? detail::ONE - p : p);
+    const double a = df * detail::HALF;
+    const double x = beta_p_inv_(a, detail::HALF, q);
+    double t;
+    if (x >= std::numeric_limits<double>::min()) {
+        const double one_minus_x = beta_q_inv(detail::HALF, a, q);
+        t = std::sqrt(df * one_minus_x / x);
+    } else {
+        // x underflowed (small df, deep tail: the Cauchy-like quantile is
+        // ~1e299 at df = 1, p = 1e-300, well inside double range, so #104
+        // wants it finite). I_x(a, 1/2) ~ x^a / (a B(a, 1/2)) as x -> 0, so
+        // ln x = (ln q + ln a + lbeta(a, 1/2)) / a and t = sqrt(df / x),
+        // formed in the log domain; exp overflows only on true overflow.
+        const double log_x = (std::log(q) + std::log(a) + lbeta(a, detail::HALF)) / a;
+        t = std::exp(detail::HALF * (std::log(df) - log_x));
     }
-
-    // Newton-Raphson iteration to refine the estimate
-    double t = z;  // Initial guess
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf_val = t_cdf(t, df);
-        double error = cdf_val - p;
-
-        if (std::abs(error) < tolerance) {
-            break;
-        }
-
-        // Calculate derivative (PDF)
-        double pdf_val =
-            std::exp(lgamma((df + detail::ONE) * detail::HALF) - lgamma(df * detail::HALF) -
-                     detail::HALF * std::log(df * detail::PI)) *
-            std::pow(detail::ONE + t * t / df, -(df + detail::ONE) * detail::HALF);
-
-        if (pdf_val <= detail::ZERO_DOUBLE) {
-            break;  // Avoid division by zero
-        }
-
-        t -= error / pdf_val;
-    }
-
-    return t;
+    return upper ? t : -t;
 }
 
 double chi_squared_cdf(double x, double df) noexcept {
@@ -559,110 +627,8 @@ double inverse_chi_squared_cdf(double p, double df) noexcept {
         return std::numeric_limits<double>::infinity();
     }
 
-    // For very small p, use bisection to avoid Newton-Raphson instability
-    if (p < 0.1 || p > 0.9) {
-        // Use bisection method which is more stable for extreme probabilities
-        double low = detail::ZERO_DOUBLE;
-        double high = df + 10.0 * std::sqrt(df);
-        // Expand upper bound until it actually brackets p (handles p > 0.9999)
-        while (chi_squared_cdf(high, df) < p) {
-            high *= 2.0;
-            if (high > 1e15)
-                break;  // safety cap
-        }
-        const double tolerance = detail::DEFAULT_TOLERANCE;
-        const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-
-        for (int i = 0; i < max_iterations; ++i) {
-            double mid = (low + high) * detail::HALF;
-            double cdf_val = chi_squared_cdf(mid, df);
-
-            if (std::abs(cdf_val - p) < tolerance) {
-                return mid;
-            }
-
-            if (cdf_val < p) {
-                low = mid;
-            } else {
-                high = mid;
-            }
-
-            if (high - low < tolerance) {
-                return (low + high) * detail::HALF;
-            }
-        }
-        return (low + high) * detail::HALF;
-    }
-
-    // Initial guess using Wilson-Hilferty approximation
-    double h = detail::TWO / (detail::NINE * df);
-    double z = inverse_normal_cdf(p);
-    double initial_guess = df * std::pow(detail::ONE - h + z * std::sqrt(h), 3);
-
-    // Ensure initial guess is positive
-    if (initial_guess <= detail::ZERO_DOUBLE) {
-        initial_guess = df;  // Use mean as fallback
-    }
-
-    // Newton-Raphson iteration for moderate probabilities
-    double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf_val = chi_squared_cdf(x, df);
-        double error = cdf_val - p;
-
-        if (std::abs(error) < tolerance) {
-            break;
-        }
-
-        // Calculate derivative (PDF)
-        double pdf_val =
-            std::exp((df * detail::HALF - detail::ONE) * std::log(x) - x * detail::HALF -
-                     lgamma(df * detail::HALF) - df * detail::HALF * detail::LN2);
-
-        if (pdf_val <= detail::ZERO_DOUBLE) {
-            break;  // Avoid division by zero
-        }
-
-        double delta = error / pdf_val;
-        x = std::max(detail::ZERO, x - delta);  // Ensure x stays positive
-
-        // Check for divergence and fall back to bisection if needed
-        if (!std::isfinite(x) || x > 1e15) {
-            // Fall back to bisection method
-            double low = detail::ZERO_DOUBLE;
-            double high = df + 10.0 * std::sqrt(df);
-            while (chi_squared_cdf(high, df) < p) {
-                high *= 2.0;
-                if (high > 1e15)
-                    break;  // safety cap
-            }
-
-            for (int j = 0; j < max_iterations; ++j) {
-                double mid = (low + high) * detail::HALF;
-                double mid_cdf = chi_squared_cdf(mid, df);
-
-                if (std::abs(mid_cdf - p) < tolerance) {
-                    return mid;
-                }
-
-                if (mid_cdf < p) {
-                    low = mid;
-                } else {
-                    high = mid;
-                }
-
-                if (high - low < tolerance) {
-                    return (low + high) * detail::HALF;
-                }
-            }
-            return (low + high) * detail::HALF;
-        }
-    }
-
-    return x;
+    // Chi-squared(df) is Gamma(df/2, 2).
+    return detail::TWO * gamma_p_inv(df * detail::HALF, p);
 }
 
 // f_cdf / inverse_f_cdf removed in v2.4.0 — see the note in math_utils.h.
@@ -697,104 +663,7 @@ double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
         return std::numeric_limits<double>::infinity();
     }
 
-    // Initial guess using approximation
-    // For gamma distribution, mean = shape * scale, variance = shape * scale^2
-    double mean = shape * scale;
-    double variance = shape * scale * scale;
-
-    // Wilson-Hilferty approximation for initial guess
-    double h = detail::TWO / (detail::NINE * shape);
-    double z = inverse_normal_cdf(p);
-    double initial_guess = mean * std::pow(detail::ONE - h + z * std::sqrt(h), 3);
-
-    // Ensure initial guess is positive
-    if (initial_guess <= detail::ZERO_DOUBLE) {
-        initial_guess = mean;  // Use mean as fallback
-    }
-
-    // For extreme probabilities, use bisection method for stability
-    if (p < 0.1 || p > 0.9) {
-        double low = detail::ZERO_DOUBLE;
-        double high = mean + 10.0 * std::sqrt(variance);  // Conservative upper bound
-        const double tolerance = detail::DEFAULT_TOLERANCE;
-        const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-
-        for (int i = 0; i < max_iterations; ++i) {
-            double mid = (low + high) * detail::HALF;
-            double cdf_val = gamma_cdf(mid, shape, scale);
-
-            if (std::abs(cdf_val - p) < tolerance) {
-                return mid;
-            }
-
-            if (cdf_val < p) {
-                low = mid;
-            } else {
-                high = mid;
-            }
-
-            if (high - low < tolerance) {
-                return (low + high) * detail::HALF;
-            }
-        }
-        return (low + high) * detail::HALF;
-    }
-
-    // Newton-Raphson iteration for moderate probabilities
-    double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf_val = gamma_cdf(x, shape, scale);
-        double error = cdf_val - p;
-
-        if (std::abs(error) < tolerance) {
-            break;
-        }
-
-        // Calculate derivative (PDF)
-        // Gamma PDF: f(x; α, β) = (1/β^α Γ(α)) * x^(α-1) * e^(-x/β)
-        double log_pdf = (shape - detail::ONE) * std::log(x) - x / scale - shape * std::log(scale) -
-                         lgamma(shape);
-        double pdf_val = std::exp(log_pdf);
-
-        if (pdf_val <= detail::ZERO_DOUBLE) {
-            break;  // Avoid division by zero
-        }
-
-        double delta = error / pdf_val;
-        x = std::max(detail::ZERO, x - delta);  // Ensure x stays positive
-
-        // Check for divergence and fall back to bisection if needed
-        if (x > mean + 10.0 * std::sqrt(variance) || !std::isfinite(x)) {
-            // Fall back to bisection method
-            double low = detail::ZERO_DOUBLE;
-            double high = mean + 10.0 * std::sqrt(variance);
-
-            for (int j = 0; j < max_iterations; ++j) {
-                double mid = (low + high) * detail::HALF;
-                double mid_cdf = gamma_cdf(mid, shape, scale);
-
-                if (std::abs(mid_cdf - p) < tolerance) {
-                    return mid;
-                }
-
-                if (mid_cdf < p) {
-                    low = mid;
-                } else {
-                    high = mid;
-                }
-
-                if (high - low < tolerance) {
-                    return (low + high) * detail::HALF;
-                }
-            }
-            return (low + high) * detail::HALF;
-        }
-    }
-
-    return x;
+    return scale * gamma_p_inv(shape, p);
 }
 
 }  // namespace detail

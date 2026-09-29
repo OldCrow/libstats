@@ -315,13 +315,9 @@ double GaussianDistribution::getQuantile(double p) const {
         return mean_;  // Median equals mean for normal distribution
     }
 
-    // Use inverse error function for standard normal quantile
-    // For standard normal: quantile = sqrt(2) * erfinv(2p - 1)
-    // For general normal: quantile = mean + sigma * sqrt(2) * erfinv(2p - 1)
-
-    const double erf_input = detail::TWO * p - detail::ONE;
-    double z = detail::erf_inv(erf_input);
-    return mean_ + standardDeviation_ * detail::SQRT_2 * z;
+    // Probit through erfc_inv on the small side (detail::inverse_normal_cdf):
+    // no 2p - 1 cancellation, so the tails hold to their conditioning limit.
+    return mean_ + standardDeviation_ * detail::inverse_normal_cdf(p);
 }
 
 double GaussianDistribution::sample(std::mt19937& rng) const {
@@ -1261,8 +1257,8 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // getCumulativeProbability(x). NaN lanes compare false and keep the
     // vectorized result.
     for (std::size_t i = 0; i < count; ++i) {
-        const double w = is_standard_normal ? values[i] * detail::INV_SQRT_2
-                                            : (values[i] - mean) / sigma_sqrt2;
+        const double w =
+            is_standard_normal ? values[i] * detail::INV_SQRT_2 : (values[i] - mean) / sigma_sqrt2;
         if (w < -detail::ONE) {
             results[i] = detail::HALF * std::erfc(-w);
         }

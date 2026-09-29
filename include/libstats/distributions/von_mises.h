@@ -46,10 +46,8 @@ namespace stats {
  *
  * @par Bessel Functions:
  * The implementation requires modified Bessel functions I₀ and I₁.
- * These are provided by include/core/bessel.h via two tiers:
- *   Tier 1 (LIBSTATS_HAS_CXX17_BESSEL): std::cyl_bessel_i (GCC, MSVC).
- *   Tier 2 (fallback): A&S §9.8.1–9.8.4 polynomial, error < 1.6×10⁻⁷.
- *   AppleClang / macOS libc++ always uses Tier 2.
+ * These come from include/core/bessel.h, backed by corvus i0/i1/i0e/i1e
+ * (max 1 ULP on every SIMD tier) since v2.5.0.
  *
  * @par Batch operations and SIMD:
  * The VECTORIZED strategy uses `VectorOps::vector_cos` via the 4-step pipeline:
@@ -397,10 +395,9 @@ class VonMisesDistribution : public DistributionBase {
      * see updateCacheUnsafe()) this falls back to the per-element scalar
      * getCumulativeProbability() loop. Unsafe: no parameter validation.
      */
-    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                 std::size_t count, double cached_mu,
-                                                 const std::vector<double>& cached_coeffs) const
-        noexcept;
+    void getCumulativeProbabilityBatchUnsafeImpl(
+        const double* values, double* results, std::size_t count, double cached_mu,
+        const std::vector<double>& cached_coeffs) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS
