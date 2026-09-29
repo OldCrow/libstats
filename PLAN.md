@@ -302,9 +302,17 @@ history.
   (the adoption release closes them). #136/#137/#138 filed onto
   it 2026-09-03, #146/#148 during the v2.4.0 endgame, #144 at the
   2026-09-04 close-out (kAvx512 von Mises cell — re-measure scheduled
-  post-adoption; see In Progress). A reassessment pass is owed: bucket
-  the 15 into post-v2.4.0 vs post-v2.5.0 by whether corvus adoption
-  changes the answer.
+  post-adoption; see In Progress). **Bucketed 2026-09-29 [user]** (record
+  on each issue and the milestone description): A — adoption-independent,
+  any gap: #146 (do BEFORE v2.5.0 task 3, so the post-swap threshold
+  re-measure uses the trusted sustained-crossover tool), #152 (CI), #129
+  (Zen 4). B — adoption changes the answer, wait for the post-swap sweep
+  and timing: #103, #104 (re-scope from that sweep; the gamma/chi-squared
+  rows sit on replaced cores, the poisson/pareto/student-t rows survive),
+  #111, #144 (first post-swap Zen 4 session; moot if #111 lands NEVER by
+  policy). C — mixed, one pass after the swap: #114 (dead-code items
+  change with the swap; S6 casts and CI items do not). Milestone stays
+  post-v2.5.0; bucket A is not blocked by it.
   - #104 OPEN, **contract DECIDED 2026-09-02** [user] — finite best-effort:
     never NaN for valid p ∈ (0,1), ±inf only on true double overflow;
     per-family documented accuracy (gamma/chi-squared deep tail improves
@@ -317,7 +325,7 @@ history.
     poisson rows added 2026-08-25); von Mises keeps saturation as a
     documented periodic-density exception. Decision records are comments
     on both issues; enforcement ships with this milestone.
-  - #109 OPEN — re-profile the Cauchy CDF thresholds (rows marked STALE).
+  - #109 CLOSED in v2.4.0 (Cauchy CDF thresholds re-profiled; one atan per element).
   - #111 OPEN — von Mises batch CDF blocking + the noexcept/allocation
     policy — 2026-09-04 comment adds the memory-bound-parallel category
     question (Beta/vonMises/HalfNormal fleet data: measure the
@@ -538,10 +546,8 @@ history.
   pylibstats 0.7.0 shipped on the v2.4.0 pin WITH bindings for all
   eight new distributions (not a bare bump — full parity, 27 bound;
   pylibstats PR #18, tag v0.7.0, PyPI live). OUTSTANDING from the ship
-  checklist: milestone #8 reassessment pass (bucket its 15 open issues
-  post-v2.4.0 vs post-v2.5.0 — several share #144's "adoption changes
-  the answer" dependency; candidate buckets proposed in session
-  2026-09-04, decision pending).
+  checklist: ~~milestone #8 reassessment pass~~ DONE 2026-09-29 (buckets
+  under GitHub Milestones, milestone #8).
 - **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
   GitHub release published, milestone #7 closed (0 open / 13 closed),
   pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
@@ -998,8 +1004,9 @@ session artifact; the issues carry the detail.
    2026-09-29 — block-filled constant spans inside the `vector_*`
    adapters). Next concrete step: dev branch off `main`, corvus pinned
    at v1.0.1, starting from the adapter bodies in `math_utils.cpp`.
-   (d) [OPEN] Still outstanding from the v2.4.0 ship checklist: the
-   milestone #8 bucketing pass.
+   (d) ~~Still outstanding from the v2.4.0 ship checklist: the
+   milestone #8 bucketing pass.~~ DONE 2026-09-29 — see GitHub Milestones,
+   milestone #8. Consequence for sequencing: #146 lands before task 3.
 
 ## Resolved log
 One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
