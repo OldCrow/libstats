@@ -56,6 +56,27 @@ what is decided, open, or next.
   accuracy claims only for natively validated tiers / `LIBSTATS_MAX_SIMD_TIER`;
   gather-vs-polynomial settled) moved to AGENTS.md "SIMD kernel conventions"
   on 2026-08-21.
+- [2026-09-29, user] **Constant-argument corvus calls: fill a constant span
+  per block on the stack, inside the existing `vector_*` adapters.** corvus
+  takes same-length spans with no broadcast. The 21 scalar-in-loop sites
+  route through `vector_gamma_p/q` and `vector_beta_i` (`math_utils.h`,
+  bodies currently scalar "for now") plus a span-first-argument
+  `vector_gamma_q` for Poisson's `gamma_q(k+1, λ)`; each adapter walks its
+  input in fixed blocks (first pick 256 doubles, one constant in one TU,
+  a multiple of the widest lane count), fills the constant argument once
+  per block and calls corvus on the sub-spans. Transformed varying
+  arguments (`β·x`, `k+1`) are written into `out` and passed aliased —
+  corvus permits exact aliasing — so only constants need scratch. Why not
+  a corvus broadcast overload: Gamma and Poisson materialise a transformed
+  input regardless, so only the three Beta CDF sites would gain; the
+  overload puts corvus back on the critical path (v1.1.0 + three-machine
+  validation + pin bump) and multiplies `beta_p`'s constant/varying
+  patterns. Results are bit-identical either way (same kernel, same
+  lanes). The NaN-payload rule (last input span) never engages
+  differently: validators reject non-finite parameters. Revisit as a
+  corvus v1.1.0 request only if task 3's timing shows the fill. Settle at
+  the swap session: block size; whether `vector_beta_i`'s `(x, a, b)`
+  order is regularised to corvus's `(a, b, x)` while its body changes.
 - [2026-09-28] Project skills live once, in `.claude/skills/`;
   `.agents/skills` is a tracked relative symlink to it, so agents that read
   that path (e.g. for adversarial review) get the same files. Edit only
@@ -972,8 +993,11 @@ session artifact; the issues carry the detail.
    0.029 → 1.0; now identical to both x86 blocks) moved with the OS /
    toolchain, not the code. Post-swap NEON diffs compare against the
    `9201eb7` block. Detail in `docs/ACCURACY_CHARACTERIZATION.md`.
-   (c) [OPEN] The v2.5.0 swap itself (milestone #6), blocked on one
-   user decision: the no-broadcast design point.
+   (c) [OPEN] The v2.5.0 swap itself (milestone #6). UNBLOCKED
+   2026-09-29: the constant-argument design point is decided (Decided,
+   2026-09-29 — block-filled constant spans inside the `vector_*`
+   adapters). Next concrete step: dev branch off `main`, corvus pinned
+   at v1.0.1, starting from the adapter bodies in `math_utils.cpp`.
    (d) [OPEN] Still outstanding from the v2.4.0 ship checklist: the
    milestone #8 bucketing pass.
 
