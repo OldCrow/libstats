@@ -12,7 +12,8 @@ Issue #46. Full sweep of `pdf`/`logpdf`/`cdf`/`quantile` — scalar and batch
 > totals are only comparable within a generation. As of 2026-09-04 all
 > three blocks (AVX-512, AVX2, NEON) are native 9210-row sweeps under
 > the oracle overflow rule: 34 / 34 / 32 violations. AVX-512 and AVX2
-> regenerated at v2.4.1 on 2026-09-28: 32 / 32.
+> regenerated at v2.4.1 on 2026-09-28: 32 / 32; NEON (macOS 27) the same
+> day: 32.
 
 > **CHARACTERIZATION, not an audited claim.** All three fleet ISAs have
 > generated blocks: Zen 4 (AVX-512, MSVC Release, UCRT libm), Kaby Lake
@@ -448,7 +449,22 @@ self-checks). The result matches Zen 4 change for change: the two
 geometric `logpdf` wrap violations cleared, geometric `cdf` `max_rel`
 fell from 1.0 to 2.6e-9, and no other row in the block moved. The 32
 remaining violations are the same rows as the AVX-512 block's, entry
-for entry. NEON is not yet regenerated at v2.4.1.
+for entry.
+
+**v2.4.1 (2026-09-28, M1 pre-swap baseline, first run on macOS 27):
+32 → 32.** The NEON block was regenerated natively at `commit=9201eb7`
+(macOS 27.0.1 Golden Gate, AppleClang 21.0.0 Release, fresh build
+directory, active tier NEON; 72/72 oracle self-checks). NEON never had
+the geometric wrap violations, so the count holds; the fix shows as
+geometric `logpdf` `max_rel` 0.865 → 2.9e-11. One other row moved: von
+Mises `cdf` scalar `max_rel` 1.0 (x = −π) → 5.6e+23 (x = −1.46), batch
+vs scalar rel 0.029 → 1.0 — the #106 κ-seam class, now identical to the
+AVX-512 and AVX2 rows. Attribution: the previous block's commit
+(`5f27ee1`) rebuilt and swept on macOS 27 differs from `9201eb7` in the
+two geometric `logpdf` rows only, so the von Mises move came with the
+OS/toolchain upgrade from Tahoe, not from libstats code. The 32
+violations are the NEON set from v2.4.0; the weibull message text now
+reads `inf` as the x86 blocks already did.
 
 ## Findings (historical — v2.3.0 initial characterization, 2026-08-19)
 
@@ -1258,7 +1274,7 @@ Sweep banner: `commit=82a8975  isa=AVX2  date=2026-09-28`
 
 ## Generated tables: NEON
 
-Sweep banner: `commit=5f27ee1  isa=NEON  date=2026-09-03`
+Sweep banner: `commit=9201eb7  isa=NEON  date=2026-09-28`
 
 ### bernoulli
 
@@ -1398,8 +1414,8 @@ Sweep banner: `commit=5f27ee1  isa=NEON  date=2026-09-03`
 |---|---|---|---|---|---|---|---|
 | cdf | scalar | 2.057e-9 | 2.648e-9 | 2.648e-9 | 0.1689 | - | 1.5e+06 |
 | cdf | batch | 2.057e-9 | 2.648e-9 | 2.648e-9 | 0.1689 | abs=0, rel=0 | 1.5e+06 |
-| logpdf | scalar | 1.385e+4 | 0.865 | 0.865 | - | - | 1.6001e+10 |
-| logpdf | batch | 1.385e+4 | 0.865 | 0.865 | - | abs=0, rel=0 | 1.6001e+10 |
+| logpdf | scalar | 4.601e-7 | 2.873e-11 | 2.873e-11 | - | - | 1.6001e+10 |
+| logpdf | batch | 4.601e-7 | 2.873e-11 | 2.873e-11 | - | abs=0, rel=0 | 1.6001e+10 |
 | pdf | scalar | 3.519e-17 | 1.872e-8 | 1.872e-8 | - | - | 6.51e+08 |
 | pdf | batch | 3.519e-17 | 1.872e-8 | 1.872e-8 | - | abs=0, rel=0 | 6.51e+08 |
 | quantile | scalar | 2.354e+7 | 0.6815 | 0.6815 | - | - | 1 |
@@ -1568,8 +1584,8 @@ Sweep banner: `commit=5f27ee1  isa=NEON  date=2026-09-03`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 1.596e-16 | 1.0 | 1.0 | 9.778e+13 | - | -3.14159 |
-| cdf | batch | 9.798e-16 | 8.341e+63 | 8.341e+63 | 2.039e+77 | abs=9.992e-16, rel=0.02941 | -2.52455 |
+| cdf | scalar | 1.596e-16 | 5.605e+23 | 5.605e+23 | 2.74e+37 | - | -1.45952 |
+| cdf | batch | 9.798e-16 | 8.341e+63 | 8.341e+63 | 2.039e+77 | abs=9.992e-16, rel=1.0 | -2.52455 |
 | logpdf | scalar | 4.728e-7 | 8.458e-7 | 8.458e-7 | - | - | 0.128412 |
 | logpdf | batch | 4.728e-7 | 8.458e-7 | 8.458e-7 | - | abs=7.105e-15, rel=5.696e-15 | 0.128412 |
 | pdf | scalar | 1.884e-6 | 4.728e-7 | 4.728e-7 | - | - | -0.0519397 |
@@ -1622,11 +1638,11 @@ Sweep banner: `commit=5f27ee1  isa=NEON  date=2026-09-03`
 | student_t | quantile | scalar | 2044 | reference is finite (-37.0598), scalar_bits decoded to -inf |
 | weibull | logpdf | scalar | 4536 | reference is -inf, scalar_bits decoded to nan |
 | weibull | logpdf | batch | 4536 | reference is -inf, batch_bits decoded to nan |
-| weibull | logpdf | batch | 4641 | reference is +inf, batch_bits decoded to -inf |
+| weibull | logpdf | batch | 4641 | reference is inf, batch_bits decoded to -inf |
 | weibull | logpdf | scalar | 4737 | reference is -inf, scalar_bits decoded to nan |
 | weibull | logpdf | batch | 4737 | reference is -inf, batch_bits decoded to nan |
 | weibull | pdf | scalar | 4505 | reference is finite (0.0), scalar_bits decoded to nan |
-| weibull | pdf | batch | 4615 | reference is +inf, batch_bits decoded to 0.0 |
+| weibull | pdf | batch | 4615 | reference is inf, batch_bits decoded to 0.0 |
 | weibull | pdf | scalar | 4706 | reference is finite (0.0), scalar_bits decoded to nan |
 
 <!-- END GENERATED isa=NEON -->

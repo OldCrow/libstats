@@ -478,7 +478,9 @@ history.
     AVX-512 CONFIRMED 2026-09-28 (Zen 4, `commit=103044b`): 34 → 32, only
     the two geometric rows changed. AVX2 CONFIRMED 2026-09-28 (Kaby
     Lake, `commit=82a8975`): 34 → 32, the same two rows, violation list
-    identical to AVX-512 entry for entry. NEON (M1) owed.
+    identical to AVX-512 entry for entry. NEON CONFIRMED 2026-09-28 (M1,
+    macOS 27, `commit=9201eb7`): 32 → 32, geometric logpdf max_rel
+    0.865 → 2.9e-11. All three fleet confirmations discharged.
   - Guard tolerance lesson: the past-INT_MAX CDF bound was first set from
     Apple libm's measured error (< 1e-5) and failed on glibc AND MSVC at
     an identical 1.22e-5. It is now derived from beta_i's lgamma ulp floor
@@ -643,8 +645,9 @@ history.
   - Kept deliberately: the fleet/SIMD table. Which machine validates which SIMD
     path is what this repo's validation strategy turns on.
 
-- [2026-09-07] **Three stale local branches survive on the M1, unreconciled;
-  do not run `clean_gone` here until they are.** A branch sweep that day cut
+- [2026-09-07] **RESOLVED 2026-09-28 (Next Steps 5): all three deleted as
+  superseded.** Original entry: three stale local branches survive on the M1,
+  unreconciled; do not run `clean_gone` here until they are. A branch sweep that day cut
   15 local branches to 4: nine were merged into `main` (plain `-d`), and two
   more — `fix/benchmark-simd-headers-docs`, `fix/windows-portable-and-sync-docs`
   — were squash-merged, which leaves them non-ancestors of `main` even though
@@ -918,35 +921,52 @@ session artifact; the issues carry the detail.
 4. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
    0.6.0 released on the v2.3.0 pin; re-bump at v2.3.1 (step 1).
 
-5. On the M1, reconcile the three surviving stale branches and the exported
-   NEON patch (see Known Gaps, 2026-09-07). For each, diff against current
-   `main` and decide: superseded → delete; still wanted → cherry-pick onto
-   `main` or preserve as an `archive/*` tag, so the commit stops depending on
-   a local branch. Settle the patch file the same way — fold in or discard;
-   do not leave it loose in `~/Development`. Until this is done, do not run
-   `clean_gone` or any stale-branch sweep **on the M1 checkout of this repo**.
-   The restriction is machine-scoped, not repo-scoped: other machines' stale
-   branches are ordinary housekeeping, verified per branch (`git cherry`
-   against `main`) rather than swept blind.
+5. ~~On the M1, reconcile the three surviving stale branches and the
+   exported NEON patch~~ **DONE 2026-09-28** — all three superseded and
+   deleted; the stale-branch-sweep block on the M1 is lifted. Restore with
+   `git branch <name> <sha>` while the reflog holds them.
+   - `fix/v1.5.3` (`4470429`): tree equals the shipped squash `6976469`
+     (tag v1.5.3, PR #39) except an 8-line `avx512-compilation.yml`
+     compiler-matrix edit that `main` has since overtaken.
+   - `windows-support` (`0207f75`, with `4d4e847`): pre-Vista
+     `_WIN32_WINNT` guard around `GetActiveProcessorCount`; `main` calls it
+     unguarded and passes 74/74 under MSVC. The UTF-8 console edits target
+     tools no longer on `main`.
+   - `simd-architecture-repair` (`9f526d9`, unique `d8a3509`): 2025 NEON
+     repair — committed `debug_erf` binaries, a NEON erf its own summary
+     records at 2.5e-2 max error. `main` has vectorised, ULP-gated NEON
+     exp/log/erf.
+   - The stash patch (same 2025 NEON work, 5 files) moved out of
+     `~/Development` to `~/Archive/` on the M1; nothing folded in.
 6. **Return from travel 2026-09-28 — the fleet is available again.**
    Cross-repo task order and machine needs:
    [CORVUS-ADOPTION-WORKPLAN.md](https://github.com/OldCrow/standards/blob/main/records/CORVUS-ADOPTION-WORKPLAN.md).
    This repo's share, in order:
    (a) Per-machine catch-up first. The Mac Mini M1 moved from macOS
-   Tahoe 26 to macOS 28 during travel [user]: every M1 record in this
-   file and in `docs/VALIDATION_HISTORY.md` before 2026-09-28 is a Tahoe
+   Tahoe 26 to macOS 27 Golden Gate during travel [user]: every M1 record
+   in this file and in `docs/VALIDATION_HISTORY.md` before 2026-09-28 is a Tahoe
    record. On the M1: check the toolchain, wipe build directories, re-run
    v2.4.1 correctness natively, do step 5, then update the AGENTS.md
-   fleet table from the measured versions. On Zen 4: [DONE 2026-09-28]
+   fleet table from the measured versions. On the M1: [DONE 2026-09-28]
+   macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), Xcode/CLT 27.0,
+   CMake 4.4.3, Highway 1.4.0; fresh `build-m1-gg/` Release (Ninja)
+   warning-clean, NEON compiler + runtime, `system_inspector` reports
+   NEON, correctness ctest 74/74; step 5 done; fleet table updated.
+   Pre-upgrade `build*/` dirs remain (wipe blocked this session; the
+   fresh dir sidesteps them). On Zen 4: [DONE 2026-09-28]
    pull, fresh VS x64 Release build (MSVC 19.51, CMake 4.4.3,
    `/arch:AVX512`), v2.4.1 correctness ctest 74/74, `system_inspector`
    reports AVX-512, no stale Debug CRT.
-   (b) [OPEN] Pre-swap baseline: regenerate the characterization sweep
-   at v2.4.1 on all three machines BEFORE the swap branch produces
-   numbers. Zen 4 DONE 2026-09-28 (AVX-512: 32 violations); Kaby Lake
-   DONE 2026-09-28 (AVX2: 32 violations); M1 owed. It discharges the confirmation owed under In Progress, and
-   on the M1 it separates what macOS 28 changed from what corvus
-   changes.
+   (b) [DONE 2026-09-28] Pre-swap baseline: characterization sweep
+   regenerated at v2.4.1 on all three machines. Zen 4: AVX-512, 32
+   violations; Kaby Lake: AVX2, 32; M1: NEON, 32. The M1 leg separates
+   macOS 27 from corvus: a `5f27ee1` (v2.4.0 NEON banner) sweep rebuilt
+   on macOS 27 differs from `9201eb7` in only the two #125 geometric
+   logpdf rows, so the NEON von Mises `cdf` row that moved against the
+   Tahoe block (scalar max_rel 1.0 → 5.6e23, batch/scalar rel
+   0.029 → 1.0; now identical to both x86 blocks) moved with the OS /
+   toolchain, not the code. Post-swap NEON diffs compare against the
+   `9201eb7` block. Detail in `docs/ACCURACY_CHARACTERIZATION.md`.
    (c) [OPEN] The v2.5.0 swap itself (milestone #6), blocked on one
    user decision: the no-broadcast design point.
    (d) [OPEN] Still outstanding from the v2.4.0 ship checklist: the
