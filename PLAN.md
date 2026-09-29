@@ -952,8 +952,7 @@ session artifact; the issues carry the detail.
    CMake 4.4.3, Highway 1.4.0; fresh `build-m1-gg/` Release (Ninja)
    warning-clean, NEON compiler + runtime, `system_inspector` reports
    NEON, correctness ctest 74/74; step 5 done; fleet table updated.
-   Pre-upgrade `build*/` dirs remain (wipe blocked this session; the
-   fresh dir sidesteps them). On Zen 4: [DONE 2026-09-28]
+   Pre-upgrade `build*/` dirs wiped; `build-m1-gg/` is the fresh build. On Zen 4: [DONE 2026-09-28]
    pull, fresh VS x64 Release build (MSVC 19.51, CMake 4.4.3,
    `/arch:AVX512`), v2.4.1 correctness ctest 74/74, `system_inspector`
    reports AVX-512, no stale Debug CRT.
