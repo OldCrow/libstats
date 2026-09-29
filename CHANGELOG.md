@@ -5,6 +5,57 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - Unreleased
+
+corvus adoption (milestone #6). corvus becomes the special-function and
+elementary-function engine; every local special-function core and every
+per-tier transcendental kernel is retired. API additive over v2.4.1.
+
+### Changed
+- Every `detail::` special function (erf/erfc/erf_inv, lgamma/lbeta,
+  digamma/trigamma, gamma_p/gamma_q, beta_i, inverse_beta_i, the Bessel
+  I₀/I₁ helpers) is a corvus call; the `vector_*` adapters hand corvus
+  whole spans, filling constant arguments per 256-lane block. Domain
+  semantics follow corvus (NaN outside the domain, not a clamped 0/1).
+- Gamma ×5, Poisson ×4, Beta ×3, Student-t ×2 CDF batch loops run as block
+  kernels over 1024-slices; Binomial/NegBin PMF batch paths take their
+  lgamma terms through `vector_lgamma`.
+- Quantiles: probit via `erfc_inv` on the small side (Gaussian, LogNormal,
+  HalfNormal, TruncatedNormal helpers); Student-t in closed form from the
+  beta inverses; Gamma/Erlang/ChiSquared via `gamma_p_inv`. `t_cdf` loses
+  its df ≥ 1000 normal-approximation shortcut.
+- `VectorOps::vector_exp/log/erf/cos/sin` are corvus kernels for every
+  size; `LIBSTATS_MAX_SIMD_TIER` now caps libstats' arithmetic kernels
+  only. `vector_pow` is a scalar `std::pow` loop.
+- `install` is supported only with a system corvus
+  (`cmake/FindOrFetchCorvus.cmake`); the package config carries
+  `find_dependency(corvus)`.
+
+### Added
+- `detail::erfc_inv`, `gamma_p_inv`, `gamma_q_inv`, `beta_q_inv`, and a
+  span-first-argument `vector_gamma_q` for Poisson.
+- `cmake/FindOrFetchCorvus.cmake` (find_package first, FetchContent pinned
+  to v1.0.1); the `corvus-pin-currency` CI canary; the CI install-contract
+  leg installs Highway and corvus into its prefix.
+
+### Removed
+- The local special-function cores, the Moro `erf_inv`, the Bessel tiers
+  (`std::cyl_bessel_i` / A&S) and the generated `libstats_config.h` (#97),
+  the per-tier exp/log/erf/cos/sin kernels in all five SIMD TUs with their
+  tables and generators, the Issue #33 kernel probes, `vector_log_fallback`
+  and the per-tier `vector_*_<tier>` entry points. `test_bessel_tier` →
+  `test_bessel`; `test_trig_ulp_gates` and `test_log_special_gates` gate the
+  dispatched entry points.
+
+### Fixed
+- Student-t: quantile returned −inf in the deep tail; CDF returned 0 and
+  pdf/logpdf collapsed for |t| ≳ 1e154 (t² overflow / x underflow); the
+  df ≥ 1000 CDF shortcut cost 1e-3 relative in the tail.
+- Gaussian/LogNormal quantiles returned −inf below p ≈ 2^-54 (#136 class).
+- `tools/accuracy_vs_mpmath.py`: Gaussian and LogNormal quantile
+  references use the survival-form probit; the erfinv form's −inf at
+  p ~ 1e-300 masked the matching libstats defect.
+
 ## [2.4.1] - 2026-09-19
 
 Correctness patch — no API change. Two issues closed (#125, #127) in one

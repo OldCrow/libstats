@@ -17,7 +17,10 @@ only. Depth lives in `docs/` and in skills — see the reading map below.
 
 libstats is a **design and teaching library**: a demonstration of how to build
 statistical software correctly in modern C++20, with genuine SIMD and parallel
-performance. Zero external dependencies.
+performance. One dependency: [corvus](https://github.com/OldCrow/corvus)
+(special and elementary functions, MIT), with Google Highway (Apache-2.0)
+beneath it — found or fetched at configure time, pinned to a release
+(`cmake/FindOrFetchCorvus.cmake`).
 
 **Current status**: v2.4.1 released (tagged on `main`; correctness patch over v2.4.0) — 27 distributions across
 7 families, API additive over v2.1.0. v1.5.3 is the final v1.x release; v2.0.0
@@ -59,6 +62,8 @@ ctest --test-dir build --output-on-failure
 Other presets: `release` (build-release/), `debug`, `rel-with-debug` (preferred
 for profiling), `strict` (warnings as errors, cross-compiler compatibility).
 Manual alternative: `cmake -B <dir> -DCMAKE_BUILD_TYPE=<Dev|Release|Debug|RelWithDebInfo|Strict>`.
+`install` needs a system corvus (and so a system Highway); a fetched corvus
+disables it — `docs/BUILD_SYSTEM_GUIDE.md`, "Dependencies".
 
 Build options (`LIBSTATS_VERBOSE_BUILD`, `LIBSTATS_FORCE_TBB`,
 `LIBSTATS_BUILD_TOOLS`, `LIBSTATS_BUILD_TESTS`), build-system features, the
@@ -237,7 +242,8 @@ problem, not a correctness one.
 
 **A new regression guard must be shown to fail against the unfixed state, on the
 platform it targets, before it is trusted.** Two ways a guard can be
-structurally unable to fail, both seen on #97:
+structurally unable to fail, both seen on #97 (the Bessel tier and its guard
+were retired in v2.5.0; the lesson stands):
 
 - **It passes on either side of the bug.** Asserting "Tier 2 is accurate to
   1.6e-7" also passes on a Tier 1 build, so it would never notice a regression.
@@ -285,7 +291,6 @@ and `docs/CI_CD_GUIDE.md`.
 - `vector_floor` + `vector_blend` primitives across all SIMD backends, to enable
   branchless Discrete CDF and Uniform PDF/LogPDF; low priority given existing
   batch-path speedups (Discrete 8–15x, Uniform 39–54x) from amortization
-- `vector_lgamma` — too complex, low immediate distribution impact; indefinitely deferred
 - SVE (AArch64 beyond NEON) — no hardware in the ecosystem
 - SSE4.1 tier — SSE2 magic-number workaround adequate; not worth a dedicated tier
 

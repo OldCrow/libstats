@@ -12,11 +12,13 @@ using stats::detail::validatePositiveParameter;
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
 #include <numeric>
 #include <random>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -294,7 +296,7 @@ double NegativeBinomialDistribution::getProbability(double x) const {
     if (sp >= detail::ONE)
         return (k == detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
     const double lp_val =
-        std::lgamma(k + sr) - std::lgamma(k + detail::ONE) - slgr + sr * slp + k * sl1mp;
+        detail::lgamma(k + sr) - detail::lgamma(k + detail::ONE) - slgr + sr * slp + k * sl1mp;
     return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
 }
 
@@ -317,7 +319,7 @@ double NegativeBinomialDistribution::getLogProbability(double x) const {
     });
     if (sp >= detail::ONE)
         return (k == detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
-    return std::lgamma(k + sr) - std::lgamma(k + detail::ONE) - slgr + sr * slp + k * sl1mp;
+    return detail::lgamma(k + sr) - detail::lgamma(k + detail::ONE) - slgr + sr * slp + k * sl1mp;
 }
 
 double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
@@ -757,8 +759,9 @@ std::istream& operator>>(std::istream& is, NegativeBinomialDistribution& d) {
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
 //
-// Scalar loop with cached logGammaR_, logP_, log1mP_ — same pattern as
-// Binomial: no SIMD because lgamma(k+r) varies per element.
+// lgamma(k + r) and lgamma(k + 1) go through corvus in 256-lane blocks
+// (detail::vector_lgamma, v2.5.0), same shape as Binomial; the scalar path
+// uses detail::lgamma, so both sit on the same kernel.
 //==============================================================================
 
 void NegativeBinomialDistribution::getLogProbabilityBatchImpl(const double* values, double* results,
@@ -768,24 +771,39 @@ void NegativeBinomialDistribution::getLogProbabilityBatchImpl(const double* valu
                                                               double cached_log1mP) const noexcept {
     // cached_log1mP == -inf when p=1; guard k*(-inf) = 0*(-inf) = NaN
     const bool p_is_one = !std::isfinite(cached_log1mP);
-    for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (!std::isfinite(x)) {
-            results[i] = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
-            continue;
+    constexpr std::size_t kBlock = 256;
+    std::array<double, kBlock> a1, a2, l1, l2;
+    for (std::size_t base = 0; base < count; base += kBlock) {
+        const std::size_t len = std::min(kBlock, count - base);
+        for (std::size_t j = 0; j < len; ++j) {
+            const double x = values[base + j];
+            const double k = std::isfinite(x) ? roundedCount(x) : -detail::ONE;
+            const bool valid = k >= detail::ZERO_DOUBLE;
+            a1[j] = valid ? k + cached_r : detail::ONE;
+            a2[j] = valid ? k + detail::ONE : detail::ONE;
         }
-        const double k = roundedCount(x);
-        if (k < 0) {
-            results[i] = detail::NEGATIVE_INFINITY;
-            continue;
+        detail::vector_lgamma(std::span<const double>{a1.data(), len},
+                              std::span<double>{l1.data(), len});
+        detail::vector_lgamma(std::span<const double>{a2.data(), len},
+                              std::span<double>{l2.data(), len});
+        for (std::size_t j = 0; j < len; ++j) {
+            const double x = values[base + j];
+            double& out = results[base + j];
+            if (!std::isfinite(x)) {
+                out = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
+                continue;
+            }
+            const double k = roundedCount(x);
+            if (k < detail::ZERO_DOUBLE) {
+                out = detail::NEGATIVE_INFINITY;
+                continue;
+            }
+            if (p_is_one) {
+                out = (k == detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
+                continue;
+            }
+            out = l1[j] - l2[j] - cached_logGammaR + cached_r * cached_logP + k * cached_log1mP;
         }
-        if (p_is_one) {
-            results[i] =
-                (k == detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
-            continue;
-        }
-        results[i] = std::lgamma(k + cached_r) - std::lgamma(k + detail::ONE) - cached_logGammaR +
-                     cached_r * cached_logP + k * cached_log1mP;
     }
 }
 
@@ -794,25 +812,12 @@ void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values,
                                                            double cached_logGammaR,
                                                            double cached_logP,
                                                            double cached_log1mP) const noexcept {
-    const bool p_is_one = !std::isfinite(cached_log1mP);
+    // PMF = exp(log-PMF): -inf -> 0, 0 -> 1, NaN stays NaN; clamp guards the
+    // last-ulp overshoot above 1 exactly as the scalar path does.
+    getLogProbabilityBatchImpl(values, results, count, cached_r, cached_logGammaR, cached_logP,
+                               cached_log1mP);
     for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (!std::isfinite(x)) {
-            results[i] = std::isnan(x) ? x : detail::ZERO_DOUBLE;
-            continue;
-        }
-        const double k = roundedCount(x);
-        if (k < 0) {
-            results[i] = detail::ZERO_DOUBLE;
-            continue;
-        }
-        if (p_is_one) {
-            results[i] = (k == detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-            continue;
-        }
-        const double lp = std::lgamma(k + cached_r) - std::lgamma(k + detail::ONE) -
-                          cached_logGammaR + cached_r * cached_logP + k * cached_log1mP;
-        results[i] = std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
+        results[i] = std::clamp(std::exp(results[i]), detail::ZERO_DOUBLE, detail::ONE);
     }
 }
 
@@ -827,7 +832,7 @@ void NegativeBinomialDistribution::getCumulativeProbabilityBatchImpl(
 //==============================================================================
 
 void NegativeBinomialDistribution::updateCacheUnsafe() const noexcept {
-    logGammaR_ = std::lgamma(r_);
+    logGammaR_ = detail::lgamma(r_);
     logP_ = std::log(p_);
     log1mP_ = (p_ < detail::ONE) ? std::log(detail::ONE - p_) : detail::NEGATIVE_INFINITY;
     cache_valid_ = true;

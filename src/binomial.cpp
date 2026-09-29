@@ -12,10 +12,12 @@ using stats::detail::validatePositiveParameter;
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iomanip>
 #include <numeric>
 #include <random>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -238,8 +240,8 @@ VoidResult BinomialDistribution::validateCurrentParameters() const noexcept {
 double BinomialDistribution::logBinomCoeff(int k) const noexcept {
     if (k < 0 || k > n_)
         return detail::NEGATIVE_INFINITY;
-    return logNFact_ - std::lgamma(static_cast<double>(k + 1)) -
-           std::lgamma(static_cast<double>(n_ - k + 1));
+    return logNFact_ - detail::lgamma(static_cast<double>(k + 1)) -
+           detail::lgamma(static_cast<double>(n_ - k + 1));
 }
 
 double BinomialDistribution::getProbability(double x) const {
@@ -264,8 +266,8 @@ double BinomialDistribution::getProbability(double x) const {
         sl1mp = log1mP_;
     });
     const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
-                               : slnf - std::lgamma(static_cast<double>(k + 1)) -
-                                     std::lgamma(static_cast<double>(sn - k + 1));
+                               : slnf - detail::lgamma(static_cast<double>(k + 1)) -
+                                     detail::lgamma(static_cast<double>(sn - k + 1));
     const double lp_val = lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
     return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
 }
@@ -292,8 +294,8 @@ double BinomialDistribution::getLogProbability(double x) const {
         sl1mp = log1mP_;
     });
     const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
-                               : slnf - std::lgamma(static_cast<double>(k + 1)) -
-                                     std::lgamma(static_cast<double>(sn - k + 1));
+                               : slnf - detail::lgamma(static_cast<double>(k + 1)) -
+                                     detail::lgamma(static_cast<double>(sn - k + 1));
     return lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
 }
 
@@ -504,8 +506,8 @@ double BinomialDistribution::getEntropy() const {
         double h = detail::ZERO_DOUBLE;
         for (int k = 0; k <= n; ++k) {
             // log P(k): log-binomial coefficient + log p^k (1-p)^(n-k)
-            const double log_pmf = lnf - std::lgamma(static_cast<double>(k + 1)) -
-                                   std::lgamma(static_cast<double>(n - k + 1)) +
+            const double log_pmf = lnf - detail::lgamma(static_cast<double>(k + 1)) -
+                                   detail::lgamma(static_cast<double>(n - k + 1)) +
                                    static_cast<double>(k) * lp + static_cast<double>(n - k) * l1mp;
             // P(k) * log P(k); guard against log_pmf = -inf when P(k) is tiny
             if (std::isfinite(log_pmf))
@@ -697,38 +699,54 @@ std::istream& operator>>(std::istream& is, BinomialDistribution& d) {
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
 //
-// Scalar loop with cached logNFact_, logP_, log1mP_ — identical pattern
-// to Von Mises and Poisson: no SIMD because lgamma per element is not
-// in VectorOps.  The caching eliminates the dominant repeated computations.
+// The two lgamma terms of the log-PMF go through corvus in 256-lane blocks
+// (detail::vector_lgamma, v2.5.0); the guards run once to fill the arguments
+// (1.0 on invalid lanes, lgamma(1) = 0) and once to place the result. The
+// scalar path uses detail::lgamma, so both sit on the same kernel.
 //==============================================================================
 
 void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, double* results,
                                                       std::size_t count, int cached_n,
                                                       double cached_logNFact, double cached_logP,
                                                       double cached_log1mP) const noexcept {
-    for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (!std::isfinite(x)) {
-            results[i] = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
-            continue;
+    constexpr std::size_t kBlock = 256;
+    std::array<double, kBlock> a1, a2, l1, l2;
+    const double n = static_cast<double>(cached_n);
+    for (std::size_t base = 0; base < count; base += kBlock) {
+        const std::size_t len = std::min(kBlock, count - base);
+        for (std::size_t j = 0; j < len; ++j) {
+            const double xr = std::round(values[base + j]);
+            const bool valid = std::isfinite(xr) && xr >= detail::ZERO_DOUBLE && xr <= n;
+            a1[j] = valid ? xr + detail::ONE : detail::ONE;
+            a2[j] = valid ? (n - xr) + detail::ONE : detail::ONE;
         }
-        const int k = static_cast<int>(std::round(x));
-        if (k < 0 || k > cached_n) {
-            results[i] = detail::NEGATIVE_INFINITY;
-            continue;
+        detail::vector_lgamma(std::span<const double>{a1.data(), len},
+                              std::span<double>{l1.data(), len});
+        detail::vector_lgamma(std::span<const double>{a2.data(), len},
+                              std::span<double>{l2.data(), len});
+        for (std::size_t j = 0; j < len; ++j) {
+            const double x = values[base + j];
+            double& out = results[base + j];
+            if (!std::isfinite(x)) {
+                out = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
+                continue;
+            }
+            const double xr = std::round(x);
+            if (xr < detail::ZERO_DOUBLE || xr > n) {
+                out = detail::NEGATIVE_INFINITY;
+                continue;
+            }
+            if (cached_logP == detail::NEGATIVE_INFINITY) {
+                out = (xr == detail::ZERO_DOUBLE) ? 0.0 : detail::NEGATIVE_INFINITY;
+                continue;
+            }
+            if (cached_log1mP == detail::NEGATIVE_INFINITY) {
+                out = (xr == n) ? 0.0 : detail::NEGATIVE_INFINITY;
+                continue;
+            }
+            const double lc = cached_logNFact - l1[j] - l2[j];
+            out = lc + xr * cached_logP + (n - xr) * cached_log1mP;
         }
-        if (cached_logP == detail::NEGATIVE_INFINITY) {
-            results[i] = (k == 0) ? 0.0 : detail::NEGATIVE_INFINITY;
-            continue;
-        }
-        if (cached_log1mP == detail::NEGATIVE_INFINITY) {
-            results[i] = (k == cached_n) ? 0.0 : detail::NEGATIVE_INFINITY;
-            continue;
-        }
-        const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -
-                          std::lgamma(static_cast<double>(cached_n - k + 1));
-        results[i] = lc + static_cast<double>(k) * cached_logP +
-                     static_cast<double>(cached_n - k) * cached_log1mP;
     }
 }
 
@@ -736,30 +754,12 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
                                                    std::size_t count, int cached_n,
                                                    double cached_logNFact, double cached_logP,
                                                    double cached_log1mP) const noexcept {
+    // PMF = exp(log-PMF): -inf -> 0, 0 -> 1, NaN stays NaN; clamp guards the
+    // last-ulp overshoot above 1 exactly as the scalar path does.
+    getLogProbabilityBatchImpl(values, results, count, cached_n, cached_logNFact, cached_logP,
+                               cached_log1mP);
     for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (!std::isfinite(x)) {
-            results[i] = std::isnan(x) ? x : detail::ZERO_DOUBLE;
-            continue;
-        }
-        const int k = static_cast<int>(std::round(x));
-        if (k < 0 || k > cached_n) {
-            results[i] = detail::ZERO_DOUBLE;
-            continue;
-        }
-        if (cached_logP == detail::NEGATIVE_INFINITY) {
-            results[i] = (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
-            continue;
-        }
-        if (cached_log1mP == detail::NEGATIVE_INFINITY) {
-            results[i] = (k == cached_n) ? detail::ONE : detail::ZERO_DOUBLE;
-            continue;
-        }
-        const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -
-                          std::lgamma(static_cast<double>(cached_n - k + 1));
-        const double lp = lc + static_cast<double>(k) * cached_logP +
-                          static_cast<double>(cached_n - k) * cached_log1mP;
-        results[i] = std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
+        results[i] = std::clamp(std::exp(results[i]), detail::ZERO_DOUBLE, detail::ONE);
     }
 }
 
@@ -774,7 +774,7 @@ void BinomialDistribution::getCumulativeProbabilityBatchImpl(const double* value
 //==============================================================================
 
 void BinomialDistribution::updateCacheUnsafe() const noexcept {
-    logNFact_ = std::lgamma(static_cast<double>(n_ + 1));
+    logNFact_ = detail::lgamma(static_cast<double>(n_ + 1));
     logP_ = (p_ > detail::ZERO_DOUBLE) ? std::log(p_) : detail::NEGATIVE_INFINITY;
     log1mP_ = (p_ < detail::ONE) ? std::log(detail::ONE - p_) : detail::NEGATIVE_INFINITY;
     cache_valid_ = true;

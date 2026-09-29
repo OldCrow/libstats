@@ -627,6 +627,11 @@ history.
      density's true limit); batch/scalar must agree (#103). Weibull has the
      identical pair in the v2.4.1 block. The oracle also scores pdf(0) as 0
      for shape < 1 — decide the support-boundary rule once, for all three.
+  6. Build system: the macOS POST_BUILD ad-hoc `codesign` on
+     `libstats_shared` re-runs on a symlink-only rebuild (no relink after a
+     reconfigure) and fails with "is already signed"; `--remove-signature`
+     then rebuild clears it. Make the step idempotent (`--force`, or skip
+     when already signed).
   Filed nowhere yet [OPEN: open a `v2.4.2` milestone and one issue per item
   when the user is at the keyboard].
 
@@ -1065,11 +1070,29 @@ session artifact; the issues carry the detail.
    0.029 → 1.0; now identical to both x86 blocks) moved with the OS /
    toolchain, not the code. Post-swap NEON diffs compare against the
    `9201eb7` block. Detail in `docs/ACCURACY_CHARACTERIZATION.md`.
-   (c) [OPEN] The v2.5.0 swap itself (milestone #6). UNBLOCKED
-   2026-09-29: the constant-argument design point is decided (Decided,
-   2026-09-29 — block-filled constant spans inside the `vector_*`
-   adapters). Next concrete step: dev branch off `main`, corvus pinned
-   at v1.0.1, starting from the adapter bodies in `math_utils.cpp`.
+   (c) [IN PROGRESS] The v2.5.0 swap on `dev/v2.5.0-corvus` (milestone
+   #6), M1 session 2026-09-29, five increments, each ctest 74/74 and
+   warning-clean with a NEON sweep archived under
+   `~/Archive/libstats-v2.5.0-sweeps/` (M1): (1) engine + adapters +
+   find-or-fetch; (2) corvus inverses, the 14 hot CDF loops, Student-t
+   tails, oracle probit; (3) Bessel on corvus, #97 mechanism retired; (4)
+   the elementary family — five tier TUs lose exp/log/erf/cos/sin,
+   tables and generators go (−8.3k lines); (5) Binomial/NegBin PMF via
+   vector_lgamma, THIRD_PARTY_NOTICES, CI install leg + pin canary, docs.
+   Sweep: 32 → 35 contract rows (−3 Student-t quantile, +6 gamma/chi-
+   squared x = 0, α < 1 — the #103 support-boundary class, bucket B);
+   CDF max_rel beta 4e-9 → 3e-16, binomial 1.3e-2 → 3.6e-12, chi-squared
+   8e-6 → 2e-16, gamma 1.8e-7 → 1.4e-13, poisson 1.6e-3 → 2.7e-16,
+   Student-t 1e-3 → 1.4e-10; quantiles gamma family 1e139 → 1e-16,
+   Gaussian 1.4e-5 → 4.7e-16; von Mises pdf 8e-7 → 1e-14.
+   Remaining before the PR: (i) Kaby Lake and Zen 4 native builds of the
+   branch (AVX2/AVX-512 sweeps, the Windows leg with corvus's MSVC AVX2
+   cap); (ii) task 3 — post-swap timing, dispatch-threshold re-measure
+   (#146 first), `dispatch_thresholds.h` erf comment; (iii) CI green on
+   the branch, including the new install-contract leg; (iv) the
+   `docs/ACCURACY_CHARACTERIZATION.md` regeneration on all three ISAs
+   and its v2.5.0 narrative; (v) `docs/VALIDATION_HISTORY.md`; (vi)
+   version bump and release (task 4), then the pylibstats pin (task 5).
    (d) ~~Still outstanding from the v2.4.0 ship checklist: the
    milestone #8 bucketing pass.~~ DONE 2026-09-29 — see GitHub Milestones,
    milestone #8. Consequence for sequencing: #146 lands before task 3.

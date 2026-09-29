@@ -14,6 +14,34 @@ libstats v2.x requires C++20 and the following minimum compilers:
 
 macOS builds use system AppleClang and Apple libc++. The v2.x build path does not support alternate LLVM toolchain setup.
 
+## Dependencies
+
+libstats has one library dependency: [corvus](https://github.com/OldCrow/corvus)
+(special and elementary functions, MIT), which itself uses Google Highway
+(Apache-2.0). `cmake/FindOrFetchCorvus.cmake` resolves it at configure time:
+
+- `find_package(corvus 1.0 CONFIG)` first — a system corvus, which in turn
+  needs a system Highway ≥ 1.4 (corvus's own find-or-fetch rule).
+- Otherwise `FetchContent`, pinned to a release tag (`v1.0.1`). The pin is an
+  accuracy pin as much as an API pin: bump it only with a
+  characterization-sweep regeneration (`docs/ACCURACY_CHARACTERIZATION.md`);
+  the `corvus-pin-currency` CI canary flags drift.
+
+Which path ran is printed at configure time and sets `LIBSTATS_CORVUS_PROVIDER`
+(`system` / `fetched`). It matters for one thing: **`install` is supported only
+with a system corvus.** A fetched corvus is a build-tree target outside the
+export set, so `install(EXPORT)` cannot express `libstats_static`'s
+`$<LINK_ONLY:corvus::corvus>` against it — the same rule corvus applies to
+Highway. The FetchContent path never installs (it is what pylibstats wheels
+use), so it never trips this. To install libstats, install Highway and corvus
+first (source builds, `-DCMAKE_INSTALL_PREFIX=<prefix>`, then configure
+libstats with `-DCMAKE_PREFIX_PATH=<prefix>`); the CI install-contract leg
+does exactly that.
+
+corvus dispatches on its own CPUID. `LIBSTATS_MAX_SIMD_TIER` (below) caps
+libstats' arithmetic kernels only; the transcendentals and special functions
+run on the tier corvus selects.
+
 ## Quick start
 
 ```bash
@@ -60,7 +88,9 @@ cmake -B build -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF
 # letting a lower tier run — and be validated or profiled — natively. Used for the
 # first native SSE2 run (exposed #74) and the measured kAvx table (2026-09-04
 # capped leg). Assert the active tier afterwards: system_inspector --quick, and
-# check the archive has no higher-tier vector_* kernel symbols.
+# check the archive has no higher-tier vector_* kernel symbols. Since v2.5.0 the
+# cap covers libstats' arithmetic kernels only; exp/log/erf/cos/sin and the
+# special functions are corvus kernels on corvus's own dispatch.
 cmake -B build-avx-cap -DCMAKE_BUILD_TYPE=Release -DLIBSTATS_MAX_SIMD_TIER=AVX
 ```
 
@@ -239,3 +269,7 @@ This is what happened when it was broken.
   libstats #97 was the rule's second incident: `$<LINK_ONLY:>` stripped the
   macro from the installed export, so every consumer compiled Tier 2 Bessel
   and an ODR violation against the library's own TUs.
+
+v2.5.0 retired the Bessel tiers and with them the generated
+`libstats_config.h`; the rule stands for the next configure-time fact a public
+header needs.

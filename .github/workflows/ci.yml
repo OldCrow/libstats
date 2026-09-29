@@ -12,6 +12,7 @@ on:
   # next real push.
   schedule:
     - cron: '30 3 1 * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -74,9 +75,35 @@ jobs:
       if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20 -A x64
 
+    # Install-contract leg only: libstats' install target needs a SYSTEM corvus
+    # (a fetched corvus is a build-tree target outside the export set —
+    # cmake/FindOrFetchCorvus.cmake), and corvus's own install needs a system
+    # Highway for the same reason. Both go into the prefix that the
+    # consumer_example steps below consume; every other leg takes the
+    # FetchContent path, which is what pylibstats wheels use.
+    - name: Install Highway 1.4.0 and corvus v1.0.1 to prefix
+      if: runner.os == 'Linux' && matrix.compiler.name == 'gcc-14' && matrix.build_type == 'Release'
+      run: |
+        set -euo pipefail
+        PREFIX="$GITHUB_WORKSPACE/_install"
+        git clone --depth 1 --branch 1.4.0 https://github.com/google/highway.git _deps/highway
+        cmake -S _deps/highway -B _deps/highway/build -DCMAKE_BUILD_TYPE=Release \
+          -DHWY_ENABLE_TESTS=OFF -DHWY_ENABLE_EXAMPLES=OFF -DHWY_ENABLE_CONTRIB=ON \
+          -DHWY_FORCE_STATIC_LIBS=ON -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$PREFIX"
+        cmake --build _deps/highway/build --parallel 2
+        cmake --install _deps/highway/build
+        git clone --depth 1 --branch v1.0.1 https://github.com/OldCrow/corvus.git _deps/corvus
+        cmake -S _deps/corvus -B _deps/corvus/build -DCMAKE_BUILD_TYPE=Release \
+          -DCORVUS_BUILD_TESTS=OFF -DCORVUS_BUILD_EXAMPLES=OFF \
+          -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_INSTALL_PREFIX="$PREFIX"
+        cmake --build _deps/corvus/build --parallel 2
+        cmake --install _deps/corvus/build
+
+    # CMAKE_PREFIX_PATH points at the install-contract prefix; on the other
+    # legs the directory does not exist and CMake ignores it.
     - name: Configure CMake (Non-Windows or Non-MSVC)
       if: runner.os != 'Windows' || matrix.compiler.name != 'msvc'
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20 -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/_install"
 
     - name: Build
       shell: bash
@@ -476,3 +503,55 @@ jobs:
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
+
+  # ---------------------------------------------------------------------------
+  # corvus-pin-currency — canary-only (monthly cron / manual dispatch). Asks
+  # "is the corvus pin still the RIGHT version?" — distinct from "does the
+  # pinned version still build?", which every FetchContent leg answers. Two
+  # coupled strings in cmake/FindOrFetchCorvus.cmake must agree with each
+  # other (find_package floor major.minor == GIT_TAG major.minor) and should
+  # not fall behind corvus's newest release. Same shape as pylibstats'
+  # pin-currency job for its libstats pin.
+  # ---------------------------------------------------------------------------
+  corvus-pin-currency:
+    name: corvus pin currency (canary)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compare the corvus pin against the newest corvus release
+        env:
+          CORVUS_REPO: https://github.com/OldCrow/corvus.git
+        run: |
+          set -euo pipefail
+          f=cmake/FindOrFetchCorvus.cmake
+          floor=$(grep -oE 'find_package\(corvus[[:space:]]+[0-9][0-9.]*' "$f" | awk '{print $2}' || true)
+          tag=$(grep -oE '^[[:space:]]*GIT_TAG[[:space:]]+v[^[:space:]]+' "$f" | awk '{print $2}' || true)
+          if [ -z "${floor}" ] || [ -z "${tag}" ]; then
+            echo "::error::could not parse the find_package floor and/or GIT_TAG from $f"
+            exit 1
+          fi
+          latest=$(git ls-remote --tags --refs "${CORVUS_REPO}" 'v*' \
+                   | sed 's|.*refs/tags/||' | sort -V | tail -1 || true)
+          if [ -z "${latest}" ]; then
+            echo "::error::could not resolve the newest corvus tag from ${CORVUS_REPO}"
+            exit 1
+          fi
+          echo "find_package floor: ${floor}"
+          echo "FetchContent tag:   ${tag}"
+          echo "corvus latest:      ${latest}"
+          rc=0
+          tag_mm=$(printf '%s' "${tag#v}" | cut -d. -f1,2)
+          if [ "${tag_mm}" != "${floor}" ]; then
+            echo "::error::internal mismatch — find_package floor ${floor} does not match GIT_TAG ${tag} (major.minor ${tag_mm})"
+            rc=1
+          fi
+          if [ "$(printf '%s\n%s\n' "${tag#v}" "${latest#v}" | sort -V | tail -1)" != "${tag#v}" ]; then
+            echo "::error::corvus pin ${tag} is behind the newest release ${latest} — bump the pin together with a characterization-sweep regeneration (docs/ACCURACY_CHARACTERIZATION.md)"
+            rc=1
+          fi
+          exit "${rc}"

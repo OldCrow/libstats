@@ -155,25 +155,17 @@ The L2 boundary is architecture-specific and must not be assumed to hold on AVX2
 
 ## Cross-architecture accuracy differences
 
-### Bessel function tier selection
+### Bessel functions and the special-function engine
 
-`include/libstats/core/bessel.h` provides two tiers for `bessel_i0`, `bessel_i1`, and `log_bessel_i0`:
-
-- **Tier 1** (MSVC/GCC/Clang with `LIBSTATS_HAS_CXX17_BESSEL`): delegates to `std::cyl_bessel_i` (C++17 §29.9.3). Achieves <1 ULP against scipy for κ=2.
-- **Tier 2** (AppleClang/macOS, `LIBSTATS_HAS_CXX17_BESSEL` not defined): A&S §9.8.1–9.8.4 polynomial approximation. Documented precision: <1.6×10⁻⁷.
-
-The tier selection is automatic: CMakeLists.txt probes for `std::cyl_bessel_i` and defines `LIBSTATS_HAS_CXX17_BESSEL` only when available. AppleClang does not implement C++17 special functions as of Xcode 16.
-
-### Implication for VonMises accuracy
-
-VonMises PDF and LogPDF accuracy differs between MSVC and AppleClang builds because the normalisation constant `log(2π·I₀(κ))` is computed via different Bessel tiers. This shows up as:
-
-| Platform | VonMises pdf max rel err | VonMises log_pdf max rel err |
-|---|---|---|
-| Zen4 / MSVC (Tier 1) | ~1 ULP (~8×10⁻¹⁶) | ~5×10⁻¹¹ |
-| Kaby Lake / AppleClang (Tier 2) | ~2×10⁻⁹ | ~3×10⁻⁹ |
-
-The `vector_cos`/`vector_sin` implementations are the clean-room quadrant-reduction kernel of #95 on every tier (shared `trig_cleanroom_data.inc`, max 1 ULP), so AVX2 and AVX-512 remain algorithmically identical. The accuracy difference is entirely in the scalar Bessel normalisation path, not in any SIMD kernel. See issue #47 for the proposed Tier 2 upgrade.
+Since v2.5.0 every special function — the Bessel I₀/I₁ pair behind von Mises,
+erf and its inverses, lgamma/lbeta, digamma/trigamma, the incomplete
+gamma/beta functions and their inverses — is a corvus kernel (max 1 ULP on
+every SIMD tier, corvus `docs/ACCURACY.md`), and so are `vector_exp`,
+`vector_log`, `vector_erf`, `vector_cos` and `vector_sin`. corvus dispatches
+on its own CPUID, so these no longer differ between compilers or between
+libstats' SIMD tiers: the v2.4 von Mises gap between MSVC (`std::cyl_bessel_i`)
+and AppleClang (A&S polynomials, ~2e-9) is gone, and `LIBSTATS_MAX_SIMD_TIER`
+caps only libstats' own arithmetic kernels.
 
 ### Scipy version independence
 
@@ -195,7 +187,7 @@ Cauchy PDF/LogPDF (and sampling) delegate to StudentT(ν=1), but the CDF has bee
 
 ### Binomial CDF and PDF
 
-Binomial PMF uses lgamma log-space evaluation in a scalar loop. There is no SIMD log-gamma primitive (`vector_lgamma` is deferred). Binomial CDF uses PMF summation rather than the regularised incomplete-beta approach used by scipy. Both paths cap throughput at ~5–16M elements/second regardless of batch size or architecture. See issue #52.
+Binomial and NegativeBinomial PMF/log-PMF batch paths take their two lgamma terms through corvus in 256-lane blocks (`detail::vector_lgamma`, v2.5.0); the CDF has used the regularised incomplete beta since the distribution landed (#52's premise was wrong — the former ceiling was the #113 iteration cap, retired with the local cores). The throughput figures above predate both and are due for re-measurement (v2.5.0 task 3).
 
 ---
 
@@ -204,10 +196,6 @@ Binomial PMF uses lgamma log-space evaluation in a scalar loop. There is no SIMD
 ### vector_floor and vector_blend
 
 Deferred. These primitives would enable branchless Discrete CDF and some Uniform paths, but existing batch-path amortisation already gives large speedups. The expected benefit does not justify a new cross-backend primitive pass before v2.x releases.
-
-### vector_lgamma
-
-Deferred. A correct vectorised log-gamma is complex and has limited immediate distribution impact compared with exp/log/erf/cos.
 
 ### SVE
 
