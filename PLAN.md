@@ -472,8 +472,11 @@ history.
   [2.4.1]). Milestone #8 is otherwise untouched — nothing else from it
   starts before the fleet is back.
   - Owed at the next fleet sweep regen (confirmation, not a blocker):
-    x86 contract violations 63 → 61 (the two geometric wrap rows);
+    x86 contract violations drop by the two geometric wrap rows (63 → 61
+    was the 6063-row grid; on the current 9210-row grid it is 34 → 32);
     NEON geometric logpdf max_rel 0.865 → ~1e-8 class.
+    AVX-512 CONFIRMED 2026-09-28 (Zen 4, `commit=103044b`): 34 → 32, only
+    the two geometric rows changed. AVX2 (Kaby Lake) and NEON (M1) owed.
   - Guard tolerance lesson: the past-INT_MAX CDF bound was first set from
     Apple libm's measured error (< 1e-5) and failed on glibc AND MSVC at
     an identical 1.22e-5. It is now derived from beta_i's lgamma ulp floor
@@ -938,7 +941,8 @@ session artifact; the issues carry the detail.
    reports AVX-512, no stale Debug CRT.
    (b) [OPEN] Pre-swap baseline: regenerate the characterization sweep
    at v2.4.1 on all three machines BEFORE the swap branch produces
-   numbers. It discharges the confirmation owed under In Progress, and
+   numbers. Zen 4 DONE 2026-09-28 (AVX-512: 32 violations); Kaby Lake
+   and M1 owed. It discharges the confirmation owed under In Progress, and
    on the M1 it separates what macOS 28 changed from what corvus
    changes.
    (c) [OPEN] The v2.5.0 swap itself (milestone #6), blocked on one

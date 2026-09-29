@@ -11,7 +11,8 @@ Issue #46. Full sweep of `pdf`/`logpdf`/`cdf`/`quantile` — scalar and batch
 > quantile grid points)**. Row counts, CSV line numbers and violation
 > totals are only comparable within a generation. As of 2026-09-04 all
 > three blocks (AVX-512, AVX2, NEON) are native 9210-row sweeps under
-> the oracle overflow rule: 34 / 34 / 32 violations.
+> the oracle overflow rule: 34 / 34 / 32 violations. AVX-512 regenerated
+> at v2.4.1 on 2026-09-28: 32.
 
 > **CHARACTERIZATION, not an audited claim.** All three fleet ISAs have
 > generated blocks: Zen 4 (AVX-512, MSVC Release, UCRT libm), Kaby Lake
@@ -433,6 +434,13 @@ release validation (2026-09-03/04) and the reclassification applied as
 predicted — the pareto quantile triple cleared identically on both,
 landing at 34 (AVX2, class-for-class matching Zen 4) and 32 (NEON).
 
+**v2.4.1 (2026-09-28, Zen 4 pre-swap baseline): 34 → 32.** The AVX-512
+block was regenerated natively at `commit=103044b` (MSVC 19.51 Release).
+The only rows that changed are geometric: the two `logpdf` wrap
+violations (`static_cast<int>` past INT_MAX) cleared, and `cdf` `max_rel`
+fell from 1.0 to 2.6e-9. Every other distribution is identical to the
+v2.4.0 block. AVX2 and NEON are not yet regenerated at v2.4.1.
+
 ## Findings (historical — v2.3.0 initial characterization, 2026-08-19)
 
 What the FIRST sweep surfaced, beyond confirming the four pinned gates.
@@ -487,7 +495,7 @@ oracle or the gate, not to silently prefer one over the other:
 
 ## Generated tables: AVX-512
 
-Sweep banner: `commit=f99a82b  isa=AVX-512  date=2026-09-03`
+Sweep banner: `commit=103044b  isa=AVX-512  date=2026-09-28`
 
 ### bernoulli
 
@@ -625,11 +633,10 @@ Sweep banner: `commit=f99a82b  isa=AVX-512  date=2026-09-03`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 1.0 | 1.0 | 1.0 | 0.1689 | - | 4.001e+09 |
-| cdf | batch | 1.0 | 1.0 | 1.0 | 0.1689 | abs=0, rel=0 | 4.001e+09 |
-| logpdf | scalar | 2.878e-8 | 2.836e-11 | 2.836e-11 | - | - | 1.001e+09 |
-| logpdf | batch | 2.878e-8 | 2.836e-11 | 2.836e-11 | - | abs=0, rel=0 | 1.001e+09 |
-| logpdf | *(contract)* | 2 violation(s) -- see appendix | | | | | |
+| cdf | scalar | 2.057e-9 | 2.648e-9 | 2.648e-9 | 0.1689 | - | 1.5e+06 |
+| cdf | batch | 2.057e-9 | 2.648e-9 | 2.648e-9 | 0.1689 | abs=0, rel=0 | 1.5e+06 |
+| logpdf | scalar | 4.601e-7 | 2.873e-11 | 2.873e-11 | - | - | 1.6001e+10 |
+| logpdf | batch | 4.601e-7 | 2.873e-11 | 2.873e-11 | - | abs=0, rel=0 | 1.6001e+10 |
 | pdf | scalar | 3.519e-17 | 1.872e-8 | 1.872e-8 | - | - | 6.51e+08 |
 | pdf | batch | 3.519e-17 | 1.872e-8 | 1.872e-8 | - | abs=0, rel=0 | 6.51e+08 |
 | quantile | scalar | 2.354e+7 | 0.6815 | 0.6815 | - | - | 1 |
@@ -822,12 +829,10 @@ Sweep banner: `commit=f99a82b  isa=AVX-512  date=2026-09-03`
 
 ### Contract findings (appendix)
 
-34 contract violations across the sweep. `csv_line` indexes the sweep CSV this report was generated from (see the commit/isa banner in the regeneration log).
+32 contract violations across the sweep. `csv_line` indexes the sweep CSV this report was generated from (see the commit/isa banner in the regeneration log).
 
 | dist | method | source | csv_line | finding |
 |---|---|---|---|---|
-| geometric | logpdf | scalar | 6130 | reference is finite (-4014.82), scalar_bits decoded to -inf |
-| geometric | logpdf | scalar | 6131 | reference is finite (-16014.8), scalar_bits decoded to -inf |
 | poisson | logpdf | scalar | 4845 | reference is -inf, scalar_bits decoded to -4605.0 |
 | poisson | logpdf | batch | 4845 | reference is -inf, batch_bits decoded to -4605.0 |
 | poisson | logpdf | scalar | 4846 | reference is -inf, scalar_bits decoded to -4605.0 |
