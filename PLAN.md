@@ -1,6 +1,14 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-09-19
+## Status [DERIVED] — 2026-09-30
+Session 2026-09-29/30 (M1) closed with: `dev/v2.5.0-corvus` parked at
+`e42478e`, correctness-complete, CI green, waiting on corvus v1.1.0
+throughput (Next Steps 3(c)); milestone "v2.4.2 — Correctness patch"
+open with #157–#167 (Known Gaps ledger), all `main`-only fixes that do
+not depend on the corvus decision. Next concrete step on this machine is
+nothing; on Kaby Lake / Zen 4 it is the `tools/bench/` comparatives (2a
+in the standards workplan). v2.4.2 can be cut off `main` at any time.
+
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
 (parallelReduce/parallelStatOperation wait-all-then-harvest), PR #151,
