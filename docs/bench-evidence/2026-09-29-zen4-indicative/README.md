@@ -94,9 +94,9 @@ Distributions, v2.4.1 → branch, same-regime rows only:
 4. **Gaussian and lognormal quantiles are 3× slower here vs 1.4× on the M1**
    (corvus erfinv per single call).
 
-## Owed
+## Superseded
 
-A re-pass holding one frequency regime across both binaries (run each twice
-back to back and keep the second), under the gate for the whole pass. The
-binaries and prefixes are on the machine under `build-bench-msvc*/` and
-`build-bench-deps/`; `scripts/` here is the exact recipe that built them.
+`../2026-09-30-zen4-quiet/` reproduces every row here to 1–3% under the gate
+(the regime problem unchanged); `../2026-09-30-zen4-quiet-warm/` is the
+record — an in-process warm-up puts every row in one regime and resolves the
+sub-2× ratios. The findings above stand.

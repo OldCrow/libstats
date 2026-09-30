@@ -4,10 +4,10 @@ Standalone, not part of the CMake build: each program is compiled twice
 against two checkouts (the v2.4.1 tag and the corvus branch) and run back to
 back, so the ratio between the two binaries survives a loaded machine even
 when the absolute numbers are INDICATIVE. First results (M1 NEON, 2026-09-29)
-are in `PLAN.md` Next Steps (c) and issue #156; the Zen 4 run (2026-09-29,
-two Windows configurations) is in
-`docs/bench-evidence/2026-09-29-zen4-indicative/`, with its runner log and
-the scripts that built it.
+are in `PLAN.md` Next Steps (c) and issue #156; the Zen 4 record (2026-09-30,
+two Windows configurations, warmed) is
+`docs/bench-evidence/2026-09-30-zen4-quiet-warm/`, with the two earlier
+passes, the runner logs and the build scripts beside it.
 
 - `distributions_bench.cpp` — public API: batch pdf/logpdf/cdf at 1e6 under
   auto dispatch, scalar pdf/logpdf/cdf at 1e5, quantile at 1e4; ns/element,
@@ -59,3 +59,10 @@ clang-cl, which keeps the MSVC ABI:
 
 `corvus_scaling_bench` prints the tier corvus selected; it must read
 `AVX3_ZEN4`, or the run measured the AVX2 cap.
+
+Set `LIBSTATS_BENCH_WARMUP_SECONDS=25` for the record run on this machine: the
+CPU steps down ~1.5× some 8–15 s into sustained load, and without an
+in-process warm-up the step lands on different rows of the two binaries, so
+ratios under ~2× cannot be read. The warm-up puts every row in the sustained
+regime, which is the right one for batch numbers and ~1.5× pessimistic for a
+single scalar call. Off by default; the other machines do not need it.

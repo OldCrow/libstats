@@ -1,0 +1,61 @@
+[11:04:29] === quiet_bench start ===
+[11:04:29] build dir     : C:\Users\gdwol\Development\libstats\build-bench-msvc\bench
+[11:04:29] targets       : corvus_scaling, corvus_scaling_cap, elem_v241, elem_v250, elem_v250_cap, dist_v241, dist_v250, dist_v250_cap
+[11:04:29] expect target : (report only)
+[11:04:29] gate          : ambient < 5% over two consecutive 10s windows
+[11:04:29] WARNING: no -ExpectTarget. Numbers will not be tier-asserted.
+[11:04:41] gate window 1: 17.69%
+[11:04:41]   top CPU consumers right now (% of one core):
+[11:04:44]     dwm                        27.2%
+[11:04:44]     pwsh                        5.4%
+[11:04:44]     claude                      4.8%
+[11:04:44]     lightingservice             4.6%
+[11:04:44]     system                      4.1%
+[11:04:44]     acpowernotification         1.5%
+[11:04:44]     gwctlsrv                    1.0%
+[11:04:44]     services                    1.0%
+[11:04:54] gate window 1: 14.50%
+[11:04:54]   top CPU consumers right now (% of one core):
+[11:04:57]     dwm                        29.8%
+[11:04:57]     system                      8.2%
+[11:04:57]     lightingservice             4.1%
+[11:04:57]     claude                      4.0%
+[11:04:57]     aacambientlighting          1.5%
+[11:04:57]     gwctlsrv                    1.5%
+[11:04:57]     explorer                    1.0%
+[11:04:57]     msmpeng                     1.0%
+[11:05:08] gate window 1: 9.29%
+[11:05:08]   top CPU consumers right now (% of one core):
+[11:05:11]     memory compression         15.9%
+[11:05:12]     system                      7.7%
+[11:05:12]     lightingservice             5.7%
+[11:05:12]     aacambientlighting          3.1%
+[11:05:12]     gwctlsrv                    1.5%
+[11:05:12]     dwm                         1.0%
+[11:05:12]     msmpeng                     1.0%
+[11:05:12]     pwsh                        1.0%
+[11:05:22] gate window 1: 4.93%
+[11:05:32] gate window 2: 3.52%
+[11:05:32] GATE PASSED at 4.93%
+[11:05:35] --- corvus_scaling --- noise before: 3.98%
+[11:07:01] ok   corvus_scaling -> quiet_bench_corvus_scaling.txt   noise after: 4.54%
+[11:07:04] --- corvus_scaling_cap --- noise before: 4.22%
+[11:14:38] ok   corvus_scaling_cap -> quiet_bench_corvus_scaling_cap.txt   noise after: 3.08%
+[11:14:41] --- elem_v241 --- noise before: 2.72%
+[11:15:09] ok   elem_v241 -> quiet_bench_elem_v241.txt   noise after: 2.59%
+[11:15:12] --- elem_v250 --- noise before: 5.28%
+[11:15:48] ok   elem_v250 -> quiet_bench_elem_v250.txt   noise after: 4.53%
+[11:15:51] --- elem_v250_cap --- noise before: 11.35%
+[11:16:22] ok   elem_v250_cap -> quiet_bench_elem_v250_cap.txt   noise after: 2.39%
+[11:16:25] --- dist_v241 --- noise before: 1.96%
+[11:17:03] ok   dist_v241 -> quiet_bench_dist_v241.txt   noise after: 3.11%
+[11:17:06] --- dist_v250 --- noise before: 1.94%
+[11:18:14] ok   dist_v250 -> quiet_bench_dist_v250.txt   noise after: 4.14%
+[11:18:17] --- dist_v250_cap --- noise before: 3.73%
+[11:22:54] ok   dist_v250_cap -> quiet_bench_dist_v250_cap.txt   noise after: 3.52%
+[11:22:54] === quiet_bench summary ===
+[11:22:54] gated at      : 4.93%
+[11:22:54] noise held    : 1.94% - 11.35% (avg 3.94%)
+[11:22:54] targets run   : 8 of 8
+[11:22:54] Raw per-target output: C:\Users\gdwol\Development\libstats\build-bench-msvc\quiet-2026-09-30-warm\quiet_bench_<target>.txt
+[11:22:54] This log is the evidence chain - keep it with any published number.

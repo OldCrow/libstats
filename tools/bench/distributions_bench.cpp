@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <random>
 #include <span>
 #include <vector>
@@ -86,7 +87,23 @@ void bench(const char* name, D& d, double lo, double hi, bool integer) {
     std::printf("%-12s %9.1f %9.1f %9.1f %9.1f %9.1f %9.1f %9.1f\n", name, pdf_b, lpdf_b, cdf_b,
                 pdf_s, lpdf_s, cdf_s, q);
 }
+// LIBSTATS_BENCH_WARMUP_SECONDS=N: spin N seconds before the first measurement, so every row is
+// taken in the sustained-frequency regime. Off by default. Needed on the Zen 4 box, where boost
+// steps down ~1.5x some 8-15 s into a run and lands on different rows of the two binaries.
+static void warmup() {
+    const char* s = std::getenv("LIBSTATS_BENCH_WARMUP_SECONDS");
+    const double secs = s ? std::atof(s) : 0.0;
+    if (secs <= 0.0)
+        return;
+    volatile double x = 1.0;
+    const auto end = clk::now() + std::chrono::duration<double>(secs);
+    while (clk::now() < end)
+        for (int i = 0; i < 1000; ++i)
+            x = x * 1.0000001 + 1e-9;
+    std::printf("(warm-up %.0f s)\n", secs);
+}
 int main() {
+    warmup();
     std::printf("%-12s %9s %9s %9s %9s %9s %9s %9s\n", "ns/elem", "pdf@1e6", "lpdf@1e6", "cdf@1e6",
                 "pdf-sc", "lpdf-sc", "cdf-sc", "quantile");
     auto g = stats::GammaDistribution::create(2.5, 1.5);

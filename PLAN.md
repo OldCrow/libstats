@@ -9,11 +9,10 @@ not depend on the corvus decision. Next concrete step on this machine is
 nothing; on Kaby Lake / Zen 4 it is the `tools/bench/` comparatives (2a
 in the standards workplan). v2.4.2 can be cut off `main` at any time.
 Zen 4 session 2026-09-29/30: the comparatives ran in two Windows
-configurations (clang-cl corvus at AVX-512, MSVC corvus at the AVX2 cap),
-INDICATIVE — evidence and provisional findings in
-`docs/bench-evidence/2026-09-29-zen4-indicative/`, summary under Next
-Steps 6(c); a same-regime re-pass is owed on this machine before the
-numbers become the record. Kaby Lake: not started.
+configurations (clang-cl corvus at AVX-512, MSVC corvus at the AVX2 cap);
+record and findings in `docs/bench-evidence/2026-09-30-zen4-quiet-warm/`
+(quiet, single frequency regime), summary under Next Steps 6(c); issue
+#156 carries the tables. Kaby Lake: not started.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
@@ -1184,49 +1183,56 @@ session artifact; the issues carry the detail.
    `docs/ACCURACY_CHARACTERIZATION.md` regeneration on all three ISAs
    and its v2.5.0 narrative; (v) `docs/VALIDATION_HISTORY.md`; (vi)
    version bump and release (task 4), then the pylibstats pin (task 5).
-   **Zen 4 comparatives leg — first pass RUN 2026-09-29, re-pass owed
-   [OPEN].** Two configurations, libstats MSVC 19.51 `/arch:AVX512` in
-   both: (A) [user] corvus v1.0.1 + Highway 1.4.0 built with clang-cl
-   22.1.3 as a system package, dispatching `AVX3_ZEN4`; (B) [user] the
-   same built with MSVC, dispatching `AVX2` (Highway's MSVC cap) — what a
-   default FetchContent build on Windows produces. Recipe in
-   `tools/bench/README.md`. On the Zen 4 box: worktree
-   `../libstats-v2.4.1`; `build-bench-msvc/` (A) and
-   `build-bench-msvc-cap/` (B); prefixes under `build-bench-deps/`;
-   binaries and build scripts. Evidence (raw outputs, runner log, the
-   pre-gate smoke run, the build scripts) and the full provisional
-   findings: `docs/bench-evidence/2026-09-29-zen4-indicative/`.
-   Runner: corvus `tools/quiet_bench.ps1`, unmodified.
-   **Status of the numbers: INDICATIVE, not the record.** The gate passed
-   at 2.84% and both `corvus_scaling` runs held 2.7–3.2%, but noise was
-   4–12.5% for the `elem_*` and `dist_*` runs, and single-thread
-   throughput steps down ~1.5× about 15 s into sustained load
-   (reproduced afterwards; the Zen 4 frequency-scaling artifact,
-   `docs/VALIDATION_HISTORY.md`). The step lands on different rows of
-   the two binaries, so ratios under 2× in the distribution table are
-   not reliable; ratios taken from rows in one regime are.
-   - Per element at n = 65536, sustained regime, ns (A / B / M1): erf
-     2.4 / 12.2 / 2.2; exp 3.1 / 23.0 / 4.5; lgamma 29 / 135 / 45;
-     gamma_p 90 / 2,726 / 190; beta_p 649 / 8,056 / 950; gamma_p_inv
-     1,093 / 10,699 / 2,400. Single call (n = 1): gamma_p 926, beta_p
-     1,815 — the M1's 827 and 1,500, so tier-independent as predicted.
-   - **B is 5–30× slower than A**, not the ~1.6× that AVX2 vs AVX-512
-     width explains (corvus `CMakeLists.txt`, measured 2026-07-24), so
-     most of it is MSVC code generation, not the tier. Unseparated:
-     needs a clang-cl build capped at AVX2.
-   - Elementary at 1e6, v2.4.1 → A → B, ns: exp 0.68 → 2.09 → 15.4;
-     log 0.83 → 4.92 → 38.2; cos 1.10 → 1.62 → 25.5; erf 4.42 → 1.65 →
-     8.25. **erf INVERTS against the M1** (A 2.7× faster; NEON 1.6×
-     slower); exp 3.1× and log 5.9× slower, the M1's direction.
-   - Distributions, v2.4.1 → A, same-regime rows: scalar CDF 7–15×,
-     quantile 10–57× slower, as on the M1. Batch CDF at 1e6 under auto
-     dispatch: gamma and poisson at parity (M1 3–4×), beta 8×, binomial
-     8×, student_t 3–5×. Gaussian/lognormal quantile 3× (M1 1.4×).
-   - Distributions, v2.4.1 → B: batch CDF 18–69×, scalar CDF 50–180×,
-     quantile 60–470×.
-   Re-pass: hold one frequency regime across both binaries (run each
-   twice back to back, keep the second) on a machine that stays under
-   the gate for the whole pass. Kaby Lake leg: not started.
+   **Zen 4 comparatives leg — DONE 2026-09-30 (record:
+   `docs/bench-evidence/2026-09-30-zen4-quiet-warm/`).** Two
+   configurations, libstats MSVC 19.51 `/arch:AVX512` in both: (A) [user]
+   corvus v1.0.1 + Highway 1.4.0 built with clang-cl 22.1.3 as a system
+   package, dispatching `AVX3_ZEN4`; (B) [user] the same built with MSVC,
+   dispatching `AVX2` (Highway's MSVC cap) — what a default FetchContent
+   build on Windows produces. Recipe in `tools/bench/README.md`; on the
+   Zen 4 box: worktree `../libstats-v2.4.1`, `build-bench-msvc/` (A),
+   `build-bench-msvc-cap/` (B), prefixes under `build-bench-deps/`.
+   Runner: corvus `tools/quiet_bench.ps1`, unmodified. Three passes, all
+   archived: 09-29 indicative (noise 4–12.5% after the gate), 09-30 quiet
+   (reproduces every row to 1–3%), 09-30 quiet + warm-up — the record.
+   The machine's ~1.5× frequency step-down 8–15 s into load landed on
+   different rows of the two binaries in the first two passes; an
+   in-process warm-up (`LIBSTATS_BENCH_WARMUP_SECONDS`, added to the three
+   benches, off by default) puts every row in the sustained regime, which
+   is the batch regime and ~1.5× pessimistic for a lone scalar call.
+   Record, v2.4.1 → A [→ B], sustained regime:
+   - corvus per element at n = 65536, ns (A / B / M1): erf 2.4 / 12.2 /
+     2.2; exp 3.1 / 23.0 / 4.5; lgamma 29 / 134 / 45; gamma_p 90 / 2,722 /
+     190; beta_p 652 / 8,069 / 950; gamma_p_inv 1,094 / 10,699 / 2,400.
+     Single call: gamma_p 1,403, beta_p 2,772, gamma_p_inv 6,754 ns —
+     tier-independent (M1 827 / 1,500 / 4,300, boosted).
+   - **B is 5–30× slower than A**, not the ~1.6× the tier width explains
+     (corvus `CMakeLists.txt`, 2026-07-24): MSVC code generation of
+     Highway code. Unseparated — needs a clang-cl build capped at AVX2.
+     Decides the pylibstats Windows-wheel question (clang-cl) and asks
+     for a configure guard here against an MSVC-built corvus.
+   - Elementary at 1e6: exp 3.0× [22×], log 5.4× [42×], cos/sin 1.5×
+     [23–25×] slower; **erf 2.7× faster [1.9× slower]** — the one
+     inversion against the M1 (NEON: erf 1.6× slower, exp/log 4.6–8×).
+   - Batch pdf/logpdf: gamma 2.3–2.9×, beta 3.1×, student_t 4.1–4.8×
+     slower via exp/log/lgamma; the rest at parity. Scalar pdf/logpdf:
+     parity everywhere.
+   - Batch CDF under auto dispatch: gamma and poisson at parity (M1
+     3–4×); beta 8.7×, binomial 8.8×, student_t 3.0×, weibull 3.5× (the
+     `beta_p` consumers, plus exp). Scalar CDF 7–16× [52–121×]; quantile
+     gamma family 9–17×, student_t 58× [48–310×]; gaussian/lognormal
+     quantile 3× (M1 1.4×).
+   Analysis and levers (recorded on #156, 2026-09-30): three costs with
+   different owners — the per-call price (corvus #42 scalar entry point;
+   fleet-wide), `beta_p` per-element throughput (corvus #42 kernel;
+   NEON-heavy), the elementary family (revert increment 4 for
+   exp/log/cos/sin, keep corvus erf on x86; or corvus #43) — plus two
+   libstats-side items independent of corvus: discrete quantiles scan the
+   CDF from k = 0 (16–50 single calls; an initial guess + local search is
+   2–3) and the Student-t quantile makes two inverse calls where one
+   suffices off the tail. Owed elsewhere: Kaby Lake leg (not started);
+   the clang-cl AVX2-capped corvus build that separates compiler from
+   tier.
    (d) ~~Still outstanding from the v2.4.0 ship checklist: the
    milestone #8 bucketing pass.~~ DONE 2026-09-29 — see GitHub Milestones,
    milestone #8. Consequence for sequencing: #146 lands before task 3.
