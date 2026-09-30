@@ -16,6 +16,11 @@ record and findings in `docs/bench-evidence/2026-09-30-zen4-quiet-warm/`
 DONE, one quiet pass (gate 4.10/3.27%, noise 3.1–3.6%), record in
 `docs/bench-evidence/2026-09-30-kaby-quiet/`, summary under Next Steps
 6(c). 2a is complete on both x86 machines; 2b (corvus v1.1.0) is next.
+Same session, task 2 Kaby Lake leg DONE: branch `6b78cd5` native AVX2,
+correctness ctest 74/74, AVX2 sweep 32 → 35 (the M1's rows exactly),
+AVX2 block regenerated at `6b78cd5` (Next Steps 6(c) (i)). Two timing-
+label tests fail on this machine on the branch and pass on v2.4.1 —
+recorded under 6(c), not gating. Task 2 still owes the Zen 4 leg.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
@@ -1175,9 +1180,44 @@ session artifact; the issues carry the detail.
    points, exp/log on NEON; #31 for lgamma), revert increment 4 and the
    PMF lgamma routing while keeping the special-function swap, hybrid, or
    hold — see the session record.
-   Remaining before the PR: (i) Kaby Lake and Zen 4 native builds of the
-   branch (AVX2/AVX-512 sweeps, the Windows leg with corvus's MSVC AVX2
-   cap); (ii) task 3 — post-swap timing, dispatch-threshold re-measure
+   Remaining before the PR: (i) ~~Kaby Lake and~~ Zen 4 native builds of the
+   branch (~~AVX2~~/AVX-512 sweeps, the Windows leg with corvus's MSVC AVX2
+   cap). **Kaby Lake leg DONE 2026-09-30** at `6b78cd5`, `build-bench/`
+   Release (AppleClang 15, Ninja, corvus v1.0.1 fetched, system Highway
+   1.4.0), `system_inspector` AVX2: correctness ctest 74/74 (`-LE
+   timing|benchmark`); the only build warnings are Homebrew gtest's own
+   `-Wsign-compare` lines, present at v2.4.1 too. AVX2 sweep (CSV and
+   oracle log under `~/Archive/libstats-v2.5.0-sweeps/` on this machine)
+   32 → 35 contract rows, the same rows as the M1: −3 Student-t quantile,
+   +6 gamma/chi-squared pdf/logpdf (#103 class). Gains match the M1: CDF
+   max_rel beta 4e-9 → 3e-16, binomial 1.3e-2 → 3.6e-12, chi-squared
+   8e-6 → 2e-16, gamma 1.8e-7 → 2e-13, poisson 1.6e-3 → 2.7e-16,
+   Student-t 3.7e-3 → 1.4e-10; quantiles gamma family 1e139 → 1e-16,
+   Gaussian 0.44 → 6.6e-16, lognormal 474 → 2.8e-15; von Mises pdf
+   5e-7 → 1.5e-14. Three rows moved the other way, all still < 1e-12 and
+   outside every contract: gaussian batch pdf 8.4e-15 → 1.2e-13,
+   lognormal pdf 1.2e-14 → 1.5e-13, lognormal batch cdf 1.9e-14 →
+   3.3e-13 (the corvus erf/exp on AVX2 replacing the musl-derived
+   kernels) — carry into the v2.5.0 narrative (iv). The AVX2 generated
+   block is regenerated at `6b78cd5` in this commit; AVX-512 and NEON
+   blocks still read v2.4.1 until their legs regenerate them.
+   Timing-label tests (excluded from the gate; 98 total, 22 timing, 2
+   benchmark), both fail on the branch and pass on v2.4.1 here — [OPEN,
+   file or fold into #156]:
+   - `WeibullEnhancedTest.VectorizedSpeedup`: single-thread SIMD logpdf
+     vs scalar 4.4–4.6× at v2.4.1 → 1.24–1.53× on the branch (gate 1.5).
+     The vectorised path went 652 → 1,900–2,900 µs at the test's N,
+     scalar unchanged: corvus log/exp on AVX2 (increment 4; the bench's
+     lognormal/weibull batch rows at 1e6 hide it behind 8 threads).
+   - `GammaEnhancedTest.CachingSpeedupVerification`: cache-hit getter
+     group 5–8 µs on the branch vs 0.25–0.3 µs at v2.4.1, only when
+     `AutoDispatchAssessment` runs immediately before it (isolated, or
+     with that one test filtered out, it passes at 2.5–3.3×). A
+     standalone probe shows steady-state getters unchanged (88 vs 104
+     ns) and first-touch 72 vs 27 µs. Not a getter regression; an
+     interaction with what the auto-dispatch batch leaves behind
+     (pool workers still draining the slower corvus batch?), mechanism
+     unconfirmed. (ii) task 3 — post-swap timing, dispatch-threshold re-measure
    (#146 first), `dispatch_thresholds.h` erf comment; (iii) ~~CI green on
    the branch~~ DONE 2026-09-29 at `01ade5c` (dispatch run 36653479508,
    all eleven jobs: install-contract leg, #90 export guard with the
