@@ -1,0 +1,354 @@
+16:06:24 quiet_bench.sh  build=build-bench  expect=AVX2  targets=5
+16:06:24 gate          : ambient < 5% over two consecutive 10s windows
+16:06:24 machine       : Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz; macOS 13.7.8
+16:06:35 ambient sample : 14.19%
+16:06:35   top consumers:
+     21.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     19.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.6 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      3.3 /System/Library/CoreServices/launchservicesd
+      2.4 /Library/PrivilegedHelperTools/de.appgineers.energiza.helper
+16:06:45 ambient sample : 8.67%
+16:06:45   top consumers:
+     11.0 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.4 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+      6.5 /usr/libexec/locationd
+      4.6 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      3.8 /usr/libexec/ApplicationFirewall/socketfilterfw
+16:06:56 ambient sample : 9.02%
+16:06:56   top consumers:
+     23.4 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     22.7 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.1 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      4.8 /System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter
+      3.2 /usr/libexec/opendirectoryd
+16:07:07 ambient sample : 8.83%
+16:07:07   top consumers:
+     20.2 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     17.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.0 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      1.6 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+      1.5 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+16:07:18 ambient sample : 9.25%
+16:07:18   top consumers:
+     15.7 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     14.2 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      5.9 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      0.5 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+      0.4 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:07:28 ambient sample : 8.72%
+16:07:28   top consumers:
+     22.6 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     20.5 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.0 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      3.4 /usr/libexec/opendirectoryd
+      2.4 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:07:39 ambient sample : 8.72%
+16:07:39   top consumers:
+     10.1 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+      9.0 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      6.3 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      0.9 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+      0.6 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+16:07:50 ambient sample : 8.75%
+16:07:50   top consumers:
+     20.4 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     17.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+     10.5 /usr/libexec/sandboxd
+      7.1 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      2.3 /System/Library/CoreServices/launchservicesd
+16:08:00 ambient sample : 8.55%
+16:08:00   top consumers:
+     16.3 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     14.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      6.0 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      3.4 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      1.9 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+16:08:11 ambient sample : 9.15%
+16:08:11   top consumers:
+     22.3 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     20.0 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.2 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      2.2 /Applications/iPulse.app/Contents/MacOS/iPulse
+      2.1 /usr/libexec/opendirectoryd
+16:08:22 ambient sample : 8.56%
+16:08:22   top consumers:
+     20.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     18.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      6.7 /usr/libexec/sandboxd
+      6.7 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      5.2 /usr/libexec/opendirectoryd
+16:08:33 ambient sample : 8.73%
+16:08:33   top consumers:
+     15.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     14.2 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.1 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      0.6 /usr/sbin/bluetoothd
+      0.5 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:08:43 ambient sample : 8.85%
+16:08:43   top consumers:
+     22.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     19.8 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      6.9 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      2.5 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      1.3 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+16:08:54 ambient sample : 9.80%
+16:08:54   top consumers:
+      4.9 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+      4.7 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      3.6 /usr/libexec/opendirectoryd
+      3.5 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      2.1 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:09:05 ambient sample : 9.48%
+16:09:05   top consumers:
+     21.6 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     19.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.3 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      5.4 /usr/sbin/system_profiler
+      5.0 /usr/libexec/opendirectoryd
+16:09:16 ambient sample : 8.46%
+16:09:16   top consumers:
+     18.3 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     16.0 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      6.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      1.0 /usr/libexec/trustd
+      1.0 /usr/libexec/ApplicationFirewall/socketfilterfw
+16:09:26 ambient sample : 8.82%
+16:09:26   top consumers:
+     23.0 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     19.0 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      6.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      3.4 /usr/libexec/dasd
+      2.5 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+16:09:37 ambient sample : 9.76%
+16:09:37   top consumers:
+     21.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     18.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.7 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      2.6 /usr/sbin/bluetoothd
+      1.6 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+16:09:48 ambient sample : 8.51%
+16:09:48   top consumers:
+      9.0 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+      7.1 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      5.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      0.6 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+      0.5 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+16:09:58 ambient sample : 8.57%
+16:09:58   top consumers:
+     22.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     20.1 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.3 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      1.0 /usr/libexec/opendirectoryd
+      0.8 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:10:09 ambient sample : 8.60%
+16:10:09   top consumers:
+      6.6 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+      5.8 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      5.2 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      2.5 /Applications/iPulse.app/Contents/MacOS/iPulse
+      1.9 /usr/libexec/opendirectoryd
+16:10:20 ambient sample : 9.18%
+16:10:20   top consumers:
+     20.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     17.5 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.0 /usr/libexec/ApplicationFirewall/socketfilterfw
+      6.9 /usr/libexec/trustd
+      6.5 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+16:10:31 ambient sample : 10.28%
+16:10:31   top consumers:
+     19.8 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     17.6 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.9 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      2.5 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      0.8 /usr/sbin/bluetoothd
+16:10:41 ambient sample : 9.25%
+16:10:41   top consumers:
+     22.9 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+     19.1 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.5 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)
+      2.4 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      0.9 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:10:52 ambient sample : 25.04%
+16:10:52   top consumers:
+     12.7 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.8 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      4.6 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      3.4 /usr/libexec/opendirectoryd
+      2.8 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:11:03 ambient sample : 10.03%
+16:11:03   top consumers:
+     12.1 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.5 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      3.0 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      2.9 /usr/sbin/bluetoothd
+      2.8 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:11:14 ambient sample : 7.70%
+16:11:14   top consumers:
+     16.6 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+     10.8 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.2 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      3.9 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      2.6 /usr/libexec/opendirectoryd
+16:11:25 ambient sample : 18.06%
+16:11:25   top consumers:
+     50.0 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
+     48.7 /usr/sbin/system_profiler
+     14.4 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.8 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      7.4 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+16:11:36 ambient sample : 18.50%
+16:11:36   top consumers:
+     93.5 /System/Library/Frameworks/Metal.framework/Versions/A/XPCServices/MTLCompilerService.xpc/Contents/MacOS/MTLCompilerService
+     13.2 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.4 /usr/libexec/opendirectoryd
+      6.8 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      5.4 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+16:11:47 ambient sample : 16.40%
+16:11:47   top consumers:
+     41.8 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
+     17.5 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      9.3 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      6.7 /System/Library/PrivateFrameworks/IntelligencePlatformCore.framework/Versions/A/knowledgeconstructiond
+      5.0 /System/Library/Frameworks/Contacts.framework/Support/contactsd
+16:11:58 ambient sample : 18.40%
+16:11:58   top consumers:
+     39.1 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
+     16.1 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      9.6 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      5.2 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      4.0 /usr/libexec/opendirectoryd
+16:12:09 ambient sample : 14.60%
+16:12:09   top consumers:
+     35.7 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
+     16.0 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.5 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      7.1 /System/Library/PrivateFrameworks/IntelligencePlatformCore.framework/Versions/A/knowledgeconstructiond
+      6.7 /System/Library/Frameworks/Contacts.framework/Support/contactsd
+16:12:20 ambient sample : 14.50%
+16:12:20   top consumers:
+     34.3 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
+     17.4 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.4 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      8.1 /usr/libexec/ApplicationFirewall/socketfilterfw
+      7.5 /usr/libexec/trustd
+16:12:31 ambient sample : 12.56%
+16:12:31   top consumers:
+     18.0 defaults
+     15.2 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.2 /usr/libexec/sandboxd
+      6.7 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      5.9 /System/Library/PrivateFrameworks/TCC.framework/Support/tccd
+16:12:43 ambient sample : 10.61%
+16:12:43   top consumers:
+     17.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.2 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      4.8 /usr/libexec/sandboxd
+      1.4 /usr/libexec/opendirectoryd
+      1.1 /usr/sbin/bluetoothd
+16:12:54 ambient sample : 9.30%
+16:12:54   top consumers:
+     17.4 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      7.9 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      0.9 /usr/sbin/bluetoothd
+      0.8 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+      0.7 /Applications/iPulse.app/Contents/MacOS/iPulse
+16:13:05 ambient sample : 8.50%
+16:13:05   top consumers:
+     15.6 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.7 /usr/libexec/opendirectoryd
+      6.8 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      4.3 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      1.9 /System/Library/CoreServices/launchservicesd
+16:13:16 ambient sample : 9.24%
+16:13:16   top consumers:
+     17.3 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.6 /usr/libexec/opendirectoryd
+      8.4 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      7.7 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      3.7 /usr/libexec/locationd
+16:13:27 ambient sample : 7.84%
+16:13:27   top consumers:
+     14.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      6.9 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      4.4 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      2.0 tee
+      1.9 /System/Library/PrivateFrameworks/TCC.framework/Support/tccd
+16:13:38 ambient sample : 7.56%
+16:13:38   top consumers:
+     14.8 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+     10.8 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      4.2 /usr/libexec/opendirectoryd
+      4.1 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      1.6 /usr/libexec/locationd
+16:13:49 ambient sample : 8.90%
+16:13:49   top consumers:
+     17.7 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      8.0 /System/Library/CoreServices/ScreenSaverEngine.app/Contents/MacOS/ScreenSaverEngine
+      4.6 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      1.5 /Users/wolfman/Library/Application Support/Claude/claude-code/2.1.284/claude.app/Contents/MacOS/claude
+      0.5 /usr/sbin/bluetoothd
+16:14:00 ambient sample : 35.83%
+16:14:00   top consumers:
+     18.2 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+     10.7 /Applications/Claude.app/Contents/MacOS/Claude
+      8.4 /usr/libexec/trustd
+      7.3 /usr/libexec/ApplicationFirewall/socketfilterfw
+      6.0 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper
+16:14:11 ambient sample : 11.71%
+16:14:11   top consumers:
+     11.7 /usr/libexec/TouchBarServer
+      2.7 /usr/sbin/bluetoothd
+      1.3 /usr/libexec/opendirectoryd
+      1.2 /usr/libexec/locationd
+      1.2 /usr/libexec/sharingd
+16:14:22 ambient sample : 7.73%
+16:14:22   top consumers:
+     11.5 /usr/libexec/TouchBarServer
+      2.4 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      1.7 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+      1.5 /usr/sbin/bluetoothd
+      1.0 /System/Library/CoreServices/powerd.bundle/powerd
+16:14:32 ambient sample : 5.39%
+16:14:32   top consumers:
+      6.1 /usr/libexec/TouchBarServer
+      3.6 /usr/libexec/sandboxd
+      3.2 /usr/libexec/opendirectoryd
+      2.4 /Applications/iPulse.app/Contents/MacOS/iPulse
+      1.4 /usr/libexec/locationd
+16:14:43 ambient sample : 5.29%
+16:14:43   top consumers:
+     12.5 /usr/libexec/TouchBarServer
+      4.9 /usr/sbin/bluetoothd
+      1.9 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      1.2 /usr/libexec/sharingd
+      0.7 /usr/libexec/logd
+16:14:54 ambient sample : 4.83%
+16:15:04 ambient sample : 5.21%
+16:15:04   top consumers:
+     13.8 /usr/libexec/TouchBarServer
+      4.5 /sbin/launchd
+      3.9 /usr/libexec/opendirectoryd
+      2.4 /Applications/iPulse.app/Contents/MacOS/iPulse
+      2.2 /usr/libexec/locationd
+16:15:15 ambient sample : 5.58%
+16:15:15   top consumers:
+      7.6 /usr/libexec/ApplicationFirewall/socketfilterfw
+      7.5 /usr/libexec/trustd
+      6.5 /Library/Application Support/Malwarebytes/MBAM/Engine.bundle/Contents/PlugIns/RTProtectionDaemon.app/Contents/MacOS/RTProtectionDaemon
+      3.4 /sbin/launchd
+      3.1 /usr/libexec/TouchBarServer
+16:15:26 ambient sample : 4.10%
+16:15:36 ambient sample : 3.27%
+16:15:36 gate passed at: 4.10 3.27%
+16:15:47 corvus_scaling: noise before 3.14%  top: 3.9%tccd 1.6%trustd 1.3%bluetoothd 
+16:16:54 corvus_scaling: rc=0 67s target=?
+16:17:04 elem_v241: noise before 3.31%  top: 1.6%launchd 1.5%sandboxd 1.2%opendirectoryd 
+16:17:05 elem_v241: rc=0 1s target=?
+16:17:15 elem_v250: noise before 3.19%  top: 2.5%socketfilterfw 2.4%trustd 2.0%opendirectoryd 
+16:17:16 elem_v250: rc=0 1s target=?
+16:17:27 dist_v241: noise before 3.06%  top: 0.8%iPulse 0.6%opendirectoryd 0.4%Application 
+16:17:35 dist_v241: rc=0 7s target=?
+16:17:45 dist_v250: noise before 3.56%  top: 6.5%socketfilterfw 6.4%trustd 3.7%opendirectoryd 
+16:18:50 dist_v250: rc=0 65s target=?
+16:18:50 done fail=0. Raw per-target output: build-bench/quiet_bench/quiet_bench_<target>.txt

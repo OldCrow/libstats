@@ -12,7 +12,10 @@ Zen 4 session 2026-09-29/30: the comparatives ran in two Windows
 configurations (clang-cl corvus at AVX-512, MSVC corvus at the AVX2 cap);
 record and findings in `docs/bench-evidence/2026-09-30-zen4-quiet-warm/`
 (quiet, single frequency regime), summary under Next Steps 6(c); issue
-#156 carries the tables. Kaby Lake: not started.
+#156 carries the tables. Kaby Lake session 2026-09-30: comparatives
+DONE, one quiet pass (gate 4.10/3.27%, noise 3.1–3.6%), record in
+`docs/bench-evidence/2026-09-30-kaby-quiet/`, summary under Next Steps
+6(c). 2a is complete on both x86 machines; 2b (corvus v1.1.0) is next.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
@@ -1230,9 +1233,35 @@ session artifact; the issues carry the detail.
    libstats-side items independent of corvus: discrete quantiles scan the
    CDF from k = 0 (16–50 single calls; an initial guess + local search is
    2–3) and the Student-t quantile makes two inverse calls where one
-   suffices off the tail. Owed elsewhere: Kaby Lake leg (not started);
-   the clang-cl AVX2-capped corvus build that separates compiler from
-   tier.
+   suffices off the tail. Owed elsewhere: ~~Kaby Lake leg (not started)~~
+   DONE 2026-09-30 (below); the clang-cl AVX2-capped corvus build that
+   separates compiler from tier (Zen 4).
+   **Kaby Lake comparatives leg — DONE 2026-09-30 (record:
+   `docs/bench-evidence/2026-09-30-kaby-quiet/`; QUIET, one pass, gate
+   4.10/3.27%, per-target noise 3.1–3.6%).** Worktree `../libstats-v2.4.1`
+   (`692fd08`) vs branch `6f112bb` in `build-bench/` (corvus v1.0.1 via
+   FetchContent, system Highway 1.4.0), AppleClang 15, AVX2+FMA, corvus
+   `AVX2`; runner corvus `quiet_bench.sh` unmodified, no warm-up needed
+   (scaling rows flat n = 256…65536). Record, v2.4.1 → branch:
+   - corvus per element at n = 65536, ns (Kaby / Zen 4 / M1): erf 6.5 /
+     2.4 / 2.2; exp 8.0 / 3.1 / 4.5; lgamma 58 / 29 / 45; gamma_p 152 / 90 /
+     190; beta_p 1,024 / 652 / 950; gamma_p_inv 1,886 / 1,094 / 2,400.
+     Single call: gamma_p 1,258, beta_p 2,727, gamma_p_inv 6,432 ns. The
+     M1 session's "~2× better per element on AVX2" did not hold: AVX2 on
+     this core is at or behind NEON on erf/exp/lgamma/beta_p and 1.25×
+     ahead on gamma_p/gamma_p_inv.
+   - Elementary at 1e6: exp 3.8×, log 6.4×, cos/sin 1.6–1.8× slower;
+     **erf 1.3× faster** — the x86 inversion holds on AVX2 (Zen 4 2.7×).
+   - Batch pdf/logpdf: gamma 3.6×, beta 4.1× slower; student_t at parity
+     (Zen 4 4.1–4.8×); the rest at parity. Scalar pdf/logpdf: parity.
+   - Batch CDF under auto dispatch (8 threads): gamma 1.8×, poisson 2.7×,
+     beta 12×, student_t 8.3×, binomial 20×, lognormal 1.7×, von Mises
+     1.4×, weibull 1.2× — between Zen 4 (more threads hide gamma_p) and
+     the M1. Scalar CDF 12–20×; quantile gamma family 7–26×, student_t
+     75× (fleet worst), binomial 25×, gaussian/lognormal 1.6–1.7×.
+   Verdict per ISA for the elementary family is now the same on both x86
+   machines: keep corvus erf, exp/log are the loss. corvus's AVX2 fleet
+   targets are the per-element row above. Task 2a complete.
    (d) ~~Still outstanding from the v2.4.0 ship checklist: the
    milestone #8 bucketing pass.~~ DONE 2026-09-29 — see GitHub Milestones,
    milestone #8. Consequence for sequencing: #146 lands before task 3.

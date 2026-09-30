@@ -7,7 +7,9 @@ when the absolute numbers are INDICATIVE. First results (M1 NEON, 2026-09-29)
 are in `PLAN.md` Next Steps (c) and issue #156; the Zen 4 record (2026-09-30,
 two Windows configurations, warmed) is
 `docs/bench-evidence/2026-09-30-zen4-quiet-warm/`, with the two earlier
-passes, the runner logs and the build scripts beside it.
+passes, the runner logs and the build scripts beside it; the Kaby Lake
+record (2026-09-30, AVX2, quiet, one pass) is
+`docs/bench-evidence/2026-09-30-kaby-quiet/`.
 
 - `distributions_bench.cpp` — public API: batch pdf/logpdf/cdf at 1e6 under
   auto dispatch, scalar pdf/logpdf/cdf at 1e5, quantile at 1e4; ns/element,
