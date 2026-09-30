@@ -222,7 +222,11 @@ jobs:
   sanitizers:
     name: Sanitizers (ASan/UBSan, Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 60, not 30: since v2.5.0 this leg also compiles corvus and a fetched
+    # Highway under the sanitizers (62 of 149 objects), and hit 30 minutes at
+    # 57% twice. CORVUS_DISABLED_TARGETS below trims corvus to its SSE tiers
+    # here — the leg sanitizes libstats, not corvus's per-target dispatch.
+    timeout-minutes: 60
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -238,7 +242,8 @@ jobs:
           -DLIBSTATS_BUILD_TOOLS=OFF \
           -DLIBSTATS_BUILD_EXAMPLES=OFF \
           -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1" \
-          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+          -DCORVUS_DISABLED_TARGETS="HWY_AVX3|HWY_AVX2"
 
     # Bound parallelism to memory, not just CPU. Bare `--parallel` passes
     # `make -j` with no limit, spawning a compile per ready target; under
