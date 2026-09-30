@@ -632,8 +632,20 @@ history.
      reconfigure) and fails with "is already signed"; `--remove-signature`
      then rebuild clears it. Make the step idempotent (`--force`, or skip
      when already signed).
-  Filed nowhere yet [OPEN: open a `v2.4.2` milestone and one issue per item
-  when the user is at the keyboard].
+  FILED 2026-09-29: milestone "v2.4.2 — Correctness patch" — #157 (item 1,
+  oracle), #158 (item 2, probit), #159 (item 3, Student-t; a fifth site at
+  `student_t.cpp:353` in the fit path noted on the issue), #160 (item 4,
+  gamma-family quantile), #161 (item 5, x = 0 support boundary), #162
+  (item 6, codesign). #157 and #158 land together. Audits run while
+  setting it up: (i) grep of `main` for the two defect signatures —
+  squared arguments overflowing inside a log (Rayleigh's are true
+  overflow, not defects) and batch kernels whose formula differs from
+  their scalar path (Student-t only); (ii) the #114 S6 `double → int`
+  casts are still on `main` in twelve places (Binomial ×6, Discrete ×5,
+  Poisson ×1) — UB of the #125 class [OPEN, user: move S6 from #114 into
+  v2.4.2]; (iii) a replay of the branch's deep-tail sweep rows against
+  v2.4.1 under the fixed oracle [OPEN: result pending at session end —
+  artefacts under the M1 session scratch `replay/`].
 
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
   enable a branchless Discrete CDF and Uniform PDF/LogPDF. Low priority,
