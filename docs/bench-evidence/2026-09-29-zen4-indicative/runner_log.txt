@@ -1,0 +1,410 @@
+[20:40:44] === quiet_bench start ===
+[20:40:44] build dir     : C:\Users\gdwol\Development\libstats\build-bench-msvc\bench
+[20:40:44] targets       : corvus_scaling, corvus_scaling_cap, elem_v241, elem_v250, elem_v250_cap, dist_v241, dist_v250, dist_v250_cap
+[20:40:44] expect target : (report only)
+[20:40:44] gate          : ambient < 5% over two consecutive 10s windows
+[20:40:44] WARNING: no -ExpectTarget. Numbers will not be tier-asserted.
+[20:40:54] gate window 1: 22.08%
+[20:40:54]   top CPU consumers right now (% of one core):
+[20:40:58]     compattelrunner            91.8%
+[20:40:58]     dwm                        34.0%
+[20:40:58]     system                     10.3%
+[20:40:58]     claude                      8.6%
+[20:40:58]     pwsh                        6.0%
+[20:40:58]     lightingservice             3.6%
+[20:40:58]     gwctlsrv                    2.1%
+[20:40:58]     aacambientlighting          1.0%
+[20:41:08] gate window 1: 25.55%
+[20:41:08]   top CPU consumers right now (% of one core):
+[20:41:11]     compattelrunner            87.5%
+[20:41:11]     dwm                        25.2%
+[20:41:11]     system                     16.0%
+[20:41:11]     claude                      4.9%
+[20:41:11]     lightingservice             4.1%
+[20:41:11]     gwctlsrv                    2.1%
+[20:41:11]     msmpeng                     1.5%
+[20:41:11]     glasswire                   1.0%
+[20:41:21] gate window 1: 16.49%
+[20:41:21]   top CPU consumers right now (% of one core):
+[20:41:24]     compattelrunner            83.9%
+[20:41:24]     dwm                        24.2%
+[20:41:24]     system                     17.5%
+[20:41:24]     psexpresscore              14.9%
+[20:41:24]     icloudhome                  8.2%
+[20:41:24]     lightingservice             4.1%
+[20:41:24]     aacambientlighting          3.1%
+[20:41:24]     gwctlsrv                    2.1%
+[20:41:34] gate window 1: 16.47%
+[20:41:34]   top CPU consumers right now (% of one core):
+[20:41:37]     compattelrunner            85.8%
+[20:41:37]     dwm                        33.4%
+[20:41:37]     system                     15.4%
+[20:41:37]     lightingservice             5.2%
+[20:41:37]     claude                      3.5%
+[20:41:37]     gwctlsrv                    2.6%
+[20:41:37]     acpowernotification         1.6%
+[20:41:37]     aacambientlighting          1.5%
+[20:41:47] gate window 1: 18.76%
+[20:41:47]   top CPU consumers right now (% of one core):
+[20:41:51]     compattelrunner            87.0%
+[20:41:51]     dwm                        25.8%
+[20:41:51]     system                     19.0%
+[20:41:51]     gwctlsrv                    8.7%
+[20:41:51]     lightingservice             3.6%
+[20:41:51]     claude                      2.7%
+[20:41:51]     aacambientlighting          1.5%
+[20:41:51]     glasswire                   1.0%
+[20:42:01] gate window 1: 28.65%
+[20:42:01]   top CPU consumers right now (% of one core):
+[20:42:04]     compattelrunner            84.0%
+[20:42:04]     taskmgr                    60.8%
+[20:42:04]     system                     37.2%
+[20:42:04]     dwm                        23.7%
+[20:42:04]     psexpresscore              20.6%
+[20:42:04]     icloudhome                 11.3%
+[20:42:04]     mspcmanagercore             6.7%
+[20:42:04]     lightingservice             5.7%
+[20:42:14] gate window 1: 15.14%
+[20:42:14]   top CPU consumers right now (% of one core):
+[20:42:17]     compattelrunner            44.0%
+[20:42:17]     system                      9.2%
+[20:42:17]     dwm                         7.2%
+[20:42:17]     taskmgr                     6.7%
+[20:42:17]     lightingservice             2.6%
+[20:42:17]     claude                      1.3%
+[20:42:17]     gwctlsrv                    1.0%
+[20:42:17]     aacambientlighting          1.0%
+[20:42:27] gate window 1: 18.78%
+[20:42:27]   top CPU consumers right now (% of one core):
+[20:42:30]     compattelrunner            80.8%
+[20:42:30]     dwm                        15.4%
+[20:42:30]     system                     12.3%
+[20:42:30]     glasswire                   7.2%
+[20:42:30]     lightingservice             5.1%
+[20:42:30]     gwctlsrv                    2.6%
+[20:42:30]     aacambientlighting          2.6%
+[20:42:30]     claude                      1.6%
+[20:42:40] gate window 1: 19.58%
+[20:42:40]   top CPU consumers right now (% of one core):
+[20:42:43]     compattelrunner            84.4%
+[20:42:43]     dwm                        30.4%
+[20:42:43]     psexpresscore              24.2%
+[20:42:43]     icloudhome                 17.5%
+[20:42:43]     system                     14.9%
+[20:42:43]     lightingservice             5.7%
+[20:42:43]     claude                      5.6%
+[20:42:43]     memory compression          3.6%
+[20:42:53] gate window 1: 28.53%
+[20:42:53]   top CPU consumers right now (% of one core):
+[20:42:57]     compattelrunner            86.7%
+[20:42:57]     dwm                        27.2%
+[20:42:57]     system                     13.3%
+[20:42:57]     claude                      5.0%
+[20:42:57]     lightingservice             2.6%
+[20:42:57]     gwctlsrv                    2.1%
+[20:42:57]     glidexservice               1.0%
+[20:42:57]     glasswire                   1.0%
+[20:43:07] gate window 1: 23.24%
+[20:43:07]   top CPU consumers right now (% of one core):
+[20:43:10]     compattelrunner            87.7%
+[20:43:10]     msmpeng                    34.5%
+[20:43:10]     dwm                        25.1%
+[20:43:10]     system                     19.5%
+[20:43:10]     mspcmanagercore             7.6%
+[20:43:10]     lightingservice             6.7%
+[20:43:10]     claude                      5.2%
+[20:43:10]     gwctlsrv                    4.6%
+[20:43:20] gate window 1: 20.99%
+[20:43:20]   top CPU consumers right now (% of one core):
+[20:43:23]     compattelrunner            88.8%
+[20:43:23]     dwm                        27.3%
+[20:43:23]     psexpresscore              17.5%
+[20:43:23]     system                     12.9%
+[20:43:23]     icloudhome                 11.3%
+[20:43:23]     lightingservice             7.2%
+[20:43:23]     mspcmanagercore             6.2%
+[20:43:23]     msmpeng                     4.6%
+[20:43:33] gate window 1: 17.20%
+[20:43:33]   top CPU consumers right now (% of one core):
+[20:43:36]     compattelrunner            85.9%
+[20:43:36]     system                     78.7%
+[20:43:36]     dwm                        23.6%
+[20:43:36]     msmpeng                     8.7%
+[20:43:36]     gwctlsrv                    4.6%
+[20:43:36]     lightingservice             3.1%
+[20:43:36]     explorer                    2.6%
+[20:43:36]     nvcontainer                 2.4%
+[20:43:46] gate window 1: 16.49%
+[20:43:46]   top CPU consumers right now (% of one core):
+[20:43:49]     compattelrunner            57.6%
+[20:43:49]     system                     37.6%
+[20:43:49]     gwctlsrv                   10.8%
+[20:43:49]     lightingservice             8.2%
+[20:43:49]     services                    7.2%
+[20:43:49]     taskmgr                     6.7%
+[20:43:49]     msmpeng                     2.6%
+[20:43:49]     aacambientlighting          2.1%
+[20:44:00] gate window 1: 10.93%
+[20:44:00]   top CPU consumers right now (% of one core):
+[20:44:03]     taskmgr                    41.1%
+[20:44:03]     system                     29.7%
+[20:44:03]     dwm                        18.5%
+[20:44:03]     mspcmanagercore            13.4%
+[20:44:03]     psexpresscore              12.8%
+[20:44:03]     icloudhome                  7.2%
+[20:44:03]     lightingservice             2.6%
+[20:44:03]     gwctlsrv                    2.0%
+[20:44:13] gate window 1: 9.66%
+[20:44:13]   top CPU consumers right now (% of one core):
+[20:44:16]     system                     23.0%
+[20:44:16]     taskmgr                    19.4%
+[20:44:16]     mspcmanagercore             7.2%
+[20:44:16]     dwm                         2.0%
+[20:44:16]     gwctlsrv                    2.0%
+[20:44:16]     ctfmon                      2.0%
+[20:44:16]     lightingservice             2.0%
+[20:44:16]     msmpeng                     1.5%
+[20:44:26] gate window 1: 18.16%
+[20:44:26]   top CPU consumers right now (% of one core):
+[20:44:29]     system                     20.1%
+[20:44:29]     taskmgr                     8.7%
+[20:44:29]     dwm                         5.1%
+[20:44:29]     glasswire                   2.6%
+[20:44:29]     gwctlsrv                    2.1%
+[20:44:29]     mspcmanagercore             1.6%
+[20:44:29]     mspcmanagerservice          1.6%
+[20:44:29]     lightingservice             1.5%
+[20:44:39] gate window 1: 7.50%
+[20:44:39]   top CPU consumers right now (% of one core):
+[20:44:42]     system                     25.2%
+[20:44:42]     dwm                        17.0%
+[20:44:42]     taskmgr                     8.2%
+[20:44:42]     lightingservice             4.1%
+[20:44:42]     gwctlsrv                    2.6%
+[20:44:42]     aacambientlighting          1.5%
+[20:44:42]     acpowernotification         1.5%
+[20:44:42]     msmpeng                     1.5%
+[20:44:52] gate window 1: 11.22%
+[20:44:52]   top CPU consumers right now (% of one core):
+[20:44:55]     compattelrunner            99.2%
+[20:44:55]     taskmgr                     8.2%
+[20:44:55]     dwm                         5.1%
+[20:44:55]     system                      2.6%
+[20:44:55]     gwctlsrv                    2.1%
+[20:44:55]     msmpeng                     1.0%
+[20:44:55]     glasswire                   1.0%
+[20:44:55]     lightingservice             1.0%
+[20:45:06] gate window 1: 16.31%
+[20:45:06]   top CPU consumers right now (% of one core):
+[20:45:09]     compattelrunner            98.2%
+[20:45:09]     system                     27.7%
+[20:45:09]     dwm                        15.4%
+[20:45:09]     gwctlsrv                    3.6%
+[20:45:09]     claude                      1.4%
+[20:45:09]     glasswire                   1.0%
+[20:45:09]     nvsphelper64                1.0%
+[20:45:09]     glidexservice               1.0%
+[20:45:19] gate window 1: 25.78%
+[20:45:19]   top CPU consumers right now (% of one core):
+[20:45:22]     compattelrunner            90.2%
+[20:45:22]     dwm                        29.3%
+[20:45:22]     system                     12.9%
+[20:45:22]     wmiprvse                    6.0%
+[20:45:22]     gwctlsrv                    3.6%
+[20:45:22]     msmpeng                     3.1%
+[20:45:22]     claude                      2.4%
+[20:45:22]     sppsvc                      2.1%
+[20:45:32] gate window 1: 22.18%
+[20:45:32]   top CPU consumers right now (% of one core):
+[20:45:35]     compattelrunner            92.9%
+[20:45:35]     dwm                        26.3%
+[20:45:35]     system                     12.9%
+[20:45:35]     mspcmanagercore             6.2%
+[20:45:35]     claude                      3.7%
+[20:45:35]     msmpeng                     2.6%
+[20:45:35]     gwctlsrv                    2.6%
+[20:45:35]     glasswire                   2.1%
+[20:45:45] gate window 1: 26.79%
+[20:45:45]   top CPU consumers right now (% of one core):
+[20:45:48]     compattelrunner            88.2%
+[20:45:48]     system                     75.4%
+[20:45:48]     msmpeng                    34.3%
+[20:45:48]     dwm                        28.2%
+[20:45:48]     claude                      5.2%
+[20:45:48]     gwctlsrv                    3.1%
+[20:45:48]     glasswire                   1.5%
+[20:45:48]     lsass                       1.0%
+[20:45:58] gate window 1: 23.68%
+[20:45:58]   top CPU consumers right now (% of one core):
+[20:46:01]     compattelrunner            89.1%
+[20:46:01]     dwm                        32.0%
+[20:46:01]     msmpeng                    23.7%
+[20:46:01]     system                     21.1%
+[20:46:01]     claude                      6.2%
+[20:46:01]     services                    4.1%
+[20:46:01]     gwctlsrv                    3.1%
+[20:46:01]     glasswire                   1.0%
+[20:46:12] gate window 1: 23.65%
+[20:46:12]   top CPU consumers right now (% of one core):
+[20:46:15]     compattelrunner            89.4%
+[20:46:15]     dwm                        26.2%
+[20:46:15]     system                     14.4%
+[20:46:15]     msmpeng                    11.3%
+[20:46:15]     gwctlsrv                    5.1%
+[20:46:15]     claude                      4.3%
+[20:46:15]     mspcmanagercore             4.1%
+[20:46:15]     glasswire                   2.6%
+[20:46:25] gate window 1: 20.39%
+[20:46:25]   top CPU consumers right now (% of one core):
+[20:46:28]     compattelrunner            92.1%
+[20:46:28]     dwm                        14.9%
+[20:46:28]     system                      9.3%
+[20:46:28]     gwctlsrv                    3.1%
+[20:46:28]     claude                      1.1%
+[20:46:38] gate window 1: 14.92%
+[20:46:38]   top CPU consumers right now (% of one core):
+[20:46:41]     compattelrunner            99.2%
+[20:46:41]     dwm                        23.1%
+[20:46:41]     system                      5.1%
+[20:46:41]     gwctlsrv                    2.6%
+[20:46:41]     mspcmanagercore             2.1%
+[20:46:41]     glasswire                   1.5%
+[20:46:41]     nvsphelper64                1.5%
+[20:46:41]     claude                      1.1%
+[20:46:51] gate window 1: 16.59%
+[20:46:51]   top CPU consumers right now (% of one core):
+[20:46:54]     compattelrunner            92.5%
+[20:46:54]     dwm                        20.7%
+[20:46:54]     system                      8.8%
+[20:46:54]     claude                      4.2%
+[20:46:54]     gwctlsrv                    1.5%
+[20:47:04] gate window 1: 21.89%
+[20:47:04]   top CPU consumers right now (% of one core):
+[20:47:07]     compattelrunner            90.4%
+[20:47:07]     system                     32.5%
+[20:47:07]     dwm                        30.5%
+[20:47:07]     explorer                    9.8%
+[20:47:07]     startmenuexperiencehost     8.8%
+[20:47:07]     msmpeng                     3.1%
+[20:47:07]     searchindexer               2.6%
+[20:47:07]     claude                      2.4%
+[20:47:17] gate window 1: 23.83%
+[20:47:17]   top CPU consumers right now (% of one core):
+[20:47:21]     system                     93.1%
+[20:47:21]     compattelrunner            91.1%
+[20:47:21]     msmpeng                    48.9%
+[20:47:21]     dwm                        36.1%
+[20:47:21]     gwctlsrv                   25.2%
+[20:47:21]     explorer                    7.2%
+[20:47:21]     memory compression          3.6%
+[20:47:21]     claude                      3.4%
+[20:47:31] gate window 1: 18.59%
+[20:47:31]   top CPU consumers right now (% of one core):
+[20:47:34]     dwm                        22.2%
+[20:47:34]     system                      7.7%
+[20:47:34]     gwctlsrv                    2.6%
+[20:47:34]     claude                      1.1%
+[20:47:34]     glasswire                   1.0%
+[20:47:44] gate window 1: 11.23%
+[20:47:44]   top CPU consumers right now (% of one core):
+[20:47:47]     dwm                        28.9%
+[20:47:47]     msmpeng                    17.0%
+[20:47:47]     system                      9.3%
+[20:47:47]     gwctlsrv                    7.2%
+[20:47:47]     claude                      6.9%
+[20:47:47]     lsass                       1.5%
+[20:47:57] gate window 1: 17.22%
+[20:47:57]   top CPU consumers right now (% of one core):
+[20:48:00]     dwm                        39.0%
+[20:48:00]     msmpeng                    20.9%
+[20:48:00]     system                     11.8%
+[20:48:00]     glasswire                   7.7%
+[20:48:00]     claude                      7.2%
+[20:48:00]     explorer                    3.1%
+[20:48:00]     atieclxx                    2.6%
+[20:48:00]     mspcmanagercore             2.5%
+[20:48:10] gate window 1: 18.32%
+[20:48:10]   top CPU consumers right now (% of one core):
+[20:48:13]     dwm                        29.9%
+[20:48:13]     system                      5.7%
+[20:48:13]     claude                      3.1%
+[20:48:13]     gwctlsrv                    1.5%
+[20:48:13]     glidexservice               1.0%
+[20:48:23] gate window 1: 11.63%
+[20:48:23]   top CPU consumers right now (% of one core):
+[20:48:27]     dwm                        23.1%
+[20:48:27]     system                     13.4%
+[20:48:27]     claude                      3.5%
+[20:48:27]     gwctlsrv                    2.1%
+[20:48:27]     powertoys.awake             1.5%
+[20:48:27]     services                    1.5%
+[20:48:27]     glidexservice               1.0%
+[20:48:37] gate window 1: 13.84%
+[20:48:37]   top CPU consumers right now (% of one core):
+[20:48:40]     dwm                        31.8%
+[20:48:40]     system                      8.7%
+[20:48:40]     claude                      4.1%
+[20:48:40]     mspcmanagercore             2.6%
+[20:48:40]     warp-svc                    2.1%
+[20:48:40]     nvsphelper64                1.5%
+[20:48:40]     gwctlsrv                    1.5%
+[20:48:40]     pwsh                        1.0%
+[20:48:50] gate window 1: 11.57%
+[20:48:50]   top CPU consumers right now (% of one core):
+[20:48:53]     dwm                        31.0%
+[20:48:53]     system                      5.2%
+[20:48:53]     gwctlsrv                    4.1%
+[20:48:53]     warp-svc                    3.1%
+[20:48:53]     claude                      3.0%
+[20:48:53]     mspcmanagercore             1.0%
+[20:49:03] gate window 1: 8.93%
+[20:49:03]   top CPU consumers right now (% of one core):
+[20:49:06]     dwm                        15.9%
+[20:49:06]     system                      4.1%
+[20:49:06]     gwctlsrv                    1.5%
+[20:49:06]     pwsh                        1.4%
+[20:49:06]     claude                      1.2%
+[20:49:06]     lsass                       1.0%
+[20:49:16] gate window 1: 8.70%
+[20:49:16]   top CPU consumers right now (% of one core):
+[20:49:20]     system                     61.2%
+[20:49:20]     msmpeng                    18.9%
+[20:49:20]     explorer                   13.7%
+[20:49:20]     dwm                        10.5%
+[20:49:20]     mspcmanager                 5.0%
+[20:49:20]     gwctlsrv                    4.7%
+[20:49:20]     crossdeviceservice          3.4%
+[20:49:20]     widgetservice               3.0%
+[20:49:30] gate window 1: 5.75%
+[20:49:30]   top CPU consumers right now (% of one core):
+[20:49:33]     system                     18.5%
+[20:49:33]     gwctlsrv                    3.1%
+[20:49:33]     pwsh                        1.0%
+[20:49:33]     crossdeviceservice          1.0%
+[20:49:33]     nvsphelper64                1.0%
+[20:49:33]     warp-svc                    1.0%
+[20:49:43] gate window 1: 2.79%
+[20:49:53] gate window 2: 2.84%
+[20:49:53] GATE PASSED at 2.84%
+[20:49:56] --- corvus_scaling --- noise before: 2.65%
+[20:50:57] ok   corvus_scaling -> quiet_bench_corvus_scaling.txt   noise after: 2.89%
+[20:51:00] --- corvus_scaling_cap --- noise before: 3.15%
+[20:58:10] ok   corvus_scaling_cap -> quiet_bench_corvus_scaling_cap.txt   noise after: 3.05%
+[20:58:13] --- elem_v241 --- noise before: 7.46%
+[20:58:17] ok   elem_v241 -> quiet_bench_elem_v241.txt   noise after: 4.04%
+[20:58:20] --- elem_v250 --- noise before: 6.28%
+[20:58:24] ok   elem_v250 -> quiet_bench_elem_v250.txt   noise after: 11.80%
+[20:58:27] --- elem_v250_cap --- noise before: 12.50%
+[20:58:32] ok   elem_v250_cap -> quiet_bench_elem_v250_cap.txt   noise after: 11.58%
+[20:58:35] --- dist_v241 --- noise before: 6.87%
+[20:58:48] ok   dist_v241 -> quiet_bench_dist_v241.txt   noise after: 4.25%
+[20:58:51] --- dist_v250 --- noise before: 8.72%
+[20:59:33] ok   dist_v250 -> quiet_bench_dist_v250.txt   noise after: 10.10%
+[20:59:36] --- dist_v250_cap --- noise before: 6.93%
+[21:03:48] ok   dist_v250_cap -> quiet_bench_dist_v250_cap.txt   noise after: 11.58%
+[21:03:48] === quiet_bench summary ===
+[21:03:48] gated at      : 2.84%
+[21:03:48] noise held    : 2.65% - 12.50% (avg 7.12%)
+[21:03:48] targets run   : 8 of 8
+[21:03:48] Raw per-target output: C:\Users\gdwol\Development\libstats\build-bench-msvc\quiet-2026-09-29\quiet_bench_<target>.txt
+[21:03:48] This log is the evidence chain - keep it with any published number.

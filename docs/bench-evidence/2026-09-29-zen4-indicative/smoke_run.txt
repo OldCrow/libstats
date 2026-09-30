@@ -1,0 +1,48 @@
+# Smoke run, 2026-09-29 ~20:15, BEFORE the gated pass. Ambient load 31-56%
+# (builds and the desktop app active). Same five binaries as the gated pass
+# (clang-cl corvus, AVX3_ZEN4); the cap binaries did not exist yet.
+# Kept because every row of every binary sits in the boosted frequency
+# regime, so this run's v2.4.1 -> branch ratios are consistent, which the
+# gated pass's are not (see README.md).
+
+=== corvus_scaling ===
+corvus AVX3_ZEN4
+       n        erf        exp     lgamma    gamma_p     beta_p gamma_p_inv
+       1       19.9       24.0      168.9      955.1     1858.0     4658.4
+       2       10.2       11.9       83.2      588.5     1026.2     3204.6
+       4        5.0        5.9       42.7      245.3      516.5     1800.6
+       8        2.4        2.7       20.5       68.1      557.2      734.4
+      32        1.8        2.2       19.8       67.6      357.2      725.1
+     256        1.7        2.1       19.2       56.9      419.3      746.3
+    4096        1.7        2.1       19.3       61.1      455.6      755.5
+   65536        1.6        2.1       19.6       61.0      449.3      743.0
+=== elem_v241 ===
+n=1000     exp  1.20  log  1.40  cos  1.80  sin  1.80  erf  8.40
+n=1000000  exp  0.69  log  0.83  cos  1.10  sin  1.11  erf  4.51
+=== elem_v250 ===
+n=1000     exp  2.10  log  4.90  cos  1.60  sin  1.60  erf  1.70
+n=1000000  exp  2.38  log  5.14  cos  1.68  sin  1.62  erf  1.73
+=== dist_v241 ===
+ns/elem        pdf@1e6  lpdf@1e6   cdf@1e6    pdf-sc   lpdf-sc    cdf-sc  quantile
+gamma              0.8       0.7      14.3      15.6       9.8      76.0     545.1
+beta               5.8       5.1      10.0      19.3      13.6     132.9     719.9
+poisson           11.7       9.9      20.4      66.3      59.6     121.9     958.4
+student_t          2.9       1.9     143.6      16.6      10.5     155.4     741.4
+binomial         179.5     173.3      71.7     189.3     178.7     406.9    6524.9
+gaussian           0.9       0.3       3.9       8.1       5.8      22.6      51.0
+lognormal          2.1       1.2       1.5      14.2       9.1      22.3      57.5
+von_mises          2.4       1.6      76.2      17.5      13.7     164.7      52.8
+weibull            2.9       2.0       2.9      21.4      14.2      20.8      24.6
+exponential        0.8       0.4       0.9       8.1       5.8       7.9       9.1
+=== dist_v250 ===
+ns/elem        pdf@1e6  lpdf@1e6   cdf@1e6    pdf-sc   lpdf-sc    cdf-sc  quantile
+gamma              2.3       1.9      11.7      23.2      10.0    1001.7    5281.5
+beta              16.0      13.5      70.5      19.6      13.8    1773.5   12337.2
+poisson           10.4      10.2      23.1      66.6      59.4    1139.6    8910.9
+student_t          8.8       6.8     430.1      21.9      11.5    2377.3   42432.2
+binomial         179.2     171.6     613.6     191.9     179.9    2912.0   65093.3
+gaussian           0.9       0.3       3.6       8.2       5.9      22.7     157.0
+lognormal          2.1       1.2       1.8      14.3       9.0      48.5     166.2
+von_mises          2.5       1.7      70.0      17.7      13.4     168.2      54.8
+weibull            3.5       2.2      10.7      21.5      14.4      23.9      24.6
+exponential        1.0       0.5       1.0       8.3       5.9       9.0       9.0

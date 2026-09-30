@@ -8,6 +8,12 @@ open with #157–#167 (Known Gaps ledger), all `main`-only fixes that do
 not depend on the corvus decision. Next concrete step on this machine is
 nothing; on Kaby Lake / Zen 4 it is the `tools/bench/` comparatives (2a
 in the standards workplan). v2.4.2 can be cut off `main` at any time.
+Zen 4 session 2026-09-29/30: the comparatives ran in two Windows
+configurations (clang-cl corvus at AVX-512, MSVC corvus at the AVX2 cap),
+INDICATIVE — evidence and provisional findings in
+`docs/bench-evidence/2026-09-29-zen4-indicative/`, summary under Next
+Steps 6(c); a same-regime re-pass is owed on this machine before the
+numbers become the record. Kaby Lake: not started.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
@@ -1178,6 +1184,49 @@ session artifact; the issues carry the detail.
    `docs/ACCURACY_CHARACTERIZATION.md` regeneration on all three ISAs
    and its v2.5.0 narrative; (v) `docs/VALIDATION_HISTORY.md`; (vi)
    version bump and release (task 4), then the pylibstats pin (task 5).
+   **Zen 4 comparatives leg — first pass RUN 2026-09-29, re-pass owed
+   [OPEN].** Two configurations, libstats MSVC 19.51 `/arch:AVX512` in
+   both: (A) [user] corvus v1.0.1 + Highway 1.4.0 built with clang-cl
+   22.1.3 as a system package, dispatching `AVX3_ZEN4`; (B) [user] the
+   same built with MSVC, dispatching `AVX2` (Highway's MSVC cap) — what a
+   default FetchContent build on Windows produces. Recipe in
+   `tools/bench/README.md`. On the Zen 4 box: worktree
+   `../libstats-v2.4.1`; `build-bench-msvc/` (A) and
+   `build-bench-msvc-cap/` (B); prefixes under `build-bench-deps/`;
+   binaries and build scripts. Evidence (raw outputs, runner log, the
+   pre-gate smoke run, the build scripts) and the full provisional
+   findings: `docs/bench-evidence/2026-09-29-zen4-indicative/`.
+   Runner: corvus `tools/quiet_bench.ps1`, unmodified.
+   **Status of the numbers: INDICATIVE, not the record.** The gate passed
+   at 2.84% and both `corvus_scaling` runs held 2.7–3.2%, but noise was
+   4–12.5% for the `elem_*` and `dist_*` runs, and single-thread
+   throughput steps down ~1.5× about 15 s into sustained load
+   (reproduced afterwards; the Zen 4 frequency-scaling artifact,
+   `docs/VALIDATION_HISTORY.md`). The step lands on different rows of
+   the two binaries, so ratios under 2× in the distribution table are
+   not reliable; ratios taken from rows in one regime are.
+   - Per element at n = 65536, sustained regime, ns (A / B / M1): erf
+     2.4 / 12.2 / 2.2; exp 3.1 / 23.0 / 4.5; lgamma 29 / 135 / 45;
+     gamma_p 90 / 2,726 / 190; beta_p 649 / 8,056 / 950; gamma_p_inv
+     1,093 / 10,699 / 2,400. Single call (n = 1): gamma_p 926, beta_p
+     1,815 — the M1's 827 and 1,500, so tier-independent as predicted.
+   - **B is 5–30× slower than A**, not the ~1.6× that AVX2 vs AVX-512
+     width explains (corvus `CMakeLists.txt`, measured 2026-07-24), so
+     most of it is MSVC code generation, not the tier. Unseparated:
+     needs a clang-cl build capped at AVX2.
+   - Elementary at 1e6, v2.4.1 → A → B, ns: exp 0.68 → 2.09 → 15.4;
+     log 0.83 → 4.92 → 38.2; cos 1.10 → 1.62 → 25.5; erf 4.42 → 1.65 →
+     8.25. **erf INVERTS against the M1** (A 2.7× faster; NEON 1.6×
+     slower); exp 3.1× and log 5.9× slower, the M1's direction.
+   - Distributions, v2.4.1 → A, same-regime rows: scalar CDF 7–15×,
+     quantile 10–57× slower, as on the M1. Batch CDF at 1e6 under auto
+     dispatch: gamma and poisson at parity (M1 3–4×), beta 8×, binomial
+     8×, student_t 3–5×. Gaussian/lognormal quantile 3× (M1 1.4×).
+   - Distributions, v2.4.1 → B: batch CDF 18–69×, scalar CDF 50–180×,
+     quantile 60–470×.
+   Re-pass: hold one frequency regime across both binaries (run each
+   twice back to back, keep the second) on a machine that stays under
+   the gate for the whole pass. Kaby Lake leg: not started.
    (d) ~~Still outstanding from the v2.4.0 ship checklist: the
    milestone #8 bucketing pass.~~ DONE 2026-09-29 — see GitHub Milestones,
    milestone #8. Consequence for sequencing: #146 lands before task 3.
