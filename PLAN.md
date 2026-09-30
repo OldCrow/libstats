@@ -311,7 +311,8 @@ history.
   rows sit on replaced cores, the poisson/pareto/student-t rows survive),
   #111, #144 (first post-swap Zen 4 session; moot if #111 lands NEVER by
   policy). C — mixed, one pass after the swap: #114 (dead-code items
-  change with the swap; S6 casts and CI items do not). Milestone stays
+  change with the swap; CI items do not; S6 casts moved to #167 in
+  v2.4.2 on 2026-09-30). Milestone stays
   post-v2.5.0; bucket A is not blocked by it.
   - #104 OPEN, **contract DECIDED 2026-09-02** [user] — finite best-effort:
     never NaN for valid p ∈ (0,1), ±inf only on true double overflow;
@@ -642,10 +643,23 @@ history.
   overflow, not defects) and batch kernels whose formula differs from
   their scalar path (Student-t only); (ii) the #114 S6 `double → int`
   casts are still on `main` in twelve places (Binomial ×6, Discrete ×5,
-  Poisson ×1) — UB of the #125 class [OPEN, user: move S6 from #114 into
-  v2.4.2]; (iii) a replay of the branch's deep-tail sweep rows against
-  v2.4.1 under the fixed oracle [OPEN: result pending at session end —
-  artefacts under the M1 session scratch `replay/`].
+  Poisson ×1) — UB of the #125 class; moved out of #114 into v2.4.2 as
+  #167 (DECIDED 2026-09-30 [user]); (iii) a replay of the branch's 9798 sweep rows against
+  v2.4.1 under the fixed oracle (DONE 2026-09-29, M1): 49 violations vs
+  the branch's 35; the 14 extra are #158/#159 rows. Four new defects,
+  filed on the milestone: #163 Gamma copy/move ctors mark the cache
+  valid without copying it (copy of Gamma(2,1) computes as Exponential(1);
+  both branches); #164 Rayleigh/Weibull pdf/logpdf NaN at +inf (log(x)
+  − x² = inf − inf; both branches); #165 Poisson logpdf −4605 out of
+  support where Binomial/Discrete/NegBin return −∞ (scalar half of the
+  #161 sentinel question); #166 `gamma_p`/`beta_i` stop at
+  `DEFAULT_TOLERANCE = 1e-8`, CDF 1e-9 to 8e-6 relative at large shape
+  (`main` only — corvus fixes it on the branch; the one v2.4.2 item that
+  changes numbers, droppable). Also on #158: LogNormal quantile returns
+  0 at p = 1e-300 and the oracle's absolute gate does not flag it.
+  Replay harness (`replay.cpp`, `perrow.py`, CSVs) sits under the M1
+  session scratch `replay/`; bit-identical to the native v2.4.1 sweep on
+  the 6756 shared keys.
 
 - `vector_floor` + `vector_blend` primitives across all SIMD backends would
   enable a branchless Discrete CDF and Uniform PDF/LogPDF. Low priority,
