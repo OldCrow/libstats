@@ -1136,8 +1136,11 @@ session artifact; the issues carry the detail.
    Remaining before the PR: (i) Kaby Lake and Zen 4 native builds of the
    branch (AVX2/AVX-512 sweeps, the Windows leg with corvus's MSVC AVX2
    cap); (ii) task 3 — post-swap timing, dispatch-threshold re-measure
-   (#146 first), `dispatch_thresholds.h` erf comment; (iii) CI green on
-   the branch, including the new install-contract leg; (iv) the
+   (#146 first), `dispatch_thresholds.h` erf comment; (iii) ~~CI green on
+   the branch~~ DONE 2026-09-29 at `01ade5c` (dispatch run 36653479508,
+   all eleven jobs: install-contract leg, #90 export guard with the
+   corvus prefix, pin canary, Sanitizers in 31 of its 60 minutes) —
+   re-run after any rebase; (iv) the
    `docs/ACCURACY_CHARACTERIZATION.md` regeneration on all three ISAs
    and its v2.5.0 narrative; (v) `docs/VALIDATION_HISTORY.md`; (vi)
    version bump and release (task 4), then the pylibstats pin (task 5).
