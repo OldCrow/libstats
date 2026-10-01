@@ -35,7 +35,19 @@ Same session, task 2 Kaby Lake leg DONE: branch `6b78cd5` native AVX2,
 correctness ctest 74/74, AVX2 sweep 32 → 35 (the M1's rows exactly),
 AVX2 block regenerated at `6b78cd5` (Next Steps 6(c) (i)). Two timing-
 label tests fail on this machine on the branch and pass on v2.4.1 —
-recorded under 6(c), not gating. Task 2 still owes the Zen 4 leg.
+recorded under 6(c), not gating. ~~Task 2 still owes the Zen 4 leg.~~
+Zen 4 session 2026-09-30 (evening): task 2 Zen 4 leg DONE at `ead51e0`
+— two trees (clang-cl corvus, MSVC corvus), ctest 74/74 each, AVX-512
+sweep 32 → 35 with the fleet's rows, the two corvus builds bit-identical
+over all 9798 sweep rows, AVX-512 block regenerated; four exp/log
+SIMD-speedup timing gates fail on the branch in every run (6(c)(i)).
+Compiler vs tier on Windows separated: tier 1.5×, MSVC code generation
+3–19×. corvus `a78eddd` ctest 34/34 tier-asserted `AVX3_ZEN4` (their
+2b pre-release check, Zen 4 half). Local state on this machine:
+`build-zen4-a/`, `build-zen4-b/`, the bench trees and prefixes under
+`build-bench-*`, worktrees `../libstats-v2.4.1` and `../corvus-v1.0.1`.
+Nothing further is owed here until corvus v1.1.0; #129 (Zen-only) is
+independent.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
@@ -1195,9 +1207,9 @@ session artifact; the issues carry the detail.
    points, exp/log on NEON; #31 for lgamma), revert increment 4 and the
    PMF lgamma routing while keeping the special-function swap, hybrid, or
    hold — see the session record.
-   Remaining before the PR: (i) ~~Kaby Lake and~~ Zen 4 native builds of the
-   branch (~~AVX2~~/AVX-512 sweeps, the Windows leg with corvus's MSVC AVX2
-   cap). **Kaby Lake leg DONE 2026-09-30** at `6b78cd5`, `build-bench/`
+   Remaining before the PR: (i) ~~Kaby Lake and Zen 4 native builds of the
+   branch (AVX2/AVX-512 sweeps, the Windows leg with corvus's MSVC AVX2
+   cap)~~ both DONE 2026-09-30. **Kaby Lake leg DONE 2026-09-30** at `6b78cd5`, `build-bench/`
    Release (AppleClang 15, Ninja, corvus v1.0.1 fetched, system Highway
    1.4.0), `system_inspector` AVX2: correctness ctest 74/74 (`-LE
    timing|benchmark`); the only build warnings are Homebrew gtest's own
@@ -1232,7 +1244,47 @@ session artifact; the issues carry the detail.
      ns) and first-touch 72 vs 27 µs. Not a getter regression; an
      interaction with what the auto-dispatch batch leaves behind
      (pool workers still draining the slower corvus batch?), mechanism
-     unconfirmed. (ii) task 3 — post-swap timing, dispatch-threshold re-measure
+     unconfirmed.
+   **Zen 4 leg DONE 2026-09-30** at `ead51e0`, fresh Visual Studio x64
+   Release trees (MSVC 19.51, `/arch:AVX512`, `system_inspector`
+   AVX-512), corvus v1.0.1 as a system package in two builds:
+   `build-zen4-a/` against the clang-cl corvus (`AVX3_ZEN4`) and
+   `build-zen4-b/` against the MSVC corvus (the `AVX2` cap — the plan's
+   "Windows leg"). Both warning-clean, correctness ctest 74/74 each, no
+   stale Debug CRT. AVX-512 sweep 32 → 35 contract rows, the M1's and
+   Kaby Lake's rows exactly (−3 Student-t quantile, +6 gamma/chi-squared
+   pdf/logpdf); same gains (CDF beta 4e-9 → 3e-16, binomial 1.3e-2 →
+   3.6e-12, gamma 1.8e-7 → 2e-13, poisson 1.6e-3 → 2.7e-16, Student-t
+   3.7e-3 → 1.4e-10; quantiles gamma family 1e139 → 1e-16, Gaussian
+   0.44 → 6.6e-16, lognormal 474 → 2.8e-15); no row differs from the
+   AVX2 block by more than 4× above 1e-13. **The two corvus builds give
+   bit-identical sweeps — 0 of 9798 CSV rows differ** — so the MSVC cap
+   costs throughput only, and the AVX-512 block (regenerated in this
+   commit from build A) holds for both. CSVs and oracle logs under
+   `~/Archive/libstats-v2.5.0-sweeps/` on this machine. For the v2.5.0
+   narrative (iv): EIGHT gaussian/lognormal pdf and cdf rows moved the
+   other way on x86, scalar as well as batch (1–2e-14 → 1.2–3.3e-13; the
+   Kaby note lists three), all < 1e-12 and inside every contract; the
+   grid also grew 9210 → 9798, so code-vs-grid attribution needs the M1
+   replay method.
+   Timing-label tests here, three alternating runs each of v2.4.1
+   (`build/`, 103044b) and the branch, `-j1` (plus one earlier branch
+   run): v2.4.1 fails `UniformEnhanced` 3/3 (#129) and Poisson 1/3.
+   The branch fails, in every run, the SIMD-speedup gates of
+   Exponential (1.34–1.48× vs 1.8), Gaussian (1.70–1.77× vs 1.8) and
+   Rayleigh (0.86–1.29× vs 1.5), and Lognormal in 3 of 4 (0.94–1.27× vs
+   1.5); Pareto 2/3, Weibull 1/3 and Cauchy 1/3 sit at the gate. All are
+   exp/log consumers at batch 5000 — increment 4, the same cause as Kaby
+   Lake's Weibull failure and what lever 1 (restore the tier kernels for
+   exp/log/cos/sin) removes. Kaby Lake's Gamma cache-hit failure does
+   NOT reproduce here. Separate from the swap:
+   `GaussianEnhancedTest.CachingSpeedupVerification` divides two
+   getter-group timings read off a 100 ns clock (0 ns / 100 ns → 0× or
+   NaN, fails 3/3 on the branch, passes on v2.4.1 by the same accident)
+   — a gate that cannot measure what it asserts on Windows; #129 class
+   [OPEN, file]. Task 2's native legs are complete on all three
+   machines; the pin bump to corvus v1.1.0 re-runs them.
+   (ii) task 3 — post-swap timing, dispatch-threshold re-measure
    (#146 first), `dispatch_thresholds.h` erf comment; (iii) ~~CI green on
    the branch~~ DONE 2026-09-29 at `01ade5c` (dispatch run 36653479508,
    all eleven jobs: install-contract leg, #90 export guard with the
@@ -1266,7 +1318,14 @@ session artifact; the issues carry the detail.
      tier-independent (M1 827 / 1,500 / 4,300, boosted).
    - **B is 5–30× slower than A**, not the ~1.6× the tier width explains
      (corvus `CMakeLists.txt`, 2026-07-24): MSVC code generation of
-     Highway code. Unseparated — needs a clang-cl build capped at AVX2.
+     Highway code. SEPARATED 2026-09-30 with corvus v1.0.1 built by
+     clang-cl and capped at AVX2
+     (`docs/bench-evidence/2026-09-30-zen4-clangcl-avx2/`), per element
+     at n = 65536, clang-cl AVX-512 / clang-cl AVX2 / MSVC AVX2: erf 2.4
+     / 3.4 / 12.2; exp 3.1 / 5.1 / 23.0; lgamma 29 / 44 / 134; gamma_p 90
+     / 142 / 2,722; beta_p 652 / 973 / 8,069; gamma_p_inv 1,094 / 1,664 /
+     10,699. **The tier costs 1.4–1.6×; MSVC code generation costs
+     3–19×** (gamma_p 19×, beta_p 8×, inverse 6×, elementary 3–4.5×).
      Decides the pylibstats Windows-wheel question (clang-cl) and asks
      for a configure guard here against an MSVC-built corvus.
    - Elementary at 1e6: exp 3.0× [22×], log 5.4× [42×], cos/sin 1.5×
@@ -1289,8 +1348,8 @@ session artifact; the issues carry the detail.
    CDF from k = 0 (16–50 single calls; an initial guess + local search is
    2–3) and the Student-t quantile makes two inverse calls where one
    suffices off the tail. Owed elsewhere: ~~Kaby Lake leg (not started)~~
-   DONE 2026-09-30 (below); the clang-cl AVX2-capped corvus build that
-   separates compiler from tier (Zen 4).
+   DONE 2026-09-30 (below); ~~the clang-cl AVX2-capped corvus build that
+   separates compiler from tier (Zen 4)~~ DONE 2026-09-30 (above).
    **Kaby Lake comparatives leg — DONE 2026-09-30 (record:
    `docs/bench-evidence/2026-09-30-kaby-quiet/`; QUIET, one pass, gate
    4.10/3.27%, per-target noise 3.1–3.6%).** Worktree `../libstats-v2.4.1`
