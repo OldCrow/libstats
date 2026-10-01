@@ -1264,9 +1264,28 @@ session artifact; the issues carry the detail.
    `~/Archive/libstats-v2.5.0-sweeps/` on this machine. For the v2.5.0
    narrative (iv): EIGHT gaussian/lognormal pdf and cdf rows moved the
    other way on x86, scalar as well as batch (1–2e-14 → 1.2–3.3e-13; the
-   Kaby note lists three), all < 1e-12 and inside every contract; the
-   grid also grew 9210 → 9798, so code-vs-grid attribution needs the M1
-   replay method.
+   Kaby note lists three), all < 1e-12 and inside every contract.
+   RESOLVED the same day — these are not regressions but first
+   measurements. `accuracy_sweep.cpp` is unchanged since v2.4.1; it
+   builds each continuous x-grid from the library's OWN `getQuantile`
+   over a 45-point p-grid, then sorts and deduplicates. At v2.4.1 the
+   deep-tail quantiles were wrong and collapsed onto each other (the
+   Gaussian grid stopped at |z| = 11.02), so the tail was never swept;
+   with corvus inverses every p maps to a distinct x and the grid
+   reaches z = −37. All eight rows peak at z = −25…−36, points absent
+   from the v2.4.1 grid (checked against a v2.4.1 CSV regenerated here).
+   Grid generation for the doc header at (iv): **9210 → 9798, +588, all
+   in pdf/logpdf/cdf rows of seven distributions** — gaussian +135,
+   student_t +135, lognormal +126, beta +102, erlang +60, gamma +21,
+   chi_squared +9 (quantile rows unchanged: fixed 15-point p list).
+   Only 6957 keys are shared between the two grids; another ~2250
+   points moved because the quantile that places them changed (up to 7%
+   for gamma/erlang at shape 1e4, 1e-9 for inverse_gamma/fisher_f). Two
+   instances LOST points — gamma(0.01, 0.01) 30 → 26, chi_squared(0.01)
+   30 → 24 — where true quantiles underflow to 0 and now deduplicate.
+   Consequence: block-to-block max_rel comparisons across this boundary
+   compare different point sets; only the M1's replay (v2.4.1 evaluated
+   on the branch grid) is like-for-like.
    Timing-label tests here, three alternating runs each of v2.4.1
    (`build/`, 103044b) and the branch, `-j1` (plus one earlier branch
    run): v2.4.1 fails `UniformEnhanced` 3/3 (#129) and Poisson 1/3.
