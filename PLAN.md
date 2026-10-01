@@ -16,6 +16,21 @@ record and findings in `docs/bench-evidence/2026-09-30-zen4-quiet-warm/`
 DONE, one quiet pass (gate 4.10/3.27%, noise 3.1–3.6%), record in
 `docs/bench-evidence/2026-09-30-kaby-quiet/`, summary under Next Steps
 6(c). 2a is complete on both x86 machines; 2b (corvus v1.1.0) is next.
+Session 2026-09-30 (Kaby Lake) closed with: this branch at `199839a`
+(2a + task 2 Kaby leg recorded); corvus #42 lever 2 landed on corvus
+`main` at `a78eddd` — single-point calls now cost one vector (gamma_p
+2.9×, lgamma 2.6× cheaper per call; beta_p and the inverses unchanged,
+they were already one vector) and eight scalar entry points exist. For
+the pin bump here: `corvus_scalar(Fn, ...)` in `src/math_utils.cpp` is a
+deducing template and will not compile against overload sets — replace
+its seven family call sites with `corvus::gamma_p(a, x)` etc. directly;
+the elementary/erf sites (`corvus::erf`, `lgamma`, `erfinv`) are not
+overloaded and keep the wrapper. Expect the scalar-CDF rows for gamma /
+poisson / chi-squared to drop ~2.5× and the gamma-family quantiles
+somewhat; beta/binomial/Student-t single-call rows wait on corvus #42
+lever 1. Nothing else owed on this machine until 2b finishes; local
+state: `../libstats-v2.4.1` worktree (built), `build-bench/` Release of
+`6b78cd5` with the five bench binaries under `build-bench/tests/`.
 Same session, task 2 Kaby Lake leg DONE: branch `6b78cd5` native AVX2,
 correctness ctest 74/74, AVX2 sweep 32 → 35 (the M1's rows exactly),
 AVX2 block regenerated at `6b78cd5` (Next Steps 6(c) (i)). Two timing-
