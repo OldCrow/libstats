@@ -7,6 +7,7 @@
     #pragma warning(disable : 4996)  // Suppress MSVC static analysis VRC003 warnings for GTest
 #endif
 
+#include "include/validators.h"
 #include "libstats/core/math_utils.h"
 
 // Standard library includes
@@ -251,22 +252,23 @@ TEST_F(MathUtilsTest, ErfPerformance) {
     std::vector<double> input = generate_test_data(size);
     std::vector<double> output(size);
 
+    // Minimum over interleaved rounds: steady-state costs, same machine state (#129).
+    constexpr int kTimingRepetitions = 15;
+    using stats::tests::validators::interleavedMinElapsedMicros;
+
     // Scalar implementation
-    auto start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i < size; ++i) {
-        output[i] = stats::detail::erf(input[i]);
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-    auto scalar_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    const auto run_scalar = [&] {
+        for (size_t i = 0; i < size; ++i) {
+            output[i] = stats::detail::erf(input[i]);
+        }
+    };
 
     // Vectorized implementation
-    start = std::chrono::high_resolution_clock::now();
-    stats::detail::vector_erf(input, output);
-    end = std::chrono::high_resolution_clock::now();
-    auto vector_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    const auto run_vector = [&] { stats::detail::vector_erf(input, output); };
+    const auto [scalar_time, vector_time] =
+        interleavedMinElapsedMicros(kTimingRepetitions, run_scalar, run_vector);
 
-    double speedup =
-        static_cast<double>(scalar_time.count()) / static_cast<double>(vector_time.count());
+    double speedup = scalar_time / vector_time;
 
     // We expect at least no significant slowdown
     EXPECT_GT(speedup, 0.5) << "Vectorized should not be significantly slower than scalar";
@@ -281,22 +283,23 @@ TEST_F(MathUtilsTest, GammaPerformance) {
     std::vector<double> output(size);
     double a = 2.5;
 
+    // Minimum over interleaved rounds: steady-state costs, same machine state (#129).
+    constexpr int kTimingRepetitions = 15;
+    using stats::tests::validators::interleavedMinElapsedMicros;
+
     // Scalar gamma_p
-    auto start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i < size; ++i) {
-        output[i] = stats::detail::gamma_p(a, pos_input[i]);
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-    auto scalar_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    const auto run_scalar = [&] {
+        for (size_t i = 0; i < size; ++i) {
+            output[i] = stats::detail::gamma_p(a, pos_input[i]);
+        }
+    };
 
     // Vectorized gamma_p
-    start = std::chrono::high_resolution_clock::now();
-    stats::detail::vector_gamma_p(a, pos_input, output);
-    end = std::chrono::high_resolution_clock::now();
-    auto vector_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    const auto run_vector = [&] { stats::detail::vector_gamma_p(a, pos_input, output); };
+    const auto [scalar_time, vector_time] =
+        interleavedMinElapsedMicros(kTimingRepetitions, run_scalar, run_vector);
 
-    double speedup =
-        static_cast<double>(scalar_time.count()) / static_cast<double>(vector_time.count());
+    double speedup = scalar_time / vector_time;
 
     // We expect at least no significant slowdown
     EXPECT_GT(speedup, 0.5) << "Vectorized should not be significantly slower than scalar";

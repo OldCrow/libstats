@@ -306,14 +306,17 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
             test_values[i] = dis(gen);
         }
 
+        // Minimum over kTimingRepetitions interleaved rounds: the gates below compare
+        // steady-state costs under the same machine state (#129).
+        constexpr int kTimingRepetitions = 15;
+        using stats::tests::validators::interleavedMinElapsedMicros;
+
         // 1. Sequential individual calls (baseline)
-        auto start = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < batch_size; ++i) {
-            results[i] = stdNormal.getProbability(test_values[i]);
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        auto sequential_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        const auto run_sequential = [&] {
+            for (size_t i = 0; i < batch_size; ++i) {
+                results[i] = stdNormal.getProbability(test_values[i]);
+            }
+        };
 
         std::span<const double> input_span(test_values);
 
@@ -321,38 +324,34 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
         std::vector<double> simd_results(batch_size);
         detail::PerformanceHint simd_hint;
         simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-        start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbability(input_span, std::span<double>(simd_results), simd_hint);
-        end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        const auto run_simd = [&] {
+            stdNormal.getProbability(input_span, std::span<double>(simd_results), simd_hint);
+        };
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
         detail::PerformanceHint parallel_hint;
         parallel_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
-        start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbability(input_span, std::span<double>(parallel_results), parallel_hint);
-        end = std::chrono::high_resolution_clock::now();
-        auto parallel_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        const auto run_parallel = [&] {
+            stdNormal.getProbability(input_span, std::span<double>(parallel_results),
+                                     parallel_hint);
+        };
 
         // 4. Work-stealing operations (use shared global pool)
         std::vector<double> work_stealing_results(batch_size);
         detail::PerformanceHint ws_hint;
         ws_hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-        start = std::chrono::high_resolution_clock::now();
-        stdNormal.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
-        end = std::chrono::high_resolution_clock::now();
-        auto work_stealing_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        const auto run_work_stealing = [&] {
+            stdNormal.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
+        };
+        const auto [sequential_time, simd_time, parallel_time, work_stealing_time] =
+            interleavedMinElapsedMicros(kTimingRepetitions, run_sequential, run_simd, run_parallel,
+                                        run_work_stealing);
 
         // Calculate speedups
-        double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
-        double parallel_speedup =
-            static_cast<double>(sequential_time) / static_cast<double>(parallel_time);
-        double ws_speedup =
-            static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
+        double simd_speedup = sequential_time / simd_time;
+        double parallel_speedup = sequential_time / parallel_time;
+        double ws_speedup = sequential_time / work_stealing_time;
 
         std::cout << "  Sequential: " << sequential_time << "μs (baseline)\n";
         std::cout << "  Vectorized: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
@@ -422,21 +421,33 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
             test_values[j] = dis(gen);
         }
 
+        // Minimum over interleaved rounds of `calls` back-to-back calls, reported per call:
+        // steady-state costs under the same machine state (#129). One call on a 5-element
+        // batch takes tens of nanoseconds, below the clock resolution.
+        constexpr int kTimingRepetitions = 15;
+        const size_t calls = std::max<size_t>(1, 20000 / batch_size);
+        using stats::tests::validators::interleavedMinElapsedMicros;
+
         // Test auto-dispatch
-        auto start = std::chrono::high_resolution_clock::now();
-        gauss_dist.getProbability(std::span<const double>(test_values),
-                                  std::span<double>(auto_results));
-        auto end = std::chrono::high_resolution_clock::now();
-        auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        const auto run_auto = [&] {
+            for (size_t k = 0; k < calls; ++k) {
+                gauss_dist.getProbability(std::span<const double>(test_values),
+                                          std::span<double>(auto_results));
+            }
+        };
 
         // Compare with scalar loop baseline
-        start = std::chrono::high_resolution_clock::now();
-        for (size_t j = 0; j < batch_size; ++j) {
-            traditional_results[j] = gauss_dist.getProbability(test_values[j]);
-        }
-        end = std::chrono::high_resolution_clock::now();
-        auto traditional_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        const auto run_traditional = [&] {
+            for (size_t k = 0; k < calls; ++k) {
+                for (size_t j = 0; j < batch_size; ++j) {
+                    traditional_results[j] = gauss_dist.getProbability(test_values[j]);
+                }
+            }
+        };
+        const auto [auto_total, traditional_total] =
+            interleavedMinElapsedMicros(kTimingRepetitions, run_auto, run_traditional);
+        const double auto_time = auto_total / static_cast<double>(calls);
+        const double traditional_time = traditional_total / static_cast<double>(calls);
 
         // Verify correctness
         bool results_match = true;
@@ -455,16 +466,8 @@ TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
             << "Auto-dispatch results should match traditional for batch size " << batch_size;
 
         // Auto-dispatch should be competitive or better
-        // For very small batch sizes, timing measurements can be noisy and traditional method
-        // may complete in 0-1μs, making ratios unreliable or infinite.
-        if (traditional_time == 0) {
-            // If traditional time is 0, just check that auto time is reasonable (< 100μs)
-            EXPECT_LT(auto_time, 100)
-                << "Auto-dispatch should complete quickly for small batches (batch size "
-                << batch_size << ")";
-        } else {
-            double performance_ratio =
-                static_cast<double>(auto_time) / static_cast<double>(traditional_time);
+        {
+            double performance_ratio = auto_time / traditional_time;
             // Auto-dispatch adds O(1) strategy-selection overhead (history query +
             // threshold comparison). For small batches this is proportionally large,
             // but for large batches it is negligible. The threshold is intentionally
@@ -523,8 +526,9 @@ TEST_F(GaussianEnhancedTest, CachingSpeedupVerification) {
     EXPECT_EQ(skew_first, skew_second);
     EXPECT_EQ(kurt_first, kurt_second);
 
-    // Cache should provide speedup (allow some measurement noise)
-    EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
+    // No speedup assertion (#168): both intervals are a few tens of nanoseconds, below
+    // the clock's resolution on Windows, so the ratio reads 0, inf or NaN. The equality
+    // checks above and the invalidation check below are what this test verifies.
 
     // Test cache invalidation by modifying parameters
     gauss_dist.setMean(1.0);  // This should invalidate the cache
@@ -769,10 +773,7 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
     // Test 1: Basic parallel batch fitting correctness
     std::vector<GaussianDistribution> batch_results(datasets.size());
 
-    auto start = std::chrono::high_resolution_clock::now();
     GaussianDistribution::parallelBatchFit(datasets, batch_results);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto parallel_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
     // Verify correctness by comparing with individual fits
     for (size_t i = 0; i < datasets.size(); ++i) {
@@ -805,17 +806,22 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
     // Test 2: Performance comparison with sequential batch fitting
     std::vector<GaussianDistribution> sequential_results(datasets.size());
 
-    start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i < datasets.size(); ++i) {
-        sequential_results[i].fit(datasets[i]);
-    }
-    end = std::chrono::high_resolution_clock::now();
-    auto sequential_time =
-        std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    // Minimum over interleaved rounds: steady-state costs, same machine state (#129). Six
+    // 1000-point fits take a few tens of microseconds; fitting is idempotent on a dataset.
+    constexpr int kTimingRepetitions = 15;
+    using stats::tests::validators::interleavedMinElapsedMicros;
+    const auto run_parallel = [&] {
+        GaussianDistribution::parallelBatchFit(datasets, batch_results);
+    };
+    const auto run_sequential = [&] {
+        for (size_t i = 0; i < datasets.size(); ++i) {
+            sequential_results[i].fit(datasets[i]);
+        }
+    };
+    const auto [parallel_time, sequential_time] =
+        interleavedMinElapsedMicros(kTimingRepetitions, run_parallel, run_sequential);
 
-    double speedup = sequential_time > 0
-                         ? static_cast<double>(sequential_time) / static_cast<double>(parallel_time)
-                         : 1.0;
+    double speedup = sequential_time / parallel_time;
 
     std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
     std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";

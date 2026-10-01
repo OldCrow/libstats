@@ -638,6 +638,30 @@ history.
   #88. Doc nits found: ACCURACY_CHARACTERIZATION "Regenerating" says
   `cmake --build build` (preset dir is `build-release`) and
   `accuracy_sweep > sweep.csv` (the tool takes the path as an argument).
+- [FIXED 2026-09-30 on `fix/timing-gates-129-168`, with #168; Zen 4] **Every
+  speedup gate in the timing-label tests timed each path once.** Three
+  separate defects, measured on the reference machine: (1) one call is
+  the FIRST call — 9x the steady-state cost of a 5000-element batch, so
+  Uniform's 5.5x read 1.5-2.0x against 1.8x (#129's actual cause, not a
+  thin margin); (2) timing one path and then the other lets the CPU's
+  1.5x boost/sustained frequency step fall between them — two equal-cost
+  paths read 0.67x (Gaussian batch-fit gate, 5/10 failing); (3) the
+  cache-hit getter ratio divides two intervals below the clock's 100 ns
+  resolution (#168, six files). Fix: `interleavedMinElapsedMicros` in
+  `tests/include/validators.h` (minimum over 15 rounds, every path timed
+  in every round) in all 17 gates — `SIMDAndParallelBatchImplementations`
+  x6, `VectorizedSpeedup` x6, `AutoDispatchAssessment` x2 (per-call over
+  several calls; the small-time fallbacks are gone), Gaussian
+  `ParallelBatchFittingTests`, `test_math_comprehensive` x2; the cache
+  ratio assertion dropped; Uniform's SIMD expectation scaled 0.8 (its
+  batch path is an amortised scalar loop, 2.1-2.4x at 50000). Thresholds
+  otherwise unchanged. Verified here: timing suite 22/22 in 10 of 10
+  runs (v2.4.1: Uniform 0/3), correctness 74/74, full build
+  warning-clean; Uniform's gate fails 3/3 with the batch path forced
+  scalar. NOT verified on Kaby Lake or the M1 — the `timing` label is
+  outside CI, so run `ctest -j1 -L timing` on each before relying on it.
+  The four exp/log speedup failures on `dev/v2.5.0-corvus` are a
+  separate, real regression and will now be measured steady-state.
 - [FILED 2026-08-25 as #129, milestoned v2.3.2] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
   is flaky on the AVX-512 validation machine** — 2 failures in 3
   back-to-back runs on the v2.2.0 run (1.5x, 2026-08-16) and 1.44x on the
