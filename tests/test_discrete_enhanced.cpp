@@ -256,61 +256,52 @@ TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
             test_values[i] = static_cast<double>(dis(gen));
         }
 
+        // Minimum over kTimingRepetitions interleaved rounds: the gates below compare
+        // steady-state costs under the same machine state (#129).
+        constexpr int kTimingRepetitions = 15;
+        using stats::tests::validators::interleavedMinElapsedMicros;
+
         // 1. Sequential individual calls (baseline)
-        auto start = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < batch_size; ++i) {
-            results[i] = stdDiscrete.getProbability(test_values[i]);
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        auto sequential_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        const auto run_sequential = [&] {
+            for (size_t i = 0; i < batch_size; ++i) {
+                results[i] = stdDiscrete.getProbability(test_values[i]);
+            }
+        };
 
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
-        {
-            detail::PerformanceHint h;
-            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-            start = std::chrono::high_resolution_clock::now();
-            stdDiscrete.getProbability(std::span<const double>(test_values),
-                                       std::span<double>(simd_results), h);
-            end = std::chrono::high_resolution_clock::now();
-        }
-        auto simd_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        std::span<const double> input_span(test_values);
+        detail::PerformanceHint simd_hint;
+        simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+        const auto run_simd = [&] {
+            stdDiscrete.getProbability(input_span, std::span<double>(simd_results), simd_hint);
+        };
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
-        std::span<const double> input_span(test_values);
         std::span<double> output_span(parallel_results);
-        {
-            detail::PerformanceHint h;
-            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
-            start = std::chrono::high_resolution_clock::now();
-            stdDiscrete.getProbability(input_span, output_span, h);
-            end = std::chrono::high_resolution_clock::now();
-        }
-        auto parallel_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        detail::PerformanceHint parallel_hint;
+        parallel_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+        const auto run_parallel = [&] {
+            stdDiscrete.getProbability(input_span, output_span, parallel_hint);
+        };
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
         std::span<double> ws_output_span(work_stealing_results);
-        {
-            detail::PerformanceHint h;
-            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-            start = std::chrono::high_resolution_clock::now();
-            stdDiscrete.getProbability(input_span, ws_output_span, h);
-            end = std::chrono::high_resolution_clock::now();
-        }
-        auto work_stealing_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        detail::PerformanceHint ws_hint;
+        ws_hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+        const auto run_work_stealing = [&] {
+            stdDiscrete.getProbability(input_span, ws_output_span, ws_hint);
+        };
+        const auto [sequential_time, simd_time, parallel_time, work_stealing_time] =
+            interleavedMinElapsedMicros(kTimingRepetitions, run_sequential, run_simd, run_parallel,
+                                        run_work_stealing);
 
         // Calculate speedups
-        double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
-        double parallel_speedup =
-            static_cast<double>(sequential_time) / static_cast<double>(parallel_time);
-        double ws_speedup =
-            static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
+        double simd_speedup = sequential_time / simd_time;
+        double parallel_speedup = sequential_time / parallel_time;
+        double ws_speedup = sequential_time / work_stealing_time;
 
         std::cout << "  Sequential: " << sequential_time << "μs (baseline)\n";
         std::cout << "  Vectorized: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
@@ -405,8 +396,8 @@ TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     // - In release builds: cache may be slower due to optimization making calculations trivial
     // We just verify that both calls produce the same correct results and complete in reasonable
     // time
-    EXPECT_GT(cache_speedup, 0.1)
-        << "Cache access should complete in reasonable time relative to first access";
+    // No ratio assertion (#168): both intervals sit below the clock's resolution on
+    // Windows, so the ratio reads 0, inf or NaN. The absolute bounds below stay.
     EXPECT_LT(first_time, 100000) << "First access should complete in under 100μs";
     EXPECT_LT(second_time, 100000) << "Second access should complete in under 100μs";
 

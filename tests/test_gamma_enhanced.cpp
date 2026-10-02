@@ -348,14 +348,17 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
             test_values[i] = dis(gen);
         }
 
+        // Minimum over kTimingRepetitions interleaved rounds: the gates below compare
+        // steady-state costs under the same machine state (#129).
+        constexpr int kTimingRepetitions = 15;
+        using stats::tests::validators::interleavedMinElapsedMicros;
+
         // 1. Sequential individual calls (baseline)
-        auto start = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < batch_size; ++i) {
-            results[i] = stdGamma.getProbability(test_values[i]);
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        auto sequential_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        const auto run_sequential = [&] {
+            for (size_t i = 0; i < batch_size; ++i) {
+                results[i] = stdGamma.getProbability(test_values[i]);
+            }
+        };
 
         std::span<const double> input_span(test_values);
 
@@ -363,38 +366,33 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         std::vector<double> simd_results(batch_size);
         detail::PerformanceHint simd_hint;
         simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-        start = std::chrono::high_resolution_clock::now();
-        stdGamma.getProbability(input_span, std::span<double>(simd_results), simd_hint);
-        end = std::chrono::high_resolution_clock::now();
-        auto simd_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        const auto run_simd = [&] {
+            stdGamma.getProbability(input_span, std::span<double>(simd_results), simd_hint);
+        };
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
         detail::PerformanceHint parallel_hint;
         parallel_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
-        start = std::chrono::high_resolution_clock::now();
-        stdGamma.getProbability(input_span, std::span<double>(parallel_results), parallel_hint);
-        end = std::chrono::high_resolution_clock::now();
-        auto parallel_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        const auto run_parallel = [&] {
+            stdGamma.getProbability(input_span, std::span<double>(parallel_results), parallel_hint);
+        };
 
         // 4. Work-stealing operations
         std::vector<double> work_stealing_results(batch_size);
         detail::PerformanceHint ws_hint;
         ws_hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-        start = std::chrono::high_resolution_clock::now();
-        stdGamma.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
-        end = std::chrono::high_resolution_clock::now();
-        auto work_stealing_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        const auto run_work_stealing = [&] {
+            stdGamma.getProbability(input_span, std::span<double>(work_stealing_results), ws_hint);
+        };
+        const auto [sequential_time, simd_time, parallel_time, work_stealing_time] =
+            interleavedMinElapsedMicros(kTimingRepetitions, run_sequential, run_simd, run_parallel,
+                                        run_work_stealing);
 
         // Calculate speedups
-        double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
-        double parallel_speedup =
-            static_cast<double>(sequential_time) / static_cast<double>(parallel_time);
-        double ws_speedup =
-            static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
+        double simd_speedup = sequential_time / simd_time;
+        double parallel_speedup = sequential_time / parallel_time;
+        double ws_speedup = sequential_time / work_stealing_time;
 
         std::cout << "  Sequential: " << sequential_time << "μs (baseline)\n";
         std::cout << "  Vectorized: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
@@ -417,10 +415,8 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
         }
 
         // Performance expectations (adjusted for batch size)
-        if (simd_time > 0) {
-            EXPECT_GT(simd_speedup, 0.5)
-                << "SIMD should provide reasonable performance for batch size " << batch_size;
-        }
+        EXPECT_GT(simd_speedup, 0.5)
+            << "SIMD should provide reasonable performance for batch size " << batch_size;
 
         if (std::thread::hardware_concurrency() > 1) {
             if (batch_size >= 10000) {
@@ -466,21 +462,33 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
             test_values[j] = dis(gen);
         }
 
+        // Minimum over interleaved rounds of `calls` back-to-back calls, reported per call:
+        // steady-state costs under the same machine state (#129). One call on a 5-element
+        // batch takes well under a microsecond, near the clock resolution.
+        constexpr int kTimingRepetitions = 15;
+        const size_t calls = std::max<size_t>(1, 20000 / batch_size);
+        using stats::tests::validators::interleavedMinElapsedMicros;
+
         // Test auto-dispatch
-        auto start = std::chrono::high_resolution_clock::now();
-        gamma_dist.getProbability(std::span<const double>(test_values),
-                                  std::span<double>(auto_results));
-        auto end = std::chrono::high_resolution_clock::now();
-        auto auto_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        const auto run_auto = [&] {
+            for (size_t k = 0; k < calls; ++k) {
+                gamma_dist.getProbability(std::span<const double>(test_values),
+                                          std::span<double>(auto_results));
+            }
+        };
 
         // Compare with scalar loop baseline
-        start = std::chrono::high_resolution_clock::now();
-        for (size_t j = 0; j < batch_size; ++j) {
-            traditional_results[j] = gamma_dist.getProbability(test_values[j]);
-        }
-        end = std::chrono::high_resolution_clock::now();
-        auto traditional_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        const auto run_traditional = [&] {
+            for (size_t k = 0; k < calls; ++k) {
+                for (size_t j = 0; j < batch_size; ++j) {
+                    traditional_results[j] = gamma_dist.getProbability(test_values[j]);
+                }
+            }
+        };
+        const auto [auto_total, traditional_total] =
+            interleavedMinElapsedMicros(kTimingRepetitions, run_auto, run_traditional);
+        const double auto_time = auto_total / static_cast<double>(calls);
+        const double traditional_time = traditional_total / static_cast<double>(calls);
 
         // Verify correctness
         bool results_match = true;
@@ -499,16 +507,8 @@ TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
             << "Auto-dispatch results should match traditional for batch size " << batch_size;
 
         // Auto-dispatch should be competitive or better.
-        // For very small traditional_time (≤ 2μs), the ratio is unreliable
-        // because dispatch overhead dominates sub-microsecond computation.
-        // Use an absolute time bound in that case, matching the == 0 path.
-        if (traditional_time <= 2) {
-            EXPECT_LT(auto_time, 100)
-                << "Auto-dispatch should complete quickly for small batches (batch size "
-                << batch_size << ")";
-        } else {
-            double performance_ratio =
-                static_cast<double>(auto_time) / static_cast<double>(traditional_time);
+        {
+            double performance_ratio = auto_time / traditional_time;
             if (batch_size <= 100) {
                 EXPECT_LT(performance_ratio, 10.0)
                     << "Auto-dispatch should be reasonable for small batches (batch size "
@@ -561,8 +561,9 @@ TEST_F(GammaEnhancedTest, CachingSpeedupVerification) {
     EXPECT_EQ(skew_first, skew_second);
     EXPECT_EQ(kurt_first, kurt_second);
 
-    // Cache should provide speedup (allow some measurement noise)
-    EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
+    // No speedup assertion (#168): both intervals are a few tens of nanoseconds, below
+    // the clock's resolution on Windows, so the ratio reads 0, inf or NaN. The equality
+    // checks above and the invalidation check below are what this test verifies.
 
     // Test cache invalidation
     gamma_dist.setAlpha(3.0);  // This should invalidate the cache

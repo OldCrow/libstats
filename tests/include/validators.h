@@ -17,9 +17,12 @@
 #include "libstats/platform/cpu_vendor_constants.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <map>
 #include <thread>
 
@@ -109,6 +112,44 @@ inline double getAdaptiveParallelExpectation() noexcept {
     double practical_limit = 4.0;  // Diminishing returns after 4x
 
     return std::min(theoretical_max, practical_limit);
+}
+
+/**
+ * @brief Steady-state elapsed times of several operations, measured under the same conditions
+ * @param repetitions Number of rounds (at least 1); each round runs every operation once, in order
+ * @param operations Callables to time
+ * @return Smallest observed duration of each operation, in microseconds (fractional), in
+ *         argument order
+ *
+ * For speedup gates, which compare one path's cost with another's. Two things
+ * make a single timed call of each path the wrong measurement (#129):
+ *
+ * - It times the FIRST call — cold code, cold branch predictor, lazy
+ *   initialisation. On the Zen 4 reference machine that is ~9x the steady-state
+ *   cost of a 5000-element batch, and it made a 5.5x speedup read 1.5-2.0x
+ *   against a 1.8x gate. Hence the minimum over repetitions.
+ * - The paths must see the same machine state. That CPU steps between two
+ *   clock frequencies 1.5x apart; timing one path fifteen times and then the
+ *   other lets a step fall between them, and two equal-cost paths then read
+ *   0.67x. Hence the interleaving: every round times every path, so each
+ *   path's minimum comes from the fastest state the run saw.
+ */
+template <typename... Operations>
+std::array<double, sizeof...(Operations)> interleavedMinElapsedMicros(int repetitions,
+                                                                      Operations&&... operations) {
+    std::array<double, sizeof...(Operations)> best;
+    best.fill(std::numeric_limits<double>::infinity());
+    const auto timeOnce = [](auto& operation) {
+        const auto start = std::chrono::steady_clock::now();
+        operation();
+        const auto end = std::chrono::steady_clock::now();
+        return std::chrono::duration<double, std::micro>(end - start).count();
+    };
+    for (int r = 0; r < repetitions; ++r) {
+        std::size_t i = 0;
+        ((best[i] = std::min(best[i], timeOnce(operations)), ++i), ...);
+    }
+    return best;
 }
 
 /**

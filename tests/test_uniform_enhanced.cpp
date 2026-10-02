@@ -252,61 +252,52 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
             test_values[i] = dis(gen);
         }
 
+        // Minimum over kTimingRepetitions interleaved rounds: the gates below compare
+        // steady-state costs under the same machine state (#129).
+        constexpr int kTimingRepetitions = 15;
+        using stats::tests::validators::interleavedMinElapsedMicros;
+
         // 1. Sequential individual calls (baseline)
-        auto start = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < batch_size; ++i) {
-            results[i] = stdUniform.getProbability(test_values[i]);
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        auto sequential_time =
-            std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        const auto run_sequential = [&] {
+            for (size_t i = 0; i < batch_size; ++i) {
+                results[i] = stdUniform.getProbability(test_values[i]);
+            }
+        };
 
         // 2. SIMD batch operations
         std::vector<double> simd_results(batch_size);
-        {
-            detail::PerformanceHint h;
-            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
-            start = std::chrono::high_resolution_clock::now();
-            stdUniform.getProbability(std::span<const double>(test_values),
-                                      std::span<double>(simd_results), h);
-            end = std::chrono::high_resolution_clock::now();
-        }
-        auto simd_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        std::span<const double> input_span(test_values);
+        detail::PerformanceHint simd_hint;
+        simd_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+        const auto run_simd = [&] {
+            stdUniform.getProbability(input_span, std::span<double>(simd_results), simd_hint);
+        };
 
         // 3. Parallel batch operations
         std::vector<double> parallel_results(batch_size);
-        std::span<const double> input_span(test_values);
         std::span<double> output_span(parallel_results);
-        {
-            detail::PerformanceHint h;
-            h.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
-            start = std::chrono::high_resolution_clock::now();
-            stdUniform.getProbability(input_span, output_span, h);
-            end = std::chrono::high_resolution_clock::now();
-        }
-        auto parallel_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        detail::PerformanceHint parallel_hint;
+        parallel_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+        const auto run_parallel = [&] {
+            stdUniform.getProbability(input_span, output_span, parallel_hint);
+        };
 
         // 4. Work-stealing operations (use shared pool)
         std::vector<double> work_stealing_results(batch_size);
         std::span<double> ws_output_span(work_stealing_results);
-        {
-            detail::PerformanceHint h;
-            h.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
-            start = std::chrono::high_resolution_clock::now();
-            stdUniform.getProbability(input_span, ws_output_span, h);
-            end = std::chrono::high_resolution_clock::now();
-        }
-        auto work_stealing_time = std::max<std::int64_t>(
-            1, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+        detail::PerformanceHint ws_hint;
+        ws_hint.strategy = detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+        const auto run_work_stealing = [&] {
+            stdUniform.getProbability(input_span, ws_output_span, ws_hint);
+        };
+        const auto [sequential_time, simd_time, parallel_time, work_stealing_time] =
+            interleavedMinElapsedMicros(kTimingRepetitions, run_sequential, run_simd, run_parallel,
+                                        run_work_stealing);
 
         // Calculate speedups
-        double simd_speedup = static_cast<double>(sequential_time) / static_cast<double>(simd_time);
-        double parallel_speedup =
-            static_cast<double>(sequential_time) / static_cast<double>(parallel_time);
-        double ws_speedup =
-            static_cast<double>(sequential_time) / static_cast<double>(work_stealing_time);
+        double simd_speedup = sequential_time / simd_time;
+        double parallel_speedup = sequential_time / parallel_time;
+        double ws_speedup = sequential_time / work_stealing_time;
 
         std::cout << "  Sequential: " << sequential_time << "μs (baseline)\n";
         std::cout << "  Vectorized: " << simd_time << "μs (" << simd_speedup << "x speedup)\n";
@@ -328,9 +319,15 @@ TEST_F(UniformEnhancedTest, SIMDAndParallelBatchImplementations) {
                 << batch_size;
         }
 
-        // Architecture-aware performance expectations using adaptive validation
-        // Uniform is a simple distribution
+        // Architecture-aware performance expectations using adaptive validation.
+        // Uniform's batch path is not a SIMD kernel: it is an amortised scalar loop with a
+        // data-dependent in-support branch (the branchless form needs the deferred
+        // vector_blend primitive). Its speedup over per-element calls is real but below the
+        // SIMD expectation — 2.1-2.4x at 50000 mixed in/out-of-support points on Zen 4,
+        // against 1.89x unscaled — so the expectation is scaled down for it (#129).
+        constexpr double kCheapPdfMargin = 0.8;
         double simd_threshold =
+            kCheapPdfMargin *
             stats::tests::validators::getSIMDValidationThreshold(batch_size, false);
         EXPECT_GT(simd_speedup, simd_threshold)
             << "SIMD speedup " << simd_speedup << "x should exceed adaptive threshold "
@@ -397,8 +394,9 @@ TEST_F(UniformEnhancedTest, CachingSpeedupVerification) {
     EXPECT_EQ(skew_first, skew_second);
     EXPECT_EQ(kurt_first, kurt_second);
 
-    // Cache should provide speedup (allow some measurement noise)
-    EXPECT_GT(cache_speedup, 0.5) << "Cache should provide some speedup";
+    // No speedup assertion (#168): both intervals are a few tens of nanoseconds, below
+    // the clock's resolution on Windows, so the ratio reads 0, inf or NaN. The equality
+    // checks above and the invalidation check below are what this test verifies.
 
     // Test cache invalidation by modifying the distribution's parameters
     uniform_dist.setBounds(0.5, 1.5);  // This should invalidate the cache

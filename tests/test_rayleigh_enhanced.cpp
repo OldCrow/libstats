@@ -177,17 +177,18 @@ TEST_F(RayleighEnhancedTest, VectorizedSpeedup) {
     vec_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
     scl_hint.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
 
-    const auto t0 = std::chrono::high_resolution_clock::now();
-    r1_.getLogProbability(span<const double>(xs), span<double>(out), vec_hint);
-    const auto t1 = std::chrono::high_resolution_clock::now();
-    r1_.getLogProbability(span<const double>(xs), span<double>(scl), scl_hint);
-    const auto t2 = std::chrono::high_resolution_clock::now();
-
-    const double vec_us =
-        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us =
-        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
-    const double speedup = scl_us / std::max(vec_us, 1.0);
+    // Minimum over interleaved rounds: steady-state costs, same machine state (#129).
+    constexpr int kTimingRepetitions = 15;
+    using stats::tests::validators::interleavedMinElapsedMicros;
+    const auto run_vectorized = [&] {
+        r1_.getLogProbability(span<const double>(xs), span<double>(out), vec_hint);
+    };
+    const auto run_scalar = [&] {
+        r1_.getLogProbability(span<const double>(xs), span<double>(scl), scl_hint);
+    };
+    const auto [vec_us, scl_us] =
+        interleavedMinElapsedMicros(kTimingRepetitions, run_vectorized, run_scalar);
+    const double speedup = scl_us / vec_us;
     std::cout << "Rayleigh LogPDF VECTORIZED speedup: " << speedup << "x "
               << "(VECTORIZED " << vec_us << "μs, SCALAR " << scl_us << "μs)\n";
 

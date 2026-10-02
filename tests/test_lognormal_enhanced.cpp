@@ -198,20 +198,19 @@ TEST_F(LogNormalEnhancedTest, VectorizedSpeedup) {
     hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
     hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
 
-    const auto t0 = std::chrono::high_resolution_clock::now();
-    std_ln_.getLogProbability(span<const double>(xs), span<double>(out), hint_vec);
-    const auto t1 = std::chrono::high_resolution_clock::now();
-
+    // Minimum over interleaved rounds: steady-state costs, same machine state (#129).
+    constexpr int kTimingRepetitions = 15;
+    using stats::tests::validators::interleavedMinElapsedMicros;
+    const auto run_vectorized = [&] {
+        std_ln_.getLogProbability(span<const double>(xs), span<double>(out), hint_vec);
+    };
     vector<double> scalar_out(N);
-    std_ln_.getLogProbability(span<const double>(xs), span<double>(scalar_out), hint_scl);
-    const auto t2 = std::chrono::high_resolution_clock::now();
-
-    const double vec_us =
-        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
-    const double scl_us =
-        static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count());
-
-    const double speedup = scl_us / std::max(vec_us, 1.0);
+    const auto run_scalar = [&] {
+        std_ln_.getLogProbability(span<const double>(xs), span<double>(scalar_out), hint_scl);
+    };
+    const auto [vec_us, scl_us] =
+        interleavedMinElapsedMicros(kTimingRepetitions, run_vectorized, run_scalar);
+    const double speedup = scl_us / vec_us;
     std::cout << "LogNormal LogPDF VECTORIZED speedup: " << speedup << "x "
               << "(VECTORIZED " << vec_us << "μs, SCALAR " << scl_us << "μs)\n";
 
