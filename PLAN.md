@@ -1,6 +1,20 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-09-30
+## Status [DERIVED] — 2026-10-02
+**Branch state 2026-10-02 (Zen 4):** PR #169 merged to `main` as `d8d3388`
+(CI 20/20) — #129 and #168 CLOSED: every speedup gate in the timing-label
+tests measures steady state with the paths interleaved
+(`interleavedMinElapsedMicros`, Known Gaps ledger entry; verified on
+Zen 4 only, one `ctest -j1 -L timing` owed on Kaby Lake and the M1).
+`dev/v2.4.2` CREATED from `main` at `d8d3388` [user: branch after the
+merge so it starts from `main`], empty so far — the v2.4.2 milestone
+(#157–#167) lands there. `dev/v2.5.0-corvus` REBASED onto `main`
+(`22c2250` → `0de7ebb`, 17 commits, no conflicts, force-pushed with
+lease): any other checkout of it needs `git fetch` and `git reset --hard
+origin/dev/v2.5.0-corvus` before further work. Its four exp/log
+speedup gates now fail as steady-state measurements (#156, increment 4),
+unchanged in substance by the rebase. Earlier status follows.
+
 Session 2026-09-29/30 (M1) closed with: `dev/v2.5.0-corvus` parked at
 `e42478e`, correctness-complete, CI green, waiting on corvus v1.1.0
 throughput (Next Steps 3(c)); milestone "v2.4.2 — Correctness patch"
@@ -46,8 +60,8 @@ Compiler vs tier on Windows separated: tier 1.5×, MSVC code generation
 2b pre-release check, Zen 4 half). Local state on this machine:
 `build-zen4-a/`, `build-zen4-b/`, the bench trees and prefixes under
 `build-bench-*`, worktrees `../libstats-v2.4.1` and `../corvus-v1.0.1`.
-Nothing further is owed here until corvus v1.1.0; #129 (Zen-only) is
-independent.
+Nothing further is owed here until corvus v1.1.0; ~~#129 (Zen-only) is
+independent~~ #129 and #168 FIXED 2026-10-02 (PR #169, see Status).
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
@@ -390,8 +404,10 @@ history.
     (lgamma cancellation; likely absorbed by the corvus incomplete-beta
     core — verify at adoption scoping and re-home to v2.5.0 if so); #127
     OPEN — parallelReduce/parallelStatOperation early-rethrow harvest
-    (the #118 shape); #129 OPEN — flaky Uniform speedup gate on Zen 4
-    (widen or drop; was a PLAN Known Gap since v2.2.0, now filed).
+    (the #118 shape); ~~#129 OPEN — flaky Uniform speedup gate on Zen 4
+    (widen or drop; was a PLAN Known Gap since v2.2.0, now filed)~~ #129
+    CLOSED 2026-10-02 by PR #169 with #168 — the gate timed the first
+    call, not steady state; Known Gaps ledger has the record.
   - Filed 2026-09-03 from v2.4.0 workstream findings (all with corvus-
     absorption checks noted for v2.5.0 scoping, the #126 pattern):
     #136 OPEN — detail::erf_inv extreme-tail band wrong/non-monotone +
