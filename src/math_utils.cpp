@@ -570,17 +570,22 @@ double inverse_t_cdf(double p, double df) noexcept {
     }
 
     // Two-sided tail q = 2 min(p, 1 - p) satisfies I_x(df/2, 1/2) = q with
-    // x = df / (df + t^2), so t^2 = df (1 - x) / x. Take x from beta_p_inv and
-    // 1 - x from beta_q_inv (the swap identity): each is the small side of
-    // its own call, so neither is formed by subtraction. 1 - p is exact for
-    // p >= 1/2 (Sterbenz).
+    // x = df / (df + t^2), so t^2 = df (1 - x) / x. Take 1 - x from
+    // beta_q_inv (the swap identity). Where 1 - x <= 1/2 (|t| <= sqrt(df), at
+    // least half of all p and nearly all of them at large df), x = 1 - (1 - x)
+    // is exact to rounding and one inverse call suffices. In the tail x is
+    // the small side and comes from its own beta_p_inv call, so neither is
+    // formed by a cancelling subtraction. 1 - p is exact for p >= 1/2
+    // (Sterbenz).
     const bool upper = p > detail::HALF;
     const double q = detail::TWO * (upper ? detail::ONE - p : p);
     const double a = df * detail::HALF;
-    const double x = beta_p_inv_(a, detail::HALF, q);
+    const double one_minus_x = beta_q_inv(detail::HALF, a, q);
     double t;
-    if (x >= std::numeric_limits<double>::min()) {
-        const double one_minus_x = beta_q_inv(detail::HALF, a, q);
+    if (one_minus_x <= detail::HALF) {
+        t = std::sqrt(df * one_minus_x / (detail::ONE - one_minus_x));
+    } else if (const double x = beta_p_inv_(a, detail::HALF, q);
+               x >= std::numeric_limits<double>::min()) {
         t = std::sqrt(df * one_minus_x / x);
     } else {
         // x underflowed (small df, deep tail: the Cauchy-like quantile is

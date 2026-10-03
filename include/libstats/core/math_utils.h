@@ -9,6 +9,8 @@
 #include "statistical_constants.h"
 
 #include <array>
+#include <cmath>
+#include <cstdint>
 
 /**
  * @file math_utils.h
@@ -345,6 +347,76 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  * @return z such that P(Z <= z) = p where Z ~ N(0,1)
  */
 [[nodiscard]] double inverse_normal_cdf(double p) noexcept;
+
+/**
+ * @brief Starting point for a discrete quantile search: the Cornish-Fisher
+ *        normal approximation with the skewness term and a continuity
+ *        correction.
+ * @param p probability in (0, 1)
+ * @return an estimate of the quantile, or `mean` when the moments are
+ *         degenerate. Only a guess: discrete_quantile_search() corrects it.
+ */
+[[nodiscard]] inline double discrete_quantile_guess(double p, double mean, double stddev,
+                                                    double skewness) noexcept {
+    const double z = inverse_normal_cdf(p);
+    const double guess = mean + stddev * (z + skewness * (z * z - 1.0) / 6.0) - 0.5;
+    return std::isfinite(guess) ? std::ceil(guess) : mean;
+}
+
+/**
+ * @brief Smallest integer k in [lo, hi] with cdf(k) >= p, for a non-decreasing
+ *        cdf; hi when no k in the range qualifies.
+ *
+ * Gallops outward from `guess` in doubling steps until the answer is
+ * bracketed, then bisects. A guess within one of the answer costs two cdf
+ * evaluations; a guess off by d costs O(log d). The result does not depend on
+ * the guess.
+ */
+template <typename Cdf>
+[[nodiscard]] std::int64_t discrete_quantile_search(Cdf&& cdf, double p, std::int64_t lo,
+                                                    std::int64_t hi, double guess) {
+    std::int64_t g = lo;
+    if (guess >= static_cast<double>(hi))
+        g = hi;
+    else if (guess > static_cast<double>(lo))
+        g = static_cast<std::int64_t>(guess);
+
+    // Invariants once bracketed: cdf(below) < p (or below == lo - 1) and
+    // cdf(above) >= p (or above == hi, unchecked: hi is the answer of last resort).
+    std::int64_t below, above;
+    if (cdf(g) >= p) {
+        above = g;
+        below = lo - 1;
+        for (std::int64_t step = 1; above > lo; step *= 2) {
+            const std::int64_t c = (above - lo > step) ? above - step : lo;
+            if (cdf(c) >= p) {
+                above = c;
+            } else {
+                below = c;
+                break;
+            }
+        }
+    } else {
+        below = g;
+        above = hi;
+        for (std::int64_t step = 1; below < hi; step *= 2) {
+            const std::int64_t c = (hi - below > step) ? below + step : hi;
+            if (c == hi || cdf(c) >= p) {
+                above = c;
+                break;
+            }
+            below = c;
+        }
+    }
+    while (above - below > 1) {
+        const std::int64_t mid = below + (above - below) / 2;
+        if (cdf(mid) >= p)
+            above = mid;
+        else
+            below = mid;
+    }
+    return above;
+}
 
 // REMOVED in v2.4.0: f_cdf / inverse_f_cdf. They were forward-looking stubs
 // pre-staged for an F distribution; FDistribution (#56) ships its own

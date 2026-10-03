@@ -309,36 +309,15 @@ double PoissonDistribution::getQuantile(double p) const {
         local_lambda = lambda_;
     }
 
-    // Use bracketing search for quantile. MC-4: use a wide integer bound to
-    // avoid overflow while expanding for large lambda.
-    std::int64_t lower = 0;
-    std::int64_t upper = static_cast<std::int64_t>(std::ceil(
-        local_lambda + detail::QUANTILE_UPPER_BOUND_MULTIPLIER * std::sqrt(local_lambda)));
-    upper = std::max<std::int64_t>(upper, 1);
-
-    // Expand upper bound if necessary
-    constexpr std::int64_t kMaxQuantileSearch =
-        static_cast<std::int64_t>(std::numeric_limits<int>::max());
-    while (upper < kMaxQuantileSearch &&
-           getCumulativeProbabilityExact(static_cast<int>(upper)) < p) {
-        lower = upper;
-        upper = std::min(upper * 2, kMaxQuantileSearch);
-    }
-    if (getCumulativeProbabilityExact(static_cast<int>(upper)) < p) {
-        return static_cast<double>(upper);
-    }
-
-    // Binary search
-    while (upper - lower > 1) {
-        const std::int64_t mid = lower + (upper - lower) / detail::TWO_INT;
-        if (getCumulativeProbabilityExact(static_cast<int>(mid)) < p) {
-            lower = mid;
-        } else {
-            upper = mid;
-        }
-    }
-
-    return static_cast<double>(upper);
+    // Smallest k with CDF(k) >= p, searched outward from the normal
+    // approximation: two or three CDF evaluations. The count is capped at
+    // INT_MAX, which getCumulativeProbabilityExact takes.
+    const double stddev = std::sqrt(local_lambda);
+    const std::int64_t k = detail::discrete_quantile_search(
+        [this](std::int64_t i) { return getCumulativeProbabilityExact(static_cast<int>(i)); }, p, 0,
+        static_cast<std::int64_t>(std::numeric_limits<int>::max()),
+        detail::discrete_quantile_guess(p, local_lambda, stddev, detail::ONE / stddev));
+    return static_cast<double>(k);
 }
 
 double PoissonDistribution::sample(std::mt19937& rng) const {

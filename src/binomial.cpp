@@ -334,25 +334,18 @@ double BinomialDistribution::getQuantile(double p) const {
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const int n = n_;
+    const double sp = p_;
     lock.unlock();
 
-    // Scan from 0 — for large n use bisection
-    if (n <= 500) {
-        for (int k = 0; k <= n; ++k) {
-            if (getCumulativeProbability(static_cast<double>(k)) >= p)
-                return static_cast<double>(k);
-        }
-        return static_cast<double>(n);
-    }
-    int lo = 0, hi = n;
-    while (lo < hi) {
-        const int mid = lo + (hi - lo) / 2;
-        if (getCumulativeProbability(static_cast<double>(mid)) < p)
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    return static_cast<double>(lo);
+    // Smallest k with CDF(k) >= p, searched outward from the normal
+    // approximation: two or three CDF evaluations instead of a scan from 0.
+    const double mean = static_cast<double>(n) * sp;
+    const double stddev = std::sqrt(mean * (detail::ONE - sp));
+    const double skewness = (detail::ONE - detail::TWO * sp) / stddev;
+    const std::int64_t k = detail::discrete_quantile_search(
+        [this](std::int64_t i) { return getCumulativeProbability(static_cast<double>(i)); }, p, 0,
+        n, detail::discrete_quantile_guess(p, mean, stddev, skewness));
+    return static_cast<double>(k);
 }
 
 double BinomialDistribution::sample(std::mt19937& rng) const {

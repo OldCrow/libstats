@@ -27,8 +27,10 @@
 // gated here misses by 100%, so the gap between the two is enormous.
 
 #include "libstats/core/math_utils.h"
+#include "libstats/distributions/binomial.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/negative_binomial.h"
+#include "libstats/distributions/poisson.h"
 
 #include <array>
 #include <cmath>
@@ -277,4 +279,48 @@ TEST(DiscreteCountNarrowing, SampleBeyondIntMax) {
     EXPECT_NEAR(sum / kDraws, 1e9, 1e8);
     // Expected 0.117 * 4000 = 467, sigma ~ 20.
     EXPECT_NEAR(beyond, 467, 120);
+}
+
+// -------------------------------------------------------------------------
+// The defining property over the whole p range, for the three distributions
+// that share detail::discrete_quantile_search (v2.5.0): k = quantile(p) is the
+// smallest count with CDF(k) >= p. The search starts from a normal
+// approximation that is far off in the tails, so the grid reaches both: it
+// includes p below PMF(0), where the answer is 0, and p within 1e-12 of 1.
+// The Poisson search this replaced returned 1 for every p <= CDF(0).
+// -------------------------------------------------------------------------
+
+namespace {
+
+template <typename Distribution>
+void expectSmallestCountAtOrAbove(const Distribution& d, const char* label) {
+    for (double p : {1e-300, 1e-12, 1e-6, 1e-3, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99, 0.999,
+                     1.0 - 1e-6, 1.0 - 1e-12}) {
+        const double k = d.getQuantile(p);
+        EXPECT_GE(d.getCumulativeProbability(k), p) << label << " p=" << p << " k=" << k;
+        if (k > 0.0) {
+            EXPECT_LT(d.getCumulativeProbability(k - 1.0), p) << label << " p=" << p << " k=" << k;
+        }
+    }
+}
+
+}  // namespace
+
+TEST(DiscreteQuantileBounds, QuantileIsSmallestCountAtOrAboveP) {
+    for (double lambda : {0.01, 0.5, 3.0, 12.0, 250.0, 1e5}) {
+        expectSmallestCountAtOrAbove(stats::PoissonDistribution::create(lambda).unwrap(),
+                                     "Poisson");
+    }
+    for (int n : {1, 7, 50, 501, 20000}) {
+        for (double sp : {0.001, 0.3, 0.5, 0.97}) {
+            expectSmallestCountAtOrAbove(stats::BinomialDistribution::create(n, sp).unwrap(),
+                                         "Binomial");
+        }
+    }
+    for (double r : {0.5, 1.0, 12.0, 300.0}) {
+        for (double sp : {0.02, 0.3, 0.9}) {
+            expectSmallestCountAtOrAbove(
+                stats::NegativeBinomialDistribution::create(r, sp).unwrap(), "NegativeBinomial");
+        }
+    }
 }
