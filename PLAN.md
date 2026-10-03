@@ -5,7 +5,13 @@
 (CI 20/20) — #129 and #168 CLOSED: every speedup gate in the timing-label
 tests measures steady state with the paths interleaved
 (`interleavedMinElapsedMicros`, Known Gaps ledger entry; verified on
-Zen 4 only, one `ctest -j1 -L timing` owed on Kaby Lake and the M1).
+Zen 4 and Kaby Lake, one `ctest -j1 -L timing` owed on the M1).
+**Kaby Lake 2026-10-02:** `main` at `d8d3388`, Dev build in `build/`
+(AppleClang, native AVX2), `ctest -j1 -L timing` 22/22 in all four
+runs — three quiet (1-min load 2.7) and one under a load average above
+50 while the rebuild drained; Uniform SIMD gate read 54x against 1.8x.
+Sibling repos pulled to origin: corvus `4534d30`, standards `21e2594`,
+libhmm, eve, zeek. `dev/v2.4.2` tracked locally.
 `dev/v2.4.2` CREATED from `main` at `d8d3388` [user: branch after the
 merge so it starts from `main`], empty so far — the v2.4.2 milestone
 (#157–#167) lands there. `dev/v2.5.0-corvus` REBASED onto `main`
@@ -795,8 +801,9 @@ history.
   otherwise unchanged. Verified here: timing suite 22/22 in 10 of 10
   runs (v2.4.1: Uniform 0/3), correctness 74/74, full build
   warning-clean; Uniform's gate fails 3/3 with the batch path forced
-  scalar. NOT verified on Kaby Lake or the M1 — the `timing` label is
-  outside CI, so run `ctest -j1 -L timing` on each before relying on it.
+  scalar. Kaby Lake CONFIRMED 2026-10-02 (22/22 x4, three quiet, one
+  under heavy load). NOT verified on the M1 — the `timing` label is
+  outside CI, so run `ctest -j1 -L timing` there before relying on it.
   The four exp/log speedup failures on `dev/v2.5.0-corvus` are a
   separate, real regression and will now be measured steady-state.
 - [FILED 2026-08-25 as #129, milestoned v2.3.2] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
