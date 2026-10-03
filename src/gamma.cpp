@@ -369,7 +369,6 @@ double GammaDistribution::getQuantile(double p) const {
         return std::numeric_limits<double>::infinity();
     }
 
-    // Use Newton-Raphson iteration with bracketing
     return computeQuantile(p);
 }
 
@@ -1266,110 +1265,16 @@ double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcep
 }
 
 double GammaDistribution::computeQuantile(double p) const noexcept {
-    // Quantile function using Newton-Raphson iteration with initial guess
+    // Gamma(alpha, rate beta): x with P(alpha, beta x) = p. gamma_p_inv solves against the smaller
+    // of p and 1 - p in log x, relative-accurate down to subnormal answers (#160); the
+    // Newton/bisection solver this replaced, and its Wilson-Hilferty seed, are gone.
     if (p <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
     }
     if (p >= detail::ONE) {
         return std::numeric_limits<double>::infinity();
     }
-
-    // Initial guess.
-    //
-    // Wilson-Hilferty (WH) is reliable for moderate p but can produce a
-    // negative value when alpha > 1 and p is very small (z << 0 with
-    // small h makes the cube negative).  Clamping a negative WH result to
-    // NEWTON_RAPHSON_TOLERANCE (1e-10) then causes the first Newton step
-    // to shoot x to ~p/pdf(1e-10) ~ 1e9, after which the PDF underflows
-    // and the solver exits without converging.
-    //
-    // Fix: when WH is negative use the small-x asymptotic expansion of the
-    // Gamma CDF: P(alpha,beta*x) ~ (beta*x)^alpha / (alpha * Gamma(alpha))
-    // => x ~ (p * Gamma(alpha+1))^(1/alpha) / beta.
-    double initial_guess;
-    if (alpha_ > detail::ONE) {
-        double h = detail::TWO / (detail::NINE * alpha_);
-        double z = detail::inverse_normal_cdf(p);
-        double wh = detail::ONE - h + z * std::sqrt(h);
-        if (wh > detail::ZERO_DOUBLE) {
-            initial_guess = alpha_ * std::pow(wh, 3) / beta_;
-        } else {
-            // WH failed; small-p asymptotic: x ~ (p * Gamma(alpha+1))^(1/alpha) / beta.
-            // Computed in the log domain: the linear form
-            // p * exp(lgamma(alpha+1)) overflows for alpha >~ 170
-            // (lgamma(10001) ~ 82100) long before x does — and this branch
-            // runs exactly when p < ~5.6e-17 rounds 2p−1 to −1 and the WH
-            // normal quantile is −inf, so large-alpha deep tails land here.
-            initial_guess = std::exp((std::log(p) + std::lgamma(alpha_ + detail::ONE)) / alpha_ -
-                                     std::log(beta_));
-        }
-    } else {
-        // For alpha <= 1, use exponential approximation
-        initial_guess = -std::log(detail::ONE - p) / beta_;
-    }
-    if (!std::isfinite(initial_guess)) {
-        initial_guess = alpha_ / beta_;  // seed at the mean rather than escaping to ±inf
-    }
-
-    // Newton-Raphson iteration with positive-x guard.
-    double x = std::max(initial_guess, detail::NEWTON_RAPHSON_TOLERANCE);
-    const double tolerance = detail::HIGH_PRECISION_TOLERANCE;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf = getCumulativeProbability(x);
-        double pdf = getProbability(x);
-
-        // Convergence is relative in p: for deep-tail targets (p ~ 1e-300)
-        // an absolute test accepts cdf = 0 immediately and returns whatever
-        // seed the solver happened to hold.
-        if (std::abs(cdf - p) < tolerance * p) {
-            break;
-        }
-
-        if (pdf < detail::ULTRA_SMALL_THRESHOLD) {
-            // PDF underflow: fall back to bisection. Expand the upper bound
-            // until it brackets the root — a crude tail seed can sit far
-            // below it — and always keep the final midpoint: the old code
-            // discarded the bracket when 60 iterations met neither stopping
-            // test and returned the unimproved Newton iterate.
-            double lo = detail::NEWTON_RAPHSON_TOLERANCE, hi = x;
-            if (cdf < p) {
-                hi = x * 10.0;
-                for (int j = 0; j < 64 && getCumulativeProbability(hi) < p; ++j)
-                    hi *= 10.0;
-                if (!std::isfinite(hi))
-                    hi = std::numeric_limits<double>::max();
-            }
-            double mid = (lo + hi) * detail::HALF;
-            for (int j = 0; j < 128; ++j) {
-                mid = (lo + hi) * detail::HALF;
-                const double cmid = getCumulativeProbability(mid);
-                if (std::abs(cmid - p) < tolerance * p) {
-                    break;
-                }
-                if (cmid < p)
-                    lo = mid;
-                else
-                    hi = mid;
-                if (hi - lo <= tolerance * mid) {
-                    mid = (lo + hi) * detail::HALF;
-                    break;
-                }
-            }
-            x = mid;
-            break;
-        }
-
-        double delta = (cdf - p) / pdf;
-        x = std::max(x - delta, x * 0.1);  // Ensure x stays positive
-
-        if (std::abs(delta) < tolerance * x) {
-            break;
-        }
-    }
-
-    return x;
+    return detail::gamma_p_inv(alpha_, p) / beta_;
 }
 
 double GammaDistribution::sampleMarsagliaTsang(std::mt19937& rng) const noexcept {

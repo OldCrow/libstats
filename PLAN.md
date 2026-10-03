@@ -4,34 +4,41 @@
 **v2.4.2 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
 `d8d3388`, pushed; milestone "v2.4.2 — Correctness patch", #157–#171;
 Zen 4 worktree `../libstats-v2.4.2`). Fixed on the branch, each with a
-gate shown to fail on `d8d3388`: #157, #158, #161, #163 (Gaussian's copy
-ctor too), #164, #165, #166, #167, #170, #171; and the FORCE_PARALLEL span
-lambdas of Poisson, Discrete, Gamma, Laplace, Uniform and VonMises, which
-sent NaN to the out-of-support value (`test_batch_nan_gates` now runs all
-three forced strategies). #170/#171 are a backport of `45000c6`'s
+gate shown to fail on `d8d3388`: #157, #158, #160, #161, #163 (Gaussian's
+copy ctor too), #164, #165, #166, #167, #170, #171; and the FORCE_PARALLEL
+span lambdas of Poisson, Discrete, Gamma, Laplace, Uniform and VonMises,
+which sent NaN to the out-of-support value (`test_batch_nan_gates` now
+runs all three forced strategies). #170/#171 are a backport of `45000c6`'s
 `detail::discrete_quantile_search` (Poisson, NegativeBinomial); Binomial's
 quantile moved onto it too [user], 2.3–48× faster, INDICATIVE (commit
-`8feb591`). 78/78 on Zen 4.
+`8feb591`). `420eaf1` (clang-cl port, no behaviour change under cl.exe)
+cherry-picked as `6245e4e` [user]. 79/79 on Zen 4.
 
-**Next: #160, then #159**, each fail-first against the unfixed-`main`
-worktree `../libstats-v2.4.2-base` (detached `d8d3388`, built; the new
-gate files are copied in, then built as single targets) — remove it once
-#159 lands. #160: Gamma `computeQuantile` (Erlang, ChiSquared delegate)
-solved in the log domain on the small side, residual on the CDF below the
-median and on the survival function above it, with the InverseGamma
-quantile in `src/inverse_gamma.cpp` as the template;
-`detail::gamma_inverse_cdf` and `detail::inverse_chi_squared_cdf` share
-the class. Gate: p ∈ {1e-300, 1e-100, 1e-15, 1 − 1e-15} × α ∈ {0.01,
-2.5, 1e4}, two-sided. #159: Student-t in four parts (deep-tail quantile,
-the df ≥ 1000 CDF shortcut, CDF underflow and pdf/logpdf overflow for
-|t| ≳ 1e154, plus the fit-path site); reference `6ff8b71`. #162 is
-deferred to a Mac session, to be written and verified there in one pass
-[user]. Owed before the release PR: #167's fail-first under UBSan (float-cast-overflow) on
-Kaby Lake or the M1 — MSVC has no such check and x86 casts to `INT_MIN`,
-so its gate rows pass unfixed here; native ctest on all three machines;
-an accuracy sweep re-baseline, since the oracle changed (#157, #161) and
-#166 moves CDF values; #166's cost (3ε stop, √a-scaled caps, Stirling
-prefactors) measured on a quiet machine against v2.4.1 with the
+**#160 [DERIVED]**: new `detail::gamma_p_inv(a, p)`, Newton in log x on
+log P below the median and log Q above it, with the same name and signature as
+v2.5.0's corvus-backed one so that merge keeps corvus's definition;
+`GammaDistribution::computeQuantile`, `inverse_chi_squared_cdf` and
+`gamma_inverse_cdf` call it, and the first two now match v2.5.0 line for
+line. Gate `test_gamma_quantile_accuracy` (law budget |ln q|·2⁻⁵²·κ, ×8)
+fails on `d8d3388` in all four accuracy groups. Sweep, Gamma family only:
+quantile max_rel 1.1e-13 Gamma / 1.1e-13 ChiSquared / 1.6e-14 Erlang (the
+α ≤ 0.01 rows, law-bound), 0 contract violations. Next: #159.
+
+**#159**, fail-first against the unfixed-`main` worktree
+`../libstats-v2.4.2-base` (detached `d8d3388`, built; the new gate files
+are copied in, then built as single targets) — remove it once #159 lands:
+Student-t in four parts (deep-tail quantile, the df ≥ 1000 CDF shortcut,
+CDF underflow and pdf/logpdf overflow for |t| ≳ 1e154, plus the fit-path
+site); reference `6ff8b71`. #162 is deferred to a Mac session, to be
+written and verified there in one pass [user]. Owed before the release
+PR: #167's fail-first under UBSan (float-cast-overflow) on Kaby Lake or
+the M1 — MSVC has no such check and x86 casts to `INT_MIN`, so its gate
+rows pass unfixed here; native ctest on all three machines; an accuracy
+sweep re-baseline, since the oracle changed (#157, #161), #166 moves CDF
+values and #160 moves the quantile x-grids (run the oracle on the full
+CSV only: it rewrites `docs/ACCURACY_CHARACTERIZATION.md`'s ISA block
+from whatever rows it is given); #166's cost (3ε stop, √a-scaled caps,
+Stirling prefactors) measured on a quiet machine against v2.4.1 with the
 `tools/bench/` harness from `dev/v2.5.0-corvus`.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
@@ -91,6 +98,14 @@ what is decided, open, or next.
   HalfNormal/TruncatedNormal duplicates. The issue's survival form for
   every p ≤ ½ would lose relative accuracy near the median (its residual
   has an absolute floor of ~1e-17 at s ≈ ½).
+- **Gamma quantile solver (#160) [DERIVED 2026-10-03].** Newton in t = log x
+  rather than the InverseGamma template's 80-step bisection: log X has a
+  log-concave density, so log P and log Q are concave in t and Newton
+  converges from any start, overshooting at most once; a return to the
+  positive side after that is rounding noise. Seed: Wilson-Hilferty, or
+  the bound P ≤ x^a/Γ(a + 1) (a lower bracket, and the answer below
+  t = −700). Named `detail::gamma_p_inv(a, p)` to match v2.5.0's corvus
+  entry point.
 - Layered dependency architecture (6 levels) and the dual API
   (auto-dispatch + explicit strategy) are permanent designs, not
   transitional. See AGENTS.md Architecture.

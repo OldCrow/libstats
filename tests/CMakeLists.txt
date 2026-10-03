@@ -386,6 +386,10 @@ create_libstats_gtest(test_probit_accuracy test_probit_accuracy.cpp)
 # batch; the 1e-8 series stop and the cancelling gamma prefactor left 1e-9 to 8e-6.
 create_libstats_gtest(test_incomplete_gamma_beta_accuracy test_incomplete_gamma_beta_accuracy.cpp)
 
+# #160 guard: Gamma, Erlang and ChiSquared quantiles and the detail Gamma inverses within budget of
+# mpmath from p = 1e-300 to 1 - 1e-15; the linear-CDF Newton solver was 5e139 relative off.
+create_libstats_gtest(test_gamma_quantile_accuracy test_gamma_quantile_accuracy.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

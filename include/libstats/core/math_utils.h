@@ -145,6 +145,17 @@ namespace detail {
  */
 [[nodiscard]] double inverse_beta_i(double p, double a, double b) noexcept;
 
+/**
+ * @brief x with P(a, x) = p: the Gamma(a, 1) quantile
+ * @param a shape (a > 0); NaN otherwise
+ * @param p probability; p <= 0 returns 0, p >= 1 returns +inf, NaN returns NaN
+ *
+ * Solves log P(a, x) = log p below the median and log Q(a, x) = log(1 − p) above it, by Newton
+ * in t = log x (#160). Both residuals are concave in t, so the iteration converges from any
+ * start. Relative-accurate down to subnormal answers; 0 when the answer underflows.
+ */
+[[nodiscard]] double gamma_p_inv(double a, double p) noexcept;
+
 // =============================================================================
 // SIMD VECTORIZED SPECIAL FUNCTIONS
 // =============================================================================
@@ -445,13 +456,8 @@ template <typename Cdf>
  * @param p probability value in (0, 1)
  * @param shape shape parameter (alpha > 0)
  * @param scale scale parameter (beta > 0)
- * @return x such that P(X <= x) = p where X ~ Gamma(shape, scale)
+ * @return x such that P(X <= x) = p where X ~ Gamma(shape, scale); scale * gamma_p_inv(shape, p)
  */
-// DEFERRED: gamma_inverse_cdf
-// Forward-looking stub for an analytic Gamma/ChiSquared quantile path.
-// Currently has no callers — GammaDistribution::getQuantile() uses a
-// numerical inversion. Replace the numerical path with this function once
-// the analytic implementation is validated to be faster and equally accurate.
 [[nodiscard]] double gamma_inverse_cdf(double p, double shape, double scale) noexcept;
 
 // empirical_cdf, calculate_quantiles, sample_moments, validate_fitting_data

@@ -510,7 +510,8 @@ class GammaDistribution : public DistributionBase {
     /**
      * @brief Computes the quantile function (inverse CDF)
      *
-     * For Gamma distribution: F^(-1)(p) computed using Newton-Raphson iteration
+     * For Gamma distribution: F^(-1)(p) by Newton in log x on the smaller of p and 1 − p,
+     * relative-accurate down to subnormal answers (#160)
      *
      * @param p Probability value in [0,1]
      * @return x such that P(X ≤ x) = p
@@ -863,7 +864,7 @@ class GammaDistribution : public DistributionBase {
     /** @brief Compute regularized incomplete gamma function P(a,x) */
     [[nodiscard]] static double regularizedIncompleteGamma(double a, double x) noexcept;
 
-    /** @brief Compute quantile using Newton-Raphson with bracketing */
+    /** @brief Quantile via detail::gamma_p_inv, solved in log x (#160) */
     [[nodiscard]] double computeQuantile(double p) const noexcept;
 
     /** @brief Sample using Marsaglia-Tsang method for α ≥ 1 */

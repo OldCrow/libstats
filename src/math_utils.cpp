@@ -298,6 +298,86 @@ double gamma_q(double a, double x) noexcept {
     return gamma_cf;
 }
 
+// x with P(a, x) = p (#160), by Newton in t = log x on the small side of the probability scale:
+// f(t) = log P(a, eᵗ) − log p below the median, log Q(a, eᵗ) − log q above it. The density of
+// log X, exp(a·t − eᵗ)/Γ(a), is log-concave, so both residuals are concave in t and Newton
+// converges from any start: at most one step overshoots onto the f < 0 side, and from there the
+// iterates approach the root monotonically. A positive residual after a negative one is therefore
+// rounding noise, and ends the iteration. |f'(t)| = x·pdf(x)/P is the prefactor over P (or Q).
+double gamma_p_inv(double a, double p) noexcept {
+    if (std::isnan(a) || std::isnan(p) || a <= detail::ZERO_DOUBLE)
+        return std::numeric_limits<double>::quiet_NaN();
+    if (p <= detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
+    if (p >= detail::ONE)
+        return std::numeric_limits<double>::infinity();
+
+    const bool upper = p > detail::HALF;
+    const double log_target = std::log(upper ? detail::ONE - p : p);  // 1 − p exact for p ≥ ½
+
+    // Bracket in t: e^-745 is below the smallest subnormal, e^709.78 near the largest double.
+    double lo = -745.0;
+    double hi = 709.78;
+    if (!upper) {
+        // P(a, x) ≤ x^a/Γ(a + 1), so the root is at or above that bound's root. Below t = −700
+        // the bound equals P to a relative a·x/(a + 1) < 1e-304, so it is the answer — and the
+        // only route to it when x underflows.
+        const double t_bound = (log_target + std::lgamma(a + detail::ONE)) / a;
+        if (t_bound < -700.0)
+            return std::exp(t_bound);
+        lo = t_bound;
+        hi = std::log(a);  // P(a, a) > ½: the median is below the mean
+    }
+
+    // Wilson-Hilferty seed, x ≈ a·(1 − h + z·√h)³ with h = 1/(9a); the lower bound where it fails.
+    const double h = detail::ONE / (detail::NINE * a);
+    const double c = detail::ONE - h + inverse_normal_cdf(p) * std::sqrt(h);
+    double t = c > detail::ZERO_DOUBLE ? std::log(a) + detail::THREE * std::log(c) : lo;
+    if (!(t > lo && t < hi))
+        t = upper ? detail::HALF * (lo + hi) : lo;
+
+    bool seen_negative = false;
+    int noise_flips = 0;
+    double best_t = t;
+    double best_f = std::numeric_limits<double>::infinity();
+    for (int i = 0; i < 100; ++i) {
+        const double x = std::exp(t);
+        const double log_tail =
+            std::log(upper ? gamma_q(a, x) : gamma_p(a, x));  // −inf on underflow
+        const double f = log_tail - log_target;
+        if (f == detail::ZERO_DOUBLE)
+            return x;
+        if (std::abs(f) < best_f) {
+            best_f = std::abs(f);
+            best_t = t;
+        }
+        // P rises with t and Q falls, so a negative residual bounds the root from below for P and
+        // from above for Q.
+        if ((f < detail::ZERO_DOUBLE) != upper)
+            lo = t;
+        else
+            hi = t;
+        // Once on the f < 0 side, exact iterates stay there; a return to f > 0 is rounding noise.
+        // The second one ends a ping-pong the step test below may not catch at small slope.
+        if (f > detail::ZERO_DOUBLE && seen_negative && ++noise_flips == 2)
+            return std::exp(best_t);
+        if (f < detail::ZERO_DOUBLE)
+            seen_negative = true;
+
+        const double slope = std::exp(log_gamma_prefactor(a, x) - log_tail);
+        double next = upper ? t + f / slope : t - f / slope;
+        // Converged before the bracket test: a step below one ulp leaves next == t, which is now
+        // a bracket end.
+        if (std::abs(next - t) <= detail::TWO * std::numeric_limits<double>::epsilon() *
+                                      std::max(detail::ONE, std::abs(t)))
+            return std::exp(next);
+        if (!std::isfinite(next) || next <= lo || next >= hi)
+            next = detail::HALF * (lo + hi);  // underflowed tail or a step out of the bracket
+        t = next;
+    }
+    return std::exp(best_t);
+}
+
 double beta_i(double x, double a, double b) noexcept {
     // Regularized incomplete beta function I_x(a,b)
     if (std::isnan(x) || std::isnan(a) || std::isnan(b))
@@ -1062,123 +1142,11 @@ double chi_squared_cdf(double x, double df) noexcept {
 }
 
 double inverse_chi_squared_cdf(double p, double df) noexcept {
-    // Inverse chi-squared CDF using iterative methods
+    // Chi-squared(df) is Gamma(df/2, scale 2).
     if (p < detail::ZERO_DOUBLE || p > detail::ONE || df <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
     }
-
-    if (p == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (p == detail::ONE) {
-        return std::numeric_limits<double>::infinity();
-    }
-
-    // For very small p, use bisection to avoid Newton-Raphson instability
-    if (p < 0.1 || p > 0.9) {
-        // Use bisection method which is more stable for extreme probabilities
-        double low = detail::ZERO_DOUBLE;
-        double high = df + 10.0 * std::sqrt(df);
-        // Expand upper bound until it actually brackets p (handles p > 0.9999)
-        while (chi_squared_cdf(high, df) < p) {
-            high *= 2.0;
-            if (high > 1e15)
-                break;  // safety cap
-        }
-        const double tolerance = detail::DEFAULT_TOLERANCE;
-        const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-
-        for (int i = 0; i < max_iterations; ++i) {
-            double mid = (low + high) * detail::HALF;
-            double cdf_val = chi_squared_cdf(mid, df);
-
-            if (std::abs(cdf_val - p) < tolerance) {
-                return mid;
-            }
-
-            if (cdf_val < p) {
-                low = mid;
-            } else {
-                high = mid;
-            }
-
-            if (high - low < tolerance) {
-                return (low + high) * detail::HALF;
-            }
-        }
-        return (low + high) * detail::HALF;
-    }
-
-    // Initial guess using Wilson-Hilferty approximation
-    double h = detail::TWO / (detail::NINE * df);
-    double z = inverse_normal_cdf(p);
-    double initial_guess = df * std::pow(detail::ONE - h + z * std::sqrt(h), 3);
-
-    // Ensure initial guess is positive
-    if (initial_guess <= detail::ZERO_DOUBLE) {
-        initial_guess = df;  // Use mean as fallback
-    }
-
-    // Newton-Raphson iteration for moderate probabilities
-    double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf_val = chi_squared_cdf(x, df);
-        double error = cdf_val - p;
-
-        if (std::abs(error) < tolerance) {
-            break;
-        }
-
-        // Calculate derivative (PDF)
-        double pdf_val =
-            std::exp((df * detail::HALF - detail::ONE) * std::log(x) - x * detail::HALF -
-                     lgamma(df * detail::HALF) - df * detail::HALF * detail::LN2);
-
-        if (pdf_val <= detail::ZERO_DOUBLE) {
-            break;  // Avoid division by zero
-        }
-
-        double delta = error / pdf_val;
-        x = std::max(detail::ZERO, x - delta);  // Ensure x stays positive
-
-        // Check for divergence and fall back to bisection if needed
-        if (!std::isfinite(x) || x > 1e15) {
-            // Fall back to bisection method
-            double low = detail::ZERO_DOUBLE;
-            double high = df + 10.0 * std::sqrt(df);
-            while (chi_squared_cdf(high, df) < p) {
-                high *= 2.0;
-                if (high > 1e15)
-                    break;  // safety cap
-            }
-
-            for (int j = 0; j < max_iterations; ++j) {
-                double mid = (low + high) * detail::HALF;
-                double mid_cdf = chi_squared_cdf(mid, df);
-
-                if (std::abs(mid_cdf - p) < tolerance) {
-                    return mid;
-                }
-
-                if (mid_cdf < p) {
-                    low = mid;
-                } else {
-                    high = mid;
-                }
-
-                if (high - low < tolerance) {
-                    return (low + high) * detail::HALF;
-                }
-            }
-            return (low + high) * detail::HALF;
-        }
-    }
-
-    return x;
+    return detail::TWO * gamma_p_inv(df * detail::HALF, p);
 }
 
 // f_cdf / inverse_f_cdf removed in v2.4.0 — see the note in math_utils.h.
@@ -1199,118 +1167,11 @@ double gamma_cdf(double x, double shape, double scale) noexcept {
 }
 
 double gamma_inverse_cdf(double p, double shape, double scale) noexcept {
-    // Inverse gamma distribution CDF using iterative methods
     if (p < detail::ZERO_DOUBLE || p > detail::ONE || shape <= detail::ZERO_DOUBLE ||
         scale <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
     }
-
-    if (p == detail::ZERO_DOUBLE) {
-        return detail::ZERO_DOUBLE;
-    }
-
-    if (p == detail::ONE) {
-        return std::numeric_limits<double>::infinity();
-    }
-
-    // Initial guess using approximation
-    // For gamma distribution, mean = shape * scale, variance = shape * scale^2
-    double mean = shape * scale;
-    double variance = shape * scale * scale;
-
-    // Wilson-Hilferty approximation for initial guess
-    double h = detail::TWO / (detail::NINE * shape);
-    double z = inverse_normal_cdf(p);
-    double initial_guess = mean * std::pow(detail::ONE - h + z * std::sqrt(h), 3);
-
-    // Ensure initial guess is positive
-    if (initial_guess <= detail::ZERO_DOUBLE) {
-        initial_guess = mean;  // Use mean as fallback
-    }
-
-    // For extreme probabilities, use bisection method for stability
-    if (p < 0.1 || p > 0.9) {
-        double low = detail::ZERO_DOUBLE;
-        double high = mean + 10.0 * std::sqrt(variance);  // Conservative upper bound
-        const double tolerance = detail::DEFAULT_TOLERANCE;
-        const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-
-        for (int i = 0; i < max_iterations; ++i) {
-            double mid = (low + high) * detail::HALF;
-            double cdf_val = gamma_cdf(mid, shape, scale);
-
-            if (std::abs(cdf_val - p) < tolerance) {
-                return mid;
-            }
-
-            if (cdf_val < p) {
-                low = mid;
-            } else {
-                high = mid;
-            }
-
-            if (high - low < tolerance) {
-                return (low + high) * detail::HALF;
-            }
-        }
-        return (low + high) * detail::HALF;
-    }
-
-    // Newton-Raphson iteration for moderate probabilities
-    double x = initial_guess;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf_val = gamma_cdf(x, shape, scale);
-        double error = cdf_val - p;
-
-        if (std::abs(error) < tolerance) {
-            break;
-        }
-
-        // Calculate derivative (PDF)
-        // Gamma PDF: f(x; α, β) = (1/β^α Γ(α)) * x^(α-1) * e^(-x/β)
-        double log_pdf = (shape - detail::ONE) * std::log(x) - x / scale - shape * std::log(scale) -
-                         lgamma(shape);
-        double pdf_val = std::exp(log_pdf);
-
-        if (pdf_val <= detail::ZERO_DOUBLE) {
-            break;  // Avoid division by zero
-        }
-
-        double delta = error / pdf_val;
-        x = std::max(detail::ZERO, x - delta);  // Ensure x stays positive
-
-        // Check for divergence and fall back to bisection if needed
-        if (x > mean + 10.0 * std::sqrt(variance) || !std::isfinite(x)) {
-            // Fall back to bisection method
-            double low = detail::ZERO_DOUBLE;
-            double high = mean + 10.0 * std::sqrt(variance);
-
-            for (int j = 0; j < max_iterations; ++j) {
-                double mid = (low + high) * detail::HALF;
-                double mid_cdf = gamma_cdf(mid, shape, scale);
-
-                if (std::abs(mid_cdf - p) < tolerance) {
-                    return mid;
-                }
-
-                if (mid_cdf < p) {
-                    low = mid;
-                } else {
-                    high = mid;
-                }
-
-                if (high - low < tolerance) {
-                    return (low + high) * detail::HALF;
-                }
-            }
-            return (low + high) * detail::HALF;
-        }
-    }
-
-    return x;
+    return scale * gamma_p_inv(shape, p);
 }
 
 }  // namespace detail
