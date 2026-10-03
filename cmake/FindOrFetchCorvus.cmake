@@ -38,4 +38,18 @@ else()
     FetchContent_MakeAvailable(corvus)
     set(LIBSTATS_CORVUS_PROVIDER "fetched")
     message(STATUS "libstats: fetched corvus v1.0.1 via FetchContent; 'install' target disabled")
+
+    # A fetched corvus is compiled by this build's compiler. Under cl.exe that costs twice: Highway
+    # blocklists AVX-512, so corvus stops at AVX2, and the kernels come out 3-19x slower than
+    # clang-cl compiles them (docs/bench-evidence/2026-09-30-zen4-clangcl-avx2/). Results are
+    # bit-identical either way. clang-cl keeps the MSVC ABI, so a clang-cl corvus links into a
+    # cl.exe libstats; a system corvus cannot be checked here, only a fetched one.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        message(
+            WARNING
+                "libstats: corvus is being compiled by MSVC (cl.exe): its kernels are capped at "
+                "AVX2 and run 3-19x slower than a clang-cl build. For full speed, install corvus "
+                "and Highway built with clang-cl and point CMAKE_PREFIX_PATH at them "
+                "(tools/bench/README.md, \"Windows\").")
+    endif()
 endif()
