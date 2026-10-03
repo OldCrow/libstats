@@ -157,10 +157,18 @@ namespace detail {
 [[nodiscard]] double gamma_p_inv(double a, double p) noexcept;
 
 /**
+ * @brief The shape from which log_gamma_prefactor, the incomplete beta prefactor and the discrete
+ * log-pmfs switch to Stirling's form. Callers that branch on the same switch (the Gamma density)
+ * use this constant, so both sides change bits at the same shape.
+ */
+inline constexpr double STIRLING_PREFACTOR_SHAPE = 20.0;
+
+/**
  * @brief log of x^a·e^{−x}/Γ(a), the incomplete-gamma prefactor and x times the Gamma(a, 1) density
  *
- * Direct below a = 20; from there in Stirling's form, a·(log1p(t) − t) + ½·log(a/2π) − c(a) with
- * t = (x − a)/a, which avoids the a·log x − lgamma(a) cancellation (#166).
+ * Direct below a = STIRLING_PREFACTOR_SHAPE; from there in Stirling's form,
+ * a·(log1p(t) − t) + ½·log(a/2π) − c(a) with t = (x − a)/a, which avoids the a·log x − lgamma(a)
+ * cancellation (#166).
  */
 [[nodiscard]] double log_gamma_prefactor(double a, double x) noexcept;
 
@@ -168,7 +176,8 @@ namespace detail {
  * @brief log of the Poisson(λ) pmf at a count k ≥ 0 (#172)
  *
  * From k or λ = 20, −D(k, λ) − ½·log(2πk) − c(k), with D the deviance k·log(k/λ) + λ − k and c the
- * Stirling error, so no terms of size k·log k cancel; directly below.
+ * Stirling error, so no terms of size k·log k cancel; directly below. λ = 0 gives 0 at k = 0 and
+ * −∞ above.
  */
 [[nodiscard]] double poisson_log_pmf(double k, double lambda) noexcept;
 
@@ -177,7 +186,8 @@ namespace detail {
  *
  * The binomial pmf with xa successes and xb failures; with real xb = r and the extra factor
  * r/(xa + r) it is the negative-binomial pmf. From xa + xb = 20, Stirling errors and deviances
- * around the means, carried as double-doubles; directly below.
+ * around the means, carried as double-doubles; directly below. pa = 0 or 1 gives the limits:
+ * 0 where the other count is zero, −∞ otherwise.
  */
 [[nodiscard]] double binomial_log_pmf(double xa, double xb, double pa) noexcept;
 

@@ -169,19 +169,30 @@ void FDistribution::setParameters(double d1, double d2) {
     }
 }
 
+// The trySet* validate and assign under one lock rather than calling the throwing setters,
+// which would end in std::terminate from these noexcept functions (and read the other degree of
+// freedom unlocked).
 VoidResult FDistribution::trySetD1(double d1) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateFisherFParameters(d1, d2_);
     if (v.isError())
         return v;
-    setD1(d1);
+    d1_ = d1;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     return VoidResult::ok({});
 }
 
 VoidResult FDistribution::trySetD2(double d2) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateFisherFParameters(d1_, d2);
     if (v.isError())
         return v;
-    setD2(d2);
+    d2_ = d2;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     return VoidResult::ok({});
 }
 
@@ -189,7 +200,12 @@ VoidResult FDistribution::trySetParameters(double d1, double d2) noexcept {
     auto v = validateFisherFParameters(d1, d2);
     if (v.isError())
         return v;
-    setParameters(d1, d2);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    d1_ = d1;
+    d2_ = d2;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     return VoidResult::ok({});
 }
 

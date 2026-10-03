@@ -1,7 +1,7 @@
 # libstats — Plan / Status
 
 ## Status [DERIVED] — 2026-10-03
-**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` at `9f1820d`, pushed (cut
+**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` at `5831faf`, pushed (cut
 from `main` at `d8d3388`; milestone "v2.4.2 — Correctness patch",
 #157–#172; Zen 4 worktree `../libstats-v2.4.2`). 85/85 correctness on
 Zen 4, warning-clean. Every fix below has a gate shown to fail on
@@ -38,6 +38,26 @@ Fixed on the branch [DERIVED]:
 - SIMD pipelines that cannot form log1p (Student-t, Beta, Gamma) defer to
   their scalar loops past a shape where vector_log's error is amplified
   beyond 16ε.
+
+Independent review of `5831faf` (2026-10-03, Linux/GCC 15, mpmath) —
+remediation committed [DERIVED]; 86/86 on Zen 4,
+every new gate shown to fail on `5831faf`:
+- H-1 (regression from #172): `binomial_log_pmf` returned NaN at pa ∈
+  {0, 1} on its Stirling path, reached by Binomial's pmf racing `setP(0)`.
+  Kernel made total; Binomial pmf/log-pmf/CDF/quantile, Poisson pmf/
+  log-pmf/CDF/quantile and Gamma/Uniform quantiles branch on one snapshot
+  (audit: no other file mixes unlocked reads with a snapshot).
+  `test_snapshot_consistency`, `DiscretePmfAccuracy.KernelEdges`.
+- M-1: `gamma_q` for a < ½, x ≤ a + 1 formed directly (A&S 6.5.29 with a
+  ζ(k) − 1 series for log Γ(1 + a)); was 1 − P, 500× the quantile gate at
+  α = 1e-4. Worst 12.8ε over a 3400-point sweep. Gate rows added.
+- L-1 subnormal probit (log-domain Newton), L-3 noexcept `trySet*`
+  (NegativeBinomial, Fisher-F, InverseGamma), L-4 one exported
+  `detail::STIRLING_PREFACTOR_SHAPE`, L-5 branch lines formatted (the
+  older Fisher-F/Beta drift left as is), L-7 comment.
+- L-2 (`std::lgamma` writes `signgam` on glibc/macOS) deferred to #173,
+  v2.5.0 [user]. M-2 is the quiet-machine cost item below. L-6 version
+  bump with the release PR.
 
 Not defects, decided [DERIVED]: discrete quantiles near p = 1 that differ
 from the oracle by 3 to 5e4 counts — every count between has a library

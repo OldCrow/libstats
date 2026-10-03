@@ -270,9 +270,9 @@ VoidResult GammaDistribution::trySetParameters(double alpha, double beta) noexce
 //==========================================================================
 
 namespace {
-// Below this shape the direct log density is kept bit for bit; it matches math_utils'
-// kStirlingPrefactorShape.
-constexpr double kStirlingDensityShape = 20.0;
+// Below this shape the direct log density is kept bit for bit; from it, log_gamma_prefactor is
+// in Stirling's form.
+constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
 
 // log of the Gamma(α, rate β) density at a finite x > 0. From α = 20 it is log P(α, βx) − log x,
 // with P = (βx)^α·e^{−βx}/Γ(α) in Stirling form: the direct α·log β − lgamma(α) + (α − 1)·log x −
@@ -1294,7 +1294,12 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
     if (p >= detail::ONE) {
         return std::numeric_limits<double>::infinity();
     }
-    return detail::gamma_p_inv(alpha_, p) / beta_;
+    double a, b;  // one (α, β) state under a concurrent setter
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+    });
+    return detail::gamma_p_inv(a, p) / b;
 }
 
 double GammaDistribution::sampleMarsagliaTsang(std::mt19937& rng) const noexcept {

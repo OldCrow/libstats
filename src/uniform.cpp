@@ -330,20 +330,20 @@ double UniformDistribution::getQuantile(double p) const {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    if (p == detail::ZERO_DOUBLE) {
-        return a_;
-    }
-    if (p == detail::ONE) {
-        return b_;
-    }
-
-    double lo, w;
+    double lo, hi, w;
     bool is_unit;
     withCacheSnapshot([&] {
         lo = a_;
+        hi = b_;
         is_unit = isUnitInterval_;
         w = width_;
     });
+    if (p == detail::ZERO_DOUBLE) {
+        return lo;
+    }
+    if (p == detail::ONE) {
+        return hi;
+    }
     if (is_unit)
         return p;
     return lo + p * w;

@@ -270,7 +270,14 @@ VoidResult NegativeBinomialDistribution::trySetParameters(double r, double p) no
     auto v = validateNegativeBinomialParameters(r, p);
     if (v.isError())
         return v;
-    setParameters(r, p);
+    // Assigned here, not through the throwing setParameters, as trySetR and trySetP.
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    r_ = r;
+    p_ = p;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
+    updateCacheUnsafe();
     return VoidResult::ok({});
 }
 
@@ -769,7 +776,6 @@ void NegativeBinomialDistribution::getLogProbabilityBatchImpl(const double* valu
             continue;
         }
         results[i] = nbLogPmf(k, cached_r, cached_p);
-
     }
 }
 

@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <gtest/gtest.h>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -136,4 +137,20 @@ TEST(DiscretePmfAccuracy, NegativeBinomialAndGeometric) {
               -1.4815511057964607438e+1);
     expectPmf(at("geometric", 1e-6, 0, 5e6), GeometricDistribution::create(1e-6).unwrap(), 5e6,
               -1.8815513057965940591e+1);
+}
+
+// The kernels' domain edges, exactly. binomial_log_pmf on its Stirling path (xa + xb ≥ 20) took
+// pa = 0 or 1 to a zero mean and returned 0·∞ = NaN, which a concurrent Binomial::setP(0) reached
+// (test_snapshot_consistency).
+TEST(DiscretePmfAccuracy, KernelEdges) {
+    constexpr double kNegInf = -std::numeric_limits<double>::infinity();
+    EXPECT_EQ(detail::binomial_log_pmf(5, 95, 0.0), kNegInf);
+    EXPECT_EQ(detail::binomial_log_pmf(95, 5, 1.0), kNegInf);
+    EXPECT_EQ(detail::binomial_log_pmf(0, 100, 0.0), 0.0);
+    EXPECT_EQ(detail::binomial_log_pmf(100, 0, 1.0), 0.0);
+    EXPECT_EQ(detail::binomial_log_pmf(3, 4, 0.0), kNegInf);  // the direct path, below 20
+    EXPECT_EQ(detail::binomial_log_pmf(4, 3, 1.0), kNegInf);
+    EXPECT_EQ(detail::poisson_log_pmf(0, 0.0), 0.0);
+    EXPECT_EQ(detail::poisson_log_pmf(5, 0.0), kNegInf);
+    EXPECT_EQ(detail::poisson_log_pmf(50, 0.0), kNegInf);
 }

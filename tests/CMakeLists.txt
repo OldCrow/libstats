@@ -418,6 +418,10 @@ create_libstats_gtest(test_gamma_density_accuracy test_gamma_density_accuracy.cp
 # the conditioning budget of mpmath, scalar and every batch strategy.
 create_libstats_gtest(test_discrete_pmf_accuracy test_discrete_pmf_accuracy.cpp)
 
+# Guard: scalar methods racing a setter return one parameter state's value, never a mix or NaN
+# (Binomial pmf/CDF, Poisson pmf, Gamma quantile). Correctness, not timing: it asserts values only.
+create_libstats_gtest(test_snapshot_consistency test_snapshot_consistency.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

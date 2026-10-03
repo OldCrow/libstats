@@ -33,7 +33,7 @@ static int expansion_iteration_cap(double shape) noexcept {
 
 // The prefactors below switch to Stirling's form at this shape; under it the direct form is the
 // more accurate of the two and keeps its pre-v2.4.2 bits.
-constexpr double kStirlingPrefactorShape = 20.0;
+constexpr double kStirlingPrefactorShape = detail::STIRLING_PREFACTOR_SHAPE;
 
 // Stirling remainder c(z) = lgamma(z) − [(z − ½)·log(z) − z + ½·log(2π)], truncated after its
 // 1/z⁹ term (the next is < 2e-17 at z = 20).
@@ -112,7 +112,9 @@ double stirling_error(double m) noexcept {
 }
 
 // The deviance x·log(x/M) + M − x ≥ 0. Within M/2 of M it is M·[(1 + t)·log1pmx(t) + t²] with
-// t = (x − M)/M, whose terms do not cancel; farther out the direct form loses a few bits at most.
+// t = (x − M)/M: no cancellation below |t| = ¼, where log1pmx sums its series, and about 3 bits
+// in log1pmx's direct difference from there to ½; farther out the direct form loses a few bits
+// at most.
 double deviance(double x, double m) noexcept {
     if (x == detail::ZERO_DOUBLE)
         return m;
@@ -153,6 +155,11 @@ double poisson_log_pmf(double k, double lambda) noexcept {
 }
 
 double binomial_log_pmf(double xa, double xb, double pa) noexcept {
+    // pa = 0 or 1 zeroes a mean below, and its low-part term would be 0·∞; the limits instead.
+    if (pa <= detail::ZERO_DOUBLE)
+        return xa == detail::ZERO_DOUBLE ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
+    if (pa >= detail::ONE)
+        return xb == detail::ZERO_DOUBLE ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
     if (xa == detail::ZERO_DOUBLE)
         return xb * std::log1p(-pa);
     if (xb == detail::ZERO_DOUBLE)
@@ -320,6 +327,57 @@ double lgamma(double x) noexcept {
     return std::lgamma(x);
 }
 
+// Below this shape gamma_q forms Q directly where x ≤ a + 1 (gamma_q_small_shape); above it
+// Q ≥ Q(a, a + 1) > 0.08 there, and 1 − P costs at most 4 bits.
+constexpr double kSmallShapeQ = 0.5;
+
+// log Γ(1 + a) for |a| ≤ ½. std::lgamma(1 + a) first rounds a into 1 + a, a relative error of
+// ε/a in a. The Taylor series about 1, −γ·a + Σ_{k≥2} (−a)^k·ζ(k)/k, regrouped as
+//   −(log1p(a) − a) − γ·a + Σ_{k≥2} (−a)^k·(ζ(k) − 1)/k,
+// has terms that fall at least fourfold, since ζ(k) − 1 ~ 2^−k.
+static double lgamma1p_small(double a) noexcept {
+    static constexpr double kZetaMinusOne[] = {
+        6.4493406684822644e-1, 2.0205690315959429e-1, 8.2323233711138192e-2, 3.6927755143369926e-2,
+        1.734306198444914e-2,  8.3492773819228268e-3, 4.0773561979443394e-3, 2.0083928260822144e-3,
+        9.9457512781808534e-4, 4.9418860411946456e-4, 2.460865533080483e-4,  1.2271334757848915e-4,
+        6.1248135058704829e-5, 3.0588236307020494e-5, 1.5282259408651872e-5, 7.6371976378997623e-6,
+        3.8172932649998399e-6, 1.9082127165539389e-6, 9.5396203387279611e-7, 4.7693298678780646e-7,
+        2.3845050272773299e-7, 1.1921992596531107e-7, 5.960818905125948e-8,  2.980350351465228e-8,
+        1.4901554828365041e-8, 7.4507117898354295e-9, 3.7253340247884571e-9, 1.862659723513049e-9,
+        9.3132743241966818e-10};  // ζ(k) − 1, k = 2…30 (mpmath)
+    double sum = detail::ZERO_DOUBLE;
+    double power = a;  // a^(k−1)
+    for (int k = 2; k < 31; ++k) {
+        power *= a;
+        const double term = (k % 2 == 0 ? power : -power) * kZetaMinusOne[k - 2] / k;
+        sum += term;
+        if (std::fabs(term) <= std::numeric_limits<double>::epsilon() * std::fabs(sum))
+            break;
+    }
+    return -log1pmx(a) - detail::EULER_MASCHERONI * a + sum;
+}
+
+// Q(a, x) for 0 < a < kSmallShapeQ and 0 < x ≤ a + 1. There P = 1 − O(a) away from x = 0, so
+// 1 − P lost about log₁₀(1/a) digits: 4e4·ε at a = 1e-4. From γ(a, x) = x^a·Σ_{n≥0}
+// (−x)ⁿ/(n!·(a + n)) (A&S 6.5.29) and Γ(a) = Γ(1 + a)/a,
+//   Q = [(Γ(1 + a) − 1) − (x^a − 1) − a·x^a·S] / Γ(1 + a),  S = Σ_{n≥1} (−x)ⁿ/(n!·(a + n)),
+// with Γ(1 + a) − 1 and x^a − 1 by expm1, each O(a) like Q itself. x ≤ 1.5 keeps the alternating
+// S to a few bits of cancellation.
+static double gamma_q_small_shape(double a, double x) noexcept {
+    const double lg = lgamma1p_small(a);
+    const double xa_m1 = std::expm1(a * std::log(x));
+    double s = detail::ZERO_DOUBLE;
+    double term = detail::ONE;  // (−x)ⁿ/n!
+    for (int n = 1; n < 100; ++n) {
+        term *= -x / n;
+        const double t = term / (a + n);
+        s += t;
+        if (std::fabs(t) <= std::numeric_limits<double>::epsilon() * std::fabs(s))
+            break;
+    }
+    return (std::expm1(lg) - xa_m1 - a * (detail::ONE + xa_m1) * s) / std::exp(lg);
+}
+
 double gamma_p(double a, double x) noexcept {
     // Regularized incomplete gamma function P(a,x) = γ(a,x) / Γ(a)
     // where γ(a,x) is the lower incomplete gamma function
@@ -356,7 +414,10 @@ double gamma_q(double a, double x) noexcept {
     }
 
     if (x <= a + detail::ONE) {
-        // For small x, use the series expansion of P(a,x) and compute 1-P
+        // For small x, use the series expansion of P(a,x) and compute 1-P; for small a, Q
+        // directly, which 1 − P = 1 − (1 − O(a)) cancels.
+        if (a < kSmallShapeQ)
+            return gamma_q_small_shape(a, x);
         return detail::ONE - gamma_p_series(a, x);
     }
 
@@ -1137,8 +1198,10 @@ double inverse_normal_cdf(double p) noexcept {
 //   u ← u + (Q(u) − s)/φ(u),  φ(u) = exp(−u²/2)/√(2π)
 // Each step evaluates erfc and exp directly — both full relative precision in the tail — so the
 // iteration converges to the |ln s|·2⁻⁵² conditioning limit of any double formulation (the #49
-// law). φ underflow (u ≳ 38.6) is guarded by skipping the polish; the seed is already
-// law-limited that deep.
+// law). Below DBL_MIN, where φ and erfc are themselves subnormal near the root, Newton runs on
+// log Q(u) = −u²/2 − log(u·√(2π)) + log g(u) instead, with g's asymptotic series
+// Σ (−1)^k·(2k − 1)!!/u^{2k}: u > 37.5 there, so eight terms reach 1e-19. A clamp to DBL_MIN
+// returned Φ⁻¹(DBL_MIN) for every subnormal s, 2.5% off at 5e-324.
 //
 // Not delegated to erf_inv: its extreme-tail branch (|x| ≥ ERF_INV_TAIL_CUTOFF) seeds with a
 // Φ⁻¹-domain formula that is off by ~√2 in the erf domain, and its Halley refinement cannot
@@ -1148,8 +1211,26 @@ double inverse_normal_cdf(double p) noexcept {
 double inv_survival_normal(double s) noexcept {
     if (s >= detail::HALF)
         return detail::ZERO_DOUBLE;
-    if (s < std::numeric_limits<double>::min())
-        s = std::numeric_limits<double>::min();  // best-effort clamp; keeps log(s) finite
+    if (s < std::numeric_limits<double>::min()) {
+        const double log_s = std::log(s);
+        double u = std::sqrt(-detail::TWO * log_s);
+        for (int i = 0; i < 8; ++i) {
+            const double z = detail::ONE / (u * u);
+            double g = detail::ONE;
+            double term = detail::ONE;
+            for (int k = 1; k <= 8; ++k) {
+                term *= -(2.0 * k - detail::ONE) * z;
+                g += term;
+            }
+            const double log_q =
+                -detail::HALF * u * u - std::log(u) - detail::HALF * detail::LN_2PI + std::log(g);
+            const double step = (log_q - log_s) * g / u;  // f/|f'|, f'(u) = −u/g
+            u += step;
+            if (std::fabs(step) <= 1e-16 * u)
+                break;
+        }
+        return u;
+    }
 
     const double t = std::sqrt(-detail::TWO * std::log(s));
     // AS 26.2.23 coefficients (the set erf_inv uses for its moderate-tail branch).

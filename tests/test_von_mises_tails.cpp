@@ -67,8 +67,7 @@ constexpr Strategy kStrategies[] = {Strategy::FORCE_SCALAR, Strategy::FORCE_VECT
 
 // The batch CDF at every forced strategy, first and last lane.
 template <typename Check>
-void expectBatchCdf(const VonMisesDistribution& d, const std::string& what, double x,
-                    Check check) {
+void expectBatchCdf(const VonMisesDistribution& d, const std::string& what, double x, Check check) {
     for (Strategy s : kStrategies) {
         std::vector<double> xs(kN, x), out(kN);
         d.getCumulativeProbability(std::span<const double>(xs), std::span<double>(out),

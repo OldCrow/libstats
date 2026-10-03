@@ -765,17 +765,21 @@ class PoissonDistribution : public DistributionBase {
     // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
 
-    /** @brief Compute PMF for small λ using direct method */
-    [[nodiscard]] double computePMFSmall(int k) const noexcept;
+    // The helpers below take λ (and e^{−λ}) from the caller's cache snapshot, never the members,
+    // so one call cannot mix two parameter states under a concurrent setLambda.
 
-    /** @brief Compute PMF for large λ using Stirling's approximation */
-    [[nodiscard]] double computePMFLarge(int k) const noexcept;
+    /** @brief Compute PMF for small λ using direct method */
+    [[nodiscard]] static double computePMFSmall(int k, double lambda,
+                                                double exp_neg_lambda) noexcept;
+
+    /** @brief Compute PMF for large λ in log space */
+    [[nodiscard]] static double computePMFLarge(int k, double lambda) noexcept;
 
     /** @brief Compute log PMF for any λ using log-space arithmetic */
-    [[nodiscard]] double computeLogPMF(int k) const noexcept;
+    [[nodiscard]] static double computeLogPMF(int k, double lambda) noexcept;
 
     /** @brief Compute CDF using regularized incomplete gamma function */
-    [[nodiscard]] double computeCDF(int k) const noexcept;
+    [[nodiscard]] static double computeCDF(int k, double lambda) noexcept;
 
     /** @brief Fast factorial computation with caching */
     [[nodiscard]] static double factorial(int n) noexcept;

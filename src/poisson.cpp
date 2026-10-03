@@ -311,11 +311,13 @@ double PoissonDistribution::getQuantile(double p) const {
 
     // Smallest k with CDF(k) >= p, searched outward from the normal
     // approximation: two or three CDF evaluations. The count is capped at
-    // INT_MAX, which getCumulativeProbabilityExact takes.
+    // INT_MAX. The CDF reads the same λ copy as the guess, not the live member.
     const double stddev = std::sqrt(local_lambda);
     const std::int64_t k = detail::discrete_quantile_search(
-        [this](std::int64_t i) { return getCumulativeProbabilityExact(static_cast<int>(i)); }, p, 0,
-        static_cast<std::int64_t>(std::numeric_limits<int>::max()),
+        [local_lambda](std::int64_t i) {
+            return i < 0 ? detail::ZERO_DOUBLE : computeCDF(static_cast<int>(i), local_lambda);
+        },
+        p, 0, static_cast<std::int64_t>(std::numeric_limits<int>::max()),
         detail::discrete_quantile_guess(p, local_lambda, stddev, detail::ONE / stddev));
     return static_cast<double>(k);
 }
@@ -482,23 +484,31 @@ double PoissonDistribution::getProbabilityExact(int k) const {
         return detail::ZERO_DOUBLE;
 
     bool is_small;
-    withCacheSnapshot([&] { is_small = isSmallLambda_; });
-    return is_small ? computePMFSmall(k) : computePMFLarge(k);
+    double lambda, exp_neg_lambda;
+    withCacheSnapshot([&] {
+        is_small = isSmallLambda_;
+        lambda = lambda_;
+        exp_neg_lambda = expNegLambda_;
+    });
+    return is_small ? computePMFSmall(k, lambda, exp_neg_lambda) : computePMFLarge(k, lambda);
 }
 
 double PoissonDistribution::getLogProbabilityExact(int k) const noexcept {
     if (k < 0)
         return detail::NEGATIVE_INFINITY;
 
-    withCacheSnapshot([&] {});  // ensure cache valid; computeLogPMF reads cached members
-    return computeLogPMF(k);
+    double lambda;
+    withCacheSnapshot([&] { lambda = lambda_; });
+    return computeLogPMF(k, lambda);
 }
 
 double PoissonDistribution::getCumulativeProbabilityExact(int k) const {
     if (k < 0)
         return detail::ZERO_DOUBLE;
 
-    return computeCDF(k);
+    double lambda;
+    withCacheSnapshot([&] { lambda = lambda_; });
+    return computeCDF(k, lambda);
 }
 
 bool PoissonDistribution::canUseNormalApproximation() const noexcept {
@@ -1167,32 +1177,32 @@ void PoissonDistribution::validateParameters(double lambda) {
     }
 }
 
-double PoissonDistribution::computePMFSmall(int k) const noexcept {
+double PoissonDistribution::computePMFSmall(int k, double lambda, double exp_neg_lambda) noexcept {
     // Direct computation for small lambda
     if (k < static_cast<int>(FACTORIAL_CACHE.size())) {
         // Use cached factorial
-        return std::pow(lambda_, k) * expNegLambda_ / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+        return std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
     } else {
         // Use log-space computation
-        return std::exp(computeLogPMF(k));
+        return std::exp(computeLogPMF(k, lambda));
     }
 }
 
-double PoissonDistribution::computePMFLarge(int k) const noexcept {
+double PoissonDistribution::computePMFLarge(int k, double lambda) noexcept {
     // Log-space, as the batch path computes it. A normal approximation (with continuity correction)
     // used to stand in within 3σ of a very large λ: 4e-3 relative off at λ = 1e5.
-    return std::exp(computeLogPMF(k));
+    return std::exp(computeLogPMF(k, lambda));
 }
 
-double PoissonDistribution::computeLogPMF(int k) const noexcept {
+double PoissonDistribution::computeLogPMF(int k, double lambda) noexcept {
     // log P(X = k) = k * log(λ) - λ - log(k!), formed without cancellation at large k or λ (#172)
-    return detail::poisson_log_pmf(static_cast<double>(k), lambda_);
+    return detail::poisson_log_pmf(static_cast<double>(k), lambda);
 }
 
-double PoissonDistribution::computeCDF(int k) const noexcept {
+double PoissonDistribution::computeCDF(int k, double lambda) noexcept {
     // Use regularized incomplete gamma function: P(X <= k) = Q(k+1, λ)
     // where Q(a,x) is the regularized upper incomplete gamma function
-    return detail::gamma_q(k + 1, lambda_);
+    return detail::gamma_q(k + 1, lambda);
 }
 
 double PoissonDistribution::factorial(int n) noexcept {

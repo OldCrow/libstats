@@ -71,6 +71,28 @@ TEST(IncompleteGammaBetaAccuracy, FisherFLargeDf) {
     expectCdf("F(1e4, 1e4)", d, 0.99749, 0.45000266703024268636, 1e-12);
 }
 
+// Q(a, x) for a < ½ and x ≤ a + 1, where 1 − P(a, x) cancelled about log₁₀(1/a) digits: 4e4·ε
+// at a = 1e-4. InverseGamma's CDF is Q(α, β/x), the public route to it.
+TEST(IncompleteGammaBetaAccuracy, SmallShapeUpperTail) {
+    struct Row {
+        double a, x, q;
+    };
+    constexpr Row kRows[] = {
+        {1e-4, 0.5, 5.5980292957401715717e-5},   {1e-3, 1.0, 2.1960835758555639629e-4},
+        {1e-3, 0.5, 5.6006665647074988868e-4},   {1e-2, 0.9, 2.6263432520511505494e-3},
+        {0.3, 1.2, 6.3394719569259104781e-2},    {0.49, 1.45, 8.6164475718001852214e-2},
+        {1e-3, 1e-200, 3.686788709141712445e-1},
+    };
+    constexpr double kBudget = 16 * 0x1p-52;
+    for (const Row& r : kRows) {
+        const double got = detail::gamma_q(r.a, r.x);
+        EXPECT_LE(std::fabs(got - r.q) / r.q, kBudget)
+            << "gamma_q(" << r.a << ", " << r.x << ") = " << got << ", want " << r.q;
+    }
+    const auto d = InverseGammaDistribution::create(1e-3, 1.0).unwrap();
+    expectCdf("InverseGamma(1e-3, 1)", d, 2.0, 5.6006665647074988868e-4, kBudget);
+}
+
 // Small shapes, where the 1e-8 stop cost 1e-9 to 1e-8.
 TEST(IncompleteGammaBetaAccuracy, SmallShapes) {
     const auto g = GammaDistribution::create(2.0, 1.0).unwrap();

@@ -404,11 +404,10 @@ class VonMisesDistribution : public DistributionBase {
      * either tail take the scalar path's integrated tail mass. Unsafe: no
      * parameter validation.
      */
-    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                 std::size_t count, double cached_mu,
-                                                 double cached_kappa, double cached_log_scaled_norm,
-                                                 const std::vector<double>& cached_coeffs) const
-        noexcept;
+    void getCumulativeProbabilityBatchUnsafeImpl(
+        const double* values, double* results, std::size_t count, double cached_mu,
+        double cached_kappa, double cached_log_scaled_norm,
+        const std::vector<double>& cached_coeffs) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS

@@ -185,19 +185,36 @@ void InverseGammaDistribution::setParameters(double alpha, double beta) {
     (void)gamma_.trySetParameters(alpha, beta);
 }
 
+// The trySet* validate and assign under one lock rather than calling the throwing setters,
+// which would end in std::terminate from these noexcept functions; the delegate is synced
+// outside the lock, as in the setters.
 VoidResult InverseGammaDistribution::trySetAlpha(double alpha) noexcept {
-    auto v = validateInverseGammaParameters(alpha, beta_);
-    if (v.isError())
-        return v;
-    setAlpha(alpha);
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateInverseGammaParameters(alpha, beta_);
+        if (v.isError())
+            return v;
+        alpha_ = alpha;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+    }
+    (void)gamma_.trySetAlpha(alpha);
     return VoidResult::ok({});
 }
 
 VoidResult InverseGammaDistribution::trySetBeta(double beta) noexcept {
-    auto v = validateInverseGammaParameters(alpha_, beta);
-    if (v.isError())
-        return v;
-    setBeta(beta);
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateInverseGammaParameters(alpha_, beta);
+        if (v.isError())
+            return v;
+        beta_ = beta;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+    }
+    (void)gamma_.trySetBeta(beta);  // SCALE here == RATE there
     return VoidResult::ok({});
 }
 
@@ -205,7 +222,15 @@ VoidResult InverseGammaDistribution::trySetParameters(double alpha, double beta)
     auto v = validateInverseGammaParameters(alpha, beta);
     if (v.isError())
         return v;
-    setParameters(alpha, beta);
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        alpha_ = alpha;
+        beta_ = beta;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+    }
+    (void)gamma_.trySetParameters(alpha, beta);
     return VoidResult::ok({});
 }
 

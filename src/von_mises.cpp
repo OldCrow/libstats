@@ -183,9 +183,8 @@ constexpr double kTailSwitch = 0.25;
     if (kappa > kCdfSeriesKappaMax) {
         const double t = detail::ONE / kappa;
         const double s =
-            t * (0.125 +
-                 t * (0.0703125 +
-                      t * (0.0732421875 + t * (0.112152099609375 + t * 0.22710800170898438))));
+            t * (0.125 + t * (0.0703125 + t * (0.0732421875 +
+                                               t * (0.112152099609375 + t * 0.22710800170898438))));
         return detail::LN_2PI - detail::HALF * std::log(detail::TWO_PI * kappa) + std::log1p(s);
     }
     // N = 2*half points over the full period; the two halves are mirror images.
@@ -242,26 +241,19 @@ struct LeftTail {
     }
 
     // Adaptive Gauss-Kronrod 7/15.
-    static constexpr double xgk[8] = {0.991455371120812639206854697526329,
-                                      0.949107912342758524526189684047851,
-                                      0.864864423359769072789712788640926,
-                                      0.741531185599394439863864773280788,
-                                      0.586087235467691130294144845693013,
-                                      0.405845151377397166906606412076961,
-                                      0.207784955007898467600689403773245,
-                                      0.000000000000000000000000000000000};
-    static constexpr double wgk[8] = {0.022935322010529224963732008058970,
-                                      0.063092092629978553290700663189204,
-                                      0.104790010322250183839876322541518,
-                                      0.140653259715525918745189590510238,
-                                      0.169004726639267902826583426598550,
-                                      0.190350578064785409913256402421014,
-                                      0.204432940075298892414161999234649,
-                                      0.209482141084727828012999174891714};
-    static constexpr double wg[4] = {0.129484966168869693270611432679082,
-                                     0.279705391489276667901467771423780,
-                                     0.381830050505118944950369775488975,
-                                     0.417959183673469387755102040816327};
+    static constexpr double xgk[8] = {
+        0.991455371120812639206854697526329, 0.949107912342758524526189684047851,
+        0.864864423359769072789712788640926, 0.741531185599394439863864773280788,
+        0.586087235467691130294144845693013, 0.405845151377397166906606412076961,
+        0.207784955007898467600689403773245, 0.000000000000000000000000000000000};
+    static constexpr double wgk[8] = {
+        0.022935322010529224963732008058970, 0.063092092629978553290700663189204,
+        0.104790010322250183839876322541518, 0.140653259715525918745189590510238,
+        0.169004726639267902826583426598550, 0.190350578064785409913256402421014,
+        0.204432940075298892414161999234649, 0.209482141084727828012999174891714};
+    static constexpr double wg[4] = {
+        0.129484966168869693270611432679082, 0.279705391489276667901467771423780,
+        0.381830050505118944950369775488975, 0.417959183673469387755102040816327};
     auto gk15 = [&](double a, double b, double& kronrod) {
         const double centre = detail::HALF * (a + b);
         const double halfLength = detail::HALF * (b - a);
@@ -327,8 +319,8 @@ struct LeftTail {
         return -detail::PI;
     auto t_of = [](double d) { return std::max(-detail::PI, (d - kPiLo) - detail::PI); };
     double t_lo = std::max(-detail::PI, t_of(std::exp(log_d_lo)) - 1e-15);
-    double t_hi = log_d_hi < std::log(detail::PI) ? t_of(std::exp(log_d_hi)) + 1e-15
-                                                   : detail::ZERO_DOUBLE;
+    double t_hi =
+        log_d_hi < std::log(detail::PI) ? t_of(std::exp(log_d_hi)) + 1e-15 : detail::ZERO_DOUBLE;
     t_hi = std::min(t_hi, detail::ZERO_DOUBLE);
 
     // Seed: the wrapped normal at moderate kappa, the uniform below it.
@@ -1180,9 +1172,8 @@ void VonMisesDistribution::getProbabilityBatchUnsafeImpl(
 }
 
 void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(
-    const double* values, double* results, std::size_t count, double cached_mu,
-    double cached_kappa, double cached_log_scaled_norm,
-    const std::vector<double>& cached_coeffs) const noexcept {
+    const double* values, double* results, std::size_t count, double cached_mu, double cached_kappa,
+    double cached_log_scaled_norm, const std::vector<double>& cached_coeffs) const noexcept {
     // kappa = 0 or kappa > 1000: series not applicable (see updateCacheUnsafe).
     // Fall back to the per-element scalar path -- itself now O(j_max) or the
     // wrapped-normal approximation, not the old O(512) trapezoid.
@@ -1230,8 +1221,7 @@ void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(
         } else if (std::isinf(values[i])) {
             results[i] = (values[i] > 0.0) ? detail::ONE : detail::ZERO_DOUBLE;
         } else {
-            results[i] =
-                tail_corrected_cdf(results[i], t[i], cached_kappa, cached_log_scaled_norm);
+            results[i] = tail_corrected_cdf(results[i], t[i], cached_kappa, cached_log_scaled_norm);
         }
     }
 }

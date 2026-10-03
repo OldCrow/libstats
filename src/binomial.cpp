@@ -23,6 +23,19 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// P(X ≤ k) for 0 ≤ k < n from one (n, p) copy: I_{1−p}(n − k, k + 1).
+double binomialCdf(int k, int n, double p) noexcept {
+    if (k < 0)
+        return detail::ZERO_DOUBLE;
+    if (p == detail::ZERO_DOUBLE)
+        return detail::ONE;
+    if (p == detail::ONE)
+        return detail::ZERO_DOUBLE;
+    return detail::beta_i(detail::ONE - p, static_cast<double>(n - k), static_cast<double>(k + 1));
+}
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -248,26 +261,23 @@ double BinomialDistribution::getProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
-    // #167: range-check the rounded double before the int cast (1e10, 1e300 are UB).
-    const double rounded = std::round(x);
-    if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(n_)))
-        return detail::ZERO_DOUBLE;
-    const int k = static_cast<int>(rounded);
-    if (p_ == detail::ZERO_DOUBLE)
-        return (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
-    if (p_ == detail::ONE)
-        return (k == n_) ? detail::ONE : detail::ZERO_DOUBLE;
 
+    // Every branch below reads the snapshot only: a concurrent setP(0) between an unlocked
+    // p_ == 0 test and the snapshot reached the kernel with p = 0, which returned NaN.
     int sn;
     double sp;
     withCacheSnapshot([&] {
         sn = n_;
         sp = p_;
     });
-    // Without the n·log n cancellation of the lgamma form (#172).
-    const double lp_val = (k > sn) ? detail::NEGATIVE_INFINITY
-                                   : detail::binomial_log_pmf(static_cast<double>(k),
-                                                              static_cast<double>(sn - k), sp);
+    // #167: range-check the rounded double before the int cast (1e10, 1e300 are UB).
+    const double rounded = std::round(x);
+    if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(sn)))
+        return detail::ZERO_DOUBLE;
+    const int k = static_cast<int>(rounded);
+    // Without the n·log n cancellation of the lgamma form (#172); total on p = 0 and 1.
+    const double lp_val =
+        detail::binomial_log_pmf(static_cast<double>(k), static_cast<double>(sn - k), sp);
     return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
 }
 
@@ -276,26 +286,21 @@ double BinomialDistribution::getLogProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::NEGATIVE_INFINITY;  // ±inf → -∞
-    // #167: range-check the rounded double before the int cast.
-    const double rounded = std::round(x);
-    if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(n_)))
-        return detail::NEGATIVE_INFINITY;
-    const int k = static_cast<int>(rounded);
-    if (p_ == detail::ZERO_DOUBLE)
-        return (k == 0) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
-    if (p_ == detail::ONE)
-        return (k == n_) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
 
+    // Branches on the snapshot only, as getProbability.
     int sn;
     double sp;
     withCacheSnapshot([&] {
         sn = n_;
         sp = p_;
     });
-    // Without the n·log n cancellation of the lgamma form (#172).
-    return (k > sn)
-               ? detail::NEGATIVE_INFINITY
-               : detail::binomial_log_pmf(static_cast<double>(k), static_cast<double>(sn - k), sp);
+    // #167: range-check the rounded double before the int cast.
+    const double rounded = std::round(x);
+    if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(sn)))
+        return detail::NEGATIVE_INFINITY;
+    const int k = static_cast<int>(rounded);
+    // Without the n·log n cancellation of the lgamma form (#172); total on p = 0 and 1.
+    return detail::binomial_log_pmf(static_cast<double>(k), static_cast<double>(sn - k), sp);
 }
 
 double BinomialDistribution::getCumulativeProbability(double x) const {
@@ -305,26 +310,20 @@ double BinomialDistribution::getCumulativeProbability(double x) const {
             return std::numeric_limits<double>::quiet_NaN();
         return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
     }
-    // #167: range-check the floored double before the int cast.
-    const double floored = std::floor(x);
-    if (floored < detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
-    if (floored >= static_cast<double>(n_))
-        return detail::ONE;
-    const int k = static_cast<int>(floored);
-
+    // Snapshot first: an unlocked n_ above a concurrently shrunk sn gave beta_i a b ≤ 0, and 0.
     int sn;
     double sp;
     withCacheSnapshot([&] {
         sn = n_;
         sp = p_;
     });
-    if (sp == detail::ZERO_DOUBLE)
-        return detail::ONE;
-    if (sp == detail::ONE)
+    // #167: range-check the floored double before the int cast.
+    const double floored = std::floor(x);
+    if (floored < detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
-    return detail::beta_i(detail::ONE - sp, static_cast<double>(sn - k),
-                          static_cast<double>(k + 1));
+    if (floored >= static_cast<double>(sn))
+        return detail::ONE;
+    return binomialCdf(static_cast<int>(floored), sn, sp);
 }
 
 double BinomialDistribution::getQuantile(double p) const {
@@ -332,22 +331,25 @@ double BinomialDistribution::getQuantile(double p) const {
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
-    if (p == detail::ONE)
-        return static_cast<double>(n_);
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const int n = n_;
     const double sp = p_;
     lock.unlock();
+    if (p == detail::ONE)
+        return static_cast<double>(n);
 
     // Smallest k with CDF(k) >= p, searched outward from the normal
     // approximation: two or three CDF evaluations instead of a scan from 0.
+    // The CDF reads the same (n, p) copy as the guess, not the live members.
     const double mean = static_cast<double>(n) * sp;
     const double stddev = std::sqrt(mean * (detail::ONE - sp));
     const double skewness = (detail::ONE - detail::TWO * sp) / stddev;
     const std::int64_t k = detail::discrete_quantile_search(
-        [this](std::int64_t i) { return getCumulativeProbability(static_cast<double>(i)); }, p, 0,
-        n, detail::discrete_quantile_guess(p, mean, stddev, skewness));
+        [n, sp](std::int64_t i) {
+            return i >= n ? detail::ONE : binomialCdf(static_cast<int>(i), n, sp);
+        },
+        p, 0, n, detail::discrete_quantile_guess(p, mean, stddev, skewness));
     return static_cast<double>(k);
 }
 
