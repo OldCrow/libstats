@@ -133,15 +133,17 @@ void detect_macos_topology(Features& features);
  */
 void safe_cpuid(uint32_t eax, uint32_t ecx, uint32_t& out_eax, uint32_t& out_ebx, uint32_t& out_ecx,
                 uint32_t& out_edx) {
-    #if defined(__GNUC__) || defined(__clang__)
-    __cpuid_count(eax, ecx, out_eax, out_ebx, out_ecx, out_edx);
-    #elif defined(_MSC_VER)
+    // _MSC_VER first: clang-cl defines both it and __clang__, and takes <intrin.h> above, which
+    // has __cpuidex but not <cpuid.h>'s __cpuid_count.
+    #if defined(_MSC_VER)
     int regs[4];
-    __cpuidex(regs, eax, ecx);
-    out_eax = regs[0];
-    out_ebx = regs[1];
-    out_ecx = regs[2];
-    out_edx = regs[3];
+    __cpuidex(regs, static_cast<int>(eax), static_cast<int>(ecx));
+    out_eax = static_cast<uint32_t>(regs[0]);
+    out_ebx = static_cast<uint32_t>(regs[1]);
+    out_ecx = static_cast<uint32_t>(regs[2]);
+    out_edx = static_cast<uint32_t>(regs[3]);
+    #elif defined(__GNUC__) || defined(__clang__)
+    __cpuid_count(eax, ecx, out_eax, out_ebx, out_ecx, out_edx);
     #else
     // Fallback for unknown compilers
     out_eax = out_ebx = out_ecx = out_edx = 0;

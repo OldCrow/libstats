@@ -64,7 +64,7 @@ TEST(GoodnessOfFit, KS_BadFit) {
 }
 TEST(GoodnessOfFit, KS_EmptyDataThrows) {
     auto g = GaussianDistribution::create(0.0, 1.0).unwrap();
-    EXPECT_THROW(stats::analysis::kolmogorovSmirnovTest({}, g), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::kolmogorovSmirnovTest({}, g), std::invalid_argument);
 }
 
 // ── AD test ──────────────────────────────────────────────────────────────────
@@ -106,7 +106,8 @@ TEST(GoodnessOfFit, LR_InvalidDfThrows) {
     auto data = normalSample(50);
     auto g0 = GaussianDistribution::create(0.0, 1.0).unwrap();
     auto g1 = GaussianDistribution::create(1.0, 1.0).unwrap();
-    EXPECT_THROW(stats::analysis::likelihoodRatioTest(data, g0, g1, 0), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::likelihoodRatioTest(data, g0, g1, 0),
+                 std::invalid_argument);
 }
 
 // ── Information criteria ─────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ TEST(CrossValidation, KFold_Returns5Folds) {
 }
 TEST(CrossValidation, KFold_BadKThrows) {
     auto data = normalSample(10);
-    EXPECT_THROW((stats::analysis::kFoldCrossValidation<GaussianDistribution>(data, 1)),
+    EXPECT_THROW((void)stats::analysis::kFoldCrossValidation<GaussianDistribution>(data, 1),
                  std::invalid_argument);
 }
 
@@ -150,7 +151,7 @@ TEST(Bootstrap, MeanCI_ContainsTrueMean) {
     EXPECT_GT(hi, 3.0);
 }
 TEST(Bootstrap, EmptyDataThrows) {
-    EXPECT_THROW((stats::analysis::bootstrapMeanCI<GaussianDistribution>({}, 0.95)),
+    EXPECT_THROW((void)stats::analysis::bootstrapMeanCI<GaussianDistribution>({}, 0.95),
                  std::invalid_argument);
 }
 

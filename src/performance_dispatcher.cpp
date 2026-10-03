@@ -32,7 +32,8 @@ Strategy PerformanceDispatcher::selectStrategy(size_t batch_size, DistributionTy
 }
 
 Strategy PerformanceDispatcher::selectMultiThreadedStrategy(
-    [[maybe_unused]] DistributionType dist_type, const SystemCapabilities& system) noexcept {
+    [[maybe_unused]] DistributionType dist_type,
+    [[maybe_unused]] const SystemCapabilities& system) noexcept {
     // Four-architecture profiling shows the threading backend is the dominant
     // factor in P-vs-WS selection:
     //   macOS/GCD + HT:       WORK_STEALING wins (up to 7:1)
