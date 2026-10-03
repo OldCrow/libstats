@@ -42,14 +42,17 @@ else()
     # A fetched corvus is compiled by this build's compiler. Under cl.exe that costs twice: Highway
     # blocklists AVX-512, so corvus stops at AVX2, and the kernels come out 3-19x slower than
     # clang-cl compiles them (docs/bench-evidence/2026-09-30-zen4-clangcl-avx2/). Results are
-    # bit-identical either way. clang-cl keeps the MSVC ABI, so a clang-cl corvus links into a
-    # cl.exe libstats; a system corvus cannot be checked here, only a fetched one.
+    # bit-identical either way. Two remedies: build everything with clang-cl, or keep cl.exe for
+    # libstats and link a clang-cl corvus (same MSVC ABI). A system corvus cannot be checked here,
+    # only a fetched one.
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         message(
             WARNING
                 "libstats: corvus is being compiled by MSVC (cl.exe): its kernels are capped at "
-                "AVX2 and run 3-19x slower than a clang-cl build. For full speed, install corvus "
-                "and Highway built with clang-cl and point CMAKE_PREFIX_PATH at them "
-                "(tools/bench/README.md, \"Windows\").")
+                "AVX2 and run 3-19x slower than a clang-cl build. For full speed, configure "
+                "with clang-cl (-G Ninja -DCMAKE_C_COMPILER=clang-cl "
+                "-DCMAKE_CXX_COMPILER=clang-cl), or install corvus and Highway built with "
+                "clang-cl and point CMAKE_PREFIX_PATH at them (tools/bench/README.md, "
+                "\"Windows\").")
     endif()
 endif()
