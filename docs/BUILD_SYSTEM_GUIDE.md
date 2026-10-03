@@ -10,9 +10,30 @@ libstats v2.x requires C++20 and the following minimum compilers:
 |---|---|---|
 | macOS | AppleClang 15 | macOS 13 Ventura or newer |
 | Linux | GCC 13 or Clang 17 | CI exercises GCC 14 and Clang 17; GCC 13 is the CMake-enforced floor (AVX-512 compile workflow only) |
-| Windows | MSVC 19.38 | Visual Studio 2022 17.8 or newer |
+| Windows | MSVC 19.38, or clang-cl (Clang 17 floor; verified with 22.1) | Visual Studio 2022 17.8 or newer; clang-cl is the full-speed build — see "Windows: cl.exe or clang-cl" |
 
 macOS builds use system AppleClang and Apple libc++. The v2.x build path does not support alternate LLVM toolchain setup.
+
+## Windows: cl.exe or clang-cl
+
+Both compilers are supported and produce ABI-compatible libraries. They differ in what happens to corvus:
+
+- **clang-cl** compiles the fetched corvus for every tier up to AVX-512. This is the full-speed build.
+- **cl.exe** stops corvus at AVX2 (Highway blocklists AVX-512 under MSVC) and compiles its kernels 3–19× slower. Results are bit-identical. Configure warns when this happens. libstats' own kernels are unaffected.
+
+From a `vcvars64` environment with clang-cl on `PATH` (the Visual Studio "C++ Clang tools" component, or an LLVM install):
+
+```powershell
+cmake --preset windows-clang-cl            # Ninja, Release -> build-clangcl/
+cmake --build build-clangcl --parallel
+ctest --test-dir build-clangcl -LE "timing|benchmark"
+```
+
+`windows-clang-cl-strict` is the warnings-as-errors variant. With the Visual Studio generator, select the toolset instead: `cmake -B build -A x64 -T ClangCL`. That generator ignores `CMAKE_CXX_COMPILER` and `CMAKE_BUILD_TYPE`, which is why the presets pin Ninja.
+
+A third arrangement keeps `cl.exe` for libstats and links a corvus and Highway that were built with clang-cl and installed to a prefix (`-DCMAKE_PREFIX_PATH=<prefix>`); `tools/bench/README.md` has the recipe.
+
+clang-cl's driver reads `-Wall` as `-Weverything` and rejects some GNU-style options; `cmake/CompilerFlags.cmake` translates the Clang warning lists for it.
 
 ## Dependencies
 

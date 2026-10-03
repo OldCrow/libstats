@@ -17,7 +17,7 @@ CI does not replace release validation on real SIMD hardware. GitHub-hosted runn
 
 ## Supported CI baseline
 
-The v2.x build matrix (ci.yml) is four legs, all Release — Debug legs were
+The v2.x build matrix (ci.yml) is five legs, all Release — Debug legs were
 deliberately dropped:
 
 | Platform | Compiler | Build | Purpose |
@@ -25,7 +25,8 @@ deliberately dropped:
 | Ubuntu latest | GCC 14 | Release | Current stable GCC |
 | Ubuntu latest | Clang 17 | Release | Minimum Clang baseline |
 | macOS 15 | AppleClang | Release | macOS baseline |
-| Windows latest | MSVC 19.38+ | Release | Production Windows validation |
+| Windows latest | MSVC 19.38+ | Release | cl.exe diagnostics; the multi-config Visual Studio generator |
+| Windows latest | clang-cl | Release | The `windows-clang-cl` preset (Ninja); asserts the tree really was compiled by clang-cl |
 
 GCC 13 is the CMake-enforced minimum but is exercised only by the AVX-512
 compilation workflow, not the main matrix. The project requires C++20. Do
@@ -132,6 +133,8 @@ cmake -B build -DLIBSTATS_VERBOSE_BUILD=ON
 Then inspect the GTest discovery messages.
 
 ## Windows notes
+
+The two Windows legs cover different things. The MSVC leg uses the Visual Studio generator and `cl.exe`. The clang-cl leg configures with `cmake --preset windows-clang-cl -B build` and then checks `CMakeCXXCompiler.cmake` for compiler ID `Clang` with the `MSVC` frontend, so a change that lands the leg on `cl.exe` fails instead of passing under the wrong name. Hosted runners do not all have AVX-512, so neither leg asserts a SIMD tier.
 
 Windows dynamic tests require `stats.dll` beside the test executable. The CMake test helper copies the DLL after building dynamic test targets.
 

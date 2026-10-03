@@ -282,12 +282,14 @@ TEST(DiscreteCountNarrowing, SampleBeyondIntMax) {
 }
 
 // -------------------------------------------------------------------------
-// The defining property over the whole p range, for the three distributions
-// that share detail::discrete_quantile_search (v2.5.0): k = quantile(p) is the
-// smallest count with CDF(k) >= p. The search starts from a normal
-// approximation that is far off in the tails, so the grid reaches both: it
-// includes p below PMF(0), where the answer is 0, and p within 1e-12 of 1.
-// The Poisson search this replaced returned 1 for every p <= CDF(0).
+// The defining property over the whole p range: k = quantile(p) is the
+// smallest count with CDF(k) >= p. Binomial, Poisson and NegativeBinomial (so
+// Geometric) share detail::discrete_quantile_search since v2.4.2. The search
+// starts from a normal approximation
+// that is far off in the tails, so the grid reaches both: it includes p below
+// PMF(0), where the answer is 0, and p within 1e-12 of 1. The Poisson search
+// this replaced returned 1 for every p <= CDF(0) (#170); NegativeBinomial's
+// returned its mean + 10 sigma + 100 bound for p near 1 (#171).
 // -------------------------------------------------------------------------
 
 namespace {

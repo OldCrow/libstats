@@ -58,11 +58,44 @@ AVX-512 sweep still 35 contract violations. Numbers below are INDICATIVE
   undiscarded `[[nodiscard]]` results in `test_goodness_of_fit`. Speed
   (indicative): the all-clang-cl build matches cl.exe libstats +
   clang-cl corvus on every bench row. **[user, 2026-10-03] clang-cl
-  becomes a supported Windows workflow, with all that implies** — NEXT:
-  a CI leg (Ninja + clang-cl, tier-asserted so it cannot silently fall
-  to AVX2), a preset, `Strict` under clang-cl, the VS generator's
-  `-T ClangCL`, AGENTS.md / BUILD_SYSTEM_GUIDE / CI_CD_GUIDE /
-  standards WINDOWS-TOOLCHAIN wording, and the pylibstats Windows wheel.
+  becomes a supported Windows workflow, with all that implies.**
+  DONE in the working tree, **UNCOMMITTED** (user AFK, signing needs the
+  key): presets `windows-clang-cl` (Ninja, Release → `build-clangcl/`)
+  and `windows-clang-cl-strict`; `Strict` builds under clang-cl
+  (`-pedantic` → `-Wpedantic`, `-fno-common` → `/clang:-fno-common`,
+  one `DWORD` cast in `work_stealing_pool.cpp`, 28 more `(void)` on
+  `[[nodiscard]]` results in three analysis tests); the VS generator
+  with `-T ClangCL` works. All three: 0 warnings, ctest 74/74; cl.exe
+  tree still clean, 74/74. CI: a fifth `build` leg, windows-latest +
+  clang-cl through the preset, with a step that fails unless the tree's
+  compiler ID is Clang with the MSVC frontend (checked locally both
+  ways). No tier assertion: hosted runners do not all have AVX-512. The
+  leg is UNRUN — the runner's LLVM is older than the 22.1.3 used here.
+  Docs: AGENTS.md, BUILD_SYSTEM_GUIDE ("Windows: cl.exe or clang-cl"),
+  CI_CD_GUIDE. Intended as two commits: code + presets (those files are
+  identical on `dev/v2.4.2`, so it cherry-picks with `-x`), then CI +
+  docs (these differ between the branches; v2.4.2 adapts the wording —
+  on `main` there is no corvus to motivate clang-cl).
+  STILL OPEN: standards `WINDOWS-TOOLCHAIN.md`; the pylibstats Windows
+  wheel; `Strict` clang-cl is not in CI (runner budget) and is verified
+  locally only.
+- **Rebase onto `main` after v2.4.2 ships** (trial merge of `dev/v2.4.2`
+  at `6245e4e` into this branch at `f56fc89`, 2026-10-03; v2.4.2 is
+  still moving, #159/#160 next). `6245e4e` is `420eaf1` cherry-picked
+  with `-x` and drops out. Eleven files conflict; only one was cosmetic
+  (the guard's comment in `test_discrete_quantile_bounds.cpp`, now
+  taken from v2.4.2 verbatim). The rest need judgement, not tweaks:
+  `math_utils.h` (keep v2.4.2's `inv_survival_normal` and the shared
+  search helper; re-add the corvus declarations), `poisson.cpp` and
+  `binomial.cpp` (keep the v2.4.2 side: #167, the parallel NaN guards,
+  the −∞ return), `tests/CMakeLists.txt` (union of both sides' new
+  tests), `math_utils.cpp` / `gamma.cpp` (#166's precision work is
+  superseded by corvus: keep the corvus side, keep #166's test as a
+  gate), `gaussian.cpp` / `half_normal.cpp` / `truncated_normal.cpp`
+  (#158's survival-form probit vs the corvus inverses — decide per call
+  site which is more accurate in the tail; the oracle rows decide),
+  `tools/accuracy_vs_mpmath.py` (#157/#161 oracle fixes: take v2.4.2,
+  re-apply this branch's edits), `PLAN.md`.
 - **Remaining gap after the levers** (corvus-owned, #42): scalar CDF
   gamma/beta/poisson/Student-t/binomial 7–17×; batch CDF beta 6×,
   binomial 8×, Student-t 3×; quantile gamma family 10–17×, Student-t

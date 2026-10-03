@@ -70,7 +70,8 @@ Build options (`LIBSTATS_VERBOSE_BUILD`, `LIBSTATS_FORCE_TBB`,
 build directory map, and the header tooling are documented in
 `docs/BUILD_SYSTEM_GUIDE.md` and `docs/HEADER_TOOLS_GUIDE.md`.
 
-Windows uses the Visual Studio x64 Release flow — see Platform-Specific Notes.
+Windows has two flows — Visual Studio x64 Release (`cl.exe`) and the
+`windows-clang-cl` preset (Ninja, full-speed corvus) — see Platform-Specific Notes.
 
 ### CMake standard
 
@@ -117,6 +118,13 @@ frequency-scaling artifact that reads like a dispatch-threshold anomaly —
 see `docs/VALIDATION_HISTORY.md`, "Zen 4 frequency scaling".
 
 ### Windows Session Setup
+
+Two supported compilers. `cl.exe` caps a fetched corvus at AVX2 and compiles it
+3–19× slower (configure warns); clang-cl does neither, so **performance numbers
+on Windows come from a clang-cl build**: `cmake --preset windows-clang-cl`
+(→ `build-clangcl/`, single-config: no `Release\` subdirectories, no `-C Release`).
+Details: `docs/BUILD_SYSTEM_GUIDE.md`, "Windows: cl.exe or clang-cl". The steps
+below are for the Visual Studio flow.
 
 Toolchain activation, one-time setup, and the Smart App Control/Defender notes:
 [Windows Toolchain](https://github.com/OldCrow/standards/blob/main/WINDOWS-TOOLCHAIN.md).

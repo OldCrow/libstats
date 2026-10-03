@@ -26,6 +26,14 @@ jobs:
   # duplicated Release coverage without gating on warnings); the
   # strict-warnings job below uses the existing Strict build type (-Werror)
   # to catch what Debug builds never actually enforced.
+  #
+  # Two Windows legs, each for coverage only it gives. msvc: cl.exe diagnostics
+  # and the multi-config Visual Studio generator. clang-cl: the supported
+  # full-speed Windows workflow (cl.exe caps the fetched corvus at AVX2 and
+  # compiles it 3-19x slower), built through the windows-clang-cl preset with
+  # Ninja. That path has its own driver quirks (-Wall is -Weverything, both
+  # _MSC_VER and __clang__ defined) and failed to compile unnoticed until
+  # v2.4.2; nothing else in the matrix reaches it.
   build:
     name: Build ${{ matrix.os }} ${{ matrix.compiler.name }} ${{ matrix.build_type }}
     runs-on: ${{ matrix.os }}
@@ -38,13 +46,16 @@ jobs:
           - { os: ubuntu-latest, compiler: { name: clang-17, cc: clang-17, cxx: clang++-17 }, build_type: Release }
           - { os: macos-15,      compiler: { name: AppleClang, cc: clang, cxx: clang++ }, build_type: Release }
           - { os: windows-latest, compiler: { name: msvc, cc: cl, cxx: cl }, build_type: Release }
+          - { os: windows-latest, compiler: { name: clang-cl, cc: clang-cl, cxx: clang-cl }, build_type: Release }
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
-    - name: Setup MSVC (Windows)
-      if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
+    # Both Windows legs: clang-cl takes link.exe, rc.exe, INCLUDE and LIB from the same
+    # environment, and the runner image already has LLVM's clang-cl and Ninja on PATH.
+    - name: Setup MSVC environment (Windows)
+      if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
       with:
         arch: x64
@@ -63,7 +74,7 @@ jobs:
         fi
 
     - name: Setup compiler environment
-      if: runner.os != 'Windows' || matrix.compiler.name != 'msvc'
+      if: runner.os != 'Windows'
       env:
         CC_VAL: ${{ matrix.compiler.cc }}
         CXX_VAL: ${{ matrix.compiler.cxx }}
@@ -74,6 +85,24 @@ jobs:
     - name: Configure CMake (Windows MSVC)
       if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20 -A x64
+
+    # The preset pins Ninja and clang-cl for C and C++; -B only redirects its build-clangcl/ to
+    # the build/ the shared steps below use.
+    - name: Configure CMake (Windows clang-cl)
+      if: runner.os == 'Windows' && matrix.compiler.name == 'clang-cl'
+      run: cmake --preset windows-clang-cl -B build
+
+    # Fail closed if the leg did not get the compiler it is named for: a preset or runner change
+    # that lands on cl.exe would still build, test green, and cover nothing new.
+    - name: Assert the tree is compiled by clang-cl
+      if: runner.os == 'Windows' && matrix.compiler.name == 'clang-cl'
+      shell: bash
+      run: |
+        set -euo pipefail
+        id_file=$(ls build/CMakeFiles/*/CMakeCXXCompiler.cmake)
+        grep -q 'set(CMAKE_CXX_COMPILER_ID "Clang")' "$id_file"
+        grep -q 'set(CMAKE_CXX_COMPILER_FRONTEND_VARIANT "MSVC")' "$id_file"
+        grep -E 'CMAKE_CXX_COMPILER_(ID|VERSION|FRONTEND_VARIANT) ' "$id_file"
 
     # Install-contract leg only: libstats' install target needs a SYSTEM corvus
     # (a fetched corvus is a build-tree target outside the export set —
@@ -101,8 +130,8 @@ jobs:
 
     # CMAKE_PREFIX_PATH points at the install-contract prefix; on the other
     # legs the directory does not exist and CMake ignores it.
-    - name: Configure CMake (Non-Windows or Non-MSVC)
-      if: runner.os != 'Windows' || matrix.compiler.name != 'msvc'
+    - name: Configure CMake (non-Windows)
+      if: runner.os != 'Windows'
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20 -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/_install"
 
     - name: Build
