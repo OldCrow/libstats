@@ -1,12 +1,12 @@
 # libstats — Plan / Status
 
 ## Status [DERIVED] — 2026-10-03
-**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` at `5831faf`, pushed (cut
+**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` at `65de015`, pushed (cut
 from `main` at `d8d3388`; milestone "v2.4.2 — Correctness patch",
-#157–#172; Zen 4 worktree `../libstats-v2.4.2`). 85/85 correctness on
+#157–#172; Zen 4 worktree `../libstats-v2.4.2`). 86/86 correctness on
 Zen 4, warning-clean. Every fix below has a gate shown to fail on
-`d8d3388`. Remaining before the release PR: #162 (Mac session, written
-and verified there in one pass [user]) and the validation owed below.
+`d8d3388` (review fixes: on `5831faf`). Code is complete except #162;
+what remains is validation, docs and the release itself (below).
 
 Fixed on the branch [DERIVED]:
 - Milestone: #157, #158, #159, #160, #161, #163 (Gaussian's copy ctor
@@ -66,21 +66,44 @@ library CDF reaches p (#116, #170; a survival-side search broke the
 round-trip guards); logpdf near its zero crossing (relative metric on a
 near-zero value).
 
-Owed before the release PR [OPEN]:
-- #162 on a Mac [user]; #167's fail-first under UBSan
-  (float-cast-overflow) on Kaby Lake or the M1 (MSVC has no such check
-  and x86 casts to `INT_MIN`).
-- Native ctest on all three machines (clang/AppleClang will see the new
-  code first: `[[maybe_unused]]` params, double-double helpers under
-  FP contraction — every fusion is spelled out).
-- Accuracy sweep re-baseline on all three ISAs (full CSV only).
-- Quiet-machine costs against v2.4.1 with `tools/bench/` from
-  `dev/v2.5.0-corvus`: #166 (3ε stop, √a caps, Stirling prefactors), the
-  #172 pmf paths, the scalar fall-backs for large-shape SIMD batches,
-  and the von Mises batch CDF (κ = 30: 6 → 30 ms per 1e5 points, INDICATIVE)
-  plus the timing-labelled `test_von_mises_enhanced`.
+Release tasks [OPEN] (machines: Z = Zen 4, K = Kaby Lake, M = M1):
+- R0 done, uncommitted: `tools/bench/v242_cost_bench.cpp` (build and
+  run steps in its header; ~2 min per binary on Z) and `v242_compare.py`
+  (per-case worst/best, rows past 1.25×, and a dispatch section that
+  marks AUTO-vs-best gaps NEW in v2.4.2). Z's `v2.4.1` build for it:
+  `../libstats-v2.4.1/build-v242cmp` (VS generator, as `build/`).
+  Smoke run on a busy Z, INDICATIVE only: von Mises quantile 140–320×
+  (≈20 ns grid → 3–6 µs Newton on the quadrature CDF), Student-t
+  quantile at ν ≥ 1e3 ~15×, Gamma α ≥ 20 and Student-t ν ≥ 1e3 forced
+  VECTORIZED 8–13× (scalar fall-back), discrete log-pmfs 2.6–3.5×,
+  discrete quantiles 2–12× faster; 22 AUTO-vs-best gaps NEW, all
+  favouring PARALLEL at n = 1e4–1e5. Confirm on quiet machines (R3)
+  before deciding anything.
+- R1 (Z, K, M): pull, clean Release configure, `system_inspector
+  --quick`, `ctest -LE "timing|benchmark"`. K and M build the new code
+  with clang first (`[[maybe_unused]]`, double-double helpers under FP
+  contraction, `lgamma1p_small`'s table).
+- R2 (Z, K, M): `accuracy_sweep` → full CSV per ISA; run the mpmath oracle
+  wherever no timing run is active; regenerate the per-ISA blocks.
+- R3 (Z, K, M, quiet, after R0): bench v2.4.1 vs v2.4.2; `ctest -j1 -L
+  timing` (includes `test_von_mises_enhanced`). If a crossover moved
+  (review M-2: large-shape scalar fall-backs, von Mises CDF), re-derive
+  that `dispatch_thresholds.h` row with `strategy_profile` on the same
+  machine, then rerun R1 there.
+- R4 (K or M): #162 written and verified in one Mac pass [user]; #167
+  fail-first under UBSan (`undefined,float-cast-overflow`):
+  `test_support_boundary_gates` fails on `d8d3388`, passes on head.
+- R5 (Z, optional, v2.4.0 precedent): capped-tier leg
+  (`LIBSTATS_MAX_SIMD_TIER`), correctness and sweep.
+- R6 (after R1–R4): version 2.4.1 → 2.4.2 (`CMakeLists.txt:83`,
+  README, AGENTS, PROJECT_CONCEPT); CHANGELOG (git-cliff);
+  VALIDATION_HISTORY matrix and costs; ACCURACY_CHARACTERIZATION
+  blocks (generated only); PLAN.
+- R7: release PR to `main` closing #157–#172 (#173 stays on v2.5.0); CI
+  green incl. sanitizer legs; merge; signed tag `v2.4.2`; GitHub
+  release; close the milestone; tell the v2.5.0 session (merge note).
 - The fail-first base worktree was removed [user]; recreate it at
-  `d8d3388`, detached, if a later gate needs one.
+  `d8d3388`, detached, for R4 or any later gate.
 
 v2.5.0 merge note [DERIVED]: `math_utils.{h,cpp}`, `student_t.cpp`,
 `gamma.cpp`, `poisson.cpp`, `binomial.cpp`, `negative_binomial.cpp` and
