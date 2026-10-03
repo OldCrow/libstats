@@ -251,8 +251,8 @@ double ExponentialDistribution::getQuantile(double p) const {
         inv_lam = invLambda_;
     });
     if (is_unit)
-        return -std::log(detail::ONE - p);
-    return -std::log(detail::ONE - p) * inv_lam;
+        return -std::log1p(-p);
+    return -std::log1p(-p) * inv_lam;
 }
 
 double ExponentialDistribution::sample(std::mt19937& rng) const {

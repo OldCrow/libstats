@@ -44,17 +44,34 @@ static double stirling_remainder(double z) noexcept {
                 r2 * (1.0 / 360.0 - r2 * (1.0 / 1260.0 - r2 * (1.0 / 1680.0 - r2 / 1188.0))));
 }
 
+// log1p(t) − t without the cancellation of the direct difference near t = 0, where both terms
+// are of size t and the result t²/2: the series −t²/2 + t³/3 − t⁴/4 + … below |t| = ¼, whose terms
+// fall at least fourfold; the direct difference above, which loses at most a few bits there.
+static double log1pmx(double t) noexcept {
+    if (std::fabs(t) >= 0.25)
+        return std::log1p(t) - t;
+    double sum = detail::ZERO_DOUBLE;
+    double power = t * t;  // t^k
+    for (int k = 2; k < 64; ++k) {
+        const double term = (k % 2 == 0 ? -power : power) / k;
+        sum += term;
+        if (std::fabs(term) <= std::numeric_limits<double>::epsilon() * std::fabs(sum))
+            break;
+        power *= t;
+    }
+    return sum;
+}
+
 // log of the incomplete-gamma prefactor x^a·e^{−x}/Γ(a) (#166). Formed directly,
 // −x + a·log(x) − lgamma(a) cancels terms of size a·log(x), so its absolute error — the
 // prefactor's relative error — is ~a·log(x)·ε: 6e-11 at a = 5e4. Stirling's series rewrites it as
 // a·(log1p(t) − t) + ½·log(a/2π) − c(a) with t = (x − a)/a, whose error is ~a·|t|·ε (≈ √a·ε near
 // the median).
-static double log_gamma_prefactor(double a, double x) noexcept {
+double log_gamma_prefactor(double a, double x) noexcept {
     if (a < kStirlingPrefactorShape)
         return -x + a * std::log(x) - lgamma(a);
     const double t = (x - a) / a;
-    return a * (std::log1p(t) - t) + detail::HALF * (std::log(a) - detail::LN_2PI) -
-           stirling_remainder(a);
+    return a * log1pmx(t) + detail::HALF * (std::log(a) - detail::LN_2PI) - stirling_remainder(a);
 }
 
 // log of the incomplete-beta prefactor x^a·(1 − x)^b / B(a, b) (#166), with the same
@@ -73,7 +90,7 @@ static double log_beta_prefactor(double x, double a, double b,
     const double one_minus_x0 = b / sum;
     const double u = (x - x0) / x0;
     const double v = (x0 - x) / one_minus_x0;
-    return a * (std::log1p(u) - u) + b * (std::log1p(v) - v) +
+    return a * log1pmx(u) + b * log1pmx(v) +
            detail::HALF * (std::log(a) + std::log(b) - std::log(sum) - detail::LN_2PI) +
            stirling_remainder(sum) - stirling_remainder(a) - stirling_remainder(b);
 }
@@ -408,6 +425,11 @@ double beta_i(double x, double a, double b) noexcept {
         return detail::ONE;
     }
 
+    // I_½(a, a) = ½ by symmetry; the continued fraction lands an ulp off it, which moved a
+    // discrete quantile at that exact tie (NegativeBinomial(5, ½) at p = ½ gave 5, not 4).
+    if (a == b && x == detail::HALF)
+        return detail::HALF;
+
     // Use continued fraction approximation
     const bool stirling = a >= kStirlingPrefactorShape && b >= kStirlingPrefactorShape;
     const double direct_log_inv_beta = stirling ? detail::ZERO_DOUBLE : -lbeta(a, b);
@@ -431,6 +453,8 @@ double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
         return detail::ZERO_DOUBLE;
     if (x == detail::ONE)
         return detail::ONE;
+    if (a == b && x == detail::HALF)
+        return detail::HALF;  // by symmetry; see the overload above
 
     // log_beta_prefix is the caller's precomputed lgamma(a + b) − lgamma(a) − lgamma(b); at large
     // shape the Stirling form replaces it (#166).

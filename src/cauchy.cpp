@@ -275,7 +275,14 @@ double CauchyDistribution::getQuantile(double p) const {
         x0 = x0_;
         g = gamma_;
     });
-    return x0 + g * std::tan(detail::PI * (p - detail::HALF));
+    // tan(π(p − ½)) only where p − ½ is exact (p in [¼, ¾]). In the tails p − ½ rounds a small p
+    // away (−½ at p = 1e-300, giving −1.6e16·γ for −3.2e299·γ), so take cot(π·q) on the smaller
+    // tail q, which 1 − p forms exactly for p ≥ ½.
+    if (p >= 0.25 && p <= 0.75)
+        return x0 + g * std::tan(detail::PI * (p - detail::HALF));
+    const double q = p < detail::HALF ? p : detail::ONE - p;
+    const double cot = detail::ONE / std::tan(detail::PI * q);
+    return p < detail::HALF ? x0 - g * cot : x0 + g * cot;
 }
 
 double CauchyDistribution::sample(std::mt19937& rng) const {

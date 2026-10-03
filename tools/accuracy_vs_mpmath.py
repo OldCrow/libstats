@@ -268,6 +268,10 @@ def vonmises_quantile(mu: float, kappa: float, p: float) -> "mp.mpf":
         t = -mp.pi
     elif pm >= 1:
         t = mp.pi
+    elif pm == mp.mpf("0.5"):
+        # The median is mu by symmetry; bisection returned quadrature noise (2.5e-30 at
+        # kappa = 1), which the exact-zero contract check then flagged.
+        t = mp.mpf(0)
     else:
         # mpmath's bisect solver takes the bracket AS the start value;
         # passing a scalar start plus an x0 kwarg is a TypeError.
@@ -968,7 +972,12 @@ class CauchyRef(Ref):
 
     @staticmethod
     def quantile(x0, gamma, p):
-        return mp.mpf(x0) + mp.mpf(gamma) * mp.tan(mp.pi * (mp.mpf(p) - mp.mpf("0.5")))
+        # cot(pi*q) on the smaller tail: at dps 50, p - 1/2 loses a p below ~1e-50 (1e-300 gave
+        # tan(-pi/2), +2e51, for the true -3.2e299).
+        pm = mp.mpf(p)
+        if pm < mp.mpf("0.5"):
+            return mp.mpf(x0) - mp.mpf(gamma) * mp.cot(mp.pi * pm)
+        return mp.mpf(x0) + mp.mpf(gamma) * mp.cot(mp.pi * (1 - pm))
 
 
 @_reg("von_mises")

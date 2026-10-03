@@ -810,7 +810,7 @@ void NegativeBinomialDistribution::getCumulativeProbabilityBatchImpl(
 void NegativeBinomialDistribution::updateCacheUnsafe() const noexcept {
     logGammaR_ = std::lgamma(r_);
     logP_ = std::log(p_);
-    log1mP_ = (p_ < detail::ONE) ? std::log(detail::ONE - p_) : detail::NEGATIVE_INFINITY;
+    log1mP_ = (p_ < detail::ONE) ? std::log1p(-p_) : detail::NEGATIVE_INFINITY;
     cache_valid_ = true;
     cacheValidAtomic_.store(true, std::memory_order_release);
     atomicR_.store(r_, std::memory_order_release);

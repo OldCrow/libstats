@@ -456,10 +456,16 @@ double DiscreteDistribution::getQuantile(double p) const {
         range = range_;
         a = a_;
     });
-    // For discrete uniform: quantile(p) = a + ceil(p * (b-a+1)) - 1
-    // But we need to handle edge cases carefully
-    const double scaled = p * static_cast<double>(range);
-    const int k = static_cast<int>(std::ceil(scaled)) - 1;
+    // For discrete uniform: quantile(p) = a + ceil(p * (b-a+1)) - 1, with the ceiling of the exact
+    // product: p * n can round down onto an integer m while the true product exceeds it (p = 0.1,
+    // n = 10 gives 1, but the double 0.1 is above 1/10), and the fma remainder says which. A
+    // non-integer product cannot round across an integer below 2^53.
+    const double n = static_cast<double>(range);
+    const double scaled = p * n;
+    double m = std::ceil(scaled);
+    if (m == scaled && std::fma(p, n, -scaled) > detail::ZERO_DOUBLE)
+        m += detail::ONE;
+    const int k = static_cast<int>(m) - 1;
     return static_cast<double>(a + std::max(0, std::min(k, range - 1)));
 }
 

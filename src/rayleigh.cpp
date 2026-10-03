@@ -247,7 +247,7 @@ double RayleighDistribution::getQuantile(double p) const {
 
     double s;
     withCacheSnapshot([&] { s = sigma_; });
-    return s * std::sqrt(-detail::TWO * std::log(detail::ONE - p));
+    return s * std::sqrt(-detail::TWO * std::log1p(-p));
 }
 
 double RayleighDistribution::sample(std::mt19937& rng) const {

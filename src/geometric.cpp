@@ -206,7 +206,7 @@ double GeometricDistribution::getMedian() const {
     // Special case p = 1: degenerate at 0 → median = 0
     if (p_ >= detail::ONE)
         return detail::ZERO_DOUBLE;
-    const double log1mp = std::log(detail::ONE - p_);
+    const double log1mp = std::log1p(-p_);
     // log1mp is negative (since 0 < 1-p < 1 for p in (0,1))
     return std::ceil(-detail::LN2 / log1mp) - detail::ONE;
 }

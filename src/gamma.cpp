@@ -269,6 +269,22 @@ VoidResult GammaDistribution::trySetParameters(double alpha, double beta) noexce
 // 5. CORE PROBABILITY METHODS
 //==========================================================================
 
+namespace {
+// Below this shape the direct log density is kept bit for bit; it matches math_utils'
+// kStirlingPrefactorShape.
+constexpr double kStirlingDensityShape = 20.0;
+
+// log of the Gamma(α, rate β) density at a finite x > 0. From α = 20 it is log P(α, βx) − log x,
+// with P = (βx)^α·e^{−βx}/Γ(α) in Stirling form: the direct α·log β − lgamma(α) + (α − 1)·log x −
+// βx cancels terms of size α·log α, 2e-11 relative at α = 1e4.
+[[nodiscard]] inline double gammaLogDensity(double x, double alpha, double beta,
+                                            double log_constant, double alpha_minus_one) noexcept {
+    if (alpha < kStirlingDensityShape)
+        return log_constant + alpha_minus_one * std::log(x) - beta * x;
+    return detail::log_gamma_prefactor(alpha, beta * x) - std::log(x);
+}
+}  // namespace
+
 double GammaDistribution::getProbability(double x) const {
     if (!std::isfinite(x)) {
         // +inf → density limit is 0 (#103); -inf → outside support → 0
@@ -298,7 +314,7 @@ double GammaDistribution::getProbability(double x) const {
                                     : detail::ZERO_DOUBLE;
     }
     // Inline log-space computation.
-    return std::exp(alb - lga + am1 * std::log(x) - b * x);
+    return std::exp(gammaLogDensity(x, a, b, alb - lga, am1));
 }
 
 double GammaDistribution::getLogProbability(double x) const {
@@ -332,7 +348,7 @@ double GammaDistribution::getLogProbability(double x) const {
             return detail::NEGATIVE_INFINITY;
     }
     // General case: log(f(x)) = α*log(β) - log(Γ(α)) + (α-1)*log(x) - βx
-    return alb - lga + am1 * std::log(x) - b * x;
+    return gammaLogDensity(x, a, b, alb - lga, am1);
 }
 
 double GammaDistribution::getCumulativeProbability(double x) const {
@@ -1056,11 +1072,13 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
 //==============================================================================
 
 void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                      std::size_t count,
-                                                      [[maybe_unused]] double alpha, double beta,
+                                                      std::size_t count, double alpha, double beta,
                                                       double log_gamma_alpha, double alpha_log_beta,
                                                       double alpha_minus_one) const noexcept {
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    // The SIMD pipeline forms the direct log density; from α = 20 that cancels (see
+    // gammaLogDensity), so the scalar loop takes over.
+    const bool use_simd =
+        arch::simd::SIMDPolicy::shouldUseSIMD(count) && alpha < kStirlingDensityShape;
 
     // EDGE-4 helper: write the correct PDF(0) value consistent with scalar path.
     // For alpha < 1: PDF(0) = +inf. For alpha = 1: PDF(0) = beta. For alpha > 1: PDF(0) = 0.
@@ -1084,8 +1102,8 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
             } else if (values[i] == detail::ZERO_DOUBLE) {
                 fixup_zero(i);
             } else {
-                results[i] = std::exp(alpha_log_beta - log_gamma_alpha +
-                                      alpha_minus_one * std::log(values[i]) - beta * values[i]);
+                results[i] = std::exp(gammaLogDensity(
+                    values[i], alpha, beta, alpha_log_beta - log_gamma_alpha, alpha_minus_one));
             }
         }
         return;
@@ -1122,12 +1140,14 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
 }
 
 void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                         std::size_t count,
-                                                         [[maybe_unused]] double alpha, double beta,
-                                                         double log_gamma_alpha,
+                                                         std::size_t count, double alpha,
+                                                         double beta, double log_gamma_alpha,
                                                          double alpha_log_beta,
                                                          double alpha_minus_one) const noexcept {
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    // The SIMD pipeline forms the direct log density; from α = 20 that cancels (see
+    // gammaLogDensity), so the scalar loop takes over.
+    const bool use_simd =
+        arch::simd::SIMDPolicy::shouldUseSIMD(count) && alpha < kStirlingDensityShape;
 
     // logpdf(0) is the limit, as on the scalar path (#161): +inf for alpha < 1, log(beta) for
     // alpha = 1 (alpha_log_beta is exactly log(beta) there), -inf for alpha > 1.
@@ -1151,8 +1171,8 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
             } else if (values[i] == detail::ZERO_DOUBLE) {
                 fixup_zero(i);
             } else {
-                results[i] = alpha_log_beta - log_gamma_alpha +
-                             alpha_minus_one * std::log(values[i]) - beta * values[i];
+                results[i] = gammaLogDensity(values[i], alpha, beta,
+                                             alpha_log_beta - log_gamma_alpha, alpha_minus_one);
             }
         }
         return;

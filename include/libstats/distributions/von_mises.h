@@ -20,15 +20,16 @@ namespace stats {
  *             F(x) = (t+π)/(2π) + Σⱼ bⱼ·sin(j·t),  t = wrap(x−μ) ∈ [−π,π]
  *           with bⱼ = Iⱼ(κ)/(j·π·I₀(κ)) from a per-instance Miller backward
  *           recurrence (cdfSeriesCoeffs_, §24), j = 1..j_max,
- *           j_max = ⌈10 + 8.5√κ⌉. κ = 0 uses the exact linear form
- *           (t+π)/(2π). κ > 1000 (unvalidated range for the series) falls
- *           back to the wrapped-normal approximation, ≈ 0.04/κ absolute error.
- * - Quantile: bisection on the CDF grid in (−π, π]; O(log N) via cdfGrid*
- *           (§24), still built from the O(512) trapezoidal rule (issue #51
- *           left this as-is: the full test suite round-trips cleanly against
- *           the more accurate series CDF at the grid's existing resolution;
- *           rebuilding the grid from the series is a tracked follow-up, not
- *           a correctness requirement).
+ *           j_max = ⌈10 + 8.5√κ⌉. The series has absolute accuracy only, so
+ *           where it is below 1/4 (above 3/4) the tail mass is integrated
+ *           directly (adaptive Gauss–Kronrod), relative to the accuracy law in
+ *           both tails. κ = 0 uses the exact linear form (t+π)/(2π). κ > 1000
+ *           (unvalidated range for the series) falls back to the
+ *           wrapped-normal approximation, ≈ 0.04/κ absolute error.
+ * - Quantile: Newton on the logarithm of the directly integrated tail mass, on
+ *           the small side of the probability scale (the CDF below the
+ *           median, the survival above it), bracketed. The left end of the
+ *           support maps to the smallest double above −π + μ, wrapped.
  * - Parameters: μ ∈ ℝ (wrapped to (−π, π]), κ ≥ 0
  * - Support: x ∈ (−π, π]
  *
@@ -246,6 +247,8 @@ class VonMisesDistribution : public DistributionBase {
      * @brief CDF via the Bessel-series expansion for 0 < κ ≤ 1000 (issue #51);
      * exact linear form at κ = 0; wrapped-normal approximation for κ > 1000
      * (unvalidated range for the series). O(j_max) per call, j_max = ⌈10+8.5√κ⌉.
+     * Where the series is below 1/4 or above 3/4, the tail mass is integrated
+     * directly, so both tails are accurate relative to the accuracy law.
      * @note x−μ is wrapped to [−π, π] before series evaluation.
      * PROVISIONAL accuracy bound pending the mpmath-oracle accuracy gate
      * (tests/test_vonmises_cdf_accuracy.cpp).
@@ -253,8 +256,10 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
-     * @brief Quantile via bisection on CDF in (−π, π].
-     * O(512 · 50) = ~25 000 cos calls per query. Use sparingly in hot paths.
+     * @brief Quantile in (−π, π]: bracketed Newton on the log of the directly
+     * integrated tail mass, on the smaller of p and 1 − p. A few adaptive
+     * quadratures per query. NaN propagates; p = 0 gives the smallest double
+     * above −π + μ (wrapped), p = 1 gives π + μ (wrapped).
      * @throws std::invalid_argument if p not in [0, 1]
      */
     [[nodiscard]] double getQuantile(double p) const override;
@@ -391,14 +396,17 @@ class VonMisesDistribution : public DistributionBase {
     /**
      * @brief CDF batch — Bessel series evaluated batch-wise (issue #51).
      *
-     * `cached_mu`/`cached_coeffs` are a snapshot taken by the caller under
-     * the cache lock (see the CDF autoDispatch lambda in .cpp). When
-     * `cached_coeffs` is empty (κ = 0 or κ > 1000 — series not applicable,
-     * see updateCacheUnsafe()) this falls back to the per-element scalar
-     * getCumulativeProbability() loop. Unsafe: no parameter validation.
+     * `cached_mu`/`cached_kappa`/`cached_log_scaled_norm`/`cached_coeffs` are a
+     * snapshot taken by the caller under the cache lock (see the CDF
+     * autoDispatch lambda in .cpp). When `cached_coeffs` is empty (κ = 0 or
+     * κ > 1000 — series not applicable, see updateCacheUnsafe()) this falls
+     * back to the per-element scalar getCumulativeProbability() loop. Lanes in
+     * either tail take the scalar path's integrated tail mass. Unsafe: no
+     * parameter validation.
      */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                  std::size_t count, double cached_mu,
+                                                 double cached_kappa, double cached_log_scaled_norm,
                                                  const std::vector<double>& cached_coeffs) const
         noexcept;
 
@@ -449,6 +457,10 @@ class VonMisesDistribution : public DistributionBase {
      *  is the primary performance gain in batch LogPDF evaluation. */
     mutable double logNormaliser_{detail::ZERO_DOUBLE};
 
+    /** @brief log(2π·I₀(κ)·e^−κ) — logNormaliser_ − κ formed without the
+     *  cancellation; scales the directly integrated CDF tails and the quantile. */
+    mutable double logScaledNormaliser_{detail::ZERO_DOUBLE};
+
     /** @brief 1 − I₁(κ)/I₀(κ) — circular variance ∈ [0, 1]. */
     mutable double circularVariance_{detail::ONE};
 
@@ -462,21 +474,6 @@ class VonMisesDistribution : public DistributionBase {
     //==========================================================================
     // 24. SPECIALIZED CACHES
     //==========================================================================
-
-    /**
-     * @brief Lazily-initialized CDF grid for O(log N) quantile lookup.
-     *
-     * Built on first getQuantile() call with a given κ. 2049 uniformly-spaced
-     * angles in [−π, π] and their CDF values. Binary search + linear interpolation
-     * replaces the 60-step bisection that called the 512-point trapezoidal CDF.
-     * Thread safety: guarded by cache_mutex_; rebuilt when κ changes.
-     */
-    mutable std::vector<double> cdfGridAngles_;  ///< angles[i] = -PI + i*h, i in [0,2048]
-    mutable std::vector<double> cdfGridValues_;  ///< CDF(angles[i]; mu_=0, current kappa_)
-    mutable double cdfGridKappa_{-1.0};          ///< kappa for which grid was built; -1=unbuilt
-
-    /** @brief Build cdfGrid* for the current kappa_. Called under cache_mutex_. */
-    void buildCdfGrid() const noexcept;
 
     /**
      * @brief CDF Bessel-series coefficients bⱼ = Iⱼ(κ)/(j·π·I₀(κ)), j = 1..j_max

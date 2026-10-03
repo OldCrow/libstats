@@ -156,6 +156,14 @@ namespace detail {
  */
 [[nodiscard]] double gamma_p_inv(double a, double p) noexcept;
 
+/**
+ * @brief log of x^a·e^{−x}/Γ(a), the incomplete-gamma prefactor and x times the Gamma(a, 1) density
+ *
+ * Direct below a = 20; from there in Stirling's form, a·(log1p(t) − t) + ½·log(a/2π) − c(a) with
+ * t = (x − a)/a, which avoids the a·log x − lgamma(a) cancellation (#166).
+ */
+[[nodiscard]] double log_gamma_prefactor(double a, double x) noexcept;
+
 // =============================================================================
 // SIMD VECTORIZED SPECIAL FUNCTIONS
 // =============================================================================

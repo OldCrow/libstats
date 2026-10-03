@@ -1188,15 +1188,9 @@ double PoissonDistribution::computePMFSmall(int k) const noexcept {
 }
 
 double PoissonDistribution::computePMFLarge(int k) const noexcept {
-    // Use Stirling's approximation or normal approximation for large lambda
-    if (isVeryLargeLambda_ && std::abs(k - lambda_) < detail::THREE * sqrtLambda_) {
-        // Normal approximation with continuity correction
-        double z = (k + detail::HALF - lambda_) / sqrtLambda_;
-        return std::exp(detail::NEG_HALF * z * z) / (sqrtLambda_ * detail::SQRT_2PI);
-    } else {
-        // Use log-space computation
-        return std::exp(computeLogPMF(k));
-    }
+    // Log-space, as the batch path computes it. A normal approximation (with continuity correction)
+    // used to stand in within 3σ of a very large λ: 4e-3 relative off at λ = 1e5.
+    return std::exp(computeLogPMF(k));
 }
 
 double PoissonDistribution::computeLogPMF(int k) const noexcept {

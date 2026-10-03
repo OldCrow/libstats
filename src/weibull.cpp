@@ -360,7 +360,7 @@ double WeibullDistribution::getQuantile(double p) const {
         k = shape_;
     });
     // Q(p) = λ · (−log(1−p))^(1/k)
-    return sc * std::pow(-std::log(detail::ONE - p), detail::ONE / k);
+    return sc * std::pow(-std::log1p(-p), detail::ONE / k);
 }
 
 double WeibullDistribution::sample(std::mt19937& rng) const {

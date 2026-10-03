@@ -15,6 +15,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -135,6 +136,252 @@ namespace {
     return b;
 }
 
+//==============================================================================
+// Tail mass by direct quadrature (CDF tails and the quantile)
+//
+// The Bessel series above sums terms of order 1, so it carries only absolute
+// accuracy (~1e-16): it returned 5.55e-17 or 0 where F is 1e-40 or 1e-100. On
+// the small side of the probability scale the mass is integrated directly
+// instead. For mu = 0, t in [-pi, 0] and d = t + pi (the distance from the
+// left edge, with pi exact: d = (t + PI) + kPiLo),
+//
+//   G(t) = int_{-pi}^{t} f = g(t) * J(t),
+//   J(t) = int_0^d exp(-2k sin(d - u/2) sin(u/2)) du,
+//
+// where g(t) = exp(-2k cos^2(d/2)) / (2 pi I0e(k)) is the density at t. The
+// identity cos(t - u) - cos(t) = -2 sin(d - u/2) sin(u/2) keeps the exponent
+// free of cancellation; sin(d - u/2) = sin(u/2 - t) is used for t > -pi/2,
+// where d is near pi. The integrand is 1 at u = 0 and decreases
+// monotonically, so J is a sum of positive terms with a relative error of a
+// few ulp. ln G = ln g + ln J does not underflow, which the quantile's Newton
+// step uses (d ln G/dt = 1/J). The upper tail is the mirror: 1 - F(t) = G(-t).
+//
+// J is integrated by adaptive Gauss-Kronrod 7/15 (QUADPACK qk15 nodes) over
+// [0, U], where U cuts the integrand at e^-80 by bisection on the monotone
+// exponent. The exponent is >= -k u, so whenever the cut applies J >= (1 -
+// 1/e)/k; the dropped piece, below pi e^-80, is then under 1e-34 k relative.
+//
+// I0e(k) = I0(k) e^-k comes from the trapezoid rule on the periodic integrand
+// exp(k (cos phi - 1)), exponentially convergent (aliasing ~ e^(-N^2/(2k)),
+// N^2/(2k) >= 50 here), and not from log_bessel_i0(k) - k, which cancels
+// ~log2(k) bits and is only 1.6e-7 accurate on the Tier 2 Bessel path. Above
+// kappa = 1000 it comes from the Hankel series log_bessel_i0 uses there,
+// without its leading k.
+//==============================================================================
+
+// pi - PI: the double PI is below pi by this much (to ~1e-32).
+constexpr double kPiLo = 1.2246467991473532e-16;
+
+// The series CDF is replaced by the tail quadrature where it falls below this
+// (or above 1 minus this). Inside the band the series' absolute error, at
+// most ~2e-16 (measured at kappa = 1000), is within the accuracy law relative
+// to F.
+constexpr double kTailSwitch = 0.25;
+
+// ln(2 pi I0(kappa) e^-kappa), the log normaliser of the density exp(kappa (cos t - 1)).
+[[nodiscard]] double log_scaled_normaliser(double kappa) noexcept {
+    if (kappa > kCdfSeriesKappaMax) {
+        const double t = detail::ONE / kappa;
+        const double s =
+            t * (0.125 +
+                 t * (0.0703125 +
+                      t * (0.0732421875 + t * (0.112152099609375 + t * 0.22710800170898438))));
+        return detail::LN_2PI - detail::HALF * std::log(detail::TWO_PI * kappa) + std::log1p(s);
+    }
+    // N = 2*half points over the full period; the two halves are mirror images.
+    const int half = static_cast<int>(std::ceil(detail::HALF * std::sqrt(100.0 * kappa))) + 8;
+    const double n = 2.0 * static_cast<double>(half);
+    double sum = std::exp(-detail::TWO * kappa);  // phi = pi; terms summed smallest first
+    for (int j = half - 1; j >= 1; --j) {
+        const double s = std::sin(detail::PI * static_cast<double>(j) / n);
+        sum += detail::TWO * std::exp(-detail::TWO * kappa * s * s);
+    }
+    sum += detail::ONE;  // phi = 0
+    return detail::LN_2PI + std::log(sum / n);
+}
+
+struct LeftTail {
+    double log_mass;  ///< ln G(t)
+    double j;         ///< J(t) = G(t) / g(t)
+};
+
+// G(t) for mu = 0 and t in [-PI, 0], in log form; see the block comment above.
+// Since J <= d, ln G <= ln g + ln d; when that bound is below log_floor the
+// bound itself is returned (with j = 0) and the quadrature skipped -- the CDF
+// passes a floor below which its result rounds to 0 (or 1 - G to 1) anyway.
+[[nodiscard]] LeftTail vonmises_left_tail(
+    double t, double kappa, double log_scaled_norm,
+    double log_floor = -std::numeric_limits<double>::infinity()) noexcept {
+    const double d = (t + detail::PI) + kPiLo;
+    const bool near_edge = t < -detail::HALF * detail::PI;
+    // cos(d/2) = sin(-t/2); each form is taken where its argument is accurate.
+    const double c = near_edge ? std::cos(detail::HALF * d) : std::sin(-detail::HALF * t);
+    const double log_density = -detail::TWO * kappa * c * c - log_scaled_norm;
+    const double log_bound = log_density + std::log(d);
+    if (log_bound < log_floor)
+        return {log_bound, detail::ZERO_DOUBLE};
+
+    auto exponent = [&](double u) {
+        const double s =
+            near_edge ? std::sin(d - detail::HALF * u) : std::sin(detail::HALF * u - t);
+        return -detail::TWO * kappa * s * std::sin(detail::HALF * u);
+    };
+
+    // Cut the integration range where the integrand falls below e^-80.
+    constexpr double kCut = -80.0;
+    double upper = d;
+    if (exponent(d) < kCut) {
+        double lo = detail::ZERO_DOUBLE;
+        for (int i = 0; i < 60 && upper - lo > 1e-3 * upper; ++i) {
+            const double mid = detail::HALF * (lo + upper);
+            if (exponent(mid) < kCut)
+                upper = mid;
+            else
+                lo = mid;
+        }
+    }
+
+    // Adaptive Gauss-Kronrod 7/15.
+    static constexpr double xgk[8] = {0.991455371120812639206854697526329,
+                                      0.949107912342758524526189684047851,
+                                      0.864864423359769072789712788640926,
+                                      0.741531185599394439863864773280788,
+                                      0.586087235467691130294144845693013,
+                                      0.405845151377397166906606412076961,
+                                      0.207784955007898467600689403773245,
+                                      0.000000000000000000000000000000000};
+    static constexpr double wgk[8] = {0.022935322010529224963732008058970,
+                                      0.063092092629978553290700663189204,
+                                      0.104790010322250183839876322541518,
+                                      0.140653259715525918745189590510238,
+                                      0.169004726639267902826583426598550,
+                                      0.190350578064785409913256402421014,
+                                      0.204432940075298892414161999234649,
+                                      0.209482141084727828012999174891714};
+    static constexpr double wg[4] = {0.129484966168869693270611432679082,
+                                     0.279705391489276667901467771423780,
+                                     0.381830050505118944950369775488975,
+                                     0.417959183673469387755102040816327};
+    auto gk15 = [&](double a, double b, double& kronrod) {
+        const double centre = detail::HALF * (a + b);
+        const double halfLength = detail::HALF * (b - a);
+        const double fc = std::exp(exponent(centre));
+        double resk = fc * wgk[7];
+        double resg = fc * wg[3];
+        for (int i = 0; i < 7; ++i) {
+            const double dx = halfLength * xgk[i];
+            const double fsum = std::exp(exponent(centre - dx)) + std::exp(exponent(centre + dx));
+            resk += wgk[i] * fsum;
+            if (i % 2 == 1)
+                resg += wg[i / 2] * fsum;
+        }
+        kronrod = resk * halfLength;
+        return std::fabs((resk - resg) * halfLength);
+    };
+
+    double whole = detail::ZERO_DOUBLE;
+    gk15(detail::ZERO_DOUBLE, upper, whole);
+    // Accept an interval once |K15 - G7| is below 1e-10 of the whole, pro rata
+    // by length. That difference is the G7 error; K15, exact to twice the
+    // polynomial degree, is then accurate to well below an ulp (QUADPACK's
+    // estimate, 200|K-G| (200|K-G|/I)^1.5, puts it near 1e-19 relative).
+    const double tolerance = 1e-10 * whole / upper;
+    constexpr int kMaxDepth = 48;
+    struct Interval {
+        double a, b;
+        int depth;
+    };
+    Interval stack[kMaxDepth + 2];
+    int top = 0;
+    stack[top++] = {detail::ZERO_DOUBLE, upper, 0};
+    double j = detail::ZERO_DOUBLE;
+    int calls_left = 2000;  // backstop against a degenerate tolerance
+    while (top > 0) {
+        const Interval iv = stack[--top];
+        double k15 = detail::ZERO_DOUBLE;
+        const double err = gk15(iv.a, iv.b, k15);
+        if (err <= tolerance * (iv.b - iv.a) || iv.depth >= kMaxDepth || --calls_left <= 0) {
+            j += k15;
+        } else {
+            const double mid = detail::HALF * (iv.a + iv.b);
+            stack[top++] = {mid, iv.b, iv.depth + 1};
+            stack[top++] = {iv.a, mid, iv.depth + 1};  // the left (larger) half first
+        }
+    }
+    return {log_density + std::log(j), j};
+}
+
+// t in [-PI, 0] with G(t) = m, for 0 < m < 1/2 (mu = 0). Newton on ln G, which
+// is well scaled from 1e-300 to 1/2: in t (step r J) away from the edge, in
+// ln d (step r J / d) near it, where G is nearly linear in d and a t-step
+// would overshoot; bracketed, with bisection (geometric in d when the bracket
+// spans decades) whenever a step leaves the bracket. Returns -PI when the
+// answer is within an ulp of the edge.
+[[nodiscard]] double vonmises_left_quantile(double m, double kappa,
+                                            double log_scaled_norm) noexcept {
+    const double log_m = std::log(m);
+    // g is increasing on [-pi, 0], so m / g(0) <= d <= m / g(-pi).
+    const double log_d_lo = log_m + log_scaled_norm;
+    const double log_d_hi = log_m + detail::TWO * kappa + log_scaled_norm;
+    if (log_d_hi < std::log(kPiLo + 2.3e-16))
+        return -detail::PI;
+    auto t_of = [](double d) { return std::max(-detail::PI, (d - kPiLo) - detail::PI); };
+    double t_lo = std::max(-detail::PI, t_of(std::exp(log_d_lo)) - 1e-15);
+    double t_hi = log_d_hi < std::log(detail::PI) ? t_of(std::exp(log_d_hi)) + 1e-15
+                                                   : detail::ZERO_DOUBLE;
+    t_hi = std::min(t_hi, detail::ZERO_DOUBLE);
+
+    // Seed: the wrapped normal at moderate kappa, the uniform below it.
+    double t = kappa >= detail::ONE ? detail::inverse_normal_cdf(m) / std::sqrt(kappa)
+                                    : detail::TWO_PI * m - detail::PI;
+    if (!(t > t_lo && t < t_hi))
+        t = t_of(std::exp(detail::HALF * (log_d_lo + std::min(log_d_hi, std::log(detail::PI)))));
+    if (!(t > t_lo && t < t_hi))
+        t = detail::HALF * (t_lo + t_hi);
+
+    for (int iter = 0; iter < 100; ++iter) {
+        const LeftTail tail = vonmises_left_tail(t, kappa, log_scaled_norm);
+        const double r = tail.log_mass - log_m;
+        if (r == detail::ZERO_DOUBLE)
+            return t;
+        if (r < detail::ZERO_DOUBLE)
+            t_lo = t;
+        else
+            t_hi = t;
+        const double d = (t + detail::PI) + kPiLo;
+        double next = d < detail::HALF ? t_of(d * std::exp(-r * tail.j / d)) : t - r * tail.j;
+        if (!(next > t_lo && next < t_hi)) {
+            const double d_lo = (t_lo + detail::PI) + kPiLo;
+            const double d_hi = (t_hi + detail::PI) + kPiLo;
+            next = d_hi > 4.0 * d_lo ? t_of(std::sqrt(d_lo * d_hi)) : detail::HALF * (t_lo + t_hi);
+            if (!(next > t_lo && next < t_hi))
+                return t;  // the bracket is down to adjacent doubles
+        }
+        // Converged once the step is below the noise that ln G's own error,
+        // ~|ln m| ulp absolute, leaves in t; the step converges quadratically,
+        // so `next` is then accurate.
+        if (std::fabs(next - t) <=
+            2.0 * std::numeric_limits<double>::epsilon() * (detail::ONE - log_m) * tail.j)
+            return next;
+        t = next;
+    }
+    return t;
+}
+
+// The series CDF value `series` at t = wrap(x - mu), with each tail replaced
+// by the directly integrated mass (the series has absolute accuracy only).
+// The upper tail is the mirror of the lower: 1 - F(t) = G(-t).
+[[nodiscard]] double tail_corrected_cdf(double series, double t, double kappa,
+                                        double log_scaled_norm) noexcept {
+    // Floors: e^-746 is below half the smallest subnormal, and 1 - e^-40 rounds to 1.
+    if (series < kTailSwitch && t <= detail::ZERO_DOUBLE)
+        return std::exp(vonmises_left_tail(t, kappa, log_scaled_norm, -746.0).log_mass);
+    if (series > detail::ONE - kTailSwitch && t >= detail::ZERO_DOUBLE)
+        return detail::ONE -
+               std::exp(vonmises_left_tail(-t, kappa, log_scaled_norm, -40.0).log_mass);
+    return std::clamp(series, detail::ZERO_DOUBLE, detail::ONE);
+}
+
 }  // anonymous namespace
 
 //==============================================================================
@@ -153,6 +400,7 @@ VonMisesDistribution::VonMisesDistribution(const VonMisesDistribution& other)
     mu_ = other.mu_;
     kappa_ = other.kappa_;
     logNormaliser_ = other.logNormaliser_;
+    logScaledNormaliser_ = other.logScaledNormaliser_;
     circularVariance_ = other.circularVariance_;
     isUniform_ = other.isUniform_;
     atomicMu_.store(mu_, std::memory_order_release);
@@ -167,6 +415,7 @@ VonMisesDistribution& VonMisesDistribution::operator=(const VonMisesDistribution
         mu_ = other.mu_;
         kappa_ = other.kappa_;
         logNormaliser_ = other.logNormaliser_;
+        logScaledNormaliser_ = other.logScaledNormaliser_;
         circularVariance_ = other.circularVariance_;
         isUniform_ = other.isUniform_;
         cache_valid_ = false;
@@ -182,6 +431,7 @@ VonMisesDistribution::VonMisesDistribution(VonMisesDistribution&& other) noexcep
     mu_ = other.mu_;
     kappa_ = other.kappa_;
     logNormaliser_ = other.logNormaliser_;
+    logScaledNormaliser_ = other.logScaledNormaliser_;
     circularVariance_ = other.circularVariance_;
     isUniform_ = other.isUniform_;
     other.mu_ = detail::ZERO_DOUBLE;
@@ -197,6 +447,7 @@ VonMisesDistribution& VonMisesDistribution::operator=(VonMisesDistribution&& oth
         mu_ = other.mu_;
         kappa_ = other.kappa_;
         logNormaliser_ = other.logNormaliser_;
+        logScaledNormaliser_ = other.logScaledNormaliser_;
         circularVariance_ = other.circularVariance_;
         isUniform_ = other.isUniform_;
         other.mu_ = detail::ZERO_DOUBLE;
@@ -372,8 +623,8 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
         // kappa = 0 (uniform circular distribution): exact linear CDF.
         if (isUniform_) {
             const double t = wrapAngle(x - mu);
-            result =
-                std::clamp((t + detail::PI) / detail::TWO_PI, detail::ZERO_DOUBLE, detail::ONE);
+            result = std::clamp(((t + detail::PI) + kPiLo) / detail::TWO_PI, detail::ZERO_DOUBLE,
+                                detail::ONE);
             return;
         }
 
@@ -404,92 +655,48 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
         const auto& b = cdfSeriesCoeffs_;
         for (std::size_t j = b.size(); j >= 1; --j)
             sum += b[j - 1] * std::sin(static_cast<double>(j) * t);
-        result = std::clamp((t + detail::PI) / detail::TWO_PI + sum, detail::ZERO_DOUBLE,
-                            detail::ONE);
+        result = tail_corrected_cdf((t + detail::PI) / detail::TWO_PI + sum, t, kappa,
+                                    logScaledNormaliser_);
     });
 
     return result;
 }
 
-void VonMisesDistribution::buildCdfGrid() const noexcept {
-    // Build a 2049-point CDF grid at equally-spaced angles in [−π, π].
-    // CDF values are computed with respect to mu_=0 so the grid is independent
-    // of mu_ and only needs rebuilding when kappa_ changes.
-    // Called under cache_mutex_ (unique lock held by getQuantile).
-    constexpr int N = 2048;
-    cdfGridAngles_.resize(N + 1);
-    cdfGridValues_.resize(N + 1);
-
-    const double kappa = kappa_;
-    const double lnorm = logNormaliser_;
-    const double h = detail::TWO_PI / static_cast<double>(N);
-    constexpr int TRAP_N = 512;  // trapezoidal steps per CDF evaluation
-    auto pdf = [&](double t) { return std::exp(kappa * std::cos(t) - lnorm); };
-
-    // Accumulate CDF from -PI to each grid point using running trapezoidal sum.
-    // Each segment [angles[i], angles[i+1]] uses TRAP_N trapezoid steps.
-    double running = detail::ZERO_DOUBLE;
-    cdfGridAngles_[0] = -detail::PI;
-    cdfGridValues_[0] = detail::ZERO_DOUBLE;
-
-    for (int i = 0; i < N; ++i) {
-        const double a = -detail::PI + static_cast<double>(i) * h;
-        const double b = -detail::PI + static_cast<double>(i + 1) * h;
-        const double dh = (b - a) / static_cast<double>(TRAP_N);
-        double seg = detail::HALF * (pdf(a) + pdf(b));
-        for (int j = 1; j < TRAP_N; ++j)
-            seg += pdf(a + static_cast<double>(j) * dh);
-        running += seg * dh;
-        cdfGridAngles_[static_cast<std::size_t>(i + 1)] = b;
-        cdfGridValues_[static_cast<std::size_t>(i + 1)] = running;
-    }
-    // Normalize so cdfGridValues_[N] == 1
-    if (running > detail::ZERO_DOUBLE) {
-        for (int i = 0; i <= N; ++i)
-            cdfGridValues_[static_cast<std::size_t>(i)] /= running;
-    }
-    cdfGridValues_[N] = detail::ONE;  // enforce exactly 1 at +PI
-    cdfGridKappa_ = kappa;
-}
-
 double VonMisesDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1]");
     }
-    if (p == detail::ZERO_DOUBLE)
-        return wrapAngle(-detail::PI + mu_);
-    if (p == detail::ONE)
-        return wrapAngle(detail::PI + mu_);
 
-    // Ensure CDF grid is built for the current kappa.
-    {
-        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
-        if (!cache_valid_)
-            updateCacheUnsafe();
-        if (cdfGridKappa_ != kappa_)
-            buildCdfGrid();
+    double mu, kappa, log_scaled_norm;
+    withCacheSnapshot([&] {
+        mu = mu_;
+        kappa = kappa_;
+        log_scaled_norm = logScaledNormaliser_;
+    });
+
+    // Solve on the small side of the probability scale: the CDF below the
+    // median, the survival above it (1 - p is exact there), with the tail mass
+    // integrated directly and Newton on its logarithm (vonmises_left_quantile).
+    // By symmetry the upper quantile is the mirror of the lower one.
+    const bool upper = p > detail::HALF;
+    const double m = upper ? detail::ONE - p : p;
+    double t = -detail::PI;
+    if (m >= detail::HALF)
+        t = detail::ZERO_DOUBLE;
+    else if (m > detail::ZERO_DOUBLE)
+        t = vonmises_left_quantile(m, kappa, log_scaled_norm);
+
+    if (upper) {
+        t = -t;
+    } else if (t <= -detail::PI) {
+        // The left end stays at the left end. The support is (-pi, pi] and
+        // wrapAngle reads -PI as +PI, so the smallest double above -PI stands
+        // for a quantile within an ulp of -pi (p = 1e-300 used to return +pi).
+        t = std::nextafter(-detail::PI, detail::ZERO_DOUBLE);
     }
-
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    const double mu = mu_;
-    const auto& gv = cdfGridValues_;
-    const auto& ga = cdfGridAngles_;
-    lock.unlock();
-
-    // Binary search for p in cdfGridValues_ (mu=0 grid).
-    const auto it = std::lower_bound(gv.begin(), gv.end(), p);
-    if (it == gv.end())
-        return wrapAngle(detail::PI + mu);
-    if (it == gv.begin())
-        return wrapAngle(-detail::PI + mu);
-
-    const std::size_t hi_idx = static_cast<std::size_t>(it - gv.begin());
-    const std::size_t lo_idx = hi_idx - 1;
-    const double v0 = gv[lo_idx], v1 = gv[hi_idx];
-    const double a0 = ga[lo_idx], a1 = ga[hi_idx];
-    // Linear interpolation between grid points
-    const double t = (v1 > v0) ? (p - v0) / (v1 - v0) : detail::HALF;
-    return wrapAngle(a0 + t * (a1 - a0) + mu);
+    return wrapAngle(t + mu);
 }
 
 double VonMisesDistribution::sample(std::mt19937& rng) const {
@@ -823,13 +1030,16 @@ void VonMisesDistribution::getCumulativeProbability(std::span<const double> valu
         *this, values, results, hint, detail::OperationType::CDF,
         [](const VonMisesDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const VonMisesDistribution& d, const double* vals, double* res, size_t count) {
-            double mu;
+            double mu, kappa, log_scaled_norm;
             std::vector<double> coeffs;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
+                kappa = d.kappa_;
+                log_scaled_norm = d.logScaledNormaliser_;
                 coeffs = d.cdfSeriesCoeffs_;  // copy: batch runs outside the lock
             });
-            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, mu, coeffs);
+            d.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, mu, kappa, log_scaled_norm,
+                                                      coeffs);
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -917,7 +1127,8 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
 // LogPDF batch:  z[i] = x[i] − μ  |  c[i] = vector_cos(z)  |  r[i] = κ·c[i] − ln Z
 // PDF batch:     same as LogPDF then r[i] = vector_exp(r)
 // CDF batch (#51): t[i] = wrap(x[i]−μ); r[i] = (t[i]+π)/(2π); for j = j_max..1:
-//                  r[i] += b_j · vector_sin(j·t[i])  (κ=0 or κ>1000: scalar fallback)
+//                  r[i] += b_j · vector_sin(j·t[i])  (κ=0 or κ>1000: scalar fallback);
+//                  lanes below 1/4 or above 3/4 then take the scalar tail quadrature
 //
 // PDF/LogPDF use VectorOps::vector_cos; CDF uses VectorOps::vector_sin (#95) —
 // both AVX/AVX2/SSE2/NEON/AVX-512. Non-finite inputs receive an exact sentinel
@@ -970,6 +1181,7 @@ void VonMisesDistribution::getProbabilityBatchUnsafeImpl(
 
 void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, double cached_mu,
+    double cached_kappa, double cached_log_scaled_norm,
     const std::vector<double>& cached_coeffs) const noexcept {
     // kappa = 0 or kappa > 1000: series not applicable (see updateCacheUnsafe).
     // Fall back to the per-element scalar path -- itself now O(j_max) or the
@@ -1009,14 +1221,17 @@ void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 
     // Fixup: wrapAngle passes NaN/+-inf through unchanged, so those lanes are
     // poisoned (NaN) by this point -- restore the scalar contract exactly:
-    // NaN -> NaN, +inf -> 1, -inf -> 0. Finite lanes are clamped to [0,1].
+    // NaN -> NaN, +inf -> 1, -inf -> 0. Finite lanes take the scalar path's
+    // tail correction (the integrated tail mass where the series is within
+    // kTailSwitch of 0 or 1) and are clamped to [0,1].
     for (std::size_t i = 0; i < count; ++i) {
         if (std::isnan(values[i])) {
             results[i] = std::numeric_limits<double>::quiet_NaN();
         } else if (std::isinf(values[i])) {
             results[i] = (values[i] > 0.0) ? detail::ONE : detail::ZERO_DOUBLE;
         } else {
-            results[i] = std::clamp(results[i], detail::ZERO_DOUBLE, detail::ONE);
+            results[i] =
+                tail_corrected_cdf(results[i], t[i], cached_kappa, cached_log_scaled_norm);
         }
     }
 }
@@ -1029,6 +1244,9 @@ void VonMisesDistribution::updateCacheUnsafe() const noexcept {
     // logNormaliser = log(2π) + log I₀(κ)
     // When κ = 0: I₀(0) = 1, log I₀ = 0, logNormaliser = log(2π). ✓
     logNormaliser_ = detail::LN_2PI + detail::log_bessel_i0(kappa_);
+    // The same constant less kappa, formed without the cancellation, for the
+    // tail quadrature behind the CDF tails and the quantile.
+    logScaledNormaliser_ = log_scaled_normaliser(kappa_);
 
     isUniform_ = (kappa_ < 1e-10);
 

@@ -508,7 +508,7 @@ double BinomialDistribution::getEntropy() const {
         if (p <= detail::ZERO_DOUBLE || p >= detail::ONE)
             return detail::ZERO_DOUBLE;  // degenerate: all mass at one point
         const double lp = std::log(p);
-        const double l1mp = std::log(detail::ONE - p);
+        const double l1mp = std::log1p(-p);
         double h = detail::ZERO_DOUBLE;
         for (int k = 0; k <= n; ++k) {
             // log P(k): log-binomial coefficient + log p^k (1-p)^(n-k)
@@ -795,7 +795,7 @@ void BinomialDistribution::getCumulativeProbabilityBatchImpl(const double* value
 void BinomialDistribution::updateCacheUnsafe() const noexcept {
     logNFact_ = std::lgamma(static_cast<double>(n_ + 1));
     logP_ = (p_ > detail::ZERO_DOUBLE) ? std::log(p_) : detail::NEGATIVE_INFINITY;
-    log1mP_ = (p_ < detail::ONE) ? std::log(detail::ONE - p_) : detail::NEGATIVE_INFINITY;
+    log1mP_ = (p_ < detail::ONE) ? std::log1p(-p_) : detail::NEGATIVE_INFINITY;
     cache_valid_ = true;
     cacheValidAtomic_.store(true, std::memory_order_release);
     atomicN_.store(n_, std::memory_order_release);

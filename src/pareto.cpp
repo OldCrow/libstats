@@ -22,6 +22,13 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// F(x) = 1 − (s/x)^α for x ≥ s, as −expm1(−α·log1p((x − s)/s)). Formed as 1 − pow(s/x, α), the
+// rounding of s/x near 1 left 3e-4 relative error in a CDF of 1e-6 just above the scale.
+[[nodiscard]] inline double paretoCdf(double x, double scale, double alpha) noexcept {
+    return -std::expm1(-alpha * std::log1p((x - scale) / scale));
+}
+}  // namespace
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -282,7 +289,7 @@ double ParetoDistribution::getCumulativeProbability(double x) const {
     });
     if (x < scale)
         return detail::ZERO_DOUBLE;
-    return detail::ONE - std::pow(scale / x, alpha);
+    return paretoCdf(x, scale, alpha);
 }
 
 double ParetoDistribution::getQuantile(double p) const {
@@ -300,7 +307,7 @@ double ParetoDistribution::getQuantile(double p) const {
     });
     if (p == detail::ZERO_DOUBLE)
         return scale;
-    return scale * std::pow(detail::ONE - p, -inv_alpha);
+    return scale * std::exp(-inv_alpha * std::log1p(-p));  // (1 - p)^(-1/α), p kept exactly
 }
 
 double ParetoDistribution::sample(std::mt19937& rng) const {
@@ -576,14 +583,12 @@ void ParetoDistribution::getCumulativeProbability(std::span<const double> values
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = (x < scale) ? detail::ZERO_DOUBLE
-                                         : detail::ONE - std::pow(scale / x, alpha);
+                    res[i] = (x < scale) ? detail::ZERO_DOUBLE : paretoCdf(x, scale, alpha);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = (x < scale) ? detail::ZERO_DOUBLE
-                                         : detail::ONE - std::pow(scale / x, alpha);
+                    res[i] = (x < scale) ? detail::ZERO_DOUBLE : paretoCdf(x, scale, alpha);
                 }
             }
         },
@@ -597,8 +602,7 @@ void ParetoDistribution::getCumulativeProbability(std::span<const double> values
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] =
-                    (x < scale) ? detail::ZERO_DOUBLE : detail::ONE - std::pow(scale / x, alpha);
+                res[i] = (x < scale) ? detail::ZERO_DOUBLE : paretoCdf(x, scale, alpha);
             });
             pool.waitForAll();
         });
@@ -678,6 +682,7 @@ std::istream& operator>>(std::istream& is, ParetoDistribution& d) {
 //   results = exp(...)            [vector_exp]   → (x_m/x)^α
 //   results *= -1                 [scalar_multiply(-1)]
 //   results += 1                  [scalar_add(1)]
+//   lanes below ½ redone as −expm1(−α·log1p((x − x_m)/x_m)), where 1 − (x_m/x)^α cancels
 //==============================================================================
 
 void ParetoDistribution::getProbabilityBatchUnsafeImpl(
@@ -750,16 +755,11 @@ void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
-        // Use pow(scale/x, alpha) = exp(alpha*log(scale/x)) for consistency
         const double cached_alpha = -cached_neg_alpha;  // alpha is stored as negAlpha_
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x < cached_scale) {
-                results[i] = detail::ZERO_DOUBLE;
-            } else {
-                results[i] =
-                    detail::ONE - std::exp(cached_alpha * (cached_log_scale - std::log(x)));
-            }
+            results[i] =
+                (x < cached_scale) ? detail::ZERO_DOUBLE : paretoCdf(x, cached_scale, cached_alpha);
         }
         return;
     }
@@ -777,10 +777,13 @@ void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // Step 6: results = 1 − (x_m/x)^α
     arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
 
-    // Fixup: x < scale is outside support; CDF = 0.
+    // Fixup: x < scale is outside support; CDF = 0. Below ½, 1 − (x_m/x)^α cancels (3e-4 relative
+    // at a CDF of 1e-6): those lanes take the scalar −expm1 form.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < cached_scale)
             results[i] = detail::ZERO_DOUBLE;
+        else if (results[i] < detail::HALF)
+            results[i] = paretoCdf(values[i], cached_scale, -cached_neg_alpha);
     }
 }
 

@@ -39,28 +39,50 @@ tests take the small tail (2·F(−|t|), gamma_q) instead of 1 − CDF. Also
 fixed: the parallel-build race on the dynamic tests' DLL copy, and the
 oracle no longer rewrites the doc block from a partial CSV.
 
-**Session-found, still open [OPEN]** — full sweep of `83586f9`, triaged:
-(A) wrong answers: Beta quantile deep tail (max_rel 8e259,
-`inverse_beta_i` Newton); Cauchy quantile at p = 1e-300 (rel 1.0);
-Discrete quantile off by one at an exact tie (uniform 0..9, p = 0.1:
-0, should be 1; exact with an fma); NegativeBinomial quantile 25% off
-at p = 0.5 (abs 70, uninvestigated); Poisson scalar pdf 4e-3 off at
-k ≈ 1e5 (batch 2e-10); Binomial/Poisson/Geometric quantile off by 3 to
-5e4 counts near p = 1 (CDF-side search); von Mises deep-tail CDF and
-quantile (absolute-only accuracy, law_frac 1e37); oracle: von Mises
-p = ½ reference is quadrature noise (2.5e-30), should be μ.
-(B) cheap log1p/expm1: Exponential, Rayleigh, Weibull quantiles at
-p = 1e-15 (5e-4 to 8e-4); Pareto CDF near the scale (3e-4); Geometric
-pmf (1.9e-8, log(1 − p)); Bernoulli logpdf (2.9e-11).
-(C) structural precision, 1e-11 to 1e-9 at extreme shape: Binomial,
-Poisson, NegativeBinomial pmf (needs Loader's saddle-point form);
-Gamma/ChiSquared/Erlang/InverseGamma pdf (the #166 Stirling prefactor,
-not yet used by the densities). Not defects: logpdf near its zero
-crossing (Exponential, Laplace, Gumbel, Logistic: relative metric on a
-near-zero value). Next: A and B, each fail-first on the base worktree
-(`../libstats-v2.4.2-base`, kept until they land, then removed [user]);
-C to be scoped with the user.
+**Session-found, second round [DERIVED], UNCOMMITTED** (user AFK; signing
+needs the YubiKey), from a full sweep of `83586f9`. Gates
+`test_tail_and_tie_accuracy` and `test_gamma_density_accuracy`, each
+failing on `d8d3388` in every group; 83/83. Cauchy quantile by cot(π·q)
+in the tails (oracle reference fixed the same way); Discrete-uniform
+quantile exact at ties (fma remainder); `beta_i` returns ½ for
+I_½(a, a), which fixes NegativeBinomial(5, ½)'s median; Poisson's
+scalar pmf loses its normal approximation (4e-3 at λ = 1e5); log1p(−p)
+in the Exponential, Rayleigh, Weibull and Pareto quantiles, the
+Geometric/NegativeBinomial/Binomial (so Bernoulli) log(1 − p); Pareto
+CDF as −expm1(−α·log1p((x − s)/s)), scalar and batch; Gamma-family
+densities (Gamma, ChiSquared, Erlang, InverseGamma) as log P(α, βx) −
+log x from α = 20 via the now-exported `detail::log_gamma_prefactor`,
+with log1p(t) − t by series near 0 (`log1pmx`, also in both #166
+prefactors), and the Gamma SIMD pipeline only below α = 20. Oracle: the
+von Mises p = ½ reference is μ by symmetry.
 
+**Decided [DERIVED]: discrete quantiles near p = 1 are not defects.**
+Binomial/Poisson/NegativeBinomial/Geometric are off by 3 to 5e4 counts
+from the oracle at p = 1 − 1e-15 because every count in between has a
+true CDF within half an ulp of p: the library's contract is the
+smallest k whose library CDF reaches p (#116, #170;
+`SmallParametersUnchanged` and `QuantileIsSmallestCountAtOrAboveP`
+enforce it), and a survival-side search broke both guards at
+mid-range p. Not defects either: logpdf near its zero crossing
+(Exponential, Laplace, Gumbel, Logistic).
+
+**von Mises [DERIVED], UNCOMMITTED** (subagent patch, applied and gated
+here; `test_von_mises_tails` fails on `d8d3388` in all three groups;
+84/84): the CDF integrates the tail mass directly where the Bessel series
+gives F < ¼ or > ¾ (adaptive Gauss–Kronrod 7/15 on a cancellation-free
+exponent, fixed stack, depth ≤ 48; new cached normaliser
+`logScaledNormaliser_` by trapezoid on the periodic integrand), scalar
+and batch; the quantile is bracketed Newton on log G on the smaller tail,
+the 2049-point grid removed; p → 0 returns the double just above −π + μ,
+wrapped; NaN propagates. κ > 1000 keeps the wrapped-normal CDF (#106 seam,
+~0.04/κ absolute). Owed: the timing-labelled `test_von_mises_enhanced`
+on a quiet machine — the tail fix-up slows the batch CDF (κ = 30: 6 → 30
+ms per 1e5 evenly spread points).
+
+**Next [OPEN]:** commit and push the second round and von Mises (one
+YubiKey touch), then decide #172 (Loader) [user]; the base worktree
+(`../libstats-v2.4.2-base`) stays until #172 is decided, since its
+fail-first would need it.
 Owed before the release PR: #167's fail-first under UBSan
 (float-cast-overflow) on Kaby Lake or the M1 — MSVC has no such check and
 x86 casts to `INT_MIN`, so its gate rows pass unfixed here; native ctest
