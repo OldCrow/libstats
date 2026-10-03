@@ -269,11 +269,11 @@ double PoissonDistribution::getLogProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE)
-        return detail::MIN_LOG_PROBABILITY;
+        return detail::NEGATIVE_INFINITY;
 
     int k = roundToNonNegativeInt(x);
     if (!isValidCount(x))
-        return detail::MIN_LOG_PROBABILITY;
+        return detail::NEGATIVE_INFINITY;
 
     return getLogProbabilityExact(k);
 }
@@ -509,7 +509,7 @@ double PoissonDistribution::getProbabilityExact(int k) const {
 
 double PoissonDistribution::getLogProbabilityExact(int k) const noexcept {
     if (k < 0)
-        return detail::MIN_LOG_PROBABILITY;
+        return detail::NEGATIVE_INFINITY;
 
     withCacheSnapshot([&] {});  // ensure cache valid; computeLogPMF reads cached members
     return computeLogPMF(k);
@@ -576,6 +576,10 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             });
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        return;
+                    }
                     if (vals[i] < detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                         return;
@@ -603,6 +607,10 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        continue;
+                    }
                     if (vals[i] < detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                         continue;
@@ -646,6 +654,10 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                 cached_exp_neg_lambda = dist.expNegLambda_;
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                    res[i] = vals[i];
+                    return;
+                }
                 if (vals[i] < detail::ZERO_DOUBLE) {
                     res[i] = detail::ZERO_DOUBLE;
                     return;
@@ -730,14 +742,18 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        return;
+                    }
                     if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::MIN_LOG_PROBABILITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                         return;
                     }
 
                     int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                     if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::MIN_LOG_PROBABILITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                         return;
                     }
 
@@ -748,14 +764,18 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        continue;
+                    }
                     if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::MIN_LOG_PROBABILITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                         continue;
                     }
 
                     int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                     if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::MIN_LOG_PROBABILITY;
+                        res[i] = detail::NEGATIVE_INFINITY;
                         continue;
                     }
 
@@ -795,14 +815,18 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                    res[i] = vals[i];
+                    return;
+                }
                 if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::MIN_LOG_PROBABILITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                     return;
                 }
 
                 int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
                 if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::MIN_LOG_PROBABILITY;
+                    res[i] = detail::NEGATIVE_INFINITY;
                     return;
                 }
 
@@ -867,6 +891,10 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        return;
+                    }
                     if (vals[i] < detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                         return;
@@ -884,6 +912,10 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        continue;
+                    }
                     if (vals[i] < detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                         continue;
@@ -928,6 +960,10 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                    res[i] = vals[i];
+                    return;
+                }
                 if (vals[i] < detail::ZERO_DOUBLE) {
                     res[i] = detail::ZERO_DOUBLE;
                     return;
@@ -1082,13 +1118,13 @@ void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
             continue;
         }
         if (values[i] < detail::ZERO_DOUBLE) {
-            results[i] = detail::MIN_LOG_PROBABILITY;
+            results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
 
         int k = roundToNonNegativeInt(values[i]);
         if (!isValidCount(values[i])) {
-            results[i] = detail::MIN_LOG_PROBABILITY;
+            results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
 
@@ -1235,16 +1271,18 @@ double PoissonDistribution::logFactorial(int n) noexcept {
 // Static utility methods moved from header for better compile times
 inline int PoissonDistribution::roundToNonNegativeInt(double x) noexcept {
     // EDGE-1: guard NaN and +inf before casting — static_cast<int>(NaN) is UB.
-    if (!std::isfinite(x) || x < 0.0)
+    // #167: also guard finite x above the int range (1e10, 1e300): the cast is UB
+    // there too. isValidCount bounds x so round(x) fits in int; callers still test
+    // isValidCount(x) themselves to pick the out-of-support result.
+    if (!isValidCount(x))
         return 0;
     return static_cast<int>(std::round(x));
 }
 
 inline bool PoissonDistribution::isValidCount(double x) noexcept {
-    // EDGE-2: static_cast<double>(INT_MAX) rounds UP to 2^31 = 2147483648.0 in
-    // IEEE 754, so `x <= INT_MAX_as_double` accepts 2147483647.5 whose rounded
-    // value overflows int. Use INT_MAX - 1 = 2147483646 (exactly representable)
-    // as the safe upper bound: round(x) <= 2147483646 < INT_MAX, safe to cast.
+    // EDGE-2: `x <= INT_MAX` accepts 2147483647.5, which std::round sends to 2^31 and
+    // overflows int. Bound at INT_MAX - 1 = 2147483646 instead: round(x) <= INT_MAX - 1, safe
+    // to cast. (INT_MAX itself is exact in double; the half-up rounding is the hazard.)
     constexpr double kMaxSafeCount = static_cast<double>(std::numeric_limits<int>::max() - 1);
     return (std::isfinite(x) && x >= 0.0 && x <= kMaxSafeCount);
 }

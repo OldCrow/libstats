@@ -52,7 +52,8 @@ GammaDistribution::GammaDistribution(const GammaDistribution& other) : Distribut
     std::shared_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;
-    cache_valid_ = other.cache_valid_;
+    // The cache starts invalid and is rebuilt on first read: copying other's validity flag
+    // without its cached members made a copy compute with the default cache (#163).
     atomicAlpha_.store(alpha_, std::memory_order_release);
     atomicBeta_.store(beta_, std::memory_order_release);
 }
@@ -73,7 +74,7 @@ GammaDistribution::GammaDistribution(GammaDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
     alpha_ = other.alpha_;
     beta_ = other.beta_;
-    cache_valid_ = other.cache_valid_;
+    // Cache starts invalid, as in the copy constructor (#163).
     atomicAlpha_.store(alpha_, std::memory_order_release);
     atomicBeta_.store(beta_, std::memory_order_release);
 }
@@ -328,7 +329,7 @@ double GammaDistribution::getLogProbability(double x) const {
         else if (a == detail::ONE)
             return lb;
         else
-            return detail::MIN_LOG_PROBABILITY;
+            return detail::NEGATIVE_INFINITY;
     }
     // General case: log(f(x)) = α*log(β) - log(Γ(α)) + (α-1)*log(x) - βx
     return alb - lga + am1 * std::log(x) - b * x;
@@ -730,8 +731,7 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             // Slice so each parallel task runs the SIMD log+exp pipeline
             // rather than computing log(x) per element in each task.
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
@@ -807,8 +807,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
 
             // Slice so each parallel task runs the SIMD log pipeline.
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
@@ -881,6 +880,10 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        return;
+                    }
                     if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                     } else {
@@ -891,6 +894,10 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        continue;
+                    }
                     if (x <= detail::ZERO_DOUBLE) {
                         res[i] = detail::ZERO_DOUBLE;
                     } else {
@@ -919,6 +926,10 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
+                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                    res[i] = x;
+                    return;
+                }
                 if (x <= detail::ZERO_DOUBLE) {
                     res[i] = detail::ZERO_DOUBLE;
                 } else {
@@ -1030,7 +1041,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
 //             temp = -beta*x → results += temp → vector_exp
 //             fixup: x <= 0 → 0
 //   LogPDF: same pipeline, no final exp step
-//             fixup: x <= 0 → MIN_LOG_PROBABILITY (finite proxy; matches single-value method)
+//             fixup: x < 0 → -inf; x = 0 → the limit by shape (#161, as the scalar path)
 //
 // CDF architecture: the regularized incomplete gamma function gamma_p() is
 //   evaluated per element via a continued-fraction or series algorithm.
@@ -1119,14 +1130,27 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
                                                          double alpha_minus_one) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
+    // logpdf(0) is the limit, as on the scalar path (#161): +inf for alpha < 1, log(beta) for
+    // alpha = 1 (alpha_log_beta is exactly log(beta) there), -inf for alpha > 1.
+    auto fixup_zero = [&](std::size_t i) {
+        if (alpha_minus_one < 0.0)
+            results[i] = std::numeric_limits<double>::infinity();
+        else if (alpha_minus_one == 0.0)
+            results[i] = alpha_log_beta;
+        else
+            results[i] = detail::NEGATIVE_INFINITY;
+    };
+
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             if (!std::isfinite(values[i])) {
                 // #103: logpdf(±inf) = -inf, NaN propagates — the formula is
                 // NaN at +inf for alpha >= 1, matching the scalar guard.
                 results[i] = std::isnan(values[i]) ? values[i] : detail::NEGATIVE_INFINITY;
-            } else if (values[i] <= detail::ZERO_DOUBLE) {
+            } else if (values[i] < detail::ZERO_DOUBLE) {
                 results[i] = detail::NEGATIVE_INFINITY;
+            } else if (values[i] == detail::ZERO_DOUBLE) {
+                fixup_zero(i);
             } else {
                 results[i] = alpha_log_beta - log_gamma_alpha +
                              alpha_minus_one * std::log(values[i]) - beta * values[i];
@@ -1150,16 +1174,15 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
     arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
     // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
     arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
-    // Fixup: non-finite per #103 (logpdf(±inf) = -inf, NaN propagates; the
-    // finite MIN_LOG_PROBABILITY clamp must never escape for ±inf inputs).
-    // Finite x <= 0 keeps MIN_LOG_PROBABILITY (finite proxy for -inf) to match
-    // the single-value getLogProbability() behaviour for alpha > 1 at x = 0,
-    // which avoids -inf propagation in log-probability summation algorithms.
+    // Fixup: non-finite per #103 (logpdf(±inf) = -inf, NaN propagates); x < 0 → -inf;
+    // x = 0 → the limit by shape (#161).
     for (std::size_t i = 0; i < count; ++i) {
         if (!std::isfinite(values[i])) {
             results[i] = std::isnan(values[i]) ? values[i] : detail::NEGATIVE_INFINITY;
-        } else if (values[i] <= detail::ZERO_DOUBLE) {
-            results[i] = detail::MIN_LOG_PROBABILITY;
+        } else if (values[i] < detail::ZERO_DOUBLE) {
+            results[i] = detail::NEGATIVE_INFINITY;
+        } else if (values[i] == detail::ZERO_DOUBLE) {
+            fixup_zero(i);
         }
     }
 }

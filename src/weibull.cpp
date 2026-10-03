@@ -14,6 +14,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -21,6 +22,34 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// Inputs the log-density formula c + (k−1)·log(x) − (x/λ)^k cannot evaluate; edgeLogDensity
+// gives their value. x < 0 is outside the support; x = 0 is the boundary, where log(x) = −inf;
+// at x = +inf the sum is inf − inf = NaN, so it takes its limit instead (#164). NaN fails both
+// tests and propagates through the formula.
+constexpr bool outsideDensity(double x) noexcept {
+    return x <= 0.0 || x == std::numeric_limits<double>::infinity();
+}
+
+// logpdf at the support boundary x = 0, the limit by shape (#161): +inf for k < 1, c for k = 1
+// (the exponential density; c = log(k) − k·log(λ) is exactly −log(λ) there), −∞ for k > 1. The
+// shape test is exact, as Gamma's is: Weibull(1 + 1e-9) has pdf(0) = 0, not 1/λ. pdf is exp of
+// this, so the scalar and every batch path compute the same bits from the cached constants.
+inline double logDensityAtZero(double shape_minus1, double log_norm_const) noexcept {
+    if (shape_minus1 < 0.0)
+        return std::numeric_limits<double>::infinity();
+    if (shape_minus1 == 0.0)
+        return log_norm_const;
+    return -std::numeric_limits<double>::infinity();
+}
+
+// logpdf where outsideDensity(x) holds: the x = 0 limit, else −∞.
+inline double edgeLogDensity(double x, double shape_minus1, double log_norm_const) noexcept {
+    return x == 0.0 ? logDensityAtZero(shape_minus1, log_norm_const)
+                    : -std::numeric_limits<double>::infinity();
+}
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -268,29 +297,25 @@ VoidResult WeibullDistribution::validateCurrentParameters() const noexcept {
 //==============================================================================
 
 double WeibullDistribution::getProbability(double x) const {
-    if (x < detail::ZERO_DOUBLE)
+    if (x < detail::ZERO_DOUBLE || x == std::numeric_limits<double>::infinity())
         return detail::ZERO_DOUBLE;
 
-    double k, ls, km1, lnc, sc;
+    double k, ls, km1, lnc;
     withCacheSnapshot([&] {
         k = shape_;
         ls = logScale_;
         km1 = shapeMinus1_;
         lnc = logNormConst_;
-        sc = scale_;
     });
-    if (x == detail::ZERO_DOUBLE) {
-        if (std::abs(k - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return detail::ONE / sc;
-        return (k > detail::ONE) ? detail::ZERO_DOUBLE : std::numeric_limits<double>::infinity();
-    }
+    if (x == detail::ZERO_DOUBLE)
+        return std::exp(logDensityAtZero(km1, lnc));
     const double log_x = std::log(x);
     const double z = log_x - ls;
     return std::exp(lnc + km1 * log_x - std::exp(k * z));
 }
 
 double WeibullDistribution::getLogProbability(double x) const {
-    if (x < detail::ZERO_DOUBLE)
+    if (x < detail::ZERO_DOUBLE || x == std::numeric_limits<double>::infinity())
         return detail::NEGATIVE_INFINITY;
 
     double k, ls, km1, lnc;
@@ -300,12 +325,8 @@ double WeibullDistribution::getLogProbability(double x) const {
         km1 = shapeMinus1_;
         lnc = logNormConst_;
     });
-    if (x == detail::ZERO_DOUBLE) {
-        if (std::abs(k - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return -ls;
-        return (k > detail::ONE) ? detail::NEGATIVE_INFINITY
-                                 : std::numeric_limits<double>::infinity();
-    }
+    if (x == detail::ZERO_DOUBLE)
+        return logDensityAtZero(km1, lnc);
     const double log_x = std::log(x);
     const double z = log_x - ls;
     const double power = std::exp(k * z);
@@ -596,8 +617,8 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (outsideDensity(x)) {
+                        res[i] = std::exp(edgeLogDensity(x, km1, lnc));
                         return;
                     }
                     const double log_x = std::log(x);
@@ -607,8 +628,8 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
+                    if (outsideDensity(x)) {
+                        res[i] = std::exp(edgeLogDensity(x, km1, lnc));
                         continue;
                     }
                     const double log_x = std::log(x);
@@ -629,8 +650,8 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
+                if (outsideDensity(x)) {
+                    res[i] = std::exp(edgeLogDensity(x, km1, lnc));
                     return;
                 }
                 const double log_x = std::log(x);
@@ -673,8 +694,8 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
+                    if (outsideDensity(x)) {
+                        res[i] = edgeLogDensity(x, km1, lnc);
                         return;
                     }
                     const double log_x = std::log(x);
@@ -684,8 +705,8 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
+                    if (outsideDensity(x)) {
+                        res[i] = edgeLogDensity(x, km1, lnc);
                         continue;
                     }
                     const double log_x = std::log(x);
@@ -706,8 +727,8 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
+                if (outsideDensity(x)) {
+                    res[i] = edgeLogDensity(x, km1, lnc);
                     return;
                 }
                 const double log_x = std::log(x);
@@ -871,8 +892,9 @@ void WeibullDistribution::getProbabilityBatchUnsafeImpl(
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x <= detail::ZERO_DOUBLE) {
-                results[i] = detail::ZERO_DOUBLE;
+            if (outsideDensity(x)) {
+                results[i] =
+                    std::exp(edgeLogDensity(x, cached_shape_minus1, cached_log_norm_const));
                 continue;
             }
             const double lx = std::log(x);
@@ -904,10 +926,11 @@ void WeibullDistribution::getProbabilityBatchUnsafeImpl(
     // PDF: exponentiate
     arch::simd::VectorOps::vector_exp(results, results, count);
 
-    // Fixup: x <= 0 is outside support; PDF = 0.
+    // Fixup: x < 0 and +inf → 0; x = 0 → the limit by shape (#161, #164).
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE)
-            results[i] = detail::ZERO_DOUBLE;
+        if (outsideDensity(values[i]))
+            results[i] =
+                std::exp(edgeLogDensity(values[i], cached_shape_minus1, cached_log_norm_const));
     }
 }
 
@@ -920,8 +943,8 @@ void WeibullDistribution::getLogProbabilityBatchUnsafeImpl(
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x <= detail::ZERO_DOUBLE) {
-                results[i] = detail::NEGATIVE_INFINITY;
+            if (outsideDensity(x)) {
+                results[i] = edgeLogDensity(x, cached_shape_minus1, cached_log_norm_const);
                 continue;
             }
             const double lx = std::log(x);
@@ -951,10 +974,10 @@ void WeibullDistribution::getLogProbabilityBatchUnsafeImpl(
     // Step 8: results += logNormConst_
     arch::simd::VectorOps::scalar_add(results, cached_log_norm_const, results, count);
 
-    // Fixup: x <= 0 is outside support; LogPDF = −∞.
+    // Fixup: x < 0 and +inf → −∞; x = 0 → the limit by shape (#161, #164).
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE)
-            results[i] = detail::NEGATIVE_INFINITY;
+        if (outsideDensity(values[i]))
+            results[i] = edgeLogDensity(values[i], cached_shape_minus1, cached_log_norm_const);
     }
 }
 

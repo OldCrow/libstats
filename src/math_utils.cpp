@@ -817,9 +817,8 @@ double normal_cdf(double z) noexcept {
     // own underflow floor (~1e-308), instead of pinning to a fixed
     // absolute floor.  Right tail (z >= 0) keeps the original form, which
     // is already well-conditioned there.
-    return z < detail::ZERO_DOUBLE
-               ? detail::HALF * erfc(-z * detail::INV_SQRT_2)
-               : detail::HALF * (detail::ONE + erf(z * detail::INV_SQRT_2));
+    return z < detail::ZERO_DOUBLE ? detail::HALF * erfc(-z * detail::INV_SQRT_2)
+                                   : detail::HALF * (detail::ONE + erf(z * detail::INV_SQRT_2));
 }
 
 double inverse_normal_cdf(double p) noexcept {
@@ -832,9 +831,62 @@ double inverse_normal_cdf(double p) noexcept {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    // Use relationship: inverse_normal_cdf(p) = sqrt(2) * erf_inv(2*p - 1)
-    double erf_arg = detail::TWO * p - detail::ONE;
-    return detail::SQRT_2 * erf_inv(erf_arg);
+    // Tails (|p − ½| > 0.425, AS 241's split): the survival form on the small side (#158).
+    // 2p − 1 rounds to −1 for p < 2^-54 and drops p's low bits progressively above that, so
+    // √2·erf_inv(2p − 1) returned −inf at p = 1e-300 and 0.44 relative error at 1e-15. p, and
+    // 1 − p for p ≥ ½ (exact, Sterbenz), carry full information into the erfc-domain solver.
+    if (p < 0.075)
+        return -inv_survival_normal(p);
+    if (p > 0.925)
+        return inv_survival_normal(detail::ONE - p);
+
+    // Centre: √2·erf_inv(2p − 1), where 2p − 1 loses at most an ulp of p, then a Newton polish
+    // on the erf residual. The polish removes erf_inv's relative floor near 0 (its Halley loop
+    // stops at an absolute 1e-12) and is well conditioned here: |u| ≤ erf_inv(0.85) ≈ 1.02, so
+    // exp(u²) ≤ 2.9. The same polish as HalfNormal's central quantile.
+    const double erf_arg = detail::TWO * p - detail::ONE;
+    double u = erf_inv(erf_arg);
+    for (int i = 0; i < 2; ++i) {
+        const double r = std::erf(u) - erf_arg;
+        u -= r * (detail::SQRT_PI * detail::HALF) * std::exp(u * u);
+    }
+    return detail::SQRT_2 * u;
+}
+
+// Seed: Abramowitz & Stegun 26.2.23 rational approximation (|error| < 4.5e-4), then Newton on
+// the survival residual with analytic derivative:
+//   u ← u + (Q(u) − s)/φ(u),  φ(u) = exp(−u²/2)/√(2π)
+// Each step evaluates erfc and exp directly — both full relative precision in the tail — so the
+// iteration converges to the |ln s|·2⁻⁵² conditioning limit of any double formulation (the #49
+// law). φ underflow (u ≳ 38.6) is guarded by skipping the polish; the seed is already
+// law-limited that deep.
+//
+// Not delegated to erf_inv: its extreme-tail branch (|x| ≥ ERF_INV_TAIL_CUTOFF) seeds with a
+// Φ⁻¹-domain formula that is off by ~√2 in the erf domain, and its Halley refinement cannot
+// recover once std::erf saturates to 1 — measured during #57 bring-up: erf_inv(1−1e-14) ≈ 7.59
+// vs the true 5.46. Until v2.4.2 this helper was duplicated in half_normal.cpp and
+// truncated_normal.cpp (#158 promoted it here).
+double inv_survival_normal(double s) noexcept {
+    if (s >= detail::HALF)
+        return detail::ZERO_DOUBLE;
+    if (s < std::numeric_limits<double>::min())
+        s = std::numeric_limits<double>::min();  // best-effort clamp; keeps log(s) finite
+
+    const double t = std::sqrt(-detail::TWO * std::log(s));
+    // AS 26.2.23 coefficients (the set erf_inv uses for its moderate-tail branch).
+    double u = t - (2.515517 + t * (0.802853 + t * 0.010328)) /
+                       (detail::ONE + t * (1.432788 + t * (0.189269 + t * 0.001308)));
+    for (int i = 0; i < 4; ++i) {
+        const double pdf = detail::INV_SQRT_2PI * std::exp(-detail::HALF * u * u);
+        if (!(pdf > detail::ZERO_DOUBLE))
+            break;  // deeper than φ's underflow: keep the (law-limited) seed
+        const double r = detail::HALF * std::erfc(u * detail::INV_SQRT_2) - s;
+        const double step = r / pdf;
+        u += step;
+        if (std::fabs(step) <= 1e-15 * (detail::ONE + std::fabs(u)))
+            break;
+    }
+    return u;
 }
 
 double t_cdf(double t, double df) noexcept {

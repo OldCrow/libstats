@@ -422,12 +422,20 @@ void LaplaceDistribution::getProbability(std::span<const double> values, std::sp
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        return;
+                    }
                     res[i] = std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m))
                                               : detail::ZERO_DOUBLE;
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        continue;
+                    }
                     res[i] = std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m))
                                               : detail::ZERO_DOUBLE;
                 }
@@ -445,6 +453,10 @@ void LaplaceDistribution::getProbability(std::span<const double> values, std::sp
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
+                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                    res[i] = x;
+                    return;
+                }
                 res[i] =
                     std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m)) : detail::ZERO_DOUBLE;
             });
@@ -482,12 +494,20 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        return;
+                    }
                     res[i] =
                         std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        continue;
+                    }
                     res[i] =
                         std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
                 }
@@ -504,6 +524,10 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
+                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                    res[i] = x;
+                    return;
+                }
                 res[i] =
                     std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
             });
@@ -540,6 +564,10 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        return;
+                    }
                     if (!std::isfinite(x)) {
                         res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
                         return;
@@ -552,6 +580,10 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        continue;
+                    }
                     if (!std::isfinite(x)) {
                         res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
                         continue;
@@ -574,6 +606,10 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
             const double inv_b = detail::TWO * hib;
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
+                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                    res[i] = x;
+                    return;
+                }
                 if (!std::isfinite(x)) {
                     res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
                     return;

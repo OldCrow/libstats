@@ -1,8 +1,7 @@
 #include "libstats/distributions/half_normal.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -17,56 +16,6 @@
 #include <vector>
 
 namespace stats {
-
-namespace {
-
-// Inverse of the standard normal survival function Q(u) = ½·erfc(u/√2) for
-// s ∈ (0, ½], i.e. u = Φ⁻¹(1−s), computed entirely in the erfc/survival
-// domain so no 1−p style cancellation is ever formed (#49 discipline).
-//
-// Seed: Abramowitz & Stegun 26.2.23 rational approximation (|error| < 4.5e-4),
-// then Newton iterations on the survival residual with analytic derivative:
-//   u ← u + (Q(u) − s)/φ(u),  φ(u) = exp(−u²/2)/√(2π)
-// Each step evaluates erfc and exp directly — both full relative precision in
-// the tail — so the iteration converges to the |ln s|·2⁻⁵² conditioning limit
-// of any double formulation (the #49 law). φ underflow (u ≳ 38.6) is guarded
-// by skipping the polish; the seed is already law-limited that deep.
-//
-// Rationale for not delegating to detail::erf_inv here: its extreme-tail
-// branch (|x| ≥ ERF_INV_TAIL_CUTOFF, eps = 1−|x| ≥ ULTRA tolerance) seeds
-// with a Φ⁻¹-domain formula that is off by ~√2 in the erf domain, and its
-// Halley refinement cannot recover once std::erf saturates to 1 — measured
-// during #57 bring-up: erf_inv(1−1e-14) ≈ 7.59 vs the true 5.46 (0.39
-// relative in x), non-monotone across the band. Shared-code finding reported
-// upstream; worked around locally per the #57 scope rules.
-//
-// The same helper is duplicated in src/truncated_normal.cpp (same pattern as
-// the cdf_from_erf_arg duplication between gaussian.cpp and lognormal.cpp).
-inline double inv_survival_normal(double s) noexcept {
-    if (s >= detail::HALF)
-        return detail::ZERO_DOUBLE;
-    if (s < std::numeric_limits<double>::min())
-        s = std::numeric_limits<double>::min();  // best-effort clamp; keeps log(s) finite
-
-    const double t = std::sqrt(-detail::TWO * std::log(s));
-    // AS 26.2.23 coefficients (same set detail::erf_inv uses for its
-    // moderate-tail branch).
-    double u = t - (2.515517 + t * (0.802853 + t * 0.010328)) /
-                       (detail::ONE + t * (1.432788 + t * (0.189269 + t * 0.001308)));
-    for (int i = 0; i < 4; ++i) {
-        const double pdf = detail::INV_SQRT_2PI * std::exp(-detail::HALF * u * u);
-        if (!(pdf > detail::ZERO_DOUBLE))
-            break;  // deeper than φ's underflow: keep the (law-limited) seed
-        const double r = detail::HALF * std::erfc(u * detail::INV_SQRT_2) - s;
-        const double step = r / pdf;
-        u += step;
-        if (std::fabs(step) <= 1e-15 * (detail::ONE + std::fabs(u)))
-            break;
-    }
-    return u;
-}
-
-}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -322,10 +271,10 @@ double HalfNormalDistribution::getQuantile(double p) const {
     // (Sterbenz), and F(x) = p ⇔ erfc(x/(σ√2)) = 1−p ⇔ Q(x/σ) = (1−p)/2,
     // so x = σ·Φ⁻¹-complement((1−p)/2) via the erfc-domain solver above.
     // This deliberately bypasses detail::erf_inv's extreme-tail branch (see
-    // inv_survival_normal's banner) and is finite and never NaN for every
+    // detail::inv_survival_normal's banner) and is finite and never NaN for every
     // p ∈ (0,1) (#104), accurate to the |ln(1−p)|·2⁻⁵² conditioning law.
     const double s = detail::HALF * (detail::ONE - p);
-    return s_param * inv_survival_normal(s);
+    return s_param * detail::inv_survival_normal(s);
 }
 
 double HalfNormalDistribution::sample(std::mt19937& rng) const {

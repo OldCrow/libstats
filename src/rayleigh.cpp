@@ -14,6 +14,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -21,6 +22,15 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// pdf = 0 and logpdf = −∞: x ≤ 0 is outside the support, and at x = +inf the log density
+// log(x) + c − x²/(2σ²) evaluates inf − inf = NaN, so it takes its limit instead (#164).
+// NaN fails both tests and propagates through the formula.
+constexpr bool outsideDensity(double x) noexcept {
+    return x <= 0.0 || x == std::numeric_limits<double>::infinity();
+}
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -194,7 +204,7 @@ VoidResult RayleighDistribution::validateCurrentParameters() const noexcept {
 //==============================================================================
 
 double RayleighDistribution::getProbability(double x) const {
-    if (x <= detail::ZERO_DOUBLE)
+    if (outsideDensity(x))
         return detail::ZERO_DOUBLE;
 
     double lnc, nhis;
@@ -206,7 +216,7 @@ double RayleighDistribution::getProbability(double x) const {
 }
 
 double RayleighDistribution::getLogProbability(double x) const {
-    if (x <= detail::ZERO_DOUBLE)
+    if (outsideDensity(x))
         return detail::NEGATIVE_INFINITY;
 
     double lnc, nhis;
@@ -368,16 +378,14 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : std::exp(std::log(x) + lnc + nhis * x * x);
+                    res[i] = outsideDensity(x) ? detail::ZERO_DOUBLE
+                                               : std::exp(std::log(x) + lnc + nhis * x * x);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : std::exp(std::log(x) + lnc + nhis * x * x);
+                    res[i] = outsideDensity(x) ? detail::ZERO_DOUBLE
+                                               : std::exp(std::log(x) + lnc + nhis * x * x);
                 }
             }
         },
@@ -391,8 +399,8 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                    : std::exp(std::log(x) + lnc + nhis * x * x);
+                res[i] = outsideDensity(x) ? detail::ZERO_DOUBLE
+                                           : std::exp(std::log(x) + lnc + nhis * x * x);
             });
             pool.waitForAll();
         });
@@ -426,14 +434,14 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                        : std::log(x) + lnc + nhis * x * x;
+                    res[i] = outsideDensity(x) ? detail::NEGATIVE_INFINITY
+                                               : std::log(x) + lnc + nhis * x * x;
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                        : std::log(x) + lnc + nhis * x * x;
+                    res[i] = outsideDensity(x) ? detail::NEGATIVE_INFINITY
+                                               : std::log(x) + lnc + nhis * x * x;
                 }
             }
         },
@@ -447,8 +455,8 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                    : std::log(x) + lnc + nhis * x * x;
+                res[i] = outsideDensity(x) ? detail::NEGATIVE_INFINITY
+                                           : std::log(x) + lnc + nhis * x * x;
             });
             pool.waitForAll();
         });
@@ -587,7 +595,7 @@ void RayleighDistribution::getProbabilityBatchUnsafeImpl(
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x <= detail::ZERO_DOUBLE) {
+            if (outsideDensity(x)) {
                 results[i] = detail::ZERO_DOUBLE;
                 continue;
             }
@@ -615,7 +623,7 @@ void RayleighDistribution::getProbabilityBatchUnsafeImpl(
 
     // Fixup: x ≤ 0 is outside support; PDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE)
+        if (outsideDensity(values[i]))
             results[i] = detail::ZERO_DOUBLE;
     }
 }
@@ -628,7 +636,7 @@ void RayleighDistribution::getLogProbabilityBatchUnsafeImpl(
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x <= detail::ZERO_DOUBLE) {
+            if (outsideDensity(x)) {
                 results[i] = detail::NEGATIVE_INFINITY;
                 continue;
             }
@@ -653,7 +661,7 @@ void RayleighDistribution::getLogProbabilityBatchUnsafeImpl(
 
     // Fixup: x ≤ 0 is outside support; LogPDF = −∞.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE)
+        if (outsideDensity(values[i]))
             results[i] = detail::NEGATIVE_INFINITY;
     }
 }

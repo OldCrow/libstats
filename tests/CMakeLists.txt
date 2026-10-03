@@ -357,6 +357,18 @@ create_libstats_gtest(test_log_special_gates test_log_special_gates.cpp)
 # same reasoning as test_log_special_gates above.
 create_libstats_gtest(test_batch_nan_gates test_batch_nan_gates.cpp)
 
+# #163 guard: copy/move construction and assignment across all 27 distributions must carry the
+# source's parameters and cache, never a validity flag without the cached values behind it.
+create_libstats_gtest(test_copy_move_cache test_copy_move_cache.cpp)
+
+# #161/#164/#165 guard: pdf/logpdf at the support boundary (x = 0 by shape, x = +-inf,
+# out-of-support counts) take their limits, scalar and batch, under every forced strategy.
+create_libstats_gtest(test_support_boundary_gates test_support_boundary_gates.cpp)
+
+# #158 guard: the probit (inverse_normal_cdf, Gaussian and LogNormal quantiles) finite and within
+# budget against mpmath from p = 1e-300 to the centre; the erf_inv(2p - 1) form returned -inf.
+create_libstats_gtest(test_probit_accuracy test_probit_accuracy.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

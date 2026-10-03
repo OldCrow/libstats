@@ -53,10 +53,8 @@ GaussianDistribution::GaussianDistribution(const GaussianDistribution& other)
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     mean_ = other.mean_;
     standardDeviation_ = other.standardDeviation_;
-    // Propagate cache validity so the copy does not unnecessarily recompute.
-    cache_valid_ = other.cache_valid_;
-    cacheValidAtomic_.store(other.cacheValidAtomic_.load(std::memory_order_acquire),
-                            std::memory_order_release);
+    // The cache starts invalid and is rebuilt on first read. Propagating other's validity flag
+    // without its cached members is the Gamma defect of #163.
 }
 
 GaussianDistribution& GaussianDistribution::operator=(const GaussianDistribution& other) {
@@ -315,13 +313,10 @@ double GaussianDistribution::getQuantile(double p) const {
         return mean_;  // Median equals mean for normal distribution
     }
 
-    // Use inverse error function for standard normal quantile
-    // For standard normal: quantile = sqrt(2) * erfinv(2p - 1)
-    // For general normal: quantile = mean + sigma * sqrt(2) * erfinv(2p - 1)
-
-    const double erf_input = detail::TWO * p - detail::ONE;
-    double z = detail::erf_inv(erf_input);
-    return mean_ + standardDeviation_ * detail::SQRT_2 * z;
+    // The shared probit: survival form in the tails, so the quantile is finite for every
+    // p ∈ (0, 1). The erf_inv(2p − 1) form used here before v2.4.2 returned −inf for p < 2^-54
+    // (#158).
+    return mean_ + standardDeviation_ * detail::inverse_normal_cdf(p);
 }
 
 double GaussianDistribution::sample(std::mt19937& rng) const {
@@ -1261,8 +1256,8 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // getCumulativeProbability(x). NaN lanes compare false and keep the
     // vectorized result.
     for (std::size_t i = 0; i < count; ++i) {
-        const double w = is_standard_normal ? values[i] * detail::INV_SQRT_2
-                                            : (values[i] - mean) / sigma_sqrt2;
+        const double w =
+            is_standard_normal ? values[i] * detail::INV_SQRT_2 : (values[i] - mean) / sigma_sqrt2;
         if (w < -detail::ONE) {
             results[i] = detail::HALF * std::erfc(-w);
         }

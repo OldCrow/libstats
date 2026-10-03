@@ -652,6 +652,10 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        return;
+                    }
                     res[i] =
                         (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
                 });
@@ -659,6 +663,10 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        continue;
+                    }
                     res[i] =
                         (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
                 }
@@ -698,6 +706,10 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
+                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                    res[i] = x;
+                    return;
+                }
                 res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
             });
         });
@@ -771,6 +783,10 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        return;
+                    }
                     if (x < cached_a || x > cached_b) {
                         res[i] = detail::NEGATIVE_INFINITY;
                     } else if (cached_is_unit_interval) {
@@ -783,6 +799,10 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        continue;
+                    }
                     if (x < cached_a || x > cached_b) {
                         res[i] = detail::NEGATIVE_INFINITY;
                     } else if (cached_is_unit_interval) {
@@ -830,6 +850,10 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
+                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                    res[i] = x;
+                    return;
+                }
                 if (x < cached_a || x > cached_b) {
                     res[i] = detail::NEGATIVE_INFINITY;
                 } else if (cached_is_unit_interval) {

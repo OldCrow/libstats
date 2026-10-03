@@ -336,9 +336,20 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
 /**
  * @brief Inverse standard normal distribution CDF (quantile function)
  * @param p probability value in (0, 1)
- * @return z such that P(Z <= z) = p where Z ~ N(0,1)
+ * @return z such that P(Z <= z) = p where Z ~ N(0,1); finite for every p in (0, 1) (#104)
  */
 [[nodiscard]] double inverse_normal_cdf(double p) noexcept;
+
+/**
+ * @brief Inverse of the standard normal survival function Q(u) = ½·erfc(u/√2)
+ * @param s upper-tail probability in (0, ½]; s ≥ ½ returns 0, s below DBL_MIN is clamped to it
+ * @return u = Φ⁻¹(1 − s) ≥ 0, finite for every s > 0
+ *
+ * Solved in the erfc domain, so no 1 − s is ever formed: accurate to the |ln s|·2⁻⁵²
+ * conditioning law deep into the tail. Serves the tails of inverse_normal_cdf and the
+ * HalfNormal and TruncatedNormal quantiles (#158).
+ */
+[[nodiscard]] double inv_survival_normal(double s) noexcept;
 
 // REMOVED in v2.4.0: f_cdf / inverse_f_cdf. They were forward-looking stubs
 // pre-staged for an F distribution; FDistribution (#56) ships its own

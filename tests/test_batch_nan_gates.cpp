@@ -1,13 +1,13 @@
 // tests/test_batch_nan_gates.cpp
 //
-// Batch-path NaN propagation gate across ALL 19 distributions (issue #102).
-// Scalar paths propagate NaN correctly everywhere; the batch (span/SIMD)
-// paths of uniform, gamma, chi-squared, laplace, pareto, weibull, beta, and
-// von Mises (plus, via the #105 vector_log laundering, lognormal/student_t/
-// cauchy on non-AVX-512 tiers) instead returned finite, plausible values --
-// e.g. uniform batch pdf(NaN) = the full in-support density because the NaN
-// range comparison silently took the in-range branch; pareto batch
-// cdf(NaN) = 0.9992.
+// Batch-path NaN propagation gate across 19 distributions (issue #102), under
+// every forced strategy. Scalar paths propagate NaN correctly everywhere; the
+// batch (span/SIMD) paths of uniform, gamma, chi-squared, laplace, pareto,
+// weibull, beta, and von Mises (plus, via the #105 vector_log laundering,
+// lognormal/student_t/cauchy on non-AVX-512 tiers) instead returned finite,
+// plausible values -- e.g. uniform batch pdf(NaN) = the full in-support
+// density because the NaN range comparison silently took the in-range branch;
+// pareto batch cdf(NaN) = 0.9992.
 //
 // The non-victim distributions are asserted too: they are the regression
 // guard that keeps a future kernel change from introducing the same class
@@ -28,6 +28,7 @@
 #include <limits>
 #include <optional>
 #include <span>
+#include <string>
 #include <vector>
 
 using namespace stats;
@@ -37,14 +38,15 @@ namespace {
 constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 constexpr std::size_t kN = 69;  // 8*8+5; >= every SIMD threshold, non-multiple of 2/4/8
 
+using Strategy = detail::PerformanceHint::PreferredStrategy;
+
 template <typename Dist>
-void checkBatchNaN(const char* name, Dist& dist, double benign) {
+void checkBatchNaNWith(const std::string& name, Dist& dist, double benign, Strategy strategy) {
     std::vector<double> xs(kN, benign);
     xs[0] = kNaN;
     xs[kN - 1] = kNaN;
     std::vector<double> out(kN, 0.0);
-    const detail::PerformanceHint force_simd{
-        detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED, std::nullopt};
+    const detail::PerformanceHint force_simd{strategy, std::nullopt};
 
     dist.getProbability(std::span<const double>(xs), std::span<double>(out), force_simd);
     EXPECT_TRUE(std::isnan(out[0])) << name << " batch pdf(NaN) [body] = " << out[0];
@@ -60,6 +62,18 @@ void checkBatchNaN(const char* name, Dist& dist, double benign) {
     EXPECT_TRUE(std::isnan(out[0])) << name << " batch cdf(NaN) [body] = " << out[0];
     EXPECT_TRUE(std::isnan(out[kN - 1])) << name << " batch cdf(NaN) [tail] = " << out[kN - 1];
     EXPECT_FALSE(std::isnan(out[1])) << name << " batch cdf(" << benign << ") went NaN";
+}
+
+// Every forced strategy, not only FORCE_VECTORIZED: the parallel span lambdas carry their own
+// per-element support checks, and Poisson's and Discrete's sent NaN to the out-of-support branch
+// (0 / −∞) while their scalar and SIMD paths propagated it (found by the v2.4.2 boundary gate).
+template <typename Dist>
+void checkBatchNaN(const char* name, Dist& dist, double benign) {
+    checkBatchNaNWith(std::string(name) + " [FORCE_SCALAR]", dist, benign, Strategy::FORCE_SCALAR);
+    checkBatchNaNWith(std::string(name) + " [FORCE_VECTORIZED]", dist, benign,
+                      Strategy::FORCE_VECTORIZED);
+    checkBatchNaNWith(std::string(name) + " [FORCE_PARALLEL]", dist, benign,
+                      Strategy::FORCE_PARALLEL);
 }
 
 }  // namespace

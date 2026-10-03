@@ -380,8 +380,6 @@ double DiscreteDistribution::getProbability(double x) const {
     if (std::floor(x) != x)
         return detail::ZERO_DOUBLE;  // non-integer finite
 
-    const int k = static_cast<int>(x);  // safe: x is finite integer
-
     int a, b;
     bool is_binary;
     double prob;
@@ -391,7 +389,8 @@ double DiscreteDistribution::getProbability(double x) const {
         is_binary = isBinary_;
         prob = probability_;
     });
-    if (k < a || k > b)
+    // #167: compare on the double; casting x (e.g. 1e10, 1e300) to int first is UB.
+    if (x < static_cast<double>(a) || x > static_cast<double>(b))
         return detail::ZERO_DOUBLE;
     if (is_binary)
         return detail::HALF;
@@ -406,8 +405,6 @@ double DiscreteDistribution::getLogProbability(double x) const {
     if (std::floor(x) != x)
         return detail::NEGATIVE_INFINITY;  // non-integer finite
 
-    const int k = static_cast<int>(x);  // safe: x is finite integer
-
     int a, b;
     bool is_binary;
     double logprob;
@@ -417,7 +414,8 @@ double DiscreteDistribution::getLogProbability(double x) const {
         is_binary = isBinary_;
         logprob = logProbability_;
     });
-    if (k < a || k > b)
+    // #167: compare on the double; casting x (e.g. 1e10, 1e300) to int first is UB.
+    if (x < static_cast<double>(a) || x > static_cast<double>(b))
         return detail::NEGATIVE_INFINITY;
     if (is_binary)
         return -detail::LN2;
@@ -840,6 +838,10 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        return;
+                    }
                     if (std::floor(vals[i]) == vals[i] &&
                         DiscreteDistribution::isValidIntegerValue(vals[i])) {
                         const int k = static_cast<int>(vals[i]);
@@ -852,6 +854,10 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        continue;
+                    }
                     if (std::floor(vals[i]) == vals[i] &&
                         DiscreteDistribution::isValidIntegerValue(vals[i])) {
                         const int k = static_cast<int>(vals[i]);
@@ -883,6 +889,10 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                    res[i] = vals[i];
+                    return;
+                }
                 if (std::floor(vals[i]) == vals[i] &&
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
@@ -935,6 +945,10 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        return;
+                    }
                     if (std::floor(vals[i]) == vals[i] &&
                         DiscreteDistribution::isValidIntegerValue(vals[i])) {
                         const int k = static_cast<int>(vals[i]);
@@ -950,6 +964,10 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
+                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                        res[i] = vals[i];
+                        continue;
+                    }
                     if (std::floor(vals[i]) == vals[i] &&
                         DiscreteDistribution::isValidIntegerValue(vals[i])) {
                         const int k = static_cast<int>(vals[i]);
@@ -986,6 +1004,10 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
+                    res[i] = vals[i];
+                    return;
+                }
                 if (std::floor(vals[i]) == vals[i] &&
                     DiscreteDistribution::isValidIntegerValue(vals[i])) {
                     const int k = static_cast<int>(vals[i]);
@@ -1039,7 +1061,9 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
             // Use ParallelUtils::parallelFor for Level 0-3 integration
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (vals[i] < static_cast<double>(cached_a)) {
+                    if (std::isnan(vals[i])) {  // #167: NaN would reach the int cast below
+                        res[i] = vals[i];
+                    } else if (vals[i] < static_cast<double>(cached_a)) {
                         res[i] = detail::ZERO_DOUBLE;
                     } else if (vals[i] >= static_cast<double>(cached_b)) {
                         res[i] = detail::ONE;
@@ -1052,7 +1076,9 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
             } else {
                 // Serial processing for small datasets
                 for (std::size_t i = 0; i < count; ++i) {
-                    if (vals[i] < static_cast<double>(cached_a)) {
+                    if (std::isnan(vals[i])) {  // #167: NaN would reach the int cast below
+                        res[i] = vals[i];
+                    } else if (vals[i] < static_cast<double>(cached_a)) {
                         res[i] = detail::ZERO_DOUBLE;
                     } else if (vals[i] >= static_cast<double>(cached_b)) {
                         res[i] = detail::ONE;
@@ -1083,7 +1109,9 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
 
             // Use work-stealing pool for dynamic load balancing
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < static_cast<double>(cached_a)) {
+                if (std::isnan(vals[i])) {  // #167: NaN would reach the int cast below
+                    res[i] = vals[i];
+                } else if (vals[i] < static_cast<double>(cached_a)) {
                     res[i] = detail::ZERO_DOUBLE;
                 } else if (vals[i] >= static_cast<double>(cached_b)) {
                     res[i] = detail::ONE;

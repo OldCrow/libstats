@@ -704,12 +704,20 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        return;
+                    }
                     res[i] = std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm)
                                               : detail::ZERO_DOUBLE;
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        continue;
+                    }
                     res[i] = std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm)
                                               : detail::ZERO_DOUBLE;
                 }
@@ -726,6 +734,10 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
+                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                    res[i] = x;
+                    return;
+                }
                 res[i] =
                     std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm) : detail::ZERO_DOUBLE;
             });
@@ -763,12 +775,20 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        return;
+                    }
                     res[i] =
                         std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
+                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                        res[i] = x;
+                        continue;
+                    }
                     res[i] =
                         std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
                 }
@@ -785,6 +805,10 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
+                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
+                    res[i] = x;
+                    return;
+                }
                 res[i] =
                     std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
             });

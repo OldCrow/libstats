@@ -14,6 +14,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -247,9 +248,11 @@ double BinomialDistribution::getProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
-    const int k = static_cast<int>(std::round(x));
-    if (k < 0 || k > n_)
+    // #167: range-check the rounded double before the int cast (1e10, 1e300 are UB).
+    const double rounded = std::round(x);
+    if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(n_)))
         return detail::ZERO_DOUBLE;
+    const int k = static_cast<int>(rounded);
     if (p_ == detail::ZERO_DOUBLE)
         return (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
     if (p_ == detail::ONE)
@@ -275,9 +278,11 @@ double BinomialDistribution::getLogProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::NEGATIVE_INFINITY;  // ±inf → -∞
-    const int k = static_cast<int>(std::round(x));
-    if (k < 0 || k > n_)
+    // #167: range-check the rounded double before the int cast.
+    const double rounded = std::round(x);
+    if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(n_)))
         return detail::NEGATIVE_INFINITY;
+    const int k = static_cast<int>(rounded);
     if (p_ == detail::ZERO_DOUBLE)
         return (k == 0) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
     if (p_ == detail::ONE)
@@ -304,11 +309,13 @@ double BinomialDistribution::getCumulativeProbability(double x) const {
             return std::numeric_limits<double>::quiet_NaN();
         return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
     }
-    const int k = static_cast<int>(std::floor(x));
-    if (k < 0)
+    // #167: range-check the floored double before the int cast.
+    const double floored = std::floor(x);
+    if (floored < detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
-    if (k >= n_)
+    if (floored >= static_cast<double>(n_))
         return detail::ONE;
+    const int k = static_cast<int>(floored);
 
     int sn;
     double sp;
@@ -391,7 +398,12 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
     std::size_t count = 0;
     for (double v : values) {
         if (v >= detail::ZERO_DOUBLE && std::isfinite(v)) {
-            const int k = static_cast<int>(std::round(v));
+            // #167: an observation beyond int range cannot be a trial count; skip it
+            // as invalid rather than cast it (UB).
+            const double rounded = std::round(v);
+            if (rounded > static_cast<double>(std::numeric_limits<int>::max()))
+                continue;
+            const int k = static_cast<int>(rounded);
             maxObs = std::max(maxObs, k);
             const double kd = static_cast<double>(k);
             sum += kd;
@@ -417,7 +429,10 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
     double p_hat;
     if (count >= 2 && var > detail::ZERO_DOUBLE && var < xbar) {
         const double n_mom = xbar * xbar / (xbar - var);
-        n_hat = std::max(maxObs, static_cast<int>(std::round(n_mom)));
+        // #167: n_mom is unbounded as var → xbar; saturate at INT_MAX before the cast.
+        const double n_mom_capped =
+            std::min(std::round(n_mom), static_cast<double>(std::numeric_limits<int>::max()));
+        n_hat = std::max(maxObs, static_cast<int>(n_mom_capped));
         p_hat = std::clamp(xbar / static_cast<double>(n_hat), detail::ZERO_DOUBLE, detail::ONE);
     } else {
         // Fallback: max(obs) is a lower bound for n; MLE p̂ = x̄ / n given n.
@@ -468,12 +483,12 @@ double BinomialDistribution::getPAtomic() const noexcept {
 
 double BinomialDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    const double np1p = static_cast<double>(n_ + 1) * p_;
-    const int mode = static_cast<int>(std::floor(np1p));
+    // #167: stay in double — n_ + 1 overflows int at INT_MAX and floor(np1p) can reach 2^31.
+    const double np1p = (static_cast<double>(n_) + detail::ONE) * p_;
     // If (n+1)p is exactly integer, mode is np1p-1; otherwise floor(np1p)
     if (std::fabs(np1p - std::round(np1p)) < 1e-12 && np1p > detail::ZERO_DOUBLE)
         return np1p - detail::ONE;
-    return static_cast<double>(mode);
+    return std::floor(np1p);
 }
 
 double BinomialDistribution::getEntropy() const {
@@ -683,7 +698,14 @@ std::istream& operator>>(std::istream& is, BinomialDistribution& d) {
         return is;
     }
     try {
-        const int n = static_cast<int>(std::stod(token.substr(n_pos + 2, comma - n_pos - 2)));
+        const double n_val = std::stod(token.substr(n_pos + 2, comma - n_pos - 2));
+        // #167: reject n outside int range before the cast (UB); NaN fails the test too.
+        if (!(n_val >= static_cast<double>(std::numeric_limits<int>::min()) &&
+              n_val <= static_cast<double>(std::numeric_limits<int>::max()))) {
+            is.setstate(std::ios::failbit);
+            return is;
+        }
+        const int n = static_cast<int>(n_val);
         const double p = std::stod(token.substr(p_pos + 2, close - p_pos - 2));
         auto result = d.trySetParameters(n, p);
         if (result.isError())
@@ -712,11 +734,13 @@ void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, doub
             results[i] = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
             continue;
         }
-        const int k = static_cast<int>(std::round(x));
-        if (k < 0 || k > cached_n) {
+        // #167: range-check the rounded double before the int cast.
+        const double rounded = std::round(x);
+        if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(cached_n))) {
             results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
+        const int k = static_cast<int>(rounded);
         if (cached_logP == detail::NEGATIVE_INFINITY) {
             results[i] = (k == 0) ? 0.0 : detail::NEGATIVE_INFINITY;
             continue;
@@ -742,11 +766,13 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
             results[i] = std::isnan(x) ? x : detail::ZERO_DOUBLE;
             continue;
         }
-        const int k = static_cast<int>(std::round(x));
-        if (k < 0 || k > cached_n) {
+        // #167: range-check the rounded double before the int cast.
+        const double rounded = std::round(x);
+        if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(cached_n))) {
             results[i] = detail::ZERO_DOUBLE;
             continue;
         }
+        const int k = static_cast<int>(rounded);
         if (cached_logP == detail::NEGATIVE_INFINITY) {
             results[i] = (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
