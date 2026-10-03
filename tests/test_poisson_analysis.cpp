@@ -56,7 +56,7 @@ TEST(PoissonAnalysis, ConfidenceIntervalRateAllZerosLowerIsZero) {
 }
 
 TEST(PoissonAnalysis, ConfidenceIntervalRateEmptyThrows) {
-    EXPECT_THROW(stats::analysis::poisson::confidenceIntervalRate({}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::poisson::confidenceIntervalRate({}), std::invalid_argument);
 }
 
 // ── Overdispersion test ──────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ TEST(PoissonAnalysis, OverdispersionTestHighVarianceRejected) {
 }
 
 TEST(PoissonAnalysis, OverdispersionTestTooFewThrows) {
-    EXPECT_THROW(stats::analysis::poisson::overdispersionTest({1.0}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::poisson::overdispersionTest({1.0}), std::invalid_argument);
 }
 
 // ── Excess zeros test ────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ TEST(PoissonAnalysis, RateStabilityTestStableData) {
 }
 
 TEST(PoissonAnalysis, RateStabilityTestTooFewThrows) {
-    EXPECT_THROW(stats::analysis::poisson::rateStabilityTest({1.0, 2.0}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::poisson::rateStabilityTest({1.0, 2.0}), std::invalid_argument);
 }
 
 // ── Chi-square GoF test ──────────────────────────────────────────────────────
@@ -146,6 +146,6 @@ TEST(PoissonAnalysis, ChiSquareBadFit) {
 
 TEST(PoissonAnalysis, ChiSquareTooFewThrows) {
     auto dist = PoissonDistribution::create(2.0).unwrap();
-    EXPECT_THROW(stats::analysis::poisson::chiSquareGoodnessOfFit({1.0, 2.0}, dist),
+    EXPECT_THROW((void)stats::analysis::poisson::chiSquareGoodnessOfFit({1.0, 2.0}, dist),
                  std::invalid_argument);
 }

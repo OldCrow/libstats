@@ -85,13 +85,15 @@ TEST(GaussianAnalysis, ShapiroWilkLargerStatisticForNonNormal) {
 
 TEST(GaussianAnalysis, ShapiroWilkThrowsOnTooFew) {
     std::vector<double> tiny = {1.0, 2.0};
-    EXPECT_THROW(stats::analysis::gaussian::shapiroWilkTest(tiny), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::shapiroWilkTest(tiny), std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, ShapiroWilkThrowsOnBadAlpha) {
     auto data = normalSample(20);
-    EXPECT_THROW(stats::analysis::gaussian::shapiroWilkTest(data, 0.0), std::invalid_argument);
-    EXPECT_THROW(stats::analysis::gaussian::shapiroWilkTest(data, 1.0), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::shapiroWilkTest(data, 0.0),
+                 std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::shapiroWilkTest(data, 1.0),
+                 std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, JarqueBeraDoesNotRejectNormal) {
@@ -116,7 +118,7 @@ TEST(GaussianAnalysis, JarqueBeraRejectsHighlySkewed) {
 
 TEST(GaussianAnalysis, JarqueBeraThrowsOnTooFew) {
     std::vector<double> tiny = {1.0, 2.0, 3.0};
-    EXPECT_THROW(stats::analysis::gaussian::jarqueBeraTest(tiny), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::jarqueBeraTest(tiny), std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, JarqueBeraRejectsHeavyTailKurtosis) {
@@ -162,7 +164,7 @@ TEST(GaussianAnalysis, ConfidenceIntervalMeanKnownVariance) {
 }
 
 TEST(GaussianAnalysis, ConfidenceIntervalMeanEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::confidenceIntervalMean({}, 0.95),
+    EXPECT_THROW((void)stats::analysis::gaussian::confidenceIntervalMean({}, 0.95),
                  std::invalid_argument);
 }
 
@@ -184,7 +186,7 @@ TEST(GaussianAnalysis, ConfidenceIntervalVarianceContainsTrue) {
 }
 
 TEST(GaussianAnalysis, ConfidenceIntervalVarianceTooFewThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::confidenceIntervalVariance({1.0}, 0.95),
+    EXPECT_THROW((void)stats::analysis::gaussian::confidenceIntervalVariance({1.0}, 0.95),
                  std::invalid_argument);
 }
 
@@ -207,7 +209,7 @@ TEST(GaussianAnalysis, OneSampleTTestRejectsWrongMean) {
 }
 
 TEST(GaussianAnalysis, OneSampleTTestEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::oneSampleTTest({}, 0.0), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::oneSampleTTest({}, 0.0), std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, TwoSampleTTestSamePopulation) {
@@ -240,8 +242,8 @@ TEST(GaussianAnalysis, TwoSampleTTestEqualVariancesBothPaths) {
 
 TEST(GaussianAnalysis, TwoSampleTTestEmptyThrows) {
     auto d = normalSample(10);
-    EXPECT_THROW(stats::analysis::gaussian::twoSampleTTest({}, d), std::invalid_argument);
-    EXPECT_THROW(stats::analysis::gaussian::twoSampleTTest(d, {}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::twoSampleTTest({}, d), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::twoSampleTTest(d, {}), std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, PairedTTestSameMeanNotRejected) {
@@ -269,7 +271,7 @@ TEST(GaussianAnalysis, PairedTTestLargeConstantShift) {
 TEST(GaussianAnalysis, PairedTTestSizeMismatchThrows) {
     auto d1 = normalSample(10);
     auto d2 = normalSample(20);
-    EXPECT_THROW(stats::analysis::gaussian::pairedTTest(d1, d2), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::pairedTTest(d1, d2), std::invalid_argument);
 }
 
 // ── Bayesian inference ────────────────────────────────────────────────────────
@@ -297,7 +299,7 @@ TEST(GaussianAnalysis, BayesianEstimationPosteriorPrecisionIncreasesWithData) {
 }
 
 TEST(GaussianAnalysis, BayesianEstimationEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::bayesianEstimation({}, 0.0, 1.0, 1.0, 1.0),
+    EXPECT_THROW((void)stats::analysis::gaussian::bayesianEstimation({}, 0.0, 1.0, 1.0, 1.0),
                  std::invalid_argument);
 }
 
@@ -348,12 +350,13 @@ TEST(GaussianAnalysis, RobustHampelValid) {
 
 TEST(GaussianAnalysis, RobustUnknownTypeThrows) {
     auto data = normalSample(20);
-    EXPECT_THROW(stats::analysis::gaussian::robustEstimation(data, "unknown"),
+    EXPECT_THROW((void)stats::analysis::gaussian::robustEstimation(data, "unknown"),
                  std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, RobustEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::robustEstimation({}, "huber"), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::robustEstimation({}, "huber"),
+                 std::invalid_argument);
 }
 
 // ── Alternative estimators ────────────────────────────────────────────────────
@@ -367,7 +370,8 @@ TEST(GaussianAnalysis, MethodOfMomentsMatchesSampleStats) {
 }
 
 TEST(GaussianAnalysis, MethodOfMomentsEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::methodOfMomentsEstimation({}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::methodOfMomentsEstimation({}),
+                 std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, LMomentsProducesFinitePositiveEstimates) {
@@ -385,7 +389,7 @@ TEST(GaussianAnalysis, LMomentsProducesFinitePositiveEstimates) {
 }
 
 TEST(GaussianAnalysis, LMomentsTooFewThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::lMomentsEstimation({1.0}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gaussian::lMomentsEstimation({1.0}), std::invalid_argument);
 }
 
 TEST(GaussianAnalysis, HigherMomentsReturnsSix) {
@@ -417,6 +421,6 @@ TEST(GaussianAnalysis, HigherMomentsRawVsCentered) {
 }
 
 TEST(GaussianAnalysis, HigherMomentsEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gaussian::calculateHigherMoments({}, true),
+    EXPECT_THROW((void)stats::analysis::gaussian::calculateHigherMoments({}, true),
                  std::invalid_argument);
 }
