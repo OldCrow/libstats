@@ -164,6 +164,23 @@ namespace detail {
  */
 [[nodiscard]] double log_gamma_prefactor(double a, double x) noexcept;
 
+/**
+ * @brief log of the Poisson(λ) pmf at a count k ≥ 0 (#172)
+ *
+ * From k or λ = 20, −D(k, λ) − ½·log(2πk) − c(k), with D the deviance k·log(k/λ) + λ − k and c the
+ * Stirling error, so no terms of size k·log k cancel; directly below.
+ */
+[[nodiscard]] double poisson_log_pmf(double k, double lambda) noexcept;
+
+/**
+ * @brief log of C(xa + xb, xa)·pa^xa·(1 − pa)^xb for real counts xa, xb ≥ 0 (#172)
+ *
+ * The binomial pmf with xa successes and xb failures; with real xb = r and the extra factor
+ * r/(xa + r) it is the negative-binomial pmf. From xa + xb = 20, Stirling errors and deviances
+ * around the means, carried as double-doubles; directly below.
+ */
+[[nodiscard]] double binomial_log_pmf(double xa, double xb, double pa) noexcept;
+
 // =============================================================================
 // SIMD VECTORIZED SPECIAL FUNCTIONS
 // =============================================================================

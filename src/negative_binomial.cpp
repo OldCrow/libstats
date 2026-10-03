@@ -60,6 +60,15 @@ inline double poissonCount(double lambda, std::poisson_distribution<int>& poisso
 
 }  // namespace
 
+namespace {
+// log of Γ(k + r)/(Γ(k + 1)·Γ(r))·p^r·(1 − p)^k, written as r/(k + r) times the binomial pmf of
+// r successes and k failures, so detail::binomial_log_pmf forms it without the lgamma
+// cancellation at large counts (#172).
+[[nodiscard]] inline double nbLogPmf(double k, double r, double p) noexcept {
+    return detail::binomial_log_pmf(r, k, p) - std::log1p(k / r);
+}
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -283,18 +292,15 @@ double NegativeBinomialDistribution::getProbability(double x) const {
     if (k < 0)
         return detail::ZERO_DOUBLE;
 
-    double sp, sr, slgr, slp, sl1mp;
+    double sp, sr;
     withCacheSnapshot([&] {
         sp = p_;
         sr = r_;
-        slgr = logGammaR_;
-        slp = logP_;
-        sl1mp = log1mP_;
     });
     if (sp >= detail::ONE)
         return (k == detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-    const double lp_val =
-        std::lgamma(k + sr) - std::lgamma(k + detail::ONE) - slgr + sr * slp + k * sl1mp;
+    const double lp_val = nbLogPmf(k, sr, sp);
+
     return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
 }
 
@@ -307,17 +313,14 @@ double NegativeBinomialDistribution::getLogProbability(double x) const {
     if (k < 0)
         return detail::NEGATIVE_INFINITY;
 
-    double sp, sr, slgr, slp, sl1mp;
+    double sp, sr;
     withCacheSnapshot([&] {
         sp = p_;
         sr = r_;
-        slgr = logGammaR_;
-        slp = logP_;
-        sl1mp = log1mP_;
     });
     if (sp >= detail::ONE)
         return (k == detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
-    return std::lgamma(k + sr) - std::lgamma(k + detail::ONE) - slgr + sr * slp + k * sl1mp;
+    return nbLogPmf(k, sr, sp);
 }
 
 double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
@@ -568,14 +571,14 @@ void NegativeBinomialDistribution::getProbability(std::span<const double> values
         *this, values, results, hint, detail::OperationType::PDF,
         [](const NegativeBinomialDistribution& d, double x) { return d.getProbability(x); },
         [](const NegativeBinomialDistribution& d, const double* vals, double* res, size_t count) {
-            double r, lgr, lp, l1mp;
+            double r, sp, lp, l1mp;
             d.withCacheSnapshot([&] {
                 r = d.r_;
-                lgr = d.logGammaR_;
+                sp = d.p_;
                 lp = d.logP_;
                 l1mp = d.log1mP_;
             });
-            d.getProbabilityBatchImpl(vals, res, count, r, lgr, lp, l1mp);
+            d.getProbabilityBatchImpl(vals, res, count, r, sp, lp, l1mp);
         },
         [](const NegativeBinomialDistribution& d, std::span<const double> vals,
            std::span<double> res) {
@@ -609,14 +612,14 @@ void NegativeBinomialDistribution::getLogProbability(std::span<const double> val
         *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const NegativeBinomialDistribution& d, double x) { return d.getLogProbability(x); },
         [](const NegativeBinomialDistribution& d, const double* vals, double* res, size_t count) {
-            double r, lgr, lp, l1mp;
+            double r, sp, lp, l1mp;
             d.withCacheSnapshot([&] {
                 r = d.r_;
-                lgr = d.logGammaR_;
+                sp = d.p_;
                 lp = d.logP_;
                 l1mp = d.log1mP_;
             });
-            d.getLogProbabilityBatchImpl(vals, res, count, r, lgr, lp, l1mp);
+            d.getLogProbabilityBatchImpl(vals, res, count, r, sp, lp, l1mp);
         },
         [](const NegativeBinomialDistribution& d, std::span<const double> vals,
            std::span<double> res) {
@@ -744,8 +747,8 @@ std::istream& operator>>(std::istream& is, NegativeBinomialDistribution& d) {
 
 void NegativeBinomialDistribution::getLogProbabilityBatchImpl(const double* values, double* results,
                                                               std::size_t count, double cached_r,
-                                                              double cached_logGammaR,
-                                                              double cached_logP,
+                                                              double cached_p,
+                                                              [[maybe_unused]] double cached_logP,
                                                               double cached_log1mP) const noexcept {
     // cached_log1mP == -inf when p=1; guard k*(-inf) = 0*(-inf) = NaN
     const bool p_is_one = !std::isfinite(cached_log1mP);
@@ -765,15 +768,15 @@ void NegativeBinomialDistribution::getLogProbabilityBatchImpl(const double* valu
                 (k == detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
             continue;
         }
-        results[i] = std::lgamma(k + cached_r) - std::lgamma(k + detail::ONE) - cached_logGammaR +
-                     cached_r * cached_logP + k * cached_log1mP;
+        results[i] = nbLogPmf(k, cached_r, cached_p);
+
     }
 }
 
 void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values, double* results,
                                                            std::size_t count, double cached_r,
-                                                           double cached_logGammaR,
-                                                           double cached_logP,
+                                                           double cached_p,
+                                                           [[maybe_unused]] double cached_logP,
                                                            double cached_log1mP) const noexcept {
     const bool p_is_one = !std::isfinite(cached_log1mP);
     for (std::size_t i = 0; i < count; ++i) {
@@ -791,8 +794,8 @@ void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values,
             results[i] = (k == detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
         }
-        const double lp = std::lgamma(k + cached_r) - std::lgamma(k + detail::ONE) -
-                          cached_logGammaR + cached_r * cached_logP + k * cached_log1mP;
+        const double lp = nbLogPmf(k, cached_r, cached_p);
+
         results[i] = std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
     }
 }

@@ -414,6 +414,10 @@ create_libstats_gtest(test_tail_and_tie_accuracy test_tail_and_tie_accuracy.cpp)
 # strategy; ChiSquared, Erlang and InverseGamma through their Gamma delegate.
 create_libstats_gtest(test_gamma_density_accuracy test_gamma_density_accuracy.cpp)
 
+# #172 guard: Poisson, Binomial, NegativeBinomial and Geometric log-pmfs at counts 1e3 to 1e7 within
+# the conditioning budget of mpmath, scalar and every batch strategy.
+create_libstats_gtest(test_discrete_pmf_accuracy test_discrete_pmf_accuracy.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

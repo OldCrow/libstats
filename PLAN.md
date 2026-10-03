@@ -39,8 +39,8 @@ tests take the small tail (2·F(−|t|), gamma_q) instead of 1 − CDF. Also
 fixed: the parallel-build race on the dynamic tests' DLL copy, and the
 oracle no longer rewrites the doc block from a partial CSV.
 
-**Session-found, second round [DERIVED], UNCOMMITTED** (user AFK; signing
-needs the YubiKey), from a full sweep of `83586f9`. Gates
+**Session-found, second round [DERIVED]** (`b681e06`), from a full sweep of
+`83586f9`. Gates
 `test_tail_and_tie_accuracy` and `test_gamma_density_accuracy`, each
 failing on `d8d3388` in every group; 83/83. Cauchy quantile by cot(π·q)
 in the tails (oracle reference fixed the same way); Discrete-uniform
@@ -66,8 +66,7 @@ enforce it), and a survival-side search broke both guards at
 mid-range p. Not defects either: logpdf near its zero crossing
 (Exponential, Laplace, Gumbel, Logistic).
 
-**von Mises [DERIVED], UNCOMMITTED** (subagent patch, applied and gated
-here; `test_von_mises_tails` fails on `d8d3388` in all three groups;
+**von Mises [DERIVED]** (`b681e06`; subagent patch, applied and gated here; `test_von_mises_tails` fails on `d8d3388` in all three groups;
 84/84): the CDF integrates the tail mass directly where the Bessel series
 gives F < ¼ or > ¾ (adaptive Gauss–Kronrod 7/15 on a cancellation-free
 exponent, fixed stack, depth ≤ 48; new cached normaliser
@@ -79,10 +78,24 @@ wrapped; NaN propagates. κ > 1000 keeps the wrapped-normal CDF (#106 seam,
 on a quiet machine — the tail fix-up slows the batch CDF (κ = 30: 6 → 30
 ms per 1e5 evenly spread points).
 
-**Next [OPEN]:** commit and push the second round and von Mises (one
-YubiKey touch), then decide #172 (Loader) [user]; the base worktree
-(`../libstats-v2.4.2-base`) stays until #172 is decided, since its
-fail-first would need it.
+**#172 [DERIVED]** (in v2.4.2 [user]; built from Stirling's
+series and the library's own helpers, no GPL or other third-party code
+consulted or ported [user]): `detail::poisson_log_pmf` and
+`detail::binomial_log_pmf` write the log-pmf as Stirling errors c(m)
+(`stirling_remainder` from 20, direct below) plus deviances
+x·log(x/M) + M − x (M·[(1+t)·log1pmx(t) + t²] near M); the binomial
+means are double-doubles (two_sum, fma two_prod) so the deviances'
+linear terms cancel to ~ε²n. NegativeBinomial is r/(k + r) times the
+binomial form with real r. All pmf sites in Poisson, Binomial,
+NegativeBinomial (so Geometric, Bernoulli) route through them; below
+total count 20 the direct lgamma form is kept. Gate
+`test_discrete_pmf_accuracy` (budget 16ε·(1 + |log pmf| + √x), absolute
+on the log-pmf) fails on `d8d3388` in every row (NegativeBinomial
+r = 1e7 was 8.8e-8 off); 85/85. Owed: the batch pmf cost on a quiet
+machine.
+
+**Next [OPEN]:** remove the base worktree
+(`../libstats-v2.4.2-base`, no longer needed [user]).
 Owed before the release PR: #167's fail-first under UBSan
 (float-cast-overflow) on Kaby Lake or the M1 — MSVC has no such check and
 x86 casts to `INT_MIN`, so its gate rows pass unfixed here; native ctest

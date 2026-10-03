@@ -299,11 +299,11 @@ class NegativeBinomialDistribution : public DistributionBase {
      * Until then, PARALLEL is the recommended strategy for large batches.
      */
     void getLogProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                    double cached_r, double cached_logGammaR, double cached_logP,
+                                    double cached_r, double cached_p, double cached_logP,
                                     double cached_log1mP) const noexcept;
 
     void getProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                 double cached_r, double cached_logGammaR, double cached_logP,
+                                 double cached_r, double cached_p, double cached_logP,
                                  double cached_log1mP) const noexcept;
 
     void getCumulativeProbabilityBatchImpl(const double* values, double* results,

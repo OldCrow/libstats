@@ -259,17 +259,15 @@ double BinomialDistribution::getProbability(double x) const {
         return (k == n_) ? detail::ONE : detail::ZERO_DOUBLE;
 
     int sn;
-    double slnf, slp, sl1mp;
+    double sp;
     withCacheSnapshot([&] {
         sn = n_;
-        slnf = logNFact_;
-        slp = logP_;
-        sl1mp = log1mP_;
+        sp = p_;
     });
-    const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
-                               : slnf - std::lgamma(static_cast<double>(k + 1)) -
-                                     std::lgamma(static_cast<double>(sn - k + 1));
-    const double lp_val = lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
+    // Without the n·log n cancellation of the lgamma form (#172).
+    const double lp_val = (k > sn) ? detail::NEGATIVE_INFINITY
+                                   : detail::binomial_log_pmf(static_cast<double>(k),
+                                                              static_cast<double>(sn - k), sp);
     return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
 }
 
@@ -289,17 +287,15 @@ double BinomialDistribution::getLogProbability(double x) const {
         return (k == n_) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
 
     int sn;
-    double slnf, slp, sl1mp;
+    double sp;
     withCacheSnapshot([&] {
         sn = n_;
-        slnf = logNFact_;
-        slp = logP_;
-        sl1mp = log1mP_;
+        sp = p_;
     });
-    const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
-                               : slnf - std::lgamma(static_cast<double>(k + 1)) -
-                                     std::lgamma(static_cast<double>(sn - k + 1));
-    return lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
+    // Without the n·log n cancellation of the lgamma form (#172).
+    return (k > sn)
+               ? detail::NEGATIVE_INFINITY
+               : detail::binomial_log_pmf(static_cast<double>(k), static_cast<double>(sn - k), sp);
 }
 
 double BinomialDistribution::getCumulativeProbability(double x) const {
@@ -539,14 +535,14 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
         [](const BinomialDistribution& d, double x) { return d.getProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             int n;
-            double lnf, lp, l1mp;
+            double sp, lp, l1mp;
             d.withCacheSnapshot([&] {
                 n = d.n_;
-                lnf = d.logNFact_;
+                sp = d.p_;
                 lp = d.logP_;
                 l1mp = d.log1mP_;
             });
-            d.getProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
+            d.getProbabilityBatchImpl(vals, res, count, n, sp, lp, l1mp);
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -581,14 +577,14 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
         [](const BinomialDistribution& d, double x) { return d.getLogProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             int n;
-            double lnf, lp, l1mp;
+            double sp, lp, l1mp;
             d.withCacheSnapshot([&] {
                 n = d.n_;
-                lnf = d.logNFact_;
+                sp = d.p_;
                 lp = d.logP_;
                 l1mp = d.log1mP_;
             });
-            d.getLogProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
+            d.getLogProbabilityBatchImpl(vals, res, count, n, sp, lp, l1mp);
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -719,7 +715,7 @@ std::istream& operator>>(std::istream& is, BinomialDistribution& d) {
 
 void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, double* results,
                                                       std::size_t count, int cached_n,
-                                                      double cached_logNFact, double cached_logP,
+                                                      double cached_p, double cached_logP,
                                                       double cached_log1mP) const noexcept {
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
@@ -742,16 +738,15 @@ void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, doub
             results[i] = (k == cached_n) ? 0.0 : detail::NEGATIVE_INFINITY;
             continue;
         }
-        const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -
-                          std::lgamma(static_cast<double>(cached_n - k + 1));
-        results[i] = lc + static_cast<double>(k) * cached_logP +
-                     static_cast<double>(cached_n - k) * cached_log1mP;
+        // Without the n·log n cancellation of the lgamma form (#172).
+        results[i] = detail::binomial_log_pmf(static_cast<double>(k),
+                                              static_cast<double>(cached_n - k), cached_p);
     }
 }
 
 void BinomialDistribution::getProbabilityBatchImpl(const double* values, double* results,
-                                                   std::size_t count, int cached_n,
-                                                   double cached_logNFact, double cached_logP,
+                                                   std::size_t count, int cached_n, double cached_p,
+                                                   double cached_logP,
                                                    double cached_log1mP) const noexcept {
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
@@ -774,10 +769,9 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
             results[i] = (k == cached_n) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
         }
-        const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -
-                          std::lgamma(static_cast<double>(cached_n - k + 1));
-        const double lp = lc + static_cast<double>(k) * cached_logP +
-                          static_cast<double>(cached_n - k) * cached_log1mP;
+        // Without the n·log n cancellation of the lgamma form (#172).
+        const double lp = detail::binomial_log_pmf(static_cast<double>(k),
+                                                   static_cast<double>(cached_n - k), cached_p);
         results[i] = std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
     }
 }

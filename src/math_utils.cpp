@@ -95,6 +95,88 @@ static double log_beta_prefactor(double x, double a, double b,
            stirling_remainder(sum) - stirling_remainder(a) - stirling_remainder(b);
 }
 
+// Discrete log-pmfs at large counts (#172). Formed directly, k·log λ − λ − lgamma(k + 1) and the
+// binomial and negative-binomial analogues add terms of size n·log n to a result of order one:
+// 2e-9 relative in the pmf at counts ~1e5. Splitting each lgamma(m + 1) by Stirling into
+// (m + ½)·log m − m + ½·log 2π + c(m) regroups the large terms into deviances
+// x·log(x/M) + M − x around the means M, each of the size of the result.
+namespace {
+// Stirling error c(m) = lgamma(m + 1) − [(m + ½)·log m − m + ½·log 2π] for real m > 0, which is
+// stirling_remainder(m): the series from m = 20, the direct difference below, where its terms
+// are small.
+double stirling_error(double m) noexcept {
+    if (m >= kStirlingPrefactorShape)
+        return stirling_remainder(m);
+    return std::lgamma(m + detail::ONE) -
+           ((m + detail::HALF) * std::log(m) - m + detail::HALF * detail::LN_2PI);
+}
+
+// The deviance x·log(x/M) + M − x ≥ 0. Within M/2 of M it is M·[(1 + t)·log1pmx(t) + t²] with
+// t = (x − M)/M, whose terms do not cancel; farther out the direct form loses a few bits at most.
+double deviance(double x, double m) noexcept {
+    if (x == detail::ZERO_DOUBLE)
+        return m;
+    const double d = x - m;
+    if (std::fabs(d) < detail::HALF * m) {
+        const double t = d / m;
+        return m * ((detail::ONE + t) * log1pmx(t) + t * t);
+    }
+    return x * std::log(x / m) + m - x;
+}
+
+// Error-free transforms for the binomial means, every fusion spelled out (AGENTS.md
+// FP-contraction rule): a + b = hi + lo and a·b = hi + lo exactly.
+struct DoubleDouble {
+    double hi;
+    double lo;
+};
+
+DoubleDouble two_sum(double a, double b) noexcept {
+    const double s = a + b;
+    const double bb = s - a;
+    return {s, (a - (s - bb)) + (b - bb)};
+}
+
+DoubleDouble two_prod(double a, double b) noexcept {
+    const double p = a * b;
+    return {p, std::fma(a, b, -p)};
+}
+}  // namespace
+
+double poisson_log_pmf(double k, double lambda) noexcept {
+    if (k == detail::ZERO_DOUBLE)
+        return -lambda;
+    if (k < kStirlingPrefactorShape && lambda < kStirlingPrefactorShape)
+        return k * std::log(lambda) - lambda - std::lgamma(k + detail::ONE);
+    // log pmf = −D(k, λ) − ½·log(2πk) − c(k).
+    return -deviance(k, lambda) - detail::HALF * (std::log(k) + detail::LN_2PI) - stirling_error(k);
+}
+
+double binomial_log_pmf(double xa, double xb, double pa) noexcept {
+    if (xa == detail::ZERO_DOUBLE)
+        return xb * std::log1p(-pa);
+    if (xb == detail::ZERO_DOUBLE)
+        return xa * std::log(pa);
+    const DoubleDouble n = two_sum(xa, xb);
+    if (n.hi < kStirlingPrefactorShape)
+        return std::lgamma(n.hi + detail::ONE) - std::lgamma(xa + detail::ONE) -
+               std::lgamma(xb + detail::ONE) + xa * std::log(pa) + xb * std::log1p(-pa);
+
+    // The means Ma = n·pa and Mb = n − Ma as double-doubles, so Ma + Mb = xa + xb to ~ε²·n. Then
+    //   log pmf = c(n) − c(xa) − c(xb) + ½·log(n/(2π·xa·xb)) − D(xa, Ma) − D(xb, Mb)
+    //             + Σ lo·(x/hi − 1),
+    // where the last sum carries the low parts of the means into the deviances' linear terms,
+    // which cancel exactly when the means sum to n. Rounding the means instead costs n·ε.
+    const DoubleDouble pa_n = two_prod(n.hi, pa);
+    const DoubleDouble ma = two_sum(pa_n.hi, pa_n.lo + n.lo * pa);
+    const DoubleDouble rest = two_sum(n.hi, -ma.hi);
+    const DoubleDouble mb = two_sum(rest.hi, rest.lo + (n.lo - ma.lo));
+    return stirling_error(n.hi) - stirling_error(xa) - stirling_error(xb) +
+           detail::HALF * (std::log(n.hi / (xa * xb)) - detail::LN_2PI) - deviance(xa, ma.hi) -
+           deviance(xb, mb.hi) + ma.lo * (xa / ma.hi - detail::ONE) +
+           mb.lo * (xb / mb.hi - detail::ONE);
+}
+
 // =============================================================================
 // SPECIAL MATHEMATICAL FUNCTIONS
 // =============================================================================

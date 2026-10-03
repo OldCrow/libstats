@@ -547,10 +547,9 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
 
-            double cached_lambda, cached_log_lambda, cached_exp_neg_lambda;
+            double cached_lambda, cached_exp_neg_lambda;
             dist.withCacheSnapshot([&] {
                 cached_lambda = dist.lambda_;
-                cached_log_lambda = dist.logLambda_;
                 cached_exp_neg_lambda = dist.expNegLambda_;
             });
             if (arch::should_use_parallel(count)) {
@@ -578,8 +577,8 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                         res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
                                  PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
                     } else {
-                        double log_result = k * cached_log_lambda - cached_lambda -
-                                            PoissonDistribution::logFactorial(k);
+                        double log_result =
+                            detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
                         res[i] = std::exp(log_result);
                     }
                 });
@@ -608,8 +607,8 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                         res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
                                  PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
                     } else {
-                        double log_result = k * cached_log_lambda - cached_lambda -
-                                            PoissonDistribution::logFactorial(k);
+                        double log_result =
+                            detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
                         res[i] = std::exp(log_result);
                     }
                 }
@@ -626,10 +625,9 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             if (count == 0)
                 return;
 
-            double cached_lambda, cached_log_lambda, cached_exp_neg_lambda;
+            double cached_lambda, cached_exp_neg_lambda;
             dist.withCacheSnapshot([&] {
                 cached_lambda = dist.lambda_;
-                cached_log_lambda = dist.logLambda_;
                 cached_exp_neg_lambda = dist.expNegLambda_;
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
@@ -655,8 +653,8 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
                     res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
                              PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
                 } else {
-                    double log_result = k * cached_log_lambda - cached_lambda -
-                                        PoissonDistribution::logFactorial(k);
+                    double log_result =
+                        detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
                     res[i] = std::exp(log_result);
                 }
             });
@@ -702,7 +700,7 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                 return;
 
             // Snapshot parameters under the appropriate lock to avoid TOCTOU.
-            double cached_lambda, cached_log_lambda;
+            double cached_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -711,10 +709,8 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                     if (!dist.cache_valid_)
                         dist.updateCacheUnsafe();
                     cached_lambda = dist.lambda_;
-                    cached_log_lambda = dist.logLambda_;
                 } else {
                     cached_lambda = dist.lambda_;
-                    cached_log_lambda = dist.logLambda_;
                 }
             }
 
@@ -736,9 +732,8 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                         return;
                     }
 
-                    // log P(X = k) = k * log(λ) - λ - log(k!)
-                    res[i] = k * cached_log_lambda - cached_lambda -
-                             PoissonDistribution::logFactorial(k);
+                    // log P(X = k) = k * log(λ) - λ - log(k!), via detail::poisson_log_pmf (#172)
+                    res[i] = detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
                 });
             } else {
                 // Serial processing for small datasets
@@ -758,9 +753,8 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                         continue;
                     }
 
-                    // log P(X = k) = k * log(λ) - λ - log(k!)
-                    res[i] = k * cached_log_lambda - cached_lambda -
-                             PoissonDistribution::logFactorial(k);
+                    // log P(X = k) = k * log(λ) - λ - log(k!), via detail::poisson_log_pmf (#172)
+                    res[i] = detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
                 }
             }
         },
@@ -776,7 +770,7 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                 return;
 
             // Snapshot parameters under the appropriate lock to avoid TOCTOU.
-            double cached_lambda, cached_log_lambda;
+            double cached_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -785,10 +779,8 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                     if (!dist.cache_valid_)
                         dist.updateCacheUnsafe();
                     cached_lambda = dist.lambda_;
-                    cached_log_lambda = dist.logLambda_;
                 } else {
                     cached_lambda = dist.lambda_;
-                    cached_log_lambda = dist.logLambda_;
                 }
             }
 
@@ -809,9 +801,8 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                     return;
                 }
 
-                // log P(X = k) = k * log(λ) - λ - log(k!)
-                res[i] =
-                    k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+                // log P(X = k) = k * log(λ) - λ - log(k!), via detail::poisson_log_pmf (#172)
+                res[i] = detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
             });
         });
 }
@@ -1055,7 +1046,7 @@ PoissonDistribution::PoissonDistribution(double lambda, bool /*bypassValidation*
 
 void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                         std::size_t count, double lambda,
-                                                        double log_lambda,
+                                                        [[maybe_unused]] double log_lambda,
                                                         double exp_neg_lambda) const noexcept {
     // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
@@ -1081,15 +1072,15 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             results[i] =
                 std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
         } else {
-            double log_result = k * log_lambda - lambda - logFactorial(k);
+            double log_result = detail::poisson_log_pmf(static_cast<double>(k), lambda);
             results[i] = std::exp(log_result);
         }
     }
 }
 
-void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                           std::size_t count, double lambda,
-                                                           double log_lambda) const noexcept {
+void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(
+    const double* values, double* results, std::size_t count, double lambda,
+    [[maybe_unused]] double log_lambda) const noexcept {
     // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
         if (std::isnan(values[i])) {
@@ -1107,7 +1098,7 @@ void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
             continue;
         }
 
-        results[i] = k * log_lambda - lambda - logFactorial(k);
+        results[i] = detail::poisson_log_pmf(static_cast<double>(k), lambda);
     }
 }
 
@@ -1194,9 +1185,8 @@ double PoissonDistribution::computePMFLarge(int k) const noexcept {
 }
 
 double PoissonDistribution::computeLogPMF(int k) const noexcept {
-    // log P(X = k) = k * log(λ) - λ - log(k!)
-    double log_factorial_k = logFactorial(k);
-    return k * logLambda_ - lambda_ - log_factorial_k;
+    // log P(X = k) = k * log(λ) - λ - log(k!), formed without cancellation at large k or λ (#172)
+    return detail::poisson_log_pmf(static_cast<double>(k), lambda_);
 }
 
 double PoissonDistribution::computeCDF(int k) const noexcept {
