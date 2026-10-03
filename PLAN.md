@@ -1,6 +1,61 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-10-02
+## Status [DERIVED] — 2026-10-03
+**libstats-side levers 2026-10-03 (Zen 4) — IMPLEMENTED, UNCOMMITTED in
+the working tree of `dev/v2.5.0-corvus` at `1a9f49c`** [user: pursue the
+libstats-side levers here while corvus v1.1.0 proceeds; v2.4.2 runs in a
+separate session and worktree]. Zen 4: correctness ctest 74/74, timing
+22/22 (the four exp/log gates pass again), warning-clean under MSVC;
+AVX-512 sweep still 35 contract violations. Numbers below are INDICATIVE
+(warmed, not quiet-gated), ns/element, v2.4.1 → branch before → after:
+- **Lever 1 — increment 4 reverted (`230293f`), except erf on x86.** The
+  tier kernels for exp/log/cos/sin/pow, their tables, generators, gates
+  and the Issue #33 probes are back as at v2.4.1; NEON keeps its own erf
+  too. On x86 the dispatch table's `vector_erf` is `corvus::erf`
+  (`vector_erf_corvus` in `src/simd_dispatch.cpp`) and the four musl-era
+  x86 erf kernels are deleted. Elementary at 1e6: exp 0.84 → 3.0× slower
+  → 0.70; log 1.31 → 0.84; cos/sin 1.7/1.3 → 1.1; erf 5.76 → 1.70.
+  Batch pdf/logpdf for gamma, beta, Student-t back at parity (were
+  2.3–4.8× slower). Consequences: #107/#108 (trig-table duplication) and
+  #110 (erfc shapes), which increment 4 closed by construction, are open
+  again in substance; batch and scalar differ in the last digits again
+  (b_vs_s ≤ 1.2e-10 relative, as at v2.4.1); `LIBSTATS_MAX_SIMD_TIER`
+  caps everything except x86 erf. corvus #43 (import these kernels) is
+  now a deduplication, not a libstats throughput dependency.
+- **Lever 3 — discrete quantiles and Student-t.**
+  `detail::discrete_quantile_search` + `discrete_quantile_guess`
+  (`math_utils.h`): Cornish-Fisher start, gallop, bisect; used by
+  Binomial, Poisson, NegativeBinomial (and so Geometric). Quantile:
+  binomial 6.5 µs → 145 µs → 8.3 µs; poisson 0.97 → 9.2 → 2.5 µs.
+  Student-t quantile takes 1 − x from `beta_q_inv` and makes the second
+  inverse call only when 1 − x > 1/2: 0.72 → 43.7 → 27.7 µs. Two shipped
+  defects found by the new guard and fixed by the search, both on `main`
+  too [OPEN: file, v2.4.2 candidates]: Poisson `getQuantile(p)` returned
+  1 for every p ≤ CDF(0) (oracle max_rel 1.0 → 2.9e-5); NegativeBinomial
+  capped its search at mean + 10σ + 100 and returned the cap for p within
+  ~1e-6 of 1 at small r (geometric quantile max_rel 0.68 → 1.6e-3) — the
+  bound is gone, the range is 2^53. Guard:
+  `DiscreteQuantileBounds.QuantileIsSmallestCountAtOrAboveP`
+  (correctness label), shown to fail against the old Poisson search.
+- **Lever 2 — Windows compiler.** `cmake/FindOrFetchCorvus.cmake` warns
+  when a fetched corvus is compiled by `cl.exe`. A full clang-cl build of
+  libstats does NOT work today [OPEN]: clang-cl takes the MSVC warning
+  branch (`/Wall`-style → `-Weverything`, 11,548 warnings) and
+  `src/cpu_detection.cpp` uses `__cpuid_count` without `<cpuid.h>`; the
+  build stops there, depth beyond it unknown. Until that port, the fast
+  Windows configuration is cl.exe libstats + clang-cl system corvus
+  (`tools/bench/README.md`).
+- **Remaining gap after the levers** (corvus-owned, #42): scalar CDF
+  gamma/beta/poisson/Student-t/binomial 7–17×; batch CDF beta 6×,
+  binomial 8×, Student-t 3×; quantile gamma family 10–17×, Student-t
+  39×, gaussian/lognormal 3×, poisson 2.6×, binomial 1.3×.
+- **Owed:** commit (then regenerate the AVX-512 block of
+  `docs/ACCURACY_CHARACTERIZATION.md` — the sweep banner takes the
+  commit); a quiet warmed record pass on Zen 4; Kaby Lake and M1 legs
+  (ctest, sweep, bench — the M1 matters most: its NEON kernels are
+  restored untested here); CHANGELOG/docs wording for v2.5.0 ("the
+  elementary family is corvus" is no longer true).
+
 **Branch state 2026-10-02 (Zen 4):** PR #169 merged to `main` as `d8d3388`
 (CI 20/20) — #129 and #168 CLOSED: every speedup gate in the timing-label
 tests measures steady state with the paths interleaved
