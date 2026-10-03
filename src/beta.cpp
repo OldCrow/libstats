@@ -301,7 +301,7 @@ double BetaDistribution::getProbability(double x) const {
             return std::exp(lnc);
         return std::numeric_limits<double>::infinity();
     }
-    return std::exp(lnc + am1 * std::log(x) + bm1 * std::log(detail::ONE - x));
+    return std::exp(lnc + am1 * std::log(x) + bm1 * std::log1p(-x));
 }
 
 double BetaDistribution::getLogProbability(double x) const {
@@ -344,7 +344,7 @@ double BetaDistribution::getLogProbability(double x) const {
             return lnc;
         return std::numeric_limits<double>::infinity();
     }
-    return lnc + am1 * std::log(x) + bm1 * std::log(detail::ONE - x);
+    return lnc + am1 * std::log(x) + bm1 * std::log1p(-x);
 }
 
 double BetaDistribution::getCumulativeProbability(double x) const {
@@ -429,7 +429,7 @@ void BetaDistribution::fit(const std::vector<double>& values) {
     double sum = 0.0, sum_sq = 0.0;
     for (double v : values) {
         log_x_sum += std::log(v);
-        log_1mx_sum += std::log(detail::ONE - v);
+        log_1mx_sum += std::log1p(-v);
         sum += v;
         sum_sq += v * v;
     }
@@ -672,7 +672,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
+            const double log_prefix = -detail::lbeta(a, b);
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -697,7 +697,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
+            const double log_prefix = -detail::lbeta(a, b);
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0)
@@ -812,11 +812,21 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
 //   approximation, which is outside the scope of this library.
 //==============================================================================
 
+namespace {
+// The SIMD pipeline forms 1 − x before vector_log, and the rounding of 1 − x (up to ε/2 for
+// x < ½) reaches the density multiplied by β − 1: 1e-11 at β = 1e5. Past |β − 1| = 16 the batch
+// takes the scalar log1p loop instead.
+[[nodiscard]] inline bool simdLog1mxIsAccurate(double beta_minus_one) noexcept {
+    return std::fabs(beta_minus_one) <= 16.0;
+}
+}  // namespace
+
 void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                      std::size_t count, double log_norm_const,
                                                      double alpha_minus_one,
                                                      double beta_minus_one) const noexcept {
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd =
+        arch::simd::SIMDPolicy::shouldUseSIMD(count) && simdLog1mxIsAccurate(beta_minus_one);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -825,7 +835,7 @@ void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doubl
                 results[i] = getProbability(x);
             } else {
                 results[i] = std::exp(log_norm_const + alpha_minus_one * std::log(x) +
-                                      beta_minus_one * std::log(detail::ONE - x));
+                                      beta_minus_one * std::log1p(-x));
             }
         }
         return;
@@ -864,7 +874,8 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
                                                         std::size_t count, double log_norm_const,
                                                         double alpha_minus_one,
                                                         double beta_minus_one) const noexcept {
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd =
+        arch::simd::SIMDPolicy::shouldUseSIMD(count) && simdLog1mxIsAccurate(beta_minus_one);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -873,7 +884,7 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
                 results[i] = getLogProbability(x);
             } else {
                 results[i] = log_norm_const + alpha_minus_one * std::log(x) +
-                             beta_minus_one * std::log(detail::ONE - x);
+                             beta_minus_one * std::log1p(-x);
             }
         }
         return;
@@ -911,8 +922,7 @@ void BetaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* val
     // vectorized without replacing it with a fixed-iteration approximation.
     // Hoist the lgamma prefix: lgamma(a+b) - lgamma(a) - lgamma(b) is constant
     // for fixed (alpha, beta), saving 3 lgamma calls per element.
-    const double log_prefix =
-        detail::lgamma(alpha + beta) - detail::lgamma(alpha) - detail::lgamma(beta);
+    const double log_prefix = -detail::lbeta(alpha, beta);
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         if (x <= detail::ZERO_DOUBLE) {

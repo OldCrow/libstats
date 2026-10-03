@@ -620,7 +620,7 @@ std::tuple<double, double, bool> DiscreteDistribution::discreteUniformityTest(
     // Degrees of freedom = number of categories - 1
     const int degrees_of_freedom = range - detail::ONE_INT;
     const double p_value =
-        detail::ONE - detail::chi_squared_cdf(chi_squared, static_cast<double>(degrees_of_freedom));
+        detail::gamma_q(detail::HALF * degrees_of_freedom, detail::HALF * chi_squared);
     const bool reject_uniformity = p_value < significance_level;
 
     return std::make_tuple(chi_squared, p_value, reject_uniformity);
@@ -679,7 +679,7 @@ std::tuple<double, double, bool> DiscreteDistribution::chiSquaredGoodnessOfFitTe
     const int degrees_of_freedom = range - detail::ONE_INT;
 
     const double p_value =
-        detail::ONE - detail::chi_squared_cdf(chi_squared, static_cast<double>(degrees_of_freedom));
+        detail::gamma_q(detail::HALF * degrees_of_freedom, detail::HALF * chi_squared);
     const bool reject_null = p_value < alpha;
 
     return std::make_tuple(chi_squared, p_value, reject_null);

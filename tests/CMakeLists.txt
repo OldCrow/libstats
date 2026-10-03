@@ -116,7 +116,7 @@ endfunction()
 
 # Function to create a test executable linked to dynamic library.
 #
-# On Windows, copy stats.dll next to each dynamic test EXE so runtime loading does not depend on
+# On Windows, copy stats.dll next to the dynamic test EXEs so runtime loading does not depend on
 # PATH. Combined with per-config output directories above, this avoids both STATUS_DLL_NOT_FOUND and
 # stale Debug/Release binary collisions.
 function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
@@ -128,13 +128,21 @@ function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
     # Apply common test settings
     configure_common_test_settings(${TEST_NAME})
 
+    # Every dynamic test shares one output directory, and their parallel POST_BUILD copies of the
+    # same DLL raced ("Permission denied"). The first dynamic test copies; the rest build after it.
     if(WIN32)
-        add_custom_command(
-            TARGET ${TEST_NAME}
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libstats_shared>
-                    $<TARGET_FILE_DIR:${TEST_NAME}>
-            COMMENT "Copying shared libstats runtime next to ${TEST_NAME}")
+        get_property(_runtime_owner GLOBAL PROPERTY LIBSTATS_TEST_RUNTIME_OWNER)
+        if(NOT _runtime_owner)
+            set_property(GLOBAL PROPERTY LIBSTATS_TEST_RUNTIME_OWNER ${TEST_NAME})
+            add_custom_command(
+                TARGET ${TEST_NAME}
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libstats_shared>
+                        $<TARGET_FILE_DIR:${TEST_NAME}>
+                COMMENT "Copying shared libstats runtime next to the dynamic tests")
+        else()
+            add_dependencies(${TEST_NAME} ${_runtime_owner})
+        endif()
     endif()
 endfunction()
 
@@ -393,6 +401,10 @@ create_libstats_gtest(test_gamma_quantile_accuracy test_gamma_quantile_accuracy.
 # #159 guard: Student-t quantile, CDF, pdf and logpdf in the deep tail, at large nu and past
 # |t| ~ 1e154, within the accuracy law of mpmath; scalar and every batch strategy.
 create_libstats_gtest(test_student_t_tails test_student_t_tails.cpp)
+
+# Guard: lbeta and the normalisers built on it (Student-t, Beta, Fisher-F) at large arguments,
+# scalar and every batch strategy; p-values on the small tail, not 1 - CDF.
+create_libstats_gtest(test_log_beta_and_pvalues test_log_beta_and_pvalues.cpp)
 
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of

@@ -91,7 +91,7 @@ std::tuple<double, double, bool> jarqueBeraTest(const std::vector<double>& data,
     const double jb =
         static_cast<double>(n) * (skewness * skewness / detail::SIX + kurtosis * kurtosis / 24.0);
 
-    const double p_value = 1.0 - detail::chi_squared_cdf(jb, detail::TWO);
+    const double p_value = detail::gamma_q(detail::ONE, detail::HALF * jb);
     return {jb, p_value, p_value < alpha};
 }
 
@@ -188,7 +188,7 @@ std::tuple<double, double, bool> oneSampleTTest(const std::vector<double>& data,
 
     const double t =
         (mean - hypothesized_mean) / (std::sqrt(var) / std::sqrt(static_cast<double>(n)));
-    const double p = 2.0 * (1.0 - detail::t_cdf(std::abs(t), static_cast<double>(n - 1)));
+    const double p = 2.0 * detail::t_cdf(-std::abs(t), static_cast<double>(n - 1));
     return {t, p, p < alpha};
 }
 
@@ -230,7 +230,7 @@ std::tuple<double, double, bool> twoSampleTTest(const std::vector<double>& data1
         df = num / den;
     }
 
-    const double p = 2.0 * (1.0 - detail::t_cdf(std::abs(t), df));
+    const double p = 2.0 * detail::t_cdf(-std::abs(t), df);
     return {t, p, p < alpha};
 }
 

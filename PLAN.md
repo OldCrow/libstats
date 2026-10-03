@@ -13,39 +13,60 @@ are a backport of `45000c6`'s `detail::discrete_quantile_search`
 (Poisson, NegativeBinomial); Binomial's quantile moved onto it too
 [user], 2.3–48× faster, INDICATIVE (commit `8feb591`). `420eaf1`
 (clang-cl port, no behaviour change under cl.exe) cherry-picked as
-`6245e4e` [user]. 80/80 on Zen 4. Only #162 remains, deferred to a Mac
-session to be written and verified there in one pass [user].
+`6245e4e` [user]. 81/81 on Zen 4. #162 is deferred to a Mac session to
+be written and verified there in one pass [user].
 
 **#160 and #159 [DERIVED]** share `solve_concave` in `math_utils.cpp`:
 Newton on a monotone residual that is concave in a log variable, which
 converges from any start. #160: `detail::gamma_p_inv(a, p)` (same name
-and signature as v2.5.0's corvus entry point), behind the Gamma, Erlang
-and ChiSquared quantiles and both detail inverses. #159: `t_cdf` and
-`inverse_t_cdf` on an internal `t_tails` that forms x = ν/(ν + t²) and
-1 − x from t²/ν or ν/t² with logs by log1p, `log_beta_half` (Stirling at
-a ≥ 20), and BGRAT (TOMS 708 eq. 9) for a ≥ 20, x ≥ ½, where the
-continued fraction lost 4e-11 at ν = 1e6; pdf/logpdf take
-`log1p_t2_over_nu` at every site plus a fix-up pass after the SIMD
-pipeline; the fit loop is overflow-safe. Sweep: quantile max_rel 1.1e-13
-Gamma / ChiSquared, 1.6e-14 Erlang, 7.8e-14 Student-t; Student-t CDF
-1.1e-13 (law_frac 1.08); 0 contract violations.
+and signature as v2.5.0's corvus entry point). #159: `t_cdf` and
+`inverse_t_cdf` on an internal `t_tails` (x and 1 − x from t²/ν or ν/t²,
+logs by log1p) and BGRAT (TOMS 708 eq. 9) for a ≥ 20, x ≥ ½; pdf/logpdf
+overflow-safe at every site.
 
-**Open [OPEN]:** Student-t pdf/logpdf are 2e-10 relative off at ν = 1e6
-(sweep worst row x = 0): `logNormConst_` (`student_t.cpp`, updateCache)
-is lgamma((ν+1)/2) − lgamma(ν/2) formed directly, the cancellation
-`log_beta_half` avoids. Pre-existing, outside #159's text; needs a
-decision on scope (v2.4.2 or later) and on exposing the stable ratio.
+**Session-found defects, fixed [DERIVED]** (user: fix every bug found
+this session that should precede the PR), gate
+`test_log_beta_and_pvalues`, fails on `d8d3388` in all four groups:
+`detail::lbeta` in Stirling form once max(a, b) ≥ 20 (was a direct lgamma
+difference; replaces #159's `log_beta_half`), so the Student-t, Beta and
+Fisher-F normalisers and `beta_i`'s prefix are stable; Student-t
+`logNormConst_` = −lbeta(ν/2, ½) − ½·log ν; Beta pdf/logpdf/fit take
+log1p(−x); Fisher-F's log density is formed from r = d1·x/d2 by log1p
+(was 1e-9 off at d = 1e6, −inf once d1·x + d2 overflowed); the Student-t
+and Beta SIMD pipelines defer to the scalar log1p loop once (ν+1)/2 or
+|β − 1| exceeds 16; p-values in the analysis code and Discrete's χ²
+tests take the small tail (2·F(−|t|), gamma_q) instead of 1 − CDF. Also
+fixed: the parallel-build race on the dynamic tests' DLL copy, and the
+oracle no longer rewrites the doc block from a partial CSV.
+
+**Session-found, still open [OPEN]** — full sweep of `83586f9`, triaged:
+(A) wrong answers: Beta quantile deep tail (max_rel 8e259,
+`inverse_beta_i` Newton); Cauchy quantile at p = 1e-300 (rel 1.0);
+Discrete quantile off by one at an exact tie (uniform 0..9, p = 0.1:
+0, should be 1; exact with an fma); NegativeBinomial quantile 25% off
+at p = 0.5 (abs 70, uninvestigated); Poisson scalar pdf 4e-3 off at
+k ≈ 1e5 (batch 2e-10); Binomial/Poisson/Geometric quantile off by 3 to
+5e4 counts near p = 1 (CDF-side search); von Mises deep-tail CDF and
+quantile (absolute-only accuracy, law_frac 1e37); oracle: von Mises
+p = ½ reference is quadrature noise (2.5e-30), should be μ.
+(B) cheap log1p/expm1: Exponential, Rayleigh, Weibull quantiles at
+p = 1e-15 (5e-4 to 8e-4); Pareto CDF near the scale (3e-4); Geometric
+pmf (1.9e-8, log(1 − p)); Bernoulli logpdf (2.9e-11).
+(C) structural precision, 1e-11 to 1e-9 at extreme shape: Binomial,
+Poisson, NegativeBinomial pmf (needs Loader's saddle-point form);
+Gamma/ChiSquared/Erlang/InverseGamma pdf (the #166 Stirling prefactor,
+not yet used by the densities). Not defects: logpdf near its zero
+crossing (Exponential, Laplace, Gumbel, Logistic: relative metric on a
+near-zero value). Next: A and B, each fail-first on the base worktree
+(`../libstats-v2.4.2-base`, kept until they land, then removed [user]);
+C to be scoped with the user.
 
 Owed before the release PR: #167's fail-first under UBSan
 (float-cast-overflow) on Kaby Lake or the M1 — MSVC has no such check and
 x86 casts to `INT_MIN`, so its gate rows pass unfixed here; native ctest
-on all three machines; an accuracy sweep re-baseline, since the oracle
-changed (#157, #161), #166 moves CDF values and #159/#160 move the
-quantile x-grids (run the oracle on the full CSV only: it rewrites
-`docs/ACCURACY_CHARACTERIZATION.md`'s ISA block from whatever rows it is
-given); #166's cost (3ε stop, √a-scaled caps, Stirling prefactors)
-measured on a quiet machine against v2.4.1 with the `tools/bench/`
-harness from `dev/v2.5.0-corvus`.
+on all three machines; an accuracy sweep re-baseline (full CSV only);
+#166's cost measured on a quiet machine against v2.4.1 with the
+`tools/bench/` harness from `dev/v2.5.0-corvus`.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127

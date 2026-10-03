@@ -2719,6 +2719,13 @@ def main(argv=None) -> int:
     if not isa:
         print("No isa= in the sweep banner and no --isa given; cannot label the generated block", file=sys.stderr)
         return 1
+    # A filtered CSV would replace the whole ISA block with the few distributions it carries, so
+    # the default doc is written only from a sweep that covers every distribution.
+    missing = sorted(set(DIST_PARAMS) - {row.dist for row in rows})
+    if missing and not args.out:
+        print(f"\nPartial sweep (missing {', '.join(missing)}): {doc_path} not updated. "
+              "Pass --out to write the partial block elsewhere.")
+        return 0
     banner = meta.get("banner", "(no banner)")
     body = f"## Generated tables: {isa}\n\nSweep banner: `{banner}`\n\n" + render_markdown(groups)
     outcome = rewrite_doc(doc_path, body, isa)

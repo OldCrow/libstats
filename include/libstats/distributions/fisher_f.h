@@ -498,7 +498,8 @@ class FDistribution : public DistributionBase {
     mutable double b_{detail::HALF};
 
     /**
-     * @brief a ln(d1) + b ln(d2) - ln B(a,b) — the constant part of the log-PDF.
+     * @brief -ln B(a,b) — the constant part of the log-PDF; d1 and d2 enter through
+     *        r = d1 x / d2 in logPdfImpl.
      */
     mutable double logPdfConst_{detail::ZERO_DOUBLE};
 

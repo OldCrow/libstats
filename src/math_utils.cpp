@@ -410,8 +410,7 @@ double beta_i(double x, double a, double b) noexcept {
 
     // Use continued fraction approximation
     const bool stirling = a >= kStirlingPrefactorShape && b >= kStirlingPrefactorShape;
-    const double direct_log_inv_beta =
-        stirling ? detail::ZERO_DOUBLE : lgamma(a + b) - lgamma(a) - lgamma(b);
+    const double direct_log_inv_beta = stirling ? detail::ZERO_DOUBLE : -lbeta(a, b);
     double bt = std::exp(log_beta_prefactor(x, a, b, direct_log_inv_beta));
 
     if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
@@ -543,8 +542,22 @@ static double gamma_p_series(double a, double x) noexcept {
     return std::min(1.0, std::max(0.0, result));  // Clamp to [0,1]
 }
 
+// log B(a, b). Formed directly, lgamma(a) + lgamma(b) − lgamma(a + b) cancels terms of size
+// max(a, b)·log(a + b): 2e-10 relative in the Student-t normaliser at ν = 1e6. Once the larger
+// argument x reaches kStirlingPrefactorShape, Stirling's series gives the difference for it
+// without forming either lgamma; with y the smaller argument,
+//   lgamma(x) − lgamma(x + y) = −(x − ½)·log1p(y/x) − y·log(x + y) + y + c(x) − c(x + y),
+// whose terms are of the size of the result.
 double lbeta(double a, double b) noexcept {
-    return std::lgamma(a) + std::lgamma(b) - std::lgamma(a + b);
+    if (std::isnan(a) || std::isnan(b))
+        return std::numeric_limits<double>::quiet_NaN();
+    const double x = std::max(a, b);
+    const double y = std::min(a, b);
+    if (x < kStirlingPrefactorShape || y <= detail::ZERO_DOUBLE)
+        return std::lgamma(a) + std::lgamma(b) - std::lgamma(a + b);
+    const double s = x + y;
+    return std::lgamma(y) - (x - detail::HALF) * std::log1p(y / x) - y * std::log(s) + y +
+           stirling_remainder(x) - stirling_remainder(s);
 }
 
 double digamma(double x) noexcept {
@@ -907,7 +920,7 @@ void vector_beta_i(std::span<const double> x_values, double a, double b,
     const std::size_t size = x_values.size();
 
     // Hoist the lgamma prefix: constant across all elements for fixed (a, b).
-    const double log_prefix = lgamma(a + b) - lgamma(a) - lgamma(b);
+    const double log_prefix = -lbeta(a, b);
     for (std::size_t i = 0; i < size; ++i) {
         output[i] = beta_i(x_values[i], a, b, log_prefix);
     }
@@ -1049,19 +1062,6 @@ double inv_survival_normal(double s) noexcept {
     return u;
 }
 
-// log B(a, ½) (#159). The direct lgamma(a) + lgamma(½) − lgamma(a + ½) cancels terms of size
-// a·log a; Stirling gives
-//   lgamma(a) − lgamma(a + ½) = ½ − a·log1p(1/(2a)) − ½·log a + c(a) − c(a + ½),
-// every term small or exact.
-static double log_beta_half(double a) noexcept {
-    const double half_log_pi = detail::HALF * detail::LN_PI;
-    if (a < kStirlingPrefactorShape)
-        return lgamma(a) + half_log_pi - lgamma(a + detail::HALF);
-    return half_log_pi + detail::HALF - a * std::log1p(detail::HALF / a) -
-           detail::HALF * std::log(a) + stirling_remainder(a) -
-           stirling_remainder(a + detail::HALF);
-}
-
 // I_x(a, ½) for large a and x near 1 (#159): DiDonato & Morris's BGRAT expansion (ACM TOMS 708,
 // eq. 9 to 9.6), I_x(a, b) = Γ(a + b)/(Γ(a)·T^b) · Σ p_n·J_n with T = a + (b − 1)/2,
 // u = −T·log x, J_0 = Q(b, u) and J_n scaled by the gamma prefactor h = u^b·e^{−u}/Γ(b) so that an
@@ -1072,7 +1072,7 @@ static double beta_i_large_a_half(double a, double log_x) noexcept {
     constexpr int kTerms = 30;
     const double T = a + (b - detail::ONE) * detail::HALF;
     const double u = -T * log_x;
-    const double lead = std::exp(detail::HALF * detail::LN_PI - log_beta_half(a) -
+    const double lead = std::exp(detail::HALF * detail::LN_PI - lbeta(a, detail::HALF) -
                                  detail::HALF * std::log(T));  // Γ(a + ½)/(Γ(a)·√T)
     const double h = std::sqrt(u / detail::PI) * std::exp(-u);
     const double lx2 = detail::HALF * log_x * detail::HALF * log_x;
@@ -1135,7 +1135,7 @@ TTails t_tails(double abs_t, double df) noexcept {
         log_x = std::log(df) - detail::TWO * std::log(abs_t) + log_y;
     }
     TTails r{};
-    r.log_t_pdf = a * log_x + detail::HALF * log_y - log_beta_half(a);
+    r.log_t_pdf = a * log_x + detail::HALF * log_y - lbeta(a, detail::HALF);
     const double prefactor = std::exp(r.log_t_pdf);
     if (x < (a + detail::ONE) / (a + 2.5)) {
         // BGRAT where the continued fraction is slow (large a, x near 1); its domain follows
@@ -1198,7 +1198,7 @@ double inverse_t_cdf(double p, double df) noexcept {
     double s = s_normal;
     const double s_asymptote =
         detail::HALF *
-        (std::log(df) - (std::log(detail::TWO * q) + std::log(a) + log_beta_half(a)) / a);
+        (std::log(df) - (std::log(detail::TWO * q) + std::log(a) + lbeta(a, detail::HALF)) / a);
     if (std::isfinite(s_asymptote) && s_asymptote > s && s_asymptote < hi &&
         s_asymptote > detail::HALF * std::log(df) + detail::ONE)
         s = s_asymptote;

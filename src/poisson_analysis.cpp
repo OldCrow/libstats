@@ -72,7 +72,8 @@ std::tuple<double, double, bool> overdispersionTest(const std::vector<double>& d
     const double dispersion_index = (nd - 1.0) * var / mean;
 
     // One-sided p-value: P(χ²(n-1) > D)
-    const double p_value = 1.0 - detail::chi_squared_cdf(dispersion_index, static_cast<int>(n - 1));
+    const double p_value =
+        detail::gamma_q(detail::HALF * (nd - 1.0), detail::HALF * dispersion_index);
 
     return {var / mean, p_value, p_value < significance_level};
 }
@@ -102,7 +103,7 @@ std::tuple<double, double, bool> excessZerosTest(const std::vector<double>& data
 
     const double z =
         (static_cast<double>(observed_zeros) - expected_zeros) / std::sqrt(variance_zeros);
-    const double p_value = 2.0 * (1.0 - detail::normal_cdf(std::abs(z)));
+    const double p_value = 2.0 * detail::normal_cdf(-std::abs(z));
 
     return {z, p_value, p_value < significance_level};
 }
@@ -148,8 +149,7 @@ std::tuple<double, double, bool> rateStabilityTest(const std::vector<double>& da
     const double mse = rss / (nd - 2.0);
     const double se_slope = std::sqrt(mse / denom);
     const double t_stat = slope / se_slope;
-    const double p_value =
-        2.0 * (1.0 - detail::t_cdf(std::abs(t_stat), static_cast<double>(n - 2)));
+    const double p_value = 2.0 * detail::t_cdf(-std::abs(t_stat), static_cast<double>(n - 2));
 
     return {t_stat, p_value, p_value >= significance_level};
 }
@@ -213,7 +213,7 @@ std::tuple<double, double, bool> chiSquareGoodnessOfFit(
     if (df <= 0)
         throw std::runtime_error("Insufficient degrees of freedom for chi-square test");
 
-    const double p_value = 1.0 - detail::chi_squared_cdf(chi2, df);
+    const double p_value = detail::gamma_q(detail::HALF * df, detail::HALF * chi2);
     return {chi2, p_value, p_value < significance_level};
 }
 

@@ -34,6 +34,13 @@ namespace {
 [[nodiscard]] inline bool kernelOverflows(double t, double inv_nu) noexcept {
     return std::isfinite(t) && !std::isfinite(t * t * inv_nu);
 }
+
+// The SIMD pipeline takes vector_log(1 + x²/ν), whose absolute error of ~ε the density multiplies
+// by (ν + 1)/2: 1e-10 relative at ν = 1e6. Past (ν + 1)/2 = 16 the batch takes the scalar log1p
+// loop instead.
+[[nodiscard]] inline bool simdLogIsAccurate(double neg_half_nu_plus_one) noexcept {
+    return neg_half_nu_plus_one >= -16.0;
+}
 }  // namespace
 
 //==============================================================================
@@ -674,7 +681,8 @@ void StudentTDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
                                                          std::size_t count, double log_norm_const,
                                                          double neg_half_nu_plus_one,
                                                          double inv_nu) const noexcept {
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd =
+        arch::simd::SIMDPolicy::shouldUseSIMD(count) && simdLogIsAccurate(neg_half_nu_plus_one);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -711,7 +719,8 @@ void StudentTDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
                                                             double log_norm_const,
                                                             double neg_half_nu_plus_one,
                                                             double inv_nu) const noexcept {
-    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    const bool use_simd =
+        arch::simd::SIMDPolicy::shouldUseSIMD(count) && simdLogIsAccurate(neg_half_nu_plus_one);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -767,8 +776,9 @@ void StudentTDistribution::updateCacheUnsafe() const noexcept {
     invNu_ = detail::ONE / nu_;
 
     // log normalization constant: lgamma((ν+1)/2) − 0.5·log(ν·π) − lgamma(ν/2)
-    logNormConst_ = std::lgamma(halfNuPlusOne_) - detail::HALF * std::log(nu_ * detail::PI) -
-                    std::lgamma(halfNu_);
+    // lgamma((ν+1)/2) − lgamma(ν/2) − ½·log(νπ) = −log B(ν/2, ½) − ½·log ν; lbeta forms it without
+    // the lgamma difference, which was 2e-10 relative off at ν = 1e6.
+    logNormConst_ = -detail::lbeta(halfNu_, detail::HALF) - detail::HALF * std::log(nu_);
 
     // Moments (conditional on ν)
     if (nu_ > detail::TWO) {

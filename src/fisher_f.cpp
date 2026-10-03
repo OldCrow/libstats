@@ -300,14 +300,27 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
             return detail::NEGATIVE_INFINITY;  // density vanishes at 0
         if (a < detail::ONE)
             return kInf;  // density is unbounded at 0
-        return log_pdf_const - (a + b) * std::log(d2);  // a == 1: finite limit
+        // a == 1: finite limit, (d1/d2)/B(1, b)
+        return log_pdf_const + std::log(d1 / d2);
     }
 
-    const double denom = d1 * x + d2;
-    if (!std::isfinite(denom))
-        return detail::NEGATIVE_INFINITY;  // x so large the density has underflowed
-
-    return log_pdf_const + (a - detail::ONE) * std::log(x) - (a + b) * std::log(denom);
+    // log f = −log B(a, b) + a·log y + b·log ȳ − log x, with r = d1·x/d2, y = r/(1 + r) and
+    // ȳ = 1/(1 + r) taken by log1p on whichever side of r = 1 keeps the argument small. The form
+    // a·log d1 + b·log d2 − (a + b)·log(d1·x + d2) cancelled terms of size (a + b)·log d2, 1e-9 at
+    // d2 = 1e6, and returned −inf once d1·x + d2 overflowed.
+    const double r = d1 * x / d2;
+    const double log_r = (r > detail::ZERO_DOUBLE && std::isfinite(r))
+                             ? std::log(r)
+                             : std::log(d1) + std::log(x) - std::log(d2);
+    double log_y, log_ybar;
+    if (r <= detail::ONE) {
+        log_ybar = -std::log1p(r);
+        log_y = log_r + log_ybar;
+    } else {
+        log_y = -std::log1p(detail::ONE / r);
+        log_ybar = log_y - log_r;
+    }
+    return log_pdf_const + a * log_y + b * log_ybar - std::log(x);
 }
 
 // CDF = I_y(a,b) with y = d1 x/(d1 x + d2), evaluated on the small side.
@@ -890,7 +903,7 @@ void FDistribution::updateCacheUnsafe() const noexcept {
     // lgamma(a+b) - lgamma(a) - lgamma(b) == -ln B(a,b); symmetric in (a,b), so
     // both incomplete-beta branches in cdfImpl/sfImpl reuse this one value.
     logBetaPrefix_ = -detail::lbeta(a_, b_);
-    logPdfConst_ = a_ * std::log(d1_) + b_ * std::log(d2_) + logBetaPrefix_;
+    logPdfConst_ = logBetaPrefix_;  // logPdfImpl takes −log B(a, b); d1, d2 enter through r
 
     // Keep the Beta delegate in sync (used by sample()). beta_ owns its own
     // mutex, independent of ours; it is private so no external thread can be

@@ -52,7 +52,7 @@ std::tuple<double, double, bool> coefficientOfVariationTest(const std::vector<do
     // Asymptotic: |CV - 1| / (1/√n) ~ N(0,1)
     const double se = 1.0 / std::sqrt(static_cast<double>(n));
     const double z = std::abs(cv - 1.0) / se;
-    const double p = 2.0 * (1.0 - detail::normal_cdf(z));
+    const double p = 2.0 * detail::normal_cdf(-z);
 
     return {std::abs(cv - 1.0), p, p < alpha};
 }
