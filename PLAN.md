@@ -100,9 +100,16 @@ AVX-512 sweep still 35 contract violations. Numbers below are INDICATIVE
   gamma/beta/poisson/Student-t/binomial 7–17×; batch CDF beta 6×,
   binomial 8×, Student-t 3×; quantile gamma family 10–17×, Student-t
   39×, gaussian/lognormal 3×, poisson 2.6×, binomial 1.3×.
-- **Owed:** regenerate the AVX-512 block of
-  `docs/ACCURACY_CHARACTERIZATION.md` at the committed head; a quiet
-  warmed record pass on Zen 4; Kaby Lake and M1 legs
+- AVX-512 block of `docs/ACCURACY_CHARACTERIZATION.md` REGENERATED at
+  `decac1d` (cl.exe libstats + clang-cl corvus, as the block it
+  replaces): 35 contract violations, unchanged; batch-vs-scalar is
+  nonzero again on the exp/log consumers (≤ 1.2e-10 relative), poisson
+  quantile max_rel 1.0 → 2.9e-5, geometric 0.68 → 1.6e-3. The AVX2 and
+  NEON blocks still describe the pre-lever branch. CI on `003c3ad`
+  (dispatched, run 37141623858): 12/12 green, the clang-cl leg in 5 min
+  on the runner's Clang 20.1.8, the MSVC leg in 18.
+- **Owed:** a quiet warmed record pass on Zen 4 [user: waits on other
+  sessions, due with the other machines' legs]; Kaby Lake and M1 legs
   (ctest, sweep, bench — the M1 matters most: its NEON kernels are
   restored untested here); CHANGELOG/docs wording for v2.5.0 ("the
   elementary family is corvus" is no longer true).
