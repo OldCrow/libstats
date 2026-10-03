@@ -103,7 +103,9 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
   `build-strict/`. **Deviation from the shared vocabulary**: `release` maps
   to `build-release/` rather than `build/`, because `build/` is already
   claimed by the default `dev` workflow here — grandfathered alongside the
-  `Dev` build type.
+  `Dev` build type. Windows extras: `windows-clang-cl` → `build-clangcl/`
+  and `windows-clang-cl-strict` → `build-clangcl-strict/`, which pin Ninja
+  and clang-cl (the house style's one exception to "no `generator` field").
 
 ## Platform-Specific Notes
 
