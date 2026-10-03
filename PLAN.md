@@ -2,13 +2,31 @@
 
 ## Status [DERIVED] — 2026-10-03
 **v2.4.2 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
-`d8d3388`; milestone "v2.4.2 — Correctness patch", #157–#167; Zen 4
-worktree `../libstats-v2.4.2`). Fixed on the branch: #157, #158, #161,
-#163, #164, #165, #167, and a Poisson `FORCE_PARALLEL` NaN drop the new
-boundary gate found (`test_batch_nan_gates` now runs all three forced
-strategies), and #166. Next: #160, then #159. #162 is deferred to a Mac
-session, to be written and verified there in one pass [user]. Owed before
-the release PR: #167's fail-first under UBSan (float-cast-overflow) on
+`d8d3388`, pushed; milestone "v2.4.2 — Correctness patch", #157–#171;
+Zen 4 worktree `../libstats-v2.4.2`). Fixed on the branch, each with a
+gate shown to fail on `d8d3388`: #157, #158, #161, #163 (Gaussian's copy
+ctor too), #164, #165, #166, #167, #170, #171; and the FORCE_PARALLEL span
+lambdas of Poisson, Discrete, Gamma, Laplace, Uniform and VonMises, which
+sent NaN to the out-of-support value (`test_batch_nan_gates` now runs all
+three forced strategies). #170/#171 are a backport of `45000c6`'s
+`detail::discrete_quantile_search` (Poisson, NegativeBinomial); Binomial's
+quantile moved onto it too [user], 2.3–48× faster, INDICATIVE (commit
+`8feb591`). 78/78 on Zen 4.
+
+**Next: #160, then #159**, each fail-first against the unfixed-`main`
+worktree `../libstats-v2.4.2-base` (detached `d8d3388`, built; the new
+gate files are copied in, then built as single targets) — remove it once
+#159 lands. #160: Gamma `computeQuantile` (Erlang, ChiSquared delegate)
+solved in the log domain on the small side, residual on the CDF below the
+median and on the survival function above it, with the InverseGamma
+quantile in `src/inverse_gamma.cpp` as the template;
+`detail::gamma_inverse_cdf` and `detail::inverse_chi_squared_cdf` share
+the class. Gate: p ∈ {1e-300, 1e-100, 1e-15, 1 − 1e-15} × α ∈ {0.01,
+2.5, 1e4}, two-sided. #159: Student-t in four parts (deep-tail quantile,
+the df ≥ 1000 CDF shortcut, CDF underflow and pdf/logpdf overflow for
+|t| ≳ 1e154, plus the fit-path site); reference `6ff8b71`. #162 is
+deferred to a Mac session, to be written and verified there in one pass
+[user]. Owed before the release PR: #167's fail-first under UBSan (float-cast-overflow) on
 Kaby Lake or the M1 — MSVC has no such check and x86 casts to `INT_MIN`,
 so its gate rows pass unfixed here; native ctest on all three machines;
 an accuracy sweep re-baseline, since the oracle changed (#157, #161) and
