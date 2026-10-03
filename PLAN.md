@@ -1,6 +1,18 @@
 # libstats — Plan / Status
 
-## Status [DERIVED] — 2026-09-19
+## Status [DERIVED] — 2026-10-03
+**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
+`d8d3388`; milestone "v2.4.2 — Correctness patch", #157–#167; Zen 4
+worktree `../libstats-v2.4.2`). Fixed on the branch: #157, #158, #161,
+#163, #164, #165, #167, and a Poisson `FORCE_PARALLEL` NaN drop the new
+boundary gate found (`test_batch_nan_gates` now runs all three forced
+strategies). Next: #166, then #160, then #159. #162 is deferred to a Mac
+session, to be written and verified there in one pass [user]. Owed before
+the release PR: #167's fail-first under UBSan (float-cast-overflow) on
+Kaby Lake or the M1 — MSVC has no such check and x86 casts to `INT_MIN`,
+so its gate rows pass unfixed here; native ctest on all three machines;
+an accuracy sweep re-baseline, since the oracle changed (#157, #161).
+
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
 (parallelReduce/parallelStatOperation wait-all-then-harvest), PR #151,
@@ -35,6 +47,21 @@ build commands and architecture live in `AGENTS.md`. This file carries only
 what is decided, open, or next.
 
 ## Decided [DERIVED]
+- **Support-boundary rule (#161, #165), DECIDED 2026-10-03 [user].** pdf
+  and logpdf at a support boundary take the limit by shape: at x = 0,
+  +inf for shape < 1, the finite density for shape = 1 (tested exactly,
+  not within a tolerance), 0 / −∞ above. Out of support is 0 / −∞ for
+  every distribution, Poisson included. `MIN_LOG_PROBABILITY` stays only
+  for the `safe_log` / `clamp_log_probability` API; no distribution
+  returns it. Scalar, batch and the oracle agree.
+- **#166 is in v2.4.2, DECIDED 2026-10-03 [user]** — the one item that
+  changes numbers rather than fixing a crash, NaN or wrong branch.
+- **Probit split (#158) [DERIVED 2026-10-03].** Centre (|p − ½| ≤ 0.425,
+  AS 241's cut) keeps √2·erf_inv(2p − 1) plus a Newton polish on the erf
+  residual; the tails use `detail::inv_survival_normal`, promoted from the
+  HalfNormal/TruncatedNormal duplicates. The issue's survival form for
+  every p ≤ ½ would lose relative accuracy near the median (its residual
+  has an absolute floor of ~1e-17 at s ≈ ½).
 - Layered dependency architecture (6 levels) and the dual API
   (auto-dispatch + explicit strategy) are permanent designs, not
   transitional. See AGENTS.md Architecture.
