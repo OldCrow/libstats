@@ -1,8 +1,9 @@
 # libstats — Plan / Status
 
 ## Status [DERIVED] — 2026-10-03
-**libstats-side levers 2026-10-03 (Zen 4) — IMPLEMENTED, UNCOMMITTED in
-the working tree of `dev/v2.5.0-corvus` at `1a9f49c`** [user: pursue the
+**libstats-side levers 2026-10-03 (Zen 4) — IMPLEMENTED on
+`dev/v2.5.0-corvus`** (`e62a616` lever 1, `45000c6` lever 3, `c51e2ed`
+lever 2 warning; clang-cl port in the two commits after) [user: pursue the
 libstats-side levers here while corvus v1.1.0 proceeds; v2.4.2 runs in a
 separate session and worktree]. Zen 4: correctness ctest 74/74, timing
 22/22 (the four exp/log gates pass again), warning-clean under MSVC;
@@ -38,20 +39,37 @@ AVX-512 sweep still 35 contract violations. Numbers below are INDICATIVE
   `DiscreteQuantileBounds.QuantileIsSmallestCountAtOrAboveP`
   (correctness label), shown to fail against the old Poisson search.
 - **Lever 2 — Windows compiler.** `cmake/FindOrFetchCorvus.cmake` warns
-  when a fetched corvus is compiled by `cl.exe`. A full clang-cl build of
-  libstats does NOT work today [OPEN]: clang-cl takes the MSVC warning
-  branch (`/Wall`-style → `-Weverything`, 11,548 warnings) and
-  `src/cpu_detection.cpp` uses `__cpuid_count` without `<cpuid.h>`; the
-  build stops there, depth beyond it unknown. Until that port, the fast
-  Windows configuration is cl.exe libstats + clang-cl system corvus
-  (`tools/bench/README.md`).
+  when a fetched corvus is compiled by `cl.exe`. **libstats builds with
+  clang-cl** (VS-bundled Clang 22.1.3, Ninja, Release, fetched corvus
+  and GoogleTest; `build-zen4-clangcl/`): warning-clean, ctest 74/74,
+  timing 22/22, `system_inspector` AVX-512; AVX-512 sweep 35 contract
+  violations, the same rows as the cl.exe build (last digits differ in
+  ~16% of rows, all inside contract). The cl.exe build is unaffected
+  (warning-clean, 74/74). The port is one commit that touches nothing
+  corvus-specific, so it cherry-picks onto `main`/`dev/v2.4.2`; #170 and
+  #171 are filed on the v2.4.2 milestone. Six small fixes, two root
+  causes for nearly everything: `-Wall` is `-Weverything` under the
+  MSVC-style driver (now `/W4` there: 11,548 warnings → 71), and
+  `safe_cpuid` tested `__clang__` before `_MSC_VER`. The rest:
+  GoogleTest 1.17.0's own `-WX` vs Clang 21's `-Wcharacter-conversion`
+  (suppressed on its targets, and GoogleTest is fetched `SYSTEM` now);
+  `/arch:SSE2` passed on x64; a stray `inline` on
+  `GaussianDistribution::updateCacheUnsafe`; one unused parameter; four
+  undiscarded `[[nodiscard]]` results in `test_goodness_of_fit`. Speed
+  (indicative): the all-clang-cl build matches cl.exe libstats +
+  clang-cl corvus on every bench row. **[user, 2026-10-03] clang-cl
+  becomes a supported Windows workflow, with all that implies** — NEXT:
+  a CI leg (Ninja + clang-cl, tier-asserted so it cannot silently fall
+  to AVX2), a preset, `Strict` under clang-cl, the VS generator's
+  `-T ClangCL`, AGENTS.md / BUILD_SYSTEM_GUIDE / CI_CD_GUIDE /
+  standards WINDOWS-TOOLCHAIN wording, and the pylibstats Windows wheel.
 - **Remaining gap after the levers** (corvus-owned, #42): scalar CDF
   gamma/beta/poisson/Student-t/binomial 7–17×; batch CDF beta 6×,
   binomial 8×, Student-t 3×; quantile gamma family 10–17×, Student-t
   39×, gaussian/lognormal 3×, poisson 2.6×, binomial 1.3×.
-- **Owed:** commit (then regenerate the AVX-512 block of
-  `docs/ACCURACY_CHARACTERIZATION.md` — the sweep banner takes the
-  commit); a quiet warmed record pass on Zen 4; Kaby Lake and M1 legs
+- **Owed:** regenerate the AVX-512 block of
+  `docs/ACCURACY_CHARACTERIZATION.md` at the committed head; a quiet
+  warmed record pass on Zen 4; Kaby Lake and M1 legs
   (ctest, sweep, bench — the M1 matters most: its NEON kernels are
   restored untested here); CHANGELOG/docs wording for v2.5.0 ("the
   elementary family is corvus" is no longer true).
