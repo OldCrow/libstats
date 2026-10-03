@@ -6,12 +6,15 @@
 worktree `../libstats-v2.4.2`). Fixed on the branch: #157, #158, #161,
 #163, #164, #165, #167, and a Poisson `FORCE_PARALLEL` NaN drop the new
 boundary gate found (`test_batch_nan_gates` now runs all three forced
-strategies). Next: #166, then #160, then #159. #162 is deferred to a Mac
+strategies), and #166. Next: #160, then #159. #162 is deferred to a Mac
 session, to be written and verified there in one pass [user]. Owed before
 the release PR: #167's fail-first under UBSan (float-cast-overflow) on
 Kaby Lake or the M1 — MSVC has no such check and x86 casts to `INT_MIN`,
 so its gate rows pass unfixed here; native ctest on all three machines;
-an accuracy sweep re-baseline, since the oracle changed (#157, #161).
+an accuracy sweep re-baseline, since the oracle changed (#157, #161) and
+#166 moves CDF values; #166's cost (3ε stop, √a-scaled caps, Stirling
+prefactors) measured on a quiet machine against v2.4.1 with the
+`tools/bench/` harness from `dev/v2.5.0-corvus`.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
@@ -56,6 +59,14 @@ what is decided, open, or next.
   returns it. Scalar, batch and the oracle agree.
 - **#166 is in v2.4.2, DECIDED 2026-10-03 [user]** — the one item that
   changes numbers rather than fixing a crash, NaN or wrong branch.
+- **#166 fix shape [DERIVED 2026-10-03].** The tolerance alone could not
+  meet the gate: the prefactors exp(−x + a·log x − lgamma(a)) and
+  exp(lgamma(a+b) − lgamma(a) − lgamma(b) + a·log x + b·log(1−x)) cancel
+  terms of size a·log x, ~1e-11 relative at shape 1e4. For shape ≥ 20
+  they take Stirling's form (log1p(t) − t terms plus the Stirling
+  remainder); below 20 the direct form is kept, bit-identical. Series and
+  continued fractions stop at `SPECIAL_FUNCTION_TOLERANCE` = 3ε with caps
+  1000 + 20√shape; gamma_p/gamma_q/beta_i propagate NaN on entry.
 - **Probit split (#158) [DERIVED 2026-10-03].** Centre (|p − ½| ≤ 0.425,
   AS 241's cut) keeps √2·erf_inv(2p − 1) plus a Newton polish on the erf
   residual; the tails use `detail::inv_survival_normal`, promoted from the
