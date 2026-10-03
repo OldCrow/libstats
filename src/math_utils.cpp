@@ -298,12 +298,58 @@ double gamma_q(double a, double x) noexcept {
     return gamma_cf;
 }
 
+// Newton on a residual f(t) that is monotone and concave in t, from any start in (lo, hi) (#160,
+// #159). Concavity makes the iteration globally convergent: at most one step overshoots onto the
+// f < 0 side, and from there the iterates approach the root monotonically, so a positive residual
+// after a negative one is rounding noise. `residual(t, slope)` returns f(t) and sets slope to
+// |f'(t)|; `rising` gives the sign of f'. A non-finite f (an underflowed tail) bisects. Returns
+// the root in t.
+template <typename Residual>
+static double solve_concave(double t, double lo, double hi, bool rising,
+                            Residual residual) noexcept {
+    bool seen_negative = false;
+    int noise_flips = 0;
+    double best_t = t;
+    double best_f = std::numeric_limits<double>::infinity();
+    for (int i = 0; i < 100; ++i) {
+        double slope = detail::ZERO_DOUBLE;
+        const double f = residual(t, slope);
+        if (f == detail::ZERO_DOUBLE)
+            return t;
+        if (std::abs(f) < best_f) {
+            best_f = std::abs(f);
+            best_t = t;
+        }
+        // A negative residual bounds the root from below for a rising f, from above for a falling
+        // one.
+        if ((f < detail::ZERO_DOUBLE) == rising)
+            lo = t;
+        else
+            hi = t;
+        // Once on the f < 0 side, exact iterates stay there; a return to f > 0 is rounding noise.
+        // The second one ends a ping-pong the step test below may not catch at small slope.
+        if (f > detail::ZERO_DOUBLE && seen_negative && ++noise_flips == 2)
+            return best_t;
+        if (f < detail::ZERO_DOUBLE)
+            seen_negative = true;
+
+        double next = rising ? t - f / slope : t + f / slope;
+        // Converged before the bracket test: a step below one ulp leaves next == t, which is now
+        // a bracket end.
+        if (std::abs(next - t) <= detail::TWO * std::numeric_limits<double>::epsilon() *
+                                      std::max(detail::ONE, std::abs(t)))
+            return next;
+        if (!std::isfinite(next) || next <= lo || next >= hi)
+            next = detail::HALF * (lo + hi);  // underflowed tail or a step out of the bracket
+        t = next;
+    }
+    return best_t;
+}
+
 // x with P(a, x) = p (#160), by Newton in t = log x on the small side of the probability scale:
 // f(t) = log P(a, eᵗ) − log p below the median, log Q(a, eᵗ) − log q above it. The density of
-// log X, exp(a·t − eᵗ)/Γ(a), is log-concave, so both residuals are concave in t and Newton
-// converges from any start: at most one step overshoots onto the f < 0 side, and from there the
-// iterates approach the root monotonically. A positive residual after a negative one is therefore
-// rounding noise, and ends the iteration. |f'(t)| = x·pdf(x)/P is the prefactor over P (or Q).
+// log X, exp(a·t − eᵗ)/Γ(a), is log-concave, so both residuals are concave in t and
+// solve_concave applies. |f'(t)| = x·pdf(x)/P is the prefactor over P (or Q).
 double gamma_p_inv(double a, double p) noexcept {
     if (std::isnan(a) || std::isnan(p) || a <= detail::ZERO_DOUBLE)
         return std::numeric_limits<double>::quiet_NaN();
@@ -336,46 +382,13 @@ double gamma_p_inv(double a, double p) noexcept {
     if (!(t > lo && t < hi))
         t = upper ? detail::HALF * (lo + hi) : lo;
 
-    bool seen_negative = false;
-    int noise_flips = 0;
-    double best_t = t;
-    double best_f = std::numeric_limits<double>::infinity();
-    for (int i = 0; i < 100; ++i) {
-        const double x = std::exp(t);
+    return std::exp(solve_concave(t, lo, hi, !upper, [&](double tt, double& slope) {
+        const double x = std::exp(tt);
         const double log_tail =
             std::log(upper ? gamma_q(a, x) : gamma_p(a, x));  // −inf on underflow
-        const double f = log_tail - log_target;
-        if (f == detail::ZERO_DOUBLE)
-            return x;
-        if (std::abs(f) < best_f) {
-            best_f = std::abs(f);
-            best_t = t;
-        }
-        // P rises with t and Q falls, so a negative residual bounds the root from below for P and
-        // from above for Q.
-        if ((f < detail::ZERO_DOUBLE) != upper)
-            lo = t;
-        else
-            hi = t;
-        // Once on the f < 0 side, exact iterates stay there; a return to f > 0 is rounding noise.
-        // The second one ends a ping-pong the step test below may not catch at small slope.
-        if (f > detail::ZERO_DOUBLE && seen_negative && ++noise_flips == 2)
-            return std::exp(best_t);
-        if (f < detail::ZERO_DOUBLE)
-            seen_negative = true;
-
-        const double slope = std::exp(log_gamma_prefactor(a, x) - log_tail);
-        double next = upper ? t + f / slope : t - f / slope;
-        // Converged before the bracket test: a step below one ulp leaves next == t, which is now
-        // a bracket end.
-        if (std::abs(next - t) <= detail::TWO * std::numeric_limits<double>::epsilon() *
-                                      std::max(detail::ONE, std::abs(t)))
-            return std::exp(next);
-        if (!std::isfinite(next) || next <= lo || next >= hi)
-            next = detail::HALF * (lo + hi);  // underflowed tail or a step out of the bracket
-        t = next;
-    }
-    return std::exp(best_t);
+        slope = std::exp(log_gamma_prefactor(a, x) - log_tail);
+        return log_tail - log_target;
+    }));
 }
 
 double beta_i(double x, double a, double b) noexcept {
@@ -1036,90 +1049,168 @@ double inv_survival_normal(double s) noexcept {
     return u;
 }
 
-double t_cdf(double t, double df) noexcept {
-    // Student's t-distribution CDF using regularized incomplete beta function
-    if (df <= detail::ZERO_DOUBLE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-
-    if (std::isinf(t)) {
-        return (t > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-    }
-
-    if (t == detail::ZERO_DOUBLE) {
-        return detail::HALF;
-    }
-
-    // For very large degrees of freedom, use normal approximation for better accuracy
-    if (df >= 1000.0) {
-        return normal_cdf(t);
-    }
-
-    // Use relationship with incomplete beta function:
-    // t_cdf(t, df) = 1/2 + (t/sqrt(df)) * B(1/2, df/2) / B(1/2, df/2)
-    // This is simplified using the symmetry of t-distribution
-
-    double x = df / (df + t * t);
-    double result = beta_i(x, detail::HALF * df, detail::HALF);
-
-    if (t > detail::ZERO_DOUBLE) {
-        return detail::ONE - detail::HALF * result;
-    } else {
-        return detail::HALF * result;
-    }
+// log B(a, ½) (#159). The direct lgamma(a) + lgamma(½) − lgamma(a + ½) cancels terms of size
+// a·log a; Stirling gives
+//   lgamma(a) − lgamma(a + ½) = ½ − a·log1p(1/(2a)) − ½·log a + c(a) − c(a + ½),
+// every term small or exact.
+static double log_beta_half(double a) noexcept {
+    const double half_log_pi = detail::HALF * detail::LN_PI;
+    if (a < kStirlingPrefactorShape)
+        return lgamma(a) + half_log_pi - lgamma(a + detail::HALF);
+    return half_log_pi + detail::HALF - a * std::log1p(detail::HALF / a) -
+           detail::HALF * std::log(a) + stirling_remainder(a) -
+           stirling_remainder(a + detail::HALF);
 }
 
-double inverse_t_cdf(double p, double df) noexcept {
-    // Inverse t-distribution CDF using iterative methods
-    if (p <= detail::ZERO_DOUBLE || p >= detail::ONE || df <= detail::ZERO_DOUBLE) {
-        if (p == detail::ZERO_DOUBLE)
-            return -std::numeric_limits<double>::infinity();
-        if (p == detail::ONE)
-            return std::numeric_limits<double>::infinity();
-        return std::numeric_limits<double>::quiet_NaN();
-    }
+// I_x(a, ½) for large a and x near 1 (#159): DiDonato & Morris's BGRAT expansion (ACM TOMS 708,
+// eq. 9 to 9.6), I_x(a, b) = Γ(a + b)/(Γ(a)·T^b) · Σ p_n·J_n with T = a + (b − 1)/2,
+// u = −T·log x, J_0 = Q(b, u) and J_n scaled by the gamma prefactor h = u^b·e^{−u}/Γ(b) so that an
+// underflowed h cannot overflow them. There the continued fraction runs thousands of terms and
+// accumulates ~1e-12; this needs a handful. Written for b = ½, where Q(½, u) = erfc(√u).
+static double beta_i_large_a_half(double a, double log_x) noexcept {
+    constexpr double b = 0.5;
+    constexpr int kTerms = 30;
+    const double T = a + (b - detail::ONE) * detail::HALF;
+    const double u = -T * log_x;
+    const double lead = std::exp(detail::HALF * detail::LN_PI - log_beta_half(a) -
+                                 detail::HALF * std::log(T));  // Γ(a + ½)/(Γ(a)·√T)
+    const double h = std::sqrt(u / detail::PI) * std::exp(-u);
+    const double lx2 = detail::HALF * log_x * detail::HALF * log_x;
+    const double t4 = 4.0 * T * T;
 
-    if (p == detail::HALF) {
-        return detail::ZERO_DOUBLE;
-    }
+    double odd_factorial[kTerms + 1];  // (2k + 1)!
+    odd_factorial[0] = detail::ONE;
+    for (int k = 1; k <= kTerms; ++k)
+        odd_factorial[k] = odd_factorial[k - 1] * (2.0 * k) * (2.0 * k + 1.0);
 
-    // Use approximate initial guess from normal distribution
-    double z = inverse_normal_cdf(p);
-
-    // For large degrees of freedom, t-distribution approaches normal.
-    // Use 1000 as the cutoff (consistent with t_cdf) — at df=120 the
-    // normal approximation still has ~0.02 error in the tails.
-    if (df > detail::THOUSAND) {
-        return z;
-    }
-
-    // Newton-Raphson iteration to refine the estimate
-    double t = z;  // Initial guess
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf_val = t_cdf(t, df);
-        double error = cdf_val - p;
-
-        if (std::abs(error) < tolerance) {
+    double p[kTerms];
+    p[0] = detail::ONE;
+    double J = std::erfc(std::sqrt(u));
+    double sum = J;
+    double lxp = detail::ONE;
+    double b2n = b;
+    for (int n = 1; n < kTerms; ++n) {
+        p[n] = detail::ZERO_DOUBLE;
+        for (int m = 1; m < n; ++m)
+            p[n] += (m * b - n) * p[n - m] / odd_factorial[m];
+        p[n] = p[n] / n + (b - detail::ONE) / odd_factorial[n];
+        J = (b2n * (b2n + detail::ONE) * J + (u + b2n + detail::ONE) * lxp * h) / t4;
+        lxp *= lx2;
+        b2n += detail::TWO;
+        const double r = p[n] * J;
+        sum += r;
+        if (std::abs(r) <= std::numeric_limits<double>::epsilon() * std::abs(sum))
             break;
-        }
-
-        // Calculate derivative (PDF)
-        double pdf_val =
-            std::exp(lgamma((df + detail::ONE) * detail::HALF) - lgamma(df * detail::HALF) -
-                     detail::HALF * std::log(df * detail::PI)) *
-            std::pow(detail::ONE + t * t / df, -(df + detail::ONE) * detail::HALF);
-
-        if (pdf_val <= detail::ZERO_DOUBLE) {
-            break;  // Avoid division by zero
-        }
-
-        t -= error / pdf_val;
     }
+    return lead * sum;
+}
 
-    return t;
+namespace {
+// Both tails of Student's t at |t|: tail = P(T < −|t|) = ½·I_x(ν/2, ½) and central =
+// P(|T| < |t|) = I_y(½, ν/2), with x = ν/(ν + t²) and y = 1 − x (#159). x and y come from u = t²/ν
+// or 1/u, whichever is below 1, and their logs from log1p, so neither is formed by subtraction:
+// relative-accurate at large ν, where x is within 1/ν of 1, and past |t| ~ 1e154, where t²
+// overflows and x underflows. The continued fraction runs on whichever side converges; the other
+// value is formed from it. log_t_pdf = log(|t|·pdf(t)), which is the prefactor x^a·y^½/B(a, ½).
+struct TTails {
+    double tail;
+    double central;
+    double log_t_pdf;
+};
+
+TTails t_tails(double abs_t, double df) noexcept {
+    const double a = detail::HALF * df;
+    double x, y, log_x, log_y;
+    if (abs_t * abs_t < df) {
+        const double u = abs_t * abs_t / df;
+        x = detail::ONE / (detail::ONE + u);
+        y = u / (detail::ONE + u);
+        log_x = -std::log1p(u);
+        log_y = detail::TWO * std::log(abs_t) - std::log(df) + log_x;
+    } else {
+        const double inv_u = df / abs_t / abs_t;  // underflows gracefully past |t| ~ 1e154
+        x = inv_u / (detail::ONE + inv_u);
+        y = detail::ONE / (detail::ONE + inv_u);
+        log_y = -std::log1p(inv_u);
+        log_x = std::log(df) - detail::TWO * std::log(abs_t) + log_y;
+    }
+    TTails r{};
+    r.log_t_pdf = a * log_x + detail::HALF * log_y - log_beta_half(a);
+    const double prefactor = std::exp(r.log_t_pdf);
+    if (x < (a + detail::ONE) / (a + 2.5)) {
+        // BGRAT where the continued fraction is slow (large a, x near 1); its domain follows
+        // Boost's use of it (a ≥ 15, x ≥ 0.3).
+        r.tail = (a >= kStirlingPrefactorShape && x >= detail::HALF)
+                     ? detail::HALF * beta_i_large_a_half(a, log_x)
+                     : detail::HALF * prefactor * beta_continued_fraction(x, a, detail::HALF);
+        r.central = detail::ONE - detail::TWO * r.tail;
+    } else {
+        r.central = prefactor * beta_continued_fraction(y, detail::HALF, a);
+        r.tail = detail::HALF - detail::HALF * r.central;
+    }
+    return r;
+}
+}  // namespace
+
+double t_cdf(double t, double df) noexcept {
+    // Student's t CDF on the regularized incomplete beta, at every df: the df ≥ 1000 normal
+    // shortcut this replaced was 1e-3 relative off in the tail (#159).
+    if (std::isnan(t) || std::isnan(df) || df <= detail::ZERO_DOUBLE)
+        return std::numeric_limits<double>::quiet_NaN();
+    if (std::isinf(t))
+        return (t > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
+    if (t == detail::ZERO_DOUBLE)
+        return detail::HALF;
+    const double tail = t_tails(std::fabs(t), df).tail;
+    return t < detail::ZERO_DOUBLE ? tail : detail::ONE - tail;
+}
+
+// t with t_cdf(t, df) = p (#159), by Newton in s = log|t| on the smaller probability: log of the
+// central mass P(|T| < |t|) against 1 − 2q for q = min(p, 1 − p) above ¼ (1 − 2q is exact there),
+// log of the tail against q below. log|T| has the log-concave density
+// ∝ e^s·(1 + e^{2s}/ν)^{−(ν+1)/2}, so both are concave in s and solve_concave applies;
+// |d/ds| = |t|·pdf over the mass (twice that for the central one). The normal-seeded linear-CDF
+// Newton this replaced returned −inf below p ~ 1e-17 and the normal quantile itself for df > 1000.
+double inverse_t_cdf(double p, double df) noexcept {
+    if (std::isnan(p) || std::isnan(df) || p < detail::ZERO_DOUBLE || p > detail::ONE ||
+        df <= detail::ZERO_DOUBLE)
+        return std::numeric_limits<double>::quiet_NaN();
+    if (p == detail::ZERO_DOUBLE)
+        return -std::numeric_limits<double>::infinity();
+    if (p == detail::ONE)
+        return std::numeric_limits<double>::infinity();
+    if (p == detail::HALF)
+        return detail::ZERO_DOUBLE;
+
+    const double sign = p < detail::HALF ? -detail::ONE : detail::ONE;
+    const double q = p < detail::HALF ? p : detail::ONE - p;  // exact for p ≥ ½
+    // The answer exceeds the double range when even |t| = DBL_MAX leaves more than q in the tail.
+    if (t_tails(std::numeric_limits<double>::max(), df).tail >= q)
+        return sign * std::numeric_limits<double>::infinity();
+
+    // |t_q| > |z_q| at every ν: T is a normal scale mixture whose scale has mean below 1, and
+    // Φ(x·w) is convex in w for x < 0. So log|z_q| − 1 is a lower bracket and log|z_q| a seed;
+    // in the tail the small-x asymptote G ≈ ½·(ν/t²)^a/(a·B(a, ½)) is the better seed.
+    const double a = detail::HALF * df;
+    const double s_normal = std::log(-inverse_normal_cdf(q));
+    const double lo = s_normal - detail::ONE;
+    const double hi = 709.78;  // log(DBL_MAX)
+    double s = s_normal;
+    const double s_asymptote =
+        detail::HALF *
+        (std::log(df) - (std::log(detail::TWO * q) + std::log(a) + log_beta_half(a)) / a);
+    if (std::isfinite(s_asymptote) && s_asymptote > s && s_asymptote < hi &&
+        s_asymptote > detail::HALF * std::log(df) + detail::ONE)
+        s = s_asymptote;
+
+    const bool central = q > 0.25;
+    const double log_target = central ? std::log(detail::ONE - detail::TWO * q) : std::log(q);
+    return sign * std::exp(solve_concave(s, lo, hi, central, [&](double ss, double& slope) {
+               const TTails r = t_tails(std::exp(ss), df);
+               const double log_mass = central ? std::log(r.central) : std::log(r.tail);
+               slope = std::exp(r.log_t_pdf - log_mass) * (central ? detail::TWO : detail::ONE);
+               return log_mass - log_target;
+           }));
 }
 
 double chi_squared_cdf(double x, double df) noexcept {

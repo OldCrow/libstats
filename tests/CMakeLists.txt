@@ -390,6 +390,10 @@ create_libstats_gtest(test_incomplete_gamma_beta_accuracy test_incomplete_gamma_
 # mpmath from p = 1e-300 to 1 - 1e-15; the linear-CDF Newton solver was 5e139 relative off.
 create_libstats_gtest(test_gamma_quantile_accuracy test_gamma_quantile_accuracy.cpp)
 
+# #159 guard: Student-t quantile, CDF, pdf and logpdf in the deep tail, at large nu and past
+# |t| ~ 1e154, within the accuracy law of mpmath; scalar and every batch strategy.
+create_libstats_gtest(test_student_t_tails test_student_t_tails.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

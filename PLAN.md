@@ -4,42 +4,48 @@
 **v2.4.2 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
 `d8d3388`, pushed; milestone "v2.4.2 — Correctness patch", #157–#171;
 Zen 4 worktree `../libstats-v2.4.2`). Fixed on the branch, each with a
-gate shown to fail on `d8d3388`: #157, #158, #160, #161, #163 (Gaussian's
-copy ctor too), #164, #165, #166, #167, #170, #171; and the FORCE_PARALLEL
-span lambdas of Poisson, Discrete, Gamma, Laplace, Uniform and VonMises,
-which sent NaN to the out-of-support value (`test_batch_nan_gates` now
-runs all three forced strategies). #170/#171 are a backport of `45000c6`'s
-`detail::discrete_quantile_search` (Poisson, NegativeBinomial); Binomial's
-quantile moved onto it too [user], 2.3–48× faster, INDICATIVE (commit
-`8feb591`). `420eaf1` (clang-cl port, no behaviour change under cl.exe)
-cherry-picked as `6245e4e` [user]. 79/79 on Zen 4.
+gate shown to fail on `d8d3388`: #157, #158, #159, #160, #161, #163
+(Gaussian's copy ctor too), #164, #165, #166, #167, #170, #171; and the
+FORCE_PARALLEL span lambdas of Poisson, Discrete, Gamma, Laplace, Uniform
+and VonMises, which sent NaN to the out-of-support value
+(`test_batch_nan_gates` now runs all three forced strategies). #170/#171
+are a backport of `45000c6`'s `detail::discrete_quantile_search`
+(Poisson, NegativeBinomial); Binomial's quantile moved onto it too
+[user], 2.3–48× faster, INDICATIVE (commit `8feb591`). `420eaf1`
+(clang-cl port, no behaviour change under cl.exe) cherry-picked as
+`6245e4e` [user]. 80/80 on Zen 4. Only #162 remains, deferred to a Mac
+session to be written and verified there in one pass [user].
 
-**#160 [DERIVED]**: new `detail::gamma_p_inv(a, p)`, Newton in log x on
-log P below the median and log Q above it, with the same name and signature as
-v2.5.0's corvus-backed one so that merge keeps corvus's definition;
-`GammaDistribution::computeQuantile`, `inverse_chi_squared_cdf` and
-`gamma_inverse_cdf` call it, and the first two now match v2.5.0 line for
-line. Gate `test_gamma_quantile_accuracy` (law budget |ln q|·2⁻⁵²·κ, ×8)
-fails on `d8d3388` in all four accuracy groups. Sweep, Gamma family only:
-quantile max_rel 1.1e-13 Gamma / 1.1e-13 ChiSquared / 1.6e-14 Erlang (the
-α ≤ 0.01 rows, law-bound), 0 contract violations. Next: #159.
+**#160 and #159 [DERIVED]** share `solve_concave` in `math_utils.cpp`:
+Newton on a monotone residual that is concave in a log variable, which
+converges from any start. #160: `detail::gamma_p_inv(a, p)` (same name
+and signature as v2.5.0's corvus entry point), behind the Gamma, Erlang
+and ChiSquared quantiles and both detail inverses. #159: `t_cdf` and
+`inverse_t_cdf` on an internal `t_tails` that forms x = ν/(ν + t²) and
+1 − x from t²/ν or ν/t² with logs by log1p, `log_beta_half` (Stirling at
+a ≥ 20), and BGRAT (TOMS 708 eq. 9) for a ≥ 20, x ≥ ½, where the
+continued fraction lost 4e-11 at ν = 1e6; pdf/logpdf take
+`log1p_t2_over_nu` at every site plus a fix-up pass after the SIMD
+pipeline; the fit loop is overflow-safe. Sweep: quantile max_rel 1.1e-13
+Gamma / ChiSquared, 1.6e-14 Erlang, 7.8e-14 Student-t; Student-t CDF
+1.1e-13 (law_frac 1.08); 0 contract violations.
 
-**#159**, fail-first against the unfixed-`main` worktree
-`../libstats-v2.4.2-base` (detached `d8d3388`, built; the new gate files
-are copied in, then built as single targets) — remove it once #159 lands:
-Student-t in four parts (deep-tail quantile, the df ≥ 1000 CDF shortcut,
-CDF underflow and pdf/logpdf overflow for |t| ≳ 1e154, plus the fit-path
-site); reference `6ff8b71`. #162 is deferred to a Mac session, to be
-written and verified there in one pass [user]. Owed before the release
-PR: #167's fail-first under UBSan (float-cast-overflow) on Kaby Lake or
-the M1 — MSVC has no such check and x86 casts to `INT_MIN`, so its gate
-rows pass unfixed here; native ctest on all three machines; an accuracy
-sweep re-baseline, since the oracle changed (#157, #161), #166 moves CDF
-values and #160 moves the quantile x-grids (run the oracle on the full
-CSV only: it rewrites `docs/ACCURACY_CHARACTERIZATION.md`'s ISA block
-from whatever rows it is given); #166's cost (3ε stop, √a-scaled caps,
-Stirling prefactors) measured on a quiet machine against v2.4.1 with the
-`tools/bench/` harness from `dev/v2.5.0-corvus`.
+**Open [OPEN]:** Student-t pdf/logpdf are 2e-10 relative off at ν = 1e6
+(sweep worst row x = 0): `logNormConst_` (`student_t.cpp`, updateCache)
+is lgamma((ν+1)/2) − lgamma(ν/2) formed directly, the cancellation
+`log_beta_half` avoids. Pre-existing, outside #159's text; needs a
+decision on scope (v2.4.2 or later) and on exposing the stable ratio.
+
+Owed before the release PR: #167's fail-first under UBSan
+(float-cast-overflow) on Kaby Lake or the M1 — MSVC has no such check and
+x86 casts to `INT_MIN`, so its gate rows pass unfixed here; native ctest
+on all three machines; an accuracy sweep re-baseline, since the oracle
+changed (#157, #161), #166 moves CDF values and #159/#160 move the
+quantile x-grids (run the oracle on the full CSV only: it rewrites
+`docs/ACCURACY_CHARACTERIZATION.md`'s ISA block from whatever rows it is
+given); #166's cost (3ε stop, √a-scaled caps, Stirling prefactors)
+measured on a quiet machine against v2.4.1 with the `tools/bench/`
+harness from `dev/v2.5.0-corvus`.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
@@ -106,6 +112,13 @@ what is decided, open, or next.
   the bound P ≤ x^a/Γ(a + 1) (a lower bracket, and the answer below
   t = −700). Named `detail::gamma_p_inv(a, p)` to match v2.5.0's corvus
   entry point.
+- **Student-t (#159) [DERIVED 2026-10-03].** The quantile reuses that
+  Newton in s = log|t| (log|T| has a log-concave density), on the tail
+  below q = ¼ and on the central mass against the exact 1 − 2q above it,
+  seeded from the normal quantile, which bounds |t| from below at every ν.
+  Removing the df ≥ 1000 shortcut was not enough at large ν: the
+  incomplete-beta continued fraction near x = 1 runs thousands of terms
+  (4e-11 at ν = 1e6), so the tail side uses BGRAT there.
 - Layered dependency architecture (6 levels) and the dual API
   (auto-dispatch + explicit strategy) are permanent designs, not
   transitional. See AGENTS.md Architecture.
