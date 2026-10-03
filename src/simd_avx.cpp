@@ -158,6 +158,617 @@ void VectorOps::scalar_add_avx(const double* a, double scalar, double* result,
     }
 }
 
+// Transcendental function implementations
+
+void VectorOps::vector_exp_avx(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx()) {
+        return vector_exp_fallback(input, output, size);
+    }
+
+    // SLEEF-inspired constants for exp computation - ultra high precision
+    const __m256d ln2_inv = _mm256_set1_pd(1.4426950408889634073599246810019);  // 1/ln(2)
+    const __m256d ln2_hi = _mm256_set1_pd(0.693147180369123816490e+00);         // ln(2) high part
+    const __m256d ln2_lo = _mm256_set1_pd(1.90821492927058770002e-10);          // ln(2) low part
+
+    // Bounds for valid range.
+    // exp_max: largest x for which exp(x) is finite (log of DBL_MAX).
+    // exp_min: -746.0, below the true underflow-to-zero threshold (exp(x) rounds to 0
+    //   for x < -745.1332...), so clamped lanes still produce 0. The two-step 2^n
+    //   scaling below keeps the biased exponents positive down to n = -1076; the old
+    //   -708.0 clamp (required by single-step scaling) pinned every x < -708 to
+    //   exp(-708) ~ 3.3e-308 instead of flushing through the subnormal range.
+    const __m256d exp_max = _mm256_set1_pd(709.782712893383996732223);
+    const __m256d exp_min = _mm256_set1_pd(-746.0);
+    const __m256d pos_inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
+
+    // SLEEF polynomial coefficients for exp(s) where |s| < ln(2)/2
+    // These provide < 1 ULP error for double precision
+    const __m256d c1 = _mm256_set1_pd(0.1666666666666669072e+0);
+    const __m256d c2 = _mm256_set1_pd(0.4166666666666602598e-1);
+    const __m256d c3 = _mm256_set1_pd(0.8333333333314938210e-2);
+    const __m256d c4 = _mm256_set1_pd(0.1388888888914497797e-2);
+    const __m256d c5 = _mm256_set1_pd(0.1984126989855865850e-3);
+    const __m256d c6 = _mm256_set1_pd(0.2480158687479686264e-4);
+    const __m256d c7 = _mm256_set1_pd(0.2755723402025388239e-5);
+    const __m256d c8 = _mm256_set1_pd(0.2755762628169491192e-6);
+    const __m256d c9 = _mm256_set1_pd(0.2511210703042288022e-7);
+    const __m256d c10 = _mm256_set1_pd(0.2081276378237164457e-8);
+
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
+
+    for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
+        __m256d x_orig = _mm256_loadu_pd(&input[i]);
+
+        // Clamp to avoid overflow/underflow
+        __m256d x = _mm256_min_pd(x_orig, exp_max);
+        x = _mm256_max_pd(x, exp_min);
+
+        // Range reduction: x = n*ln(2) + r
+        // n = round(x / ln(2))
+        __m256d n_float = _mm256_mul_pd(x, ln2_inv);
+        n_float = _mm256_round_pd(n_float, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+
+        // Improved range reduction for higher precision
+        // r = x - n*ln(2) using high-low decomposition
+        __m256d r = _mm256_sub_pd(x, _mm256_mul_pd(n_float, ln2_hi));
+        r = _mm256_sub_pd(r, _mm256_mul_pd(n_float, ln2_lo));
+
+        // Compute exp(r) using SLEEF polynomial
+        // exp(r) ≈ 1 + r + r²*(0.5 + r*P(r))
+        // Using Horner's method for P(r)
+        __m256d r2 = _mm256_mul_pd(r, r);
+
+        // Evaluate polynomial P(r)
+        __m256d poly = c10;
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c9);
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c8);
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c7);
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c6);
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c5);
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c4);
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c3);
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c2);
+        poly = _mm256_add_pd(_mm256_mul_pd(poly, r), c1);
+
+        // Complete: exp(r) = 1 + r + r²*(0.5 + r*P(r))
+        poly = _mm256_mul_pd(poly, r);
+        poly = _mm256_add_pd(poly, _mm256_set1_pd(0.5));
+        poly = _mm256_mul_pd(poly, r2);
+        poly = _mm256_add_pd(poly, r);
+        poly = _mm256_add_pd(poly, _mm256_set1_pd(1.0));
+
+        // Scale by 2^n in two steps: n = n1 + n2 with n1 = n>>1, so each factor
+        // 2^n1, 2^n2 has biased exponent n_k + 1023 in [485, 1535] and stays a
+        // normal double even when n reaches -1076 (x = -746). The second multiply
+        // rounds once into the subnormal range, giving graceful underflow to 0
+        // (single-step scaling needs n + 1023 > 0, i.e. x >= -708).
+        __m128i n_int = _mm256_cvtpd_epi32(n_float);
+        __m128i n1 = _mm_srai_epi32(n_int, 1);  // floor(n/2), arithmetic shift
+        __m128i n2 = _mm_sub_epi32(n_int, n1);
+
+        // Create 2^n_k by manipulating exponent bits
+        // Double precision: sign(1) | exponent(11) | mantissa(52)
+        // 2^n_k = 1.0 * 2^n_k has exponent = 1023 + n_k
+        __m128i bias = _mm_set1_epi32(1023);
+        __m128i eb1 = _mm_add_epi32(n1, bias);
+        __m128i eb2 = _mm_add_epi32(n2, bias);
+
+        // Shift to exponent position and convert back to double.
+        // Lower two elements [0,1] convert directly; upper two [2,3] are
+        // shuffled down to [0,1] first.
+        __m128i e1_lo = _mm_slli_epi64(_mm_cvtepi32_epi64(eb1), 52);
+        __m128i e1_hi = _mm_slli_epi64(_mm_cvtepi32_epi64(_mm_shuffle_epi32(eb1, 0x0E)), 52);
+        __m128i e2_lo = _mm_slli_epi64(_mm_cvtepi32_epi64(eb2), 52);
+        __m128i e2_hi = _mm_slli_epi64(_mm_cvtepi32_epi64(_mm_shuffle_epi32(eb2, 0x0E)), 52);
+
+        __m256d scale1 = _mm256_set_m128d(_mm_castsi128_pd(e1_hi), _mm_castsi128_pd(e1_lo));
+        __m256d scale2 = _mm256_set_m128d(_mm_castsi128_pd(e2_hi), _mm_castsi128_pd(e2_lo));
+
+        // Final result: exp(x) = exp(r) * 2^n1 * 2^n2
+        __m256d result = _mm256_mul_pd(_mm256_mul_pd(poly, scale1), scale2);
+
+        // Match std::exp at the non-finite/overflow edges: x > exp_max (incl.
+        // +inf) -> +inf, NaN -> NaN. Underflow/-inf already flush to +0, so no
+        // low-side fixup is needed. Keeps the SIMD body consistent with the
+        // scalar remainder loop below (std::exp) and the NEON kernel.
+        result = _mm256_blendv_pd(result, pos_inf, _mm256_cmp_pd(x_orig, exp_max, _CMP_GT_OQ));
+        result = _mm256_blendv_pd(result, x_orig, _mm256_cmp_pd(x_orig, x_orig, _CMP_UNORD_Q));
+
+        _mm256_storeu_pd(&output[i], result);
+    }
+
+    // Handle remaining elements with scalar fallback
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::exp(input[i]);
+    }
+}
+
+void VectorOps::vector_log_avx(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx()) {
+        return vector_log_fallback(input, output, size);
+    }
+
+    // Constants for log computation - exact SLEEF values
+    const __m256d one = _mm256_set1_pd(1.0);
+    const __m256d ln2_hi = _mm256_set1_pd(0.693147180559945286226764);        // ln(2) high part
+    const __m256d ln2_lo = _mm256_set1_pd(2.319046813846299558417771e-17);    // ln(2) low part
+    const __m256d sqrt2 = _mm256_set1_pd(1.4142135623730950488016887242097);  // sqrt(2)
+    const __m256d half = _mm256_set1_pd(0.5);
+    const __m256d two = _mm256_set1_pd(2.0);
+
+    // SLEEF exact polynomial coefficients from xlog_u1 for high accuracy
+    // For the (m-1)/(m+1) transformation: log(m) = 2*atanh((m-1)/(m+1))
+    const __m256d c1 = _mm256_set1_pd(0.6666666666667333541e+0);
+    const __m256d c2 = _mm256_set1_pd(0.3999999999635251990e+0);
+    const __m256d c3 = _mm256_set1_pd(0.2857142932794299317e+0);
+    const __m256d c4 = _mm256_set1_pd(0.2222214519839380009e+0);
+    const __m256d c5 = _mm256_set1_pd(0.1818605932937785996e+0);
+    const __m256d c6 = _mm256_set1_pd(0.1525629051003428716e+0);
+    const __m256d c7 = _mm256_set1_pd(0.1532076988502701353e+0);
+
+    // Special value handling
+    const __m256d zero = _mm256_setzero_pd();
+    const __m256d neg_inf = _mm256_set1_pd(-std::numeric_limits<double>::infinity());
+    const __m256d pos_inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
+
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
+
+    for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
+        __m256d x = _mm256_loadu_pd(&input[i]);
+
+        // Handle special cases: log(0) = -inf, log(+inf) = +inf, log(negative) = nan
+        __m256d is_zero = _mm256_cmp_pd(x, zero, _CMP_EQ_OQ);
+        __m256d is_negative = _mm256_cmp_pd(x, zero, _CMP_LT_OQ);
+        __m256d is_inf = _mm256_cmp_pd(x, pos_inf, _CMP_EQ_OQ);
+
+        // SLEEF-inspired pure SIMD approach for exponent/mantissa extraction
+        // Handle denormals by scaling
+        const __m256d min_normal = _mm256_set1_pd(2.2250738585072014e-308);  // DBL_MIN
+        __m256d is_denormal = _mm256_cmp_pd(x, min_normal, _CMP_LT_OQ);
+
+        // Scale denormals by 2^54 to bring into normal range
+        const __m256d scale_up = _mm256_set1_pd(18014398509481984.0);  // 2^54
+        __m256d scaled_x = _mm256_blendv_pd(x, _mm256_mul_pd(x, scale_up), is_denormal);
+
+        // Cast to integer for bit manipulation (process in two 128-bit halves)
+        __m256i xi = _mm256_castpd_si256(scaled_x);
+
+        // Extract the lower and upper 128-bit halves
+        __m128i xi_low = _mm256_castsi256_si128(xi);
+        __m128i xi_high = _mm256_extractf128_si256(xi, 1);
+
+        // Extract exponent bits (bits 52-62) using shifts
+        // Right shift by 52 to get exponent in lower bits
+        __m128i exp_low = _mm_srli_epi64(xi_low, 52);
+        __m128i exp_high = _mm_srli_epi64(xi_high, 52);
+
+        // Mask to keep only exponent bits (11 bits)
+        __m128i exp_mask = _mm_set1_epi64x(0x7FF);
+        exp_low = _mm_and_si128(exp_low, exp_mask);
+        exp_high = _mm_and_si128(exp_high, exp_mask);
+
+        // Subtract bias (1023) to get actual exponent
+        __m128i bias = _mm_set1_epi64x(1023);
+        exp_low = _mm_sub_epi64(exp_low, bias);
+        exp_high = _mm_sub_epi64(exp_high, bias);
+
+        // Convert exponent to double
+        // Need to convert 64-bit integers to doubles properly
+        // Since we have 64-bit values in exp_low/exp_high, we need different conversion
+        alignas(16) int64_t exp_low_arr[2];
+        alignas(16) int64_t exp_high_arr[2];
+        // Cast via void* so -Wcast-align=strict doesn't flag int64_t*(align 8)
+        // -> __m128i*(align 16): the buffers are alignas(16) above, so the
+        // aligned store is valid; the flag just can't see that guarantee.
+        _mm_store_si128(static_cast<__m128i*>(static_cast<void*>(exp_low_arr)), exp_low);
+        _mm_store_si128(static_cast<__m128i*>(static_cast<void*>(exp_high_arr)), exp_high);
+
+        __m128d exp_low_d =
+            _mm_set_pd(static_cast<double>(exp_low_arr[1]), static_cast<double>(exp_low_arr[0]));
+        __m128d exp_high_d =
+            _mm_set_pd(static_cast<double>(exp_high_arr[1]), static_cast<double>(exp_high_arr[0]));
+        __m256d e = _mm256_set_m128d(exp_high_d, exp_low_d);
+
+        // Adjust exponent for denormals
+        e = _mm256_blendv_pd(e, _mm256_sub_pd(e, _mm256_set1_pd(54.0)), is_denormal);
+
+        // Create mantissa by setting exponent to bias (1023)
+        // Clear exponent bits and set to 0x3FF (1023)
+        __m128i mantissa_mask = _mm_set1_epi64x(0x000FFFFFFFFFFFFF);
+        __m128i mantissa_low = _mm_and_si128(xi_low, mantissa_mask);
+        __m128i mantissa_high = _mm_and_si128(xi_high, mantissa_mask);
+
+        __m128i exp_bias = _mm_set1_epi64x(0x3FF0000000000000);
+        mantissa_low = _mm_or_si128(mantissa_low, exp_bias);
+        mantissa_high = _mm_or_si128(mantissa_high, exp_bias);
+
+        // Convert back to double (mantissa in [1, 2) range)
+        __m128d m_low = _mm_castsi128_pd(mantissa_low);
+        __m128d m_high = _mm_castsi128_pd(mantissa_high);
+        __m256d m = _mm256_set_m128d(m_high, m_low);
+
+        // Range reduction: if m > sqrt(2), divide by 2 and increment exponent
+        __m256d needs_adjust = _mm256_cmp_pd(m, sqrt2, _CMP_GT_OQ);
+        m = _mm256_blendv_pd(m, _mm256_mul_pd(m, half), needs_adjust);
+        e = _mm256_blendv_pd(e, _mm256_add_pd(e, one), needs_adjust);
+
+        // Compute log(m) using SLEEF's (m-1)/(m+1) transformation
+        // where xr = (m-1)/(m+1), log(m) = 2*xr + xr³*t where t is polynomial
+        __m256d mp1 = _mm256_add_pd(m, one);
+        __m256d mm1 = _mm256_sub_pd(m, one);
+        __m256d xr = _mm256_div_pd(mm1, mp1);
+        __m256d xr2 = _mm256_mul_pd(xr, xr);
+
+        // Evaluate polynomial using exact SLEEF coefficients and order
+        // t = c7 + xr²*(c6 + xr²*(c5 + xr²*(c4 + xr²*(c3 + xr²*(c2 + xr²*c1)))))
+        __m256d t = c7;
+        t = _mm256_add_pd(_mm256_mul_pd(t, xr2), c6);
+        t = _mm256_add_pd(_mm256_mul_pd(t, xr2), c5);
+        t = _mm256_add_pd(_mm256_mul_pd(t, xr2), c4);
+        t = _mm256_add_pd(_mm256_mul_pd(t, xr2), c3);
+        t = _mm256_add_pd(_mm256_mul_pd(t, xr2), c2);
+        t = _mm256_add_pd(_mm256_mul_pd(t, xr2), c1);
+
+        // Compute log(m) = 2*xr + xr³*t
+        __m256d xr3 = _mm256_mul_pd(xr, xr2);
+        __m256d log_m = _mm256_mul_pd(xr3, t);
+        log_m = _mm256_add_pd(_mm256_mul_pd(xr, two), log_m);
+
+        // Final result: log(x) = e*ln2_hi + log_m + e*ln2_lo
+        // Compute e*ln2_hi + log_m first (larger magnitudes) before adding
+        // the ln2 low-word correction — matches AVX2/AVX512/NEON FMA ordering
+        // and recovers 1-2 ULP lost by the original (e*ln2_hi+e*ln2_lo)+log_m order.
+        __m256d result = _mm256_add_pd(_mm256_mul_pd(e, ln2_hi), log_m);
+        result = _mm256_add_pd(result, _mm256_mul_pd(e, ln2_lo));
+
+        // Handle special cases: log(0) = -inf, log(+inf) = +inf, log(negative) = nan
+        result = _mm256_blendv_pd(result, neg_inf, is_zero);
+        result = _mm256_blendv_pd(result, pos_inf, is_inf);
+        result = _mm256_blendv_pd(result, _mm256_set1_pd(std::numeric_limits<double>::quiet_NaN()),
+                                  is_negative);
+        result = _mm256_blendv_pd(result, x, _mm256_cmp_pd(x, x, _CMP_UNORD_Q));
+
+        _mm256_storeu_pd(&output[i], result);
+    }
+
+    // Handle remaining elements with scalar fallback
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::log(input[i]);
+    }
+}
+
+// Scalar exponent version (matches header signature)
+void VectorOps::vector_pow_avx(const double* base, double exponent, double* output,
+                               std::size_t size) noexcept {
+    if (!stats::arch::supports_avx()) {
+        return vector_pow_fallback(base, exponent, output, size);
+    }
+
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
+
+    // For pow(x, y) = exp(y * log(x))
+    // We'll use our SIMD log and exp functions
+    alignas(32) double temp_log[AVX_DOUBLE_WIDTH];
+    alignas(32) double temp_mul[AVX_DOUBLE_WIDTH];
+
+    __m256d exp_val = _mm256_set1_pd(exponent);  // Broadcast scalar exponent
+
+    for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
+        // Step 1: Compute log(base)
+        vector_log_avx(&base[i], temp_log, AVX_DOUBLE_WIDTH);
+
+        // Step 2: Multiply by exponent
+        __m256d log_val = _mm256_load_pd(temp_log);
+        __m256d product = _mm256_mul_pd(log_val, exp_val);
+        _mm256_store_pd(temp_mul, product);
+
+        // Step 3: Compute exp(y * log(x))
+        vector_exp_avx(temp_mul, &output[i], AVX_DOUBLE_WIDTH);
+
+        // Handle special cases
+        __m256d base_val = _mm256_loadu_pd(&base[i]);
+        __m256d result = _mm256_loadu_pd(&output[i]);
+
+        // pow(0, y) = 0 for y > 0, 1 for y = 0, inf for y < 0
+        __m256d zero = _mm256_setzero_pd();
+        __m256d one = _mm256_set1_pd(1.0);
+        __m256d inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
+
+        __m256d base_is_zero = _mm256_cmp_pd(base_val, zero, _CMP_EQ_OQ);
+        __m256d exp_is_zero = _mm256_cmp_pd(exp_val, zero, _CMP_EQ_OQ);
+        __m256d exp_is_positive = _mm256_cmp_pd(exp_val, zero, _CMP_GT_OQ);
+
+        // If base is 0
+        result = _mm256_blendv_pd(result, one, _mm256_and_pd(base_is_zero, exp_is_zero));
+        result = _mm256_blendv_pd(result, zero, _mm256_and_pd(base_is_zero, exp_is_positive));
+        result = _mm256_blendv_pd(
+            result, inf, _mm256_and_pd(base_is_zero, _mm256_cmp_pd(exp_val, zero, _CMP_LT_OQ)));
+
+        // pow(1, y) = 1 for any y
+        __m256d base_is_one = _mm256_cmp_pd(base_val, one, _CMP_EQ_OQ);
+        result = _mm256_blendv_pd(result, one, base_is_one);
+
+        // pow(x, 0) = 1 for any x != 0
+        result = _mm256_blendv_pd(result, one, exp_is_zero);
+
+        _mm256_storeu_pd(&output[i], result);
+    }
+
+    // Handle remaining elements with scalar fallback
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::pow(base[i], exponent);
+    }
+}
+
+// Element-wise power version (NEW - for vector exponents)
+void VectorOps::vector_pow_elementwise_avx(const double* base, const double* exponent,
+                                           double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx()) {
+        // Fallback to scalar implementation
+        for (std::size_t i = 0; i < size; ++i) {
+            output[i] = std::pow(base[i], exponent[i]);
+        }
+        return;
+    }
+
+    constexpr std::size_t AVX_DOUBLE_WIDTH = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / AVX_DOUBLE_WIDTH) * AVX_DOUBLE_WIDTH;
+
+    // Temporary buffers for intermediate results
+    alignas(32) double temp_log[AVX_DOUBLE_WIDTH];
+    alignas(32) double temp_mul[AVX_DOUBLE_WIDTH];
+
+    const __m256d zero = _mm256_setzero_pd();
+    const __m256d one = _mm256_set1_pd(1.0);
+    const __m256d inf = _mm256_set1_pd(std::numeric_limits<double>::infinity());
+
+    // For pow(x, y) = exp(y * log(x))
+    // Use high-accuracy log and exp functions
+    for (std::size_t i = 0; i < simd_end; i += AVX_DOUBLE_WIDTH) {
+        // Step 1: Compute log(base) using our high-accuracy function
+        vector_log_avx(&base[i], temp_log, AVX_DOUBLE_WIDTH);
+
+        // Step 2: Multiply log(base) by exponent
+        __m256d exp_vec = _mm256_loadu_pd(&exponent[i]);
+        __m256d log_vec = _mm256_load_pd(temp_log);
+        __m256d product = _mm256_mul_pd(exp_vec, log_vec);
+        _mm256_store_pd(temp_mul, product);
+
+        // Step 3: Compute exp(y * log(x)) using our high-accuracy function
+        vector_exp_avx(temp_mul, &output[i], AVX_DOUBLE_WIDTH);
+
+        // Load results and inputs for special case handling
+        __m256d base_vec = _mm256_loadu_pd(&base[i]);
+        __m256d result = _mm256_loadu_pd(&output[i]);
+
+        // === Step 4: Handle special cases for pow ===
+
+        // Check base conditions
+        __m256d base_is_zero = _mm256_cmp_pd(base_vec, zero, _CMP_EQ_OQ);
+        __m256d base_is_one = _mm256_cmp_pd(base_vec, one, _CMP_EQ_OQ);
+
+        // Check exponent conditions
+        __m256d exp_is_zero = _mm256_cmp_pd(exp_vec, zero, _CMP_EQ_OQ);
+        __m256d exp_is_positive = _mm256_cmp_pd(exp_vec, zero, _CMP_GT_OQ);
+        __m256d exp_is_negative = _mm256_cmp_pd(exp_vec, zero, _CMP_LT_OQ);
+
+        // pow(0, y) = 0 for y > 0, 1 for y = 0, inf for y < 0
+        result = _mm256_blendv_pd(result, one, _mm256_and_pd(base_is_zero, exp_is_zero));
+        result = _mm256_blendv_pd(result, zero, _mm256_and_pd(base_is_zero, exp_is_positive));
+        result = _mm256_blendv_pd(result, inf, _mm256_and_pd(base_is_zero, exp_is_negative));
+
+        // pow(1, y) = 1 for any y
+        result = _mm256_blendv_pd(result, one, base_is_one);
+
+        // pow(x, 0) = 1 for any x != 0
+        result = _mm256_blendv_pd(result, one, _mm256_andnot_pd(base_is_zero, exp_is_zero));
+
+        _mm256_storeu_pd(&output[i], result);
+    }
+
+    // Handle remaining elements with scalar fallback
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::pow(base[i], exponent[i]);
+    }
+}
+
+    // Clean-room quadrant-reduction cos/sin (issue #95), AVX plain-arithmetic
+    // form. UNPROVEN LEG pending the ULP gate: unlike the other three tiers,
+    // this one has no donor implementation (libhmm's "AVX" section actually
+    // requires FMA, i.e. targets AVX2-class hardware) -- it is derived here by
+    // widening the SSE2 plain-arithmetic form (trig_reduce_2pd/trig_cores_2pd
+    // in src/simd_sse2.cpp) to 256-bit. AVX1 has no FMA and no
+    // _mm256_cvtepi32_epi64 (that's AVX2), so both the reduction and the
+    // quadrant-bit widening below use AVX1-only intrinsics.
+    //
+    // The reduction loses nothing versus the FMA tiers: every nf*p_k product
+    // in trig_reduce_4pd is exact by the 30-bit-split construction
+    // (kTrigPio2), so a plain rounded subtract after an exact multiply
+    // commits the identical single rounding step an FMA would (same argument
+    // as SSE2's trig_reduce_2pd). The only accuracy cost is the ordinary
+    // Horner mul+add in trig_cores_4pd (slightly worse rounding per step than
+    // FMA); expect ~1.5 ULP landing here vs ~0.8 for the FMA tiers, measured
+    // by the ULP gate smoke test.
+    #include "trig_cleanroom_data.inc"
+
+// Reduction shared by cos_avx/sin_avx: n32 = round-to-nearest-even(x*2/pi)
+// via the cvt round-trip (exact-product lemma holds for |n| <= 5,340,354,
+// i.e. |x| <= kTrigDMax = 2^23); r/rlo carry the reduced argument
+// compensated. Plain mul+sub throughout -- no FMA on AVX1.
+static inline void trig_reduce_4pd(__m256d x, __m256d& r, __m256d& rlo, __m128i& n32) noexcept {
+    n32 = _mm256_cvtpd_epi32(_mm256_mul_pd(x, _mm256_set1_pd(kTrigTwoOverPi)));
+    const __m256d nf = _mm256_cvtepi32_pd(n32);  // exact
+
+    r = _mm256_sub_pd(x, _mm256_mul_pd(nf, _mm256_set1_pd(kTrigPio2[0])));  // exact (step 1)
+    rlo = _mm256_setzero_pd();
+    for (int k = 1; k < 4; ++k) {
+        const __m256d pk = _mm256_set1_pd(kTrigPio2[k]);
+        const __m256d rk = _mm256_sub_pd(r, _mm256_mul_pd(nf, pk));
+        const __m256d e = _mm256_sub_pd(_mm256_sub_pd(r, rk), _mm256_mul_pd(nf, pk));
+        rlo = _mm256_add_pd(rlo, e);
+        r = rk;
+    }
+}
+
+// Degree-6 minimax parity cores on u = r*r; cos's 1 - u/2 head is split into
+// an exact (h, hl) pair (kTrigCosC[0] == -0.5 exactly, generator-asserted).
+// Plain mul+add throughout -- no FMA on AVX1.
+static inline void trig_cores_4pd(__m256d r, __m256d rlo, __m256d& s_core,
+                                  __m256d& c_core) noexcept {
+    const __m256d u = _mm256_mul_pd(r, r);
+
+    __m256d ps = _mm256_set1_pd(kTrigSinC[6]);
+    for (int i = 5; i >= 0; --i)
+        ps = _mm256_add_pd(_mm256_set1_pd(kTrigSinC[i]), _mm256_mul_pd(ps, u));
+    s_core = _mm256_add_pd(r, _mm256_add_pd(rlo, _mm256_mul_pd(_mm256_mul_pd(r, u), ps)));
+
+    __m256d pc = _mm256_set1_pd(kTrigCosC[6]);
+    for (int i = 5; i >= 1; --i)
+        pc = _mm256_add_pd(_mm256_set1_pd(kTrigCosC[i]), _mm256_mul_pd(pc, u));
+    const __m256d one_c = _mm256_set1_pd(1.0);
+    const __m256d half_c = _mm256_set1_pd(0.5);
+    const __m256d h = _mm256_sub_pd(one_c, _mm256_mul_pd(u, half_c));                    // 1 - u/2, exact
+    const __m256d hl = _mm256_sub_pd(_mm256_sub_pd(one_c, h), _mm256_mul_pd(u, half_c));  // (1-h) - u/2, exact
+    __m256d mc = _mm256_add_pd(hl, _mm256_mul_pd(_mm256_mul_pd(u, u), pc));
+    mc = _mm256_sub_pd(mc, _mm256_mul_pd(r, rlo));  // first-order effect of compensated reduction
+    c_core = _mm256_add_pd(h, mc);
+}
+
+// Widens the 4-lane int32 quadrant index n32 (from _mm256_cvtpd_epi32; AVX1
+// has no _mm256_cvtepi32_epi64, that's AVX2) into 256-bit swap/sign masks by
+// applying the SSE2 duplicate-shuffle trick (trig_reduce_2pd's n64 widening)
+// independently to each 128-bit half. Only the low 2 bits of each lane are
+// ever inspected, so duplicating a lane into both dwords of a 64-bit slot is
+// sufficient without a true 64-bit sign-extension.
+static inline void trig_quadrant_bits_4pd(__m128i n32, __m256d& swap_mask, __m256d& bit0_sign,
+                                          __m256d& bit1_sign) noexcept {
+    const __m128i n64_lo = _mm_shuffle_epi32(n32, _MM_SHUFFLE(1, 1, 0, 0));  // {n0,n0,n1,n1}
+    const __m128i n64_hi = _mm_shuffle_epi32(n32, _MM_SHUFFLE(3, 3, 2, 2));  // {n2,n2,n3,n3}
+    const __m128i one_i = _mm_set1_epi64x(1);
+    const __m128i zero_i = _mm_setzero_si128();
+
+    const __m128i bit0_lo = _mm_and_si128(n64_lo, one_i);
+    const __m128i bit0_hi = _mm_and_si128(n64_hi, one_i);
+    const __m128i bit1_lo = _mm_and_si128(_mm_srli_epi64(n64_lo, 1), one_i);
+    const __m128i bit1_hi = _mm_and_si128(_mm_srli_epi64(n64_hi, 1), one_i);
+
+    // all-ones iff bit0 set (0 - 1 = -1 = all-ones; 0 - 0 = 0), for blendv_pd's MSB test.
+    const __m128d swap_lo = _mm_castsi128_pd(_mm_sub_epi64(zero_i, bit0_lo));
+    const __m128d swap_hi = _mm_castsi128_pd(_mm_sub_epi64(zero_i, bit0_hi));
+    swap_mask = _mm256_set_m128d(swap_hi, swap_lo);
+
+    const __m128d bit0s_lo = _mm_castsi128_pd(_mm_slli_epi64(bit0_lo, 63));
+    const __m128d bit0s_hi = _mm_castsi128_pd(_mm_slli_epi64(bit0_hi, 63));
+    bit0_sign = _mm256_set_m128d(bit0s_hi, bit0s_lo);
+
+    const __m128d bit1s_lo = _mm_castsi128_pd(_mm_slli_epi64(bit1_lo, 63));
+    const __m128d bit1s_hi = _mm_castsi128_pd(_mm_slli_epi64(bit1_hi, 63));
+    bit1_sign = _mm256_set_m128d(bit1s_hi, bit1s_lo);
+}
+
+void VectorOps::vector_cos_avx(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx()) {
+        return vector_cos_fallback(input, output, size);
+    }
+
+    // cos(x) for |x| <= kTrigDMax (2^23); scalar fixup beyond (and for inf;
+    // NaN self-propagates through the polynomial path, see trig_reduce_4pd).
+    // Quadrant table: q=0:+c 1:-s 2:-c 3:+s -> swap core on bit0, sign on
+    // bit1 XOR bit0. UNPROVEN LEG -- see the derivation comment above
+    // trig_reduce_4pd; expect ~1.5 ULP, verified by the ULP gate smoke test.
+    constexpr std::size_t W = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+    const __m256d domain_bound = _mm256_set1_pd(kTrigDMax);
+    const __m256d sign_mask = _mm256_set1_pd(-0.0);
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m256d x = _mm256_loadu_pd(&input[i]);
+        __m256d ax = _mm256_andnot_pd(sign_mask, x);
+
+        __m256d r, rlo;
+        __m128i n32;
+        trig_reduce_4pd(x, r, rlo, n32);
+        __m256d s_core, c_core;
+        trig_cores_4pd(r, rlo, s_core, c_core);
+
+        __m256d swap_mask, bit0_sign, bit1_sign;
+        trig_quadrant_bits_4pd(n32, swap_mask, bit0_sign, bit1_sign);
+        const __m256d cv = _mm256_blendv_pd(c_core, s_core, swap_mask);
+        const __m256d sign_v = _mm256_xor_pd(bit0_sign, bit1_sign);
+        _mm256_storeu_pd(&output[i], _mm256_xor_pd(cv, sign_v));
+
+        // Out-of-domain / inf fixup decided from the pre-store REGISTER value
+        // `x`, so this stays correct when output aliases input.
+        const int mask = _mm256_movemask_pd(_mm256_cmp_pd(ax, domain_bound, _CMP_GT_OQ));
+        if (mask) {
+            alignas(32) double xbuf[4];
+            _mm256_store_pd(xbuf, x);
+            for (int lane = 0; lane < 4; ++lane)
+                if (mask & (1 << lane))
+                    output[i + static_cast<std::size_t>(lane)] = std::cos(xbuf[lane]);
+        }
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::cos(input[i]);
+    }
+}
+
+void VectorOps::vector_sin_avx(const double* input, double* output, std::size_t size) noexcept {
+    if (!stats::arch::supports_avx()) {
+        return vector_sin_fallback(input, output, size);
+    }
+
+    // sin(x) for |x| <= kTrigDMax (2^23) -- see vector_cos_avx's comment for
+    // the domain contract and the unproven-leg note. Quadrant table:
+    // q=0:+s 1:+c 2:-s 3:-c -> swap core on bit0 (opposite selection order
+    // from cos), sign on bit1 alone. Computed from the quadrant table
+    // directly, NOT cos(x - pi/2) (that composition loses accuracy through
+    // the extra subtraction).
+    constexpr std::size_t W = arch::simd::AVX_DOUBLES;
+    const std::size_t simd_end = (size / W) * W;
+    const __m256d domain_bound = _mm256_set1_pd(kTrigDMax);
+    const __m256d sign_mask = _mm256_set1_pd(-0.0);
+
+    for (std::size_t i = 0; i < simd_end; i += W) {
+        __m256d x = _mm256_loadu_pd(&input[i]);
+        __m256d ax = _mm256_andnot_pd(sign_mask, x);
+
+        __m256d r, rlo;
+        __m128i n32;
+        trig_reduce_4pd(x, r, rlo, n32);
+        __m256d s_core, c_core;
+        trig_cores_4pd(r, rlo, s_core, c_core);
+
+        __m256d swap_mask, bit0_sign, bit1_sign;
+        trig_quadrant_bits_4pd(n32, swap_mask, bit0_sign, bit1_sign);
+        (void)bit0_sign;
+        const __m256d sv = _mm256_blendv_pd(s_core, c_core, swap_mask);
+        __m256d result = _mm256_xor_pd(sv, bit1_sign);
+        // IEEE sign-of-zero: for x = -0 the core computes (-0) + (+0) = +0,
+        // dropping the sign; sin(+/-0) must be +/-0 exactly. x == 0 matches
+        // both zeros and no other double, so blend x itself back in.
+        result = _mm256_blendv_pd(result, x, _mm256_cmp_pd(x, _mm256_setzero_pd(), _CMP_EQ_OQ));
+        _mm256_storeu_pd(&output[i], result);
+
+        const int mask = _mm256_movemask_pd(_mm256_cmp_pd(ax, domain_bound, _CMP_GT_OQ));
+        if (mask) {
+            alignas(32) double xbuf[4];
+            _mm256_store_pd(xbuf, x);
+            for (int lane = 0; lane < 4; ++lane)
+                if (mask & (1 << lane))
+                    output[i + static_cast<std::size_t>(lane)] = std::sin(xbuf[lane]);
+        }
+    }
+
+    for (std::size_t i = simd_end; i < size; ++i) {
+        output[i] = std::sin(input[i]);
+    }
+}
+
 }  // namespace ops
 }  // namespace simd
 }  // namespace stats

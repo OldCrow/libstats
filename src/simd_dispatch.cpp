@@ -23,6 +23,17 @@ namespace stats {
 namespace simd {
 namespace ops {
 
+namespace {
+// erf on every x86 tier is corvus (v2.5.0): 1.3x (AVX2) to 2.7x (AVX-512) faster than the retired
+// musl-derived tier kernels (docs/bench-evidence/). corvus picks its tier from its own CPUID, so
+// LIBSTATS_MAX_SIMD_TIER does not cap this entry. NEON keeps vector_erf_neon, which is faster
+// than corvus there.
+[[maybe_unused]] void vector_erf_corvus(const double* values, double* results,
+                                        std::size_t size) noexcept {
+    corvus::erf(std::span<const double>{values, size}, std::span<double>{results, size});
+}
+}  // namespace
+
 //==============================================================================
 // makeDispatchTable — selects the best available SIMD tier at process startup.
 // Tiers are tested best-first; the first available tier wins and is returned.
@@ -43,6 +54,13 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
     t.vector_multiply = vector_multiply_fallback;
     t.scalar_multiply = scalar_multiply_fallback;
     t.scalar_add = scalar_add_fallback;
+    t.vector_exp = vector_exp_fallback;
+    t.vector_log = vector_log_fallback;
+    t.vector_pow = vector_pow_fallback;
+    t.vector_pow_elementwise = vector_pow_elementwise_fallback;
+    t.vector_erf = vector_erf_fallback;
+    t.vector_cos = vector_cos_fallback;
+    t.vector_sin = vector_sin_fallback;
 
 #ifdef LIBSTATS_HAS_NEON
     if (stats::arch::supports_neon()) {
@@ -52,6 +70,13 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_multiply = vector_multiply_neon;
         t.scalar_multiply = scalar_multiply_neon;
         t.scalar_add = scalar_add_neon;
+        t.vector_exp = vector_exp_neon;
+        t.vector_log = vector_log_neon;
+        t.vector_pow = vector_pow_neon;
+        t.vector_pow_elementwise = vector_pow_elementwise_neon;
+        t.vector_erf = vector_erf_neon;
+        t.vector_cos = vector_cos_neon;
+        t.vector_sin = vector_sin_neon;
         return t;  // ARM: NEON is the only SIMD tier
     }
 #endif
@@ -67,6 +92,13 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_multiply = vector_multiply_sse2;
         t.scalar_multiply = scalar_multiply_sse2;
         t.scalar_add = scalar_add_sse2;
+        t.vector_exp = vector_exp_sse2;
+        t.vector_log = vector_log_sse2;
+        t.vector_pow = vector_pow_sse2;
+        t.vector_pow_elementwise = vector_pow_elementwise_sse2;
+        t.vector_erf = vector_erf_corvus;  // SSE2 and every tier above it
+        t.vector_cos = vector_cos_sse2;
+        t.vector_sin = vector_sin_sse2;
     }
 #endif
 
@@ -78,6 +110,12 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_multiply = vector_multiply_avx;
         t.scalar_multiply = scalar_multiply_avx;
         t.scalar_add = scalar_add_avx;
+        t.vector_exp = vector_exp_avx;
+        t.vector_log = vector_log_avx;
+        t.vector_pow = vector_pow_avx;
+        t.vector_pow_elementwise = vector_pow_elementwise_avx;
+        t.vector_cos = vector_cos_avx;
+        t.vector_sin = vector_sin_avx;
     }
 #endif
 
@@ -90,6 +128,12 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_multiply = vector_multiply_avx2;
         t.scalar_multiply = scalar_multiply_avx2;
         t.scalar_add = scalar_add_avx2;
+        t.vector_exp = vector_exp_avx2;
+        t.vector_log = vector_log_avx2;
+        t.vector_pow = vector_pow_avx2;
+        t.vector_pow_elementwise = vector_pow_elementwise_avx2;
+        t.vector_cos = vector_cos_avx2;
+        t.vector_sin = vector_sin_avx2;
     }
 #endif
 
@@ -103,6 +147,12 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_multiply = vector_multiply_avx512;
         t.scalar_multiply = scalar_multiply_avx512;
         t.scalar_add = scalar_add_avx512;
+        t.vector_exp = vector_exp_avx512;
+        t.vector_log = vector_log_avx512;
+        t.vector_pow = vector_pow_avx512;
+        t.vector_pow_elementwise = vector_pow_elementwise_avx512;
+        t.vector_cos = vector_cos_avx512;
+        t.vector_sin = vector_sin_avx512;
     }
 #endif
 
@@ -160,37 +210,48 @@ void VectorOps::scalar_add(const double* a, double scalar, double* result,
     getDispatchTable().scalar_add(a, scalar, result, size);
 }
 
-// Transcendentals: corvus (v2.5.0). No size gate — one kernel for every
-// size keeps results independent of batch length, and corvus handles the
-// masked tail itself. See the note in simd.h.
 void VectorOps::vector_exp(const double* values, double* results, std::size_t size) noexcept {
-    corvus::exp(std::span<const double>{values, size}, std::span<double>{results, size});
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_exp_fallback(values, results, size);
+    getDispatchTable().vector_exp(values, results, size);
 }
 
 void VectorOps::vector_log(const double* values, double* results, std::size_t size) noexcept {
-    corvus::log(std::span<const double>{values, size}, std::span<double>{results, size});
-}
-
-void VectorOps::vector_erf(const double* values, double* results, std::size_t size) noexcept {
-    corvus::erf(std::span<const double>{values, size}, std::span<double>{results, size});
-}
-
-void VectorOps::vector_cos(const double* values, double* results, std::size_t size) noexcept {
-    corvus::cos(std::span<const double>{values, size}, std::span<double>{results, size});
-}
-
-void VectorOps::vector_sin(const double* values, double* results, std::size_t size) noexcept {
-    corvus::sin(std::span<const double>{values, size}, std::span<double>{results, size});
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_log_fallback(values, results, size);
+    getDispatchTable().vector_log(values, results, size);
 }
 
 void VectorOps::vector_pow(const double* base, double exponent, double* results,
                            std::size_t size) noexcept {
-    vector_pow_fallback(base, exponent, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_pow_fallback(base, exponent, results, size);
+    getDispatchTable().vector_pow(base, exponent, results, size);
 }
 
 void VectorOps::vector_pow_elementwise(const double* base, const double* exponent, double* results,
                                        std::size_t size) noexcept {
-    vector_pow_elementwise_fallback(base, exponent, results, size);
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_pow_elementwise_fallback(base, exponent, results, size);
+    getDispatchTable().vector_pow_elementwise(base, exponent, results, size);
+}
+
+void VectorOps::vector_erf(const double* values, double* results, std::size_t size) noexcept {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_erf_fallback(values, results, size);
+    getDispatchTable().vector_erf(values, results, size);
+}
+
+void VectorOps::vector_cos(const double* values, double* results, std::size_t size) noexcept {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_cos_fallback(values, results, size);
+    getDispatchTable().vector_cos(values, results, size);
+}
+
+void VectorOps::vector_sin(const double* values, double* results, std::size_t size) noexcept {
+    if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
+        return vector_sin_fallback(values, results, size);
+    getDispatchTable().vector_sin(values, results, size);
 }
 
 //========== Runtime Information Functions ==========

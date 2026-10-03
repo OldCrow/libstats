@@ -56,6 +56,20 @@ void VectorOps::scalar_add_fallback(const double* a, double scalar, double* resu
     }
 }
 
+void VectorOps::vector_exp_fallback(const double* values, double* results,
+                                    std::size_t size) noexcept {
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::exp(values[i]);
+    }
+}
+
+void VectorOps::vector_log_fallback(const double* values, double* results,
+                                    std::size_t size) noexcept {
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::log(values[i]);
+    }
+}
+
 void VectorOps::vector_pow_fallback(const double* base, double exponent, double* results,
                                     std::size_t size) noexcept {
     for (std::size_t i = 0; i < size; ++i) {
@@ -63,10 +77,31 @@ void VectorOps::vector_pow_fallback(const double* base, double exponent, double*
     }
 }
 
+void VectorOps::vector_erf_fallback(const double* values, double* results,
+                                    std::size_t size) noexcept {
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::erf(values[i]);
+    }
+}
+
 void VectorOps::vector_pow_elementwise_fallback(const double* base, const double* exponent,
                                                 double* results, std::size_t size) noexcept {
     for (std::size_t i = 0; i < size; ++i) {
         results[i] = std::pow(base[i], exponent[i]);
+    }
+}
+
+void VectorOps::vector_cos_fallback(const double* values, double* results,
+                                    std::size_t size) noexcept {
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::cos(values[i]);
+    }
+}
+
+void VectorOps::vector_sin_fallback(const double* values, double* results,
+                                    std::size_t size) noexcept {
+    for (std::size_t i = 0; i < size; ++i) {
+        results[i] = std::sin(values[i]);
     }
 }
 

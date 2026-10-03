@@ -698,8 +698,9 @@ endif()
 option(LIBSTATS_BUILD_TOOLS "Build utility tools" ON)
 
 if(LIBSTATS_BUILD_TOOLS)
-    # Tool registration (add_libstats_tool/add_standalone_tool helpers and all tool targets) moved
-    # to tools/CMakeLists.txt (Phase 3B/B4).
+    # Tool registration (add_libstats_tool/add_standalone_tool helpers, the
+    # LIBSTATS_BUILD_SIMD_DEV_TOOLS opt-in block, and all tool targets) moved to
+    # tools/CMakeLists.txt (Phase 3B/B4).
     add_subdirectory(tools)
 endif()
 

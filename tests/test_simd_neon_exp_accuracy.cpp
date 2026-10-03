@@ -1,8 +1,6 @@
 /**
  * @file test_simd_neon_exp_accuracy.cpp
- * @brief Regression test: VectorOps::vector_exp holds the <1 ULP accuracy floor
- *        on a NEON host (a corvus kernel since v2.5.0; the history below is the
- *        retired local kernel's).
+ * @brief Regression test: vector_exp_neon holds the <1 ULP accuracy floor.
  *
  * Issue #33 Q1: vector_exp_neon was replaced with a table+polynomial kernel
  * (see docs/SIMD_BENCHMARK_RESULTS.md and PLAN.md "Issue #33 Experiment").

@@ -1,7 +1,3 @@
-> **Historical (v2.5.0).** The kernel this document derives and audits was
-> retired when corvus became the elementary-function engine; it is kept as
-> the provenance record of the v2.x clean-room work.
-
 # Derivation — double-precision NEON `sin(x)` / `cos(x)` (clean-room)
 
 > **Workspace-name mapping**: `SPEC.md` and `gen_coeffs.py` are clean-room
