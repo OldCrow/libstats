@@ -512,8 +512,10 @@ def _std_normal_quantile(pm: "mp.mpf") -> "mp.mpf":
     on t > 0 keeps the target on its own small side at full precision, and
     1 - p is exact at dps 50 for a lifted double p >= 0.5 (Sterbenz).
 
-    GaussianRef.quantile keeps the erfinv form deliberately -- it is part of
-    the frozen pre-v2.4.0 baseline and is not this change's to alter.
+    GaussianRef.quantile and LogNormalRef.quantile use this form since
+    v2.4.2 (#157): their erfinv(2p - 1) form rounded to -inf for p <~ 1e-50,
+    so libstats' matching -inf (#158) scored as correct. Before v2.4.2 they
+    kept the erfinv form to freeze the pre-v2.4.0 baseline.
     """
     if pm == mp.mpf("0.5"):
         return mp.mpf(0)
@@ -763,7 +765,7 @@ class GaussianRef(Ref):
 
     @staticmethod
     def quantile(mean, sigma, p):
-        return mp.mpf(mean) + mp.mpf(sigma) * SQRT2 * mp.erfinv(2 * mp.mpf(p) - 1)
+        return mp.mpf(mean) + mp.mpf(sigma) * _std_normal_quantile(mp.mpf(p))
 
 
 @_reg("lognormal")
@@ -794,7 +796,7 @@ class LogNormalRef(Ref):
 
     @staticmethod
     def quantile(mu, sigma, p):
-        z = SQRT2 * mp.erfinv(2 * mp.mpf(p) - 1)
+        z = _std_normal_quantile(mp.mpf(p))
         return mp.e ** (mp.mpf(mu) + mp.mpf(sigma) * z)
 
 
@@ -851,15 +853,21 @@ class GammaRef(Ref):
     @staticmethod
     def pdf(alpha, beta, x):
         a, b, xm = mp.mpf(alpha), mp.mpf(beta), mp.mpf(x)
-        if xm <= 0:
+        if xm < 0:
             return mp.mpf(0)
+        if xm == 0:
+            # The limit at the support boundary (#161): +inf for alpha < 1, beta for
+            # alpha = 1, 0 for alpha > 1.
+            return mp.inf if a < 1 else (b if a == 1 else mp.mpf(0))
         return b**a / mp.gamma(a) * xm ** (a - 1) * mp.e ** (-b * xm)
 
     @staticmethod
     def logpdf(alpha, beta, x):
         a, b, xm = mp.mpf(alpha), mp.mpf(beta), mp.mpf(x)
-        if xm <= 0:
+        if xm < 0:
             return -mp.inf
+        if xm == 0:
+            return mp.inf if a < 1 else (mp.log(b) if a == 1 else -mp.inf)
         return a * mp.log(b) - mp.loggamma(a) + (a - 1) * mp.log(xm) - b * xm
 
     @staticmethod
@@ -1166,15 +1174,20 @@ class ChiSquaredRef(Ref):
     @staticmethod
     def pdf(k, _p2, x):
         kk, xm = mp.mpf(k), mp.mpf(x)
-        if xm <= 0:
+        if xm < 0:
             return mp.mpf(0)
+        if xm == 0:
+            # Gamma(k/2, 1/2) at the boundary (#161): +inf for k < 2, 1/2 for k = 2, else 0.
+            return mp.inf if kk < 2 else (mp.mpf("0.5") if kk == 2 else mp.mpf(0))
         return xm ** (kk / 2 - 1) * mp.e ** (-xm / 2) / (2 ** (kk / 2) * mp.gamma(kk / 2))
 
     @staticmethod
     def logpdf(k, _p2, x):
         kk, xm = mp.mpf(k), mp.mpf(x)
-        if xm <= 0:
+        if xm < 0:
             return -mp.inf
+        if xm == 0:
+            return mp.inf if kk < 2 else (-mp.log(2) if kk == 2 else -mp.inf)
         return (kk / 2 - 1) * mp.log(xm) - xm / 2 - (kk / 2) * mp.log(2) - mp.loggamma(kk / 2)
 
     @staticmethod
@@ -1278,6 +1291,10 @@ class WeibullRef(Ref):
         k, lam, xm = mp.mpf(shape), mp.mpf(scale), mp.mpf(x)
         if xm < 0:
             return mp.mpf(0)
+        if xm == 0:
+            # The same boundary rule as logpdf below (#161), stated rather than left to
+            # mpmath's 0 ** (k - 1).
+            return mp.inf if k < 1 else (1 / lam if k == 1 else mp.mpf(0))
         return (k / lam) * (xm / lam) ** (k - 1) * mp.e ** (-((xm / lam) ** k))
 
     @staticmethod
@@ -2011,6 +2028,13 @@ def run_self_checks() -> list:
         mp.isfinite(_std_normal_quantile(mp.mpf("1e-300")))
         and not mp.isfinite(SQRT2 * mp.erfinv(2 * mp.mpf("1e-300") - 1)),
     )
+    check(
+        # #157: the Gaussian reference itself goes through the survival form,
+        # finite and at -37.0471 sigma at p = 1e-300 (the erfinv form gave -inf).
+        "gaussian_ref.quantile_finite_at_1e-300",
+        abs(GaussianRef.quantile(0.0, 1.0, 1e-300) - mp.mpf("-37.047096299361199"))
+        < mp.mpf("1e-12"),
+    )
 
     # --- comparator overflow rule (references beyond double range) ---
     check(
@@ -2341,6 +2365,8 @@ def is_nan(v: float) -> bool:
 # DBL_MAX, and a library inf would be a genuine one-step overflow error.
 with mp.workprec(80):
     _DBL_ROUNDS_TO_INF = mp.mpf(2) ** 1024 - mp.mpf(2) ** 970
+    # Half the smallest subnormal: references at or below it round to 0.
+    _HALF_DENORM_MIN = mp.mpf(2) ** -1075
 
 
 def _overflow_correct(ref, got: float) -> bool:
@@ -2466,6 +2492,19 @@ def compare(rows: list) -> "tuple[dict, list]":
                      f"batch_bits decoded to {row.batch}")
                 )
             continue
+
+        if row.method == "quantile" and abs(ref) > _HALF_DENORM_MIN:
+            # An exact 0 against a non-zero reference is a collapse, not a
+            # small absolute error: LogNormal's quantile returned 0 at
+            # p = 1e-300 against references down to 6.6e-33, and the absolute
+            # gate passed it (#157, #158). References below half the smallest
+            # subnormal round to 0, so a 0 there is correct.
+            for src_name, v in (("scalar", row.scalar), ("batch", row.batch)):
+                if v is not None and v == 0:
+                    g.violations.append(
+                        (row.lineno, src_name,
+                         f"reference is {mp.nstr(ref, 6)}, {src_name} returned exactly 0")
+                    )
 
         is_cdf_tail = row.method == "cdf" and ref < mp.mpf("1e-3")
         if not math.isfinite(row.scalar):
