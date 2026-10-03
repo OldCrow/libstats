@@ -1,107 +1,72 @@
 # libstats — Plan / Status
 
 ## Status [DERIVED] — 2026-10-03
-**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
-`d8d3388`, pushed; milestone "v2.4.2 — Correctness patch", #157–#171;
-Zen 4 worktree `../libstats-v2.4.2`). Fixed on the branch, each with a
-gate shown to fail on `d8d3388`: #157, #158, #159, #160, #161, #163
-(Gaussian's copy ctor too), #164, #165, #166, #167, #170, #171; and the
-FORCE_PARALLEL span lambdas of Poisson, Discrete, Gamma, Laplace, Uniform
-and VonMises, which sent NaN to the out-of-support value
-(`test_batch_nan_gates` now runs all three forced strategies). #170/#171
-are a backport of `45000c6`'s `detail::discrete_quantile_search`
-(Poisson, NegativeBinomial); Binomial's quantile moved onto it too
-[user], 2.3–48× faster, INDICATIVE (commit `8feb591`). `420eaf1`
-(clang-cl port, no behaviour change under cl.exe) cherry-picked as
-`6245e4e` [user]. 81/81 on Zen 4. #162 is deferred to a Mac session to
-be written and verified there in one pass [user].
+**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` at `9f1820d`, pushed (cut
+from `main` at `d8d3388`; milestone "v2.4.2 — Correctness patch",
+#157–#172; Zen 4 worktree `../libstats-v2.4.2`). 85/85 correctness on
+Zen 4, warning-clean. Every fix below has a gate shown to fail on
+`d8d3388`. Remaining before the release PR: #162 (Mac session, written
+and verified there in one pass [user]) and the validation owed below.
 
-**#160 and #159 [DERIVED]** share `solve_concave` in `math_utils.cpp`:
-Newton on a monotone residual that is concave in a log variable, which
-converges from any start. #160: `detail::gamma_p_inv(a, p)` (same name
-and signature as v2.5.0's corvus entry point). #159: `t_cdf` and
-`inverse_t_cdf` on an internal `t_tails` (x and 1 − x from t²/ν or ν/t²,
-logs by log1p) and BGRAT (TOMS 708 eq. 9) for a ≥ 20, x ≥ ½; pdf/logpdf
-overflow-safe at every site.
+Fixed on the branch [DERIVED]:
+- Milestone: #157, #158, #159, #160, #161, #163 (Gaussian's copy ctor
+  too), #164, #165, #166, #167, #170, #171, #172; the FORCE_PARALLEL span
+  lambdas of six distributions sending NaN out of support.
+- #170/#171 backport `45000c6`'s `detail::discrete_quantile_search`;
+  Binomial moved onto it too [user], 2.3–48× faster, INDICATIVE
+  (`8feb591`). `420eaf1` (clang-cl port) cherry-picked as `6245e4e`.
+- #160/#159: `solve_concave` (Newton on a monotone residual concave in a
+  log variable) behind `detail::gamma_p_inv` (same name and signature as
+  v2.5.0's corvus entry point) and `inverse_t_cdf`; `t_cdf` on `t_tails`
+  with BGRAT (TOMS 708 eq. 9) for a ≥ 20, x ≥ ½.
+- Session-found (user: fix every bug found this session that should
+  precede the PR), from two full oracle sweeps: stable `detail::lbeta`
+  (Student-t, Beta, Fisher-F normalisers); small-tail p-values;
+  Cauchy quantile tails; Discrete and NegativeBinomial quantile ties;
+  Poisson scalar pmf approximation removed; log1p/expm1 forms
+  (Exponential, Rayleigh, Weibull, Pareto quantiles; Pareto CDF;
+  Geometric/Binomial/NegativeBinomial log(1 − p)); Gamma-family
+  densities by the exported `detail::log_gamma_prefactor` and
+  `log1pmx`; von Mises tail CDF, quantile (grid removed) and p → 0 end
+  (`b681e06`, subagent patch gated here); the dynamic tests' DLL-copy
+  build race; the oracle refuses to rewrite the doc from a partial CSV.
+- #172: `detail::poisson_log_pmf` / `detail::binomial_log_pmf`, Stirling
+  errors plus deviances, binomial means as double-doubles; built from
+  Stirling's series and the library's own helpers, no third-party code
+  consulted or ported [user]. Every Poisson/Binomial/NegativeBinomial
+  pmf site (so Geometric, Bernoulli) uses them.
+- SIMD pipelines that cannot form log1p (Student-t, Beta, Gamma) defer to
+  their scalar loops past a shape where vector_log's error is amplified
+  beyond 16ε.
 
-**Session-found defects, fixed [DERIVED]** (user: fix every bug found
-this session that should precede the PR), gate
-`test_log_beta_and_pvalues`, fails on `d8d3388` in all four groups:
-`detail::lbeta` in Stirling form once max(a, b) ≥ 20 (was a direct lgamma
-difference; replaces #159's `log_beta_half`), so the Student-t, Beta and
-Fisher-F normalisers and `beta_i`'s prefix are stable; Student-t
-`logNormConst_` = −lbeta(ν/2, ½) − ½·log ν; Beta pdf/logpdf/fit take
-log1p(−x); Fisher-F's log density is formed from r = d1·x/d2 by log1p
-(was 1e-9 off at d = 1e6, −inf once d1·x + d2 overflowed); the Student-t
-and Beta SIMD pipelines defer to the scalar log1p loop once (ν+1)/2 or
-|β − 1| exceeds 16; p-values in the analysis code and Discrete's χ²
-tests take the small tail (2·F(−|t|), gamma_q) instead of 1 − CDF. Also
-fixed: the parallel-build race on the dynamic tests' DLL copy, and the
-oracle no longer rewrites the doc block from a partial CSV.
+Not defects, decided [DERIVED]: discrete quantiles near p = 1 that differ
+from the oracle by 3 to 5e4 counts — every count between has a library
+CDF within half an ulp of p, and the contract is the smallest k whose
+library CDF reaches p (#116, #170; a survival-side search broke the
+round-trip guards); logpdf near its zero crossing (relative metric on a
+near-zero value).
 
-**Session-found, second round [DERIVED]** (`b681e06`), from a full sweep of
-`83586f9`. Gates
-`test_tail_and_tie_accuracy` and `test_gamma_density_accuracy`, each
-failing on `d8d3388` in every group; 83/83. Cauchy quantile by cot(π·q)
-in the tails (oracle reference fixed the same way); Discrete-uniform
-quantile exact at ties (fma remainder); `beta_i` returns ½ for
-I_½(a, a), which fixes NegativeBinomial(5, ½)'s median; Poisson's
-scalar pmf loses its normal approximation (4e-3 at λ = 1e5); log1p(−p)
-in the Exponential, Rayleigh, Weibull and Pareto quantiles, the
-Geometric/NegativeBinomial/Binomial (so Bernoulli) log(1 − p); Pareto
-CDF as −expm1(−α·log1p((x − s)/s)), scalar and batch; Gamma-family
-densities (Gamma, ChiSquared, Erlang, InverseGamma) as log P(α, βx) −
-log x from α = 20 via the now-exported `detail::log_gamma_prefactor`,
-with log1p(t) − t by series near 0 (`log1pmx`, also in both #166
-prefactors), and the Gamma SIMD pipeline only below α = 20. Oracle: the
-von Mises p = ½ reference is μ by symmetry.
+Owed before the release PR [OPEN]:
+- #162 on a Mac [user]; #167's fail-first under UBSan
+  (float-cast-overflow) on Kaby Lake or the M1 (MSVC has no such check
+  and x86 casts to `INT_MIN`).
+- Native ctest on all three machines (clang/AppleClang will see the new
+  code first: `[[maybe_unused]]` params, double-double helpers under
+  FP contraction — every fusion is spelled out).
+- Accuracy sweep re-baseline on all three ISAs (full CSV only).
+- Quiet-machine costs against v2.4.1 with `tools/bench/` from
+  `dev/v2.5.0-corvus`: #166 (3ε stop, √a caps, Stirling prefactors), the
+  #172 pmf paths, the scalar fall-backs for large-shape SIMD batches,
+  and the von Mises batch CDF (κ = 30: 6 → 30 ms per 1e5 points, INDICATIVE)
+  plus the timing-labelled `test_von_mises_enhanced`.
+- The fail-first base worktree was removed [user]; recreate it at
+  `d8d3388`, detached, if a later gate needs one.
 
-**Decided [DERIVED]: discrete quantiles near p = 1 are not defects.**
-Binomial/Poisson/NegativeBinomial/Geometric are off by 3 to 5e4 counts
-from the oracle at p = 1 − 1e-15 because every count in between has a
-true CDF within half an ulp of p: the library's contract is the
-smallest k whose library CDF reaches p (#116, #170;
-`SmallParametersUnchanged` and `QuantileIsSmallestCountAtOrAboveP`
-enforce it), and a survival-side search broke both guards at
-mid-range p. Not defects either: logpdf near its zero crossing
-(Exponential, Laplace, Gumbel, Logistic).
-
-**von Mises [DERIVED]** (`b681e06`; subagent patch, applied and gated here; `test_von_mises_tails` fails on `d8d3388` in all three groups;
-84/84): the CDF integrates the tail mass directly where the Bessel series
-gives F < ¼ or > ¾ (adaptive Gauss–Kronrod 7/15 on a cancellation-free
-exponent, fixed stack, depth ≤ 48; new cached normaliser
-`logScaledNormaliser_` by trapezoid on the periodic integrand), scalar
-and batch; the quantile is bracketed Newton on log G on the smaller tail,
-the 2049-point grid removed; p → 0 returns the double just above −π + μ,
-wrapped; NaN propagates. κ > 1000 keeps the wrapped-normal CDF (#106 seam,
-~0.04/κ absolute). Owed: the timing-labelled `test_von_mises_enhanced`
-on a quiet machine — the tail fix-up slows the batch CDF (κ = 30: 6 → 30
-ms per 1e5 evenly spread points).
-
-**#172 [DERIVED]** (in v2.4.2 [user]; built from Stirling's
-series and the library's own helpers, no GPL or other third-party code
-consulted or ported [user]): `detail::poisson_log_pmf` and
-`detail::binomial_log_pmf` write the log-pmf as Stirling errors c(m)
-(`stirling_remainder` from 20, direct below) plus deviances
-x·log(x/M) + M − x (M·[(1+t)·log1pmx(t) + t²] near M); the binomial
-means are double-doubles (two_sum, fma two_prod) so the deviances'
-linear terms cancel to ~ε²n. NegativeBinomial is r/(k + r) times the
-binomial form with real r. All pmf sites in Poisson, Binomial,
-NegativeBinomial (so Geometric, Bernoulli) route through them; below
-total count 20 the direct lgamma form is kept. Gate
-`test_discrete_pmf_accuracy` (budget 16ε·(1 + |log pmf| + √x), absolute
-on the log-pmf) fails on `d8d3388` in every row (NegativeBinomial
-r = 1e7 was 8.8e-8 off); 85/85. Owed: the batch pmf cost on a quiet
-machine.
-
-**Next [OPEN]:** remove the base worktree
-(`../libstats-v2.4.2-base`, no longer needed [user]).
-Owed before the release PR: #167's fail-first under UBSan
-(float-cast-overflow) on Kaby Lake or the M1 — MSVC has no such check and
-x86 casts to `INT_MIN`, so its gate rows pass unfixed here; native ctest
-on all three machines; an accuracy sweep re-baseline (full CSV only);
-#166's cost measured on a quiet machine against v2.4.1 with the
-`tools/bench/` harness from `dev/v2.5.0-corvus`.
+v2.5.0 merge note [DERIVED]: `math_utils.{h,cpp}`, `student_t.cpp`,
+`gamma.cpp`, `poisson.cpp`, `binomial.cpp`, `negative_binomial.cpp` and
+`von_mises.cpp` will conflict. Keep v2.4.2's fixes; corvus's definitions
+replace `gamma_p_inv` and the incomplete gamma/beta where v2.5.0 swaps
+them in.
 
 v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
 #125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
