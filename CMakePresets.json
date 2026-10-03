@@ -50,6 +50,33 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Strict"
       }
+    },
+    {
+      "name": "windows-clang-cl",
+      "displayName": "Release (Windows, clang-cl)",
+      "description": "Release build pinned to clang-cl — the Windows toolchain that compiles corvus to AVX-512 and at full speed, with the MSVC ABI. Run after vcvars64.bat with clang-cl on PATH. Pins C as well as C++ (Highway enables both) and the generator: the Visual Studio generator ignores CMAKE_CXX_COMPILER and CMAKE_BUILD_TYPE; use -T ClangCL there instead.",
+      "binaryDir": "${sourceDir}/build-clangcl",
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl"
+      }
+    },
+    {
+      "name": "windows-clang-cl-strict",
+      "displayName": "Strict (Windows, clang-cl)",
+      "description": "Warnings-as-errors build with clang-cl: the Clang strict warning set, spelled for the MSVC-style driver.",
+      "inherits": "windows-clang-cl",
+      "binaryDir": "${sourceDir}/build-clangcl-strict",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Strict"
+      }
     }
   ]
 }

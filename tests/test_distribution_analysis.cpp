@@ -47,7 +47,8 @@ TEST(ExponentialAnalysis, ConfidenceIntervalRateOrdered) {
 }
 
 TEST(ExponentialAnalysis, ConfidenceIntervalRateEmptyThrows) {
-    EXPECT_THROW(stats::analysis::exponential::confidenceIntervalRate({}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::exponential::confidenceIntervalRate({}),
+                 std::invalid_argument);
 }
 
 TEST(ExponentialAnalysis, CVTestAcceptsExponential) {
@@ -70,7 +71,7 @@ TEST(ExponentialAnalysis, CVTestRejectsNormal) {
 }
 
 TEST(ExponentialAnalysis, CVTestTooFewThrows) {
-    EXPECT_THROW(stats::analysis::exponential::coefficientOfVariationTest({1.0}),
+    EXPECT_THROW((void)stats::analysis::exponential::coefficientOfVariationTest({1.0}),
                  std::invalid_argument);
 }
 
@@ -107,7 +108,7 @@ TEST(GammaAnalysis, NormalApproximationTestInvalidForSmallAlpha) {
 }
 
 TEST(GammaAnalysis, NormalApproximationTestEmptyThrows) {
-    EXPECT_THROW(stats::analysis::gamma::normalApproximationTest({}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::gamma::normalApproximationTest({}), std::invalid_argument);
 }
 
 // ── Binomial analysis ─────────────────────────────────────────────────────────
@@ -137,9 +138,12 @@ TEST(BinomialAnalysis, ClopperPearsonAllSuccesses) {
 }
 
 TEST(BinomialAnalysis, ClopperPearsonBadInputThrows) {
-    EXPECT_THROW(stats::analysis::binomial::clopperPearsonCI(-1, 10, 0.95), std::invalid_argument);
-    EXPECT_THROW(stats::analysis::binomial::clopperPearsonCI(11, 10, 0.95), std::invalid_argument);
-    EXPECT_THROW(stats::analysis::binomial::clopperPearsonCI(5, 0, 0.95), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::binomial::clopperPearsonCI(-1, 10, 0.95),
+                 std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::binomial::clopperPearsonCI(11, 10, 0.95),
+                 std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::binomial::clopperPearsonCI(5, 0, 0.95),
+                 std::invalid_argument);
 }
 
 TEST(BinomialAnalysis, ProportionZTestAcceptsTrueProportion) {
@@ -171,7 +175,8 @@ TEST(BinomialAnalysis, TwoProportionZTestDifferent) {
 }
 
 TEST(BinomialAnalysis, TwoProportionZTestBadInputThrows) {
-    EXPECT_THROW(stats::analysis::binomial::twoProportionZTest(5, 0, 5, 10), std::invalid_argument);
-    EXPECT_THROW(stats::analysis::binomial::twoProportionZTest(5, 10, 11, 10),
+    EXPECT_THROW((void)stats::analysis::binomial::twoProportionZTest(5, 0, 5, 10),
+                 std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::binomial::twoProportionZTest(5, 10, 11, 10),
                  std::invalid_argument);
 }

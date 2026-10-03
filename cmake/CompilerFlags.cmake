@@ -51,10 +51,14 @@ set(LIBSTATS_CLANG_STRICT_WARNINGS
     -Wno-c++98-compat-pedantic)
 
 # clang-cl (Clang with the MSVC-style driver) reads -Wall as cl.exe's /Wall, i.e. -Weverything.
-# /W4 is its spelling of -Wall -Wextra.
+# /W4 is its spelling of -Wall -Wextra. Its driver also rejects the two non-warning GNU options in
+# the strict list: -pedantic has the warning-group spelling -Wpedantic, and -fno-common goes
+# through /clang:.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     list(TRANSFORM LIBSTATS_COMMON_WARNINGS_UNIX REPLACE "^-Wall$" "/W4")
     list(TRANSFORM LIBSTATS_CLANG_STRICT_WARNINGS REPLACE "^-Wall$" "/W4")
+    list(TRANSFORM LIBSTATS_CLANG_STRICT_WARNINGS REPLACE "^-pedantic$" "-Wpedantic")
+    list(TRANSFORM LIBSTATS_CLANG_STRICT_WARNINGS REPLACE "^-fno-common$" "/clang:-fno-common")
 endif()
 
 set(LIBSTATS_GCC_STRICT_WARNINGS
