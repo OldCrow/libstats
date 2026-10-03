@@ -50,6 +50,13 @@ set(LIBSTATS_CLANG_STRICT_WARNINGS
     -Wno-c++98-compat # We're using C++20
     -Wno-c++98-compat-pedantic)
 
+# clang-cl (Clang with the MSVC-style driver) reads -Wall as cl.exe's /Wall, i.e. -Weverything.
+# /W4 is its spelling of -Wall -Wextra.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    list(TRANSFORM LIBSTATS_COMMON_WARNINGS_UNIX REPLACE "^-Wall$" "/W4")
+    list(TRANSFORM LIBSTATS_CLANG_STRICT_WARNINGS REPLACE "^-Wall$" "/W4")
+endif()
+
 set(LIBSTATS_GCC_STRICT_WARNINGS
     -Wall
     -Wextra

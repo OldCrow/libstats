@@ -689,7 +689,7 @@ class GaussianDistribution : public DistributionBase {
      * Updates cached values when parameters change - assumes mutex is already held
      * Marked inline for performance optimization
      */
-    inline void updateCacheUnsafe() const noexcept override;
+    void updateCacheUnsafe() const noexcept override;
 
     /**
      * Validates parameters for the Gaussian distribution

@@ -46,12 +46,25 @@ if(NOT GTEST_FOUND
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG v1.17.0
-        GIT_SHALLOW TRUE)
+        GIT_SHALLOW TRUE
+        SYSTEM)
     # Prevent GTest from overriding the project's CRT choice on Windows.
     set(gtest_force_shared_crt
         ON
         CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
+    # GoogleTest 1.17.0 builds its own sources with -WX under an MSVC-style driver, and its
+    # char8_t printer trips -Wcharacter-conversion, new in Clang 21. Only clang-cl meets both.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+       AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
+       AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 21)
+        foreach(_libstats_gtest_target gtest gtest_main gmock gmock_main)
+            if(TARGET ${_libstats_gtest_target})
+                target_compile_options(${_libstats_gtest_target}
+                                       PRIVATE -Wno-character-conversion)
+            endif()
+        endforeach()
+    endif()
     set(GTEST_FOUND TRUE)
 endif()
 
