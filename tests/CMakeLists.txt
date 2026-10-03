@@ -369,6 +369,10 @@ create_libstats_gtest(test_support_boundary_gates test_support_boundary_gates.cp
 # budget against mpmath from p = 1e-300 to the centre; the erf_inv(2p - 1) form returned -inf.
 create_libstats_gtest(test_probit_accuracy test_probit_accuracy.cpp)
 
+# #166 guard: CDFs on gamma_p/gamma_q/beta_i at large shape within budget of mpmath, scalar and
+# batch; the 1e-8 series stop and the cancelling gamma prefactor left 1e-9 to 8e-6.
+create_libstats_gtest(test_incomplete_gamma_beta_accuracy test_incomplete_gamma_beta_accuracy.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

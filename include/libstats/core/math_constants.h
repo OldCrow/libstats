@@ -187,6 +187,12 @@ inline constexpr double MIN_STD_DEV = 1.0e-6;
 inline constexpr double HIGH_PRECISION_UPPER_BOUND = 1.0e12;
 inline constexpr double MAX_STANDARD_DEVIATION = 1.0e10;
 
+/// Convergence tolerance of the incomplete gamma and beta series and continued fractions:
+/// 3·DBL_EPSILON, as Numerical Recipes and Boost use. Until v2.4.2 they stopped at
+/// DEFAULT_TOLERANCE, which left CDF errors of 1e-9 to 8e-6 at large shape (#166);
+/// DEFAULT_TOLERANCE stays for the fitting and root-finding paths.
+inline constexpr double SPECIAL_FUNCTION_TOLERANCE = 3.0 * std::numeric_limits<double>::epsilon();
+
 inline constexpr double STRICT_TOLERANCE = 1e-10;
 inline constexpr double RELAXED_TOLERANCE = 1e-9;
 inline constexpr double VERY_SMALL_PROBABILITY = 1e-12;

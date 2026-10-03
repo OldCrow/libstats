@@ -22,6 +22,62 @@ static double beta_continued_fraction(double x, double a, double b) noexcept;
 static double gamma_p_series(double a, double x) noexcept;
 double gamma_q(double a, double x) noexcept;
 
+// Iteration cap for the incomplete gamma and beta expansions (#166). Near the median they need
+// O(√a) terms — the series' terms fall like exp(−n²/2a), so reaching 3ε takes n ≈ 9√a — and the
+// fixed caps of 100 (beta) and 1000 (gamma) stopped them early at large shape. The cap bounds
+// non-convergence only; a converging expansion breaks out long before it. The std::min also
+// sends a NaN scale to the 1e6 bound, which keeps the cast defined.
+static int expansion_iteration_cap(double shape) noexcept {
+    return static_cast<int>(std::min(1e6, 1000.0 + 20.0 * std::sqrt(std::fabs(shape))));
+}
+
+// The prefactors below switch to Stirling's form at this shape; under it the direct form is the
+// more accurate of the two and keeps its pre-v2.4.2 bits.
+constexpr double kStirlingPrefactorShape = 20.0;
+
+// Stirling remainder c(z) = lgamma(z) − [(z − ½)·log(z) − z + ½·log(2π)], truncated after its
+// 1/z⁹ term (the next is < 2e-17 at z = 20).
+static double stirling_remainder(double z) noexcept {
+    const double r = detail::ONE / z;
+    const double r2 = r * r;
+    return r * (1.0 / 12.0 -
+                r2 * (1.0 / 360.0 - r2 * (1.0 / 1260.0 - r2 * (1.0 / 1680.0 - r2 / 1188.0))));
+}
+
+// log of the incomplete-gamma prefactor x^a·e^{−x}/Γ(a) (#166). Formed directly,
+// −x + a·log(x) − lgamma(a) cancels terms of size a·log(x), so its absolute error — the
+// prefactor's relative error — is ~a·log(x)·ε: 6e-11 at a = 5e4. Stirling's series rewrites it as
+// a·(log1p(t) − t) + ½·log(a/2π) − c(a) with t = (x − a)/a, whose error is ~a·|t|·ε (≈ √a·ε near
+// the median).
+static double log_gamma_prefactor(double a, double x) noexcept {
+    if (a < kStirlingPrefactorShape)
+        return -x + a * std::log(x) - lgamma(a);
+    const double t = (x - a) / a;
+    return a * (std::log1p(t) - t) + detail::HALF * (std::log(a) - detail::LN_2PI) -
+           stirling_remainder(a);
+}
+
+// log of the incomplete-beta prefactor x^a·(1 − x)^b / B(a, b) (#166), with the same
+// cancellation as the gamma one: lgamma(a + b) − lgamma(a) − lgamma(b) + a·log(x) + b·log(1 − x)
+// carries terms of size (a + b)·log 2, 3e-11 relative at a = b = 1e4. For a, b ≥ 20, Stirling
+// gives a·(log1p(u) − u) + b·(log1p(v) − v) + ½·log(ab / (2π(a + b))) + c(a + b) − c(a) − c(b),
+// with x₀ = a/(a + b), u = (x − x₀)/x₀ and v = (x₀ − x)/(1 − x₀); the linear terms a·u + b·v
+// cancel exactly, and x₀ is the stationary point, so its rounding enters only at second order.
+// direct_log_inv_beta is lgamma(a + b) − lgamma(a) − lgamma(b), used below the threshold.
+static double log_beta_prefactor(double x, double a, double b,
+                                 double direct_log_inv_beta) noexcept {
+    if (a < kStirlingPrefactorShape || b < kStirlingPrefactorShape)
+        return direct_log_inv_beta + a * std::log(x) + b * std::log(detail::ONE - x);
+    const double sum = a + b;
+    const double x0 = a / sum;
+    const double one_minus_x0 = b / sum;
+    const double u = (x - x0) / x0;
+    const double v = (x0 - x) / one_minus_x0;
+    return a * (std::log1p(u) - u) + b * (std::log1p(v) - v) +
+           detail::HALF * (std::log(a) + std::log(b) - std::log(sum) - detail::LN_2PI) +
+           stirling_remainder(sum) - stirling_remainder(a) - stirling_remainder(b);
+}
+
 // =============================================================================
 // SPECIAL MATHEMATICAL FUNCTIONS
 // =============================================================================
@@ -168,6 +224,8 @@ double lgamma(double x) noexcept {
 double gamma_p(double a, double x) noexcept {
     // Regularized incomplete gamma function P(a,x) = γ(a,x) / Γ(a)
     // where γ(a,x) is the lower incomplete gamma function
+    if (std::isnan(a) || std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
     }
@@ -188,6 +246,8 @@ double gamma_p(double a, double x) noexcept {
 double gamma_q(double a, double x) noexcept {
     // Regularized complementary incomplete gamma function using continued fraction
     // Q(a,x) = 1 - P(a,x) but for large x, use continued fraction for better convergence
+    if (std::isnan(a) || std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE || a <= detail::ZERO_DOUBLE) {
         return detail::ONE;
     }
@@ -212,8 +272,8 @@ double gamma_q(double a, double x) noexcept {
     double d = detail::ONE / b;
     double h = d;
 
-    const int max_iterations = detail::MAX_GAMMA_SERIES_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
+    const int max_iterations = expansion_iteration_cap(a);
+    const double tolerance = detail::SPECIAL_FUNCTION_TOLERANCE;
 
     for (int i = 1; i <= max_iterations; ++i) {
         double an = -i * (i - a);
@@ -234,12 +294,14 @@ double gamma_q(double a, double x) noexcept {
         }
     }
 
-    double gamma_cf = std::exp(-x + a * std::log(x) - lgamma(a)) * h;
+    double gamma_cf = std::exp(log_gamma_prefactor(a, x)) * h;
     return gamma_cf;
 }
 
 double beta_i(double x, double a, double b) noexcept {
     // Regularized incomplete beta function I_x(a,b)
+    if (std::isnan(x) || std::isnan(a) || std::isnan(b))
+        return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE || x > detail::ONE || a <= detail::ZERO_DOUBLE ||
         b <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
@@ -254,8 +316,10 @@ double beta_i(double x, double a, double b) noexcept {
     }
 
     // Use continued fraction approximation
-    double bt = std::exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * std::log(x) +
-                         b * std::log(detail::ONE - x));
+    const bool stirling = a >= kStirlingPrefactorShape && b >= kStirlingPrefactorShape;
+    const double direct_log_inv_beta =
+        stirling ? detail::ZERO_DOUBLE : lgamma(a + b) - lgamma(a) - lgamma(b);
+    double bt = std::exp(log_beta_prefactor(x, a, b, direct_log_inv_beta));
 
     if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
         return bt * beta_continued_fraction(x, a, b);
@@ -265,6 +329,8 @@ double beta_i(double x, double a, double b) noexcept {
 }
 
 double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
+    if (std::isnan(x) || std::isnan(a) || std::isnan(b))
+        return std::numeric_limits<double>::quiet_NaN();
     if (x < detail::ZERO_DOUBLE || x > detail::ONE || a <= detail::ZERO_DOUBLE ||
         b <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
@@ -274,7 +340,9 @@ double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
     if (x == detail::ONE)
         return detail::ONE;
 
-    double bt = std::exp(log_beta_prefix + a * std::log(x) + b * std::log(detail::ONE - x));
+    // log_beta_prefix is the caller's precomputed lgamma(a + b) − lgamma(a) − lgamma(b); at large
+    // shape the Stirling form replaces it (#166).
+    double bt = std::exp(log_beta_prefactor(x, a, b, log_beta_prefix));
 
     if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
         return bt * beta_continued_fraction(x, a, b);
@@ -286,8 +354,8 @@ double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
 // Helper function for beta incomplete function continued fraction
 // Based on Numerical Recipes algorithm
 static double beta_continued_fraction(double x, double a, double b) noexcept {
-    const int max_iterations = detail::MAX_BETA_ITERATIONS;
-    const double tolerance = detail::DEFAULT_TOLERANCE;
+    const int max_iterations = expansion_iteration_cap(std::max(a, b));
+    const double tolerance = detail::SPECIAL_FUNCTION_TOLERANCE;
 
     double qab = a + b;
     double qap = a + detail::ONE;
@@ -365,8 +433,8 @@ static double gamma_p_series(double a, double x) noexcept {
     double sum = 1.0 / ap;  // First term: 1/a
     double term = sum;      // Current term
 
-    const double tolerance = detail::DEFAULT_TOLERANCE;
-    const int max_iterations = detail::MAX_GAMMA_SERIES_ITERATIONS;
+    const double tolerance = detail::SPECIAL_FUNCTION_TOLERANCE;
+    const int max_iterations = expansion_iteration_cap(a);
 
     for (int n = 1; n < max_iterations; ++n) {
         ap += 1.0;       // ap = a + n
@@ -378,8 +446,7 @@ static double gamma_p_series(double a, double x) noexcept {
     }
 
     // The result is exp(-x + a*ln(x) - lgamma(a)) * sum
-    double log_result = -x + a * std::log(x) - lgamma(a);
-    double result = std::exp(log_result) * sum;
+    double result = std::exp(log_gamma_prefactor(a, x)) * sum;
     return std::min(1.0, std::max(0.0, result));  // Clamp to [0,1]
 }
 
