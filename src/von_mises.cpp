@@ -136,6 +136,35 @@ namespace {
     return b;
 }
 
+// The series CDF at t = wrap(x - mu), before the tail correction. Terms are
+// summed j_max -> 1 (smallest first) so the largest terms accumulate last,
+// keeping the round-off floor low.
+[[nodiscard]] double vonmises_series_cdf(double t, const std::vector<double>& b) noexcept {
+    double sum = detail::ZERO_DOUBLE;
+    for (std::size_t j = b.size(); j >= 1; --j)
+        sum += b[j - 1] * std::sin(static_cast<double>(j) * t);
+    return (t + detail::PI) / detail::TWO_PI + sum;
+}
+
+// The same series with sin(j t) by the rotation recurrence instead of one
+// sin per term. sin(j t) then carries ~j ulp, so the sum carries ~eps times
+// sum_j j b_j = (e^k / I0(k) - 1) / (2 pi), ~13 ulp at kappa = 1000: too much
+// for the CDF, ample for a quantile seed, whose error costs iterations only.
+[[nodiscard]] double vonmises_series_cdf_fast(double t, const std::vector<double>& b) noexcept {
+    const double s1 = std::sin(t);
+    const double c1 = std::cos(t);
+    double s = s1;
+    double c = c1;
+    double sum = detail::ZERO_DOUBLE;
+    for (std::size_t j = 1; j <= b.size(); ++j) {
+        sum += b[j - 1] * s;
+        const double s_next = s * c1 + c * s1;
+        c = c * c1 - s * s1;
+        s = s_next;
+    }
+    return (t + detail::PI) / detail::TWO_PI + sum;
+}
+
 //==============================================================================
 // Tail mass by direct quadrature (CDF tails and the quantile)
 //
@@ -177,6 +206,11 @@ constexpr double kPiLo = 1.2246467991473532e-16;
 // most ~2e-16 (measured at kappa = 1000), is within the accuracy law relative
 // to F.
 constexpr double kTailSwitch = 0.25;
+
+// Below kTailSwitch the quantile still seeds the tail solve from the series
+// (vonmises_series_cdf_fast) down to this m, where the recurrence's absolute
+// error, ~1e-14, is 1e-8 relative: one tail evaluation then converges.
+constexpr double kSeriesSeedMin = 1e-6;
 
 // ln(2 pi I0(kappa) e^-kappa), the log normaliser of the density exp(kappa (cos t - 1)).
 [[nodiscard]] double log_scaled_normaliser(double kappa) noexcept {
@@ -303,14 +337,45 @@ struct LeftTail {
     return {log_density + std::log(j), j};
 }
 
-// t in [-PI, 0] with G(t) = m, for 0 < m < 1/2 (mu = 0). Newton on ln G, which
-// is well scaled from 1e-300 to 1/2: in t (step r J) away from the edge, in
-// ln d (step r J / d) near it, where G is nearly linear in d and a t-step
-// would overshoot; bracketed, with bisection (geometric in d when the bracket
-// spans decades) whenever a step leaves the bracket. Returns -PI when the
-// answer is within an ulp of the edge.
-[[nodiscard]] double vonmises_left_quantile(double m, double kappa,
-                                            double log_scaled_norm) noexcept {
+// One Halley step for h(v) = 0 from the value h and its first three
+// derivatives h1, h2, h3 at the current point; `predicted` is Halley's
+// asymptotic error after the step, (c2^2 - c3) e^3 with c2 = h2/(2 h1) and
+// c3 = h3/(6 h1), bounded here by (c2^2 + |c3|) |step|^3 so that the two terms
+// cannot cancel. A Newton step is taken where the Halley denominator is far
+// from 1 (the cubic model is then not trustworthy); its error is c2 step^2.
+struct HalleyStep {
+    double step;
+    double predicted;  ///< |error| after the step, to leading order
+};
+
+[[nodiscard]] HalleyStep halley_step(double h, double h1, double h2, double h3) noexcept {
+    const double newton = -h / h1;
+    const double c2 = h2 / (detail::TWO * h1);
+    const double c3 = h3 / (6.0 * h1);
+    const double den = detail::ONE + newton * c2;
+    if (den > detail::HALF && den < detail::TWO) {
+        const double step = newton / den;
+        const double a = std::fabs(step);
+        return {step, (c2 * c2 + std::fabs(c3)) * a * a * a};
+    }
+    return {newton, std::fabs(c2) * newton * newton};
+}
+
+// t in [-PI, 0] with G(t) = m, for 0 < m < 1/2 (mu = 0). Halley on ln G, which
+// is well scaled from 1e-300 to 1/2: in t away from the edge, in s = ln d near
+// it, where G is nearly linear in d and a t-step would overshoot; bracketed,
+// with bisection (geometric in d when the bracket spans decades) whenever a
+// step leaves the bracket. Returns -PI when the answer is within an ulp of the
+// edge.
+//
+// With L = ln G = ln g + ln J and g'/g = -kappa sin t, J = G/g satisfies
+// J' = 1 + kappa sin(t) J, so one quadrature gives every derivative:
+//   L' = 1/J,  L'' = -J'/J^2,  L''' = 2 J'^2/J^3 - J''/J^2,
+//   J'' = kappa (cos(t) J + sin(t) J').
+// In s (dt/ds = d2t/ds2 = d3t/ds3 = d): L_s = d L', L_ss = d^2 L'' + d L',
+// L_sss = d^3 L''' + 3 d^2 L'' + d L'.
+[[nodiscard]] double vonmises_left_quantile(double m, double kappa, double log_scaled_norm,
+                                            double seed) noexcept {
     const double log_m = std::log(m);
     // g is increasing on [-pi, 0], so m / g(0) <= d <= m / g(-pi).
     const double log_d_lo = log_m + log_scaled_norm;
@@ -323,14 +388,18 @@ struct LeftTail {
         log_d_hi < std::log(detail::PI) ? t_of(std::exp(log_d_hi)) + 1e-15 : detail::ZERO_DOUBLE;
     t_hi = std::min(t_hi, detail::ZERO_DOUBLE);
 
-    // Seed: the wrapped normal at moderate kappa, the uniform below it.
-    double t = kappa >= detail::ONE ? detail::inverse_normal_cdf(m) / std::sqrt(kappa)
-                                    : detail::TWO_PI * m - detail::PI;
+    // Seed: the caller's (NaN for none), else the wrapped normal at moderate
+    // kappa and the uniform below it.
+    double t = seed;
+    if (!(t > t_lo && t < t_hi))
+        t = kappa >= detail::ONE ? detail::inverse_normal_cdf(m) / std::sqrt(kappa)
+                                 : detail::TWO_PI * m - detail::PI;
     if (!(t > t_lo && t < t_hi))
         t = t_of(std::exp(detail::HALF * (log_d_lo + std::min(log_d_hi, std::log(detail::PI)))));
     if (!(t > t_lo && t < t_hi))
         t = detail::HALF * (t_lo + t_hi);
 
+    constexpr double kEps = std::numeric_limits<double>::epsilon();
     for (int iter = 0; iter < 100; ++iter) {
         const LeftTail tail = vonmises_left_tail(t, kappa, log_scaled_norm);
         const double r = tail.log_mass - log_m;
@@ -340,20 +409,98 @@ struct LeftTail {
             t_lo = t;
         else
             t_hi = t;
+
         const double d = (t + detail::PI) + kPiLo;
-        double next = d < detail::HALF ? t_of(d * std::exp(-r * tail.j / d)) : t - r * tail.j;
+        const bool near_edge = t < -detail::HALF * detail::PI;
+        const double sin_t = near_edge ? -std::sin(d) : std::sin(t);
+        const double cos_t = near_edge ? -std::cos(d) : std::cos(t);
+        const double j = tail.j;
+        const double j1 = detail::ONE + kappa * sin_t * j;
+        const double j2 = kappa * (cos_t * j + sin_t * j1);
+        double l1 = detail::ONE / j;
+        double l2 = -j1 / (j * j);
+        double l3 = (detail::TWO * j1 * j1 / j - j2) / (j * j);
+        const bool log_step = d < detail::HALF;
+        if (log_step) {
+            l3 = d * (d * (d * l3 + 3.0 * l2) + l1);
+            l2 = d * (d * l2 + l1);
+            l1 = d * l1;
+        }
+        const HalleyStep hs = halley_step(r, l1, l2, l3);
+        const double d_next = log_step ? d * std::exp(hs.step) : d + hs.step;
+        double next = log_step ? t_of(d_next) : t + hs.step;
+        // The predicted error, in t; trusted only once G is within 0.1% of m,
+        // where the step is well inside the radius of the cubic model.
+        double predicted = std::fabs(r) > 1e-3 ? std::numeric_limits<double>::infinity()
+                           : log_step          ? hs.predicted * d_next
+                                               : hs.predicted;
+        // Converged once the step, or the error it leaves, is below the noise
+        // that ln G's own error, ~|ln m| ulp absolute, leaves in t -- or below
+        // half an ulp of t, which near the edge is the larger. A step that
+        // small can round onto t itself, outside the open bracket.
+        const double tolerance = std::max(detail::TWO * kEps * (detail::ONE - log_m) * j,
+                                          detail::HALF * kEps * std::fabs(t));
+        if (std::fabs(next - t) <= tolerance)
+            return next;
         if (!(next > t_lo && next < t_hi)) {
             const double d_lo = (t_lo + detail::PI) + kPiLo;
             const double d_hi = (t_hi + detail::PI) + kPiLo;
             next = d_hi > 4.0 * d_lo ? t_of(std::sqrt(d_lo * d_hi)) : detail::HALF * (t_lo + t_hi);
             if (!(next > t_lo && next < t_hi))
                 return t;  // the bracket is down to adjacent doubles
+            predicted = std::numeric_limits<double>::infinity();
         }
-        // Converged once the step is below the noise that ln G's own error,
-        // ~|ln m| ulp absolute, leaves in t; the step converges quadratically,
-        // so `next` is then accurate.
-        if (std::fabs(next - t) <=
-            2.0 * std::numeric_limits<double>::epsilon() * (detail::ONE - log_m) * tail.j)
+        if (predicted <= tolerance)
+            return next;
+        t = next;
+    }
+    return t;
+}
+
+// t in [-PI, 0] with S(t) = m (mu = 0), S the Bessel series CDF on the cached
+// coefficients b: by the CDF's own summation when `exact`, else by
+// vonmises_series_cdf_fast. Halley in t from the seed, with S' = f,
+// S'' = -kappa sin(t) f, S''' = kappa (kappa sin^2(t) - cos(t)) f; bracketed by
+// [-PI, 0], with bisection whenever a step leaves the bracket. Converged once
+// the step, or the error it leaves, is below the evaluation's absolute error
+// mapped to t (noise / f): ~1 ulp of m for the exact sum, 64 ulp of 1 for the
+// recurrence.
+[[nodiscard]] double vonmises_series_quantile(double m, double kappa, double log_scaled_norm,
+                                              const std::vector<double>& b, double t,
+                                              bool exact) noexcept {
+    double t_lo = -detail::PI;
+    double t_hi = detail::ZERO_DOUBLE;
+    if (!(t > t_lo && t < t_hi))
+        t = detail::HALF * (t_lo + t_hi);
+
+    constexpr double kEps = std::numeric_limits<double>::epsilon();
+    const double noise = exact ? kEps * m : 64.0 * kEps;
+    for (int iter = 0; iter < 100; ++iter) {
+        const double r = (exact ? vonmises_series_cdf(t, b) : vonmises_series_cdf_fast(t, b)) - m;
+        if (r == detail::ZERO_DOUBLE)
+            return t;
+        if (r < detail::ZERO_DOUBLE)
+            t_lo = t;
+        else
+            t_hi = t;
+        const double sin_t = std::sin(t);
+        const double cos_t = std::cos(t);
+        const double f = std::exp(kappa * (cos_t - detail::ONE) - log_scaled_norm);
+        const HalleyStep hs = halley_step(r, f, -kappa * sin_t * f,
+                                          kappa * (kappa * sin_t * sin_t - cos_t) * f);
+        double next = t + hs.step;
+        double predicted = std::fabs(r) > 1e-3 * m ? std::numeric_limits<double>::infinity()
+                                                   : hs.predicted;
+        const double tolerance = std::max(noise / f, detail::HALF * kEps * std::fabs(t));
+        if (std::fabs(next - t) <= tolerance)
+            return next;
+        if (!(next > t_lo && next < t_hi)) {
+            next = detail::HALF * (t_lo + t_hi);
+            if (!(next > t_lo && next < t_hi))
+                return t;
+            predicted = std::numeric_limits<double>::infinity();
+        }
+        if (predicted <= tolerance)
             return next;
         t = next;
     }
@@ -640,14 +787,8 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
         //   F(t) = (t+pi)/(2pi) + sum_{j=1}^{j_max} b_j * sin(j*t),  t = wrap(x-mu)
         // b_j = cdfSeriesCoeffs_[j-1], from the Miller recurrence in
         // updateCacheUnsafe() (no Bessel anchor -- f_j/f_0 IS I_j/I0 exactly).
-        // Terms are summed j_max -> 1 (smallest first) so the largest terms
-        // accumulate last, keeping the round-off floor low.
         const double t = wrapAngle(x - mu);
-        double sum = detail::ZERO_DOUBLE;
-        const auto& b = cdfSeriesCoeffs_;
-        for (std::size_t j = b.size(); j >= 1; --j)
-            sum += b[j - 1] * std::sin(static_cast<double>(j) * t);
-        result = tail_corrected_cdf((t + detail::PI) / detail::TWO_PI + sum, t, kappa,
+        result = tail_corrected_cdf(vonmises_series_cdf(t, cdfSeriesCoeffs_), t, kappa,
                                     logScaledNormaliser_);
     });
 
@@ -661,24 +802,40 @@ double VonMisesDistribution::getQuantile(double p) const {
         throw std::invalid_argument("Probability must be in [0, 1]");
     }
 
+    // Solve on the small side of the probability scale: the CDF below the
+    // median, the survival above it (1 - p is exact there). In the band where
+    // the CDF uses the Bessel series (m >= kTailSwitch), the quantile solves on
+    // that series: on its fast form first, then on the CDF's own sum, which
+    // then converges in one evaluation. Below the band it solves on the
+    // directly integrated tail mass with Halley on its logarithm
+    // (vonmises_left_quantile), seeded from the fast series down to
+    // kSeriesSeedMin. By symmetry the upper quantile is the mirror of the
+    // lower one.
+    const bool upper = p > detail::HALF;
+    const double m = upper ? detail::ONE - p : p;
+    double t = -detail::PI;
+    bool solved = false;
+    double seed = std::numeric_limits<double>::quiet_NaN();
     double mu, kappa, log_scaled_norm;
     withCacheSnapshot([&] {
         mu = mu_;
         kappa = kappa_;
         log_scaled_norm = logScaledNormaliser_;
+        if (m < kSeriesSeedMin || m >= detail::HALF || cdfSeriesCoeffs_.empty())
+            return;
+        const double t0 = kappa >= detail::ONE ? detail::inverse_normal_cdf(m) / std::sqrt(kappa)
+                                               : detail::TWO_PI * m - detail::PI;
+        seed = vonmises_series_quantile(m, kappa, log_scaled_norm, cdfSeriesCoeffs_, t0, false);
+        if (m >= kTailSwitch) {
+            t = vonmises_series_quantile(m, kappa, log_scaled_norm, cdfSeriesCoeffs_, seed, true);
+            solved = true;
+        }
     });
 
-    // Solve on the small side of the probability scale: the CDF below the
-    // median, the survival above it (1 - p is exact there), with the tail mass
-    // integrated directly and Newton on its logarithm (vonmises_left_quantile).
-    // By symmetry the upper quantile is the mirror of the lower one.
-    const bool upper = p > detail::HALF;
-    const double m = upper ? detail::ONE - p : p;
-    double t = -detail::PI;
     if (m >= detail::HALF)
         t = detail::ZERO_DOUBLE;
-    else if (m > detail::ZERO_DOUBLE)
-        t = vonmises_left_quantile(m, kappa, log_scaled_norm);
+    else if (!solved && m > detail::ZERO_DOUBLE)
+        t = vonmises_left_quantile(m, kappa, log_scaled_norm, seed);
 
     if (upper) {
         t = -t;
