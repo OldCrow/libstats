@@ -273,7 +273,11 @@ Corvus merge note [DERIVED]: `math_utils.{h,cpp}`, `student_t.cpp`,
 `von_mises.cpp`, `exponential.cpp`, `weibull.cpp`, `rayleigh.cpp`,
 `tests/CMakeLists.txt` and this file will conflict. Keep this branch's
 fixes; corvus's definitions replace `gamma_p_inv` and the incomplete
-gamma/beta where the corvus release swaps them in.
+gamma/beta where the corvus release swaps them in. `von_mises.{h,cpp}`:
+take this branch's whole (`96b157f`, fixed-cost quadrature; no Bessel
+series left to swap). `beta.cpp`, `simd_dispatch.cpp`, `pareto.cpp`
+also changed here since this note was first written. `vector_log1p` and
+`vector_expm1` point at corvus once corvus #45 lands.
 
 ## Decided [DERIVED]
 - **Release numbering [user, 2026-10-04].** `dev/v2.4.2` ships as
