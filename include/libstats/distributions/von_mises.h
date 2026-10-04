@@ -16,20 +16,21 @@ namespace stats {
  * - PDF:    f(x; μ, κ) = exp(κ·cos(x−μ)) / (2π·I₀(κ))
  * - LogPDF: κ·cos(x−μ) − logNormaliser_
  *           where logNormaliser_ = log(2π) + log I₀(κ)
- * - CDF:    for 0 < κ ≤ 1000, a Bessel-series expansion (issue #51):
- *             F(x) = (t+π)/(2π) + Σⱼ bⱼ·sin(j·t),  t = wrap(x−μ) ∈ [−π,π]
- *           with bⱼ = Iⱼ(κ)/(j·π·I₀(κ)) from a per-instance Miller backward
- *           recurrence (cdfSeriesCoeffs_, §24), j = 1..j_max,
- *           j_max = ⌈10 + 8.5√κ⌉. The series has absolute accuracy only, so
- *           where it is below 1/4 (above 3/4) the tail mass is integrated
- *           directly (adaptive Gauss–Kronrod), relative to the accuracy law in
- *           both tails. κ = 0 uses the exact linear form (t+π)/(2π). κ > 1000
- *           (unvalidated range for the series) falls back to the
- *           wrapped-normal approximation, ≈ 0.04/κ absolute error.
- * - Quantile: Newton on the logarithm of the directly integrated tail mass, on
- *           the small side of the probability scale (the CDF below the
- *           median, the survival above it), bracketed. The left end of the
- *           support maps to the smallest double above −π + μ, wrapped.
+ * - CDF:    for 0 < κ ≤ 1000, at t = wrap(x−μ), with w = κ(1 − cos θ) as the
+ *           integration variable: where F is within 1/4 of the median,
+ *           F = 1/2 ∓ C(|t|)/(2π·I₀(κ)e^−κ), C the central mass by a short
+ *           Gauss–Legendre rule; beyond, the tail mass G(t) = g(t)·J(t), J by
+ *           a Watson-lemma series where κ(1 + cos t) ≥ 45 (and, within a quarter
+ *           turn of μ, κ(1 − cos t) ≥ 45) and by Gauss–Legendre otherwise —
+ *           relative to the accuracy law in both tails. κ = 0 uses
+ *           the exact linear form (t+π)/(2π). κ > 1000 (unvalidated range)
+ *           falls back to the wrapped-normal approximation, ≈ 0.04/κ absolute
+ *           error.
+ * - Quantile: on the small side of the probability scale (the CDF below the
+ *           median, the survival above it): Halley on the central mass within
+ *           1/4 of the median, on the logarithm of the tail mass beyond,
+ *           bracketed. The left end of the support maps to the smallest double
+ *           above −π + μ, wrapped.
  * - Parameters: μ ∈ ℝ (wrapped to (−π, π]), κ ≥ 0
  * - Support: x ∈ (−π, π]
  *
@@ -58,10 +59,9 @@ namespace stats {
  *   2. vector_cos(results)    — SIMD cosine across all backends (AVX/AVX2/NEON/AVX-512)
  *   3. scalar_multiply(κ)     — scale by concentration
  *   4. scalar_add(−ln Z)      — subtract log-normaliser
- * The CDF batch path (issue #51) evaluates the same Bessel series per lane:
- * `t = wrap(x−μ)` per element, then `VectorOps::vector_sin` once per series
- * term (j = j_max down to 1) accumulated against the per-instance bⱼ. The
- * PARALLEL strategy provides multi-core throughput for very large batches.
+ * The CDF batch path evaluates the scalar CDF per element on one cache
+ * snapshot. The PARALLEL strategy provides multi-core throughput for very
+ * large batches.
  *
  * @par MLE:
  * - μ̂ = atan2(Σsin(xᵢ), Σcos(xᵢ))  (one-pass circular mean)
@@ -244,22 +244,21 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
-     * @brief CDF via the Bessel-series expansion for 0 < κ ≤ 1000 (issue #51);
-     * exact linear form at κ = 0; wrapped-normal approximation for κ > 1000
-     * (unvalidated range for the series). O(j_max) per call, j_max = ⌈10+8.5√κ⌉.
-     * Where the series is below 1/4 or above 3/4, the tail mass is integrated
-     * directly, so both tails are accurate relative to the accuracy law.
-     * @note x−μ is wrapped to [−π, π] before series evaluation.
-     * PROVISIONAL accuracy bound pending the mpmath-oracle accuracy gate
-     * (tests/test_vonmises_cdf_accuracy.cpp).
+     * @brief CDF for 0 < κ ≤ 1000: the central mass within 1/4 of the median,
+     * the tail mass beyond, so both tails are accurate relative to the accuracy
+     * law; at most one short Gauss–Legendre rule (≤ 36 nodes) per call, none
+     * where the tail's series applies. Exact linear form at κ = 0; wrapped-normal
+     * approximation for κ > 1000 (unvalidated range).
+     * @note x−μ is wrapped to [−π, π] first.
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
-     * @brief Quantile in (−π, π]: bracketed Newton on the log of the directly
-     * integrated tail mass, on the smaller of p and 1 − p. A few adaptive
-     * quadratures per query. NaN propagates; p = 0 gives the smallest double
-     * above −π + μ (wrapped), p = 1 gives π + μ (wrapped).
+     * @brief Quantile in (−π, π]: bracketed Halley on the smaller of p and
+     * 1 − p, on the central mass within 1/4 of the median and on the log of
+     * the tail mass beyond. A few CDF evaluations per query. NaN propagates;
+     * p = 0 gives the smallest double above −π + μ (wrapped), p = 1 gives
+     * π + μ (wrapped).
      * @throws std::invalid_argument if p not in [0, 1]
      */
     [[nodiscard]] double getQuantile(double p) const override;
@@ -394,20 +393,19 @@ class VonMisesDistribution : public DistributionBase {
                                        double cached_log_normaliser) const noexcept;
 
     /**
-     * @brief CDF batch — Bessel series evaluated batch-wise (issue #51).
+     * @brief CDF batch — the scalar CDF per element on one cache snapshot.
      *
-     * `cached_mu`/`cached_kappa`/`cached_log_scaled_norm`/`cached_coeffs` are a
-     * snapshot taken by the caller under the cache lock (see the CDF
-     * autoDispatch lambda in .cpp). When `cached_coeffs` is empty (κ = 0 or
-     * κ > 1000 — series not applicable, see updateCacheUnsafe()) this falls
-     * back to the per-element scalar getCumulativeProbability() loop. Lanes in
-     * either tail take the scalar path's integrated tail mass. Unsafe: no
+     * `cached_mu`/`cached_kappa`/`cached_log_scaled_norm`/`cached_inv_norm`/
+     * `cached_half_j`/`cached_uniform` are a snapshot taken by the caller under the cache lock
+     * (see the CDF autoDispatch lambda in .cpp). For κ = 0 or κ > 1000 this is
+     * the per-element scalar getCumulativeProbability() loop. Unsafe: no
      * parameter validation.
      */
-    void getCumulativeProbabilityBatchUnsafeImpl(
-        const double* values, double* results, std::size_t count, double cached_mu,
-        double cached_kappa, double cached_log_scaled_norm,
-        const std::vector<double>& cached_coeffs) const noexcept;
+    void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
+                                                 std::size_t count, double cached_mu,
+                                                 double cached_kappa, double cached_log_scaled_norm,
+                                                 double cached_inv_norm, double cached_half_j,
+                                                 bool cached_uniform) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS
@@ -460,6 +458,10 @@ class VonMisesDistribution : public DistributionBase {
      *  cancellation; scales the directly integrated CDF tails and the quantile. */
     mutable double logScaledNormaliser_{detail::ZERO_DOUBLE};
 
+    /** @brief 1/(2π·I₀(κ)·e^−κ), formed directly (not as exp of the log above,
+     *  which carries that log's rounding): scales the CDF's central mass. */
+    mutable double invScaledNormaliser_{detail::ONE};
+
     /** @brief 1 − I₁(κ)/I₀(κ) — circular variance ∈ [0, 1]. */
     mutable double circularVariance_{detail::ONE};
 
@@ -475,16 +477,11 @@ class VonMisesDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief CDF Bessel-series coefficients bⱼ = Iⱼ(κ)/(j·π·I₀(κ)), j = 1..j_max
-     * (issue #51). cdfSeriesCoeffs_[j-1] holds bⱼ. Computed via a Miller
-     * backward recurrence in updateCacheUnsafe() — no forward recurrence, no
-     * Bessel anchor (the recurrence's own f_j/f_0 ratio already equals
-     * Iⱼ/I₀; see updateCacheUnsafe() for the derivation). Empty when the
-     * series is not applicable: κ = 0 (isUniform_; exact linear CDF) or
-     * κ > 1000 (unvalidated range; wrapped-normal fallback). Invalidated
-     * automatically on κ/μ change via the normal cache mechanism.
+     * @brief J(−π/2) = G(−π/2)/g(−π/2) for μ = 0: the tail mass at a quarter
+     * turn over the density there. The CDF tail and the quantile scale it by
+     * e^(−κ cos t) for the part of the tail mass beyond a quarter turn.
      */
-    mutable std::vector<double> cdfSeriesCoeffs_;
+    mutable double tailHalfJ_{detail::ZERO_DOUBLE};
 };
 
 }  // namespace stats

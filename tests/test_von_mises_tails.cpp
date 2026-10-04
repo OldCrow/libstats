@@ -140,6 +140,32 @@ TEST(VonMisesTails, CdfBothTails) {
     }
 }
 
+// Past a quarter turn at large κ, B = κ(1 − cos t) nears 2κ, and forming it as 2κ·sin²(d/2)
+// rounded to an ulp left |B|·ε in e^−B: 235ε at κ = 200.9, t = −3.098, well inside the law's
+// 8ε·|ln F| (~3200ε there). B = 2κ − A as an exact pair keeps these to a few ε; the budget is
+// 32ε, not the law, so that it sees the difference; the rows sit where A ≪ B, the case the
+// pair is for (at t = −2 A is itself large and its own rounding is the limit). References: the
+// Bessel series F = (t + π)/(2π) + Σ I_j(κ)/(jπ I₀(κ))·sin(jt) at 360 digits (Miller recurrence),
+// independent of the library's quadratures.
+TEST(VonMisesTails, CdfPastQuarterTurnAtLargeKappa) {
+    struct Row {
+        double kappa, x, F;
+    };
+    constexpr Row kRows[] = {
+        {200.9004796835682, -3.097722572325652, 8.3766901788780684819e-176},
+        {100.0, -3.0, 1.1425997996038168687e-87},
+        {300.0, -3.05, 2.7486689840608850139e-261},
+    };
+    for (const Row& r : kRows) {
+        const auto d = VonMisesDistribution::create(0.0, r.kappa).unwrap();
+        const std::string what = caseLabel("cdf", r.kappa, 0.0, r.x);
+        expectRel(what, d.getCumulativeProbability(r.x), r.F, 32 * kEps);
+        expectBatchCdf(d, what, r.x, [&](const std::string& w, double got) {
+            expectRel(w, got, r.F, 32 * kEps);
+        });
+    }
+}
+
 // (b) and (c) Quantile. x is the double nearest the true quantile, wrapped into (−π, π].
 // Rows marked "left end" have a true quantile −π + d with d below an ulp of π: the nearest double
 // is −PI itself, which the library's (−π, π] convention reads as +π (wrapAngle(−PI) == PI), so
