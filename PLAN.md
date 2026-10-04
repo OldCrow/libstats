@@ -9,7 +9,7 @@ carry (shipped releases, closed milestones, the Resolved log, the
 
 ## Status [DERIVED] — 2026-10-04
 **v2.5.0 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
-`d8d3388`; milestone #10 "v2.4.2 — Correctness patch", #157–#172, which
+`d8d3388`; milestone #10 "v2.5.0 — Correctness & accuracy", #157–#172, which
 the release PR closes). This line ships as **v2.5.0**, not v2.4.2
 [user, 2026-10-04; Decided]; the branch keeps its name, and "v2.4.2" in
 this file names that branch and its code. All milestone code is in, #162 included
@@ -252,7 +252,7 @@ the R4 records and the R8 table update. ACCURACY_CHARACTERIZATION: the three gen
 only. This file.
 
 ### R7 — release
-Retitle milestone #10 to v2.5.0 first (user's approval). PR
+PR
 `dev/v2.4.2` → `main` closing #157–#172 (#173 stays with corvus); CI
 green, including the sanitizer legs; merge; signed tag `v2.5.0`; GitHub
 release from the CHANGELOG section; close milestone #10. Then coordinate
@@ -280,8 +280,7 @@ gamma/beta where the corvus release swaps them in.
   2026-10-04]: New Distributions (#3) becomes v3.1.0, after corvus;
   the Architecture Refactor (#4) becomes "post-v3", v3.x or v4 decided
   later. The accuracy patch (#8) may be overtaken by this release (see
-  GitHub Milestones). GitHub milestone retitles: owed, with the user's
-  approval.
+  GitHub Milestones). GitHub milestones retitled 2026-10-04 [user].
 - **Accuracy-for-speed budget [user, 2026-10-04].** Slowdowns of 2×, 5×
   and up to ~10× are acceptable for accuracy fixes; 50–150× is not. 10×
   is a guide, not a hard limit: weigh how hot the function is for
@@ -353,8 +352,10 @@ renumberings, 2026-07-21 and 2026-08-16).
 Release order [user, 2026-10-04]: v2.5.0 (milestone #10, `dev/v2.4.2`)
 → v3.0.0 corvus (#6) → v3.1.0 New Distributions (#3) → Architecture
 Refactor (#4, post-v3). The accuracy patch (#8) is under review below.
-Retitles owed (user's approval): #10 → v2.5.0, #6 → v3.0.0, #3 →
-v3.1.0, #4 → post-v3.
+Retitled 2026-10-04 [user], each description carrying a dated
+renumbering note: #10 "v2.5.0 — Correctness & accuracy", #6 "v3.0.0 —
+corvus adoption", #3 "v3.1.0 — New Distributions (Extended)", #4
+"Post-v3 — Architecture Refactor"; #8 note only.
 
 #8 against this release [DERIVED, 2026-10-04; verify before moving
 anything]:
@@ -371,9 +372,9 @@ anything]:
   passes and allocations).
 - Unaffected: #152 (Codecov measurement), #114 (review backlog). If the
   above go, #8 is these two; fold them into a post-v3 patch or close #8.
-- **#10 v2.4.2 — Correctness patch** (ships as v2.5.0; open, 14): #157–#167, #170–#172.
+- **#10 v2.5.0 — Correctness & accuracy** (open, 14): #157–#167, #170–#172.
   Closed by the release PR.
-- **#6 v2.5.0 — corvus adoption** (becomes v3.0.0; open, 13): #47, #52, #107, #108, #110,
+- **#6 v3.0.0 — corvus adoption** (open, 13): #47, #52, #107, #108, #110,
   #113, #126, #136, #137, #138, #141, #156, #173. Full swap [user,
   2026-09-17]: every `detail::` special function corvus covers. #126 and
   #141 are absorbed, measured against corvus v1.0.0. Corvus is pinned at
@@ -385,11 +386,11 @@ anything]:
   - B, re-scope after the post-swap sweep and timing: #103, #104, #111,
     #144.
   - C, one pass after the swap: #114.
-- **#3 v2.6.0 — New Distributions (Extended)** (becomes v3.1.0; open, 5): #58 GEV, #59
+- **#3 v3.1.0 — New Distributions (Extended)** (open, 5): #58 GEV, #59
   LogLogistic, #60 Triangular, #61 Wald, #62 Hypergeometric +
   BetaBinomial + Zipf. Settle #62's Zipf CDF design (summation or the
   Hurwitz-zeta closed form) before planning; it scopes corvus work.
-- **#4 v3.0.0 — Architecture Refactor** (becomes post-v3; open, 5): #40, #41, #42, #43,
+- **#4 Post-v3 — Architecture Refactor** (open, 5): #40, #41, #42, #43,
   #128.
 
 ## Known Gaps [OPEN]
