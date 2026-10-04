@@ -293,6 +293,34 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
         return density_constant + alpha_minus_one * std::log(x) - beta * x;
     return detail::log_gamma_prefactor(alpha, beta * x, density_constant) - std::log(x);
 }
+
+// gammaLogDensity's Stirling branch (α ≥ 20) over a batch: α·log1pmx(t) + C − log x with
+// t = (βx − α)/α and C = gammaDensityConstant(α, …), in the scalar path's order. The
+// branch-free log1pmx_series covers |t| < ½ and vectorizes; the few elements beyond take
+// std::log1p(t) − t as the scalar path does: log1p(t) − t still cancels up to threefold there and
+// α multiplies it, so the few-ulp VectorOps::vector_log1p left 1e-12 in the log at large α.
+// Inputs ≤ 0 and non-finite inputs come out meaningless here; the caller's fixup pass overwrites
+// them.
+void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, double alpha,
+                             double beta, double density_constant) noexcept {
+    constexpr std::size_t kBlock = 256;
+    alignas(64) double log_x[kBlock];
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t n = std::min(kBlock, count - start);
+        const double* xb = x + start;
+        double* ob = out + start;
+        arch::simd::VectorOps::vector_log(xb, log_x, n);
+        for (std::size_t i = 0; i < n; ++i)
+            ob[i] = detail::log1pmx_series((beta * xb[i] - alpha) / alpha);
+        for (std::size_t i = 0; i < n; ++i) {
+            const double t = (beta * xb[i] - alpha) / alpha;
+            if (std::fabs(t) >= detail::LOG1PMX_SERIES_LIMIT)
+                ob[i] = std::log1p(t) - t;
+        }
+        for (std::size_t i = 0; i < n; ++i)
+            ob[i] = alpha * ob[i] + density_constant - log_x[i];
+    }
+}
 }  // namespace
 
 double GammaDistribution::getProbability(double x) const {
@@ -1085,10 +1113,9 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
                                                       std::size_t count, double alpha, double beta,
                                                       double log_gamma_alpha, double alpha_log_beta,
                                                       double alpha_minus_one) const noexcept {
-    // The SIMD pipeline forms the direct log density; from α = 20 that cancels (see
-    // gammaLogDensity), so the scalar loop takes over.
-    const bool use_simd =
-        arch::simd::SIMDPolicy::shouldUseSIMD(count) && alpha < kStirlingDensityShape;
+    // The SIMD pipeline forms the direct log density below α = 20; from there, where the direct
+    // form cancels (see gammaLogDensity), it is the Stirling form (stirlingLogDensityBatch).
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     // EDGE-4 helper: write the correct PDF(0) value consistent with scalar path.
     // For alpha < 1: PDF(0) = +inf. For alpha = 1: PDF(0) = beta. For alpha > 1: PDF(0) = 0.
@@ -1121,21 +1148,26 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
         return;
     }
 
-    // Fully vectorized log-space pipeline.
-    // One aligned temporary; results serves as workspace throughout.
-    const double log_constant = alpha_log_beta - log_gamma_alpha;
-    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+    if (alpha < kStirlingDensityShape) {
+        // Fully vectorized log-space pipeline.
+        // One aligned temporary; results serves as workspace throughout.
+        const double log_constant = alpha_log_beta - log_gamma_alpha;
+        std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
-    arch::simd::VectorOps::vector_log(values, results, count);
-    // Step 2: results = alpha_minus_one * log(values)
-    arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
-    // Step 3: results += log_constant  (= alpha_log_beta - log_gamma_alpha)
-    arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
-    // Step 4: temp = -beta * values
-    arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
-    // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
-    arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+        // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
+        arch::simd::VectorOps::vector_log(values, results, count);
+        // Step 2: results = alpha_minus_one * log(values)
+        arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
+        // Step 3: results += log_constant  (= alpha_log_beta - log_gamma_alpha)
+        arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
+        // Step 4: temp = -beta * values
+        arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
+        // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
+        arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+    } else {
+        stirlingLogDensityBatch(values, results, count, alpha, beta,
+                                gammaDensityConstant(alpha, alpha_log_beta, log_gamma_alpha));
+    }
     // Step 6: results = exp(log-space result)
     arch::simd::VectorOps::vector_exp(results, results, count);
     // Fixup: non-finite per #103 (pdf(±inf) = 0, NaN propagates — the SIMD
@@ -1156,10 +1188,9 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
                                                          double beta, double log_gamma_alpha,
                                                          double alpha_log_beta,
                                                          double alpha_minus_one) const noexcept {
-    // The SIMD pipeline forms the direct log density; from α = 20 that cancels (see
-    // gammaLogDensity), so the scalar loop takes over.
-    const bool use_simd =
-        arch::simd::SIMDPolicy::shouldUseSIMD(count) && alpha < kStirlingDensityShape;
+    // The SIMD pipeline forms the direct log density below α = 20; from there, where the direct
+    // form cancels (see gammaLogDensity), it is the Stirling form (stirlingLogDensityBatch).
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     // logpdf(0) is the limit, as on the scalar path (#161): +inf for alpha < 1, log(beta) for
     // alpha = 1 (alpha_log_beta is exactly log(beta) there), -inf for alpha > 1.
@@ -1192,21 +1223,26 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
         return;
     }
 
-    // Fully vectorized log-space computation; no exp step needed.
-    // One aligned temporary for -beta*x; results is the accumulator.
-    const double log_constant = alpha_log_beta - log_gamma_alpha;
-    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+    if (alpha < kStirlingDensityShape) {
+        // Fully vectorized log-space computation; no exp step needed.
+        // One aligned temporary for -beta*x; results is the accumulator.
+        const double log_constant = alpha_log_beta - log_gamma_alpha;
+        std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
-    arch::simd::VectorOps::vector_log(values, results, count);
-    // Step 2: results = alpha_minus_one * log(values)
-    arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
-    // Step 3: results += log_constant
-    arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
-    // Step 4: temp = -beta * values
-    arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
-    // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
-    arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+        // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
+        arch::simd::VectorOps::vector_log(values, results, count);
+        // Step 2: results = alpha_minus_one * log(values)
+        arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
+        // Step 3: results += log_constant
+        arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
+        // Step 4: temp = -beta * values
+        arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
+        // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
+        arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+    } else {
+        stirlingLogDensityBatch(values, results, count, alpha, beta,
+                                gammaDensityConstant(alpha, alpha_log_beta, log_gamma_alpha));
+    }
     // Fixup: non-finite per #103 (logpdf(±inf) = -inf, NaN propagates); x < 0 → -inf;
     // x = 0 → the limit by shape (#161).
     for (std::size_t i = 0; i < count; ++i) {

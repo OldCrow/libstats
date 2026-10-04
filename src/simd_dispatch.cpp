@@ -13,8 +13,10 @@
 #include "libstats/platform/simd_policy.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>  // uintptr_t (required explicitly on libstdc++)
 #include <cstring>
+#include <limits>
 #include <string>
 
 namespace stats {
@@ -210,6 +212,32 @@ void VectorOps::vector_log(const double* values, double* results, std::size_t si
     if (!arch::simd::SIMDPolicy::shouldUseSIMD(size))
         return vector_log_fallback(values, results, size);
     getDispatchTable().vector_log(values, results, size);
+}
+
+// log1p(x) = log(u) − ((u − 1) − x)/u, u = 1 + x: u − 1 is exact for u in [½, 2], and the
+// correction restores the part of x that rounding u lost, to first order. Built on the dispatched
+// vector_log, so every tier gets it (corvus::log1p replaces it from v3.0.0). Fixed blocks on the
+// stack keep x readable after log(u) is formed, so results may alias values.
+void VectorOps::vector_log1p(const double* values, double* results, std::size_t size) noexcept {
+    constexpr std::size_t kBlock = 256;
+    alignas(64) double u[kBlock];
+    alignas(64) double log_u[kBlock];
+    for (std::size_t start = 0; start < size; start += kBlock) {
+        const std::size_t n = std::min(kBlock, size - start);
+        const double* x = values + start;
+        double* out = results + start;
+        for (std::size_t i = 0; i < n; ++i)
+            u[i] = 1.0 + x[i];
+        vector_log(u, log_u, n);
+        for (std::size_t i = 0; i < n; ++i) {
+            const double xi = x[i];
+            // ±0 keeps its sign; −1, below −1, +inf and NaN break the correction term.
+            if (xi > -1.0 && xi < std::numeric_limits<double>::infinity() && xi != 0.0)
+                out[i] = log_u[i] - ((u[i] - 1.0) - xi) / u[i];
+            else
+                out[i] = std::log1p(xi);
+        }
+    }
 }
 
 void VectorOps::vector_pow(const double* base, double exponent, double* results,

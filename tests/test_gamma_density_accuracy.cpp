@@ -71,6 +71,10 @@ TEST(GammaDensityAccuracy, Gamma) {
         {25.0, 0.5, 40.0, -3.5803020133764806571},
         {2.5, 1.0, 1.3, -1.1911364737716825747},  // below 20: the direct form, unchanged
         {1e6, 1e3, 1e3, -9.1893861653800607511e-1},
+        // t = (βx − α)/α of −0.6 and 1 (std::log1p(t) − t) and −0.4 (the series up to ½).
+        {50.0, 1.0, 20.0, -17.774862542199327331},
+        {50.0, 1.0, 100.0, -18.912404832928408975},
+        {1000.0, 2.0, 300.0, -113.99455046769104404},
     };
     for (const Row& r : kRows) {
         const auto d = GammaDistribution::create(r.alpha, r.beta).unwrap();

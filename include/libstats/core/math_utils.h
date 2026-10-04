@@ -183,6 +183,30 @@ inline constexpr double STIRLING_PREFACTOR_SHAPE = 20.0;
 [[nodiscard]] double log_gamma_prefactor(double a, double x) noexcept;
 
 /**
+ * @brief log1p(t) − t for |t| < ½, without the cancellation of the direct difference
+ *
+ * 2·atanh(s) − t with s = t/(2 + t): 2s − t = −t·s exactly, so log1p(t) − t =
+ * −t·s + 2s³·(1/3 + s²/5 + s⁴/7 + …). |s| ≤ ⅓ there, so the odd series' terms fall at least
+ * ninefold and seventeen terms reach s³⁴/35 < 4e-18 relative: one division and a fixed polynomial,
+ * 1.7 ulp worst case (the direct log1p(t) − t is 7 ulp on [¼, ½)). Branch-free, so batch loops
+ * vectorize it; the scalar log1pmx and the Gamma batch density share it.
+ */
+inline constexpr double LOG1PMX_SERIES_LIMIT = 0.5;
+
+[[nodiscard]] inline double log1pmx_series(double t) noexcept {
+    const double s = t / (2.0 + t);
+    const double s2 = s * s;
+    // 1/(2k + 1) for k = 17 down to 1, in Horner order.
+    constexpr double kOddReciprocals[] = {
+        1.0 / 35, 1.0 / 33, 1.0 / 31, 1.0 / 29, 1.0 / 27, 1.0 / 25, 1.0 / 23, 1.0 / 21, 1.0 / 19,
+        1.0 / 17, 1.0 / 15, 1.0 / 13, 1.0 / 11, 1.0 / 9,  1.0 / 7,  1.0 / 5,  1.0 / 3};
+    double poly = 0.0;
+    for (const double c : kOddReciprocals)
+        poly = poly * s2 + c;
+    return -t * s + 2.0 * s * s2 * poly;
+}
+
+/**
  * @brief ½·log(a/2π) − c(a), the shape-only part of log_gamma_prefactor's Stirling form
  *
  * For a ≥ STIRLING_PREFACTOR_SHAPE; batch callers hoist it out of their loops.

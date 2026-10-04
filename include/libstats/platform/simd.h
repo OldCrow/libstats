@@ -589,6 +589,16 @@ class VectorOps {
     /// @param size Number of elements
     static void vector_log(const double* values, double* results, std::size_t size) noexcept;
 
+    /// Vectorized log(1 + x) without the cancellation of log(1 + x) near x = 0
+    /// @param values Input vector
+    /// @param results Output vector (log1p(values)); may alias values
+    /// @param size Number of elements
+    /// @note Generic over every tier: log(u) − ((u − 1) − x)/u with u = 1 + x on the dispatched
+    ///       vector_log, so its accuracy is vector_log's plus about an ulp. ±0, x ≤ −1, +inf and
+    ///       NaN take std::log1p. A caller that subtracts x afterwards (log1p(x) − x) amplifies
+    ///       those ulps by the cancellation; detail::log1pmx_series is the form for that.
+    static void vector_log1p(const double* values, double* results, std::size_t size) noexcept;
+
     /// Vectorized power computation (scalar exponent)
     /// @param base Base vector
     /// @param exponent Exponent (scalar)

@@ -45,25 +45,14 @@ static double stirling_remainder(double z) noexcept {
 }
 
 // log1p(t) − t without the cancellation of the direct difference near t = 0, where both terms
-// are of size t and the result t²/2. Below |t| = ¼ it is 2·atanh(s) − t with s = t/(2 + t):
-// 2s − t = −t·s exactly, so log1p(t) − t = −t·s + 2s³·(1/3 + s²/5 + s⁴/7 + …), with no
-// cancellation. |s| ≤ 1/7 there, so the odd series' terms fall at least 49-fold and eleven
-// terms reach s²² < 1e-18 relative: one division and a fixed polynomial, where the t-series
-// summed 10–20 dependent divisions (1.6 against 5.4 ulp worst case, ~4× faster). Above ¼ the
-// direct difference, which loses at most a few bits there.
+// are of size t and the result t²/2. Below |t| = ½ the atanh-form series log1pmx_series
+// (math_utils.h), which replaced a t-series summing 10–20 dependent divisions below ¼ and the
+// direct difference on [¼, ½) (1.7 ulp worst case, against 5.4 and 7). From ½ the direct
+// difference, which cancels at most threefold there.
 static double log1pmx(double t) noexcept {
-    if (std::fabs(t) >= 0.25)
+    if (std::fabs(t) >= LOG1PMX_SERIES_LIMIT)
         return std::log1p(t) - t;
-    const double s = t / (detail::TWO + t);
-    const double s2 = s * s;
-    // 1/(2k + 1) for k = 11 down to 1, in Horner order.
-    static constexpr double kOddReciprocals[] = {1.0 / 23, 1.0 / 21, 1.0 / 19, 1.0 / 17,
-                                                 1.0 / 15, 1.0 / 13, 1.0 / 11, 1.0 / 9,
-                                                 1.0 / 7,  1.0 / 5,  1.0 / 3};
-    double poly = detail::ZERO_DOUBLE;
-    for (const double c : kOddReciprocals)
-        poly = poly * s2 + c;
-    return -t * s + detail::TWO * s * s2 * poly;
+    return log1pmx_series(t);
 }
 
 // log of the incomplete-gamma prefactor x^a·e^{−x}/Γ(a) (#166). Formed directly,
