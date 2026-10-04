@@ -13,12 +13,16 @@ carry (shipped releases, closed milestones, the Resolved log, the
 the release PR closes). This line ships as **v2.5.0**, not v2.4.2
 [user, 2026-10-04; Decided]; the branch keeps its name, and "v2.4.2" in
 this file names that branch and its code. All milestone code is in, #162 included
-(`8018c5d`). Kaby Lake's runbook is done. What remains: the speed work
-on the over-budget rows (von Mises quantile and CDF, Gamma α ≥ 20
-batch; Known Gaps), which changes code and so re-opens R1–R3 and R8 on
-every machine once it lands; then the runbook below: the M1's
-validation, Z's quiet-machine costs, the dispatch-threshold captures on
-Z and M (R8) and the table update they feed, docs, and the release. Every fix has a gate shown to fail on the code before it.
+(`8018c5d`). The speed work on the over-budget rows landed on
+2026-10-04 (Known Gaps, "Over-budget slowdowns"; `b5a47df` through
+`96b157f`), with `SQRT_PI` corrected (`4ec1950`). It changed code after
+every machine's validation, so R1, R2 and R3 run again at the final
+head on all three (K's earlier records stand as history), and R8's
+captures are taken at that head. Open before that head is final: a
+quiet K measurement of Student-t after `ab9af0e` (the A/B bench), and
+the Beta large-shape density (Known Gaps). Then the runbook below,
+docs, and the release. Every fix has a gate shown to fail on the code
+before it.
 
 Fixed on the branch [DERIVED] — detail in the commit messages:
 - Milestone #157–#161, #163–#167, #170–#172; the FORCE_PARALLEL span
@@ -71,7 +75,9 @@ Status by machine (each machine edits only its own line):
   AUTO-vs-best gaps, all favouring PARALLEL at n = 1e3–1e5 (Z: 22); 13 in
   both versions. R8 captures done (2026-10-04, `d9384f8`): AVX2, AVX
   and SSE2 bundles `data/profiles/dispatcher/2026-10-04T*`, three quiet
-  runs each; findings under R8. K complete.
+  runs each; findings under R8. Superseded by the 2026-10-04 speed work
+  (`b5a47df`–`96b157f`): K reruns R1, R2 (AVX2 block) and R3, and
+  re-captures R8, at the final head.
 - **M:** R1, R2, R3 to do; R4 here or on K.
 
 ### Rules on every machine
@@ -196,10 +202,13 @@ sweep on them before their profiles if wanted.
 Decided [user, 2026-10-03/04]: capture `strategy_profile` for every tier
 natively, compare across machines, and only then update
 `dispatch_thresholds.h`. No table edits yet. Z: AVX-512, AVX2, AVX,
-SSE2. M: NEON. K captured at `d9384f8`. Timing: the speed work (Known
-Gaps, "Over-budget slowdowns") changes the von Mises and Gamma rows, and
-K re-captures those after it lands; Z and M can capture before it,
-accepting a re-run of the changed rows, or wait for it and capture once.
+SSE2. M: NEON. K captured at `d9384f8`. Timing: the speed work landed
+2026-10-04 and moved many rows beyond von Mises and Gamma (Student-t
+and Beta densities now SIMD at every shape; the Exponential, Rayleigh,
+Weibull and Pareto CDFs on `vector_expm1`; the discrete log-pmfs and
+every incomplete gamma/beta through the new `log1pmx`; the von Mises
+CDF now compute-bound, scalar per element). Capture once, at the final
+head, on every machine; K's `d9384f8` bundles are the before-picture.
 
 Why [DERIVED, K bundles `2026-10-04T*`]: the v2.4.2 accuracy fixes
 shrank the VECTORIZED advantage over SCALAR, so PARALLEL now wins sooner
@@ -295,7 +304,20 @@ gamma/beta where the corvus release swaps them in.
   span, correctly rounded) but corvus arrives only in v3.0.0, so v2.5.0
   derives `vector_log1p` once, generically, from each tier's
   `vector_log` (the compensated `log(u) − ((u−1)−z)/u`, `u = 1+z`), and
-  v3.0.0 points it at `corvus::log1p`.
+  v3.0.0 points it at `corvus::log1p`. `vector_expm1` likewise [user,
+  2026-10-04] (Taylor below ½, `vector_exp` less 1 above). Neither
+  serves log1p(x) − x: its cancellation amplifies their few ulp (1e-12
+  at large α), so `detail::log1pmx_series` (atanh form) does. corvus
+  exports for `expm1` and `log1pmx` are requested (corvus #45).
+- **Numerical kernel promotion [user, 2026-10-04].** A better method
+  found here is fixed here, written to be moved (generated, verified
+  constants; regime map; independent oracle; fail-first guards), and
+  filed with corvus, which decides by its doctrine; after adoption
+  libstats calls corvus and drops its copy. Distribution-specific
+  kernels (the von Mises CDF) stay; their reusable machinery moves.
+  Fleet rule drafted as OldCrow/standards `NUMERICAL-KERNEL-PROMOTION.md`
+  (pending review); filed: corvus #44 (the von Mises quadrature
+  machinery, and fixed-cost incomplete gamma/beta), corvus #45.
 - **Support-boundary rule (#161, #165) [user, 2026-10-03].** pdf/logpdf at
   a support boundary take the limit by shape: at x = 0, +inf for
   shape < 1, the finite density for shape = 1 exactly, 0 / −∞ above. Out
@@ -395,31 +417,23 @@ anything]:
 
 ## Known Gaps [OPEN]
 - **Over-budget slowdowns** (budget: Decided, "Accuracy-for-speed
-  budget"). Rows over ~10×, from K's R3 and R8 data:
-  - von Mises quantile, 52–136×. Not intrinsic [DERIVED, K probe
-    2026-10-04, indicative]. A tail CDF (adaptive Gauss–Kronrod 7/15,
-    tolerance |K−G| < 1e-10) costs 2–6 µs against 0.1–0.5 µs for the
-    series and 57 ns for the pdf, and a quantile takes 3–5 of them
-    (3–30 µs). Even m ∈ [1/4, 1/2] solves on the quadrature, though the
-    series CDF is accurate there by the CDF's own rule. Levers, cheapest
-    first: (1) solve the band m ≥ 1/4 on the series CDF, pdf as the
-    derivative; (2) a tail seed from the leading asymptotic
-    G ≈ g(t)/(κ|sin t|) plus a Halley step (the second derivative of
-    ln G is nearly free given J), for 1–2 quadratures per quantile;
-    (3) replace the adaptive rule with fixed-node rules. With
-    w = κ(1 + cos θ), J = ∫₀^V e^(−s) ds / √((V−s)(2κ−V+s)),
-    V = 2κ cos²(t/2): Watson's lemma gives an asymptotic series good to
-    ~e^(−V) once V ≳ 40, and s = V(1 − y²) removes the endpoint
-    singularity for a fixed Gauss–Legendre rule below that. (3) also
-    speeds the batch CDF (vectorized ~11× slower at κ = 2). Target:
-    within ~10× of v2.4.1. Levers (1) and (2) are being prototyped
-    (2026-10-04); lever (3) is decided on their result.
-  - Gamma α ≥ 20 logpdf at n = 1e3, 10–15×: the batch path drops to a
-    scalar loop of `log_gamma_prefactor`. Lever: vectorize the
-    Stirling-form density (per-distribution constants plus α·log1pmx(z))
-    on the new `vector_log1p` primitive (Decided, "Vectorized log1p").
-  - Within budget, no action: Student-t (up to 9×), the expm1 CDFs
-    (3–4×), discrete log-pmfs (2–4×), FisherF (2–3×).
+  budget"). Resolved 2026-10-04 [DERIVED, K, indicative, against
+  v2.4.1]:
+  - von Mises quantile 52–136× → 5–7×; CDF tail 0.1–1.1×, bulk
+    0.14–0.75×, batch 0.27–3.5× (`717564f` levers 1–2, `96b157f` the
+    fixed-cost quadrature rewrite; the Bessel series is gone).
+  - Gamma α ≥ 20 pdf/logpdf 8–15× → about 2–5× (`b5a47df` log1pmx and
+    hoisted constants, `b1ffc16` vectorized Stirling batch).
+  - Beta large-shape batch 2.4× → ~1.3×; Student-t: SIMD at every ν
+    (`ab9af0e`), speed owed a quiet measurement (A/B bench pending).
+  - Within budget, left: Student-t CDF/quantile at large ν (5–8×, the
+    incomplete-beta continued fraction; corvus #44's research question),
+    discrete log-pmfs (0.9–2×), FisherF (2–3×).
+- **Beta pdf/logpdf at large shapes** [OPEN]: the direct form
+  lnc + (α−1)log x + (β−1)log1p(−x) cancels when both shapes are large
+  (sweep: pdf max_rel 1.8e-11, logpdf 3.6e-10 near its zero crossing;
+  2.2e-14 at Beta(50, 60)), scalar and batch alike. The Stirling-form
+  `log_beta_prefactor` (used by `beta_i`) is the fix, as for Gamma.
 - The `exp_max` clamp sits ~30 ULP below the true overflow threshold, so
   in that one-double window the kernels return `exp(exp_max)` where
   `std::exp` is still finite. A deliberate margin; left as is.
@@ -431,7 +445,8 @@ anything]:
   lgamma floor. Tighten it when the v2.5.0 incomplete-beta core lands.
 - The pinned clang-format is 20.1.8; the cached pre-commit environment on
   Z has 19.1.7, and CI only reports format (clang-format-17, `|| true`).
-  Older drift remains in `fisher_f.cpp` and `beta.cpp`.
+  The older drift in `fisher_f.cpp` and `beta.cpp` was cleared in
+  `b5a47df`.
 
 ## Cross-Repo Dependencies [OPEN]
 - **pylibstats** pins this repo by a `find_package` floor and a
@@ -440,6 +455,10 @@ anything]:
   behind. Before a release or an API break, check that pin and coordinate
   the bump. It is at v2.4.1 (pylibstats 0.7.1, PR #22); v2.5.0 is owed
   after R7, and v3.0.0 (corvus) needs a major-version floor change.
+- **corvus issues from v2.5.0** [2026-10-04]: #44 (promote the von Mises
+  quadrature machinery; fixed-cost incomplete gamma/beta as research),
+  #45 (span `expm1`, `log1pmx`). No milestone. The corvus branch's von
+  Mises Bessel changes are superseded by `96b157f` (note on that branch).
 - **corvus dependency cost to the wheels** [priced 2026-09-17; full
   record: `git show f508b12:PLAN.md`, Cross-Repo]. Open, for the v2.5.0
   swap PR:
