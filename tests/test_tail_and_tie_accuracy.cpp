@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <gtest/gtest.h>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -167,6 +168,52 @@ TEST(TailAndTie, ExponentialAndRayleighCdfLowerTail) {
     for (const Row& r : kRayleigh)
         expectCdfEverywhere(cdfLabel("rayleigh", r.param, 0, r.x),
                             RayleighDistribution::create(r.param).unwrap(), r.x, r.F, 8 * kEps);
+}
+
+TEST(TailAndTie, SpecialParametersExactly) {
+    // λ = 1 and α, β = 1 short-cuts took any parameter within DEFAULT_TOLERANCE = 1e-8 of 1:
+    // Exponential(1 + 5e-9) used the λ = 1 formulas (9.5e-8 off in the pdf at x = 20), and Beta
+    // with α or β just below 1 returned the finite α = 1 boundary value, not +inf.
+    using Strategy = detail::PerformanceHint::PreferredStrategy;
+    const auto e = ExponentialDistribution::create(1.000000005).unwrap();
+    struct Row {
+        const char* what;
+        double x, want, budget;
+        bool log;
+    };
+    const Row kRows[] = {
+        {"pdf", 20.0, 2.0611534266289741615e-9, 8 * kEps * 20, false},
+        {"logpdf", 20.0, -20.000000094999999435, 8 * kEps, true},
+        {"pdf", 1e-3, 0.99900050482338245796, 8 * kEps, false},
+        {"logpdf", 1e-3, -0.00099999500500004287778, 8 * kEps, true},
+    };
+    for (const Row& r : kRows) {
+        const std::string at =
+            std::string("exponential(1 + 5e-9) ") + r.what + "(" + std::to_string(r.x) + ")";
+        expectRel(at, r.log ? e.getLogProbability(r.x) : e.getProbability(r.x), r.want, r.budget);
+        for (Strategy s :
+             {Strategy::FORCE_SCALAR, Strategy::FORCE_VECTORIZED, Strategy::FORCE_PARALLEL}) {
+            std::vector<double> xs(kN, r.x), out(kN);
+            const detail::PerformanceHint hint{s, std::nullopt};
+            if (r.log)
+                e.getLogProbability(std::span<const double>(xs), std::span<double>(out), hint);
+            else
+                e.getProbability(std::span<const double>(xs), std::span<double>(out), hint);
+            for (std::size_t i : {std::size_t{0}, kN - 1})
+                expectRel(at + " batch strategy " + std::to_string(static_cast<int>(s)), out[i],
+                          r.want, r.budget);
+        }
+    }
+    expectCdfEverywhere("exponential(1 + 5e-9) cdf(1e-3)", e, 1e-3, 0.00099950017162001082154,
+                        8 * kEps);
+
+    constexpr double kInf = std::numeric_limits<double>::infinity();
+    const auto left = BetaDistribution::create(1 - 1e-10, 2.0).unwrap();
+    EXPECT_EQ(left.getProbability(0.0), kInf);
+    EXPECT_EQ(left.getLogProbability(0.0), kInf);
+    const auto right = BetaDistribution::create(2.0, 1 - 1e-10).unwrap();
+    EXPECT_EQ(right.getProbability(1.0), kInf);
+    EXPECT_EQ(right.getLogProbability(1.0), kInf);
 }
 
 TEST(TailAndTie, ParetoCdfNearScale) {

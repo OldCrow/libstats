@@ -290,14 +290,14 @@ double BetaDistribution::getProbability(double x) const {
         if (x == detail::ZERO_DOUBLE) {
             if (a > detail::ONE)
                 return detail::ZERO_DOUBLE;
-            if (std::abs(a - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+            if (a == detail::ONE)  // exactly: just below 1 the limit is +inf
                 return std::exp(lnc);
             return std::numeric_limits<double>::infinity();
         }
         // x = 1
         if (b > detail::ONE)
             return detail::ZERO_DOUBLE;
-        if (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+        if (b == detail::ONE)  // exactly: just below 1 the limit is +inf
             return std::exp(lnc);
         return std::numeric_limits<double>::infinity();
     }
@@ -333,14 +333,14 @@ double BetaDistribution::getLogProbability(double x) const {
     if (x == detail::ZERO_DOUBLE) {
         if (a > detail::ONE)
             return -std::numeric_limits<double>::infinity();
-        if (std::abs(a - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+        if (a == detail::ONE)  // exactly: just below 1 the limit is +inf
             return lnc;
         return std::numeric_limits<double>::infinity();
     }
     if (x == detail::ONE) {
         if (b > detail::ONE)
             return -std::numeric_limits<double>::infinity();
-        if (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE)
+        if (b == detail::ONE)  // exactly: just below 1 the limit is +inf
             return lnc;
         return std::numeric_limits<double>::infinity();
     }

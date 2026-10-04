@@ -234,7 +234,7 @@ libstats/
 
 ```bash
 # Correctness suite — parallel-safe, always reliable
-ctest -LE "timing|benchmark"             # 74 tests; make run_tests runs a further-filtered 67-test subset
+ctest -LE "timing|benchmark"             # 74 tests; make run_tests_correctness runs a further-filtered 67-test subset
 
 # Timing/speedup tests — run serially for accurate results
 make run_tests_timing                    # or: ctest -j1 -L timing

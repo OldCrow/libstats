@@ -609,7 +609,7 @@ if(GTEST_FOUND)
         PROPERTIES LABELS "timing")
 
     # test_benchmark is a benchmark, not a correctness test. It used to be kept
-    # out of run_tests by name, via "^test_benchmark$" in that target's -E
+    # out of run_tests (now run_tests_correctness) by name, via "^test_benchmark$" in that target's -E
     # regex -- and that literal $ is exactly what made the target unusable
     # under the Ninja generator, which requires it written as $$ and treats the
     # malformed line as invalidating the whole build.ninja. Labelling it
@@ -744,11 +744,17 @@ add_custom_target(
 # label or test name equals. Both filters were therefore inert and this target
 # ran the entire suite (72 tests) rather than the 41 it describes. Verified by
 # comparing `ctest -N` counts for the escaped and plain forms.
+# Named run_tests until v2.4.2: the Visual Studio generator adds its own RUN_TESTS target, and the
+# .slnx solution a fresh VS 2026 configure emits compares project names case-insensitively, so
+# MSBuild rejected the whole solution ("Project name 'run_tests' already exists").
 add_custom_target(
-    run_tests
+    run_tests_correctness
     COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure -LE "timing|benchmark" -E
             "stress|comprehensive|dynamic|_fix|parallel_compilation"
-    COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)")
+    COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)"
+    # VERBATIM quotes the regexes for each generator's shell: without it the Visual Studio
+    # generator wrote them bare into a cmd.exe rule, which read each | as a pipe (exit 255).
+    VERBATIM)
 
 # Timing validation target — runs serially for accurate measurement
 add_custom_target(

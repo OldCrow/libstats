@@ -272,6 +272,7 @@ jobs:
   # is exercised nowhere else, and CMakePresets.json pins no generator either.
   #
   # This existed because of #94: a literal `$` in the run_tests ctest regex
+  # (the target is run_tests_correctness since v2.4.2)
   # reached build.ninja unescaped (Ninja requires `$$`), and the malformed
   # line invalidated the ENTIRE build.ninja, so nothing built. It went
   # unnoticed for as long as it did precisely because no job ran Ninja.
@@ -293,7 +294,7 @@ jobs:
     - name: Ensure ninja is available
       run: command -v ninja || { sudo apt-get update && sudo apt-get install -y ninja-build; }
 
-    # Tests MUST be enabled (the default). run_tests lives in
+    # Tests MUST be enabled (the default). run_tests_correctness lives in
     # tests/CMakeLists.txt, so building without tests would omit the very
     # target whose generated command carries the escaping hazard, and this
     # job would pass while guarding nothing.

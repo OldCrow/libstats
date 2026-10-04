@@ -699,7 +699,7 @@ option(LIBSTATS_BUILD_TESTS "Build tests" ON)
 
 if(LIBSTATS_BUILD_TESTS)
     # enable_testing() stays top-level (Phase 3B/B3) -- test registration itself (GTest detection,
-    # create_libstats_test/gtest/dynamic, run_tests/run_all_tests/run_tests_timing) moved to
+    # create_libstats_test/gtest/dynamic, run_tests_correctness/run_all_tests/run_tests_timing) moved to
     # tests/CMakeLists.txt via add_subdirectory below.
     enable_testing()
     add_subdirectory(tests)

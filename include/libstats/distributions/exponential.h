@@ -750,7 +750,9 @@ class ExponentialDistribution : public DistributionBase {
         negLambda_ = -lambda_;
 
         // Optimization flags
-        isUnitRate_ = (std::abs(lambda_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+        // Exactly 1: a 1e-8 tolerance sent λ = 1 + 5e-9 down the λ = 1 formulas, 9.5e-8 off in
+        // the pdf at x = 20.
+        isUnitRate_ = (lambda_ == detail::ONE);
         isHighRate_ = (lambda_ > detail::THOUSAND);
         isLowRate_ = (lambda_ < detail::THOUSANDTH);
 

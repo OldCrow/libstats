@@ -84,18 +84,23 @@ Release tasks [OPEN] (machines: Z = Zen 4, K = Kaby Lake, M = M1):
   (1 − exp(−t) → 0 below t = ε/2) in Weibull, Exponential and Rayleigh,
   reached now that the log1p quantiles put sweep points there; fixed
   (scalar, lambdas, SIMD lanes < ½) with fail-first rows in
-  `test_tail_and_tie_accuracy`, uncommitted. Oracle references fixed
-  the same way (Cauchy at p = ½; seven 1 − e^−t / log(1 − p) forms).
-  Oracle on the fixed tree: 0 contract violations (v2.4.1: 32); left:
-  Beta quantile = #137 (v2.5.0), near-zero logpdf metric and discrete
-  p = 1 quantiles (decided). The block is regenerated only after the
-  commit, so its banner names the code it measured. Open [user]: the
-  1e-8 "standard parameter" shortcuts (`DEFAULT_TOLERANCE`: Exponential
-  `isUnitRate_` — 9.5e-8 pdf error at λ = 1 + 5e-9 — and Beta, Gaussian,
-  LogNormal equivalents); a fresh VS 2026 configure emits a `.slnx` that
-  MSBuild rejects, because the custom `run_tests` target collides with
-  CMake's `RUN_TESTS` (case-insensitive); building `ALL_BUILD` directly
-  works around it.
+  `test_tail_and_tie_accuracy` (`4515837`). Oracle references fixed the
+  same way (Cauchy at p = ½; seven 1 − e^−t / log(1 − p) forms). Oracle:
+  0 contract violations (v2.4.1: 32); left: Beta quantile = #137
+  (v2.5.0), near-zero logpdf metric and discrete p = 1 quantiles
+  (decided). Then, uncommitted [user: fix in v2.4.2]: (2) value paths
+  that took a parameter within `DEFAULT_TOLERANCE` = 1e-8 of 1 as 1 —
+  Exponential's λ = 1 formulas (9.5e-8 pdf error at λ = 1 + 5e-9) and
+  Beta's α, β = 1 boundary value at x = 0, 1 (finite, not +inf, just
+  below 1) — now exact, fail-first in `SpecialParametersExactly`; the
+  `isCauchy()`/`isStandard()`-style queries and `operator==` keep their
+  tolerance (reporting only, no value path). (3) `run_tests` renamed
+  `run_tests_correctness`: a fresh VS 2026 configure emits a `.slnx`
+  that MSBuild rejected because it collided with CMake's `RUN_TESTS`;
+  and the target gained VERBATIM, without which the VS generator wrote
+  its regexes bare into cmd.exe (exit 255, never worked there). Next:
+  commit, then re-sweep and regenerate the AVX-512 block, so its banner
+  names the code it measured.
 - R1 (Z, K, M): pull, clean Release configure, `system_inspector
   --quick`, `ctest -LE "timing|benchmark"`. K and M build the new code
   with clang first (`[[maybe_unused]]`, double-double helpers under FP

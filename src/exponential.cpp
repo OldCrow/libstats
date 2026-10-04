@@ -955,7 +955,7 @@ void ExponentialDistribution::getProbabilityBatchUnsafeImpl(
             const double x = values[i];
             if (x < detail::ZERO_DOUBLE) {
                 results[i] = detail::ZERO_DOUBLE;
-            } else if (std::abs(cached_lambda - detail::ONE) <= detail::DEFAULT_TOLERANCE) {
+            } else if (cached_lambda == detail::ONE) {  // exactly, as isUnitRate_
                 results[i] = std::exp(-x);
             } else {
                 results[i] = cached_lambda * std::exp(cached_neg_lambda * x);
@@ -988,8 +988,7 @@ void ExponentialDistribution::getLogProbabilityBatchUnsafeImpl(
             const double x = values[i];
             if (x < detail::ZERO_DOUBLE) {
                 results[i] = detail::NEGATIVE_INFINITY;
-            } else if (std::abs(cached_log_lambda - detail::ZERO_DOUBLE) <=
-                       detail::DEFAULT_TOLERANCE) {
+            } else if (cached_log_lambda == detail::ZERO_DOUBLE) {  // λ = 1 exactly
                 results[i] = -x;
             } else {
                 results[i] = cached_log_lambda + cached_neg_lambda * x;
@@ -1020,7 +1019,7 @@ void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             const double x = values[i];
             if (x < detail::ZERO_DOUBLE) {
                 results[i] = detail::ZERO_DOUBLE;
-            } else if (std::abs(cached_neg_lambda + detail::ONE) <= detail::DEFAULT_TOLERANCE) {
+            } else if (cached_neg_lambda == detail::NEG_ONE) {  // exactly, as isUnitRate_
                 results[i] = -std::expm1(-x);
             } else {
                 results[i] = -std::expm1(cached_neg_lambda * x);
