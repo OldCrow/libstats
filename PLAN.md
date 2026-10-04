@@ -1,5 +1,32 @@
 # libstats — Plan / Status
 
+**Note from the `dev/v2.4.2` session, 2026-10-04 [user decisions].**
+Read before resuming here.
+- **This branch's release is now v3.0.0, not v2.5.0.** `dev/v2.4.2` ships
+  as v2.5.0. Reason: this branch's installed package gains
+  `find_dependency(corvus 1.0 CONFIG)`, so a `find_package(libstats 2.x)`
+  consumer would accept it under `SameMajorVersion` and then fail to
+  configure without corvus; it also ends "zero external dependencies".
+  New Distributions (#3) becomes v3.1.0; the Architecture Refactor (#4)
+  is post-v3. Branch names stay; milestone retitles are owed with the
+  user's approval. Record: `dev/v2.4.2` `PLAN.md`, Decided, "Release
+  numbering".
+- **Merging after v2.5.0 ships:** rebase onto `main`, then follow the
+  merge note in `dev/v2.4.2`'s `PLAN.md` (R7, "Corvus merge note"):
+  `math_utils.{h,cpp}`, `student_t.cpp`, `gamma.cpp`, `poisson.cpp`,
+  `binomial.cpp`, `negative_binomial.cpp`, `von_mises.cpp`,
+  `exponential.cpp`, `weibull.cpp`, `rayleigh.cpp` and
+  `tests/CMakeLists.txt` conflict. Keep v2.5.0's fixes; corvus replaces
+  `gamma_p_inv` and the incomplete gamma/beta where this branch swaps
+  them in.
+- **v2.5.0 is still changing:** a speed pass on the von Mises quantile
+  and CDF and the Gamma α ≥ 20 batch, a generic `VectorOps::vector_log1p`
+  (to point at `corvus::log1p` here), and re-derived dispatch tables
+  (R8; K captured AVX2, AVX and SSE2 at `d9384f8`). Re-measure
+  thresholds after the swap.
+- **Speed budget [user]:** slowdowns up to ~10× are acceptable for
+  accuracy, weighed by how hot the function is; 50–150× is not.
+
 ## Status [DERIVED] — 2026-10-03
 **libstats-side levers 2026-10-03 (Zen 4) — IMPLEMENTED on
 `dev/v2.5.0-corvus`** (`e62a616` lever 1, `45000c6` lever 3, `c51e2ed`
