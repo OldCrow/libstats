@@ -8,13 +8,17 @@ carry (shipped releases, closed milestones, the Resolved log, the
 `git show f508b12:PLAN.md`.
 
 ## Status [DERIVED] — 2026-10-04
-**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
+**v2.5.0 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
 `d8d3388`; milestone #10 "v2.4.2 — Correctness patch", #157–#172, which
-the release PR closes). All milestone code is in, #162 included
-(`8018c5d`). Kaby Lake is done. What remains is the runbook below: the
-M1's validation, Z's quiet-machine costs, the dispatch-threshold
-captures on Z and M (R8) and the table update they feed, docs, and the
-release. Every fix has a gate shown to fail on the code before it.
+the release PR closes). This line ships as **v2.5.0**, not v2.4.2
+[user, 2026-10-04; Decided]; the branch keeps its name, and "v2.4.2" in
+this file names that branch and its code. All milestone code is in, #162 included
+(`8018c5d`). Kaby Lake's runbook is done. What remains: the speed work
+on the over-budget rows (von Mises quantile and CDF, Gamma α ≥ 20
+batch; Known Gaps), which changes code and so re-opens R1–R3 and R8 on
+every machine once it lands; then the runbook below: the M1's
+validation, Z's quiet-machine costs, the dispatch-threshold captures on
+Z and M (R8) and the table update they feed, docs, and the release. Every fix has a gate shown to fail on the code before it.
 
 Fixed on the branch [DERIVED] — detail in the commit messages:
 - Milestone #157–#161, #163–#167, #170–#172; the FORCE_PARALLEL span
@@ -44,7 +48,7 @@ Last release: v2.4.1 (2026-09-19). v2.5.0 (corvus adoption) is in
 progress on `dev/v2.5.0-corvus` in its own session; that branch's PLAN.md
 is authoritative for v2.5.0 state.
 
-## v2.4.2 release runbook [OPEN]
+## v2.5.0 release runbook (branch `dev/v2.4.2`) [OPEN]
 Machines: **Z** = Zen 4 (Windows 11, MSVC, AVX-512), **K** = Kaby Lake
 (macOS Ventura, AppleClang, AVX2), **M** = Mac Mini M1 (macOS 27,
 AppleClang, NEON).
@@ -191,8 +195,11 @@ sweep on them before their profiles if wanted.
 ### R8 — dispatch-threshold captures (Z, M) [OPEN]
 Decided [user, 2026-10-03/04]: capture `strategy_profile` for every tier
 natively, compare across machines, and only then update
-`dispatch_thresholds.h`. Capture now; no table edits yet. Z: AVX-512,
-AVX2, AVX, SSE2. M: NEON. K is done.
+`dispatch_thresholds.h`. No table edits yet. Z: AVX-512, AVX2, AVX,
+SSE2. M: NEON. K captured at `d9384f8`. Timing: the speed work (Known
+Gaps, "Over-budget slowdowns") changes the von Mises and Gamma rows, and
+K re-captures those after it lands; Z and M can capture before it,
+accepting a re-run of the changed rows, or wait for it and capture once.
 
 Why [DERIVED, K bundles `2026-10-04T*`]: the v2.4.2 accuracy fixes
 shrank the VECTORIZED advantage over SCALAR, so PARALLEL now wins sooner
@@ -238,27 +245,58 @@ each table, decide on a kSse2 table of its own, then R1 again on every
 machine whose table changed.
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
-Version 2.4.1 → 2.4.2: `CMakeLists.txt:83`, README (status lines and the
+Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
 stale test counts), AGENTS "Current status", PROJECT_CONCEPT. CHANGELOG
 via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs,
 the R4 records and the R8 table update. ACCURACY_CHARACTERIZATION: the three generated blocks
 only. This file.
 
 ### R7 — release
-PR `dev/v2.4.2` → `main` closing #157–#172 (#173 stays on v2.5.0); CI
-green, including the sanitizer legs; merge; signed tag `v2.4.2`; GitHub
+Retitle milestone #10 to v2.5.0 first (user's approval). PR
+`dev/v2.4.2` → `main` closing #157–#172 (#173 stays with corvus); CI
+green, including the sanitizer legs; merge; signed tag `v2.5.0`; GitHub
 release from the CHANGELOG section; close milestone #10. Then coordinate
-the pylibstats pin bump (Cross-Repo below), and tell the v2.5.0 session
+the pylibstats pin bump (Cross-Repo below), and tell the corvus session
 about the merge note.
 
-v2.5.0 merge note [DERIVED]: `math_utils.{h,cpp}`, `student_t.cpp`,
+Corvus merge note [DERIVED]: `math_utils.{h,cpp}`, `student_t.cpp`,
 `gamma.cpp`, `poisson.cpp`, `binomial.cpp`, `negative_binomial.cpp`,
 `von_mises.cpp`, `exponential.cpp`, `weibull.cpp`, `rayleigh.cpp`,
-`tests/CMakeLists.txt` and this file will conflict. Keep v2.4.2's fixes;
-corvus's definitions replace `gamma_p_inv` and the incomplete gamma/beta
-where v2.5.0 swaps them in.
+`tests/CMakeLists.txt` and this file will conflict. Keep this branch's
+fixes; corvus's definitions replace `gamma_p_inv` and the incomplete
+gamma/beta where the corvus release swaps them in.
 
 ## Decided [DERIVED]
+- **Release numbering [user, 2026-10-04].** `dev/v2.4.2` ships as
+  v2.5.0: no public API change, but consumers see different results
+  (0 contract violations, new tail and edge behaviour), a different
+  speed profile (slowdowns and re-derived dispatch tables, R8) and a
+  new supported compiler (clang-cl, `6245e4e`). Corvus adoption
+  (`dev/v2.5.0-corvus`, milestone #6) becomes v3.0.0: the installed
+  package gains `find_dependency(corvus 1.0 CONFIG)`, so under
+  `SameMajorVersion` a `find_package(libstats 2.x)` consumer would
+  accept it and fail to configure without corvus; it also ends
+  "zero external dependencies". Branch names stay. Knock-on [user,
+  2026-10-04]: New Distributions (#3) becomes v3.1.0, after corvus;
+  the Architecture Refactor (#4) becomes "post-v3", v3.x or v4 decided
+  later. The accuracy patch (#8) may be overtaken by this release (see
+  GitHub Milestones). GitHub milestone retitles: owed, with the user's
+  approval.
+- **Accuracy-for-speed budget [user, 2026-10-04].** Slowdowns of 2×, 5×
+  and up to ~10× are acceptable for accuracy fixes; 50–150× is not. 10×
+  is a guide, not a hard limit: weigh how hot the function is for
+  consumers (a Gaussian pdf matters far more than a von Mises quantile)
+  against the effort, and maximise speed at the accuracy kept, within
+  reasonable effort. Over-budget rows get a performance pass or a
+  theoretical case that the cost is intrinsic (Known Gaps, "Over-budget
+  slowdowns"). Code on this branch may change again for speed, and R8's
+  tables are re-profiled after it.
+- **Vectorized log1p [user, 2026-10-04].** A `VectorOps` primitive is
+  preferred to an inline composite. Corvus has one (`corvus::log1p`,
+  span, correctly rounded) but corvus arrives only in v3.0.0, so v2.5.0
+  derives `vector_log1p` once, generically, from each tier's
+  `vector_log` (the compensated `log(u) − ((u−1)−z)/u`, `u = 1+z`), and
+  v3.0.0 points it at `corvus::log1p`.
 - **Support-boundary rule (#161, #165) [user, 2026-10-03].** pdf/logpdf at
   a support boundary take the limit by shape: at x = 0, +inf for
   shape < 1, the finite density for shape = 1 exactly, 0 / −∞ above. Out
@@ -312,30 +350,75 @@ Closed: #1 v2.2.0 (5), #5 v2.3.0 (5), #7 v2.3.1 (13), #2 v2.4.0 (6), #9
 v2.4.1 (3). Milestone numbers do not sort in version order (two title
 renumberings, 2026-07-21 and 2026-08-16).
 
-Release order: v2.4.2 → v2.5.0 → the accuracy patch (version assigned at
-ship, likely v2.5.1) → v2.6.0 → v3.0.0.
-- **#10 v2.4.2 — Correctness patch** (open, 14): #157–#167, #170–#172.
+Release order [user, 2026-10-04]: v2.5.0 (milestone #10, `dev/v2.4.2`)
+→ v3.0.0 corvus (#6) → v3.1.0 New Distributions (#3) → Architecture
+Refactor (#4, post-v3). The accuracy patch (#8) is under review below.
+Retitles owed (user's approval): #10 → v2.5.0, #6 → v3.0.0, #3 →
+v3.1.0, #4 → post-v3.
+
+#8 against this release [DERIVED, 2026-10-04; verify before moving
+anything]:
+- Likely overtaken: #104 (quantile contract at extreme p): its Decided
+  contract stands and v2.5.0 fixed the deep-tail quantiles (#159, #160,
+  the log1p quantiles; 0 contract violations on AVX-512 and AVX2).
+  Re-check its listed cases, then close.
+- Partly overtaken: #103 (±inf inputs): the support-boundary rule
+  (#161, #165) covers x = 0 and out-of-support; check the +inf cases it
+  lists before closing or narrowing.
+- Pulled into v2.5.0 by R8 and the speed work: #146 (sustained-crossover
+  tooling; bucket A said "before the threshold re-measure", which is
+  now), #144 (von Mises CDF thresholds), #111 (von Mises batch CDF
+  passes and allocations).
+- Unaffected: #152 (Codecov measurement), #114 (review backlog). If the
+  above go, #8 is these two; fold them into a post-v3 patch or close #8.
+- **#10 v2.4.2 — Correctness patch** (ships as v2.5.0; open, 14): #157–#167, #170–#172.
   Closed by the release PR.
-- **#6 v2.5.0 — corvus adoption** (open, 13): #47, #52, #107, #108, #110,
+- **#6 v2.5.0 — corvus adoption** (becomes v3.0.0; open, 13): #47, #52, #107, #108, #110,
   #113, #126, #136, #137, #138, #141, #156, #173. Full swap [user,
   2026-09-17]: every `detail::` special function corvus covers. #126 and
   #141 are absorbed, measured against corvus v1.0.0. Corvus is pinned at
   v1.0.1. State and design: that branch's PLAN.md.
 - **#8 Accuracy, contracts & kernel hygiene patch** (open, 7): ships after
-  v2.5.0. Bucketed [user, 2026-09-29]:
+  corvus (v3.0.0); under review, see above. Bucketed [user, 2026-09-29]:
   - A, independent of adoption: #146 (before the v2.5.0 threshold
     re-measure), #152 (Codecov measurement).
   - B, re-scope after the post-swap sweep and timing: #103, #104, #111,
     #144.
   - C, one pass after the swap: #114.
-- **#3 v2.6.0 — New Distributions (Extended)** (open, 5): #58 GEV, #59
+- **#3 v2.6.0 — New Distributions (Extended)** (becomes v3.1.0; open, 5): #58 GEV, #59
   LogLogistic, #60 Triangular, #61 Wald, #62 Hypergeometric +
   BetaBinomial + Zipf. Settle #62's Zipf CDF design (summation or the
   Hurwitz-zeta closed form) before planning; it scopes corvus work.
-- **#4 v3.0.0 — Architecture Refactor** (open, 5): #40, #41, #42, #43,
+- **#4 v3.0.0 — Architecture Refactor** (becomes post-v3; open, 5): #40, #41, #42, #43,
   #128.
 
 ## Known Gaps [OPEN]
+- **Over-budget slowdowns** (budget: Decided, "Accuracy-for-speed
+  budget"). Rows over ~10×, from K's R3 and R8 data:
+  - von Mises quantile, 52–136×. Not intrinsic [DERIVED, K probe
+    2026-10-04, indicative]. A tail CDF (adaptive Gauss–Kronrod 7/15,
+    tolerance |K−G| < 1e-10) costs 2–6 µs against 0.1–0.5 µs for the
+    series and 57 ns for the pdf, and a quantile takes 3–5 of them
+    (3–30 µs). Even m ∈ [1/4, 1/2] solves on the quadrature, though the
+    series CDF is accurate there by the CDF's own rule. Levers, cheapest
+    first: (1) solve the band m ≥ 1/4 on the series CDF, pdf as the
+    derivative; (2) a tail seed from the leading asymptotic
+    G ≈ g(t)/(κ|sin t|) plus a Halley step (the second derivative of
+    ln G is nearly free given J), for 1–2 quadratures per quantile;
+    (3) replace the adaptive rule with fixed-node rules. With
+    w = κ(1 + cos θ), J = ∫₀^V e^(−s) ds / √((V−s)(2κ−V+s)),
+    V = 2κ cos²(t/2): Watson's lemma gives an asymptotic series good to
+    ~e^(−V) once V ≳ 40, and s = V(1 − y²) removes the endpoint
+    singularity for a fixed Gauss–Legendre rule below that. (3) also
+    speeds the batch CDF (vectorized ~11× slower at κ = 2). Target:
+    within ~10× of v2.4.1. Levers (1) and (2) are being prototyped
+    (2026-10-04); lever (3) is decided on their result.
+  - Gamma α ≥ 20 logpdf at n = 1e3, 10–15×: the batch path drops to a
+    scalar loop of `log_gamma_prefactor`. Lever: vectorize the
+    Stirling-form density (per-distribution constants plus α·log1pmx(z))
+    on the new `vector_log1p` primitive (Decided, "Vectorized log1p").
+  - Within budget, no action: Student-t (up to 9×), the expm1 CDFs
+    (3–4×), discrete log-pmfs (2–4×), FisherF (2–3×).
 - The `exp_max` clamp sits ~30 ULP below the true overflow threshold, so
   in that one-double window the kernels return `exp(exp_max)` where
   `std::exp` is still finite. A deliberate margin; left as is.
@@ -354,8 +437,8 @@ ship, likely v2.5.1) → v2.6.0 → v3.0.0.
   FetchContent `GIT_TAG` in `pylibstats/CMakeLists.txt`, which is the
   only source of the version; its pin-currency canary fails when it falls
   behind. Before a release or an API break, check that pin and coordinate
-  the bump. It is at v2.4.1 (pylibstats 0.7.1, PR #22); v2.4.2 is owed
-  after R7.
+  the bump. It is at v2.4.1 (pylibstats 0.7.1, PR #22); v2.5.0 is owed
+  after R7, and v3.0.0 (corvus) needs a major-version floor change.
 - **corvus dependency cost to the wheels** [priced 2026-09-17; full
   record: `git show f508b12:PLAN.md`, Cross-Repo]. Open, for the v2.5.0
   swap PR:
