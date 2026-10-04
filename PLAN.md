@@ -59,7 +59,12 @@ Status by machine (each machine edits only its own line):
   violations. R4 done: #162 reproduced on head and fixed (`8018c5d`);
   #167 fail-first under UBSan (`d8d3388` aborts at `poisson.cpp:1240`,
   head clean). Run binaries outside the Claude Code sandbox, which blocks
-  the cache-size sysctls. Next: R3 when quiet.
+  the cache-size sysctls. R3 done (2026-10-03,
+  `docs/bench-evidence/2026-10-03-kabylake-v242-cost/`): timing 22/22;
+  von Mises quantile 52–136× slower; Gamma α ≥ 20 logpdf 10–15× and
+  Student-t 4–9× (scalar fall-backs); discrete quantiles 0.2–0.6×. 20 NEW
+  AUTO-vs-best gaps, all favouring PARALLEL at n = 1e3–1e5 (Z: 22); 13 in
+  both versions. Threshold re-derivation: user's decision. K complete.
 - **M:** R1, R2, R3 to do; R4 here or on K.
 
 ### Rules on every machine

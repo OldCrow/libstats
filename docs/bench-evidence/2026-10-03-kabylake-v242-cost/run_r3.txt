@@ -1,0 +1,7 @@
+2026-10-03 21:19:13 load=20.28 waiting for load < 2.0
+2026-10-03 21:23:13 load=1.99 start bench_v241
+2026-10-03 21:25:30 load=3.56 end bench_v241 exit=0; start bench_v242
+2026-10-03 21:29:08 load=2.88 end bench_v242 exit=0
+2026-10-03 21:29:09 load=2.88 compare exit=0; start timing ctest
+2026-10-03 21:29:21 load=2.75 end timing ctest exit=0
+2026-10-03 21:29:21 load=2.75 DONE
