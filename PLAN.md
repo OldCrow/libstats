@@ -221,7 +221,10 @@ where v2.5.0 swaps them in.
   adapters, rather than requesting a corvus broadcast overload. Settle the
   block size, and `vector_beta_i`'s argument order, in the swap.
 - **Project skills** live once, in `.claude/skills/`; `.agents/skills` is
-  a tracked relative symlink. Edit only `.claude/skills/`.
+  a tracked relative symlink. Edit only `.claude/skills/`. On Windows it
+  needs Developer Mode plus a repository-local `core.symlinks=true`; Git
+  for Windows defaults to false, and a clone records the value it found.
+  Z is set (2026-10-03).
 - **`origin/spike/corvus-bessel`** holds the only Tier 0 corvus Bessel
   code (`a1c71d6`). It is not merged; keep it.
 
@@ -274,9 +277,6 @@ ship, likely v2.5.1) → v2.6.0 → v3.0.0.
   return doubles. Only a double-double complement export would.
 - The past-INT_MAX CDF guard tolerance (2e-4) comes from `beta_i`'s
   lgamma floor. Tighten it when the v2.5.0 incomplete-beta core lands.
-- On Z, `core.symlinks` is false, so `.agents/skills` is a 17-byte text
-  file. Claude is unaffected (it reads `.claude/skills/`). Fixing it needs
-  Developer Mode and `core.symlinks=true` [user].
 - The pinned clang-format is 20.1.8; the cached pre-commit environment on
   Z has 19.1.7, and CI only reports format (clang-format-17, `|| true`).
   Older drift remains in `fisher_f.cpp` and `beta.cpp`.
