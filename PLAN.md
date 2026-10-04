@@ -53,7 +53,13 @@ Status by machine (each machine edits only its own line):
   clean rebuild, 86/86, Release CRT). R2 done: AVX-512 block regenerated
   at `f89380a` (`f508b12`), 0 contract violations (v2.4.1: 32). Next: R3
   when quiet; R5 optional.
-- **K:** R1, R2, R3 to do; R4 here or on M.
+- **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
+  fixed the SDK `label` collision and sign-compare warnings in tests;
+  86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
+  violations. R4 done: #162 reproduced on head and fixed (`8018c5d`);
+  #167 fail-first under UBSan (`d8d3388` aborts at `poisson.cpp:1240`,
+  head clean). Run binaries outside the Claude Code sandbox, which blocks
+  the cache-size sysctls. Next: R3 when quiet.
 - **M:** R1, R2, R3 to do; R4 here or on K.
 
 ### Rules on every machine
