@@ -204,7 +204,7 @@ TEST_F(UniformEnhancedTest, BootstrapMethods) {
     // K-fold cross-validation
     auto cv_results =
         stats::analysis::kFoldCrossValidation<stats::UniformDistribution>(uniform_data_, 5, 42);
-    EXPECT_EQ(cv_results.size(), 5);
+    EXPECT_EQ(cv_results.size(), 5u);
 
     for (const double log_likelihood : cv_results) {
         // Uniform log-likelihood can be -inf when test data falls outside fitted [a,b] support;

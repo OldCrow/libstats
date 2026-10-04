@@ -44,7 +44,7 @@ constexpr double kLawFactor = 8.0;
 constexpr double kUlpBelowOne = 0x1p-53;
 constexpr std::size_t kN = 69;  // 8*8+5: SIMD body and scalar tail on every tier width
 
-std::string label(const char* what, double kappa, double mu, double arg) {
+std::string caseLabel(const char* what, double kappa, double mu, double arg) {
     char buf[112];
     std::snprintf(buf, sizeof buf, "%s(kappa=%g, mu=%g, %.17g)", what, kappa, mu, arg);
     return buf;
@@ -124,7 +124,7 @@ TEST(VonMisesTails, CdfBothTails) {
     };
     for (const Row& r : kRows) {
         const auto d = VonMisesDistribution::create(0.0, r.kappa).unwrap();
-        const std::string what = label("cdf", r.kappa, 0.0, r.x);
+        const std::string what = caseLabel("cdf", r.kappa, 0.0, r.x);
         if (r.x > 0.0 && 1.0 - r.F < 1e-3) {
             expectAbs(what, d.getCumulativeProbability(r.x), r.F, kUlpBelowOne);
             expectBatchCdf(d, what, r.x, [&](const std::string& w, double got) {
@@ -211,7 +211,7 @@ TEST(VonMisesTails, QuantileTailsAndAccuracy) {
             kLawFactor * kEps *
             (std::fabs(r.x) + std::fabs(r.mu) + std::max(1.0, std::fabs(std::log(m))) * m / r.f);
         const auto d = VonMisesDistribution::create(r.mu, r.kappa).unwrap();
-        expectAbs(label("quantile", r.kappa, r.mu, r.p), d.getQuantile(r.p), r.x, budget);
+        expectAbs(caseLabel("quantile", r.kappa, r.mu, r.p), d.getQuantile(r.p), r.x, budget);
     }
 }
 

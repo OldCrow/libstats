@@ -41,21 +41,21 @@ TEST_F(SystemCapabilitiesIntegrationTest, ReasonableSystemValues) {
     EXPECT_GE(capabilities.logical_cores(), static_cast<std::size_t>(1));
     EXPECT_LE(capabilities.logical_cores(),
               static_cast<std::size_t>(256));  // Reasonable upper bound
-    EXPECT_GE(capabilities.physical_cores(), 1);
+    EXPECT_GE(capabilities.physical_cores(), 1u);
     EXPECT_LE(capabilities.physical_cores(), capabilities.logical_cores());
 
     // Cache sizes (in bytes)
-    EXPECT_GE(capabilities.l1_cache_size(), 1024);         // At least 1KB
-    EXPECT_LE(capabilities.l1_cache_size(), 1024 * 1024);  // At most 1MB (generous)
+    EXPECT_GE(capabilities.l1_cache_size(), 1024u);         // At least 1KB
+    EXPECT_LE(capabilities.l1_cache_size(), 1024u * 1024u);  // At most 1MB (generous)
 
     if (capabilities.l2_cache_size() > 0) {
         EXPECT_GE(capabilities.l2_cache_size(), capabilities.l1_cache_size());
-        EXPECT_LE(capabilities.l2_cache_size(), 64 * 1024 * 1024);  // At most 64MB
+        EXPECT_LE(capabilities.l2_cache_size(), 64u * 1024u * 1024u);  // At most 64MB
     }
 
     if (capabilities.l3_cache_size() > 0) {
         EXPECT_GE(capabilities.l3_cache_size(), capabilities.l2_cache_size());
-        EXPECT_LE(capabilities.l3_cache_size(), 1024 * 1024 * 1024);  // At most 1GB
+        EXPECT_LE(capabilities.l3_cache_size(), 1024u * 1024u * 1024u);  // At most 1GB
     }
 
     // Core and cache counts verified above; benchmark metrics removed
@@ -153,9 +153,9 @@ TEST_F(SystemCapabilitiesIntegrationTest, PerformanceCharacteristicsRealistic) {
     // Benchmark metrics (simd_efficiency, threading_overhead_ns, memory_bandwidth_gb_s)
     // were removed with benchmarkPerformance() — results were never used by dispatch.
     // This test now verifies that core/cache/SIMD fields are self-consistent.
-    EXPECT_GE(capabilities.physical_cores(), 1);
+    EXPECT_GE(capabilities.physical_cores(), 1u);
     EXPECT_LE(capabilities.physical_cores(), capabilities.logical_cores());
-    EXPECT_GT(capabilities.l1_cache_size(), 0);
+    EXPECT_GT(capabilities.l1_cache_size(), 0u);
     SUCCEED();
 }
 
@@ -187,7 +187,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
 
 TEST_F(SystemCapabilitiesIntegrationTest, CacheHierarchyLogical) {
     // Test that cache hierarchy makes sense
-    EXPECT_GT(capabilities.l1_cache_size(), 0);
+    EXPECT_GT(capabilities.l1_cache_size(), 0u);
 
     if (capabilities.l2_cache_size() > 0) {
         EXPECT_GE(capabilities.l2_cache_size(), capabilities.l1_cache_size());

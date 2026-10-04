@@ -260,7 +260,7 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
     // K-fold cross-validation
     auto cv_results =
         stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(normal_data_, 5, 42);
-    EXPECT_EQ(cv_results.size(), 5);
+    EXPECT_EQ(cv_results.size(), 5u);
 
     for (const double fold_ll : cv_results) {
         EXPECT_LE(fold_ll, 0.0);  // Fold log-likelihood should be negative

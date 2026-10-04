@@ -47,7 +47,7 @@ double logTPdf(double nu, double t) {
            0.5 * std::log(nu * detail::PI) - (nu + 1) / 2 * log1p_u;
 }
 
-std::string label(const char* what, double nu, double arg) {
+std::string caseLabel(const char* what, double nu, double arg) {
     char buf[96];
     std::snprintf(buf, sizeof buf, "%s(nu=%g, %.17g)", what, nu, arg);
     return buf;
@@ -116,8 +116,8 @@ TEST(StudentTTails, QuantileDeepTailAndLargeNu) {
         const double budget =
             kLawFactor * kEps * (1.0 + std::max(1.0, std::fabs(std::log(mass))) * kappa);
         const auto d = StudentTDistribution::create(r.nu).unwrap();
-        expectRel(label("quantile", r.nu, r.p), d.getQuantile(r.p), r.t, budget);
-        expectRel(label("inverse_t_cdf", r.nu, r.p), detail::inverse_t_cdf(r.p, r.nu), r.t, budget);
+        expectRel(caseLabel("quantile", r.nu, r.p), d.getQuantile(r.p), r.t, budget);
+        expectRel(caseLabel("inverse_t_cdf", r.nu, r.p), detail::inverse_t_cdf(r.p, r.nu), r.t, budget);
     }
 }
 
@@ -141,9 +141,9 @@ TEST(StudentTTails, CdfLargeNuAndBeyondOverflow) {
     for (const Row& r : kRows) {
         const double budget = kLawFactor * kEps * std::max(1.0, std::fabs(std::log(r.F)));
         const auto d = StudentTDistribution::create(r.nu).unwrap();
-        expectRel(label("cdf", r.nu, r.t), d.getCumulativeProbability(r.t), r.F, budget);
-        expectRel(label("t_cdf", r.nu, r.t), detail::t_cdf(r.t, r.nu), r.F, budget);
-        expectBatch(label("cdf", r.nu, r.t), r.t, r.F, budget, [&](auto in, auto out, auto hint) {
+        expectRel(caseLabel("cdf", r.nu, r.t), d.getCumulativeProbability(r.t), r.F, budget);
+        expectRel(caseLabel("t_cdf", r.nu, r.t), detail::t_cdf(r.t, r.nu), r.F, budget);
+        expectBatch(caseLabel("cdf", r.nu, r.t), r.t, r.F, budget, [&](auto in, auto out, auto hint) {
             d.getCumulativeProbability(in, out, hint);
         });
     }
@@ -164,8 +164,8 @@ TEST(StudentTTails, PdfLogPdfBeyondOverflow) {
     for (const Row& r : kRows) {
         const auto d = StudentTDistribution::create(r.nu).unwrap();
         const double budget = kLawFactor * kEps;
-        expectRel(label("logpdf", r.nu, r.t), d.getLogProbability(r.t), r.logpdf, budget);
-        expectBatch(label("logpdf", r.nu, r.t), r.t, r.logpdf, budget,
+        expectRel(caseLabel("logpdf", r.nu, r.t), d.getLogProbability(r.t), r.logpdf, budget);
+        expectBatch(caseLabel("logpdf", r.nu, r.t), r.t, r.logpdf, budget,
                     [&](auto in, auto out, auto hint) { d.getLogProbability(in, out, hint); });
     }
     // The one row whose density is a normal double: relative error |logpdf|·ε from the exp.

@@ -87,7 +87,7 @@ void expectQuantile(const std::string& what, double got, double want, double bud
     EXPECT_LE(std::fabs(got - want) / want, budget) << what << " = " << got << ", want " << want;
 }
 
-std::string label(const char* name, double a, double p) {
+std::string caseLabel(const char* name, double a, double p) {
     char buf[96];
     std::snprintf(buf, sizeof buf, "%s(%g).quantile(%.17g)", name, a, p);
     return buf;
@@ -98,7 +98,7 @@ std::string label(const char* name, double a, double p) {
 TEST(GammaQuantileAccuracy, UnitRate) {
     for (const Row& r : kRows) {
         const auto d = GammaDistribution::create(r.alpha, 1.0).unwrap();
-        expectQuantile(label("Gamma", r.alpha, r.p), d.getQuantile(r.p), r.x,
+        expectQuantile(caseLabel("Gamma", r.alpha, r.p), d.getQuantile(r.p), r.x,
                        lawBudget(r.alpha, r.p, r.x));
     }
 }
@@ -107,14 +107,14 @@ TEST(GammaQuantileAccuracy, RateScalesTheAnswer) {
     // Rate 4 is a power of two, so the reference scales exactly.
     for (const Row& r : kRows) {
         const auto d = GammaDistribution::create(r.alpha, 4.0).unwrap();
-        expectQuantile(label("Gamma rate 4", r.alpha, r.p), d.getQuantile(r.p), r.x / 4.0,
+        expectQuantile(caseLabel("Gamma rate 4", r.alpha, r.p), d.getQuantile(r.p), r.x / 4.0,
                        lawBudget(r.alpha, r.p, r.x));
     }
 }
 
 TEST(GammaQuantileAccuracy, DetailGammaInverseCdf) {
     for (const Row& r : kRows)
-        expectQuantile(label("gamma_inverse_cdf", r.alpha, r.p),
+        expectQuantile(caseLabel("gamma_inverse_cdf", r.alpha, r.p),
                        detail::gamma_inverse_cdf(r.p, r.alpha, 1.0), r.x,
                        lawBudget(r.alpha, r.p, r.x));
 }
@@ -133,9 +133,9 @@ TEST(GammaQuantileAccuracy, ChiSquaredAndErlangDelegate) {
     };
     for (const auto& c : kChi) {
         const auto d = ChiSquaredDistribution::create(c.k).unwrap();
-        expectQuantile(label("ChiSquared", c.k, c.p), d.getQuantile(c.p), 2.0 * c.x,
+        expectQuantile(caseLabel("ChiSquared", c.k, c.p), d.getQuantile(c.p), 2.0 * c.x,
                        lawBudget(0.5 * c.k, c.p, c.x));
-        expectQuantile(label("inverse_chi_squared_cdf", c.k, c.p),
+        expectQuantile(caseLabel("inverse_chi_squared_cdf", c.k, c.p),
                        detail::inverse_chi_squared_cdf(c.p, c.k), 2.0 * c.x,
                        lawBudget(0.5 * c.k, c.p, c.x));
     }
