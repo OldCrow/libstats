@@ -418,6 +418,14 @@ create_libstats_gtest(test_gamma_density_accuracy test_gamma_density_accuracy.cp
 # the IEEE edges, in-place calls and block-boundary sizes.
 create_libstats_gtest(test_vector_log1p test_vector_log1p.cpp)
 
+# VectorOps::vector_expm1 (Taylor below |x| = 1/2, vector_exp less 1 above): accuracy against
+# std::expm1, the IEEE edges, in-place calls and block-boundary sizes.
+create_libstats_gtest(test_vector_expm1 test_vector_expm1.cpp)
+
+# Student-t (large nu) and Beta (large shape) batch densities on vector_log1p, every strategy,
+# against mpmath.
+create_libstats_gtest(test_log1p_density_batches test_log1p_density_batches.cpp)
+
 # #172 guard: Poisson, Binomial, NegativeBinomial and Geometric log-pmfs at counts 1e3 to 1e7 within
 # the conditioning budget of mpmath, scalar and every batch strategy.
 create_libstats_gtest(test_discrete_pmf_accuracy test_discrete_pmf_accuracy.cpp)

@@ -35,12 +35,6 @@ namespace {
     return std::isfinite(t) && !std::isfinite(t * t * inv_nu);
 }
 
-// The SIMD pipeline takes vector_log(1 + x²/ν), whose absolute error of ~ε the density multiplies
-// by (ν + 1)/2: 1e-10 relative at ν = 1e6. Past (ν + 1)/2 = 16 the batch takes the scalar log1p
-// loop instead.
-[[nodiscard]] inline bool simdLogIsAccurate(double neg_half_nu_plus_one) noexcept {
-    return neg_half_nu_plus_one >= -16.0;
-}
 }  // namespace
 
 //==============================================================================
@@ -665,8 +659,7 @@ std::istream& operator>>(std::istream& is, StudentTDistribution& dist) {
 // LogPDF:
 //   Step 1: results = x²                     (vector_multiply)
 //   Step 2: results = x²/ν                   (scalar_multiply by inv_nu)
-//   Step 3: results = 1 + x²/ν              (scalar_add 1)
-//   Step 4: results = log(1 + x²/ν)         (vector_log)
+//   Steps 3–4: results = log1p(x²/ν)       (vector_log1p)
 //   Step 5: results = −(ν+1)/2 · log(...)   (scalar_multiply by neg_half_nu_plus_one)
 //   Step 6: results += log_norm_const        (scalar_add)
 //
@@ -684,8 +677,11 @@ void StudentTDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
                                                          std::size_t count, double log_norm_const,
                                                          double neg_half_nu_plus_one,
                                                          double inv_nu) const noexcept {
-    const bool use_simd =
-        arch::simd::SIMDPolicy::shouldUseSIMD(count) && simdLogIsAccurate(neg_half_nu_plus_one);
+    // vector_log1p keeps log(1 + x²/ν) relative-accurate, as the scalar log1p does, so the error
+    // (ν + 1)/2 multiplies stays a few ulp of the log-density at every ν. Formed as vector_log of
+    // 1 + x²/ν it was absolute (~ε), 1e-10 relative at ν = 1e6, and the batch fell back to the
+    // scalar loop past ν = 31.
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -699,10 +695,8 @@ void StudentTDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
     arch::simd::VectorOps::vector_multiply(values, values, results, count);
     // Step 2: results = x²/ν
     arch::simd::VectorOps::scalar_multiply(results, inv_nu, results, count);
-    // Step 3: results = 1 + x²/ν
-    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
-    // Step 4: results = log(1 + x²/ν)
-    arch::simd::VectorOps::vector_log(results, results, count);
+    // Steps 3–4: results = log1p(x²/ν)
+    arch::simd::VectorOps::vector_log1p(results, results, count);
     // Step 5: results = −(ν+1)/2 · log(1 + x²/ν)
     arch::simd::VectorOps::scalar_multiply(results, neg_half_nu_plus_one, results, count);
     // Step 6: results += log_norm_const → full LogPDF
@@ -722,8 +716,11 @@ void StudentTDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
                                                             double log_norm_const,
                                                             double neg_half_nu_plus_one,
                                                             double inv_nu) const noexcept {
-    const bool use_simd =
-        arch::simd::SIMDPolicy::shouldUseSIMD(count) && simdLogIsAccurate(neg_half_nu_plus_one);
+    // vector_log1p keeps log(1 + x²/ν) relative-accurate, as the scalar log1p does, so the error
+    // (ν + 1)/2 multiplies stays a few ulp of the log-density at every ν. Formed as vector_log of
+    // 1 + x²/ν it was absolute (~ε), 1e-10 relative at ν = 1e6, and the batch fell back to the
+    // scalar loop past ν = 31.
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -737,10 +734,8 @@ void StudentTDistribution::getLogProbabilityBatchUnsafeImpl(const double* values
     arch::simd::VectorOps::vector_multiply(values, values, results, count);
     // Step 2: results = x²/ν
     arch::simd::VectorOps::scalar_multiply(results, inv_nu, results, count);
-    // Step 3: results = 1 + x²/ν
-    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
-    // Step 4: results = log(1 + x²/ν)
-    arch::simd::VectorOps::vector_log(results, results, count);
+    // Steps 3–4: results = log1p(x²/ν)
+    arch::simd::VectorOps::vector_log1p(results, results, count);
     // Step 5: results = −(ν+1)/2 · log(1 + x²/ν)
     arch::simd::VectorOps::scalar_multiply(results, neg_half_nu_plus_one, results, count);
     // Step 6: results += log_norm_const → full LogPDF

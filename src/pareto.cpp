@@ -674,15 +674,12 @@ std::istream& operator>>(std::istream& is, ParetoDistribution& d) {
 //
 // PDF: append vector_exp.
 //
-// CDF pipeline (six steps, no temp buffer):
-//   results = log(x)              [vector_log]
-//   results -= log(x_m)           [scalar_add(-log_scale)]
+// CDF pipeline (five steps, no temp buffer), paretoCdf's form:
+//   results = (x − x_m)/x_m       [loop, divided as the scalar form divides]
+//   results = log1p(...)          [vector_log1p]   → log(x/x_m)
 //   results *= -α                 [scalar_multiply(neg_alpha_)]
-//     → α·(log(x_m) - log(x)) = α·log(x_m/x)
-//   results = exp(...)            [vector_exp]   → (x_m/x)^α
+//   results = expm1(...)          [vector_expm1]   → (x_m/x)^α − 1
 //   results *= -1                 [scalar_multiply(-1)]
-//   results += 1                  [scalar_add(1)]
-//   lanes below ½ redone as −expm1(−α·log1p((x − x_m)/x_m)), where 1 − (x_m/x)^α cancels
 //==============================================================================
 
 void ParetoDistribution::getProbabilityBatchUnsafeImpl(
@@ -751,7 +748,7 @@ void ParetoDistribution::getLogProbabilityBatchUnsafeImpl(
 
 void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, double cached_scale,
-    double cached_log_scale, double cached_neg_alpha) const noexcept {
+    [[maybe_unused]] double cached_log_scale, double cached_neg_alpha) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
@@ -764,26 +761,24 @@ void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
         return;
     }
 
-    // Step 1: results = log(x)
-    arch::simd::VectorOps::vector_log(values, results, count);
-    // Step 2: results = log(x) − log(x_m)   (= log(x/x_m))
-    arch::simd::VectorOps::scalar_add(results, -cached_log_scale, results, count);
-    // Step 3: results = −α·log(x/x_m) = α·log(x_m/x)
+    // paretoCdf's form, −expm1(−α·log1p((x − x_m)/x_m)), on vector_log1p and vector_expm1:
+    // 1 − (x_m/x)^α from log(x) − log(x_m) cancelled near the scale (3e-4 relative at a CDF of
+    // 1e-6), and no subtraction follows either primitive here.
+    // Step 1: results = (x − x_m)/x_m, divided as the scalar form divides
+    for (std::size_t i = 0; i < count; ++i)
+        results[i] = (values[i] - cached_scale) / cached_scale;
+    // Step 2: results = log1p((x − x_m)/x_m) = log(x/x_m)
+    arch::simd::VectorOps::vector_log1p(results, results, count);
+    // Step 3: results = −α·log(x/x_m)
     arch::simd::VectorOps::scalar_multiply(results, cached_neg_alpha, results, count);
-    // Step 4: results = (x_m/x)^α
-    arch::simd::VectorOps::vector_exp(results, results, count);
-    // Step 5: results = −(x_m/x)^α
+    // Step 4: results = −expm1(−α·log(x/x_m)) = 1 − (x_m/x)^α
+    arch::simd::VectorOps::vector_expm1(results, results, count);
     arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
-    // Step 6: results = 1 − (x_m/x)^α
-    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
 
-    // Fixup: x < scale is outside support; CDF = 0. Below ½, 1 − (x_m/x)^α cancels (3e-4 relative
-    // at a CDF of 1e-6): those lanes take the scalar −expm1 form.
+    // Fixup: x < scale is outside support; CDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < cached_scale)
             results[i] = detail::ZERO_DOUBLE;
-        else if (results[i] < detail::HALF)
-            results[i] = paretoCdf(values[i], cached_scale, -cached_neg_alpha);
     }
 }
 

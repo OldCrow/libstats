@@ -577,13 +577,12 @@ std::istream& operator>>(std::istream& is, RayleighDistribution& d) {
 //   results += log_norm_const_           [scalar_add(−2·log(σ))]
 // PDF: append vector_exp.
 //
-// CDF (5 steps, no temp buffer):
+// CDF (4 steps, no temp buffer):
 //   results = x²                         [vector_multiply(values, values)]
 //   results = −x²/(2σ²)                  [scalar_multiply(neg_half_inv_sigma2_)]
-//   results = exp(−x²/(2σ²))             [vector_exp]
-//   results = −exp(...)                  [scalar_multiply(−1)]
-//   results = 1 − exp(−x²/(2σ²))         [scalar_add(1)]
-// Contrast with Weibull CDF which also needs 8 steps even though k=2 is
+//   results = expm1(−x²/(2σ²))           [vector_expm1]
+//   results = 1 − exp(−x²/(2σ²))         [scalar_multiply(−1)]
+// Contrast with Weibull CDF which also needs 7 steps even though k=2 is
 // a special case, because the generic pipeline works on log(x/λ), not x².
 //==============================================================================
 
@@ -687,20 +686,15 @@ void RayleighDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     arch::simd::VectorOps::vector_multiply(values, values, results, count);
     // Step 2: results = −x²/(2σ²)
     arch::simd::VectorOps::scalar_multiply(results, cached_neg_half_inv_sigma2, results, count);
-    // Step 3: results = exp(−x²/(2σ²))
-    arch::simd::VectorOps::vector_exp(results, results, count);
-    // Step 4: results = −exp(...)
+    // Step 3: results = expm1(−x²/(2σ²)), without the cancellation of 1 − exp in the lower tail
+    arch::simd::VectorOps::vector_expm1(results, results, count);
+    // Step 4: results = −expm1(−x²/(2σ²)) = 1 − exp(−x²/(2σ²))
     arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
-    // Step 5: results = 1 − exp(−x²/(2σ²))
-    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
 
-    // Fixup: x ≤ 0 is outside support; CDF = 0. Lanes below ½, where 1 − exp(−x²/2σ²) cancels
-    // (to exactly 0 below x²/2σ² = ε/2), are redone as −expm1 (no vector expm1).
+    // Fixup: x ≤ 0 is outside support; CDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= detail::ZERO_DOUBLE)
             results[i] = detail::ZERO_DOUBLE;
-        else if (results[i] < detail::HALF)
-            results[i] = -std::expm1(cached_neg_half_inv_sigma2 * values[i] * values[i]);
     }
 }
 

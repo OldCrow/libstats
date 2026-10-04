@@ -785,20 +785,19 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
 //
 // Log-space pipeline for PDF and LogPDF.
-// Two vector_log calls (one for log(x), one for log(1-x)) + one aligned temp.
+// vector_log for log(x), vector_log1p for log(1-x), + one aligned temp.
 // Scalar fixup for x <= 0 or x >= 1 (delegates to single-value method).
 //
-// LogPDF (8 steps):
+// LogPDF (7 steps):
 //   Step 1: temp    = log(x)                  [vector_log(values, temp)]
 //   Step 2: temp    = (α-1)*log(x)             [scalar_multiply]
-//   Step 3: results = x-1                      [scalar_add(values, -1)]
-//   Step 4: results = 1-x                      [scalar_multiply(results, -1)]
-//   Step 5: results = log(1-x)                 [vector_log]
-//   Step 6: results = (β-1)*log(1-x)           [scalar_multiply]
-//   Step 7: results = (α-1)log(x)+(β-1)log(1-x) [vector_add(temp, results)]
-//   Step 8: results += log_norm_const          [scalar_add]
+//   Step 3: results = -x                       [scalar_multiply(values, -1)]
+//   Step 4: results = log1p(-x)                [vector_log1p]
+//   Step 5: results = (β-1)*log(1-x)           [scalar_multiply]
+//   Step 6: results = (α-1)log(x)+(β-1)log(1-x) [vector_add(temp, results)]
+//   Step 7: results += log_norm_const          [scalar_add]
 //
-// PDF: steps 1-8 then vector_exp.
+// PDF: steps 1-7 then vector_exp.
 // CDF architecture: detail::beta_i (regularized incomplete beta) is evaluated
 //   per element via a continued-fraction algorithm. The convergence rate varies
 //   with (x, alpha, beta): some inputs converge in a few iterations, others
@@ -810,21 +809,15 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
 //   approximation, which is outside the scope of this library.
 //==============================================================================
 
-namespace {
-// The SIMD pipeline forms 1 − x before vector_log, and the rounding of 1 − x (up to ε/2 for
-// x < ½) reaches the density multiplied by β − 1: 1e-11 at β = 1e5. Past |β − 1| = 16 the batch
-// takes the scalar log1p loop instead.
-[[nodiscard]] inline bool simdLog1mxIsAccurate(double beta_minus_one) noexcept {
-    return std::fabs(beta_minus_one) <= 16.0;
-}
-}  // namespace
-
 void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                      std::size_t count, double log_norm_const,
                                                      double alpha_minus_one,
                                                      double beta_minus_one) const noexcept {
-    const bool use_simd =
-        arch::simd::SIMDPolicy::shouldUseSIMD(count) && simdLog1mxIsAccurate(beta_minus_one);
+    // vector_log1p(−x) keeps log(1 − x) relative-accurate, as the scalar log1p does, so the error
+    // β − 1 multiplies stays a few ulp of that term at every shape. Formed as vector_log of 1 − x
+    // it carried 1 − x's rounding (up to ε/2 for x < ½), 1e-11 at β = 1e5, and the batch fell
+    // back to the scalar loop past |β − 1| = 16.
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -846,9 +839,8 @@ void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doubl
     arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
 
     // Step 3-6: results = (β-1)*log(1-x)
-    arch::simd::VectorOps::scalar_add(values, -detail::ONE, results, count);        // x-1
-    arch::simd::VectorOps::scalar_multiply(results, -detail::ONE, results, count);  // 1-x
-    arch::simd::VectorOps::vector_log(results, results, count);                     // log(1-x)
+    arch::simd::VectorOps::scalar_multiply(values, -detail::ONE, results, count);  // -x
+    arch::simd::VectorOps::vector_log1p(results, results, count);                  // log1p(-x)
     arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
 
     // Step 7: results = (α-1)*log(x) + (β-1)*log(1-x)
@@ -872,8 +864,11 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
                                                         std::size_t count, double log_norm_const,
                                                         double alpha_minus_one,
                                                         double beta_minus_one) const noexcept {
-    const bool use_simd =
-        arch::simd::SIMDPolicy::shouldUseSIMD(count) && simdLog1mxIsAccurate(beta_minus_one);
+    // vector_log1p(−x) keeps log(1 − x) relative-accurate, as the scalar log1p does, so the error
+    // β − 1 multiplies stays a few ulp of that term at every shape. Formed as vector_log of 1 − x
+    // it carried 1 − x's rounding (up to ε/2 for x < ½), 1e-11 at β = 1e5, and the batch fell
+    // back to the scalar loop past |β − 1| = 16.
+    const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -895,9 +890,8 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
     arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
 
     // Step 3-6: results = (β-1)*log(1-x)
-    arch::simd::VectorOps::scalar_add(values, -detail::ONE, results, count);
-    arch::simd::VectorOps::scalar_multiply(results, -detail::ONE, results, count);
-    arch::simd::VectorOps::vector_log(results, results, count);
+    arch::simd::VectorOps::scalar_multiply(values, -detail::ONE, results, count);
+    arch::simd::VectorOps::vector_log1p(results, results, count);
     arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
 
     // Step 7-8: full LogPDF

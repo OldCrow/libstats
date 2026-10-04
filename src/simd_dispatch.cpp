@@ -216,26 +216,75 @@ void VectorOps::vector_log(const double* values, double* results, std::size_t si
 
 // log1p(x) = log(u) − ((u − 1) − x)/u, u = 1 + x: u − 1 is exact for u in [½, 2], and the
 // correction restores the part of x that rounding u lost, to first order. Built on the dispatched
-// vector_log, so every tier gets it (corvus::log1p replaces it from v3.0.0). Fixed blocks on the
-// stack keep x readable after log(u) is formed, so results may alias values.
+// vector_log, so every tier gets it (corvus::log1p replaces it from v3.0.0). Each block copies x
+// first, so results may alias values; the correction runs branch-free over the block so it
+// vectorizes, and a second pass hands the rare edges (±0 with its sign, x ≤ −1, +inf, NaN, where
+// the correction breaks) to std::log1p.
 void VectorOps::vector_log1p(const double* values, double* results, std::size_t size) noexcept {
     constexpr std::size_t kBlock = 256;
+    alignas(64) double x[kBlock];
     alignas(64) double u[kBlock];
     alignas(64) double log_u[kBlock];
     for (std::size_t start = 0; start < size; start += kBlock) {
         const std::size_t n = std::min(kBlock, size - start);
-        const double* x = values + start;
+        std::copy(values + start, values + start + n, x);
         double* out = results + start;
         for (std::size_t i = 0; i < n; ++i)
             u[i] = 1.0 + x[i];
         vector_log(u, log_u, n);
+        for (std::size_t i = 0; i < n; ++i)
+            out[i] = log_u[i] - ((u[i] - 1.0) - x[i]) / u[i];
         for (std::size_t i = 0; i < n; ++i) {
             const double xi = x[i];
-            // ±0 keeps its sign; −1, below −1, +inf and NaN break the correction term.
-            if (xi > -1.0 && xi < std::numeric_limits<double>::infinity() && xi != 0.0)
-                out[i] = log_u[i] - ((u[i] - 1.0) - xi) / u[i];
-            else
+            if (!(xi > -1.0 && xi < std::numeric_limits<double>::infinity() && xi != 0.0))
                 out[i] = std::log1p(xi);
+        }
+    }
+}
+
+// expm1(x) below |x| = ½: x·(1 + x/2! + … + x¹⁵/16!), whose terms fall at least as 1/(2k) and
+// whose sixteenth is below 3e-18 relative (1.0 ulp measured); no cancellation. From ½ the
+// dispatched vector_exp less 1, where 1 − e^x or e^x − 1 is at least 0.39 of the result's size.
+// Generic over every tier, as vector_log1p is: the block copy of x keeps in-place calls legal, both
+// forms are computed for every element and selected without a branch so the loop vectorizes, and
+// a second pass hands ±0 (with its sign), ±inf and NaN to std::expm1.
+void VectorOps::vector_expm1(const double* values, double* results, std::size_t size) noexcept {
+    constexpr std::size_t kBlock = 256;
+    // 1/k! for k = 16 down to 1, in Horner order.
+    static constexpr double kInvFactorials[] = {1.0 / 20922789888000.0,
+                                                1.0 / 1307674368000.0,
+                                                1.0 / 87178291200.0,
+                                                1.0 / 6227020800.0,
+                                                1.0 / 479001600.0,
+                                                1.0 / 39916800.0,
+                                                1.0 / 3628800.0,
+                                                1.0 / 362880.0,
+                                                1.0 / 40320.0,
+                                                1.0 / 5040.0,
+                                                1.0 / 720.0,
+                                                1.0 / 120.0,
+                                                1.0 / 24.0,
+                                                1.0 / 6.0,
+                                                1.0 / 2.0,
+                                                1.0};
+    alignas(64) double x[kBlock];
+    alignas(64) double e[kBlock];
+    for (std::size_t start = 0; start < size; start += kBlock) {
+        const std::size_t n = std::min(kBlock, size - start);
+        std::copy(values + start, values + start + n, x);
+        double* out = results + start;
+        vector_exp(x, e, n);
+        for (std::size_t i = 0; i < n; ++i) {
+            const double xi = x[i];
+            double p = 0.0;
+            for (const double c : kInvFactorials)
+                p = p * xi + c;
+            out[i] = std::fabs(xi) < 0.5 ? xi * p : e[i] - 1.0;
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            const double xi = x[i];
+            if (!(std::isfinite(xi) && xi != 0.0))
+                out[i] = std::expm1(xi);
         }
     }
 }

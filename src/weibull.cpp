@@ -875,16 +875,14 @@ std::istream& operator>>(std::istream& is, WeibullDistribution& d) {
 //
 // PDF: append vector_exp.
 //
-// CDF (8 steps, no temp buffer):
+// CDF (7 steps, no temp buffer):
 //   results = log(x)                      [vector_log]
 //   results = log(x/λ)                    [scalar_add(−logScale_)]
 //   results = k·log(x/λ)                  [scalar_multiply(k_)]
 //   results = (x/λ)^k                     [vector_exp]
 //   results = −(x/λ)^k                   [scalar_multiply(−1)]
-//   results = exp(−(x/λ)^k)              [vector_exp]
-//   results = −exp(...)                   [scalar_multiply(−1)]
-//   results = 1 − exp(−(x/λ)^k)          [scalar_add(1)]
-//   lanes below ½ redone as −expm1(−(x/λ)^k), where 1 − exp cancels
+//   results = expm1(−(x/λ)^k)            [vector_expm1]
+//   results = 1 − exp(−(x/λ)^k)          [scalar_multiply(−1)]
 //==============================================================================
 
 void WeibullDistribution::getProbabilityBatchUnsafeImpl(
@@ -1012,20 +1010,15 @@ void WeibullDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     arch::simd::VectorOps::vector_exp(results, results, count);
     // Step 5: results = −(x/λ)^k
     arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
-    // Step 6: results = exp(−(x/λ)^k)
-    arch::simd::VectorOps::vector_exp(results, results, count);
-    // Step 7: results = −exp(−(x/λ)^k)
+    // Step 6: results = expm1(−(x/λ)^k), without the cancellation of 1 − exp in the lower tail
+    arch::simd::VectorOps::vector_expm1(results, results, count);
+    // Step 7: results = −expm1(−(x/λ)^k) = 1 − exp(−(x/λ)^k)
     arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
-    // Step 8: results = 1 − exp(−(x/λ)^k)
-    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
 
-    // Fixup: x <= 0 is outside support; CDF = 0. Lanes below ½, where 1 − exp(−(x/λ)^k)
-    // cancels, are redone as −expm1 (no vector expm1).
+    // Fixup: x <= 0 is outside support; CDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= detail::ZERO_DOUBLE)
             results[i] = detail::ZERO_DOUBLE;
-        else if (results[i] < detail::HALF)
-            results[i] = weibullCdf(values[i], cached_shape, cached_log_scale);
     }
 }
 
