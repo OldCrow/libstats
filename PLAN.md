@@ -319,8 +319,8 @@ also changed here since this note was first written. `vector_log1p` and
   filed with corvus, which decides by its doctrine; after adoption
   libstats calls corvus and drops its copy. Distribution-specific
   kernels (the von Mises CDF) stay; their reusable machinery moves.
-  Fleet rule drafted as OldCrow/standards `NUMERICAL-KERNEL-PROMOTION.md`
-  (pending review); filed: corvus #44 (the von Mises quadrature
+  Fleet rule: OldCrow/standards `NUMERICAL-KERNEL-PROMOTION.md`
+  (adopted, `bf493ff`); filed: corvus #44 (the von Mises quadrature
   machinery, and fixed-cost incomplete gamma/beta), corvus #45.
 - **Support-boundary rule (#161, #165) [user, 2026-10-03].** pdf/logpdf at
   a support boundary take the limit by shape: at x = 0, +inf for
