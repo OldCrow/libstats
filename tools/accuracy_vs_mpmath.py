@@ -819,11 +819,14 @@ class ExponentialRef(Ref):
     @staticmethod
     def cdf(lam, _p2, x):
         l, xm = mp.mpf(lam), mp.mpf(x)
-        return 1 - mp.e ** (-l * xm) if xm >= 0 else mp.mpf(0)
+        # expm1/log1p in every lower-tail reference (Exponential, Geometric, Pareto, Rayleigh,
+        # Weibull): at dps 50, 1 - e^-t keeps no digit of a t below ~1e-50, and the library's
+        # log1p quantiles now put sweep points there.
+        return -mp.expm1(-l * xm) if xm >= 0 else mp.mpf(0)
 
     @staticmethod
     def quantile(lam, _p2, p):
-        return -mp.log(1 - mp.mpf(p)) / mp.mpf(lam)
+        return -mp.log1p(-mp.mpf(p)) / mp.mpf(lam)
 
 
 @_reg("uniform")
@@ -975,6 +978,8 @@ class CauchyRef(Ref):
         # cot(pi*q) on the smaller tail: at dps 50, p - 1/2 loses a p below ~1e-50 (1e-300 gave
         # tan(-pi/2), +2e51, for the true -3.2e299).
         pm = mp.mpf(p)
+        if pm == mp.mpf("0.5"):
+            return mp.mpf(x0)  # exactly; cot(pi/2) at dps 50 is -5e-52, not 0
         if pm < mp.mpf("0.5"):
             return mp.mpf(x0) - mp.mpf(gamma) * mp.cot(mp.pi * pm)
         return mp.mpf(x0) + mp.mpf(gamma) * mp.cot(mp.pi * (1 - pm))
@@ -1090,7 +1095,7 @@ class GeometricRef(Ref):
         k = int(math.floor(x))
         if k < 0:
             return mp.mpf(0)
-        return 1 - (1 - pm) ** (k + 1)
+        return -mp.expm1((k + 1) * mp.log1p(-pm))
 
     @staticmethod
     def quantile(p, _p2, prob):
@@ -1256,7 +1261,7 @@ class ParetoRef(Ref):
         xm0, a, xm = mp.mpf(scale), mp.mpf(alpha), mp.mpf(x)
         if xm < xm0:
             return mp.mpf(0)
-        return 1 - (xm0 / xm) ** a
+        return -mp.expm1(-a * mp.log1p((xm - xm0) / xm0))
 
     @staticmethod
     def quantile(scale, alpha, p):
@@ -1285,12 +1290,12 @@ class RayleighRef(Ref):
         s, xm = mp.mpf(sigma), mp.mpf(x)
         if xm < 0:
             return mp.mpf(0)
-        return 1 - mp.e ** (-xm * xm / (2 * s * s))
+        return -mp.expm1(-xm * xm / (2 * s * s))
 
     @staticmethod
     def quantile(sigma, _p2, p):
         s, pm = mp.mpf(sigma), mp.mpf(p)
-        return s * mp.sqrt(-2 * mp.log(1 - pm))
+        return s * mp.sqrt(-2 * mp.log1p(-pm))
 
 
 @_reg("weibull")
@@ -1326,12 +1331,13 @@ class WeibullRef(Ref):
         k, lam, xm = mp.mpf(shape), mp.mpf(scale), mp.mpf(x)
         if xm < 0:
             return mp.mpf(0)
-        return 1 - mp.e ** (-((xm / lam) ** k))
+        return -mp.expm1(-((xm / lam) ** k))
 
     @staticmethod
     def quantile(shape, scale, p):
         k, lam, pm = mp.mpf(shape), mp.mpf(scale), mp.mpf(p)
-        return lam * (-mp.log(1 - pm)) ** (1 / k)
+        # log1p: at dps 50, 1 - p rounds a p below ~1e-50 to 1 and the reference to 0.
+        return lam * (-mp.log1p(-pm)) ** (1 / k)
 
 
 @_reg("poisson")

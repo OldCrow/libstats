@@ -6,8 +6,8 @@
 //   - NegativeBinomial(5, ½) at p = ½: I_½(5, 5) came out an ulp below ½, so 5, not 4.
 //   - Poisson scalar pmf: a normal approximation within 3σ of λ > 1000 (4e-3 off at λ = 1e5).
 //   - log(1 − p) where log1p(−p) keeps p: Exponential, Rayleigh, Weibull and Pareto quantiles,
-//     the Geometric pmf and the Binomial/Bernoulli logpdf; and Pareto's CDF 1 − (s/x)^α near the
-//     scale, scalar and batch.
+//     the Geometric pmf and the Binomial/Bernoulli logpdf; Pareto's CDF 1 − (s/x)^α near the
+//     scale and Weibull's 1 − exp(−(x/λ)^k) in the lower tail, scalar and batch.
 //
 // Two-sided per the regression-guard rule. References: mpmath at dps 50, at the double nearest
 // each literal.
@@ -16,6 +16,7 @@
 #include "libstats/libstats.h"
 
 #include <cmath>
+#include <cstdio>
 #include <gtest/gtest.h>
 #include <optional>
 #include <span>
@@ -33,6 +34,28 @@ void expectRel(const std::string& what, double got, double want, double budget) 
     ASSERT_TRUE(std::isfinite(got)) << what << " = " << got << ", want " << want;
     EXPECT_LE(std::fabs(got - want) / std::fabs(want), budget)
         << what << " = " << got << ", want " << want;
+}
+
+// The CDF at x, scalar and under every batch strategy.
+template <typename Dist>
+void expectCdfEverywhere(const std::string& at, const Dist& d, double x, double F, double budget) {
+    using Strategy = detail::PerformanceHint::PreferredStrategy;
+    expectRel(at, d.getCumulativeProbability(x), F, budget);
+    for (Strategy s :
+         {Strategy::FORCE_SCALAR, Strategy::FORCE_VECTORIZED, Strategy::FORCE_PARALLEL}) {
+        std::vector<double> xs(kN, x), out(kN);
+        d.getCumulativeProbability(std::span<const double>(xs), std::span<double>(out),
+                                   detail::PerformanceHint{s, std::nullopt});
+        for (std::size_t i : {std::size_t{0}, kN - 1})
+            expectRel(at + " batch strategy " + std::to_string(static_cast<int>(s)), out[i], F,
+                      budget);
+    }
+}
+
+std::string cdfLabel(const char* name, double a, double b, double x) {
+    char buf[96];
+    std::snprintf(buf, sizeof buf, "%s(%g, %g) cdf(%.17g)", name, a, b, x);
+    return buf;
 }
 
 }  // namespace
@@ -100,6 +123,50 @@ TEST(TailAndTie, Log1pDensities) {
     expectRel("binomial(10, 1e-10) logpdf(0)",
               BinomialDistribution::create(10, 1e-10).unwrap().getLogProbability(0.0),
               -1.0000000000500000364e-9, 8 * kEps);
+}
+
+TEST(TailAndTie, WeibullCdfLowerTail) {
+    // 1 − exp(−(x/λ)^k) was exactly 0 below (x/λ)^k = ε/2 and 8e-4 off at 1e-15; −expm1 now.
+    // (x/λ)^k is exp(k·(log x − log λ)), which scales log's rounding by k·|log(x/λ)| — ~|ln F|
+    // here — so the budget is the accuracy law, 8ε·|ln F|, not Pareto's flat 8ε.
+    struct Row {
+        double shape, scale, x, F;
+    };
+    constexpr Row kRows[] = {
+        {1.5, 1.0, 1e-10, 9.9999999999999955465e-16},
+        {1.5, 1.0, 4.6415888336127777e-14, 9.9999999999999959921e-21},
+        {0.5, 2.0, 1e-20, 7.0710678116154750501e-11},
+        {3.0, 0.5, 1e-4, 7.9999999999680011501e-12},
+    };
+    for (const Row& r : kRows)
+        expectCdfEverywhere(cdfLabel("weibull", r.shape, r.scale, r.x),
+                            WeibullDistribution::create(r.shape, r.scale).unwrap(), r.x, r.F,
+                            8 * kEps * std::fabs(std::log(r.F)));
+}
+
+TEST(TailAndTie, ExponentialAndRayleighCdfLowerTail) {
+    // 1 − exp(−λx) and 1 − exp(−x²/2σ²) were exactly 0 below an exponent of ε/2 (Exponential(2)
+    // at 1e-280, Rayleigh(1.5) at 1e-140); −expm1 now, including the λ = 1 path.
+    struct Row {
+        double param, x, F;
+    };
+    constexpr Row kExponential[] = {
+        {2.0, 1e-280, 1.9999999999999999147e-280},
+        {2.0, 1e-17, 2.0000000000000001231e-17},
+        {1.0, 1e-20, 9.9999999999999994515e-21},
+        {0.25, 4e-9, 9.9999999950000006245e-10},
+    };
+    for (const Row& r : kExponential)
+        expectCdfEverywhere(cdfLabel("exponential", r.param, 0, r.x),
+                            ExponentialDistribution::create(r.param).unwrap(), r.x, r.F, 8 * kEps);
+    constexpr Row kRayleigh[] = {
+        {1.5, 1e-140, 2.2222222222222221478e-281},
+        {1.5, 1e-9, 2.2222222222222224988e-19},
+        {0.01, 3e-10, 4.4999999999999987403e-16},
+    };
+    for (const Row& r : kRayleigh)
+        expectCdfEverywhere(cdfLabel("rayleigh", r.param, 0, r.x),
+                            RayleighDistribution::create(r.param).unwrap(), r.x, r.F, 8 * kEps);
 }
 
 TEST(TailAndTie, ParetoCdfNearScale) {

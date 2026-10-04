@@ -233,7 +233,7 @@ double RayleighDistribution::getCumulativeProbability(double x) const {
 
     double nhis;
     withCacheSnapshot([&] { nhis = negHalfInvSigmaSquared_; });
-    return detail::ONE - std::exp(nhis * x * x);
+    return -std::expm1(nhis * x * x);
 }
 
 double RayleighDistribution::getQuantile(double p) const {
@@ -485,13 +485,13 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
                     res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                        : detail::ONE - std::exp(nhis * x * x);
+                                                        : -std::expm1(nhis * x * x);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
                     res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                        : detail::ONE - std::exp(nhis * x * x);
+                                                        : -std::expm1(nhis * x * x);
                 }
             }
         },
@@ -502,8 +502,8 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
             d.withCacheSnapshot([&] { nhis = d.negHalfInvSigmaSquared_; });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                    : detail::ONE - std::exp(nhis * x * x);
+                res[i] =
+                    (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : -std::expm1(nhis * x * x);
             });
             pool.waitForAll();
         });
@@ -678,7 +678,7 @@ void RayleighDistribution::getCumulativeProbabilityBatchUnsafeImpl(
                 results[i] = detail::ZERO_DOUBLE;
                 continue;
             }
-            results[i] = detail::ONE - std::exp(cached_neg_half_inv_sigma2 * x * x);
+            results[i] = -std::expm1(cached_neg_half_inv_sigma2 * x * x);
         }
         return;
     }
@@ -694,10 +694,13 @@ void RayleighDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // Step 5: results = 1 − exp(−x²/(2σ²))
     arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
 
-    // Fixup: x ≤ 0 is outside support; CDF = 0.
+    // Fixup: x ≤ 0 is outside support; CDF = 0. Lanes below ½, where 1 − exp(−x²/2σ²) cancels
+    // (to exactly 0 below x²/2σ² = ε/2), are redone as −expm1 (no vector expm1).
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= detail::ZERO_DOUBLE)
             results[i] = detail::ZERO_DOUBLE;
+        else if (results[i] < detail::HALF)
+            results[i] = -std::expm1(cached_neg_half_inv_sigma2 * values[i] * values[i]);
     }
 }
 

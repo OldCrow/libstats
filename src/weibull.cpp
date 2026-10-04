@@ -49,6 +49,13 @@ inline double edgeLogDensity(double x, double shape_minus1, double log_norm_cons
     return x == 0.0 ? logDensityAtZero(shape_minus1, log_norm_const)
                     : -std::numeric_limits<double>::infinity();
 }
+
+// CDF at x > 0: −expm1(−(x/λ)^k). The form 1 − exp(−(x/λ)^k) cancelled in the lower tail, to
+// exactly 0 below (x/λ)^k = ε/2 (CDF(4.6e-14) = 0 for k = 1.5, λ = 1, not 1e-20) and 8e-4
+// relative at 1e-15.
+[[nodiscard]] inline double weibullCdf(double x, double shape, double log_scale) noexcept {
+    return -std::expm1(-std::exp(shape * (std::log(x) - log_scale)));
+}
 }  // namespace
 
 //==============================================================================
@@ -342,7 +349,7 @@ double WeibullDistribution::getCumulativeProbability(double x) const {
         k = shape_;
         ls = logScale_;
     });
-    return detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
+    return weibullCdf(x, k, ls);
 }
 
 double WeibullDistribution::getQuantile(double p) const {
@@ -767,16 +774,14 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
+                    res[i] =
+                        (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : weibullCdf(x, k, ls);
                 });
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
+                    res[i] =
+                        (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : weibullCdf(x, k, ls);
                 }
             }
         },
@@ -790,9 +795,7 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
             });
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE)
-                             ? detail::ZERO_DOUBLE
-                             : detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
+                res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : weibullCdf(x, k, ls);
             });
             pool.waitForAll();
         });
@@ -881,6 +884,7 @@ std::istream& operator>>(std::istream& is, WeibullDistribution& d) {
 //   results = exp(−(x/λ)^k)              [vector_exp]
 //   results = −exp(...)                   [scalar_multiply(−1)]
 //   results = 1 − exp(−(x/λ)^k)          [scalar_add(1)]
+//   lanes below ½ redone as −expm1(−(x/λ)^k), where 1 − exp cancels
 //==============================================================================
 
 void WeibullDistribution::getProbabilityBatchUnsafeImpl(
@@ -993,8 +997,7 @@ void WeibullDistribution::getCumulativeProbabilityBatchUnsafeImpl(
                 results[i] = detail::ZERO_DOUBLE;
                 continue;
             }
-            results[i] =
-                detail::ONE - std::exp(-std::exp(cached_shape * (std::log(x) - cached_log_scale)));
+            results[i] = weibullCdf(x, cached_shape, cached_log_scale);
         }
         return;
     }
@@ -1016,10 +1019,13 @@ void WeibullDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // Step 8: results = 1 − exp(−(x/λ)^k)
     arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
 
-    // Fixup: x <= 0 is outside support; CDF = 0.
+    // Fixup: x <= 0 is outside support; CDF = 0. Lanes below ½, where 1 − exp(−(x/λ)^k)
+    // cancels, are redone as −expm1 (no vector expm1).
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= detail::ZERO_DOUBLE)
             results[i] = detail::ZERO_DOUBLE;
+        else if (results[i] < detail::HALF)
+            results[i] = weibullCdf(values[i], cached_shape, cached_log_scale);
     }
 }
 

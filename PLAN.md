@@ -79,6 +79,23 @@ Release tasks [OPEN] (machines: Z = Zen 4, K = Kaby Lake, M = M1):
   discrete quantiles 2–12× faster; 22 AUTO-vs-best gaps NEW, all
   favouring PARALLEL at n = 1e4–1e5. Confirm on quiet machines (R3)
   before deciding anything.
+- Z status: R1 done (fresh configure + full rebuild of `8cf5550`, 86/86,
+  Release CRT). R2 found pre-existing lower-tail CDF cancellation
+  (1 − exp(−t) → 0 below t = ε/2) in Weibull, Exponential and Rayleigh,
+  reached now that the log1p quantiles put sweep points there; fixed
+  (scalar, lambdas, SIMD lanes < ½) with fail-first rows in
+  `test_tail_and_tie_accuracy`, uncommitted. Oracle references fixed
+  the same way (Cauchy at p = ½; seven 1 − e^−t / log(1 − p) forms).
+  Oracle on the fixed tree: 0 contract violations (v2.4.1: 32); left:
+  Beta quantile = #137 (v2.5.0), near-zero logpdf metric and discrete
+  p = 1 quantiles (decided). The block is regenerated only after the
+  commit, so its banner names the code it measured. Open [user]: the
+  1e-8 "standard parameter" shortcuts (`DEFAULT_TOLERANCE`: Exponential
+  `isUnitRate_` — 9.5e-8 pdf error at λ = 1 + 5e-9 — and Beta, Gaussian,
+  LogNormal equivalents); a fresh VS 2026 configure emits a `.slnx` that
+  MSBuild rejects, because the custom `run_tests` target collides with
+  CMake's `RUN_TESTS` (case-insensitive); building `ALL_BUILD` directly
+  works around it.
 - R1 (Z, K, M): pull, clean Release configure, `system_inspector
   --quick`, `ctest -LE "timing|benchmark"`. K and M build the new code
   with clang first (`[[maybe_unused]]`, double-double helpers under FP
