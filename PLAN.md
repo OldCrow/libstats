@@ -1,1460 +1,307 @@
 # libstats — Plan / Status
 
+State only: what is decided, open, or next. Release contents are in
+`CHANGELOG.md`, per-version validation in `docs/VALIDATION_HISTORY.md`,
+conventions and commands in `AGENTS.md`. The history this file used to
+carry (shipped releases, closed milestones, the Resolved log, the
+2026-08-21 defensive review, travel-era records, the corvus spike) is in
+`git show f508b12:PLAN.md`.
+
 ## Status [DERIVED] — 2026-10-03
-**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` at `65de015`, pushed (cut
-from `main` at `d8d3388`; milestone "v2.4.2 — Correctness patch",
-#157–#172; Zen 4 worktree `../libstats-v2.4.2`). 86/86 correctness on
-Zen 4, warning-clean. Every fix below has a gate shown to fail on
-`d8d3388` (review fixes: on `5831faf`). Code is complete except #162;
-what remains is validation, docs and the release itself (below).
+**v2.4.2 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
+`d8d3388`; milestone #10 "v2.4.2 — Correctness patch", #157–#172, which
+the release PR closes). All code is in except #162. What remains is the
+runbook below: validation on Kaby Lake and the M1, the quiet-machine
+costs on all three, docs, and the release. Every fix has a gate shown to
+fail on the code before it.
 
-Fixed on the branch [DERIVED]:
-- Milestone: #157, #158, #159, #160, #161, #163 (Gaussian's copy ctor
-  too), #164, #165, #166, #167, #170, #171, #172; the FORCE_PARALLEL span
-  lambdas of six distributions sending NaN out of support.
-- #170/#171 backport `45000c6`'s `detail::discrete_quantile_search`;
-  Binomial moved onto it too [user], 2.3–48× faster, INDICATIVE
-  (`8feb591`). `420eaf1` (clang-cl port) cherry-picked as `6245e4e`.
-- #160/#159: `solve_concave` (Newton on a monotone residual concave in a
-  log variable) behind `detail::gamma_p_inv` (same name and signature as
-  v2.5.0's corvus entry point) and `inverse_t_cdf`; `t_cdf` on `t_tails`
-  with BGRAT (TOMS 708 eq. 9) for a ≥ 20, x ≥ ½.
-- Session-found (user: fix every bug found this session that should
-  precede the PR), from two full oracle sweeps: stable `detail::lbeta`
-  (Student-t, Beta, Fisher-F normalisers); small-tail p-values;
-  Cauchy quantile tails; Discrete and NegativeBinomial quantile ties;
-  Poisson scalar pmf approximation removed; log1p/expm1 forms
-  (Exponential, Rayleigh, Weibull, Pareto quantiles; Pareto CDF;
-  Geometric/Binomial/NegativeBinomial log(1 − p)); Gamma-family
-  densities by the exported `detail::log_gamma_prefactor` and
-  `log1pmx`; von Mises tail CDF, quantile (grid removed) and p → 0 end
-  (`b681e06`, subagent patch gated here); the dynamic tests' DLL-copy
-  build race; the oracle refuses to rewrite the doc from a partial CSV.
-- #172: `detail::poisson_log_pmf` / `detail::binomial_log_pmf`, Stirling
-  errors plus deviances, binomial means as double-doubles; built from
-  Stirling's series and the library's own helpers, no third-party code
-  consulted or ported [user]. Every Poisson/Binomial/NegativeBinomial
-  pmf site (so Geometric, Bernoulli) uses them.
-- SIMD pipelines that cannot form log1p (Student-t, Beta, Gamma) defer to
-  their scalar loops past a shape where vector_log's error is amplified
-  beyond 16ε.
-
-Independent review of `5831faf` (2026-10-03, Linux/GCC 15, mpmath) —
-remediation committed [DERIVED]; 86/86 on Zen 4,
-every new gate shown to fail on `5831faf`:
-- H-1 (regression from #172): `binomial_log_pmf` returned NaN at pa ∈
-  {0, 1} on its Stirling path, reached by Binomial's pmf racing `setP(0)`.
-  Kernel made total; Binomial pmf/log-pmf/CDF/quantile, Poisson pmf/
-  log-pmf/CDF/quantile and Gamma/Uniform quantiles branch on one snapshot
-  (audit: no other file mixes unlocked reads with a snapshot).
-  `test_snapshot_consistency`, `DiscretePmfAccuracy.KernelEdges`.
-- M-1: `gamma_q` for a < ½, x ≤ a + 1 formed directly (A&S 6.5.29 with a
-  ζ(k) − 1 series for log Γ(1 + a)); was 1 − P, 500× the quantile gate at
-  α = 1e-4. Worst 12.8ε over a 3400-point sweep. Gate rows added.
-- L-1 subnormal probit (log-domain Newton), L-3 noexcept `trySet*`
-  (NegativeBinomial, Fisher-F, InverseGamma), L-4 one exported
-  `detail::STIRLING_PREFACTOR_SHAPE`, L-5 branch lines formatted (the
-  older Fisher-F/Beta drift left as is), L-7 comment.
-- L-2 (`std::lgamma` writes `signgam` on glibc/macOS) deferred to #173,
-  v2.5.0 [user]. M-2 is the quiet-machine cost item below. L-6 version
-  bump with the release PR.
+Fixed on the branch [DERIVED] — detail in the commit messages:
+- Milestone #157–#161, #163–#167, #170–#172; the FORCE_PARALLEL span
+  lambdas that sent NaN out of support.
+- Numerics: `solve_concave` behind `detail::gamma_p_inv` (#160) and
+  `inverse_t_cdf` (#159, BGRAT tails); Stirling-form prefactors and a 3ε
+  stop (#166); stable `lbeta`; Loader-style log-pmfs (#172, no
+  third-party code [user]); small-shape `gamma_q`; subnormal probit;
+  log1p/expm1 tails (quantiles of Exponential, Rayleigh, Weibull, Pareto;
+  the CDFs of Pareto, Weibull, Exponential, Rayleigh); von Mises tail CDF
+  and quantile.
+- Threading: scalar methods branch on one parameter snapshot (Binomial,
+  Poisson, Gamma and Uniform quantiles); noexcept `trySet*` assign under
+  one lock.
+- Special parameters exact: value paths take λ, α, β = 1 only when exactly 1.
+- Build: `run_tests` → `run_tests_correctness` with VERBATIM (VS 2026
+  `.slnx`); the dynamic tests' DLL-copy race.
+- Oracle: references that lost a tiny p or t at dps 50; refuses to
+  rewrite the doc from a partial CSV.
 
 Not defects, decided [DERIVED]: discrete quantiles near p = 1 that differ
-from the oracle by 3 to 5e4 counts — every count between has a library
-CDF within half an ulp of p, and the contract is the smallest k whose
-library CDF reaches p (#116, #170; a survival-side search broke the
-round-trip guards); logpdf near its zero crossing (relative metric on a
-near-zero value).
+from the oracle by 3 to 5e4 counts (the contract is the smallest k whose
+library CDF reaches p; #116, #170); logpdf near its zero crossing (a
+relative metric on a near-zero value).
 
-Release tasks [OPEN] (machines: Z = Zen 4, K = Kaby Lake, M = M1):
-- R0 done, uncommitted: `tools/bench/v242_cost_bench.cpp` (build and
-  run steps in its header; ~2 min per binary on Z) and `v242_compare.py`
-  (per-case worst/best, rows past 1.25×, and a dispatch section that
-  marks AUTO-vs-best gaps NEW in v2.4.2). Z's `v2.4.1` build for it:
-  `../libstats-v2.4.1/build-v242cmp` (VS generator, as `build/`).
-  Smoke run on a busy Z, INDICATIVE only: von Mises quantile 140–320×
-  (≈20 ns grid → 3–6 µs Newton on the quadrature CDF), Student-t
-  quantile at ν ≥ 1e3 ~15×, Gamma α ≥ 20 and Student-t ν ≥ 1e3 forced
-  VECTORIZED 8–13× (scalar fall-back), discrete log-pmfs 2.6–3.5×,
-  discrete quantiles 2–12× faster; 22 AUTO-vs-best gaps NEW, all
-  favouring PARALLEL at n = 1e4–1e5. Confirm on quiet machines (R3)
-  before deciding anything.
-- Z status: R1 done (fresh configure + full rebuild of `8cf5550`, 86/86,
-  Release CRT). R2 found pre-existing lower-tail CDF cancellation
-  (1 − exp(−t) → 0 below t = ε/2) in Weibull, Exponential and Rayleigh,
-  reached now that the log1p quantiles put sweep points there; fixed
-  (scalar, lambdas, SIMD lanes < ½) with fail-first rows in
-  `test_tail_and_tie_accuracy` (`4515837`). Oracle references fixed the
-  same way (Cauchy at p = ½; seven 1 − e^−t / log(1 − p) forms). Oracle:
-  0 contract violations (v2.4.1: 32); left: Beta quantile = #137
-  (v2.5.0), near-zero logpdf metric and discrete p = 1 quantiles
-  (decided). Then, uncommitted [user: fix in v2.4.2]: (2) value paths
-  that took a parameter within `DEFAULT_TOLERANCE` = 1e-8 of 1 as 1 —
-  Exponential's λ = 1 formulas (9.5e-8 pdf error at λ = 1 + 5e-9) and
-  Beta's α, β = 1 boundary value at x = 0, 1 (finite, not +inf, just
-  below 1) — now exact, fail-first in `SpecialParametersExactly`; the
-  `isCauchy()`/`isStandard()`-style queries and `operator==` keep their
-  tolerance (reporting only, no value path). (3) `run_tests` renamed
-  `run_tests_correctness`: a fresh VS 2026 configure emits a `.slnx`
-  that MSBuild rejected because it collided with CMake's `RUN_TESTS`;
-  and the target gained VERBATIM, without which the VS generator wrote
-  its regexes bare into cmd.exe (exit 255, never worked there). Next:
-  commit, then re-sweep and regenerate the AVX-512 block, so its banner
-  names the code it measured.
-- R1 (Z, K, M): pull, clean Release configure, `system_inspector
-  --quick`, `ctest -LE "timing|benchmark"`. K and M build the new code
-  with clang first (`[[maybe_unused]]`, double-double helpers under FP
-  contraction, `lgamma1p_small`'s table).
-- R2 (Z, K, M): `accuracy_sweep` → full CSV per ISA; run the mpmath oracle
-  wherever no timing run is active; regenerate the per-ISA blocks.
-- R3 (Z, K, M, quiet, after R0): bench v2.4.1 vs v2.4.2; `ctest -j1 -L
-  timing` (includes `test_von_mises_enhanced`). If a crossover moved
-  (review M-2: large-shape scalar fall-backs, von Mises CDF), re-derive
-  that `dispatch_thresholds.h` row with `strategy_profile` on the same
-  machine, then rerun R1 there.
-- R4 (K or M): #162 written and verified in one Mac pass [user]; #167
-  fail-first under UBSan (`undefined,float-cast-overflow`):
-  `test_support_boundary_gates` fails on `d8d3388`, passes on head.
-- R5 (Z, optional, v2.4.0 precedent): capped-tier leg
-  (`LIBSTATS_MAX_SIMD_TIER`), correctness and sweep.
-- R6 (after R1–R4): version 2.4.1 → 2.4.2 (`CMakeLists.txt:83`,
-  README, AGENTS, PROJECT_CONCEPT); CHANGELOG (git-cliff);
-  VALIDATION_HISTORY matrix and costs; ACCURACY_CHARACTERIZATION
-  blocks (generated only); PLAN.
-- R7: release PR to `main` closing #157–#172 (#173 stays on v2.5.0); CI
-  green incl. sanitizer legs; merge; signed tag `v2.4.2`; GitHub
-  release; close the milestone; tell the v2.5.0 session (merge note).
-- The fail-first base worktree was removed [user]; recreate it at
-  `d8d3388`, detached, for R4 or any later gate.
+Last release: v2.4.1 (2026-09-19). v2.5.0 (corvus adoption) is in
+progress on `dev/v2.5.0-corvus` in its own session; that branch's PLAN.md
+is authoritative for v2.5.0 state.
+
+## v2.4.2 release runbook [OPEN]
+Machines: **Z** = Zen 4 (Windows 11, MSVC, AVX-512), **K** = Kaby Lake
+(macOS Ventura, AppleClang, AVX2), **M** = Mac Mini M1 (macOS 27,
+AppleClang, NEON).
+
+Status by machine (each machine edits only its own line):
+- **Z:** R0 done (`tools/bench/`, `8cf5550`). R1 done (fresh configure,
+  clean rebuild, 86/86, Release CRT). R2 done: AVX-512 block regenerated
+  at `f89380a` (`f508b12`), 0 contract violations (v2.4.1: 32). Next: R3
+  when quiet; R5 optional.
+- **K:** R1, R2, R3 to do; R4 here or on M.
+- **M:** R1, R2, R3 to do; R4 here or on K.
+
+### Rules on every machine
+- Commit or push only when the user asks. Commits are signed (YubiKey);
+  never disable signing; batch a commit and its push.
+- Edit only your own status line above; `git pull --rebase` first.
+- New defects or unexpected oracle rows: stop and report with evidence.
+  Fix nothing in library code without the user's decision.
+- Quiet runs (R3) alone on the machine: no builds, sweeps or other
+  sessions. On K, wait for the load average to fall below 2.0.
+- Performance numbers from Release builds only.
+
+### Cold start (K, M)
+1. `git fetch`; `dev/v2.4.2` must be at `f508b12` or later. Work in a
+   worktree beside the main checkout: `git worktree add
+   ../libstats-v2.4.2 dev/v2.4.2`, or `git pull` in it if it exists.
+2. Read `AGENTS.md` and this file. Record the OS, AppleClang and CMake
+   versions for R6.
+
+### R1 — native correctness (K, M)
+1. `rm -rf build-release`, then `cmake --preset release -G Ninja`, then
+   `cmake --build build-release`. Expect a warning-clean build. This is
+   the first clang build of the v2.4.2 code: watch `[[maybe_unused]]`,
+   the double-double helpers under FP contraction, and
+   `lgamma1p_small`'s table.
+2. `./build-release/tools/system_inspector --quick`: AVX2+FMA on K,
+   NEON on M.
+3. `ctest --test-dir build-release -LE "timing|benchmark" -j8`: expect
+   86/86. The target `run_tests_correctness` runs a 79-test subset.
+
+### R2 — accuracy sweep and block (K, M)
+1. The tree must be clean, at a pushed commit, and built in R1. The sweep
+   stamps `git rev-parse` at run time, so the banner then names the code
+   it measured.
+2. `cmake --build build-release --target accuracy_sweep`, then
+   `./build-release/tools/accuracy_sweep sweep.csv`. Write the CSV
+   outside the repo.
+3. `python3 tools/accuracy_vs_mpmath.py sweep.csv`, using the Python that
+   ran the 2026-09-28 regenerations. If `import mpmath` fails, ask the
+   user before installing anything. Only a full sweep rewrites the doc,
+   and only its own `isa=` block (AVX2 on K, NEON on M); check with
+   `git diff` that nothing outside that block changed.
+4. Expected: 0 contract violations (v2.4.1: 32 on each). Large rows that
+   are known or decided:
+   - the Beta quantile, max_rel ~1e259 at p = 0.001 (#137, v2.5.0);
+   - logpdf rows with max_rel ≫ 1 but max_abs ≲ 1e-14 (Laplace,
+     Exponential, Logistic, Gumbel, Beta near a zero crossing);
+   - discrete quantiles near p = 1 (Geometric, NegativeBinomial,
+     Poisson, Binomial);
+   - quantile rows with a huge max_abs and a small max_rel.
+
+   Anything else — a contract violation, or a row far worse than the
+   same row in the AVX-512 block — is a stop-and-report.
+5. Commit (user's approval) as `docs(accuracy): regenerate <ISA> block
+   at <sha> — 32 → N`, then push.
+
+### R4 — Mac-only gates (K or M, once)
+- **#162** (`gh issue view 162`): the POST_BUILD ad-hoc `codesign`
+  fails "is already signed" when a reconfigure re-runs the dylib's
+  symlink step without relinking. Reproduce first on head, then fix
+  `CMakeLists.txt`. Accept: the reproduction builds clean, and R1 passes
+  again. Write and verify it in one Mac pass [user].
+- **#167 fail-first under UBSan.** x86 MSVC cannot show it. The gate is
+  `SupportBoundary.CountsBeyondIntRange` in
+  `tests/test_support_boundary_gates.cpp`. That file does not exist at
+  `d8d3388`, so:
+  1. Make a detached worktree at `d8d3388`.
+  2. Copy the file in from head, and append
+     `create_libstats_gtest(test_support_boundary_gates
+     test_support_boundary_gates.cpp)` to its `tests/CMakeLists.txt`.
+  3. In both trees, configure a fresh `build-ubsan` with `-G Ninja
+     -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLIBSTATS_BUILD_TOOLS=OFF`. Pass
+     `-fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all`
+     in `CMAKE_CXX_FLAGS`, `CMAKE_EXE_LINKER_FLAGS` and
+     `CMAKE_SHARED_LINKER_FLAGS`.
+  4. Build that target in each, and run it with
+     `--gtest_filter=SupportBoundary.CountsBeyondIntRange`.
+  5. Pass if the `d8d3388` run aborts with a float-cast-overflow runtime
+     error and head runs clean. Record both outputs for R6.
+
+  The other tests in that file gate other issues and fail at `d8d3388`
+  by design.
+
+### R3 — quiet-machine costs and timing (Z, K, M; last on each)
+1. A `v2.4.1` build to compare against.
+   - K, M: `git worktree add ../libstats-v2.4.1 v2.4.1` (detached), then
+     in it `cmake --preset release -G Ninja -DLIBSTATS_BUILD_TESTS=OFF
+     -DLIBSTATS_BUILD_TOOLS=OFF` and `cmake --build build-release
+     --target libstats_static`.
+   - Z: `../libstats-v2.4.1/build-v242cmp` exists.
+2. Build `tools/bench/v242_cost_bench.cpp` against each tree. The
+   commands are in its header: clang++ on K and M, cl from vcvars64 on Z.
+3. Quiet: `./bench_v241 > v241.csv`, then `./bench_v242 > v242.csv`, back
+   to back (about 2 min each on Z). On Z, set
+   `LIBSTATS_BENCH_WARMUP_SECONDS=20` first. Then
+   `python3 tools/bench/v242_compare.py v241.csv v242.csv > compare.txt`.
+4. Quiet: `ctest --test-dir build-release -j1 -L timing` (Z:
+   `ctest --test-dir build -C Release -j1 -L timing`). On K and M this is
+   the first native run of the steady-state speedup gates from #169 (in
+   `d8d3388`), unverified there so far.
+5. Keep the two CSVs and `compare.txt` for R6 under
+   `docs/bench-evidence/<date>-<machine>-v242-cost/`; commit with the
+   user's approval.
+6. Report section 3 of `compare.txt` (AUTO-vs-best gaps marked NEW). Any
+   re-derivation of `dispatch_thresholds.h` rows (`strategy_profile` on
+   the same machine, then R1 again) is the user's decision. INDICATIVE
+   smoke run on a busy Z: von Mises quantile 140–320× slower (3–6 µs
+   Newton on the quadrature CDF, was a grid); forced VECTORIZED 8–13×
+   slower for Gamma α ≥ 20 and Student-t ν ≥ 1e3 (scalar fall-backs); 22
+   NEW gaps, all favouring PARALLEL at n = 1e4–1e5.
+
+### R5 — optional capped-tier leg (Z)
+v2.4.0 precedent: a `LIBSTATS_MAX_SIMD_TIER` build, correctness and
+sweep. Before Z's R3.
+
+### R6 — release docs (after R1–R4 everywhere and R3 everywhere)
+Version 2.4.1 → 2.4.2: `CMakeLists.txt:83`, README (status lines and the
+stale test counts), AGENTS "Current status", PROJECT_CONCEPT. CHANGELOG
+via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs
+and the R4 records. ACCURACY_CHARACTERIZATION: the three generated blocks
+only. This file.
+
+### R7 — release
+PR `dev/v2.4.2` → `main` closing #157–#172 (#173 stays on v2.5.0); CI
+green, including the sanitizer legs; merge; signed tag `v2.4.2`; GitHub
+release from the CHANGELOG section; close milestone #10. Then coordinate
+the pylibstats pin bump (Cross-Repo below), and tell the v2.5.0 session
+about the merge note.
 
 v2.5.0 merge note [DERIVED]: `math_utils.{h,cpp}`, `student_t.cpp`,
-`gamma.cpp`, `poisson.cpp`, `binomial.cpp`, `negative_binomial.cpp` and
-`von_mises.cpp` will conflict. Keep v2.4.2's fixes; corvus's definitions
-replace `gamma_p_inv` and the incomplete gamma/beta where v2.5.0 swaps
-them in.
-
-v2.4.1 shipped 2026-09-19 — correctness patch over v2.4.0, no API change:
-#125 (NegBin/Geometric counts past INT_MAX, incl. sample()) and #127
-(parallelReduce/parallelStatOperation wait-all-then-harvest), PR #151,
-all CI legs green incl. macOS arm64 and ASan/UBSan. Validated on Kaby
-Lake + CI only (travel session); no fleet legs were run or are owed for
-it beyond the sweep confirmation noted under In Progress.
-
-v2.4.0 shipped (tagged 2026-09-04 at e868fc1, signed; PR #147 merge
-commit c3d27e2; milestone #2 closed at 0 open after #144 moved to
-milestone #8) — 27 distributions across 7 families, API additive over
-v2.1.0; every dispatch-threshold table is measurement-backed
-(kAvx512/kAvx2/kNeon native + capped-build kAvx), validated 74/74 on
-all three fleet machines plus the capped AVX leg. v2.3.1 (tagged
-2026-08-25) was the prior release.
-
-**Why 2.2.0 and not 2.1.1.** The Bessel work (#92/#93/#96/#97) and the
-export fix (#90) are patch-shaped, but three things landed alongside them
-that break drop-in: the CMake minimum rises 3.20 → 3.25, install paths move
-to GNUInstallDirs, and `libstats/libstats_config.h` joins the installed
-header set. A patch number promises a swap-in; this is not one.
-
-The release was cut with 7 issues still open on the milestone formerly
-titled v2.2.0, because #97 is a live correctness defect for every consumer
-of the installed package — silently Tier 2 Bessel, 1.3e-08 where the
-library measures 1.5e-16 — and the remainder of that milestone is gated on
-#95, a from-scratch x86 trig kernel. The open work moved to a new v2.3.0
-milestone rather than holding the fix behind it.
-
-Release contents live in `CHANGELOG.md`; per-version validation matrices
-and SIMD speedup tables live in `docs/VALIDATION_HISTORY.md`; conventions,
-build commands and architecture live in `AGENTS.md`. This file carries only
-what is decided, open, or next.
+`gamma.cpp`, `poisson.cpp`, `binomial.cpp`, `negative_binomial.cpp`,
+`von_mises.cpp`, `exponential.cpp`, `weibull.cpp`, `rayleigh.cpp`,
+`tests/CMakeLists.txt` and this file will conflict. Keep v2.4.2's fixes;
+corvus's definitions replace `gamma_p_inv` and the incomplete gamma/beta
+where v2.5.0 swaps them in.
 
 ## Decided [DERIVED]
-- **Support-boundary rule (#161, #165), DECIDED 2026-10-03 [user].** pdf
-  and logpdf at a support boundary take the limit by shape: at x = 0,
-  +inf for shape < 1, the finite density for shape = 1 (tested exactly,
-  not within a tolerance), 0 / −∞ above. Out of support is 0 / −∞ for
-  every distribution, Poisson included. `MIN_LOG_PROBABILITY` stays only
-  for the `safe_log` / `clamp_log_probability` API; no distribution
-  returns it. Scalar, batch and the oracle agree.
-- **#166 is in v2.4.2, DECIDED 2026-10-03 [user]** — the one item that
-  changes numbers rather than fixing a crash, NaN or wrong branch.
-- **#166 fix shape [DERIVED 2026-10-03].** The tolerance alone could not
-  meet the gate: the prefactors exp(−x + a·log x − lgamma(a)) and
-  exp(lgamma(a+b) − lgamma(a) − lgamma(b) + a·log x + b·log(1−x)) cancel
-  terms of size a·log x, ~1e-11 relative at shape 1e4. For shape ≥ 20
-  they take Stirling's form (log1p(t) − t terms plus the Stirling
-  remainder); below 20 the direct form is kept, bit-identical. Series and
-  continued fractions stop at `SPECIAL_FUNCTION_TOLERANCE` = 3ε with caps
-  1000 + 20√shape; gamma_p/gamma_q/beta_i propagate NaN on entry.
-- **Probit split (#158) [DERIVED 2026-10-03].** Centre (|p − ½| ≤ 0.425,
-  AS 241's cut) keeps √2·erf_inv(2p − 1) plus a Newton polish on the erf
-  residual; the tails use `detail::inv_survival_normal`, promoted from the
-  HalfNormal/TruncatedNormal duplicates. The issue's survival form for
-  every p ≤ ½ would lose relative accuracy near the median (its residual
-  has an absolute floor of ~1e-17 at s ≈ ½).
-- **Gamma quantile solver (#160) [DERIVED 2026-10-03].** Newton in t = log x
-  rather than the InverseGamma template's 80-step bisection: log X has a
-  log-concave density, so log P and log Q are concave in t and Newton
-  converges from any start, overshooting at most once; a return to the
-  positive side after that is rounding noise. Seed: Wilson-Hilferty, or
-  the bound P ≤ x^a/Γ(a + 1) (a lower bracket, and the answer below
-  t = −700). Named `detail::gamma_p_inv(a, p)` to match v2.5.0's corvus
-  entry point.
-- **Student-t (#159) [DERIVED 2026-10-03].** The quantile reuses that
-  Newton in s = log|t| (log|T| has a log-concave density), on the tail
-  below q = ¼ and on the central mass against the exact 1 − 2q above it,
-  seeded from the normal quantile, which bounds |t| from below at every ν.
-  Removing the df ≥ 1000 shortcut was not enough at large ν: the
-  incomplete-beta continued fraction near x = 1 runs thousands of terms
-  (4e-11 at ν = 1e6), so the tail side uses BGRAT there.
-- Layered dependency architecture (6 levels) and the dual API
-  (auto-dispatch + explicit strategy) are permanent designs, not
-  transitional. See AGENTS.md Architecture.
-- Deferred by design, not backlog: `vector_lgamma` (complex, low
-  distribution impact), SVE (no hardware in the fleet), an SSE4.1 tier
-  (SSE2 magic-number workaround is adequate). See AGENTS.md Deferred Items.
-- `WorkStealingPool`'s `MAX_WORKERS = 32` cap never shipped in any tagged
-  release — it was added and removed inside v2.0.0's own pre-release
-  development. Recorded because the claim outlived the code in AGENTS.md
-  and could be re-derived wrongly from a partial git read.
-- **Clean-room replacement is the remedy for a provenance defect**, and it
-  is structural: an isolated child agent authors from a functional spec with
-  no access to the suspect implementation, its tables, its generator, or the
-  upstream source; the orchestrator — who has read the upstream — does the
-  divergence audit and integration, never the authorship. Proven on #67.
-  Every replacement ships a derivation doc plus a divergence audit under
-  `docs/`.
-- The three SIMD conventions formerly listed here (no re-read after store;
-  accuracy claims only for natively validated tiers / `LIBSTATS_MAX_SIMD_TIER`;
-  gather-vs-polynomial settled) moved to AGENTS.md "SIMD kernel conventions"
-  on 2026-08-21.
-- [2026-09-29, user] **Constant-argument corvus calls: fill a constant span
-  per block on the stack, inside the existing `vector_*` adapters.** corvus
-  takes same-length spans with no broadcast. The 21 scalar-in-loop sites
-  route through `vector_gamma_p/q` and `vector_beta_i` (`math_utils.h`,
-  bodies currently scalar "for now") plus a span-first-argument
-  `vector_gamma_q` for Poisson's `gamma_q(k+1, λ)`; each adapter walks its
-  input in fixed blocks (first pick 256 doubles, one constant in one TU,
-  a multiple of the widest lane count), fills the constant argument once
-  per block and calls corvus on the sub-spans. Transformed varying
-  arguments (`β·x`, `k+1`) are written into `out` and passed aliased —
-  corvus permits exact aliasing — so only constants need scratch. Why not
-  a corvus broadcast overload: Gamma and Poisson materialise a transformed
-  input regardless, so only the three Beta CDF sites would gain; the
-  overload puts corvus back on the critical path (v1.1.0 + three-machine
-  validation + pin bump) and multiplies `beta_p`'s constant/varying
-  patterns. Results are bit-identical either way (same kernel, same
-  lanes). The NaN-payload rule (last input span) never engages
-  differently: validators reject non-finite parameters. Revisit as a
-  corvus v1.1.0 request only if task 3's timing shows the fill. Settle at
-  the swap session: block size; whether `vector_beta_i`'s `(x, a, b)`
-  order is regularised to corvus's `(a, b, x)` while its body changes.
-- [2026-09-28] Project skills live once, in `.claude/skills/`;
-  `.agents/skills` is a tracked relative symlink to it, so agents that read
-  that path (e.g. for adversarial review) get the same files. Edit only
-  `.claude/skills/`. On Windows the symlink needs Developer Mode and
-  `core.symlinks=true`, or git writes it as a text file [OPEN: check on
-  Zen 4].
+- **Support-boundary rule (#161, #165) [user, 2026-10-03].** pdf/logpdf at
+  a support boundary take the limit by shape: at x = 0, +inf for
+  shape < 1, the finite density for shape = 1 exactly, 0 / −∞ above. Out
+  of support is 0 / −∞ everywhere, Poisson included; no distribution
+  returns `MIN_LOG_PROBABILITY`.
+- **Special parameters [user, 2026-10-03].** A value path takes the
+  shortcut for λ, α, β = 1 (or a standard parameter set) only on exact
+  equality. The `isCauchy()` / `isStandard()` style queries and
+  `operator==` keep `DEFAULT_TOLERANCE`: they report, and no value path
+  reads them.
+- **Quantile contract (#104) [user, 2026-09-02].** Finite best-effort:
+  never NaN for p ∈ (0, 1), ±inf only on true overflow; discrete
+  quantiles are min{k : F(k) ≥ p} on the library's own CDF.
+- **±inf contract (#103) [user, 2026-09-02].** The mathematical limit
+  where one exists, scalar and batch identical; von Mises keeps
+  saturation as a documented exception.
+- **Clean-room replacement is the remedy for a provenance defect.** An
+  isolated child agent authors from a functional spec, with no access to
+  the suspect implementation or its upstream. The orchestrator audits
+  and integrates, and never authors. Each replacement ships a derivation
+  doc and a divergence audit under `docs/` (proven on #67).
+- **#172: no code with licence concerns used or derived from [user,
+  2026-10-03].** It, and the review fixes after it, are built from
+  published mathematics (Stirling's series, A&S 6.5.29) and the library's
+  own helpers.
+- **corvus constant-argument calls [user, 2026-09-29]** (v2.5.0). Fill a
+  constant span per block on the stack, inside the existing `vector_*`
+  adapters, rather than requesting a corvus broadcast overload. Settle the
+  block size, and `vector_beta_i`'s argument order, in the swap.
+- **Project skills** live once, in `.claude/skills/`; `.agents/skills` is
+  a tracked relative symlink. Edit only `.claude/skills/`.
+- **`origin/spike/corvus-bessel`** holds the only Tier 0 corvus Bessel
+  code (`a1c71d6`). It is not merged; keep it.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-09-28 (fifth pass, at
-the return from travel: open milestones #3 5/0, #4 5/0, #6 11/0, #8 8/1
-match this file; no issue drift. Open dependabot PRs #153
-codecov-action 7.1.1 and #155 actionlint 1.77.0, both CI-green — merge
-#153 before #152 work starts). Prior reconcile 2026-09-05 (fourth pass:
-#148 filed into milestone #8 — regenerate the v2.0.0-era UML diagrams
-for the 27-distribution surface; found by the comprehensive doc audit,
-below). Third pass 2026-09-04 (
-post-leg lessons triage: #146 filed into milestone #8 — promote the
-sustained-crossover methodology into threshold_validator, de-duplicate
-the per-bundle analyze_crossovers.py copies; memory-bound-parallel
-category-policy investigation added to #111 as a comment; cross-repo
-corvus#37 filed — x86 erf per-element throughput gap vs NEON, benchmark
-corvus's own gap before v2.5.0 adoption. Second pass: #145
-CLOSED via 919a857 on dev — families demo now covers all 27, including
-Laplace/Cauchy/Geometric which the original 19-claim had silently omitted;
-milestone #2 back to holding only #54-#57 and #144. First pass, leg-findings
-triage:
-#144 von-Mises-CDF-thresholds and #145 examples-gap filed into milestone #2;
-#109 promoted #8 → #2 and CLOSED via e0b04f9 on dev — direct close, not a
-merge-fired "Closes", since the fix is a dev table edit; #111 and #125 stay
-in #8 deliberately: real work, not release-gating. Milestone #2 otherwise
-still holds #54–#57, whose auto-close fires at the dev→main merge).
-Prior reconcile 2026-09-03 (v2.4.0 execution day: PRs #130–#135 and #139
-created and squash-merged into dev/v2.4.0; issues #136/#137/#138 filed into
-milestone #8 from workstream findings; cross-repo libhmm#103 filed —
-libhmm's own PLAN.md not updated in that change set, its next session
-reconciles per its own convention).
-- GitHub is the collaborator-facing source for issues and milestones; this
-  PLAN.md is the agent-facing durable project state. Keep both in sync.
-- When creating, closing, reopening, retitling, or moving a GitHub issue or
-  milestone, update this section in the same change set or note why it could
-  not be updated.
-- Reconcile this section against live GitHub state when either is true:
-  (a) the task at hand involves reading the backlog to decide what to work
-  on next, or creating/closing/retitling/moving an issue or milestone, or
-  (b) more than 7 days have passed since the "Last reconciled" date above.
-  Skip the check for tasks that don't touch the backlog or this file at
-  all. Update the date whenever this section is actually re-checked,
-  whether or not anything had drifted.
-- Convention: open (actionable) milestones/issues are fully itemized here;
-  closed/historical ones are summarized as counts only.
+Last reconciled against live GitHub state: 2026-10-03 (milestones and
+open issues below; no open issue without a milestone; no open PRs).
+- GitHub is the collaborator-facing source for issues and milestones;
+  this file is the agent-facing state. Keep both in sync: when creating,
+  closing, retitling or moving an issue or milestone, update this section
+  in the same change set.
+- Re-check when the task reads the backlog or changes it, or when more
+  than 7 days have passed since the date above.
+- Open milestones are itemized here; closed ones are counts only.
 
 ## GitHub Milestones [DERIVED]
-Renumbered twice, and the second time is not the same operation as the
-first. **2026-07-21**: nothing had shipped out of milestone #1, so the
-former #1/#2/#3 titles each moved up one minor version — numbers and
-attached issues unchanged, only titles.
+Closed: #1 v2.2.0 (5), #5 v2.3.0 (5), #7 v2.3.1 (13), #2 v2.4.0 (6), #9
+v2.4.1 (3). Milestone numbers do not sort in version order (two title
+renumberings, 2026-07-21 and 2026-08-16).
 
-**2026-08-16**: five issues *had* shipped out of milestone #1, so a title
-cascade would have relabelled closed work with a version it did not ship
-in. Instead milestone #1 keeps the title v2.2.0 and its 5 closed issues,
-becoming the release record; its 7 open issues moved to a **new** milestone
-#5 titled v2.3.0, and #2/#3 moved up one minor version to make room.
-Milestone numbers therefore no longer sort in version order — #5 sits
-between #1 and #2 — which is cosmetic and is the price of not rewriting
-history.
-
-- **v2.2.0 — Accuracy & Performance** (closed, #1): 0 open / 5 closed —
-  shipped 2026-08-16. #83 include restructure, #92 and #93 (log I0
-  continuity and circular variance), #96 (complement-series coefficients),
-  #97 (installed export dropped the Bessel tier). See Resolved log.
-- **v2.3.0 — Accuracy & Performance** (closed, #5): 0 open / 5 closed —
-  all work merged 2026-08-20; milestone closed and tag v2.3.0 cut the same
-  day (404f745). Scope: the v2.2.0 milestone's unshipped remainder, moved
-  2026-08-16. #47 and #52 moved out 2026-08-20 (now in v2.5.0, below).
-  Working order decided 2026-08-20: #48 (done) → #95 → #51 → #49
-  (interleavable) → #46 last, so the mpmath characterization measures the
-  final surface and reuses #95's gate infrastructure.
-  - #95 — **CLOSED 2026-08-20** via PR #98 (merged, CI green incl. the
-    NEON leg on the ARM runners). Max 1 ULP, mean 0.022–0.028 ULP, all
-    tiers, cos and sin; sin(−0) sign defect found by the gate and fixed
-    (upstream twin filed as libhmm#81); dispatched-entry gate added. See
-    Resolved log and CHANGELOG [Unreleased].
-  - #51 — **implemented and verified on `feature/v2.3-vonmises-cdf`
-    (2026-08-20), awaiting commits/PR/CI.** Bessel-series CDF, scalar and
-    batch: Miller backward recurrence normalized by f_j/f₀ (ratios only —
-    no Bessel evaluated, no #47 exposure), j_max = ⌈10 + 8.5√κ⌉
-    per-instance coefficients, vector_sin per term. Measured vs a 40-digit
-    mpmath quadrature oracle: scalar ≤ 2.2e-16, batch ≤ 8.9e-16 absolute
-    through κ = 1000; budgets pinned 2e-15/4e-15. Also a BEHAVIOR FIX:
-    the old CDF wrapped into absolute (−π, π] regardless of μ,
-    contradicting the documented F(μ) = 0.5 invariant and disagreeing
-    with the μ-centered quantile grid; the series CDF wraps t = x−μ.
-    Two oracle-side wrap seams found and fixed in verification (threshold
-    at double π, then the double x−μ subtraction — the reference is F at
-    the library-wrapped t). κ > 1000 keeps the wrapped-normal fallback.
-    Follow-ups noted in-tree: quantile grid still trapezoid-built;
-    CDF dispatch thresholds provisional pending benchmark.
-  - #49 — **implemented and verified on `feature/v2.3-lognormal-cdf-tail`
-    (2026-08-20), awaiting PR/CI.** Root cause was the FORMULATION, as the
-    2026-07-19 disconfirmation predicted: every path computed
-    0.5·(1+erf(z/√2)), whose lower tail hits the 1+erf cancellation floor
-    and collapses to exact 0 once erf saturates — true max relative error
-    on the benchmark grid was 1.0; the filed 2.62e-7 was the benchmark
-    metric flooring its denominator. Fixed by tail-branching to
-    0.5·erfc(−z/√2) (scalar normal_cdf + both batch paths; SIMD keeps
-    vector_erf with per-lane erfc below w=−1). Gate budget is the
-    achievable-accuracy LAW rel(F) ~ |ln F|·2⁻⁵² with headroom — a flat
-    deep-tail budget is mathematically unachievable in double for this
-    formulation (the original flat 1e-13 spec tripped exactly that).
-    Measured: max 0.49 of law budget, scalar and batch, refs to
-    F ≈ 1.9e-307. A vectorized erfc (corvus adoption) is the eventual
-    clean batch answer for both fix sites.
-    - Gaussian instance — **DONE 2026-08-20** (spawned session, same
-      branch): GaussianDistribution never routed through normal_cdf and
-      reproduced the defect in all five of its own CDF sites (scalar,
-      three parallel lambdas, SIMD batch impl). Same tail-branched fix;
-      the batch per-lane fixup recomputes w with the scalar path's exact
-      expression, so fixed-up lanes are bit-identical to scalar (batch
-      vs scalar now differs only in the −1≤w<0 plain-erf band, ≤1 ulp).
-      Gate test_gaussian_cdf_accuracy + gaussian_cdf_vectors.inc
-      (gen_gaussian_cdf_vectors.py, erfc oracle at dps=40; (0,1) bucket
-      covers the isStandardNormal_ path): fail-first max_rel 1.0
-      pre-fix; post-fix max 0.287 of the same law budget, batch-vs-
-      scalar abs ≤ 1.11e-16. Correctness suite 53/53 on Zen 4 MSVC.
-  - #46 — **CLOSED 2026-08-20** via PR #101 (squash 57da00a, CI green;
-      a GCC 13 strict-overflow false positive in the p-grid sort was
-      fixed by replacing the defensive sort with an ascending assert,
-      CSV verified byte-identical). Last of the five; the milestone
-      closed and v2.3.0 was tagged the same day. Follow-up issues filed
-      2026-08-20: #102 batch NaN propagation (bug; now v2.3.1), #103
-      ±inf input contract and #104 quantile extreme-p contract (both
-      decision-gated; now in the post-adoption patch, ex-"v2.3.2").
-      [DERIVED] detail:
-      replaced the issue's pylibstats route (pins to released v2.2.0,
-      would characterize the wrong code) with tools/accuracy_sweep.cpp
-      (bit-exact deterministic CSV, 19 dists × 3 instances, scalar +
-      FORCE_VECTORIZED batch, tails to p=1e-300; two-process determinism
-      verified) + tools/accuracy_vs_mpmath.py (dps-50 oracle, 42
-      self-checks) + docs/ACCURACY_CHARACTERIZATION.md. Oracle needed
-      substantial large-parameter hardening beyond the agents' build —
-      mpmath betainc/gammainc hang or raise for min(a,b) ≳ 5e3 even in
-      the central region: clean-room Lentz CF incomplete beta, upper-
-      gamma complement, far-tail lead guards (exp(lead) below every
-      double), safeguarded log-log false-position quantile solver
-      (secant plateaus and pure bisection both failed), asymptotic
-      normal seeds. CF/quadrature cross-validation at 1e-44. Gate
-      cross-check: gaussian law_frac 1.319 ↔ pinned 0.287·(1e-15 budget)
-      ≈ 1.29 bare-law equivalent; lognormal 1.784 ≲ 2.2 equivalent;
-      von Mises max_abs 1.7e-16/5.1e-16 vs gates 2.2e-16/8.9e-16.
-      Findings (doc Findings section + generated appendix): 86 contract
-      violations — batch NaN propagation inconsistent (8 dists), NaN at
-      ±inf where limits exist, batch logpdf(+inf) clamp −4605.0,
-      quantile NaN/saturation at extreme p, large-param CDF limits
-      (binomial n=1e6: 1.3e-2 at the mean → corvus #47/#52 remedy
-      class). [RESOLVED 2026-08-20] the three follow-up candidates are
-      filed: (a) batch NaN propagation #102, (b) ±inf limit returns #103,
-      (c) quantile extreme-p contract #104.
-- **corvus adoption staged as v2.5.0** (decided 2026-08-21 [user],
-  milestone #6 created; the former v2.5.0 Extended milestone renumbered
-  to v2.6.0 — the THIRD renumbering, same title-cascade shape as
-  2026-07-21). Staging rationale: v2.4.0 Foundation is adoption-tolerant
-  (#54 closed-form exp; #55/#56 thin delegation wrappers that inherit
-  core upgrades without re-authoring; #57 erf-based on the #49-hardened
-  normal_cdf), while v2.6.0 Extended is dense with heavy consumers that
-  should be built on corvus cores the FIRST time (#61 Wald erfc-tail
-  CDF, #62 Hypergeometric/BetaBinomial incomplete-beta CDFs and the
-  Zipf closed-form-CDF-vs-summation decision, which corvus's plan
-  requires settled before any Hurwitz zeta work starts there).
-  Acceptance evidence: before/after #46 characterization sweeps.
-  Prerequisites, tracked on the milestone description: (a) M1 + Kaby
-  Lake native validation legs run DURING v2.4.0 (both projects need the
-  same machine time; corvus per-tier claims and this repo's PROVISIONAL
-  characterization share the gap); (b) corvus API stable — SATISFIED
-  2026-09-01: corvus v1.0.0 tagged and released (surface frozen under
-  corvus docs/VERSIONING.md; milestone #6 description updated); (c) #103/#104 contract decisions —
-  SATISFIED 2026-09-02 [user]: limits-at-±inf with a documented von Mises
-  saturation exception (#103), finite-best-effort quantile with
-  right-continuous discrete inverse (#104); decision records on the
-  issues, milestone #6 description updated. All three prerequisites are
-  now satisfied ((a) per Known Gaps 2026-08-23, completed by the v2.3.1
-  matrix); v2.4.0 authoring is unblocked on the contract side.
-  #47 and #52 moved from parked/unmilestoned into milestone #6 with
-  un-parking comments, 2026-08-21. Each still closes with `Fixes #NN`
-  from the adoption change set: #47 the bessel.h rewire (and whether
-  the tier scheme survives), #52 the `beta_p` closed-form CDF rewrite
-  plus the before/after scipy benchmark. (Historical: parked
-  unmilestoned 2026-08-20; libhmm v4.4.0 had no adoptable interim #47
-  fix — its Tier 2 is the same A&S polynomial.)
-- **Order of release: v2.3.1 (SHIPPED 2026-08-26) → v2.4.0 → v2.5.0 →
-  post-adoption patch (version assigned at ship, likely v2.5.1) → v2.6.0 →
-  v3.0.0.** Reordered 2026-08-28 [user]: the second patch follows the
-  corvus adoption because adoption closes several of its items — its old
-  "v2.3.2" name was therefore semver-impossible, and the milestone is
-  renamed version-neutral ("Accuracy, contracts & kernel hygiene patch");
-  #107/#110/#113 moved onto v2.5.0 (and #108 from v3.0.0), since that is
-  the release that closes them. The 2026-08-21 rationale stands for the
-  split itself: fix-now candidates grouped into PATCH milestones (bug
-  fixes, no API change); the second's items change numbers or edge-case
-  policy, so they must not gate the correctness patch. Structural items
-  go to the existing major. Cross-project sequencing (corvus v0.6.0 →
-  v0.7.0 → v0.8.0 elementary family, corvus #32 → v0.9.0 fleet validation
-  → v1.0.0, all before v2.5.0 opens): corvus/PLAN.md.
-- **v2.3.1 — Correctness patch** (#7): 0 open / 8 closed + 5 merged PRs —
-  all work merged 2026-08-25 (PRs #120–#124, squash); milestone open only
-  until the tag is cut. Every exit criterion met: fail-first regression
-  gates from all 8 issues in place (5 new unlabelled binaries, suite
-  53 → 58), sweep regenerated on the extended 6063-row grid and #102
-  re-scoped from it (re-scope comment on the closed issue: true scope was
-  16/19 distributions; the 5 discrete victims were sweep-invisible until
-  the same PR fixed `accuracy_sweep`'s discrete-specials gap), AVX-512
-  native suite green 58/58. Sweep contract violations 86 → 63 on the new
-  grid (all 35 NaN rows cleared; +12 newly VISIBLE poisson logpdf(±inf)
-  rows → #103's scope; the comparison baseline for future regens is 63).
-  Decisions: #112 documented no-aliasing + central debug assert (live in
-  Debug AND Dev configs); #118 parallelFor propagates (wait-all-then-
-  harvest); WorkStealingPool still swallows by design — asymmetry
-  documented, caller-visible, platform-dependent.
-- **Accuracy, contracts & kernel hygiene patch** (open, #8; renamed from
-  "v2.3.2" on 2026-08-28 — ships AFTER v2.5.0, version assigned at ship,
-  likely v2.5.1): 8 open / 1 closed — #125/#127 shipped early as v2.4.1 on 2026-09-19 and were re-homed with PR #151 to their own closed milestone #9 "v2.4.1 — Correctness patch" (the v2.3.1 precedent) (15 → 10 on 2026-09-17; #148 UML regeneration closed 2026-09-17:
-  #126/#136/#137/#138/#141 re-homed to v2.5.0 at scoping, all absorbed
-  by the corvus cores). #107/#110/#113 moved to v2.5.0 on 2026-08-28
-  (the adoption release closes them). #136/#137/#138 filed onto
-  it 2026-09-03, #146/#148 during the v2.4.0 endgame, #144 at the
-  2026-09-04 close-out (kAvx512 von Mises cell — re-measure scheduled
-  post-adoption; see In Progress). **Bucketed 2026-09-29 [user]** (record
-  on each issue and the milestone description): A — adoption-independent,
-  any gap: #146 (do BEFORE v2.5.0 task 3, so the post-swap threshold
-  re-measure uses the trusted sustained-crossover tool), #152 (CI), #129
-  (Zen 4). B — adoption changes the answer, wait for the post-swap sweep
-  and timing: #103, #104 (re-scope from that sweep; the gamma/chi-squared
-  rows sit on replaced cores, the poisson/pareto/student-t rows survive),
-  #111, #144 (first post-swap Zen 4 session; moot if #111 lands NEVER by
-  policy). C — mixed, one pass after the swap: #114 (dead-code items
-  change with the swap; S6 casts and CI items do not). Milestone stays
-  post-v2.5.0; bucket A is not blocked by it.
-  - #104 OPEN, **contract DECIDED 2026-09-02** [user] — finite best-effort:
-    never NaN for valid p ∈ (0,1), ±inf only on true double overflow;
-    per-family documented accuracy (gamma/chi-squared deep tail improves
-    at corvus adoption but NaN→finite does not wait); Cauchy adopts the
-    verified split form (regression rows = gate vectors); discrete
-    quantiles are the right-continuous inverse Q(p) = min{k : F(k) ≥ p}.
-    #103 OPEN, **contract DECIDED 2026-09-02** [user] — return the
-    mathematical limit where one exists (pdf→0, logpdf→−inf, cdf→0/1),
-    scalar and batch identical, −4605 clamp never escapes (incl. the 12
-    poisson rows added 2026-08-25); von Mises keeps saturation as a
-    documented periodic-density exception. Decision records are comments
-    on both issues; enforcement ships with this milestone.
-  - #109 CLOSED in v2.4.0 (Cauchy CDF thresholds re-profiled; one atan per element).
-  - #111 OPEN — von Mises batch CDF blocking + the noexcept/allocation
-    policy — 2026-09-04 comment adds the memory-bound-parallel category
-    question (Beta/vonMises/HalfNormal fleet data: measure the
-    restructured kernel, or set NEVER by policy); #114 OPEN — review
-    backlog; #146 OPEN (filed 2026-09-04) — threshold_validator
-    implements the distrusted first-crossing heuristic while the
-    sustained-crossover method lives only as per-bundle script copies;
-    promote it into the tool, acceptance = reproducing the encoded
-    kAvx2/kNeon rows from the two v2.4.0 bundles.
-  - Filed 2026-08-25 from v2.3.1 findings: #125 OPEN — NegBin/Geometric
-    public cdf/logpdf int-narrowing past INT_MAX (UB, ISA-dependent;
-    quantile/CDF inconsistency); #126 OPEN — beta_i ~1e-6 abs at b ≳ 1e9
-    (lgamma cancellation; likely absorbed by the corvus incomplete-beta
-    core — verify at adoption scoping and re-home to v2.5.0 if so); #127
-    OPEN — parallelReduce/parallelStatOperation early-rethrow harvest
-    (the #118 shape); #129 OPEN — flaky Uniform speedup gate on Zen 4
-    (widen or drop; was a PLAN Known Gap since v2.2.0, now filed).
-  - Filed 2026-09-03 from v2.4.0 workstream findings (all with corvus-
-    absorption checks noted for v2.5.0 scoping, the #126 pattern):
-    #136 OPEN — detail::erf_inv extreme-tail band wrong/non-monotone +
-    1.4e-8 small-arg floor (Gaussian getQuantile inherits, p ≳ 1−1e-9;
-    TruncatedNormal's in-tree survival-domain solver is the reference
-    fix). #137 OPEN — inverse_beta_i absolute stop + clamp, unusable
-    below p~1e-8 (Beta getQuantile inherits; F's steered solver is the
-    reference). #138 OPEN — digamma ~1.3e-8 binds entropies (libhmm's
-    2e-14 psi_functions.h is the in-fleet reference). Cross-repo:
-    libhmm#103 (errorf_inv saturation-class investigation, low sev).
-    #141 OPEN (filed later the same day, from the extended sweep) —
-    detail::gamma_p ~1.7e-7 rel at shape ~1e4 bounds Gamma/Erlang/
-    InverseGamma CDF accuracy; proper fix is a Temme uniform asymptotic,
-    corvus-absorption check first.
-  - Filed 2026-09-19: #152 OPEN — the 52 % Codecov figure is mostly
-    measurement error (enhanced tests excluded from the coverage run,
-    googletest in the denominator, per-tier SIMD TUs unreachable on the
-    runner, function coverage reading 0.0 % behind `--ignore-errors`).
-    Fix the measurement before reading the number; CI-only and
-    travel-safe. Fleet coverage scope [user]: libstats + libhmm
-    (libhmm#108, port after #152 settles lcov-vs-gcovr); corvus, the two
-    Python bindings and ewcalc deliberately do NOT adopt Codecov.
-  Contingency (proposed 2026-08-28): #125/#127 are genuine bugs adoption
-  does not touch — if the corvus arc stalls, they justify an early patch
-  slice ahead of this milestone.
-  Exit: sweep regenerated on the milestone's fixes (the
-  `docs/ACCURACY_CHARACTERIZATION.md` attribution correction moved with
-  #113 to v2.5.0).
-- **v2.4.0 — New Distributions (Foundation)** (CLOSED 2026-09-04, #2):
-  0 open / 6 closed — #54–#57 closed by the PR #147 merge, #145 earlier;
-  #144 moved to milestone #8 at close-out. (#102 moved to v2.3.1 on
-  2026-08-21)
-  — #54 Logistic + Gumbel, #55 Bernoulli + Erlang, #56 F + InverseGamma,
-  #57 HalfNormal + TruncatedNormal. Library grows 19 → 27 distributions.
-  **Execution plan decided 2026-09-02 [user]:**
-  - Branch topology: integration branch `dev/v2.4.0` off main. One
-    **scaffolding commit first** — all 8 enum values (append-only, order
-    fixed then and permanent), `kDistributionMeta` rows, 4×8 NEVER
-    threshold rows, `static_assert` bump — because the shared append-only
-    files are the merge hotspot, so they land once. Then one feature
-    branch per issue PR'd into `dev/v2.4.0` (CI per PR), and one final
-    reviewed PR `dev/v2.4.0` → main.
-  - Working order #55 → #56 → #54 → #57: wrappers exercise the 6-step
-    checklist with least math first; TruncatedNormal (cached
-    normalization invalidation, iterative MLE, ±∞ bounds) is the slip
-    risk and goes last. Executed as parallel subagent workstreams after
-    scaffolding (v2.3.1 pattern: agents implement, orchestrator does
-    QA/integration/verification).
-  - Subagent model/effort alignment [user, 2026-09-02] — smallest model
-    that can do the job, per workstream: **#55 sonnet** (rote delegation
-    pattern, ChiSquared/Geometric are the templates); **#56 opus** (the
-    InvGamma upper-tail complement 1 − CDF_Gamma(1/x) and the F beta
-    transform carry #49-class cancellation hazards); **#54 opus**
-    (new SIMD pipelines; logistic tail log1p/expm1 stability, Gumbel
-    double-exp underflow); **#57 opus/fable-class, high effort**
-    (TruncatedNormal Z = Φ(β)−Φ(α) cancels catastrophically for
-    same-tail truncation — needs erfc-difference forms per the #49
-    lesson); **sweep/oracle extension opus** (the v2.3.1 oracle
-    hardening history says mpmath references are subtle). Every brief
-    is explicit — goal, inputs by path (reference impls: `laplace.cpp`
-    for #54, `chi_squared.*`/`geometric.*` for wrappers, `gaussian.*`
-    for #57), the born-compliant contract list, SIMD kernel conventions,
-    the 6-step checklist, done-criteria (build + suite green + contract
-    assertions passing), and report format; workstreams expected to run
-    >30 min report at per-distribution milestones, no synthetic pings.
-  - Scope: `accuracy_sweep` + mpmath oracle EXTEND to the 8 new
-    distributions in this release (19 → 27 in the sweep — the v2.5.0
-    before/after adoption evidence must include them in the "before"
-    baseline). Gumbel ships max-stable (`gumbel_r`) only; the min
-    variant is DEFERRED (user-side −X reflection; follow-up issue only
-    on demand — enum values are permanent, so no speculative slot).
-  - Born-compliant contracts (requirement, asserted by the enhanced
-    tests from birth): #103 ±inf limits (pdf→0, logpdf→−inf, cdf→0/1,
-    scalar ≡ batch), #104 finite best-effort quantiles with the
-    right-continuous discrete inverse (Bernoulli), #102-style batch NaN
-    propagation, #112 no-aliasing, no #125-class int narrowing
-    (Bernoulli/Erlang casts).
-  - Issue corrections to record on GitHub at kickoff: #55/#56 were
-    written assuming a scale-parameterized Gamma; libstats' Gamma β is a
-    RATE, so Erlang(k, λ) delegates to Gamma(k, λ) directly (no 1/λ) and
-    the InverseGamma x → 1/x transform needs the same rate-vs-scale care.
-  - Validation: correctness suite per PR on Zen 4;
-    `strategy_profile` + `threshold_validator` calibration for #54/#57
-    (delegation wrappers copy their delegates' threshold rows);
-    three-machine native validation (Zen 4, Kaby Lake, M1) before the
-    tag, matching v2.3.1 precedent.
-- **v2.5.0 — corvus adoption** (open, #6): 11 open / 0 closed. SCOPED
-  2026-09-17 (records on each issue; milestone description updated).
-  Width RATIFIED [user]: FULL SWAP — every `detail::` special function
-  corvus covers goes in this release; #126/#136/#137/#138/#141 re-homed
-  here from milestone #8 (15 → 10) because each is "swap the backend and
-  re-run the sweep" once corvus is linked. Findings that changed the
-  plan: (1) #52's premise was wrong — `binomial.cpp:323` has used the
-  `beta_i` closed form since the distribution landed (42460c4); the
-  slower-than-scipy CDF is the #113 100-iteration Lentz cap run once per
-  element, not PMF summation. (2) #126 and #141 ABSORBED, MEASURED on
-  Kaby Lake against corvus v1.0.0: `beta_p(1, k+1, p)` at k ∈ {1e8, 1e9,
-  1e10} worst 0.49 ULP vs the Geometric closed form (libstats loses
-  ~1e-6 absolute); `lbeta` 0.39 ULP; `gamma_p`/`gamma_q` at a ∈ {1e3, 1e4,
-  1e5} worst 0.48/0.47 ULP (libstats 1.7e-7). Tier-asserted AVX2 native +
-  SSSE3 capped, byte-identical. (3) #47 unaffected by #113 — the A&S floor
-  is the kernel; five cold-scalar sites in `von_mises.cpp`, both tiers
-  and `LIBSTATS_HAS_CXX17_BESSEL` go, retiring the #97 class by
-  construction. (4) Call-site inventory: 69 sites across 21 files — 42
-  cold-scalar (span-of-1 wrappers), 21 scalar-in-loop (Gamma CDF ×4,
-  Poisson CDF ×4, Beta CDF ×3, Binomial/NegBin PMF batch, erf/erfc
-  fallback + tail-fixup loops ×7, five SIMD-backend tail remainders), 6
-  already span-shaped (`math_utils.cpp` `vector_gamma_p/q`,
-  `vector_beta_i`, `vector_lgamma`, `simd_fallback.cpp` `vector_erf`) —
-  the lowest-friction adoption point, and the "`vector_lgamma`
-  indefinitely deferred" AGENTS.md entry dissolves. (5) `fisher_f.cpp`
-  377/401 form complements as `ONE − beta_i`; `beta_q` makes them direct.
-  OPEN DESIGN POINT for the swap session: corvus takes every argument as
-  a same-length span with NO broadcast, so the 21 constant-plus-x sites
-  need a filled constant span (stack scratch / reusable buffer), or an
-  additive broadcast overload requested from corvus v1.1.0. Poisson is
-  the odd shape — `gamma_q(k+1, λ)` varies the FIRST argument.
-  Also at swap time: AGENTS.md "Zero external dependencies" positioning
-  sentence; `docs/ACCURACY_CHARACTERIZATION.md` #113 attribution
-  paragraph. Original entry follows. — #47
-  bessel.h rewire, #52 Binomial beta_p CDF rewrite, and (moved in on
-  2026-08-28, closed BY the adoption swap) #113 iteration caps/Lentz
-  tolerance (the corvus cores delete the capped iterations outright),
-  #110 erfc tail-branch helper (the corvus erfc core replaces the three
-  TU-local shapes), #107 one clean-room trig table and #108 trig-kernel
-  duplication (both dissolve when the local kernels yield to corvus's
-  elementary family, corvus #32); plus the core-swap work itself and the
-  before/after characterization sweeps. See the staging entry above for
-  rationale and prerequisites. #47/#52 annotated 2026-08-21: scope
-  against the cores' REAL accuracy with #113's correction in hand — the
-  large-parameter rows that motivated them are iteration-cap artefacts.
-  Scope widened 2026-08-28: one swap round covers special functions AND
-  the elementary family (exp/log/log1p/cos/sin via corvus #32) — one
-  sweep, one pin bump, one pylibstats release.
-- **v2.6.0 — New Distributions (Extended)** (open, #3, renumbered from
-  v2.5.0 on 2026-08-21): 5 open / 0 closed
-  — #58 GEV (depends on #54), #59 LogLogistic (depends on #54),
-  #60 Triangular, #61 Wald, #62 Hypergeometric + BetaBinomial + Zipf.
-  #62's Zipf CDF design (summation vs Hurwitz-zeta closed form) must be
-  settled before this milestone's planning — it scopes corvus P3 work.
-- **v3.0.0 — Architecture Refactor** (open, #4): 5 open / 0 closed —
-  #40 split CMakeLists.txt into cmake/ modules, #41 unify the dual SIMD
-  namespace, #42 decompose parallel_execution.h, #43 extract dispatch/cache
-  boilerplate into a CRTP or policy helper, #128 SIMDPolicy::detectBestLevel
-  dead-code ladder duplication (filed 2026-08-25, pairs with #41). #108
-  moved to v2.5.0 on 2026-08-28 (dissolves at adoption).
-
-## GitHub Issues Without Milestone [DERIVED]
-- Open: none — #103/#104 and the 2026-08-21 review set #105–#118 are all
-  milestoned (v2.3.1, v2.5.0, the post-adoption patch, v3.0.0; see GitHub
-  Milestones above).
-- #84 closed 2026-08-16 — see Resolved log.
-- Closed: 15, none milestoned (#84 closed 2026-08-16; #90 and #94 2026-08-15 — see
-  Resolved log). Note #90 was never listed here while open; this section is
-  derived from GitHub rather than maintained by hand, so re-derive it rather
-  than trusting it between passes.
-
-## In Progress [OPEN]
-- **v2.4.1 SHIPPED 2026-09-19** [user; travel session, Kaby Lake only]:
-  the #125/#127 contingency exercised as an early patch slice ahead of
-  v2.5.0 (PR #151, merge commit 45a2d4a; release contents in CHANGELOG
-  [2.4.1]). Milestone #8 is otherwise untouched — nothing else from it
-  starts before the fleet is back.
-  - Owed at the next fleet sweep regen (confirmation, not a blocker):
-    x86 contract violations drop by the two geometric wrap rows (63 → 61
-    was the 6063-row grid; on the current 9210-row grid it is 34 → 32);
-    NEON geometric logpdf max_rel 0.865 → ~1e-8 class.
-    AVX-512 CONFIRMED 2026-09-28 (Zen 4, `commit=103044b`): 34 → 32, only
-    the two geometric rows changed. AVX2 CONFIRMED 2026-09-28 (Kaby
-    Lake, `commit=82a8975`): 34 → 32, the same two rows, violation list
-    identical to AVX-512 entry for entry. NEON CONFIRMED 2026-09-28 (M1,
-    macOS 27, `commit=9201eb7`): 32 → 32, geometric logpdf max_rel
-    0.865 → 2.9e-11. All three fleet confirmations discharged.
-  - Guard tolerance lesson: the past-INT_MAX CDF bound was first set from
-    Apple libm's measured error (< 1e-5) and failed on glibc AND MSVC at
-    an identical 1.22e-5. It is now derived from beta_i's lgamma ulp floor
-    (2e-4, #126); tighten it when the v2.5.0 incomplete-beta core lands.
-  - Finding, not fixed: for general r, lgamma(k+r) − lgamma(k+1) cancels
-    to ~1e-4 absolute at k ~ 1e10 (exact for Geometric). Add to the
-    v2.5.0 corvus-absorption check rather than a new in-tree kernel.
-  - Downstream: pylibstats pin v2.4.0 → v2.4.1 rides pylibstats PR #22
-    with Python regression tests for #125.
-- **v2.4.0 SHIPPED 2026-09-04** (full development record: `git show
-  eb75a45:PLAN.md`, "In Progress"; release contents in CHANGELOG
-  [2.4.0]): PR #147 (21 branch commits, 10 squash-merged feature PRs)
-  merged to main via merge commit c3d27e2 with CI fully green (the one
-  PR-side blemish was a coverage-runner apt hang, 20-min job timeout —
-  infra, not code); release commit e868fc1 (version 2.3.1 → 2.4.0,
-  CHANGELOG sealed, README/AGENTS reworded off the dev branch); tag
-  v2.4.0 at e868fc1 (signed, verified); GitHub release published from
-  the CHANGELOG section; milestone #2 CLOSED at 0 open (#54–#57 closed
-  by the merge; #145 closed earlier). #144 moved to milestone #8 with a
-  scheduling note [user-approved]: the von Mises CDF sits on the Bessel
-  path #47's corvus rewire replaces in v2.5.0, so the owed kAvx512
-  sustained re-measure happens in the first POST-adoption Zen 4 session
-  — a pre-adoption measurement would be immediately stale, and the
-  provisional row is low-risk (both Mac tiers measured NEVER; #111
-  memory-bound signature). Library at 27 distributions, suite 74/74 on
-  all fleet machines, every dispatch-threshold table
-  measurement-backed. ~~pylibstats pin bump~~ DONE 2026-09-05:
-  pylibstats 0.7.0 shipped on the v2.4.0 pin WITH bindings for all
-  eight new distributions (not a bare bump — full parity, 27 bound;
-  pylibstats PR #18, tag v0.7.0, PyPI live). OUTSTANDING from the ship
-  checklist: ~~milestone #8 reassessment pass~~ DONE 2026-09-29 (buckets
-  under GitHub Milestones, milestone #8).
-- **v2.3.1 SHIPPED 2026-08-25**: tag v2.3.1 at a981d4f (signed, verified),
-  GitHub release published, milestone #7 closed (0 open / 13 closed),
-  pylibstats pin bumped to v2.3.1 (8ef6a2b; floor + FetchContent tag
-  together, verified 424/424 pytest on Windows against the fetched tag —
-  a PyPI 0.6.1 on the new pin is a separate pylibstats decision).
-  The v2.3.1 validation matrix is complete as of 2026-08-28 (all three
-  machines native — see AGENTS.md).
-- **M1 v2.3.1 leg DONE 2026-08-27/28** (native, this machine):
-  correctness 58/58 (`ctest -LE "timing|benchmark"`, Dev build,
-  2026-08-27), timing 22/22 (`ctest -j1 -L timing`, 2026-08-28, run
-  after post-boot load settled to ~2.0), `isa=NEON` block regenerated
-  on the 6063-row grid (banner `commit=b30cdb0`, 42/42 oracle
-  self-checks) — **61 contract violations vs 63 on both x86 machines,
-  same two classes** (±inf contracts #103 incl. the 12 poisson rows;
-  large-param/extreme-quantile #113/#104). The 2-row deficit is #125
-  from the AArch64 side: the two geometric logpdf x > INT_MAX rows
-  saturate to a finite wrong constant (max_rel 0.865 in the error
-  stats) instead of wrapping to −inf, so the contract checker cannot
-  see them — same defect, ISA-dependent symptom, as filed. Batch-NaN
-  class 27 → 0 on NEON, completing per-tier confirmation of #102/#105
-  on all three fleet ISAs (the strictly nested victim sets are all
-  cleared on native silicon). Von Mises Tier 2 gap (4.7e-7/8.5e-7) and
-  student_t ~8e-10 rows persist unchanged (#47, #113).
-- **Kaby Lake v2.3.1 leg DONE 2026-08-26** (native, this machine):
-  correctness 58/58 (`ctest -LE "timing|benchmark"`, Dev build), timing
-  22/22 (`ctest -j1 -L timing`, run after ambient load settled below 2.0),
-  `isa=AVX2` block regenerated on the 6063-row grid (banner
-  `commit=6fa1c68`, 42/42 oracle self-checks) — **63 contract violations,
-  the same total and the same two classes as Zen 4** (±inf contracts #103
-  incl. the 12 poisson rows; large-param/extreme-quantile #113/#104).
-  Batch-NaN class 37 → 0 on AVX2, the widest v2.3.0 victim set — the
-  strongest per-tier confirmation of #102/#105 yet. Von Mises Tier 2 gap
-  (4.7e-7/8.5e-7) and student_t ~8e-10 rows persist unchanged (#47, #113).
-- **Follow-ups FILED 2026-08-25** [user-approved]: #125 (NegBin int
-  narrowing), #126 (beta_i cancellation), #127 (parallelReduce harvest),
-  #129 (flaky Uniform gate) → v2.3.2; #128 (SIMDPolicy dead ladder) →
-  v3.0.0; poisson logpdf(±inf) rows → comment on #103. All itemized in
-  GitHub Milestones above.
+Release order: v2.4.2 → v2.5.0 → the accuracy patch (version assigned at
+ship, likely v2.5.1) → v2.6.0 → v3.0.0.
+- **#10 v2.4.2 — Correctness patch** (open, 14): #157–#167, #170–#172.
+  Closed by the release PR.
+- **#6 v2.5.0 — corvus adoption** (open, 13): #47, #52, #107, #108, #110,
+  #113, #126, #136, #137, #138, #141, #156, #173. Full swap [user,
+  2026-09-17]: every `detail::` special function corvus covers. #126 and
+  #141 are absorbed, measured against corvus v1.0.0. Corvus is pinned at
+  v1.0.1. State and design: that branch's PLAN.md.
+- **#8 Accuracy, contracts & kernel hygiene patch** (open, 7): ships after
+  v2.5.0. Bucketed [user, 2026-09-29]:
+  - A, independent of adoption: #146 (before the v2.5.0 threshold
+    re-measure), #152 (Codecov measurement).
+  - B, re-scope after the post-swap sweep and timing: #103, #104, #111,
+    #144.
+  - C, one pass after the swap: #114.
+- **#3 v2.6.0 — New Distributions (Extended)** (open, 5): #58 GEV, #59
+  LogLogistic, #60 Triangular, #61 Wald, #62 Hypergeometric +
+  BetaBinomial + Zipf. Settle #62's Zipf CDF design (summation or the
+  Hurwitz-zeta closed form) before planning; it scopes corvus work.
+- **#4 v3.0.0 — Architecture Refactor** (open, 5): #40, #41, #42, #43,
+  #128.
 
 ## Known Gaps [OPEN]
-- `vector_floor` + `vector_blend` primitives across all SIMD backends would
-  enable a branchless Discrete CDF and Uniform PDF/LogPDF. Low priority,
-  not rejected — amortization already delivers the batch-path speedups.
-- The `exp_max` clamp constant sits ~30 ULP (in x) below the true overflow
-  threshold, so for x in that one-double window the kernels return
-  `exp(exp_max)` (~214 ULP low) where `std::exp` is still finite. This is a
-  deliberate safety margin against a 1-ULP overshoot to inf; left as is.
-- [2026-08-16, updated 2026-08-23] **Native validation covers all three
-  machines.** Asus TUF A16 AVX-512 natively 2026-08-20 (53/53, 21/22
-  timing); Kaby Lake AVX2+FMA 2026-08-22 (53/53, 22/22, its
-  `accuracy_sweep` recorded 2026-08-23 as a delta section in
-  `docs/ACCURACY_CHARACTERIZATION.md` — von Mises Tier 2 gap and the
-  #102 AVX2 victims are the findings); Mac Mini M1 NEON 2026-08-23 on
-  the v2.3.0 tag (55/55 via `ctest -LE timing`; all 22 timing tests
-  passed but on a loaded machine — indicative only). Prerequisite (a)
-  of the v2.5.0 staging is complete. Count note RESOLVED
-  2026-08-23: the 55-vs-53 gap was the exclusion regex, not the ISA —
-  exactly two tests carry the `benchmark` label (`benchmark_simd_all`,
-  `test_benchmark`), so `ctest -LE timing` counts 55 where
-  `ctest -LE "timing|benchmark"` counts 53 on the same build. Settled
-  definition (now stated above the AGENTS matrix): correctness =
-  `ctest -LE "timing|benchmark"` = 53; all three machines are 53/53 (the
-  M1's two benchmark-labelled tests passed as well, outside the count).
-- [2026-08-23] **M1 NEON accuracy sweep (v2.3.0 tag, AppleClang 21,
-  Bessel Tier 2).** `accuracy_sweep` + `accuracy_vs_mpmath.py`, 5928 rows,
-  42/42 self-checks; 76 contract violations vs Zen 4's 86. The
-  `isa=NEON` block was regenerated into `docs/ACCURACY_CHARACTERIZATION.md`
-  later the same day from a fresh main-tree sweep (commit=e9fac49; totals
-  and rows identical to the tag run), with a "Third machine" prose
-  section; the doc's Regenerating snippet nits below were fixed in the
-  same change. Durable deltas vs the Zen 4 doc:
-  **#47 REPRODUCES** — `LIBSTATS_HAS_CXX17_BESSEL`
-  probe fails on libc++, Tier 2 A&S active; measured `bessel_i0` relative
-  error 1.29e-8 at x=10, worst 4.73e-7 at x=100, landing directly in von
-  Mises pdf/logpdf (max_rel 4.7e-7/8.5e-7 vs ~1e-14 on Zen 4 Tier 1);
-  von Mises CDF unaffected (#51 gate holds at every tier) — consistent
-  with the Kaby sweep's von Mises Tier 2 gap. The 8
-  batch-NaN rows that fail on Zen 4 all PASS on NEON (10 fewer
-  violations — #102's victim list is tier-dependent, matching the Kaby
-  re-scope). Headline
-  large-parameter findings reproduce identically (binomial n=1e6 1.28e-2,
-  chi-squared k=1e5 8.3e-6, beta (1e4,1e4) 4.1e-9). NEW FINDING, worth an
-  issue: Geometric/NegativeBinomial quantile/cdf/logpdf do
-  `static_cast<int>(std::round(x))` (negative_binomial.cpp:244,269,294);
-  for x > INT_MAX that cast is UB and ISA-dependent — x86 wraps to
-  INT_MIN (cdf→0, logpdf→−inf), AArch64 saturates to INT_MAX (cdf→1.0,
-  logpdf = constant −2161.30). Both wrong; same defect class as libhmm
-  #88. Doc nits found: ACCURACY_CHARACTERIZATION "Regenerating" says
-  `cmake --build build` (preset dir is `build-release`) and
-  `accuracy_sweep > sweep.csv` (the tool takes the path as an argument).
-- [FIXED 2026-09-30 on `fix/timing-gates-129-168`, with #168; Zen 4] **Every
-  speedup gate in the timing-label tests timed each path once.** Three
-  separate defects, measured on the reference machine: (1) one call is
-  the FIRST call — 9x the steady-state cost of a 5000-element batch, so
-  Uniform's 5.5x read 1.5-2.0x against 1.8x (#129's actual cause, not a
-  thin margin); (2) timing one path and then the other lets the CPU's
-  1.5x boost/sustained frequency step fall between them — two equal-cost
-  paths read 0.67x (Gaussian batch-fit gate, 5/10 failing); (3) the
-  cache-hit getter ratio divides two intervals below the clock's 100 ns
-  resolution (#168, six files). Fix: `interleavedMinElapsedMicros` in
-  `tests/include/validators.h` (minimum over 15 rounds, every path timed
-  in every round) in all 17 gates — `SIMDAndParallelBatchImplementations`
-  x6, `VectorizedSpeedup` x6, `AutoDispatchAssessment` x2 (per-call over
-  several calls; the small-time fallbacks are gone), Gaussian
-  `ParallelBatchFittingTests`, `test_math_comprehensive` x2; the cache
-  ratio assertion dropped; Uniform's SIMD expectation scaled 0.8 (its
-  batch path is an amortised scalar loop, 2.1-2.4x at 50000). Thresholds
-  otherwise unchanged. Verified here: timing suite 22/22 in 10 of 10
-  runs (v2.4.1: Uniform 0/3), correctness 74/74, full build
-  warning-clean; Uniform's gate fails 3/3 with the batch path forced
-  scalar. NOT verified on Kaby Lake or the M1 — the `timing` label is
-  outside CI, so run `ctest -j1 -L timing` on each before relying on it.
-  The four exp/log speedup failures on `dev/v2.5.0-corvus` are a
-  separate, real regression and will now be measured steady-state.
-- [FILED 2026-08-25 as #129, milestoned v2.3.2] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
-  is flaky on the AVX-512 validation machine** — 2 failures in 3
-  back-to-back runs on the v2.2.0 run (1.5x, 2026-08-16) and 1.44x on the
-  v2.3.0 run (2026-08-20), both against a 1.8x adaptive threshold at
-  5000 elements. Pre-existing: nothing in v2.2.0 or v2.3.0 touches uniform
-  or the dispatch thresholds. Same class as the Poisson assertion that v2.2.0
-  excluded from the AVX-512 workflow, and it is `timing`-labelled so CI
-  never runs it. Not yet filed — worth an issue that either widens the
-  margin for cheap-PDF distributions or drops the assertion, since a gate
-  that fails two thirds of the time on the reference machine is not
-  measuring what it claims.
-- AGENTS.md context trim, done — with two items declined on inspection.
-  Raised by the 2026-09-07 fleet-wide AGENTS.md audit (durable vs
-  on-demand context). AGENTS.md is imported eagerly by CLAUDE.md, so all
-  of it is paid in every session in this repo; docs/ costs nothing until
-  read. Sizes measured, line numbers current as of that date.
-  - [DONE 2026-09-07] `### CMake standard` — the navigation detail (where the
-    threading and compiler-flag logic lives, how `libstats_apply_warnings` is
-    applied, the GTest warning exemption) and the #97 export incident moved to
-    `docs/BUILD_SYSTEM_GUIDE.md`. 814 B moved, 600 B net after pointers — not
-    the ~1,500 B estimated. The guarded-FORCE gotcha stayed: an unguarded
-    `set(... CACHE STRING)` is a *silent* no-op, so it is a trap, not a
-    signpost. The grandfathered `Dev`/`Strict` build types and the
-    `release` -> `build-release/` preset divergence stayed too — stating
-    deviations is the point of the section.
-  - [DECLINED 2026-09-07] the ~1,200 B "duplicating CMAKE-HOUSE-STYLE.md".
-    The config-header rule is restated locally on purpose: it is short, it is
-    what #97 violated, and §7 is one click away for the rest. The genuinely
-    duplicated part is cross-repo — libhmm states the same rule near-verbatim
-    — so the fix belongs in the standards repo, not here. Left open above.
-  - [DECLINED 2026-09-07] the #97 regression-guard block (AGENTS.md ~244-262).
-    Re-read rather than moved: it is a rule ("a guard must be shown to fail
-    against the unfixed state, on the platform it targets") plus the two ways
-    a guard is structurally unable to fail — passing either side of the bug,
-    and never running under `-LE "timing|benchmark"`. The #97 specifics are
-    what make those checkable; behind a link it degrades to "make assertions
-    two-sided". Steering, not narrative. Keep it in AGENTS.md.
-  - Kept deliberately: the fleet/SIMD table. Which machine validates which SIMD
-    path is what this repo's validation strategy turns on.
-
-- [2026-09-07] **RESOLVED 2026-09-28 (Next Steps 5): all three deleted as
-  superseded.** Original entry: three stale local branches survive on the M1,
-  unreconciled; do not run `clean_gone` here until they are. A branch sweep that day cut
-  15 local branches to 4: nine were merged into `main` (plain `-d`), and two
-  more — `fix/benchmark-simd-headers-docs`, `fix/windows-portable-and-sync-docs`
-  — were squash-merged, which leaves them non-ancestors of `main` even though
-  `git cherry` marks their commits `-` (content present). Both were force-
-  deleted only after that check. The remaining three each hold at least one
-  commit `git cherry` marks `+`, absent from `main` by content:
-  - `fix/v1.5.3` — tip `4470429` ("v1.5.3 — bugfixes, deprecation sweep,
-    VonMises pass, CI/docs hygiene"). Notably **not reachable from any tag**,
-    including `v1.5.3` and `v1.5.3_1`, so the branch sits ahead of its own
-    release tag.
-  - `windows-support` — `4d4e847` (cross-platform/Windows, UTF-8 and platform
-    fixes) and `0207f75` (work_stealing_pool bug under `_WIN32_WINNT=0x0600`).
-    `main` does carry a `_WIN32_WINNT >= 0x0600` guard in
-    `platform/parallel_execution.h`, so the fix may have landed in another
-    form, but the commits are not equivalent.
-  - `simd-architecture-repair` — `d8a3509` ("Remove debug output from SIMD
-    implementations"), 2 ahead / 500 behind, last touched 2025-09-04.
-  All three are `GONE` on the remote, so `clean_gone` — or any routine stale-
-  branch sweep — would delete exactly the three that were deliberately kept.
-  **Scope: this hazard is M1-ONLY** (clarified 2026-09-13). The three branches
-  and the exported patch exist on that machine and nowhere else; the Kaby Lake
-  and Ryzen checkouts carry no kept-on-purpose branches, so the block below
-  does not apply to them. Confirmed on the Kaby Lake box 2026-09-13: its only
-  `[gone]` branch was `dev/v2.4.0` (tip `c7d9fe8`), verified individually —
-  0 commits ahead of `main`, `git cherry` zero `+` — and deleted, its content
-  having shipped in v2.4.0 via PR #147 (`c3d27e2`). Restore with
-  `git branch dev/v2.4.0 c7d9fe8` if ever needed.
-  Two stashes were dropped the same day; the `simd-architecture-repair` one
-  (an 860-line `src/simd_neon.cpp` against today's 932, plus committed
-  `debug_erf` binaries since untracked) was exported first to
-  `~/Development/libstats-stash-simd-architecture-repair-2026-04-09.patch`
-  — 73 KB, 5 files, and the **only copy, outside any repo**.
-  Expectation: most or all of this is OBE after the v2.3.0-and-later work, and
-  the reconciliation likely ends in three deletions. That has not been shown
-  yet, which is the whole point of the entry.
+- The `exp_max` clamp sits ~30 ULP below the true overflow threshold, so
+  in that one-double window the kernels return `exp(exp_max)` where
+  `std::exp` is still finite. A deliberate margin; left as is.
+- von Mises circular variance (#93 residual): forming the complement
+  1 − A costs about 2κ × A's ULP error near the κ = 50 cut. That is close
+  to intrinsic in double, and corvus does not remove it: its exports
+  return doubles. Only a double-double complement export would.
+- The past-INT_MAX CDF guard tolerance (2e-4) comes from `beta_i`'s
+  lgamma floor. Tighten it when the v2.5.0 incomplete-beta core lands.
+- On Z, `core.symlinks` is false, so `.agents/skills` is a 17-byte text
+  file. Claude is unaffected (it reads `.claude/skills/`). Fixing it needs
+  Developer Mode and `core.symlinks=true` [user].
+- The pinned clang-format is 20.1.8; the cached pre-commit environment on
+  Z has 19.1.7, and CI only reports format (clang-format-17, `|| true`).
+  Older drift remains in `fisher_f.cpp` and `beta.cpp`.
 
 ## Cross-Repo Dependencies [OPEN]
-pylibstats consumes this repo two ways — a `find_package` version floor and
-a `FetchContent` `GIT_TAG`, both in `pylibstats/CMakeLists.txt`. **That file
-is the single source of truth and the version is deliberately not restated
-here**; pylibstats' own `pin-currency` CI canary fails if the floor and tag
-disagree with each other or fall behind libstats' newest release.
+- **pylibstats** pins this repo by a `find_package` floor and a
+  FetchContent `GIT_TAG` in `pylibstats/CMakeLists.txt`, which is the
+  only source of the version; its pin-currency canary fails when it falls
+  behind. Before a release or an API break, check that pin and coordinate
+  the bump. It is at v2.4.1 (pylibstats 0.7.1, PR #22); v2.4.2 is owed
+  after R7.
+- **corvus dependency cost to the wheels** [priced 2026-09-17; full
+  record: `git show f508b12:PLAN.md`, Cross-Repo]. Open, for the v2.5.0
+  swap PR:
+  - libstats find-or-fetches corvus pinned at v1.0.1;
+  - install is supported only with a system corvus;
+  - corvus stays out of installed headers (move the `bessel.h`
+    wrappers into a TU);
+  - `find_dependency(corvus)`;
+  - THIRD_PARTY_NOTICES (corvus MIT, Highway Apache-2.0);
+  - a corvus pin canary.
 
-The invariant this repo owns: before cutting a release or making a breaking
-API change, check pylibstats' pin and coordinate the bump.
-
-[OPEN] **corvus adoption is decided and staged as v2.5.0** (milestone #6;
-the decision record is `corvus/PLAN.md`, the staging rationale and
-prerequisites are in GitHub Milestones above; the spike is in the Resolved
-log). Of the four v2.3.0 issues it once governed: #49 shipped in v2.3.0 by
-hand (bcbd570, 30745b8) — the defect was the formulation, not erf precision,
-so adoption never touched it; #51 shipped in v2.3.0 via Miller recurrence
-with no Bessel evaluated; #47 and #52 are parked in v2.5.0 and get re-scoped
-against the cores' real accuracy with #113's correction in hand (#113
-itself moved into v2.5.0 on 2026-08-28 — the corvus cores delete the
-capped iterations, so the adoption release is what closes it). The
-dependency's cost to pylibstats wheels — Highway transitive, NOTICE with
-binaries, `find_dependency(corvus)` — is PRICED below.
-
-[PRICED 2026-09-17] **corvus dependency cost to pylibstats wheels** —
-task 2 of the away-from-fleet plan; replaces the "what stays open here"
-clause above. Chain inside a cibuildwheel build: pylibstats
-`FetchContent(libstats)` → libstats must **find-or-fetch corvus**
-(`find_package(corvus 1.0 CONFIG)` first, FetchContent fallback pinned to
-`v1.0.1`, NOT `v1.0.0` [2026-09-19]: v1.0.1 is a build-system patch that
-adds corvus's configure-time Windows toolchain guard — mingw GCC with
-AVX2+ targets is refused (GCC PR 126741, builds clean then segfaults),
-and real MSVC is deliberately capped at AVX2 with a NOTICE when corvus is
-a subproject. Consequence to carry into the swap: on the Windows/MSVC leg
-corvus dispatches AVX2 even where libstats' own AVX-512 tier is active —
-the spike's bare `find_package(corvus REQUIRED)` is
-wheel-hostile, since manylinux/macOS/Windows cibuildwheel images carry no
-corvus) → corvus find-or-fetches Highway 1.4.0 (its own
-`cmake/FindOrFetchHighway.cmake`). Build-tree targets only, no install
-step, so corvus's "install target disabled when Highway was fetched" rule
-does NOT bite wheels. Mock of the full chain with fetched Highway on Kaby
-Lake (AppleClang 15): LINKS AND RUNS. Mock: shared module → static consumer lib → FetchContent(corvus v1.0.0) → corvus FetchContents Highway 1.4.0 (`-DCMAKE_DISABLE_FIND_PACKAGE_hwy=ON` to hide brew's copy; configure log confirms "fetched Highway 1.4.0 via FetchContent" and "'install' target disabled"). dlopen'd module reports active_target AVX2, erf within 1 ulp of libm, beta_p(2,3,0.5) = 0.6875 exact. Cost scale on the 4-core Kaby Lake: configure 11 s, build 7 min wall for corvus (19 objects, libcorvus.a 4.7 MB) + Highway (39 objects incl. hwy_contrib, which corvus needs for hwy/contrib/math; libhwy.a 71 KB).
-- **Where the install rule DOES bite — libstats' own package.**
-  `libstats-config.cmake.in` owes `find_dependency(corvus CONFIG)` (spike
-  finding: `configure_simd_target` links PRIVATE, so on the static lib
-  corvus lands in `INTERFACE_LINK_LIBRARIES` as `$<LINK_ONLY:>`). That is
-  only valid when corvus came from a package; with a fetched corvus the
-  export references a target outside the export set — the exact breakage
-  corvus guards against. Adopt corvus's rule: libstats `install` is
-  supported only with a system corvus (and therefore a system Highway).
-  Homebrew-style consumers install corvus first. Decide in the swap PR;
-  the wheel path is unaffected either way.
-- **Header hygiene (recommend, decide in the swap PR):** corvus must not
-  appear in any INSTALLED libstats header. `bessel.h`'s inline functions
-  are installed, and the spike put corvus calls there. Move the wrappers
-  into a TU so corvus is a PRIVATE link dependency: static consumers get
-  `$<LINK_ONLY:corvus::corvus>` (find_dependency still required), shared
-  consumers need nothing, and no consumer compiles corvus or Highway
-  headers — C++20-span and Highway never leak. This is also the finish of
-  #97's lesson: no tier-switched code in installed headers.
-- **PIC on Linux:** libstats adds `-fPIC` via `add_compile_options`
-  (CMakeLists:163) at directory scope, so a corvus fetched below that line
-  inherits it; corvus sets `POSITION_INDEPENDENT_CODE ON` on itself;
-  Highway: Highway's own CMakeLists sets `POSITION_INDEPENDENT_CODE ON` on the `hwy` target (line 546 of the 1.4.0 source) and `-fPIC` is present in the compile line of every Highway object in the mock — not inherited from a platform default. No PIC risk on Linux.
-- **Windows wheels — two real costs, one OPEN decision.** cibuildwheel
-  builds with MSVC. (a) Highway lists every AVX3* target as broken under
-  MSVC, so corvus's kernels top out at AVX2 in Windows wheels while
-  libstats' own AVX-512 kernels still dispatch — a mixed-tier binary.
-  Accuracy is unaffected (bounds are per tier and cell-identical);
-  throughput of the corvus families on Zen 4 Windows users is. (b) Build
-  budget: the Windows wheel job runs 19 min today under
-  `timeout-minutes: 30`; corvus's own MSVC CI job is 11 min. The job
-  would breach its timeout. Options: (1) raise the timeout and accept the
-  AVX2 cap — zero-risk, one line; (2) build the Windows wheel with
-  clang-cl (`CMAKE_GENERATOR=Ninja`, `CC/CXX=clang-cl`, or `-T ClangCL`)
-  — restores AVX-512 and compiles faster, keeps the MSVC ABI so the
-  nanobind/CPython link is untouched, but it is a toolchain change to a
-  workflow that only runs on tags and needs a `workflow_dispatch` trial
-  before the tag. Decide at the v0.8.0 bump. Record on pylibstats
-  #20.
-- **macOS / Linux wheels:** macOS 11 min today and builds x86_64 + arm64,
-  so corvus compiles twice — corvus's macOS CI job is ~1 min, expect
-  +2–4 min. Linux 7 / 6 min; a plain corvus build is 2–3 min. Both
-  inside budget.
-- **Linux aarch64 — a validation gap, not a build cost.** corvus's NEON
-  tier was validated on Apple silicon with AppleClang only. The manylinux
-  aarch64 wheel ships corvus NEON compiled by GCC 14 — a compiler × ISA
-  cell corvus has never run. Cheapest closure is an `ubuntu-24.04-arm` leg
-  in corvus `ci.yml` (runner minutes — weigh per the CI economics rule);
-  flagged to corvus v1.1.0 rather than decided here.
-- **License / NOTICE.** Wheels will bundle Highway object code, so the
-  Apache-2.0 §4 obligations corvus's NOTICE describes attach to the wheel
-  for the first time: ship corvus's NOTICE text and the Apache-2.0 license
-  text inside the wheel, and state MIT + Apache-2.0 (Highway) in the PyPI
-  metadata (corvus RELEASING.md "per-channel metadata"; pyproject today:
-  `license = { text = "MIT" }`). Mechanism: scikit-build-core 0.12's default `wheel.license-files` glob is `["LICEN[CS]E*", "COPYING*", "NOTICE*", "AUTHORS*"]`, so a root `NOTICE` plus a root `LICENSE-Apache-2.0` ship in the wheel with no config change. Pre-existing gap found while checking: **pylibstats tracks no LICENSE file at all** (pylibhmm likewise) — the MIT metadata has never been backed by license text in the wheel or sdist; add `LICENSE` in the same change. libstats
-  side: THIRD_PARTY_NOTICES.md gains corvus (MIT) and Highway (Apache-2.0,
-  elected) entries; libstats ships no binaries, so attribution is its only
-  obligation. The "Zero external dependencies" line in AGENTS.md and README
-  changes — write the sentence deliberately.
-- **Pins and canaries.** Three pins in a chain: pylibstats → libstats
-  (canary exists), libstats → corvus (new: floor + GIT_TAG, wants the same
-  pin-currency canary), corvus → Highway (bump only with a revalidation
-  pass, corvus's rule). sdist users already fetch libstats at build time;
-  this adds one fetch.
-- **Bottom line for the pylibstats v0.8.0 (MINOR) bump:** pyproject
-  license metadata + NOTICE inclusion; the Windows decision above; no
-  CMakeLists change beyond the pin bump — the chain is transparent through
-  FetchContent. Dev machines that satisfy `find_package(libstats)` from an
-  installed libstats will need corvus and Highway installed too;
-  `find_dependency` resolves them once they are.
-
-corvus filed **#37** (its v1.1.0) against this repo's fleet data — x86
-`vector_erf` ~5x slower per element than the NEON one, the root cause of a
-HalfNormal-CDF dispatch divergence — asking whether the gap is ours or
-generic x86. **Resolved 2026-09-13: the premise does not hold.** The ~5x
-was never measured — it is an inference in a kNeon code comment, its x86
-side back-derived from dispatch ratios on a 2017 Kaby Lake, its NEON side
-the one real measurement (M1, 2.2 ns/elem), with Zen 4 absent. Corvus's
-erf on the same two machines shows 3.35x from hardware generation alone,
-and the two kernels are different algorithms besides. What survives is a
-possible ~1.5x same-machine x86 gap, to be settled inside the adoption
-sweep. Full record in Next Steps 3(a); corvus #37 comment carries the
-same finding.
-
-## Defensive Review 2026-08-21 [DERIVED]
-Between-milestone review of v2.3.0 (metrics, architecture, numerical,
-type/input safety; every finding adversarially verified against the shipped
-`stats_static.lib` — 63 findings, 4 refuted, 15 downgraded). Ledger in the
-session artifact; the issues carry the detail.
-- **Landed at HEAD:** two small behaviour changes — Gaussian's standard-normal
-  fast path now requires exactly (0, 1) rather than a 1e-8 band (a 2e-9
-  discontinuity in cdf(0); regression test shown to fail first), and the SSE2
-  `vector_log` scalar tail is plain `std::log` like the other tiers (it mapped
-  NaN/negatives to −inf by lane position). Test/tooling: trig ULP-gate specials
-  lead with ±inf/NaN so the 4/8-wide tiers evaluate them in-vector; an
-  in-place aliasing test for the dispatched trig entry points; `accuracy_sweep`
-  puts its specials first (this is how LogNormal's batch cdf(NaN) = 1 escaped
-  #102); the Gaussian/LogNormal CDF generators invert deep-tail targets by a
-  root solve (the 1e-320/1e-300/1e-100 rows now exist); `run_tests` /
-  `run_tests_timing` / `run_all_tests` pass `-C $<CONFIG>` (on the VS
-  generator the timing target ran zero tests and exited 0, and `run_tests`
-  ran the timing suite it excludes); the accuracy gates join `run_all_tests`.
-  Doc/contract: no-aliasing stated for the batch overloads (AGENTS.md, batch
-  guide); the three SIMD conventions moved here → AGENTS.md; test counts
-  53/77; object libraries are groupings, not a chain; Cauchy is a PDF/LogPDF-
-  only delegate with STALE-marked CDF thresholds; vcpkg optional; Windows
-  toolchain text version-generic.
-- **Ranking for triage:** #105 (vector_log NaN → finite plausible values
-  through the public batch API), #116 (quantile returns 0), #106 (CDF 0 where
-  truth is 1 across the seam at κ > 1000 — reachable from `fit()`), #112
-  (decide the aliasing contract centrally), #115, #113 (correct the accuracy
-  premise before #47/#52 are scoped), the #104 Cauchy split form. The
-  libhmm-shaped answer is a v2.3.1 patch milestone for #105/#106/#116/#104.
-- **Held up, recorded so nobody re-reviews it:** every batch overload throws
-  on a size mismatch (57/57); every validator rejects every non-finite
-  parameter (66/66); all x86 `vector_log`s have the 2^54 subnormal prescale;
-  the −0 sign blend is on all five tiers with signbit asserted; the #95
-  exact-product lemma holds for parts 0–2 (part 3 rounds at ≤ 2^-124, below
-  the error floor); the NEON compensated sequences (#84) are still safe by
-  construction and no x86 TU carries one; all four v2.3.0 gates have
-  fail-first records; `LIBSTATS_MAX_SIMD_TIER`, the dispatch table, the
-  install tree and `libstats.h` are complete; the cppcheck `error` in
-  `NegativeBinomial::trySetParameters` is a false positive (both arguments
-  are validated before the throwing call).
-- **Corrections to the record:** `docs/ACCURACY_CHARACTERIZATION.md`'s
-  "large-parameter CDF → corvus" rows reproduce from the iteration caps, not
-  the incomplete-gamma/beta cores (#113) — the corvus adoption decision stands
-  on provenance grounds, its accuracy premise does not; the #46 sweep's
-  victim list for #102 is structurally incomplete (specials in the scalar
-  tail); the von Mises fallback error is ≈ 0.04/κ, not O(1/κ²).
-
-## Next Steps
-1. ~~Close out v2.3.1~~ **DONE 2026-08-28** — tag/release/milestone/pin
-   2026-08-25, follow-ups filed, Kaby Lake leg 2026-08-26, M1 leg
-   2026-08-27/28. The validation matrix and all three characterization
-   blocks are at v2.3.1.
-2. ~~v2.4.0 is the active work~~ **SHIPPED 2026-09-04** —
-   tag/release/milestone closed (record under In Progress). Remaining
-   from its checklist: pylibstats pin bump to v2.4.0; milestone #8
-   reassessment pass. All corvus-arc prerequisites for v2.5.0 are
-   satisfied: v2.5.0 adoption (now also closing #107/#108/#110/#113)
-   in ONE swap round; the renamed post-adoption patch after it.
-   Contingency: #125/#127 justify an early patch slice if the corvus
-   arc stalls — **EXERCISED 2026-09-19** as v2.4.1 (see In Progress).
-3. ~~At v2.5.0 scoping: re-scope #47/#52 …~~ **DONE 2026-09-17** (Kaby
-   Lake, away-from-fleet session; decisions and measurements on the
-   issues, summary under GitHub Milestones v2.5.0). #47/#52 re-scoped,
-   #113 disposition confirmed, #126 AND #141 absorbed with measured
-   evidence, #136/#137/#138 absorbed on the audit record; full-swap width
-   ratified and five issues re-homed. The swap session on return starts
-   from the call-site inventory and the no-broadcast design point.
-   Also in this prep, the erf-throughput work carried over from corvus #37
-   (deferred here 2026-09-13 rather than run as a standalone session).
-   (a) **DONE 2026-09-13 — provenance established, and it retires the
-   premise.** The `~5x` is a code comment at `dispatch_thresholds.h:226`
-   (kNeon table, written 2026-09-04), not a measurement: the ONLY measured
-   per-element figure in the chain is the M1's `vector_erf` at 2.2 ns/elem.
-   The x86 side was back-derived from HalfNormal-CDF DISPATCH RATIOS
-   (parallel wins on x86, loses on NEON), and both x86 data points are the
-   same physical machine — Kaby Lake i7-7820HQ native AVX2 and capped AVX.
-   Zen 4 is `—` for HalfNormal CDF in the v2.4.0 recalibration table and
-   its kAvx512 row (line 594) carries no mechanism comment, so the fleet's
-   fastest x86 machine never entered the comparison. Against corvus's own
-   erf on those same two machines (Kaby 7.38 ns/el vs M1 2.20 = 3.35x),
-   hardware generation alone reproduces most of the inferred ~5x, leaving
-   a ~1.5x residual that rests on a number nobody measured. Two further
-   facts: libstats' M1 NEON erf (2.2) matches corvus's (2.20), so adoption
-   is throughput-NEUTRAL on NEON and any win is x86-only; and the two
-   sides are DIFFERENT ALGORITHMS — NEON is the ARM glibc `erf_advsimd`
-   769-entry table (clean-room, #67), x86 the musl four-region rational
-   polynomial (THIRD_PARTY_NOTICES.md) — so x86-vs-NEON here was never a
-   statement about ISAs. **There is no established ~5x x86 erf deficit.**
-   (b) RESTATED accordingly: the open question is no longer "is the gap
-   ours or generic x86" but the much smaller "is there a same-machine gap
-   between our musl-polynomial x86 kernel and corvus's, and does the swap
-   close it". Time this repo's x86 `vector_erf` on ONE machine inside the
-   before/after characterization sweep — it needs no separate session, and
-   ~1.5x is the figure to expect, not ~5x.
-   (c) The capped per-tier rows stay genuinely absent — `quiet_bench.sh`
-   runs native targets only, so no SSE4/SSSE3/SSE2 erf throughput exists
-   on any machine. Run it on the Kaby Lake box (proven quiet recipe, 5%
-   gate) only if the adoption sweep actually needs the capped rows.
-   NOT AFFECTED: the dispatch decisions themselves. kNeon's `NEVER` and
-   the x86 thresholds came from measured HalfNormal ratios, not from the
-   erf comparison — it is the prose explaining WHY that was unsound, not
-   the tables.
-3b. ~~Cost out the corvus dependency for pylibstats wheels~~ **DONE
-   2026-09-17** — record under Cross-Repo Dependencies; tracker
-   pylibstats #20. Chain mocked end-to-end with fetched Highway: links
-   and runs. One OPEN decision (Windows wheel: raise timeout + AVX2 cap
-   vs clang-cl) deferred to the v0.8.0 bump; libstats-side items
-   (find-or-fetch corvus, install gated on system corvus, corvus out of
-   installed headers, `find_dependency`, THIRD_PARTY_NOTICES, corvus pin
-   canary) go in the swap PR.
-4. ~~Bump pylibstats' pin to v2.3.0~~ **DONE 2026-08-22** — pylibstats
-   0.6.0 released on the v2.3.0 pin; re-bump at v2.3.1 (step 1).
-
-5. ~~On the M1, reconcile the three surviving stale branches and the
-   exported NEON patch~~ **DONE 2026-09-28** — all three superseded and
-   deleted; the stale-branch-sweep block on the M1 is lifted. Restore with
-   `git branch <name> <sha>` while the reflog holds them.
-   - `fix/v1.5.3` (`4470429`): tree equals the shipped squash `6976469`
-     (tag v1.5.3, PR #39) except an 8-line `avx512-compilation.yml`
-     compiler-matrix edit that `main` has since overtaken.
-   - `windows-support` (`0207f75`, with `4d4e847`): pre-Vista
-     `_WIN32_WINNT` guard around `GetActiveProcessorCount`; `main` calls it
-     unguarded and passes 74/74 under MSVC. The UTF-8 console edits target
-     tools no longer on `main`.
-   - `simd-architecture-repair` (`9f526d9`, unique `d8a3509`): 2025 NEON
-     repair — committed `debug_erf` binaries, a NEON erf its own summary
-     records at 2.5e-2 max error. `main` has vectorised, ULP-gated NEON
-     exp/log/erf.
-   - The stash patch (same 2025 NEON work, 5 files) moved out of
-     `~/Development` to `~/Archive/` on the M1; nothing folded in.
-6. **Return from travel 2026-09-28 — the fleet is available again.**
-   Cross-repo task order and machine needs:
-   [CORVUS-ADOPTION-WORKPLAN.md](https://github.com/OldCrow/standards/blob/main/records/CORVUS-ADOPTION-WORKPLAN.md).
-   This repo's share, in order:
-   (a) Per-machine catch-up first. The Mac Mini M1 moved from macOS
-   Tahoe 26 to macOS 27 Golden Gate during travel [user]: every M1 record
-   in this file and in `docs/VALIDATION_HISTORY.md` before 2026-09-28 is a Tahoe
-   record. On the M1: check the toolchain, wipe build directories, re-run
-   v2.4.1 correctness natively, do step 5, then update the AGENTS.md
-   fleet table from the measured versions. On the M1: [DONE 2026-09-28]
-   macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), Xcode/CLT 27.0,
-   CMake 4.4.3, Highway 1.4.0; fresh `build-m1-gg/` Release (Ninja)
-   warning-clean, NEON compiler + runtime, `system_inspector` reports
-   NEON, correctness ctest 74/74; step 5 done; fleet table updated.
-   Pre-upgrade `build*/` dirs wiped; `build-m1-gg/` is the fresh build. On Zen 4: [DONE 2026-09-28]
-   pull, fresh VS x64 Release build (MSVC 19.51, CMake 4.4.3,
-   `/arch:AVX512`), v2.4.1 correctness ctest 74/74, `system_inspector`
-   reports AVX-512, no stale Debug CRT.
-   (b) [DONE 2026-09-28] Pre-swap baseline: characterization sweep
-   regenerated at v2.4.1 on all three machines. Zen 4: AVX-512, 32
-   violations; Kaby Lake: AVX2, 32; M1: NEON, 32. The M1 leg separates
-   macOS 27 from corvus: a `5f27ee1` (v2.4.0 NEON banner) sweep rebuilt
-   on macOS 27 differs from `9201eb7` in only the two #125 geometric
-   logpdf rows, so the NEON von Mises `cdf` row that moved against the
-   Tahoe block (scalar max_rel 1.0 → 5.6e23, batch/scalar rel
-   0.029 → 1.0; now identical to both x86 blocks) moved with the OS /
-   toolchain, not the code. Post-swap NEON diffs compare against the
-   `9201eb7` block. Detail in `docs/ACCURACY_CHARACTERIZATION.md`.
-   (c) [OPEN] The v2.5.0 swap itself (milestone #6). UNBLOCKED
-   2026-09-29: the constant-argument design point is decided (Decided,
-   2026-09-29 — block-filled constant spans inside the `vector_*`
-   adapters). Next concrete step: dev branch off `main`, corvus pinned
-   at v1.0.1, starting from the adapter bodies in `math_utils.cpp`.
-   (d) ~~Still outstanding from the v2.4.0 ship checklist: the
-   milestone #8 bucketing pass.~~ DONE 2026-09-29 — see GitHub Milestones,
-   milestone #8. Consequence for sequencing: #146 lands before task 3.
-
-## Resolved log
-One line per closed item; detail lives in `CHANGELOG.md`, `docs/`, and this
-file's git history.
-- 2026-09-04 **v2.4.0 shipped** — PR #147 merged (c3d27e2), tag v2.4.0
-  at e868fc1 (signed), GitHub release published, milestone #2 closed at
-  0 open (#144 → milestone #8, re-measure post-adoption). 27
-  distributions, suite 74, all threshold tables measurement-backed.
-  Detail in CHANGELOG [2.4.0] and the In Progress record.
-- 2026-08-25 **v2.3.1 milestone work merged** — 8 issues (#102, #105, #106,
-  #112, #115, #116, #117, #118) via 5 squash-merged PRs (#120–#124), each
-  with fail-first gates; suite 53 → 58; five-agent workstream execution
-  with orchestrator QA, all branches conflict-free; integrated verification
-  58/58 on Zen 4 native + 6063-row sweep at 63 violations (zero
-  regressions). Detail in CHANGELOG [2.3.1] and the PR bodies.
-- 2026-08-21 **corvus adoption spike closed** (`spike/corvus-bessel`, S0–S4
-  run 2026-08-15; staging decision 2026-08-21). Tier 0 `i0`/`i1`/`i0e` behind
-  `LIBSTATS_USE_CORVUS` (OFF): both ABI configs link and pass the full suite,
-  corvus output byte-identical at AVX2 and AVX3_ZEN4. Verdict: ADOPT, BUT NOT
-  FOR BESSEL ALONE (eight scalar call sites, none hot) — the case is the wider
-  surface (#47, #51, #52, erfinv, incomplete gamma/beta). Staged as v2.5.0,
-  milestone #6, three prerequisites on its Milestones entry above. Three
-  adoption-independent defects filed as #92/#93/#94 (closed in v2.2.0).
-  `origin/spike/corvus-bessel` holds the only Tier 0 code (a1c71d6): NOT
-  merged, keep it; main is 44 commits ahead, 3 touching `bessel.h`. Full
-  S1–S4 record: `git show b50cd7d:PLAN.md`, "In Progress".
-- 2026-08-20 **#95 closed** — clean-room quadrant-reduction cos/sin at every
-  SIMD tier (PR #98): max 1 ULP all tiers, per-tier ULP gates + dispatched-entry
-  gate checked in; sin(−0) sign defect caught by the gate, fixed, and filed
-  upstream as libhmm#81. See CHANGELOG [Unreleased].
-- 2026-08-20 **#48 closed** — Cauchy CDF closed-form arctan (scalar + batch
-  autoDispatch), ~2 ULP with a cancellation-free lower-tail branch;
-  mpmath-referenced test the old delegation fails at 2.7e-10. See
-  CHANGELOG [Unreleased].
-- 2026-08-16 **v2.2.0 tagged** — the Bessel set (#92 log I0 continuity, #93
-  circular variance, #96 complement-series coefficients, #97 installed
-  export dropping the tier), the #90 export fix, #94's Ninja unbreak, and
-  the build-stack standardization. Numbered 2.2.0 rather than 2.1.1 because
-  the CMake floor, install paths and installed header set all changed; see
-  Status. Milestone #1 closed with 5 issues, its 7 open ones moved to the
-  new v2.3.0. See CHANGELOG [2.2.0].
-- 2026-08-15 **#90 closed** — `detect_threading_systems()` and
-  `detect_tbb_unified()` returned early on a cached completion flag, but
-  **cache variables persist across configure passes and imported targets do
-  not**. Any reconfigure of an existing build dir therefore left
-  `Threads::Threads` undefined, the consuming `if(TARGET ...)` went quiet
-  instead of failing, and the PUBLIC link — which is exactly what
-  `install(EXPORT)` writes into `libstats-targets.cmake` — vanished. Same
-  commit, same prefix, different installed package. Fixed by hoisting the
-  `find_package()` calls above each guard; everything below stays put, being
-  cache-setting and status output that correctly runs once. TBB was exposed
-  the same way and worse (neither the target nor the pkg-config
-  PARENT_SCOPE vars nor the directory-scope paths are cached, while
-  `LIBSTATS_HAS_TBB` is — so a pass could believe TBB was available and link
-  nothing). Both consuming sites now fail loudly rather than silently.
-  Guarded by a new configure-only CI job that configures, captures the
-  generated export, reconfigures, captures again, and diffs — Linux leg,
-  since macOS hides pthreads in libSystem and Windows never takes the path.
-  Every other job configures exactly once and was blind to this class.
-- 2026-08-16 **#84 closed — NO EXPOSURE**, reversing the 2026-08-15 verdict
-  recorded on the issue and here. That pass inventoried *where* the compensated
-  sequences are and then declared exposure without checking whether any of them
-  contains an operation a compiler could actually contract. None does.
-  Contraction needs a ROUNDED multiply adjacent to an add; all three sites fail
-  that test, for two different reasons.
-  - sin/cos reduction and erf's final add: every multiply is already inside an
-    explicit `vfmsq_f64`/`vfmaq_f64`, including the error-recovery step itself.
-    The only unfused ops have no multiply beside them, and a multiply feeding an
-    FMA's *product* operand cannot be folded further. erf is arguably not the
-    hazard class at all — `E`/`El` compensate a tabulated constant's
-    representation error, not an operation's rounding, exactly the distinction
-    libhmm #70 drew for its Cody-Waite splits.
-  - log's Fast2Sum is the one genuine rounded-multiply-into-add, and its product
-    is **exact**: `kLogNeonLn2Hi` carries 42 significant bits and `|ed| ≤ 1074`
-    needs 11, so 53 total. Verified over the rationals, not assumed — exact for
-    every e in [−2954, 2954]. Fusing skips a rounding that never happens.
-  - Policy: `-ffp-contract=off` **withdrawn**. It would cost FMA throughout the
-    NEON kernels, where fusion is deliberate and accuracy-positive, to defend
-    against something provably inert.
-  - Same conclusion as libhmm #70 by a different route, and worth keeping the
-    distinction: libhmm has ZERO instances of the hazard class, so nothing can
-    break. libstats has three real compensated sequences that are safe because
-    of how they were WRITTEN — a stronger property and a more fragile one, since
-    it lives in the source rather than the build. Hence the contraction-proofing
-    rule now in AGENTS.md.
-  - Also dissolves the M1 dependency the earlier write-up recorded: no kernel
-    change means no ULP re-measurement, so nothing here waits on hardware.
-- 2026-08-16 **#97 closed** — `LIBSTATS_HAS_CXX17_BESSEL` never reached
-  consumers, because it sat on `libstats_simd_interface` and the exported
-  library targets reference that as `$<LINK_ONLY:...>`, which propagates the
-  link and strips usage requirements. Consumers therefore compiled Tier 2 on
-  every platform (not just macOS, as #47 assumes) and, since the helpers are
-  `inline` in an installed header while the library's TUs compiled Tier 1, it
-  was also an ODR violation. Fixed by moving the probe result into a generated
-  `libstats_config.h`, reusing the mechanism this repo already had for
-  `libstats_version.h`. Measured on MSVC against a clean install tree: a
-  `find_package` consumer goes from Tier 2 at 1.3e-08 relative on
-  `bessel_i0(10)` to Tier 1 at 1.5e-16.
-  - **A second defect had to be fixed in the same change**, or #97 would have
-    promoted it from latent to fatal. Tier 1 called `std::cyl_bessel_i` raw
-    while Tier 2 folded through `std::fabs`, so the tiers disagreed across the
-    whole negative axis — and `std::cyl_bessel_i`'s domain is x ≥ 0, which
-    libstdc++ enforces by throwing `std::domain_error` through these `noexcept`
-    frames, i.e. `std::terminate`. MSVC does not throw, which is why Windows
-    never saw it. Tier 1 now takes `|x|` and restores the symmetry itself.
-    Found by watching libhmm's CI fail on exactly this after its own #75 fix
-    let its tests reach Tier 1 for the first time.
-  - **Two guards that could not fail, both mine, both caught late.** The
-    lesson is now in AGENTS.md → CI/Validation → Test Labels. First, a
-    one-sided assertion ("Tier 2 is within 1.6e-7") passes on a Tier 1 build
-    too; the shipped canary is two-sided, deciding from
-    `__cpp_lib_math_special_functions` and requiring libstats to agree.
-    Second — and this survived a full green CI run — the guard was appended to
-    a `timing`-labelled binary, and CI's correctness run is
-    `-LE "timing|benchmark"`, so it executed on no runner. It now lives in an
-    unlabelled `tests/test_bessel_tier.cpp`. Confirmed running as Test #58 on
-    gcc-14 and AppleClang, test count 48 → 49.
-- 2026-08-16 **#96 closed** — #93's complement series had c8, c9 and c10
-  wrong, c10 by 0.199. Report verified independently before acting, by two
-  routes: exact rational series division of the two Hankel expansions
-  (A&S 9.7.1, ν = 0 and ν = 1, prefactor cancelling) reproduces c1–c7 and
-  yields c8 = 375733/32768, c9 = 23797/512, c10 = 55384775/262144; a dps-220
-  extraction peeling the exact low terms off the true 1 − I₁/I₀ converges on
-  the same c10 from κ = 1e12 to 1e16.
-  **Method lesson, which outlives the constants**: Vandermonde solves are
-  ill-conditioned and degrade at HIGH order while staying exact at low order,
-  so #93's stated validation — the low orders coming out dyadic — confirmed
-  exactly the half a bad solve gets right. Raising precision moved the answer
-  without fixing it, the other tell. Every coefficient here is an exact
-  rational, so derive by series division and the question stops existing.
-  **Impact was ~1.2 ULP at the κ = 50 cut against a ~110 ULP total**, because
-  above the cut the series error is dominated by truncation rather than by the
-  terms carried — the header now says so explicitly, since a re-measurement
-  would otherwise suggest the fix achieved nothing. It earns its place in the
-  other direction: the same error is ~91 ULP at κ = 30, so lowering the cut or
-  extending the series would have hit it. That is how libhmm found it, at 17
-  terms cutting at 30 (OldCrow/libhmm#73).
-  Cut re-derived from the compiled header against mpmath and unchanged: worst
-  over κ ∈ [30, 90] is 128.6 ULP at 50, versus 320 at 45 and 200.7 at 55. The
-  ACCURACY.md claim stands as written; both von Mises test binaries pass.
-- 2026-08-15 **#92 closed** — Tier 1's log I₀ asymptotic carried only two
-  terms, truncating at O(x⁻³). The shipped c₁ = 1/8 and c₂ = 9/128 match the
-  exact c_k = ((2k−1)!!)²/(k! 8^k), so the FORM was right and only the length
-  was wrong; c₃ = 225/3072 evaluates to 0.0732/700³ = 2.13e-10, exactly the
-  observed step. Extended to five terms: seam goes 0.4 → 1881 ULP down to
-  0.4 → 0.8, discontinuity 2.139e-10 → 1.376e-13 (~1.2 ULP of the result,
-  i.e. rounding). Five not four because at four the asymptotic is 0.009 ULP
-  but the seam is already floored by the direct path's own error — five puts
-  the asymptotic below it so it is never the limiting side. Also replaced
-  `M_PI` with a local `kTwoPi` (numerically identical — doubling is exact),
-  making the header self-contained instead of depending on the build's
-  global `_USE_MATH_DEFINES`.
-- 2026-08-15 **#93 closed, with a documented residual.** Computing A(κ)
-  better cannot fix the circular variance: A → 1 − 1/(2κ), so forming 1 − A
-  in double discards ~log₂(2κ) bits regardless of A's accuracy. The
-  complement needs its own route — and symmetrically A does too, since
-  1 − complement cancels as κ → 0. Added `bessel_i1_i0_complement` and
-  `bessel_i1_over_i0`, each direct in its own regime, split at
-  `kBesselRatioAsymptoticCut = 50`. Coefficients derived by Vandermonde
-  solve against mpmath at dps 220, not quoted: the low orders come out
-  exactly dyadic (1/2, 1/8, 1/8, 25/128, 13/32, 1073/1024), which is what
-  validates the solve — a first pass at dps 60 gave c₁₀ = 213.72 where the
-  truth is 211.47. The κ ≈ 713 overflow NaN is fixed as a side effect, since
-  every κ in that region now takes the series branch and never evaluates
-  either Bessel function. Applied at all three i1/i0 sites: `getEntropy()`
-  and the MLE fit loop carried the identical latent NaN. Measured: complement
-  ≤ 110 ULP at the crossover, sub-ULP for κ ≳ 80 and κ ≲ 20; ratio ≤ 1.23
-  ULP; no NaN at 700/712/713/714. **RESIDUAL, and it is close to intrinsic:**
-  the complement error is ≈ 2κ × (A's error in ULP), and A is already ~1.3
-  ULP here, so even a correctly-rounded A leaves a floor near κ ULP at the
-  cut. More series terms make it worse below the cut (asymptotic, diverges —
-  ten terms give 1050 ULP at κ = 40). Closing that band needs extended
-  precision inside the complement itself, which this library has no layer
-  for. NOTE this is NOT remediated by adopting corvus: its exports return
-  doubles, so the cancelling subtraction still happens here, and its A is the
-  same ~1 ULP. It would take a corvus export that forms the complement in
-  double-double internally — which does not exist and would need an unfreeze
-  plus a full family pipeline. Recorded as a corvus candidate, not an
-  adoption benefit.
-- 2026-08-15 **#94 closed, and it was hiding a bigger bug.** The reported
-  defect was real — a literal `$` in `run_tests`' ctest regex invalidated the
-  whole `build.ninja`, so `-G Ninja` could not configure on any platform.
-  Fixing it surfaced that **both filters on that target had never worked**:
-  `-LE "timing\|benchmark"` and the `-E` list used backslash-escaped pipes,
-  and in a CMake regex `\|` is an escaped LITERAL pipe, so each matched only
-  the literal text `timing|benchmark`. Measured with `ctest -N`: the target
-  selected **72 tests — the entire suite — where it describes 41**, i.e. it
-  ran every timing and benchmark test despite its own comment. Fix: plain
-  pipes, plus `LABELS "benchmark"` on `test_benchmark` so the `$` anchor is
-  no longer needed at all (it was load-bearing — `test_benchmark_basic` is a
-  correctness test and must stay). Verified: Ninja configures, `build.ninja`
-  parses (203 targets), filter now selects 41/72, and the
-  benchmark-vs-benchmark_basic distinction is preserved. Guarded the same day
-  by a `ninja-generator` CI job: configure with `-G Ninja`, then
-  `ninja -t targets` and `ninja -n`. It compiles NOTHING on purpose —
-  configure alone does not catch this class (#94 configured cleanly and only
-  failed when ninja parsed the result), so forcing a parse plus a graph
-  resolution covers it exactly, in seconds. Negative-controlled against the
-  pre-fix build tree: `ninja -t targets` exits 1 there with the original
-  `bad $-escape`, exits 0 on the fixed tree. NOTE the job must keep tests
-  ENABLED — `run_tests` lives in tests/CMakeLists.txt, so a tests-off
-  configure would omit the target carrying the hazard and the guard would
-  pass while guarding nothing.
-- 2026-07-26 #83 include restructure: `include/` → `include/libstats/`,
-  shim machinery deleted; install tree byte-identical, 135/135 TUs show
-  only the predicted include-dir change, 49/49 tests + both consumers pass.
-- 2026-07-24 CI lint hardening: zizmor gated on medium+ severity, latent
-  shellcheck findings cleared, `lint-workflows` job green.
-- 2026-07-21/23 Build-stack standardization Phases 0–4 (cross-repo effort in
-  the fleet standards repo:
-  [record](https://github.com/OldCrow/standards/blob/main/records/BUILD-STANDARDIZATION-PLAN.md),
-  [house style](https://github.com/OldCrow/standards/blob/main/CMAKE-HOUSE-STYLE.md)):
-  TBB block dedup, GNUInstallDirs install contract
-  + installed-package CI smoke test, CMakePresets.json and CMake minimum
-  3.25, `cmake/Threading.cmake` + `cmake/CompilerFlags.cmake` extraction,
-  tests/tools subdirectory CMakeLists, per-target `libstats_apply_warnings()`,
-  dead flag-variable cleanup, SIMD flag application split out of
-  SIMDDetection.cmake. AGENTS.md's CMake-standard section describes the
-  post-Phase-3 structure.
-- 2026-07-21 CI matrix reshaped: a Strict `-Werror` gate replaces the
-  Debug/Release matrix bloat; Strict/Sanitizers/AVX-512 build parallelism
-  bounded against runner OOM; four Strict-mode source casts landed with no
-  behavior change.
-- 2026-07-21 Repo returned to public. The "recent account payments have
-  failed" Actions failures were metered minutes during the private
-  containment window, not a billing misconfiguration. The Documentation
-  workflow's "Get Pages site failed" was Pages never having been enabled;
-  fixed via the API with `build_type: workflow`, deployed to
-  https://oldcrow.github.io/libstats/.
-- 2026-07-20 **v2.1.0 tagged** — clean-room NEON erf/exp/log/cos, x86
-  exp/log subnormal fixes, AVX-512 roundscale parity, the Windows tier-cap
-  link fix, and the stale `vector_erfc` stub removal. See CHANGELOG [2.1.0].
-- 2026-07-20 AVX-512 natively validated on the Asus TUF A16, closing the
-  last unvalidated tier; all four x86 tiers pass natively there. Two fixes
-  found doing it: the Windows/MSVC global `/arch:` block ignored the tier
-  cap (LNK2019 on capped builds, invisible on Unix per-file flags), and
-  `_mm512_roundscale_pd` omitted `_MM_FROUND_NO_EXC` where the other three
-  tiers suppress the precision exception.
-- 2026-07-19 **#74 closed** — `vector_log_sse2` lacked the subnormal 2^54
-  scaling its AVX/AVX2/AVX-512 siblings have, returning log values up to
-  ~35 natural-log-units off. Surfaced by the first-ever native SSE2 run.
-- 2026-07-19 **#67 closed** — `vector_erf_neon` was a near-verbatim port of
-  glibc's LGPL-2.1+ `erf_advsimd.c`. Replaced clean-room; the result is
-  strictly better (max 1 ULP, was ~2.29). Provenance in
-  `docs/NEON_ERF_DERIVATION.md` and `docs/NEON_ERF_DIVERGENCE_AUDIT.md`.
-  Containment: both repos went temporarily private and pylibstats releases
-  ≥0.2.4 were yanked. Tags v1.5.3–v2.0.4 are not amended — forward fix only.
-- 2026-07-19 **#33 closed** — x86 half null on both tiers; NEON exp
-  productionized; NEON log was a perf null whose only upside (2→1 ULP) is
-  logged on #46. See the Decided entry above for the durable conclusion.
-- 2026-07-19 x86 exp underflow and edge-case fixes: clamp lowered to −746
-  with two-step 2^n scaling, plus a branchless post-clamp fixup so `+inf`,
-  `NaN`, and true overflow match `std::exp` instead of collapsing to a
-  finite value.
-- 2026-07-14/19 Branch and stash housekeeping; `backup/wip-sleef-avx2-gather-bench`
-  and `backup/wip-dispatch-thresholds-tuning` deleted after confirming both
-  were superseded by work already on `main`.
+  For pylibstats v0.8.0 (pylibstats #20): the Windows wheel (raise the
+  timeout and accept corvus's AVX2 cap, or clang-cl), NOTICE and
+  Apache-2.0 text in the wheel, and pylibstats' missing LICENSE file. For
+  corvus v1.1.0: Linux aarch64 (GCC) NEON is unvalidated.
+- **libhmm** shares rules and reference kernels: libhmm#103 (`errorf_inv`
+  saturation class), libhmm#108 (Codecov port after #152).
