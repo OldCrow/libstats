@@ -1,0 +1,12 @@
+2026-10-03 23:49:16 load=3.83 batch start tier=AVX build=build-cap-avx runs=1 2 3 sha=d9384f8
+2026-10-03 23:49:16 load=3.83 system_inspector: System: 8 logical cores, AVX SIMD, 8192 KB L3 cache
+2026-10-03 23:49:16 load=3.83 run1 waiting for load < 2.0
+2026-10-03 23:51:16 load=1.99 run1 start
+2026-10-04 00:18:11 load=4.43 run1 end exit=0 rows=    7777
+2026-10-04 00:18:11 load=4.43 run2 waiting for load < 2.0
+2026-10-04 00:20:11 load=1.93 run2 start
+2026-10-04 00:47:00 load=2.91 run2 end exit=0 rows=    7777
+2026-10-04 00:47:00 load=2.91 run3 waiting for load < 2.0
+2026-10-04 00:48:00 load=1.99 run3 start
+2026-10-04 01:14:48 load=4.99 run3 end exit=0 rows=    7777
+2026-10-04 01:14:48 load=4.99 batch DONE

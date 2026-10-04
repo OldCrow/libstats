@@ -1,0 +1,36 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-10-04T03-51-16Z_darwin-x86_64_dev-v2.4.2_sha-d9384f8
+Captured at (UTC): 2026-10-04T03-51-16Z (run 1; runs 2-3 04:20Z and 04:48Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- logs/configure.txt
+- logs/run.txt
+- logs/system_inspector.txt
+- logs/tier.txt
+
+Capture notes:
+- CAPPED-BUILD AVX: Release with LIBSTATS_MAX_SIMD_TIER=AVX
+  (build-cap-avx/, tests off), so runtime dispatch tops out at AVX on
+  Kaby Lake i7-7820HQ silicon, as in the 2026-09-04T23-51-14Z bundle.
+  Read these as "AVX code paths on Kaby Lake".
+- Tier asserted: logs/configure.txt has "capped at AVX ... disabled:
+  AVX2"; logs/tier.txt shows no defined vector_*_avx2 kernels and
+  system_inspector reports AVX.
+- Three quiet `strategy_profile --large -o <csv>` runs, each started at a
+  1-min load below 2.0 (1.93-1.99; logs/run.txt). SUSTAINED V->P rule.
+- Cross-tier comparison: cross_tier_assessment.txt in the AVX2 bundle
+  2026-10-04T02-07-22Z. 7 of the 10 differing kAvx rows moved since
+  2026-09-04, all v2.4.2 effects: Cauchy PDF/LogPDF, StudentT PDF,
+  Exponential/Pareto/Weibull/VonMises CDF; Poisson LogPDF (8192 -> 4096)
+  is borderline. InverseGamma PDF and LogNormal CDF differ from the table
+  in both captures.
+- kAvx is NOT updated from this bundle yet [user, 2026-10-04]; waits for
+  the Zen 4 captures. No correctness run on this capped build.

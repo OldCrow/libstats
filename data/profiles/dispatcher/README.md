@@ -42,6 +42,15 @@ the rule into `threshold_validator`):
 | kAvx | Kaby Lake, `LIBSTATS_MAX_SIMD_TIER=AVX` capped build — first measured kAvx (the 2012 AVX MBP is retired; its June bundles are historical) | `2026-09-04T23-51-14Z_darwin-x86_64_…` |
 | kSse2 | delegates to kAvx by design | — |
 
+## v2.4.2 captures, not yet applied (2026-10-04)
+
+Kaby Lake bundles at `d9384f8`, one per tier: `2026-10-04T02-07-22Z_…`
+(AVX2), `2026-10-04T03-51-16Z_…` (AVX-capped), `2026-10-04T05-16-48Z_…`
+(SSE2-capped, the first measured SSE2 profile). The v2.4.2 accuracy
+fixes moved 12 kAvx2 and 7 kAvx rows; `cross_tier_assessment.txt` in the
+AVX2 bundle has the comparison. The tables above stay as they are until
+the Zen 4 captures of the same tiers are in (PLAN.md, R8).
+
 June bundles remain as the historical record of the pre-repair calibration;
 do not derive new thresholds from them (their parallel timings measured
 secretly-serial paths for the sliced batch families — see #143).

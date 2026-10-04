@@ -7,13 +7,14 @@ carry (shipped releases, closed milestones, the Resolved log, the
 2026-08-21 defensive review, travel-era records, the corvus spike) is in
 `git show f508b12:PLAN.md`.
 
-## Status [DERIVED] — 2026-10-03
+## Status [DERIVED] — 2026-10-04
 **v2.4.2 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
 `d8d3388`; milestone #10 "v2.4.2 — Correctness patch", #157–#172, which
-the release PR closes). All code is in except #162. What remains is the
-runbook below: validation on Kaby Lake and the M1, the quiet-machine
-costs on all three, docs, and the release. Every fix has a gate shown to
-fail on the code before it.
+the release PR closes). All milestone code is in, #162 included
+(`8018c5d`). Kaby Lake is done. What remains is the runbook below: the
+M1's validation, Z's quiet-machine costs, the dispatch-threshold
+captures on Z and M (R8) and the table update they feed, docs, and the
+release. Every fix has a gate shown to fail on the code before it.
 
 Fixed on the branch [DERIVED] — detail in the commit messages:
 - Milestone #157–#161, #163–#167, #170–#172; the FORCE_PARALLEL span
@@ -64,7 +65,9 @@ Status by machine (each machine edits only its own line):
   von Mises quantile 52–136× slower; Gamma α ≥ 20 logpdf 10–15× and
   Student-t 4–9× (scalar fall-backs); discrete quantiles 0.2–0.6×. 20 NEW
   AUTO-vs-best gaps, all favouring PARALLEL at n = 1e3–1e5 (Z: 22); 13 in
-  both versions. Threshold re-derivation: user's decision. K complete.
+  both versions. R8 captures done (2026-10-04, `d9384f8`): AVX2, AVX
+  and SSE2 bundles `data/profiles/dispatcher/2026-10-04T*`, three quiet
+  runs each; findings under R8. K complete.
 - **M:** R1, R2, R3 to do; R4 here or on K.
 
 ### Rules on every machine
@@ -76,9 +79,14 @@ Status by machine (each machine edits only its own line):
 - Quiet runs (R3) alone on the machine: no builds, sweeps or other
   sessions. On K, wait for the load average to fall below 2.0.
 - Performance numbers from Release builds only.
+- On the Macs, run every library binary (tests, tools, sweeps, benches,
+  profiles) outside the Claude Code sandbox: it blocks the
+  `hw.*cachesize` sysctls, so cache sizes read 0 and the cache-derived
+  tuning changes. The sandbox also blocks the SSH agent for `git fetch`.
 
 ### Cold start (K, M)
-1. `git fetch`; `dev/v2.4.2` must be at `f508b12` or later. Work in a
+1. `git fetch`; `dev/v2.4.2` must be at `08b4151` or later (K's
+   AppleClang test fixes `a0a913e` and the #162 fix `8018c5d`). Work in a
    worktree beside the main checkout: `git worktree add
    ../libstats-v2.4.2 dev/v2.4.2`, or `git pull` in it if it exists.
 2. Read `AGENTS.md` and this file. Record the OS, AppleClang and CMake
@@ -121,7 +129,7 @@ Status by machine (each machine edits only its own line):
 5. Commit (user's approval) as `docs(accuracy): regenerate <ISA> block
    at <sha> — 32 → N`, then push.
 
-### R4 — Mac-only gates (K or M, once)
+### R4 — Mac-only gates (done on K, 2026-10-03; M skips R4)
 - **#162** (`gh issue view 162`): the POST_BUILD ad-hoc `codesign`
   fails "is already signed" when a reconfigure re-runs the dylib's
   symlink step without relinking. Reproduce first on head, then fix
@@ -168,9 +176,8 @@ Status by machine (each machine edits only its own line):
 5. Keep the two CSVs and `compare.txt` for R6 under
    `docs/bench-evidence/<date>-<machine>-v242-cost/`; commit with the
    user's approval.
-6. Report section 3 of `compare.txt` (AUTO-vs-best gaps marked NEW). Any
-   re-derivation of `dispatch_thresholds.h` rows (`strategy_profile` on
-   the same machine, then R1 again) is the user's decision. INDICATIVE
+6. Report section 3 of `compare.txt` (AUTO-vs-best gaps marked NEW). The
+   gaps feed R8; do not re-derive thresholds here. INDICATIVE
    smoke run on a busy Z: von Mises quantile 140–320× slower (3–6 µs
    Newton on the quadrature CDF, was a grid); forced VECTORIZED 8–13×
    slower for Gamma α ≥ 20 and Student-t ν ≥ 1e3 (scalar fall-backs); 22
@@ -178,13 +185,63 @@ Status by machine (each machine edits only its own line):
 
 ### R5 — optional capped-tier leg (Z)
 v2.4.0 precedent: a `LIBSTATS_MAX_SIMD_TIER` build, correctness and
-sweep. Before Z's R3.
+sweep. R8 builds the same capped trees on Z; run R5's correctness and
+sweep on them before their profiles if wanted.
 
-### R6 — release docs (after R1–R4 everywhere and R3 everywhere)
+### R8 — dispatch-threshold captures (Z, M) [OPEN]
+Decided [user, 2026-10-03/04]: capture `strategy_profile` for every tier
+natively, compare across machines, and only then update
+`dispatch_thresholds.h`. Capture now; no table edits yet. Z: AVX-512,
+AVX2, AVX, SSE2. M: NEON. K is done.
+
+Why [DERIVED, K bundles `2026-10-04T*`]: the v2.4.2 accuracy fixes
+shrank the VECTORIZED advantage over SCALAR, so PARALLEL now wins sooner
+on these rows. On AVX2 the V/S time ratio went from 0.07–0.12 to
+0.24–0.43 for Student-t pdf/logpdf, Cauchy (which delegates to
+StudentT(1)) and the Exponential/Pareto/Weibull/Rayleigh CDFs, and from
+0.25 to 0.79 for the von Mises CDF. 12 of 81 kAvx2 crossovers moved since
+2026-09-04 (also FisherF ×3 and Poisson logpdf), and 7 of 81 kAvx. A
+mechanical re-derive would change 35 kAvx2 rows, but 23 of those measure
+the same as in September: they are deliberate overrides with per-row
+comments, so keep them unless the comments show them stale. SSE2 differs
+from AVX on 18 rows, nearly all crossing sooner, which argues against
+`sse2_parallel_threshold()` delegating to kAvx. Noise to handle when
+deriving: 12–19 rows per tier spread more than 2× across three runs, and
+crossovers at n = 64 are thin-margin resolution artifacts (the bundle
+README's clamping rule).
+
+Procedure (each tier):
+1. Build Release with tests off; for a capped tier add
+   `-DLIBSTATS_MAX_SIMD_TIER=<AVX2|AVX|SSE2>`. Z: one build directory per
+   tier beside `build/`, `stats.dll` copied beside the tools. Confirm the
+   tier from the configure line ("capped at <tier> ... disabled: ...")
+   and `system_inspector --quick`, and record both.
+2. Three quiet `strategy_profile --large -o strategy_profile_run<i>.csv`
+   runs. Start each only once the machine is quiet (K: 1-min load < 2.0)
+   and log the start load. A run takes ~27 min on K. Z: `strategy_profile`
+   has no warm-up option, so precede each run with ~20 s of load (a
+   discarded short pass) to get past the boost drop (VALIDATION_HISTORY,
+   "Zen 4 frequency scaling"), and record that.
+3. Bundle as K's `2026-10-04T*` bundles do:
+   `data/profiles/dispatcher/<UTC run-1 start>_<platform>_dev-v2.4.2_sha-<sha>/`
+   with `metadata.json`, `manifest.txt` (capture notes), the three CSVs,
+   `analyze_crossovers.py` (copy from a K bundle; paths are relative),
+   `sustained_crossovers.txt` and `logs/*.txt` (`.gitignore` drops
+   `*.log`).
+4. Compare with `cross_tier_assessment.py` from K's AVX2 bundle: copy
+   it, point `NEWD` at your bundles, and for AVX-512 compare against
+   kAvx512. Report rows moved against the table and against K's same
+   tier, and stop there; commit the bundles with the user's approval.
+
+After Z and M [user's decision]: update only the rows v2.4.2 moved in
+each table, decide on a kSse2 table of its own, then R1 again on every
+machine whose table changed.
+
+### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.4.2: `CMakeLists.txt:83`, README (status lines and the
 stale test counts), AGENTS "Current status", PROJECT_CONCEPT. CHANGELOG
-via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs
-and the R4 records. ACCURACY_CHARACTERIZATION: the three generated blocks
+via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs,
+the R4 records and the R8 table update. ACCURACY_CHARACTERIZATION: the three generated blocks
 only. This file.
 
 ### R7 — release

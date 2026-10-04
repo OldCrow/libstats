@@ -1,0 +1,5 @@
+Defined kernel symbols (nm -U) in build-release/libstats.a:
+  vector_*_avx2: 10
+  vector_*_avx: 10
+  vector_*_sse2: 10
+system_inspector: System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
