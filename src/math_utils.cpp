@@ -45,33 +45,56 @@ static double stirling_remainder(double z) noexcept {
 }
 
 // log1p(t) − t without the cancellation of the direct difference near t = 0, where both terms
-// are of size t and the result t²/2: the series −t²/2 + t³/3 − t⁴/4 + … below |t| = ¼, whose terms
-// fall at least fourfold; the direct difference above, which loses at most a few bits there.
+// are of size t and the result t²/2. Below |t| = ¼ it is 2·atanh(s) − t with s = t/(2 + t):
+// 2s − t = −t·s exactly, so log1p(t) − t = −t·s + 2s³·(1/3 + s²/5 + s⁴/7 + …), with no
+// cancellation. |s| ≤ 1/7 there, so the odd series' terms fall at least 49-fold and eleven
+// terms reach s²² < 1e-18 relative: one division and a fixed polynomial, where the t-series
+// summed 10–20 dependent divisions (1.6 against 5.4 ulp worst case, ~4× faster). Above ¼ the
+// direct difference, which loses at most a few bits there.
 static double log1pmx(double t) noexcept {
     if (std::fabs(t) >= 0.25)
         return std::log1p(t) - t;
-    double sum = detail::ZERO_DOUBLE;
-    double power = t * t;  // t^k
-    for (int k = 2; k < 64; ++k) {
-        const double term = (k % 2 == 0 ? -power : power) / k;
-        sum += term;
-        if (std::fabs(term) <= std::numeric_limits<double>::epsilon() * std::fabs(sum))
-            break;
-        power *= t;
-    }
-    return sum;
+    const double s = t / (detail::TWO + t);
+    const double s2 = s * s;
+    // 1/(2k + 1) for k = 11 down to 1, in Horner order.
+    static constexpr double kOddReciprocals[] = {1.0 / 23, 1.0 / 21, 1.0 / 19, 1.0 / 17,
+                                                 1.0 / 15, 1.0 / 13, 1.0 / 11, 1.0 / 9,
+                                                 1.0 / 7,  1.0 / 5,  1.0 / 3};
+    double poly = detail::ZERO_DOUBLE;
+    for (const double c : kOddReciprocals)
+        poly = poly * s2 + c;
+    return -t * s + detail::TWO * s * s2 * poly;
 }
 
 // log of the incomplete-gamma prefactor x^a·e^{−x}/Γ(a) (#166). Formed directly,
 // −x + a·log(x) − lgamma(a) cancels terms of size a·log(x), so its absolute error — the
 // prefactor's relative error — is ~a·log(x)·ε: 6e-11 at a = 5e4. Stirling's series rewrites it as
 // a·(log1p(t) − t) + ½·log(a/2π) − c(a) with t = (x − a)/a, whose error is ~a·|t|·ε (≈ √a·ε near
-// the median).
+// the median). The shape-only part ½·log(a/2π) − c(a) is log_gamma_prefactor_constant(a), which
+// batch callers hoist.
+double log_gamma_prefactor_constant(double a) noexcept {
+    return detail::HALF * (std::log(a) - detail::LN_2PI) - stirling_remainder(a);
+}
+
+double log_gamma_prefactor(double a, double x, double shape_constant) noexcept {
+    return a * log1pmx((x - a) / a) + shape_constant;
+}
+
 double log_gamma_prefactor(double a, double x) noexcept {
     if (a < kStirlingPrefactorShape)
         return -x + a * std::log(x) - lgamma(a);
-    const double t = (x - a) / a;
-    return a * log1pmx(t) + detail::HALF * (std::log(a) - detail::LN_2PI) - stirling_remainder(a);
+    return log_gamma_prefactor(a, x, log_gamma_prefactor_constant(a));
+}
+
+// The constant beta_i's four-argument overload takes: −log B(a, b) in the direct form, and in
+// Stirling's form (both shapes from 20) its shape-only part ½·log(ab / (2π(a + b))) + c(a + b) −
+// c(a) − c(b). Both are symmetric in a and b, as the I_{1−x}(b, a) reflection needs.
+double beta_prefactor_constant(double a, double b) noexcept {
+    if (a < kStirlingPrefactorShape || b < kStirlingPrefactorShape)
+        return -lbeta(a, b);
+    const double sum = a + b;
+    return detail::HALF * (std::log(a) + std::log(b) - std::log(sum) - detail::LN_2PI) +
+           stirling_remainder(sum) - stirling_remainder(a) - stirling_remainder(b);
 }
 
 // log of the incomplete-beta prefactor x^a·(1 − x)^b / B(a, b) (#166), with the same
@@ -80,19 +103,16 @@ double log_gamma_prefactor(double a, double x) noexcept {
 // gives a·(log1p(u) − u) + b·(log1p(v) − v) + ½·log(ab / (2π(a + b))) + c(a + b) − c(a) − c(b),
 // with x₀ = a/(a + b), u = (x − x₀)/x₀ and v = (x₀ − x)/(1 − x₀); the linear terms a·u + b·v
 // cancel exactly, and x₀ is the stationary point, so its rounding enters only at second order.
-// direct_log_inv_beta is lgamma(a + b) − lgamma(a) − lgamma(b), used below the threshold.
-static double log_beta_prefactor(double x, double a, double b,
-                                 double direct_log_inv_beta) noexcept {
+// shape_constant is beta_prefactor_constant(a, b), in whichever form the shapes select.
+static double log_beta_prefactor(double x, double a, double b, double shape_constant) noexcept {
     if (a < kStirlingPrefactorShape || b < kStirlingPrefactorShape)
-        return direct_log_inv_beta + a * std::log(x) + b * std::log(detail::ONE - x);
+        return shape_constant + a * std::log(x) + b * std::log(detail::ONE - x);
     const double sum = a + b;
     const double x0 = a / sum;
     const double one_minus_x0 = b / sum;
     const double u = (x - x0) / x0;
     const double v = (x0 - x) / one_minus_x0;
-    return a * log1pmx(u) + b * log1pmx(v) +
-           detail::HALF * (std::log(a) + std::log(b) - std::log(sum) - detail::LN_2PI) +
-           stirling_remainder(sum) - stirling_remainder(a) - stirling_remainder(b);
+    return a * log1pmx(u) + b * log1pmx(v) + shape_constant;
 }
 
 // Discrete log-pmfs at large counts (#172). Formed directly, k·log λ − λ − lgamma(k + 1) and the
@@ -574,9 +594,7 @@ double beta_i(double x, double a, double b) noexcept {
         return detail::HALF;
 
     // Use continued fraction approximation
-    const bool stirling = a >= kStirlingPrefactorShape && b >= kStirlingPrefactorShape;
-    const double direct_log_inv_beta = stirling ? detail::ZERO_DOUBLE : -lbeta(a, b);
-    double bt = std::exp(log_beta_prefactor(x, a, b, direct_log_inv_beta));
+    double bt = std::exp(log_beta_prefactor(x, a, b, beta_prefactor_constant(a, b)));
 
     if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
         return bt * beta_continued_fraction(x, a, b);
@@ -599,8 +617,8 @@ double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
     if (a == b && x == detail::HALF)
         return detail::HALF;  // by symmetry; see the overload above
 
-    // log_beta_prefix is the caller's precomputed lgamma(a + b) − lgamma(a) − lgamma(b); at large
-    // shape the Stirling form replaces it (#166).
+    // log_beta_prefix is the caller's hoisted beta_prefactor_constant(a, b), in the direct or the
+    // Stirling form as the shapes select (#166).
     double bt = std::exp(log_beta_prefactor(x, a, b, log_beta_prefix));
 
     if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
@@ -1086,8 +1104,8 @@ void vector_beta_i(std::span<const double> x_values, double a, double b,
 
     const std::size_t size = x_values.size();
 
-    // Hoist the lgamma prefix: constant across all elements for fixed (a, b).
-    const double log_prefix = -lbeta(a, b);
+    // Hoist the prefactor constant: fixed across all elements for fixed (a, b).
+    const double log_prefix = beta_prefactor_constant(a, b);
     for (std::size_t i = 0; i < size; ++i) {
         output[i] = beta_i(x_values[i], a, b, log_prefix);
     }
@@ -1298,14 +1316,15 @@ namespace {
 // or 1/u, whichever is below 1, and their logs from log1p, so neither is formed by subtraction:
 // relative-accurate at large ν, where x is within 1/ν of 1, and past |t| ~ 1e154, where t²
 // overflows and x underflows. The continued fraction runs on whichever side converges; the other
-// value is formed from it. log_t_pdf = log(|t|·pdf(t)), which is the prefactor x^a·y^½/B(a, ½).
+// value is formed from it. log_t_pdf = log(|t|·pdf(t)), which is the prefactor x^a·y^½/B(a, ½);
+// lbeta_a_half = lbeta(ν/2, ½), which callers hoist (it is three lgamma calls).
 struct TTails {
     double tail;
     double central;
     double log_t_pdf;
 };
 
-TTails t_tails(double abs_t, double df) noexcept {
+TTails t_tails(double abs_t, double df, double lbeta_a_half) noexcept {
     const double a = detail::HALF * df;
     double x, y, log_x, log_y;
     if (abs_t * abs_t < df) {
@@ -1322,7 +1341,7 @@ TTails t_tails(double abs_t, double df) noexcept {
         log_x = std::log(df) - detail::TWO * std::log(abs_t) + log_y;
     }
     TTails r{};
-    r.log_t_pdf = a * log_x + detail::HALF * log_y - lbeta(a, detail::HALF);
+    r.log_t_pdf = a * log_x + detail::HALF * log_y - lbeta_a_half;
     const double prefactor = std::exp(r.log_t_pdf);
     if (x < (a + detail::ONE) / (a + 2.5)) {
         // BGRAT where the continued fraction is slow (large a, x near 1); its domain follows
@@ -1339,7 +1358,7 @@ TTails t_tails(double abs_t, double df) noexcept {
 }
 }  // namespace
 
-double t_cdf(double t, double df) noexcept {
+double t_cdf(double t, double df, double lbeta_a_half) noexcept {
     // Student's t CDF on the regularized incomplete beta, at every df: the df ≥ 1000 normal
     // shortcut this replaced was 1e-3 relative off in the tail (#159).
     if (std::isnan(t) || std::isnan(df) || df <= detail::ZERO_DOUBLE)
@@ -1348,8 +1367,12 @@ double t_cdf(double t, double df) noexcept {
         return (t > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
     if (t == detail::ZERO_DOUBLE)
         return detail::HALF;
-    const double tail = t_tails(std::fabs(t), df).tail;
+    const double tail = t_tails(std::fabs(t), df, lbeta_a_half).tail;
     return t < detail::ZERO_DOUBLE ? tail : detail::ONE - tail;
+}
+
+double t_cdf(double t, double df) noexcept {
+    return t_cdf(t, df, lbeta(detail::HALF * df, detail::HALF));
 }
 
 // t with t_cdf(t, df) = p (#159), by Newton in s = log|t| on the smaller probability: log of the
@@ -1372,7 +1395,8 @@ double inverse_t_cdf(double p, double df) noexcept {
     const double sign = p < detail::HALF ? -detail::ONE : detail::ONE;
     const double q = p < detail::HALF ? p : detail::ONE - p;  // exact for p ≥ ½
     // The answer exceeds the double range when even |t| = DBL_MAX leaves more than q in the tail.
-    if (t_tails(std::numeric_limits<double>::max(), df).tail >= q)
+    const double lbeta_a_half = lbeta(detail::HALF * df, detail::HALF);
+    if (t_tails(std::numeric_limits<double>::max(), df, lbeta_a_half).tail >= q)
         return sign * std::numeric_limits<double>::infinity();
 
     // |t_q| > |z_q| at every ν: T is a normal scale mixture whose scale has mean below 1, and
@@ -1393,7 +1417,7 @@ double inverse_t_cdf(double p, double df) noexcept {
     const bool central = q > 0.25;
     const double log_target = central ? std::log(detail::ONE - detail::TWO * q) : std::log(q);
     return sign * std::exp(solve_concave(s, lo, hi, central, [&](double ss, double& slope) {
-               const TTails r = t_tails(std::exp(ss), df);
+               const TTails r = t_tails(std::exp(ss), df, lbeta_a_half);
                const double log_mass = central ? std::log(r.central) : std::log(r.tail);
                slope = std::exp(r.log_t_pdf - log_mass) * (central ? detail::TWO : detail::ONE);
                return log_mass - log_target;

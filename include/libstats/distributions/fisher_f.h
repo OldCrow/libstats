@@ -504,7 +504,7 @@ class FDistribution : public DistributionBase {
     mutable double logPdfConst_{detail::ZERO_DOUBLE};
 
     /**
-     * @brief lgamma(a+b) - lgamma(a) - lgamma(b), the prefix accepted by
+     * @brief `detail::beta_prefactor_constant(a, b)`, the prefix accepted by
      * `detail::beta_i`'s four-argument overload. Symmetric in (a,b), so the
      * same value serves both the I_y(a,b) and the I_ybar(b,a) branch.
      */

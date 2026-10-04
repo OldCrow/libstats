@@ -565,8 +565,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
@@ -620,8 +619,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
@@ -672,7 +670,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = -detail::lbeta(a, b);
+            const double log_prefix = detail::beta_prefactor_constant(a, b);
             if (arch::should_use_parallel(count)) {
                 ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                     const double x = vals[i];
@@ -697,7 +695,7 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = -detail::lbeta(a, b);
+            const double log_prefix = detail::beta_prefactor_constant(a, b);
             pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
                 const double x = vals[i];
                 if (x <= 0.0)
@@ -922,7 +920,7 @@ void BetaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* val
     // vectorized without replacing it with a fixed-iteration approximation.
     // Hoist the lgamma prefix: lgamma(a+b) - lgamma(a) - lgamma(b) is constant
     // for fixed (alpha, beta), saving 3 lgamma calls per element.
-    const double log_prefix = -detail::lbeta(alpha, beta);
+    const double log_prefix = detail::beta_prefactor_constant(alpha, beta);
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         if (x <= detail::ZERO_DOUBLE) {

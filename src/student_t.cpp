@@ -575,8 +575,9 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double cached_nu = dist.nu_;
             lock.unlock();
+            const double lbeta_a_half = detail::lbeta(detail::HALF * cached_nu, detail::HALF);
             for (std::size_t i = 0; i < count; ++i) {
-                res[i] = detail::t_cdf(vals[i], cached_nu);
+                res[i] = detail::t_cdf(vals[i], cached_nu, lbeta_a_half);
             }
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -590,8 +591,10 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double cached_nu = dist.nu_;
             lock.unlock();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = detail::t_cdf(vals[i], cached_nu); });
+            const double lbeta_a_half = detail::lbeta(detail::HALF * cached_nu, detail::HALF);
+            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
+                res[i] = detail::t_cdf(vals[i], cached_nu, lbeta_a_half);
+            });
             pool.waitForAll();
         });
 }
@@ -755,8 +758,9 @@ void StudentTDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double*
                                                                    std::size_t count,
                                                                    double nu) const noexcept {
     // Scalar per element. See section 18 header for the explanation.
+    const double lbeta_a_half = detail::lbeta(detail::HALF * nu, detail::HALF);
     for (std::size_t i = 0; i < count; ++i) {
-        results[i] = detail::t_cdf(values[i], nu);
+        results[i] = detail::t_cdf(values[i], nu, lbeta_a_half);
     }
 }
 

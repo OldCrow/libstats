@@ -89,15 +89,16 @@ namespace detail {
 [[nodiscard]] double beta_i(double x, double a, double b) noexcept;
 
 /**
- * @brief Regularized incomplete beta function with precomputed log-beta prefix
+ * @brief Regularized incomplete beta function with a precomputed prefactor constant
  *
- * Identical to beta_i(x, a, b) but skips the per-call lgamma(a+b)-lgamma(a)-lgamma(b)
- * computation.  Use in batch loops where a and b are constant across elements.
+ * Identical to beta_i(x, a, b) but skips the per-call shape-only part of the prefactor.
+ * Use in batch loops where a and b are constant across elements.
  *
  * @param x Input value in [0,1]
  * @param a First shape parameter (a > 0)
  * @param b Second shape parameter (b > 0)
- * @param log_beta_prefix Precomputed lgamma(a+b) - lgamma(a) - lgamma(b)
+ * @param log_beta_prefix beta_prefactor_constant(a, b) (symmetric, so the I_{1−x}(b, a)
+ *        reflection takes the same value)
  * @return I_x(a,b)
  */
 [[nodiscard]] double beta_i(double x, double a, double b, double log_beta_prefix) noexcept;
@@ -109,6 +110,15 @@ namespace detail {
  * @return ln(B(a,b))
  */
 [[nodiscard]] double lbeta(double a, double b) noexcept;
+
+/**
+ * @brief The shape-only constant beta_i(x, a, b, log_beta_prefix) takes
+ *
+ * −log B(a, b) when either shape is below STIRLING_PREFACTOR_SHAPE; from there the Stirling form's
+ * ½·log(ab / (2π(a + b))) + c(a + b) − c(a) − c(b), c the Stirling remainder (#166). Symmetric in
+ * a and b.
+ */
+[[nodiscard]] double beta_prefactor_constant(double a, double b) noexcept;
 
 /**
  * @brief Digamma function ψ(x) = d/dx ln Γ(x)
@@ -171,6 +181,19 @@ inline constexpr double STIRLING_PREFACTOR_SHAPE = 20.0;
  * cancellation (#166).
  */
 [[nodiscard]] double log_gamma_prefactor(double a, double x) noexcept;
+
+/**
+ * @brief ½·log(a/2π) − c(a), the shape-only part of log_gamma_prefactor's Stirling form
+ *
+ * For a ≥ STIRLING_PREFACTOR_SHAPE; batch callers hoist it out of their loops.
+ */
+[[nodiscard]] double log_gamma_prefactor_constant(double a) noexcept;
+
+/**
+ * @brief log_gamma_prefactor(a, x) in Stirling's form with the hoisted
+ * shape_constant = log_gamma_prefactor_constant(a); for a ≥ STIRLING_PREFACTOR_SHAPE
+ */
+[[nodiscard]] double log_gamma_prefactor(double a, double x, double shape_constant) noexcept;
 
 /**
  * @brief log of the Poisson(λ) pmf at a count k ≥ 0 (#172)
@@ -349,6 +372,11 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  * @return P(T <= t) where T ~ t(df)
  */
 [[nodiscard]] double t_cdf(double t, double df) noexcept;
+
+/**
+ * @brief t_cdf(t, df) with the hoisted lbeta_a_half = lbeta(df/2, ½); for batch loops
+ */
+[[nodiscard]] double t_cdf(double t, double df, double lbeta_a_half) noexcept;
 
 /**
  * @brief Inverse Student's t-distribution CDF (quantile function)

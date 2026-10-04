@@ -1,7 +1,6 @@
 #include "libstats/distributions/fisher_f.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel
-
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
@@ -39,8 +38,8 @@ constexpr int kBisectIterations = 80;
 // constructed (mirrors ErlangDistribution::requireValidLambda).
 static double requireValidDF(double v, const char* which) {
     if (std::isnan(v) || std::isinf(v) || v <= 0.0) {
-        std::string msg = std::string(which) +
-                          " degrees of freedom must be a positive finite number";
+        std::string msg =
+            std::string(which) + " degrees of freedom must be a positive finite number";
         throw std::invalid_argument(msg);
     }
     return v;
@@ -363,8 +362,7 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
 // where x enters exactly. If d2/d1 itself overflows, y underflows to 0 in
 // every form, so the pre-switch result is restored. Returns false when
 // d1·x + d2 overflows: y is 1 to every bit available.
-static inline bool f_beta_args(double x, double d1, double d2, double& y,
-                               double& ybar) noexcept {
+static inline bool f_beta_args(double x, double d1, double d2, double& y, double& ybar) noexcept {
     const double dx = d1 * x;
     if (!std::isfinite(dx + d2))
         return false;
@@ -695,8 +693,7 @@ void FDistribution::getProbability(std::span<const double> values, std::span<dou
                 c = dist.logPdfConst_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 pdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
         },
@@ -754,8 +751,7 @@ void FDistribution::getLogProbability(std::span<const double> values, std::span<
                 c = dist.logPdfConst_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 logPdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
         },
@@ -816,8 +812,7 @@ void FDistribution::getCumulativeProbability(std::span<const double> values,
                 pfx = dist.logBetaPrefix_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, pfx);
             });
         },
@@ -916,10 +911,10 @@ void FDistribution::updateCacheUnsafe() const noexcept {
     a_ = d1_ * detail::HALF;
     b_ = d2_ * detail::HALF;
 
-    // lgamma(a+b) - lgamma(a) - lgamma(b) == -ln B(a,b); symmetric in (a,b), so
-    // both incomplete-beta branches in cdfImpl/sfImpl reuse this one value.
-    logBetaPrefix_ = -detail::lbeta(a_, b_);
-    logPdfConst_ = logBetaPrefix_;  // logPdfImpl takes −log B(a, b); d1, d2 enter through r
+    // The incomplete beta's hoisted prefactor constant; symmetric in (a, b), so both
+    // incomplete-beta branches in cdfImpl/sfImpl reuse this one value.
+    logBetaPrefix_ = detail::beta_prefactor_constant(a_, b_);
+    logPdfConst_ = -detail::lbeta(a_, b_);  // logPdfImpl takes −log B(a, b); d1, d2 enter through r
 
     // Keep the Beta delegate in sync (used by sample()). beta_ owns its own
     // mutex, independent of ours; it is private so no external thread can be

@@ -274,14 +274,24 @@ namespace {
 // in Stirling's form.
 constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
 
+// The shape-only constant gammaLogDensity takes: α·log β − lgamma(α) for the direct form, and
+// from α = 20 the Stirling form's ½·log(α/2π) − c(α). Batch loops compute it once.
+[[nodiscard]] inline double gammaDensityConstant(double alpha, double alpha_log_beta,
+                                                 double log_gamma_alpha) noexcept {
+    return alpha < kStirlingDensityShape ? alpha_log_beta - log_gamma_alpha
+                                         : detail::log_gamma_prefactor_constant(alpha);
+}
+
 // log of the Gamma(α, rate β) density at a finite x > 0. From α = 20 it is log P(α, βx) − log x,
 // with P = (βx)^α·e^{−βx}/Γ(α) in Stirling form: the direct α·log β − lgamma(α) + (α − 1)·log x −
-// βx cancels terms of size α·log α, 2e-11 relative at α = 1e4.
+// βx cancels terms of size α·log α, 2e-11 relative at α = 1e4. density_constant is
+// gammaDensityConstant(α, …).
 [[nodiscard]] inline double gammaLogDensity(double x, double alpha, double beta,
-                                            double log_constant, double alpha_minus_one) noexcept {
+                                            double density_constant,
+                                            double alpha_minus_one) noexcept {
     if (alpha < kStirlingDensityShape)
-        return log_constant + alpha_minus_one * std::log(x) - beta * x;
-    return detail::log_gamma_prefactor(alpha, beta * x) - std::log(x);
+        return density_constant + alpha_minus_one * std::log(x) - beta * x;
+    return detail::log_gamma_prefactor(alpha, beta * x, density_constant) - std::log(x);
 }
 }  // namespace
 
@@ -314,7 +324,7 @@ double GammaDistribution::getProbability(double x) const {
                                     : detail::ZERO_DOUBLE;
     }
     // Inline log-space computation.
-    return std::exp(gammaLogDensity(x, a, b, alb - lga, am1));
+    return std::exp(gammaLogDensity(x, a, b, gammaDensityConstant(a, alb, lga), am1));
 }
 
 double GammaDistribution::getLogProbability(double x) const {
@@ -348,7 +358,7 @@ double GammaDistribution::getLogProbability(double x) const {
             return detail::NEGATIVE_INFINITY;
     }
     // General case: log(f(x)) = α*log(β) - log(Γ(α)) + (α-1)*log(x) - βx
-    return gammaLogDensity(x, a, b, alb - lga, am1);
+    return gammaLogDensity(x, a, b, gammaDensityConstant(a, alb, lga), am1);
 }
 
 double GammaDistribution::getCumulativeProbability(double x) const {
@@ -1092,6 +1102,8 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
     };
 
     if (!use_simd) {
+        const double density_constant =
+            gammaDensityConstant(alpha, alpha_log_beta, log_gamma_alpha);
         for (std::size_t i = 0; i < count; ++i) {
             if (!std::isfinite(values[i])) {
                 // #103: pdf(±inf) = 0, NaN propagates — the formula is NaN at
@@ -1102,8 +1114,8 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
             } else if (values[i] == detail::ZERO_DOUBLE) {
                 fixup_zero(i);
             } else {
-                results[i] = std::exp(gammaLogDensity(
-                    values[i], alpha, beta, alpha_log_beta - log_gamma_alpha, alpha_minus_one));
+                results[i] = std::exp(
+                    gammaLogDensity(values[i], alpha, beta, density_constant, alpha_minus_one));
             }
         }
         return;
@@ -1161,6 +1173,8 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
     };
 
     if (!use_simd) {
+        const double density_constant =
+            gammaDensityConstant(alpha, alpha_log_beta, log_gamma_alpha);
         for (std::size_t i = 0; i < count; ++i) {
             if (!std::isfinite(values[i])) {
                 // #103: logpdf(±inf) = -inf, NaN propagates — the formula is
@@ -1171,8 +1185,8 @@ void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, d
             } else if (values[i] == detail::ZERO_DOUBLE) {
                 fixup_zero(i);
             } else {
-                results[i] = gammaLogDensity(values[i], alpha, beta,
-                                             alpha_log_beta - log_gamma_alpha, alpha_minus_one);
+                results[i] =
+                    gammaLogDensity(values[i], alpha, beta, density_constant, alpha_minus_one);
             }
         }
         return;
