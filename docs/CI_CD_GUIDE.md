@@ -192,7 +192,9 @@ ctest --test-dir build -L timing -j1 --output-on-failure
 
 ### macOS code-signing failure
 
-The shared library is ad-hoc signed after build when `codesign` is available. If signing fails, verify `codesign` exists and that the build directory is writable:
+The shared library is ad-hoc signed after build (`codesign --force -s -`) when `codesign` is available. `--force` lets the step run again on an already-signed dylib: after a reconfigure, Ninja re-runs the symlink step and the signing without relinking, and before v2.4.2 that failed with "is already signed" (#162). On an older tree, clear it with `codesign --remove-signature <dylib>` and rebuild.
+
+If signing fails otherwise, verify `codesign` exists and that the build directory is writable:
 
 ```bash
 which codesign
