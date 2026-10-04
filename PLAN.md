@@ -27,6 +27,29 @@ Read before resuming here.
 - **Speed budget [user]:** slowdowns up to ~10× are acceptable for
   accuracy, weighed by how hot the function is; 50–150× is not.
 
+**Second note from the `dev/v2.4.2` session, later on 2026-10-04.**
+- **The von Mises Bessel swap here is superseded.** v2.5.0 rewrote the
+  von Mises CDF and quantile (`dev/v2.4.2` `96b157f`) as fixed-cost
+  quadrature in w = κ(1 − cos θ): Gauss–Legendre rules and Watson-lemma
+  series by region, no Bessel series, no Miller coefficients. On the
+  merge take `dev/v2.4.2`'s `von_mises.{h,cpp}` whole; this branch's von
+  Mises Bessel changes have nothing left to apply to. The CDF's `I0e` is formed
+  in the file by the trapezoid rule; the Bessel path still serves the
+  pdf's log normaliser (`log_bessel_i0`), κ from R̄ and the circular
+  variance and entropy (`bessel_i1_over_i0`), so those swaps here stand.
+- **More conflicts than the first note listed:** `beta.cpp`,
+  `pareto.cpp`, `simd_dispatch.cpp`, `include/libstats/platform/simd.h`
+  and `math_constants.h` (`SQRT_PI` was one ulp low; fixed in `4ec1950`)
+  changed on `dev/v2.4.2` since. New `VectorOps::vector_log1p` and
+  `vector_expm1` should point at corvus when it exports them: corvus #45
+  (span `expm1`, `log1pmx`). corvus #44 proposes promoting the von Mises
+  quadrature machinery and asks whether fixed-cost methods can replace
+  the incomplete gamma/beta continued fractions.
+- **Promotion rule [user]:** a better method found in libstats is fixed
+  there, written to be moved, filed with corvus, and adopted by corvus on
+  its doctrine; afterwards libstats calls corvus. Drafted as
+  OldCrow/standards `NUMERICAL-KERNEL-PROMOTION.md`.
+
 ## Status [DERIVED] — 2026-10-03
 **libstats-side levers 2026-10-03 (Zen 4) — IMPLEMENTED on
 `dev/v2.5.0-corvus`** (`e62a616` lever 1, `45000c6` lever 3, `c51e2ed`
