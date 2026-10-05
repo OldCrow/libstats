@@ -18,7 +18,10 @@ this file names that branch and its code. All milestone code is in, #162 include
 `5367999`), with `SQRT_PI` corrected (`4ec1950`) and the Beta
 large-shape density fixed (`97c67bf`).
 
-**Code freeze at `5367999` [user, 2026-10-04].** No change to `src/`,
+**Code freeze at `6cab6ed` [user, 2026-10-04]**, moved from `5367999`
+by the Windows build fix (`far` is a windows.h macro; a rename in
+`gamma.cpp` and `beta.cpp`, the same code on clang). K's runs at
+`5367999` stand [user, 2026-10-04]. No change to `src/`,
 the public headers, `dispatch_thresholds.h` or build flags without the
 user's decision; work outside them (issues, tooling under `tools/` and
 `scripts/`, docs, cross-repo) continues. A defect found in validation
@@ -31,8 +34,8 @@ back at baseline (1.01–1.11×), kept Weibull 0.55×, Pareto 0.89×, Beta
 (2, 1e5) 0.5–0.7×, and measured Beta with both shapes large at logpdf
 2.2×, pdf 1.3× (the accuracy fix's cost).
 
-Every machine now runs R1, R2 and R3 at `5367999` (K's earlier records
-stand as history) and takes its R8 captures there. Then the runbook
+Every machine now runs R1, R2 and R3 at the freeze head (K's earlier
+records stand as history) and takes its R8 captures there. Then the runbook
 below, docs, and the release. Every fix has a gate shown to fail on the
 code before it.
 
@@ -99,7 +102,7 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `5367999` (Status); confirm it with
+- Validate at the freeze head `6cab6ed` (Status); confirm it with
   `git log -1` before R1. Library code is frozen: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
   Fix nothing in library code without the user's decision.
@@ -112,8 +115,8 @@ Status by machine (each machine edits only its own line):
   tuning changes. The sandbox also blocks the SSH agent for `git fetch`.
 
 ### Cold start (K, M)
-1. `git fetch`; `dev/v2.4.2` must be at `08b4151` or later (K's
-   AppleClang test fixes `a0a913e` and the #162 fix `8018c5d`). Work in a
+1. `git fetch`; `dev/v2.4.2` must be at the freeze head `6cab6ed` or
+   later. Work in a
    worktree beside the main checkout: `git worktree add
    ../libstats-v2.4.2 dev/v2.4.2`, or `git pull` in it if it exists.
 2. Read `AGENTS.md` and this file. Record the OS, AppleClang and CMake
@@ -128,7 +131,7 @@ Status by machine (each machine edits only its own line):
 2. `./build-release/tools/system_inspector --quick`: AVX2+FMA on K,
    NEON on M.
 3. `ctest --test-dir build-release -LE "timing|benchmark" -j8`: expect
-   86/86. The target `run_tests_correctness` runs a 79-test subset.
+   89/89. The target `run_tests_correctness` runs a 79-test subset.
 
 ### R2 — accuracy sweep and block (K, M)
 1. The tree must be clean, at a pushed commit, and built in R1. The sweep
