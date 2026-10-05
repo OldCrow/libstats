@@ -188,6 +188,9 @@ produces silently wrong results or a deadlock, not a build error.
 Dispatch thresholds are per-(architecture, distribution, operation) in
 `dispatch_thresholds.h`, derived from the profiling data in
 `data/profiles/dispatcher/`.
+Derive them with `scripts/analyze_crossovers.py` (the sustained-crossover
+rule; not `threshold_validator`); recipe in
+`data/profiles/dispatcher/README.md`.
 
 ## SIMD kernel conventions
 
