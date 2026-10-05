@@ -65,8 +65,16 @@ double log_gamma_prefactor_constant(double a) noexcept {
     return detail::HALF * (std::log(a) - detail::LN_2PI) - stirling_remainder(a);
 }
 
+// log1p(t) − t for t = (x − m)/m, m > 0: the series below |t| = ½; beyond, log1p(t) is formed as
+// log(x/m), one rounding, not from the rounded t. Where x ≪ m, t ≈ −1 has lost most of x
+// (t = −1 exactly at x = 1e-15, m = 1000, so log1p(t) = −inf), and the shape multiplies the
+// loss.
+static double log1pmx_ratio(double t, double x, double m) noexcept {
+    return std::fabs(t) < LOG1PMX_SERIES_LIMIT ? log1pmx_series(t) : std::log(x / m) - t;
+}
+
 double log_gamma_prefactor(double a, double x, double shape_constant) noexcept {
-    return a * log1pmx((x - a) / a) + shape_constant;
+    return a * log1pmx_ratio((x - a) / a, x, a) + shape_constant;
 }
 
 double log_gamma_prefactor(double a, double x) noexcept {
@@ -93,7 +101,7 @@ double beta_prefactor_constant(double a, double b) noexcept {
 // with x₀ = a/(a + b), u = (x − x₀)/x₀ and v = (x₀ − x)/(1 − x₀); the linear terms a·u + b·v
 // cancel exactly, and x₀ is the stationary point, so its rounding enters only at second order.
 // shape_constant is beta_prefactor_constant(a, b), in whichever form the shapes select.
-static double log_beta_prefactor(double x, double a, double b, double shape_constant) noexcept {
+double log_beta_prefactor(double x, double a, double b, double shape_constant) noexcept {
     if (a < kStirlingPrefactorShape || b < kStirlingPrefactorShape)
         return shape_constant + a * std::log(x) + b * std::log(detail::ONE - x);
     const double sum = a + b;
@@ -101,7 +109,12 @@ static double log_beta_prefactor(double x, double a, double b, double shape_cons
     const double one_minus_x0 = b / sum;
     const double u = (x - x0) / x0;
     const double v = (x0 - x) / one_minus_x0;
-    return a * log1pmx(u) + b * log1pmx(v) + shape_constant;
+    // log(1 + v) = log((1 − x)/(1 − x₀)) beyond the series, from log1p(−x): 1 − x near 1 as x
+    // near 0 is exact, and near x = 1 the rounded v has lost 1 − x as u loses x near 0.
+    const double lv = std::fabs(v) < LOG1PMX_SERIES_LIMIT
+                          ? log1pmx_series(v)
+                          : (std::log1p(-x) - std::log(one_minus_x0)) - v;
+    return a * log1pmx_ratio(u, x, x0) + b * lv + shape_constant;
 }
 
 // Discrete log-pmfs at large counts (#172). Formed directly, k·log λ − λ − lgamma(k + 1) and the

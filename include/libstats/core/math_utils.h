@@ -121,6 +121,18 @@ namespace detail {
 [[nodiscard]] double beta_prefactor_constant(double a, double b) noexcept;
 
 /**
+ * @brief log of x^a·(1 − x)^b / B(a, b), the incomplete-beta prefactor (#166)
+ *
+ * Direct below STIRLING_PREFACTOR_SHAPE in either shape; from there in Stirling's form,
+ * a·(log1p(u) − u) + b·(log1p(v) − v) + shape_constant with x₀ = a/(a + b),
+ * u = (x − x₀)/x₀ and v = (x₀ − x)/(1 − x₀), which avoids the lgamma(a + b) − lgamma(a) −
+ * lgamma(b) cancellation. shape_constant = beta_prefactor_constant(a, b). The Beta density is this
+ * less log x and log(1 − x).
+ */
+[[nodiscard]] double log_beta_prefactor(double x, double a, double b,
+                                        double shape_constant) noexcept;
+
+/**
  * @brief Digamma function ψ(x) = d/dx ln Γ(x)
  * @param x Input value (x > 0)
  * @return ψ(x)

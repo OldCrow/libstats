@@ -1,9 +1,8 @@
-// Student-t and Beta batch densities at large ν and large shape, where the SIMD pipelines take
-// VectorOps::vector_log1p: log(1 + x²/ν) and log(1 − x) stay relative-accurate, so the factor
-// (ν + 1)/2 or β − 1 multiplies a few ulp of the term rather than 1 − x's or 1 + x²/ν's absolute
-// rounding (5e-11 in the log at ν = 1e6, 1e-11 at β = 1e5). Before vector_log1p these batches
-// took the scalar loop past ν = 31 and |β − 1| = 16; every strategy is checked against mpmath
-// (dps 50).
+// Student-t and Beta batch densities at large ν and large shape, against mpmath (dps 50), every
+// strategy. Beta past |β − 1| = 16 takes VectorOps::vector_log1p(−x) in its SIMD pipeline, which
+// keeps log(1 − x) relative-accurate (formed as vector_log of 1 − x, β − 1 multiplied 1 − x's
+// rounding: 1e-11 at β = 1e5). Student-t past ν = 31 takes the scalar log1p loop: a vector_log1p
+// pipeline was accurate there too but slower than that loop (Kaby Lake, 2026-10-04).
 
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/student_t.h"
@@ -11,6 +10,7 @@
 #include <cmath>
 #include <cstddef>
 #include <gtest/gtest.h>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -35,7 +35,10 @@ void expectDensity(const std::string& what, const Dist& d, double x, double logp
     const double log_budget = 16 * kEps;
     const double pdf_budget = 16 * kEps * std::max(1.0, std::fabs(logpdf));
     expectRel(what + " logpdf", d.getLogProbability(x), logpdf, log_budget);
-    expectRel(what + " pdf", d.getProbability(x), std::exp(logpdf), pdf_budget);
+    // The pdf only where it is a normal double; past that the logpdf carries the check.
+    const bool check_pdf = std::exp(logpdf) >= std::numeric_limits<double>::min();
+    if (check_pdf)
+        expectRel(what + " pdf", d.getProbability(x), std::exp(logpdf), pdf_budget);
     using Strategy = detail::PerformanceHint::PreferredStrategy;
     for (Strategy s :
          {Strategy::FORCE_SCALAR, Strategy::FORCE_VECTORIZED, Strategy::FORCE_PARALLEL}) {
@@ -45,6 +48,8 @@ void expectDensity(const std::string& what, const Dist& d, double x, double logp
         d.getLogProbability(std::span<const double>(xs), std::span<double>(out), hint);
         for (std::size_t i : {std::size_t{0}, kN - 1})
             expectRel(what + " logpdf" + tag, out[i], logpdf, log_budget);
+        if (!check_pdf)
+            continue;
         d.getProbability(std::span<const double>(xs), std::span<double>(out), hint);
         for (std::size_t i : {std::size_t{0}, kN - 1})
             expectRel(what + " pdf" + tag, out[i], std::exp(logpdf), pdf_budget);
@@ -82,6 +87,34 @@ TEST(Log1pDensityBatches, BetaLargeShape) {
         {3.0, 1e4, 2e-4, 7.9037875208711273805},
         {1.5, 60.0, 0.02, 3.1205433401126828667},
         {0.5, 1e3, 1e-3, 5.3357655028126952989},
+    };
+    for (const Row& r : kRows) {
+        const auto d = BetaDistribution::create(r.alpha, r.beta).unwrap();
+        expectDensity("beta(" + std::to_string(r.alpha) + ", " + std::to_string(r.beta) + ") at " +
+                          std::to_string(r.x),
+                      d, r.x, r.logpdf);
+    }
+}
+
+// Both shapes from 20: the direct form lnc + (α−1)·log x + (β−1)·log(1−x) cancels terms of size
+// (α+β)·log 2 (2.2e-14 at Beta(50, 60), 1.8e-11 in the sweep); the Stirling-form prefactor less
+// log x and log(1 − x) does not. Scalar and every batch strategy, to the same 16ε budget.
+TEST(Log1pDensityBatches, BetaBothShapesLargeStirling) {
+    struct Row {
+        double alpha, beta, x, logpdf;
+    };
+    constexpr Row kRows[] = {
+        {50.0, 60.0, 0.4, 1.4857656893234647146},
+        {25.0, 25.0, 0.45, 1.484012422758838296},
+        {1e4, 1e4, 0.5, 4.7259399236233417987},
+        {1e3, 2e3, 0.33, 3.7659966897085566503},
+        {1e3, 2e3, 0.2, -142.01781938431997945},  // |u| ≥ ½: the std::log1p(t) − t lanes
+        {20.0, 1e5, 2e-4, 9.0920541051045891369},
+        // x ≪ x₀ and x near 1: log(1 + u) as log(x/x₀) and log(1 + v) as log1p(−x) − log(1 − x₀),
+        // not from the rounded u, v ≈ −1, which lose most of x (or 1 − x).
+        {1e3, 2e3, 1e-15, -32592.363004301324928},
+        {50.0, 60.0, 1e-10, -1051.7439722196318707},
+        {25.0, 25.0, 0.999999999999, -628.14875255934435756},
     };
     for (const Row& r : kRows) {
         const auto d = BetaDistribution::create(r.alpha, r.beta).unwrap();

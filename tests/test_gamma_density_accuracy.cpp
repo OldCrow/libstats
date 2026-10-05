@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <gtest/gtest.h>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -41,7 +42,10 @@ void expectDensity(const std::string& what, const Dist& d, double x, double logp
     const double log_budget = 16 * kEps;
     const double pdf_budget = 16 * kEps * std::max(1.0, std::fabs(logpdf));
     expectRel(what + " logpdf", d.getLogProbability(x), logpdf, log_budget);
-    expectRel(what + " pdf", d.getProbability(x), std::exp(logpdf), pdf_budget);
+    // The pdf only where it is a normal double; past that the logpdf carries the check.
+    const bool check_pdf = std::exp(logpdf) >= std::numeric_limits<double>::min();
+    if (check_pdf)
+        expectRel(what + " pdf", d.getProbability(x), std::exp(logpdf), pdf_budget);
     using Strategy = detail::PerformanceHint::PreferredStrategy;
     for (Strategy s :
          {Strategy::FORCE_SCALAR, Strategy::FORCE_VECTORIZED, Strategy::FORCE_PARALLEL}) {
@@ -51,6 +55,8 @@ void expectDensity(const std::string& what, const Dist& d, double x, double logp
         d.getLogProbability(std::span<const double>(xs), std::span<double>(out), hint);
         for (std::size_t i : {std::size_t{0}, kN - 1})
             expectRel(what + " logpdf" + tag, out[i], logpdf, log_budget);
+        if (!check_pdf)
+            continue;
         d.getProbability(std::span<const double>(xs), std::span<double>(out), hint);
         for (std::size_t i : {std::size_t{0}, kN - 1})
             expectRel(what + " pdf" + tag, out[i], std::exp(logpdf), pdf_budget);
@@ -75,6 +81,11 @@ TEST(GammaDensityAccuracy, Gamma) {
         {50.0, 1.0, 20.0, -17.774862542199327331},
         {50.0, 1.0, 100.0, -18.912404832928408975},
         {1000.0, 2.0, 300.0, -113.99455046769104404},
+        // x ≪ α: log1p(t) as log(βx/α), not from the rounded t = (βx − α)/α (≈ −1), which
+        // loses most of βx; α multiplies that loss.
+        {1000.0, 1.0, 1e-15, -40409.45804172495571},
+        {50.0, 1.0, 1e-10, -1272.8324395135272694},
+        {20.0, 2.0, 1e-200, -8775.3002939533741875},
     };
     for (const Row& r : kRows) {
         const auto d = GammaDistribution::create(r.alpha, r.beta).unwrap();

@@ -259,6 +259,77 @@ double BetaDistribution::getMode() const {
 // 5. CORE PROBABILITY METHODS
 //==============================================================================
 
+namespace {
+// From both shapes 20 the direct log density lnc + (α − 1)·log x + (β − 1)·log(1 − x) cancels
+// terms of size (α + β)·log 2 in lnc = −log B(α, β) against the two logs: 1.8e-11 relative in the
+// pdf, 2.2e-14 at Beta(50, 60) x = 0.4. There it is the Stirling-form incomplete-beta prefactor
+// log[x^α (1 − x)^β / B(α, β)], which has no large terms, less log x and log(1 − x). One large
+// shape alone does not cancel (lnc and the log terms then differ in size), so the switch takes
+// both, as log_beta_prefactor's does.
+[[nodiscard]] inline bool betaStirlingShapes(double a, double b) noexcept {
+    return a >= detail::STIRLING_PREFACTOR_SHAPE && b >= detail::STIRLING_PREFACTOR_SHAPE;
+}
+
+// log density at x in (0, 1); shape_constant = beta_prefactor_constant(a, b), read only in
+// Stirling's form.
+[[nodiscard]] inline double betaLogDensity(double x, double a, double b, double lnc, double am1,
+                                           double bm1, double shape_constant) noexcept {
+    if (!betaStirlingShapes(a, b))
+        return lnc + am1 * std::log(x) + bm1 * std::log1p(-x);
+    return detail::log_beta_prefactor(x, a, b, shape_constant) - std::log(x) - std::log1p(-x);
+}
+
+[[nodiscard]] inline double betaShapeConstant(double a, double b) noexcept {
+    return betaStirlingShapes(a, b) ? detail::beta_prefactor_constant(a, b) : 0.0;
+}
+
+// betaLogDensity's Stirling branch over a batch, in the scalar path's order: a·log1pmx(u) +
+// b·log1pmx(v) + C − log x − log(1 − x), u = (x − x₀)/x₀, v = (x₀ − x)/(1 − x₀), x₀ = a/(a + b).
+// log1pmx_series covers |u|, |v| < ½ branch-free; beyond, from x itself as the scalar path.
+// Inputs outside (0, 1) come out meaningless; the caller's fixup overwrites them.
+void stirlingBetaLogDensityBatch(const double* x, double* out, std::size_t count, double a,
+                                 double b) noexcept {
+    constexpr std::size_t kBlock = 256;
+    alignas(64) double log_x[kBlock];
+    alignas(64) double log_1mx[kBlock];
+    const double sum = a + b;
+    const double x0 = a / sum;
+    const double one_minus_x0 = b / sum;
+    const double shape_constant = detail::beta_prefactor_constant(a, b);
+    const double log_one_minus_x0 = std::log(one_minus_x0);
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t n = std::min(kBlock, count - start);
+        const double* xb = x + start;
+        double* ob = out + start;
+        arch::simd::VectorOps::vector_log(xb, log_x, n);
+        for (std::size_t i = 0; i < n; ++i)
+            log_1mx[i] = -xb[i];
+        arch::simd::VectorOps::vector_log1p(log_1mx, log_1mx, n);
+        for (std::size_t i = 0; i < n; ++i)
+            ob[i] = a * detail::log1pmx_series((xb[i] - x0) / x0) +
+                    b * detail::log1pmx_series((x0 - xb[i]) / one_minus_x0);
+        // Beyond the series, log(1 + u) and log(1 + v) from x itself, as log_beta_prefactor
+        // forms them: the rounded u, v ≈ −1 have lost x (or 1 − x).
+        for (std::size_t i = 0; i < n; ++i) {
+            const double u = (xb[i] - x0) / x0;
+            const double v = (x0 - xb[i]) / one_minus_x0;
+            if (std::fabs(u) >= detail::LOG1PMX_SERIES_LIMIT ||
+                std::fabs(v) >= detail::LOG1PMX_SERIES_LIMIT) {
+                const double lu = std::fabs(u) < detail::LOG1PMX_SERIES_LIMIT
+                                      ? detail::log1pmx_series(u)
+                                      : std::log(xb[i] / x0) - u;
+                const double lv = std::fabs(v) < detail::LOG1PMX_SERIES_LIMIT
+                                      ? detail::log1pmx_series(v)
+                                      : (std::log1p(-xb[i]) - log_one_minus_x0) - v;
+                ob[i] = a * lu + b * lv;
+            }
+        }
+        for (std::size_t i = 0; i < n; ++i)
+            ob[i] = ob[i] + shape_constant - log_x[i] - log_1mx[i];
+    }
+}
+}  // namespace
+
 double BetaDistribution::getProbability(double x) const {
     // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
     double a, b, lnc, am1, bm1;
@@ -301,7 +372,7 @@ double BetaDistribution::getProbability(double x) const {
             return std::exp(lnc);
         return std::numeric_limits<double>::infinity();
     }
-    return std::exp(lnc + am1 * std::log(x) + bm1 * std::log1p(-x));
+    return std::exp(betaLogDensity(x, a, b, lnc, am1, bm1, betaShapeConstant(a, b)));
 }
 
 double BetaDistribution::getLogProbability(double x) const {
@@ -344,7 +415,7 @@ double BetaDistribution::getLogProbability(double x) const {
             return lnc;
         return std::numeric_limits<double>::infinity();
     }
-    return lnc + am1 * std::log(x) + bm1 * std::log1p(-x);
+    return betaLogDensity(x, a, b, lnc, am1, bm1, betaShapeConstant(a, b));
 }
 
 double BetaDistribution::getCumulativeProbability(double x) const {
@@ -785,14 +856,14 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
 //
 // Log-space pipeline for PDF and LogPDF.
-// vector_log for log(x), vector_log1p for log(1-x), + one aligned temp.
+// vector_log for log(x), betaLog1mx for log(1-x), + one aligned temp.
 // Scalar fixup for x <= 0 or x >= 1 (delegates to single-value method).
 //
 // LogPDF (7 steps):
 //   Step 1: temp    = log(x)                  [vector_log(values, temp)]
 //   Step 2: temp    = (α-1)*log(x)             [scalar_multiply]
-//   Step 3: results = -x                       [scalar_multiply(values, -1)]
-//   Step 4: results = log1p(-x)                [vector_log1p]
+//   Steps 3-4: results = log(1-x)              [betaLog1mx: 1-x and vector_log up to
+//                                               |β-1| = 16, vector_log1p(-x) beyond]
 //   Step 5: results = (β-1)*log(1-x)           [scalar_multiply]
 //   Step 6: results = (α-1)log(x)+(β-1)log(1-x) [vector_add(temp, results)]
 //   Step 7: results += log_norm_const          [scalar_add]
@@ -809,15 +880,36 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
 //   approximation, which is outside the scope of this library.
 //==============================================================================
 
+namespace {
+// results = log(1 − x) over the batch. Up to |β − 1| = 16, as 1 − x then vector_log: 1 − x's
+// rounding (up to ε/2 for x < ½), which β − 1 multiplies, stays within the law there, and this is
+// the cheaper form. Past it, vector_log1p(−x), relative-accurate as the scalar log1p is: formed
+// the first way the error reached 1e-11 at β = 1e5. Measured on Kaby Lake (2026-10-04),
+// vector_log1p costs ~1.2x the first form at small β and halves the large-shape batch, which
+// used to fall back to the scalar loop.
+void betaLog1mx(const double* values, double* results, std::size_t count,
+                double beta_minus_one) noexcept {
+    if (std::fabs(beta_minus_one) <= 16.0) {
+        arch::simd::VectorOps::scalar_add(values, -detail::ONE, results, count);        // x-1
+        arch::simd::VectorOps::scalar_multiply(results, -detail::ONE, results, count);  // 1-x
+        arch::simd::VectorOps::vector_log(results, results, count);                     // log(1-x)
+    } else {
+        arch::simd::VectorOps::scalar_multiply(values, -detail::ONE, results, count);  // -x
+        arch::simd::VectorOps::vector_log1p(results, results, count);                  // log1p(-x)
+    }
+}
+}  // namespace
+
 void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                      std::size_t count, double log_norm_const,
                                                      double alpha_minus_one,
                                                      double beta_minus_one) const noexcept {
-    // vector_log1p(−x) keeps log(1 − x) relative-accurate, as the scalar log1p does, so the error
-    // β − 1 multiplies stays a few ulp of that term at every shape. Formed as vector_log of 1 − x
-    // it carried 1 − x's rounding (up to ε/2 for x < ½), 1e-11 at β = 1e5, and the batch fell
-    // back to the scalar loop past |β − 1| = 16.
+    // SIMD at every shape: betaLog1mx forms log(1 − x) accurately for any β − 1, and from both
+    // shapes 20 the Stirling form replaces the cancelling direct one (betaLogDensity).
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    const double a = alpha_minus_one + detail::ONE;  // exact for shapes >= 1, where it is read
+    const double b = beta_minus_one + detail::ONE;
+    const double shape_constant = betaShapeConstant(a, b);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -825,29 +917,32 @@ void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doubl
             if (x <= 0.0 || x >= 1.0) {
                 results[i] = getProbability(x);
             } else {
-                results[i] = std::exp(log_norm_const + alpha_minus_one * std::log(x) +
-                                      beta_minus_one * std::log1p(-x));
+                results[i] = std::exp(betaLogDensity(x, a, b, log_norm_const, alpha_minus_one,
+                                                     beta_minus_one, shape_constant));
             }
         }
         return;
     }
 
-    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+    if (betaStirlingShapes(a, b)) {
+        stirlingBetaLogDensityBatch(values, results, count, a, b);
+    } else {
+        std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 1-2: temp = (α-1)*log(x)
-    arch::simd::VectorOps::vector_log(values, temp.data(), count);
-    arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
+        // Step 1-2: temp = (α-1)*log(x)
+        arch::simd::VectorOps::vector_log(values, temp.data(), count);
+        arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
 
-    // Step 3-6: results = (β-1)*log(1-x)
-    arch::simd::VectorOps::scalar_multiply(values, -detail::ONE, results, count);  // -x
-    arch::simd::VectorOps::vector_log1p(results, results, count);                  // log1p(-x)
-    arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
+        // Step 3-6: results = (β-1)*log(1-x)
+        betaLog1mx(values, results, count, beta_minus_one);
+        arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
 
-    // Step 7: results = (α-1)*log(x) + (β-1)*log(1-x)
-    arch::simd::VectorOps::vector_add(temp.data(), results, results, count);
+        // Step 7: results = (α-1)*log(x) + (β-1)*log(1-x)
+        arch::simd::VectorOps::vector_add(temp.data(), results, results, count);
 
-    // Step 8: results += log_norm_const
-    arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+        // Step 8: results += log_norm_const
+        arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+    }
 
     // PDF: exponentiate
     arch::simd::VectorOps::vector_exp(results, results, count);
@@ -864,11 +959,12 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
                                                         std::size_t count, double log_norm_const,
                                                         double alpha_minus_one,
                                                         double beta_minus_one) const noexcept {
-    // vector_log1p(−x) keeps log(1 − x) relative-accurate, as the scalar log1p does, so the error
-    // β − 1 multiplies stays a few ulp of that term at every shape. Formed as vector_log of 1 − x
-    // it carried 1 − x's rounding (up to ε/2 for x < ½), 1e-11 at β = 1e5, and the batch fell
-    // back to the scalar loop past |β − 1| = 16.
+    // SIMD at every shape: betaLog1mx forms log(1 − x) accurately for any β − 1, and from both
+    // shapes 20 the Stirling form replaces the cancelling direct one (betaLogDensity).
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    const double a = alpha_minus_one + detail::ONE;  // exact for shapes >= 1, where it is read
+    const double b = beta_minus_one + detail::ONE;
+    const double shape_constant = betaShapeConstant(a, b);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
@@ -876,27 +972,30 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
             if (x <= 0.0 || x >= 1.0) {
                 results[i] = getLogProbability(x);
             } else {
-                results[i] = log_norm_const + alpha_minus_one * std::log(x) +
-                             beta_minus_one * std::log1p(-x);
+                results[i] = betaLogDensity(x, a, b, log_norm_const, alpha_minus_one,
+                                            beta_minus_one, shape_constant);
             }
         }
         return;
     }
 
-    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+    if (betaStirlingShapes(a, b)) {
+        stirlingBetaLogDensityBatch(values, results, count, a, b);
+    } else {
+        std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 1-2: temp = (α-1)*log(x)
-    arch::simd::VectorOps::vector_log(values, temp.data(), count);
-    arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
+        // Step 1-2: temp = (α-1)*log(x)
+        arch::simd::VectorOps::vector_log(values, temp.data(), count);
+        arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
 
-    // Step 3-6: results = (β-1)*log(1-x)
-    arch::simd::VectorOps::scalar_multiply(values, -detail::ONE, results, count);
-    arch::simd::VectorOps::vector_log1p(results, results, count);
-    arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
+        // Step 3-6: results = (β-1)*log(1-x)
+        betaLog1mx(values, results, count, beta_minus_one);
+        arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
 
-    // Step 7-8: full LogPDF
-    arch::simd::VectorOps::vector_add(temp.data(), results, results, count);
-    arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+        // Step 7-8: full LogPDF
+        arch::simd::VectorOps::vector_add(temp.data(), results, results, count);
+        arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+    }
 
     // Fixup: x <= 0 or x >= 1
     for (std::size_t i = 0; i < count; ++i) {

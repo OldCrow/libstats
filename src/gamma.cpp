@@ -297,8 +297,9 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
 // gammaLogDensity's Stirling branch (α ≥ 20) over a batch: α·log1pmx(t) + C − log x with
 // t = (βx − α)/α and C = gammaDensityConstant(α, …), in the scalar path's order. The
 // branch-free log1pmx_series covers |t| < ½ and vectorizes; the few elements beyond take
-// std::log1p(t) − t as the scalar path does: log1p(t) − t still cancels up to threefold there and
-// α multiplies it, so the few-ulp VectorOps::vector_log1p left 1e-12 in the log at large α.
+// log(βx/α) − t as the scalar path does (log1p(t) from the ratio, not from the rounded t, which
+// is −1 exactly at x ≪ α), not vector_log1p: log1p(t) − t still cancels up to threefold there and
+// α multiplies it, so its few ulp left 1e-12 in the log at large α.
 // Inputs ≤ 0 and non-finite inputs come out meaningless here; the caller's fixup pass overwrites
 // them.
 void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, double alpha,
@@ -313,9 +314,10 @@ void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, do
         for (std::size_t i = 0; i < n; ++i)
             ob[i] = detail::log1pmx_series((beta * xb[i] - alpha) / alpha);
         for (std::size_t i = 0; i < n; ++i) {
-            const double t = (beta * xb[i] - alpha) / alpha;
+            const double xp = beta * xb[i];
+            const double t = (xp - alpha) / alpha;
             if (std::fabs(t) >= detail::LOG1PMX_SERIES_LIMIT)
-                ob[i] = std::log1p(t) - t;
+                ob[i] = std::log(xp / alpha) - t;  // log1p(t) as the scalar path forms it
         }
         for (std::size_t i = 0; i < n; ++i)
             ob[i] = alpha * ob[i] + density_constant - log_x[i];
