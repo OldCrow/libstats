@@ -96,7 +96,14 @@ Status by machine (each machine edits only its own line):
   kAvx512 53 of 81 rows (42 cross sooner), kAvx2 54, kAvx 35 (AVX), 39
   (SSE2). Against K's same tier at `d9384f8`: 53, 37, 41 rows differ,
   with no direction (27 sooner, 26 later on AVX2). SSE2 differs from AVX
-  on 19 rows (K: 18).
+  on 19 rows (K: 18). **These R8 bundles must not drive a table [DERIVED,
+  2026-10-05]:** the overnight ran near base clock (single-thread 1.5×,
+  parallel 1.28× slower than the same binary by day), which tilts
+  crossovers towards PARALLEL; R3's ratios hold (both versions alike).
+  Cause open: not the minimized window, not the boost drop (no drop in
+  90 s by day); the locked screen is untested
+  (`docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/`). Next on Z:
+  that test, then R3 and R8 again on clang-cl builds [user, 2026-10-05].
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
@@ -501,6 +508,16 @@ anything]:
   - Within budget, left: Student-t CDF/quantile at large ν (5–8×, the
     incomplete-beta continued fraction; corvus #44's research question),
     discrete log-pmfs (0.9–2×), FisherF (2–3×).
+- **MSVC leaves the log1pmx_series loops scalar** [DERIVED, Z,
+  2026-10-05]: reason 1106 (the Horner loop over a constant array inside
+  `detail::log1pmx_series`) at the Beta and Gamma Stirling batch loops
+  and `vector_expm1`'s Taylor loop. Beta and Gamma at large shapes run
+  2.9–4× slower than with clang-cl, which puts Z behind the M1; clang-cl
+  is 1.6–2× ahead of it. Windows performance numbers come from clang-cl
+  [user, 2026-10-05; standards WINDOWS-TOOLCHAIN §5]. A hand-unrolled
+  Horner is being prototyped off the freeze; adopting it is the user's
+  decision (it moves the freeze head). Evidence:
+  `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/`.
 - **Beta pdf/logpdf at large shapes**: resolved in `97c67bf` (Stirling
   form from both shapes 20; logpdf 3.6e-10 → 2.8e-14, pdf 1.8e-11 →
   1.0e-13), with the far-from-mode log1p fix it exposed in Gamma and
