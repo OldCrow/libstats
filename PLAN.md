@@ -103,7 +103,20 @@ Status by machine (each machine edits only its own line):
   `4ceafae` (`dce2656`), 0 contract violations, no row worse. R3 and
   the R8 re-captures (AVX2, AVX, SSE2) run overnight 2026-10-04; their
   bundles and evidence commit after review. R4 stands.
-- **M:** R1, R2, R3 to do; R4 here or on K.
+- **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
+  4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
+  2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
+  R2 done: NEON block at `2c5230a`, 0 contract violations (v2.4.1: 32);
+  no row worse than the AVX-512 block. Fifteen rows are worse than the
+  v2.4.1 NEON block (Cauchy cdf 2.9e-16 → 2.1e-12; Gaussian, LogNormal
+  pdf/cdf 7–20×; Pareto quantile, Rayleigh pdf), each by the same
+  factor in both x86 blocks, so the branch's, within the contract;
+  oracle run with the `libstats-log-cleanroom` venv (mpmath 1.3.0). R4
+  skipped (done on K). R8 (NEON, three `--large` runs) and R3 run
+  overnight 2026-10-04 from `../libstats-r3m/overnight_m1.sh`, gated on
+  ambient CPU < 15% over two 10 s windows (relaxing to 20% after 3 h),
+  not on load: the M1's 1-min load sits at 4–10 idle. Bundles and
+  evidence commit after review.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);
