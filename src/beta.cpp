@@ -313,15 +313,15 @@ void stirlingBetaLogDensityBatch(const double* x, double* out, std::size_t count
         // forms them (the rounded u, v ≈ −1 have lost x, or 1 − x). Gathered first, as in Gamma's
         // batch: a guarded log in one loop is called for every
         // lane (log is pure on Darwin, so the compiler hoists it), 2x the batch at Beta(25, 25).
-        std::size_t far = 0;
+        std::size_t n_far = 0;
         for (std::size_t i = 0; i < n; ++i) {
             const double u = (xb[i] - x0) / x0;
             const double v = (x0 - xb[i]) / one_minus_x0;
             if (std::fabs(u) >= detail::LOG1PMX_SERIES_LIMIT ||
                 std::fabs(v) >= detail::LOG1PMX_SERIES_LIMIT)
-                far_index[far++] = i;
+                far_index[n_far++] = i;
         }
-        for (std::size_t k = 0; k < far; ++k) {
+        for (std::size_t k = 0; k < n_far; ++k) {
             const std::size_t i = far_index[k];
             const double u = (xb[i] - x0) / x0;
             const double v = (x0 - xb[i]) / one_minus_x0;

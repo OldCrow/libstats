@@ -317,13 +317,13 @@ void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, do
         // The few lanes past the series, gathered first: written as a guarded log in one loop,
         // AppleClang (no errno on Darwin, so log is pure) calls the log for every lane, 1.35x
         // the whole batch at alpha = 20 (Kaby Lake, 2026-10-04).
-        std::size_t far = 0;
+        std::size_t n_far = 0;
         for (std::size_t i = 0; i < n; ++i) {
             const double t = (beta * xb[i] - alpha) / alpha;
             if (std::fabs(t) >= detail::LOG1PMX_SERIES_LIMIT)
-                far_index[far++] = i;
+                far_index[n_far++] = i;
         }
-        for (std::size_t k = 0; k < far; ++k) {
+        for (std::size_t k = 0; k < n_far; ++k) {
             const std::size_t i = far_index[k];
             const double xp = beta * xb[i];
             const double t = (xp - alpha) / alpha;
