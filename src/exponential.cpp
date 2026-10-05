@@ -938,7 +938,7 @@ std::istream& operator>>(std::istream& is, ExponentialDistribution& distribution
 //             fixup: x < 0 → 0
 //   LogPDF: results = cached_neg_lambda * x → + cached_log_lambda
 //             fixup: x < 0 → -inf   (purely affine — highest SIMD gain)
-//   CDF:    results = cached_neg_lambda * x → expm1 → negate
+//   CDF:    results = cached_neg_lambda * x → exp → negate → + 1
 //             fixup: x < 0 → 0
 //
 // See GaussianDistribution::getProbabilityBatchUnsafeImpl for the in-place
@@ -1030,14 +1030,19 @@ void ExponentialDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 
     // Step 1: results = cached_neg_lambda * x  (= -λx)
     arch::simd::VectorOps::scalar_multiply(values, cached_neg_lambda, results, count);
-    // Step 2: results = expm1(-λx), without the cancellation of 1 − exp(−λx) in the lower tail
-    arch::simd::VectorOps::vector_expm1(results, results, count);
-    // Step 3: results = −expm1(−λx) = 1 − exp(−λx)
+    // Step 2: results = exp(-λx)
+    arch::simd::VectorOps::vector_exp(results, results, count);
+    // Step 3: results = -(exp(-λx))  then  results = 1 - exp(-λx)
     arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
-    // Fixup: x < 0 is outside support; CDF = 0.
+    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
+    // Fixup: x < 0 is outside support; CDF = 0. Lanes below ½, where 1 − exp(−λx) cancels (to
+    // exactly 0 below λx = ε/2), are redone as −expm1(−λx) (no vector expm1).
     for (size_t i = 0; i < count; ++i) {
-        if (values[i] < detail::ZERO_DOUBLE)
+        if (values[i] < detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
+        } else if (results[i] < detail::HALF) {
+            results[i] = -std::expm1(cached_neg_lambda * values[i]);
+        }
     }
 }
 
