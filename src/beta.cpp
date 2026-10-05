@@ -292,6 +292,7 @@ void stirlingBetaLogDensityBatch(const double* x, double* out, std::size_t count
     constexpr std::size_t kBlock = 256;
     alignas(64) double log_x[kBlock];
     alignas(64) double log_1mx[kBlock];
+    std::size_t far_index[kBlock];
     const double sum = a + b;
     const double x0 = a / sum;
     const double one_minus_x0 = b / sum;
@@ -309,20 +310,28 @@ void stirlingBetaLogDensityBatch(const double* x, double* out, std::size_t count
             ob[i] = a * detail::log1pmx_series((xb[i] - x0) / x0) +
                     b * detail::log1pmx_series((x0 - xb[i]) / one_minus_x0);
         // Beyond the series, log(1 + u) and log(1 + v) from x itself, as log_beta_prefactor
-        // forms them: the rounded u, v ≈ −1 have lost x (or 1 − x).
+        // forms them (the rounded u, v ≈ −1 have lost x, or 1 − x). Gathered first, as in Gamma's
+        // batch: a guarded log in one loop is called for every
+        // lane (log is pure on Darwin, so the compiler hoists it), 2x the batch at Beta(25, 25).
+        std::size_t far = 0;
         for (std::size_t i = 0; i < n; ++i) {
             const double u = (xb[i] - x0) / x0;
             const double v = (x0 - xb[i]) / one_minus_x0;
             if (std::fabs(u) >= detail::LOG1PMX_SERIES_LIMIT ||
-                std::fabs(v) >= detail::LOG1PMX_SERIES_LIMIT) {
-                const double lu = std::fabs(u) < detail::LOG1PMX_SERIES_LIMIT
-                                      ? detail::log1pmx_series(u)
-                                      : std::log(xb[i] / x0) - u;
-                const double lv = std::fabs(v) < detail::LOG1PMX_SERIES_LIMIT
-                                      ? detail::log1pmx_series(v)
-                                      : (std::log1p(-xb[i]) - log_one_minus_x0) - v;
-                ob[i] = a * lu + b * lv;
-            }
+                std::fabs(v) >= detail::LOG1PMX_SERIES_LIMIT)
+                far_index[far++] = i;
+        }
+        for (std::size_t k = 0; k < far; ++k) {
+            const std::size_t i = far_index[k];
+            const double u = (xb[i] - x0) / x0;
+            const double v = (x0 - xb[i]) / one_minus_x0;
+            const double lu = std::fabs(u) < detail::LOG1PMX_SERIES_LIMIT
+                                  ? detail::log1pmx_series(u)
+                                  : std::log(xb[i] / x0) - u;
+            const double lv = std::fabs(v) < detail::LOG1PMX_SERIES_LIMIT
+                                  ? detail::log1pmx_series(v)
+                                  : (std::log1p(-xb[i]) - log_one_minus_x0) - v;
+            ob[i] = a * lu + b * lv;
         }
         for (std::size_t i = 0; i < n; ++i)
             ob[i] = ob[i] + shape_constant - log_x[i] - log_1mx[i];

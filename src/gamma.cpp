@@ -306,6 +306,7 @@ void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, do
                              double beta, double density_constant) noexcept {
     constexpr std::size_t kBlock = 256;
     alignas(64) double log_x[kBlock];
+    std::size_t far_index[kBlock];
     for (std::size_t start = 0; start < count; start += kBlock) {
         const std::size_t n = std::min(kBlock, count - start);
         const double* xb = x + start;
@@ -313,11 +314,20 @@ void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, do
         arch::simd::VectorOps::vector_log(xb, log_x, n);
         for (std::size_t i = 0; i < n; ++i)
             ob[i] = detail::log1pmx_series((beta * xb[i] - alpha) / alpha);
+        // The few lanes past the series, gathered first: written as a guarded log in one loop,
+        // AppleClang (no errno on Darwin, so log is pure) calls the log for every lane, 1.35x
+        // the whole batch at alpha = 20 (Kaby Lake, 2026-10-04).
+        std::size_t far = 0;
         for (std::size_t i = 0; i < n; ++i) {
+            const double t = (beta * xb[i] - alpha) / alpha;
+            if (std::fabs(t) >= detail::LOG1PMX_SERIES_LIMIT)
+                far_index[far++] = i;
+        }
+        for (std::size_t k = 0; k < far; ++k) {
+            const std::size_t i = far_index[k];
             const double xp = beta * xb[i];
             const double t = (xp - alpha) / alpha;
-            if (std::fabs(t) >= detail::LOG1PMX_SERIES_LIMIT)
-                ob[i] = std::log(xp / alpha) - t;  // log1p(t) as the scalar path forms it
+            ob[i] = std::log(xp / alpha) - t;  // log1p(t) as the scalar path forms it
         }
         for (std::size_t i = 0; i < n; ++i)
             ob[i] = alpha * ob[i] + density_constant - log_x[i];
