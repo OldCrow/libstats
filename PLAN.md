@@ -88,9 +88,11 @@ Status by machine (each machine edits only its own line):
   both versions. R8 captures done (2026-10-04, `d9384f8`): AVX2, AVX
   and SSE2 bundles `data/profiles/dispatcher/2026-10-04T*`, three quiet
   runs each; findings under R8. Superseded by the 2026-10-04 speed work
-  (`b5a47df`–`5367999`): K reruns R1, R2 (AVX2 block) and R3, and
-  re-captures R8 (AVX2, AVX, SSE2), at the freeze head `5367999`; R4
-  stands.
+  (`b5a47df`–`5367999`). At the freeze head (2026-10-04): R1 done
+  (clean `build-release`, 0 warnings, 89/89); R2 done, AVX2 block at
+  `4ceafae` (`dce2656`), 0 contract violations, no row worse. R3 and
+  the R8 re-captures (AVX2, AVX, SSE2) run overnight 2026-10-04; their
+  bundles and evidence commit after review. R4 stands.
 - **M:** R1, R2, R3 to do; R4 here or on K.
 
 ### Rules on every machine
