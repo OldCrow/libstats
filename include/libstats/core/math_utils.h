@@ -208,13 +208,26 @@ inline constexpr double LOG1PMX_SERIES_LIMIT = 0.5;
 [[nodiscard]] inline double log1pmx_series(double t) noexcept {
     const double s = t / (2.0 + t);
     const double s2 = s * s;
-    // 1/(2k + 1) for k = 17 down to 1, in Horner order.
-    constexpr double kOddReciprocals[] = {
-        1.0 / 35, 1.0 / 33, 1.0 / 31, 1.0 / 29, 1.0 / 27, 1.0 / 25, 1.0 / 23, 1.0 / 21, 1.0 / 19,
-        1.0 / 17, 1.0 / 15, 1.0 / 13, 1.0 / 11, 1.0 / 9,  1.0 / 7,  1.0 / 5,  1.0 / 3};
-    double poly = 0.0;
-    for (const double c : kOddReciprocals)
-        poly = poly * s2 + c;
+    // 1/(2k + 1) for k = 17 down to 1, in Horner order, written out: MSVC does not vectorize a
+    // caller's loop around an inner loop (C5002, reason 1106), so a coefficient loop here kept the
+    // Beta and Gamma Stirling batches scalar there.
+    double poly = (1.0 / 35);
+    poly = poly * s2 + (1.0 / 33);
+    poly = poly * s2 + (1.0 / 31);
+    poly = poly * s2 + (1.0 / 29);
+    poly = poly * s2 + (1.0 / 27);
+    poly = poly * s2 + (1.0 / 25);
+    poly = poly * s2 + (1.0 / 23);
+    poly = poly * s2 + (1.0 / 21);
+    poly = poly * s2 + (1.0 / 19);
+    poly = poly * s2 + (1.0 / 17);
+    poly = poly * s2 + (1.0 / 15);
+    poly = poly * s2 + (1.0 / 13);
+    poly = poly * s2 + (1.0 / 11);
+    poly = poly * s2 + (1.0 / 9);
+    poly = poly * s2 + (1.0 / 7);
+    poly = poly * s2 + (1.0 / 5);
+    poly = poly * s2 + (1.0 / 3);
     return -t * s + 2.0 * s * s2 * poly;
 }
 
