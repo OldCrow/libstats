@@ -17,7 +17,7 @@
 // EXPECT_THROW on [[nodiscard]] functions is intentional: the function throws
 // before returning, so discarding the return value is correct.
 // cppcheck-suppress unusedResult
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
     #pragma warning(disable : 4834)  // discarding return value of [[nodiscard]] function
                                      // (intentional in EXPECT_THROW)
 #else
