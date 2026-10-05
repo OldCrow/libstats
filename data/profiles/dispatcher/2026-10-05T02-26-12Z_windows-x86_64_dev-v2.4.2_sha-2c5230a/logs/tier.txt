@@ -1,0 +1,6 @@
+Defined kernel symbols (dumpbin /symbols) in build\Release\stats_static.lib:
+  vector_*_avx512: 10
+  vector_*_avx2: 10
+  vector_*_avx: 10
+  vector_*_sse2: 10
+system_inspector: System: 12 logical cores, AVX-512 SIMD, 16384 KB L3 cache

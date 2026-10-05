@@ -1,0 +1,7 @@
+Defined kernel symbols (dumpbin /symbols) in build-sse2\Release\stats_static.lib:
+  vector_*_avx512: 0
+  vector_*_avx2: 0
+  vector_*_avx: 0
+  vector_*_sse2: 10
+configure: SIMD: capped at SSE2 via LIBSTATS_MAX_SIMD_TIER; disabled: AVX, AVX2, AVX512
+system_inspector: System: 12 logical cores, SSE2 SIMD, 16384 KB L3 cache

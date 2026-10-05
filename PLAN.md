@@ -81,9 +81,22 @@ Status by machine (each machine edits only its own line):
   contract violations; Beta pdf/logpdf and the Gamma family 2–10⁴×
   better; Binomial pdf (1.7e-14 → 4.9e-14) and Poisson pdf (5.5e-14 →
   1.2e-13) worse, digit for digit as on K's AVX2 block at `4ceafae`, so
-  the code's, within the contract. R3 and the R8 captures (AVX-512, AVX2,
-  AVX, SSE2) run overnight 2026-10-04; bundles and evidence commit after
-  review. R5 skipped [user].
+  the code's, within the contract. R5 skipped [user]. R3 and R8 ran
+  overnight 2026-10-04/05 at `2c5230a` from a detached script (CPU < 8%
+  before each run, 25 s warm-up, Turbo, AC). R3 done
+  (`docs/bench-evidence/2026-10-04-zen4-v242-cost/`): timing 22/22; 23
+  NEW AUTO-vs-best gaps (20 favour PARALLEL), 30 in both versions. Over
+  the 10× guide on Z only, all forced VECTORIZED or per call, MSVC:
+  Beta(25, 25) and Beta(1000, 1000) pdf/logpdf 6.4–11.3× (M 2.3–2.8×;
+  scalar 3.1–5.0×, parallel 2.7–6.3×); Student-t cdf 6.3–11.8× and
+  quantile 10.7–14.5× at ν ≥ 1e3 (M: quantile 7–9×); von Mises quantile
+  10.6–15.9× (M 5.8–8.7×). R8 done: four bundles
+  `2026-10-05T0{2,3,3,4}-*_windows-*_sha-2c5230a`, run-to-run spread
+  9–15 rows > 2×; comparison in the AVX-512 bundle. Against the tables:
+  kAvx512 53 of 81 rows (42 cross sooner), kAvx2 54, kAvx 35 (AVX), 39
+  (SSE2). Against K's same tier at `d9384f8`: 53, 37, 41 rows differ,
+  with no direction (27 sooner, 26 later on AVX2). SSE2 differs from AVX
+  on 19 rows (K: 18).
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract

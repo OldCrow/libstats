@@ -1,0 +1,35 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-10-05T03-07-38Z_windows-x86_64_dev-v2.4.2_sha-2c5230a
+Captured at (UTC): 2026-10-05T03-07-38Z (run 1; runs 2-3 03:21Z and 03:35Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- logs/configure.txt
+- logs/run.txt
+- logs/system_inspector.txt
+- logs/tier.txt
+
+Capture notes:
+- Native AVX2 on Zen 4 (Asus TUF A16, Ryzen 7 7445HS, 6C/12T), Windows 11, MSVC 19.51
+  (VS 2026), LIBSTATS_MAX_SIMD_TIER=AVX2, build-avx2/ (tests off); v2.4.2 code at the freeze head 6cab6ed, captured at
+  its docs head 2c5230a. One of four tier bundles captured the same night:
+  this one, the AVX-512 2026-10-05T02-26-12Z, the AVX 2026-10-05T03-50-00Z, the SSE2 2026-10-05T04-33-12Z.
+- Three `strategy_profile --large -o <csv>` runs from a detached script (Turbo power
+  scheme, AC, system kept awake, screen locked). Each started once the 10-s mean CPU
+  was below 8% (2.7-5.5%; logs/run.txt) and after a 25-s discarded
+  strategy_profile pass, to get past the Zen 4 boost drop (VALIDATION_HISTORY,
+  "Zen 4 frequency scaling"); strategy_profile has no warm-up option.
+- The `--large` grid and the SUSTAINED V->P rule are the 2026-09-04 bundles'.
+  analyze_crossovers.py is the Kaby Lake 2026-10-04 bundles' copy (DIR relative).
+- logs/tier.txt counts the vector_* kernels in the static library (dumpbin) and
+  records the configure cap and system_inspector's tier.
+- The cross-tier comparison is in the AVX-512 bundle, 2026-10-05T02-26-12Z.
+- No table is updated from this bundle [user, 2026-10-04]: R8 updates after Z and M.
+- No correctness run in this bundle; R1 on build/ (89/89, MSVC and clang-cl) is in PLAN.md.

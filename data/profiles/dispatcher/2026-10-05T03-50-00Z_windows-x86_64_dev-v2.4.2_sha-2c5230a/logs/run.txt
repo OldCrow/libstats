@@ -1,0 +1,12 @@
+2026-10-04 23:49:23 batch start tier=AVX build=C:\Users\gdwol\Development\libstats-v2.4.2\build-avx sha=2c5230a runs=1 2 3
+2026-10-04 23:49:23 system_inspector: System: 12 logical cores, AVX SIMD, 16384 KB L3 cache
+2026-10-04 23:49:33 run1 cpu=3.9% ac=True quiet
+2026-10-04 23:50:00 run1 start (after 25s discarded strategy_profile warm-up) utc=2026-10-05T03-50-00Z
+2026-10-05 00:03:33 run1 end exit=0 rows=7777 cpu=3%
+2026-10-05 00:03:43 run2 cpu=3.6% ac=True quiet
+2026-10-05 00:04:08 run2 start (after 25s discarded strategy_profile warm-up) utc=2026-10-05T04-04-08Z
+2026-10-05 00:17:16 run2 end exit=0 rows=7777 cpu=2.7%
+2026-10-05 00:17:26 run3 cpu=3.1% ac=True quiet
+2026-10-05 00:17:51 run3 start (after 25s discarded strategy_profile warm-up) utc=2026-10-05T04-17-51Z
+2026-10-05 00:31:24 run3 end exit=0 rows=7777 cpu=3.5%
+2026-10-05 00:31:24 batch DONE
