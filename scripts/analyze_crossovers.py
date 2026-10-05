@@ -58,7 +58,7 @@ HEADER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
 def load(path):
     """-> {(dist, op): {size: {strategy: median_us}}}"""
     d = defaultdict(lambda: defaultdict(dict))
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             d[(row["Distribution"], row["Operation"])][int(row["BatchSize"])][
                 row["Strategy"]] = float(row["MedianTime_us"])
@@ -112,7 +112,7 @@ def norm(name):
 
 def parse_table(header_path, table):
     """-> {norm_dist: ((pdf, log_pdf, cdf), has_comment)} for ArchTable `table`."""
-    with open(header_path) as f:
+    with open(header_path, encoding="utf-8") as f:
         lines = f.read().splitlines()
     start = next((i for i, l in enumerate(lines)
                   if re.match(r"\s*constexpr ArchTable %s\b" % re.escape(table), l)), None)
