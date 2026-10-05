@@ -73,10 +73,17 @@ Machines: **Z** = Zen 4 (Windows 11, MSVC, AVX-512), **K** = Kaby Lake
 AppleClang, NEON).
 
 Status by machine (each machine edits only its own line):
-- **Z:** R0 done (`tools/bench/`, `8cf5550`). R1 done (fresh configure,
-  clean rebuild, 86/86, Release CRT). R2 done: AVX-512 block regenerated
-  at `f89380a` (`f508b12`), 0 contract violations (v2.4.1: 32). Next: R3
-  when quiet; R5 optional.
+- **Z:** R0 done (`tools/bench/`, `8cf5550`). At the freeze head
+  (2026-10-04): `5367999` did not build on Windows (fixed, `6cab6ed`).
+  R1 done with MSVC (VS 2026, fresh configure, 0 warnings, 89/89,
+  Release CRT) and clang-cl 22.1.3 (Ninja, 0 warnings after `abd0e86`,
+  89/89), AVX-512 on both. R2 done: AVX-512 block at `c09efd0`, 0
+  contract violations; Beta pdf/logpdf and the Gamma family 2–10⁴×
+  better; Binomial pdf (1.7e-14 → 4.9e-14) and Poisson pdf (5.5e-14 →
+  1.2e-13) worse, digit for digit as on K's AVX2 block at `4ceafae`, so
+  the code's, within the contract. R3 and the R8 captures (AVX-512, AVX2,
+  AVX, SSE2) run overnight 2026-10-04; bundles and evidence commit after
+  review. R5 skipped [user].
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
