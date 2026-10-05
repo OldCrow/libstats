@@ -15,14 +15,26 @@ the release PR closes). This line ships as **v2.5.0**, not v2.4.2
 this file names that branch and its code. All milestone code is in, #162 included
 (`8018c5d`). The speed work on the over-budget rows landed on
 2026-10-04 (Known Gaps, "Over-budget slowdowns"; `b5a47df` through
-`96b157f`), with `SQRT_PI` corrected (`4ec1950`). It changed code after
-every machine's validation, so R1, R2 and R3 run again at the final
-head on all three (K's earlier records stand as history), and R8's
-captures are taken at that head. Open before that head is final: a
-quiet K measurement of Student-t after `ab9af0e` (the A/B bench), and
-the Beta large-shape density (Known Gaps). Then the runbook below,
-docs, and the release. Every fix has a gate shown to fail on the code
-before it.
+`5367999`), with `SQRT_PI` corrected (`4ec1950`) and the Beta
+large-shape density fixed (`97c67bf`).
+
+**Code freeze at `5367999` [user, 2026-10-04].** No change to `src/`,
+the public headers, `dispatch_thresholds.h` or build flags without the
+user's decision; work outside them (issues, tooling under `tools/` and
+`scripts/`, docs, cross-repo) continues. A defect found in validation
+is stopped and reported; fixing it moves the freeze head and reruns
+every machine. The threshold update (R8) is the planned exception, last,
+followed by one R1 per machine. At the freeze on K: correctness 89/89,
+AVX2 sweep 0 contract violations, warning-clean; a quiet A/B against
+`b1ffc16` (scratch, `ab_bench`) put Student-t, Exponential and Rayleigh
+back at baseline (1.01–1.11×), kept Weibull 0.55×, Pareto 0.89×, Beta
+(2, 1e5) 0.5–0.7×, and measured Beta with both shapes large at logpdf
+2.2×, pdf 1.3× (the accuracy fix's cost).
+
+Every machine now runs R1, R2 and R3 at `5367999` (K's earlier records
+stand as history) and takes its R8 captures there. Then the runbook
+below, docs, and the release. Every fix has a gate shown to fail on the
+code before it.
 
 Fixed on the branch [DERIVED] — detail in the commit messages:
 - Milestone #157–#161, #163–#167, #170–#172; the FORCE_PARALLEL span
@@ -76,14 +88,17 @@ Status by machine (each machine edits only its own line):
   both versions. R8 captures done (2026-10-04, `d9384f8`): AVX2, AVX
   and SSE2 bundles `data/profiles/dispatcher/2026-10-04T*`, three quiet
   runs each; findings under R8. Superseded by the 2026-10-04 speed work
-  (`b5a47df`–`96b157f`): K reruns R1, R2 (AVX2 block) and R3, and
-  re-captures R8, at the final head.
+  (`b5a47df`–`5367999`): K reruns R1, R2 (AVX2 block) and R3, and
+  re-captures R8 (AVX2, AVX, SSE2), at the freeze head `5367999`; R4
+  stands.
 - **M:** R1, R2, R3 to do; R4 here or on K.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
+- Validate at the freeze head `5367999` (Status); confirm it with
+  `git log -1` before R1. Library code is frozen: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
   Fix nothing in library code without the user's decision.
 - Quiet runs (R3) alone on the machine: no builds, sweeps or other
@@ -428,16 +443,20 @@ anything]:
     fixed-cost quadrature rewrite; the Bessel series is gone).
   - Gamma α ≥ 20 pdf/logpdf 8–15× → about 2–5× (`b5a47df` log1pmx and
     hoisted constants, `b1ffc16` vectorized Stirling batch).
-  - Beta large-shape batch 2.4× → ~1.3×; Student-t: SIMD at every ν
-    (`ab9af0e`), speed owed a quiet measurement (A/B bench pending).
+  - Beta: the batch is SIMD at every shape (`97c67bf`); with one shape
+    large 0.5–0.7× `b1ffc16`, with both large (now Stirling form, for
+    accuracy) logpdf 2.2× and pdf 1.3× `b1ffc16`, about 3× v2.4.1.
+  - Student-t, Exponential, Rayleigh: the generic `vector_log1p` and
+    `vector_expm1` lost to their earlier paths, which were kept
+    (`9ca52db`; A/B in Status).
   - Within budget, left: Student-t CDF/quantile at large ν (5–8×, the
     incomplete-beta continued fraction; corvus #44's research question),
     discrete log-pmfs (0.9–2×), FisherF (2–3×).
-- **Beta pdf/logpdf at large shapes** [OPEN]: the direct form
-  lnc + (α−1)log x + (β−1)log1p(−x) cancels when both shapes are large
-  (sweep: pdf max_rel 1.8e-11, logpdf 3.6e-10 near its zero crossing;
-  2.2e-14 at Beta(50, 60)), scalar and batch alike. The Stirling-form
-  `log_beta_prefactor` (used by `beta_i`) is the fix, as for Gamma.
+- **Beta pdf/logpdf at large shapes**: resolved in `97c67bf` (Stirling
+  form from both shapes 20; logpdf 3.6e-10 → 2.8e-14, pdf 1.8e-11 →
+  1.0e-13), with the far-from-mode log1p fix it exposed in Gamma and
+  Beta (x ≪ mode; Gamma(1000) logpdf at 1e-15 was −inf). Its cost: Known
+  Gaps above. corvus #45's span `log1pmx` would carry the series.
 - The `exp_max` clamp sits ~30 ULP below the true overflow threshold, so
   in that one-double window the kernels return `exp(exp_max)` where
   `std::exp` is still finite. A deliberate margin; left as is.
