@@ -18,10 +18,12 @@ this file names that branch and its code. All milestone code is in, #162 include
 `5367999`), with `SQRT_PI` corrected (`4ec1950`) and the Beta
 large-shape density fixed (`97c67bf`).
 
-**Code freeze at `6cab6ed` [user, 2026-10-04]**, moved from `5367999`
-by the Windows build fix (`far` is a windows.h macro; a rename in
-`gamma.cpp` and `beta.cpp`, the same code on clang). K's runs at
-`5367999` stand [user, 2026-10-04]. No change to `src/`,
+**Code freeze at `998d985` [user, 2026-10-05]**, moved from `5367999`
+by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
+rename in `gamma.cpp` and `beta.cpp`) and the `log1pmx_series` Horner
+written out (`998d985`, so MSVC vectorizes the Beta and Gamma Stirling
+batches). Both are bit-identical on clang, so K's runs at `5367999` and
+M's at `2c5230a` stand [user, 2026-10-04/05]. No change to `src/`,
 the public headers, `dispatch_thresholds.h` or build flags without the
 user's decision; work outside them (issues, tooling under `tools/` and
 `scripts/`, docs, cross-repo) continues. A defect found in validation
@@ -100,10 +102,13 @@ Status by machine (each machine edits only its own line):
   2026-10-05]:** the overnight ran near base clock (single-thread 1.5×,
   parallel 1.28× slower than the same binary by day), which tilts
   crossovers towards PARALLEL; R3's ratios hold (both versions alike).
-  Cause open: not the minimized window, not the boost drop (no drop in
-  90 s by day); the locked screen is untested
-  (`docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/`). Next on Z:
-  that test, then R3 and R8 again on clang-cl builds [user, 2026-10-05].
+  Cause found: the locked screen (power throttling; Rules). At
+  `998d985` (2026-10-05): R1 MSVC and clang-cl 89/89, 0 warnings; the
+  sweep bit-identical to `6cab6ed` under both, so the AVX-512 block
+  stands. Next on Z: R3 and R8 again on clang-cl builds [user,
+  2026-10-05], each process opted out of throttling; v2.4.1 for R3
+  built with clang-cl after 6245e4e's three build-only hunks, uncommitted
+  in `../libstats-v2.4.1`.
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
@@ -153,12 +158,19 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `6cab6ed` (Status); confirm it with
+- Validate at the freeze head `998d985` (Status); confirm it with
   `git log -1` before R1. Library code is frozen: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
   Fix nothing in library code without the user's decision.
 - Quiet runs (R3) alone on the machine: no builds, sweeps or other
   sessions. On K, wait for the load average to fall below 2.0.
+- On Z, a locked screen puts running processes under Windows power
+  throttling (EcoQoS): base clock, 1.5× slower, and it stays with that
+  process after unlock [DERIVED, 2026-10-05]. Opt each measured process
+  out (`SetProcessInformation`, ProcessPowerThrottling, EXECUTION_SPEED
+  in ControlMask, StateMask 0); children do not inherit it, so launch
+  every binary yourself, not through ctest. Helper:
+  `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1`.
 - Performance numbers from Release builds only.
 - On the Macs, run every library binary (tests, tools, sweeps, benches,
   profiles) outside the Claude Code sandbox: it blocks the
@@ -166,7 +178,7 @@ Status by machine (each machine edits only its own line):
   tuning changes. The sandbox also blocks the SSH agent for `git fetch`.
 
 ### Cold start (K, M)
-1. `git fetch`; `dev/v2.4.2` must be at the freeze head `6cab6ed` or
+1. `git fetch`; `dev/v2.4.2` must be at the freeze head `998d985` or
    later. Work in a
    worktree beside the main checkout: `git worktree add
    ../libstats-v2.4.2 dev/v2.4.2`, or `git pull` in it if it exists.
@@ -508,15 +520,17 @@ anything]:
   - Within budget, left: Student-t CDF/quantile at large ν (5–8×, the
     incomplete-beta continued fraction; corvus #44's research question),
     discrete log-pmfs (0.9–2×), FisherF (2–3×).
-- **MSVC leaves the log1pmx_series loops scalar** [DERIVED, Z,
-  2026-10-05]: reason 1106 (the Horner loop over a constant array inside
-  `detail::log1pmx_series`) at the Beta and Gamma Stirling batch loops
-  and `vector_expm1`'s Taylor loop. Beta and Gamma at large shapes run
-  2.9–4× slower than with clang-cl, which puts Z behind the M1; clang-cl
-  is 1.6–2× ahead of it. Windows performance numbers come from clang-cl
-  [user, 2026-10-05; standards WINDOWS-TOOLCHAIN §5]. A hand-unrolled
-  Horner is being prototyped off the freeze; adopting it is the user's
-  decision (it moves the freeze head). Evidence:
+- **MSVC codegen behind clang-cl** [DERIVED, Z, 2026-10-05]. Windows
+  performance numbers come from clang-cl [user, 2026-10-05; standards
+  WINDOWS-TOOLCHAIN §5]; MSVC is the correctness build. The Beta and
+  Gamma Stirling batches were scalar under MSVC (reason 1106, the Horner
+  loop in `log1pmx_series`); `998d985` writes it out and MSVC vectorizes
+  them, 2.2–3.3× faster, Beta at clang-cl's speed. Left: Gamma at large
+  shapes 1.5–1.6× behind clang-cl, since MSVC does not contract FMAs
+  (`/fp:contract` is a build-flag change under the freeze, and the
+  FP-contraction rule in AGENTS.md); `vector_expm1`'s Taylor loop scalar
+  under MSVC (reason 1100, its |x| < ½ select; every select form tried),
+  which the Pareto and Weibull batch CDFs use. Evidence:
   `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/`.
 - **Beta pdf/logpdf at large shapes**: resolved in `97c67bf` (Stirling
   form from both shapes 20; logpdf 3.6e-10 → 2.8e-14, pdf 1.8e-11 →

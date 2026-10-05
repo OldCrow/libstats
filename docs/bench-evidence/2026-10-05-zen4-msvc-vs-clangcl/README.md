@@ -39,5 +39,34 @@ parallel. That is base clock (3.2 GHz) against boost (~4.7 GHz). PARALLEL lost l
 VECTORIZED, so the R8 crossovers captured that night lean towards PARALLEL.
 
 `clock_probe` with the screen on: 127–133 ms per pass for 90 s (no drop), the same whether
-started directly, hidden, or in a minimized window. Not yet tested: the locked screen,
-under which the overnight runs ran.
+started directly, hidden, or in a minimized window.
+
+### Cause: power throttling under a locked screen
+
+- `lock_default_probe.txt`: screen locked 15 s in; the pass time went 129.5 → 190 ms
+  within 5 s (base clock) and stayed there after the unlock until the process ended. A
+  new process started after the unlock ran at 129 ms.
+- `lock_ab_default_vs_optout.txt`: two probes side by side, one opted out of power
+  throttling with `nothrottle.ps1` (`SetProcessInformation`, ProcessPowerThrottling,
+  EXECUTION_SPEED). Locked 145 s in: the default probe went to 190 ms, the opted-out one
+  stayed at 128 ms.
+- The opt-out is per process; a child of an opted-out process reads ControlMask 0.
+
+## The unroll (998d985)
+
+`log1pmx_series`' Horner written out from 1/35 in the same order. MSVC vectorizes the Beta
+and Gamma Stirling loops (zmm instructions in the functions 26 → 251 and 18 → 129;
+packed FP 12 → 186 and 12 → 98). clang-cl's code was vectorized before and after; it loses
+one FMA per polynomial (the step from 0.0: −2 packed, −4 scalar in Beta) and changes
+register allocation, nothing else. Neither compiler emits an FMA for MSVC's build
+(MSVC: 0 FMAs, no contraction). The accuracy sweep's result bits are identical before and
+after under both compilers (10210 rows).
+
+`clangcl_ab_{old,unrolled}_{1,2,3}.csv`: interleaved A/B of clang-cl old and unrolled
+(screen on): new/old 0.98 over all rows (medians of three), 0.99 on the large-shape Beta
+and Gamma rows. Same-binary run-to-run spread: median 1.07×, p90 1.28×, max 2.55×, so a
+single unquiet run cannot resolve 20%.
+
+`vector_expm1`'s loop was tried with the Horner written out, both select operands
+precomputed, and an arithmetic blend: MSVC reports reason 1100 for each (the |x| < ½
+select), so it was left as it is.
