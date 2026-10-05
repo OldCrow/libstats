@@ -112,11 +112,22 @@ Status by machine (each machine edits only its own line):
   pdf/cdf 7–20×; Pareto quantile, Rayleigh pdf), each by the same
   factor in both x86 blocks, so the branch's, within the contract;
   oracle run with the `libstats-log-cleanroom` venv (mpmath 1.3.0). R4
-  skipped (done on K). R8 (NEON, three `--large` runs) and R3 run
-  overnight 2026-10-04 from `../libstats-r3m/overnight_m1.sh`, gated on
-  ambient CPU < 15% over two 10 s windows (relaxing to 20% after 3 h),
-  not on load: the M1's 1-min load sits at 4–10 idle. Bundles and
-  evidence commit after review.
+  skipped (done on K). R8 and R3 ran overnight 2026-10-04/05 at
+  `2c5230a` from a detached script, gated on ambient CPU < 15% over two
+  10 s windows (relaxing to 20% after 3 h), not on load: the M1's 1-min
+  load sits at 4–10 idle. The gate opened in lulls; `mediaanalysisd`
+  and Backblaze returned during the R8 runs (noise logged per minute).
+  R8 done: NEON bundle `2026-10-05T04-36-25Z_*_sha-2c5230a`, run-to-run
+  spread 9 rows > 2× (K: 12–19). 22 of 81 rows differ from kNeon, 20 of
+  them as in 2026-09-04 (deliberate overrides); the v2.4.2 movers are
+  FisherF PDF 8192 → 2048 and LogPDF 10k → 4096, as on K's kAvx2; 8
+  more rows moved since September onto values kNeon already holds. R3
+  done (`docs/bench-evidence/2026-10-05-m1-v242-cost/`): timing 22/22
+  (ambient 6.1%); von Mises quantile 5.8–8.7×, Student-t quantile at ν ≥
+  1e3 7–9×, Gamma(20) logpdf 4.3× forced VECTORIZED; discrete quantiles
+  0.23–0.71×. 14 NEW AUTO-vs-best gaps, all favouring PARALLEL at
+  n = 1e4–1e5 (Beta 25 and 1000 shapes, Gamma α ≥ 19.9, Binomial and
+  NegativeBinomial CDF at large counts); 9 in both versions.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);

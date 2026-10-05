@@ -1,0 +1,19 @@
+2026-10-04 22:50:04 load=5.99 batch start sha=2c5230a build=/Users/wolfman/Development/libstats-v2.4.2/build-release gate=15% (relaxed 20% after 3 h) deadline=2026-10-05 12:00:00
+2026-10-05 05:18:27 load=9.43 R3 bench: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-05 07:10:50 load=2.41 R3 bench: gate passed (<15%) ambient=6.16% top: 7.2%locationd 2.6%airportd 1.8%com.apple.DriverKit-AppleBCMWLAN
+2026-10-05 07:10:50 load=2.41 R3 bench_v241: start
+2026-10-05 07:12:50 load=4.65 R3 bench_v241: end exit=0
+2026-10-05 07:12:50 load=4.65 R3 bench_v242: start
+2026-10-05 07:14:50 load=6.61 R3 bench_v242: end exit=0
+2026-10-05 07:14:50 load=6.40 R3 compare exit=0
+2026-10-05 07:14:50 load=6.40 R3 timing: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-05 08:55:00 load=3.61 R3 timing: gate passed (<15%) ambient=6.10% top: 12.6%loginwindow 7.3%locationd 2.4%airportd
+2026-10-05 08:55:00 load=3.61 R3 timing ctest: start
+2026-10-05 08:56:00 load=2.02 R3 timing ctest: end exit=0
+
+# load and top consumers once a minute during the runs (overnight_m1.sh noise sampler)
+07:10:50 load=2.41 top: 4.9%Application 4.5%locationd 2.4%bzserv
+07:11:50 load=3.31 top: 292.1%bench_v241 79.2%bztransmit 3.0%locationd
+07:12:50 load=4.65 top: 99.7%bztransmit 32.3%mediaanalysisd 1.7%locationd
+07:13:50 load=7.41 top: 163.8%bench_v242 58.2%mediaanalysisd-access 55.6%mds_stores
+08:55:00 load=3.61 top: 12.6%loginwindow 7.3%locationd 2.4%airportd

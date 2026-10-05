@@ -1,0 +1,14 @@
+2026-10-04 22:50:04 load=5.99 batch start sha=2c5230a build=/Users/wolfman/Development/libstats-v2.4.2/build-release gate=15% (relaxed 20% after 3 h) deadline=2026-10-05 12:00:00
+2026-10-04 22:50:04 load=5.99 R8 run1: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-05 00:36:25 load=1.98 R8 run1: gate passed (<15%) ambient=6.20% top: 1.6%locationd 1.5%bluetoothd 1.1%com.apple.DriverKit-AppleBCMWLAN
+2026-10-05 00:36:25 load=1.98 R8 run1: start
+2026-10-05 00:52:26 load=8.44 R8 run1: end exit=0
+2026-10-05 00:52:26 load=8.44 R8 run2: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-05 03:53:09 load=3.64 R8 run2: waited 3 h, gate RELAXED to 20%
+2026-10-05 03:53:30 load=2.96 R8 run2: gate passed (<20%) ambient=9.85% top: 9.0%bztransmit 5.3%locationd 3.4%com.apple.DriverKit-AppleBCMWLAN
+2026-10-05 03:53:30 load=2.96 R8 run2: start
+2026-10-05 04:10:31 load=5.28 R8 run2: end exit=0
+2026-10-05 04:10:31 load=5.28 R8 run3: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-05 05:02:26 load=1.98 R8 run3: gate passed (<15%) ambient=5.50% top: 4.7%com.apple.DriverKit-AppleBCMWLAN 4.0%locationd 3.7%bzfilelist
+2026-10-05 05:02:26 load=1.98 R8 run3: start
+2026-10-05 05:18:27 load=9.43 R8 run3: end exit=0

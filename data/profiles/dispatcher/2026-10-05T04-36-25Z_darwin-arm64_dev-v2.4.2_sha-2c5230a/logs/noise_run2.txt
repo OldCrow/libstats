@@ -1,0 +1,17 @@
+03:53:30 load=2.96 top: 9.0%bztransmit 5.3%locationd 3.4%com.apple.DriverKit-AppleBCMWLAN
+03:54:30 load=5.09 top: 197.9%strategy_profile 85.5%bztransmit 2.4%com.apple.DriverKit-AppleBCMWLAN
+03:55:30 load=5.17 top: 357.0%strategy_profile 72.0%mediaanalysisd 70.2%bztransmit
+03:56:30 load=5.59 top: 455.6%strategy_profile 68.1%mediaanalysisd 11.2%corespotlightd
+03:57:30 load=9.20 top: 657.7%strategy_profile 51.9%mediaanalysisd 38.8%bztransmit
+03:58:30 load=10.84 top: 619.8%strategy_profile 48.7%mediaanalysisd 43.4%bztransmit
+03:59:30 load=14.96 top: 638.4%strategy_profile 69.9%corespotlightd 38.4%bztransmit
+04:00:30 load=21.52 top: 184.3%strategy_profile 112.7%Application 98.3%corespotlightd
+04:01:30 load=29.23 top: 631.0%strategy_profile 50.0%mediaanalysisd 25.7%Application
+04:02:30 load=23.00 top: 634.5%strategy_profile 71.1%mediaanalysisd 35.3%bztransmit
+04:03:30 load=22.00 top: 204.1%strategy_profile 165.2%mediaanalysisd 14.4%VTDecoderXPCService
+04:04:30 load=19.07 top: 198.1%strategy_profile 168.8%mediaanalysisd 95.6%corespotlightd
+04:05:31 load=28.37 top: 675.7%strategy_profile 48.8%mediaanalysisd 30.4%bztransmit
+04:06:31 load=20.00 top: 227.0%strategy_profile 87.9%mediaanalysisd 85.2%bztransmit
+04:07:31 load=14.36 top: 434.5%strategy_profile 100.1%mediaanalysisd 62.2%bztransmit
+04:08:31 load=11.78 top: 220.0%strategy_profile 168.4%mediaanalysisd 88.7%bztransmit
+04:09:31 load=8.77 top: 569.3%strategy_profile 40.7%mediaanalysisd 40.5%bztransmit

@@ -1,0 +1,16 @@
+00:36:25 load=1.98 top: 4.5%it.murus.VallumES.VES 2.1%trustd 1.8%Application
+00:37:25 load=4.50 top: 191.8%strategy_profile 96.4%mediaanalysisd 90.3%bztransmit
+00:38:25 load=7.09 top: 265.7%strategy_profile 77.4%bztransmit 21.6%backupd
+00:39:25 load=6.38 top: 651.4%strategy_profile 56.1%mediaanalysisd 2.3%com.apple.DriverKit-AppleBCMWLAN
+00:40:25 load=11.67 top: 665.5%strategy_profile 55.5%mediaanalysisd 42.6%bztransmit
+00:41:25 load=15.93 top: 651.3%strategy_profile 72.7%mediaanalysisd 42.0%bztransmit
+00:42:25 load=17.56 top: 316.6%strategy_profile 151.9%mediaanalysisd 77.8%bztransmit
+00:43:25 load=20.34 top: 665.0%strategy_profile 46.6%mediaanalysisd 36.1%bztransmit
+00:44:25 load=30.98 top: 604.9%strategy_profile 56.5%mediaanalysisd 22.2%bztransmit
+00:45:25 load=26.73 top: 631.9%strategy_profile 47.8%corespotlightd 39.9%bztransmit
+00:46:25 load=23.64 top: 660.4%strategy_profile 38.1%bztransmit 38.1%mediaanalysisd
+00:47:25 load=39.24 top: 634.4%strategy_profile 62.9%mediaanalysisd 53.1%bztransmit
+00:48:25 load=26.25 top: 225.9%strategy_profile 112.4%mediaanalysisd 86.5%bztransmit
+00:49:26 load=17.85 top: 217.7%strategy_profile 108.1%mediaanalysisd 86.9%bztransmit
+00:50:26 load=12.29 top: 508.4%strategy_profile 92.5%mediaanalysisd 49.1%bztransmit
+00:51:26 load=11.26 top: 474.4%strategy_profile 49.2%mediaanalysisd 6.6%locationd
