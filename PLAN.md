@@ -168,7 +168,7 @@ AVX-512 sweep still 35 contract violations. Numbers below are INDICATIVE
 (CI 20/20) — #129 and #168 CLOSED: every speedup gate in the timing-label
 tests measures steady state with the paths interleaved
 (`interleavedMinElapsedMicros`, Known Gaps ledger entry; verified on
-Zen 4 and Kaby Lake, one `ctest -j1 -L timing` owed on the M1).
+Zen 4, Kaby Lake and the M1 — all three confirmed 2026-10-02).
 **Kaby Lake 2026-10-02:** `main` at `d8d3388`, Dev build in `build/`
 (AppleClang, native AVX2), `ctest -j1 -L timing` 22/22 in all four
 runs — three quiet (1-min load 2.7) and one under a load average above
@@ -183,6 +183,34 @@ lease): any other checkout of it needs `git fetch` and `git reset --hard
 origin/dev/v2.5.0-corvus` before further work. Its four exp/log
 speedup gates now fail as steady-state measurements (#156, increment 4),
 unchanged in substance by the rebase. Earlier status follows.
+
+**M1, 2026-10-02 (this session):** fetched; `dev/v2.5.0-corvus` reset
+hard to `origin` at `f098c90` (the 10 local commits were the pre-rebase
+copies of the same work, tree clean, nothing lost); `main` fast-forwarded
+to `d8d3388`; corvus and standards pulled. Owed items run: (1) `main`
+at `d8d3388` built Release/NEON in the `../libstats-main` worktree
+(`build-m1-gg/`), warning-clean — correctness 74/74, timing suite
+`ctest -j1 -L timing` 22/22 in 10 of 10 runs. Not a quiet run: ambient
+load 4–10 throughout. Backblaze was already paused (20:25–22:25,
+`pauseinfo.xml`) and `bztransmit` had exited before the runs began; the
+floor was WindowServer, Cloudflare WARP, the Claude desktop app and
+Vallum, with `bzfilelist` still scanning at ~5%; Spotlight has settled.
+A loaded machine is the harder case for a flake fix, so the #169
+confirmation stands. Side task B is closed (Kaby Lake confirmed the same day). (2) corvus
+`4534d30` (code at `a78eddd`) `CORVUS_EXPECT_TARGET=NEON` ctest 34/34,
+assertion shown to fail against `AVX2` — 2b's pre-release tier check is
+complete on both halves. Still open here: side task C (M1 quiet-bench
+retry), attempted this session at the 10% gate for 30 min (screen
+locked, Backblaze paused, WARP killed, Time Machine skipped) and
+ABORTED: min ambient 11.88%, `mediaanalysisd` (Photos, launches on
+idle) top consumer in 134/173 samples, Spotlight knowledge indexing and
+Time Machine's hourly restart behind it — corvus
+`docs/bench-evidence/2026-10-02-m1-gate-abort/`. Needs the Photos
+analysis agent and automatic Time Machine held off for the window. Local state:
+`build-m1-gg/` is v2.4.1 (stale), `build-m1-gg-corvus/` is the branch
+at 2026-09-29 pre-rebase (stale vs `f098c90`; rebuild before the pin
+bump), `../libstats-main` worktree built at `d8d3388`. Next concrete
+step on this machine: nothing on the spine until corvus v1.1.0.
 
 Session 2026-09-29/30 (M1) closed with: `dev/v2.5.0-corvus` parked at
 `e42478e`, correctness-complete, CI green, waiting on corvus v1.1.0
@@ -965,8 +993,8 @@ history.
   runs (v2.4.1: Uniform 0/3), correctness 74/74, full build
   warning-clean; Uniform's gate fails 3/3 with the batch path forced
   scalar. Kaby Lake CONFIRMED 2026-10-02 (22/22 x4, three quiet, one
-  under heavy load). NOT verified on the M1 — the `timing` label is
-  outside CI, so run `ctest -j1 -L timing` there before relying on it.
+  under heavy load). M1 CONFIRMED 2026-10-02 (22/22 in 10 of 10 runs,
+  NEON, ambient load 4–10). The `timing` label is outside CI.
   The four exp/log speedup failures on `dev/v2.5.0-corvus` are a
   separate, real regression and will now be measured steady-state.
 - [FILED 2026-08-25 as #129, milestoned v2.3.2] **`UniformEnhancedTest.SIMDAndParallelBatchImplementations`
