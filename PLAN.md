@@ -353,7 +353,7 @@ Procedure (each tier):
 
 After Z and M [user's decision]: update only the rows v2.4.2 moved in
 each table, decide on a kSse2 table of its own, then R1 again on every
-machine whose table changed.
+machine whose table changed. Inputs: "Trends from the v2.5.0 captures".
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
@@ -538,6 +538,58 @@ anything]:
   Hurwitz-zeta closed form) before planning; it scopes corvus work.
 - **#4 Post-v3 — Architecture Refactor** (open, 5): #40, #41, #42, #43,
   #128.
+
+## Trends from the v2.5.0 captures [OPEN, 2026-10-05]
+From K's three tiers, M's NEON and Z's first (throttled) overnight. Z's
+clang-cl rerun refines the numbers; the trends hold [user, 2026-10-05].
+
+For v2.5.0 (decide with R8, after Z's rerun):
+- **Table noise exceeds table precision.** Every machine has 9–19 of 81
+  rows spreading > 2× across three quiet runs. A capture differs from
+  its table on 30–60% of rows, and K and Z differ on about half the rows
+  of the same tier with no direction. Option: change only the rows that
+  moved for a code reason (von Mises CDF → NEVER, the Weibull and Pareto
+  CDFs later, Student-t pdf sooner, FisherF), keep the overrides, and
+  skip the full re-derivation.
+- **AUTO is too reluctant to go parallel**, on all three machines and in
+  v2.4.1 too: most AUTO-vs-best gaps favour PARALLEL at n = 1e3–1e5.
+  This is likely the post-#143 parallel overhead running lower than the
+  September tables assume. Option: lower the parallel thresholds as one
+  correction, not row by row.
+- **Remaining over-budget rows:** Student-t cdf/quantile at ν ≥ 1e3
+  (7–9× on K and M, up to 12–15× on Z under MSVC), the costliest across
+  machines, and the von Mises quantile (5–9× clang, 10–16× MSVC). Ship
+  them as documented gaps (quantiles are less hot than densities), or
+  give Student-t the von Mises treatment: a fixed-cost method,
+  normal-limited at large ν, as a corvus #44 kernel.
+- **kSse2:** SSE2 differs from AVX on ~20 rows, mostly crossing sooner,
+  on K and Z. Lean: keep the delegation to kAvx and document it; few
+  real machines run this tier.
+
+For corvus adoption (v3.0.0) and later:
+- **Thresholds follow per-element cost.** Costlier operations crossed
+  sooner (Student-t pdf to the 64 floor); cheapened ones stopped
+  crossing (von Mises CDF). A threshold behaves like a machine's
+  parallel overhead ÷ an operation's per-element cost, and both are
+  easier to measure than a sustained crossover. Corvus replaces the
+  kernels and invalidates every table, so spend little on v2.5.0 table
+  precision. Evaluate a cost model (per-element costs × one per-machine
+  overhead, perhaps calibrated at startup) against the tables; it ties
+  into the post-v3 Architecture Refactor.
+- **Don't depend on auto-vectorization.** Beta's large-shape cost was
+  6–11× under MSVC and 2.3–2.8× on M until `998d985` wrote the Horner
+  out (Known Gaps, MSVC codegen). Promoted kernels use explicit SIMD, or
+  must be shown to vectorize on all three compilers: a candidate
+  criterion for standards `NUMERICAL-KERNEL-PROMOTION.md`.
+- **One capture harness**, after v2.5.0 and written to whatever
+  threshold model v3 adopts [user, 2026-10-05]. Each machine needed its
+  own quiet rule (K load < 2.0, M ambient CPU, Z the EcoQoS opt-out),
+  and throttling cost Z one overnight. It covers warm-up, the quiet
+  gate, the throttling opt-out, noise logging and the bundle layout;
+  it could be a standards convention shared with corvus and libhmm.
+- **Accuracy gate for each corvus swap:** all three ISA blocks now show
+  0 contract violations. Proposed acceptance: 0 violations, and no row
+  worse than the v2.5.0 block, on every ISA.
 
 ## Known Gaps [OPEN]
 - **Over-budget slowdowns** (budget: Decided, "Accuracy-for-speed
