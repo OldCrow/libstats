@@ -43,14 +43,18 @@ copies inside these two bundles are historical record only:
 | kAvx | Kaby Lake, `LIBSTATS_MAX_SIMD_TIER=AVX` capped build — first measured kAvx (the 2012 AVX MBP is retired; its June bundles are historical) | `2026-09-04T23-51-14Z_darwin-x86_64_…` |
 | kSse2 | delegates to kAvx by design | — |
 
-## v2.4.2 captures, not yet applied (2026-10-04)
+## v2.4.2 captures, not yet applied (2026-10-04/05)
 
-Kaby Lake bundles at `d9384f8`, one per tier: `2026-10-04T02-07-22Z_…`
-(AVX2), `2026-10-04T03-51-16Z_…` (AVX-capped), `2026-10-04T05-16-48Z_…`
-(SSE2-capped, the first measured SSE2 profile). The v2.4.2 accuracy
-fixes moved 12 kAvx2 and 7 kAvx rows; `cross_tier_assessment.txt` in the
-AVX2 bundle has the comparison. The tables above stay as they are until
-the Zen 4 captures of the same tiers are in (PLAN.md, R8).
+Kaby Lake bundles at the freeze head (code `5367999`, captured at
+`6f86996`), one per tier: `2026-10-05T01-50-52Z_…` (AVX2),
+`2026-10-05T03-09-27Z_…` (AVX-capped), `2026-10-05T04-31-33Z_…`
+(SSE2-capped). They supersede the `d9384f8` bundles of 2026-10-04
+(`2026-10-04T02-07-22Z_…`, `T03-51-16Z_…`, `T05-16-48Z_…`; the first
+measured SSE2 profile), which predate the speed work: that moved
+VonMises CDF to NEVER on every tier and Weibull and Pareto CDF later.
+`cross_tier_assessment.txt` in the new AVX2 bundle has the comparison.
+The M1 and Zen 4 bundles of the same week are listed in PLAN.md. The
+tables above stay as they are until the R8 decision (PLAN.md).
 
 June bundles remain as the historical record of the pre-repair calibration;
 do not derive new thresholds from them (their parallel timings measured

@@ -132,9 +132,21 @@ Status by machine (each machine edits only its own line):
   runs each; findings under R8. Superseded by the 2026-10-04 speed work
   (`b5a47df`–`5367999`). At the freeze head (2026-10-04): R1 done
   (clean `build-release`, 0 warnings, 89/89); R2 done, AVX2 block at
-  `4ceafae` (`dce2656`), 0 contract violations, no row worse. R3 and
-  the R8 re-captures (AVX2, AVX, SSE2) run overnight 2026-10-04; their
-  bundles and evidence commit after review. R4 stands.
+  `4ceafae` (`dce2656`), 0 contract violations, no row worse. R3 done
+  (overnight 2026-10-04/05, `docs/bench-evidence/2026-10-04-kabylake-v242-cost/`):
+  timing 22/22; per call or forced VECTORIZED, von Mises quantile
+  5.4–6.8× (was 52–136×), Student-t quantile at ν ≥ 1e3 6.8–8.0×, Gamma
+  α ≥ 20 logpdf 3.5–4.9× (was 10–15×), Beta(25, 25) and (1000, 1000)
+  logpdf 4.1–4.2×, Student-t pdf 4.2× (as before); discrete quantiles
+  0.2–0.6×. 14 NEW AUTO-vs-best gaps, all but one favouring PARALLEL at
+  n = 1e3–1e5; 10 in both versions. R8 done: bundles
+  `2026-10-05T0{1,3,4}-*_darwin-*_sha-6f86996` (AVX2, AVX, SSE2; code
+  `5367999`), run-to-run spread 11–17 rows > 2×. Against `d9384f8`, the
+  speed work moved VonMises CDF to NEVER on every tier and Weibull and
+  Pareto CDF later; the comparison is in the AVX2 bundle. Against the tables:
+  kAvx2 30 rows, kAvx 10 (AVX) and 27 (SSE2). No cross-machine analysis
+  or table change until Z's clang-cl R3/R8 rerun is in [user,
+  2026-10-05]. R4 stands. K's R1–R4 and R8 are complete at the freeze head.
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).

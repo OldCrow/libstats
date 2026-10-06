@@ -1,0 +1,12 @@
+2026-10-05 00:26:32 load=3.27 batch start tier=SSE2 build=build-cap-sse2 runs=1 2 3 sha=6f86996
+2026-10-05 00:26:33 load=3.27 system_inspector: System: 8 logical cores, SSE2 SIMD, 8192 KB L3 cache
+2026-10-05 00:26:33 load=3.27 run1 waiting for load < 2.0
+2026-10-05 00:31:33 load=1.84 run1 start
+2026-10-05 00:56:00 load=4.12 run1 end exit=0 rows=    7777
+2026-10-05 00:56:00 load=4.12 run2 waiting for load < 2.0
+2026-10-05 00:57:00 load=1.95 run2 start
+2026-10-05 01:21:23 load=5.40 run2 end exit=0 rows=    7777
+2026-10-05 01:21:23 load=5.40 run3 waiting for load < 2.0
+2026-10-05 01:23:53 load=1.82 run3 start
+2026-10-05 01:48:17 load=3.64 run3 end exit=0 rows=    7777
+2026-10-05 01:48:17 load=3.64 batch DONE
