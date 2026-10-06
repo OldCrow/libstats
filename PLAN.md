@@ -178,7 +178,11 @@ Status by machine (each machine edits only its own line):
   1e3 7–9×, Gamma(20) logpdf 4.3× forced VECTORIZED; discrete quantiles
   0.23–0.71×. 14 NEW AUTO-vs-best gaps, all favouring PARALLEL at
   n = 1e4–1e5 (Beta 25 and 1000 shapes, Gamma α ≥ 19.9, Binomial and
-  NegativeBinomial CDF at large counts); 9 in both versions.
+  NegativeBinomial CDF at large counts); 9 in both versions. At
+  `1f999e3` (2026-10-05): incremental build 0 warnings, 89/89; the
+  sweep bit-identical to `2c5230a`'s (10,210 rows), so `998d985`
+  changes nothing on AppleClang 21 / NEON either. M's R1–R3 and R8 are
+  complete at the freeze code.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);
