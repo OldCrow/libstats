@@ -237,34 +237,47 @@ if(NOT LIBSTATS_PORTABLE)
     # reads to auto-#define LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
     # getDispatchTable() to reference vector_*_avx2 symbols that were never compiled (simd_avx2.cpp
     # is excluded by the cap), producing LNK2019 unresolved externals.
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    #
+    # clang-cl takes the same /arch: flags as cl.exe, so both build the same ISA: /arch:AVX2 is AVX2
+    # with FMA, F16C, BMI1/2, LZCNT and MOVBE, and /arch:AVX512 adds AVX-512 F, CD, BW, DQ and VL.
+    # clang-cl's -mavx2 is AVX2 alone (no FMA) and -mavx512f is F alone.
+    if((CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+       AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+            set(_libstats_win_compiler "MSVC")
+        else()
+            set(_libstats_win_compiler "Clang-cl")
+        endif()
         if(LIBSTATS_HAS_AVX512)
             add_compile_options(/arch:AVX512)
-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX512")
+            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX512")
         elseif(LIBSTATS_HAS_AVX2)
             add_compile_options(/arch:AVX2)
-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX2")
         elseif(LIBSTATS_HAS_AVX)
             add_compile_options(/arch:AVX)
-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX")
+            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX")
         else()
-            message(STATUS "Applied MSVC x64 SIMD flags: none (SSE2 is the x64 baseline)")
+            message(STATUS
+                    "Applied ${_libstats_win_compiler} x64 SIMD flags: none (SSE2 is the x64 baseline)")
         endif()
+        unset(_libstats_win_compiler)
     elseif(
         CMAKE_CXX_COMPILER_ID MATCHES "Clang"
         AND WIN32
         AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+        # Clang with the GNU-style driver on Windows (not clang-cl); unvalidated.
         if(LIBSTATS_HAS_AVX512)
             add_compile_options(-mavx512f)
-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx512f")
+            message(STATUS "Applied Clang x64 SIMD flags: -mavx512f")
         elseif(LIBSTATS_HAS_AVX2)
             add_compile_options(-mavx2)
-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
+            message(STATUS "Applied Clang x64 SIMD flags: -mavx2")
         elseif(LIBSTATS_HAS_AVX)
             add_compile_options(-mavx)
-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx")
+            message(STATUS "Applied Clang x64 SIMD flags: -mavx")
         else()
-            message(STATUS "Applied Clang-cl x64 SIMD flags: none (SSE2 is the x64 baseline)")
+            message(STATUS "Applied Clang x64 SIMD flags: none (SSE2 is the x64 baseline)")
         endif()
     endif()
 else()
