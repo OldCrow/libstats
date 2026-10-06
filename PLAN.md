@@ -18,12 +18,14 @@ this file names that branch and its code. All milestone code is in, #162 include
 `5367999`), with `SQRT_PI` corrected (`4ec1950`) and the Beta
 large-shape density fixed (`97c67bf`).
 
-**Code freeze at `998d985` [user, 2026-10-05]**, moved from `5367999`
+**Code freeze at `606607f` [user, 2026-10-05]**, moved from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
-rename in `gamma.cpp` and `beta.cpp`) and the `log1pmx_series` Horner
+rename in `gamma.cpp` and `beta.cpp`), the `log1pmx_series` Horner
 written out (`998d985`, so MSVC vectorizes the Beta and Gamma Stirling
-batches). Both are bit-identical on clang, so K's runs at `5367999` and
-M's at `2c5230a` stand [user, 2026-10-04/05]. No change to `src/`,
+batches) and clang-cl's global flag made cl.exe's `/arch:` (`606607f`).
+The first two are bit-identical on clang and the third is
+Windows-clang-cl-only, so K's runs at `5367999` and M's at `2c5230a`
+stand [user, 2026-10-04/05]. No change to `src/`,
 the public headers, `dispatch_thresholds.h` or build flags without the
 user's decision; work outside them (issues, tooling under `tools/` and
 `scripts/`, docs, cross-repo) continues. A defect found in validation
@@ -105,10 +107,15 @@ Status by machine (each machine edits only its own line):
   Cause found: the locked screen (power throttling; Rules). At
   `998d985` (2026-10-05): R1 MSVC and clang-cl 89/89, 0 warnings; the
   sweep bit-identical to `6cab6ed` under both, so the AVX-512 block
-  stands. Next on Z: R3 and R8 again on clang-cl builds [user,
-  2026-10-05], each process opted out of throttling; v2.4.1 for R3
-  built with clang-cl after 6245e4e's three build-only hunks, uncommitted
-  in `../libstats-v2.4.1`.
+  stands. At `606607f` (clang-cl `/arch:`): clang-cl fresh build 0
+  warnings, 89/89, AVX-512; its sweep through the oracle (to scratch,
+  the doc's block stays MSVC's) 0 contract violations; capped AVX2, AVX,
+  SSE2 trees built and confirmed. R3 and R8 on clang-cl run overnight
+  2026-10-05/06 [user], every process opted out of throttling
+  (`docs/bench-evidence/2026-10-05-zen4-clangcl-v242-cost/`); v2.4.1
+  for R3 built with clang-cl after `v241_clangcl_compat.patch` there,
+  applied uncommitted in `../libstats-v2.4.1`. Then bundles, evidence,
+  and the cross-tier comparison, committed after review.
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
@@ -158,7 +165,7 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `998d985` (Status); confirm it with
+- Validate at the freeze head `606607f` (Status); confirm it with
   `git log -1` before R1. Library code is frozen: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
   Fix nothing in library code without the user's decision.
@@ -178,7 +185,7 @@ Status by machine (each machine edits only its own line):
   tuning changes. The sandbox also blocks the SSH agent for `git fetch`.
 
 ### Cold start (K, M)
-1. `git fetch`; `dev/v2.4.2` must be at the freeze head `998d985` or
+1. `git fetch`; `dev/v2.4.2` must be at the freeze head `606607f` or
    later. Work in a
    worktree beside the main checkout: `git worktree add
    ../libstats-v2.4.2 dev/v2.4.2`, or `git pull` in it if it exists.
@@ -343,6 +350,18 @@ via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs,
 the R4 records and the R8 table update. ACCURACY_CHARACTERIZATION: the three generated blocks
 only. This file.
 
+Docs sweep [user, 2026-10-05; OPEN]: this cycle changed more than the
+version. clang-cl is the Windows performance build with cl.exe's
+`/arch:` flags; Windows timing needs the power-throttling opt-out;
+MSVC's vectorization limits; v2.5.0/v3.0.0 numbering. Candidates:
+README, PROJECT_CONCEPT, MIGRATION_GUIDE, AGENTS, `tools/` README,
+`docs/` (BUILD_SYSTEM_GUIDE, CI_CD_GUIDE, SIMD_OPTIMIZATION_REFERENCE,
+VALIDATION_HISTORY, whose "Zen 4 frequency scaling" needs re-reading
+against the throttling finding). Start from an inventory of stale
+statements (read-only search agent), not from memory. Cross-repo:
+standards WINDOWS-TOOLCHAIN gains the `/arch:` equivalence and the
+throttling opt-out.
+
 ### R7 — release
 PR
 `dev/v2.4.2` → `main` closing #157–#172 (#173 stays with corvus); CI
@@ -363,6 +382,12 @@ also changed here since this note was first written. `vector_log1p` and
 `vector_expm1` point at corvus once corvus #45 lands.
 
 ## Decided [DERIVED]
+- **Windows performance build is clang-cl [user, 2026-10-05]**, with
+  cl.exe's `/arch:` flags (`/arch:AVX2` = AVX2 + FMA, F16C, BMI1/2,
+  LZCNT, MOVBE; `/arch:AVX512` adds AVX-512 F, CD, BW, DQ, VL), so both
+  compilers build the same ISA. cl.exe is the correctness build
+  (standards WINDOWS-TOOLCHAIN §5); Z's R3/R8 and kAvx512 come from
+  clang-cl.
 - **Release numbering [user, 2026-10-04].** `dev/v2.4.2` ships as
   v2.5.0: no public API change, but consumers see different results
   (0 contract violations, new tail and edge behaviour), a different
