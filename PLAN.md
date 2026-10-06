@@ -25,7 +25,11 @@ written out (`998d985`, so MSVC vectorizes the Beta and Gamma Stirling
 batches) and clang-cl's global flag made cl.exe's `/arch:` (`606607f`).
 The first two are bit-identical on clang and the third is
 Windows-clang-cl-only, so K's runs at `5367999` and M's at `2c5230a`
-stand [user, 2026-10-04/05]. No change to `src/`,
+stand [user, 2026-10-04/05]. Verified on K (AppleClang 15,
+2026-10-05): the AVX2 sweep at the freeze code is bit-identical to
+`4ceafae`'s. CI first ran on this branch at `bb27040` (manual dispatch),
+green on all 10 jobs: GCC 14, Linux clang 17, macOS AppleClang, MSVC,
+sanitizers, strict `-Werror`. No change to `src/`,
 the public headers, `dispatch_thresholds.h` or build flags without the
 user's decision; work outside them (issues, tooling under `tools/` and
 `scripts/`, docs, cross-repo) continues. A defect found in validation
@@ -147,6 +151,9 @@ Status by machine (each machine edits only its own line):
   kAvx2 30 rows, kAvx 10 (AVX) and 27 (SSE2). No cross-machine analysis
   or table change until Z's clang-cl R3/R8 rerun is in [user,
   2026-10-05]. R4 stands. K's R1–R4 and R8 are complete at the freeze head.
+  At `bb27040` (2026-10-05): incremental build 0 warnings, 89/89; the
+  sweep bit-identical to `4ceafae`'s (10,212 lines), so `998d985`
+  changes nothing on AppleClang 15.
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
