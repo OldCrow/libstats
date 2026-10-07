@@ -115,11 +115,10 @@ void BernoulliDistribution::setP(double p) {
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicP_.store(p_, std::memory_order_release);
         atomicParamsValid_.store(true, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)binomial_.trySetP(p);
     }
-    // Update the delegate outside our lock to avoid holding two locks at once.
-    // binomial_ is private, so no external thread can reach it while we don't
-    // hold our lock.
-    (void)binomial_.trySetP(p);
 }
 
 //==============================================================================
@@ -137,8 +136,10 @@ VoidResult BernoulliDistribution::trySetP(double p) noexcept {
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicP_.store(p_, std::memory_order_release);
         atomicParamsValid_.store(true, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)binomial_.trySetP(p);
     }
-    (void)binomial_.trySetP(p);
     return VoidResult::ok({});
 }
 
@@ -180,8 +181,10 @@ void BernoulliDistribution::reset() noexcept {
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicP_.store(detail::HALF, std::memory_order_release);
         atomicParamsValid_.store(true, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)binomial_.trySetP(detail::HALF);
     }
-    (void)binomial_.trySetP(detail::HALF);
 }
 
 std::string BernoulliDistribution::toString() const {

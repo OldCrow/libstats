@@ -471,14 +471,12 @@ class ParallelUtils {
         const std::size_t alignedGrainSize =
             ((baseGrainSize + simdWidth - 1) / simdWidth) * simdWidth;
 
-        parallelFor(
-            0, size,
-            [&](std::size_t i) {
-                const std::size_t chunkEnd = std::min(i + alignedGrainSize, size);
-                const std::size_t chunkSize = chunkEnd - i;
-                func(input + i, output + i, chunkSize);
-            },
-            alignedGrainSize);
+        // One call per chunk. A parallelFor over element indices called func on a whole chunk
+        // from every index, so each element was computed up to a grain's worth of times, by
+        // tasks writing overlapping output ranges concurrently.
+        parallelForSlices(size, alignedGrainSize, [&](std::size_t start, std::size_t len) {
+            func(input + start, output + start, len);
+        });
     }
 
     /// SIMD-aware parallel sum operation (foundation for statistical operations)

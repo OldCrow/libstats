@@ -256,7 +256,14 @@ class DispatchUtils {
                 break;
 
             case Strategy::PARALLEL:
-                // Multi-threaded via ParallelUtils::parallelFor.
+                // Multi-threaded via ParallelUtils::parallelFor. Below its fork threshold nothing
+                // forks, and most PARALLEL lambdas then ran a serial per-element scalar loop:
+                // slower than VECTORIZED and never SIMD, though AUTO selects PARALLEL from 64
+                // elements on some rows. There the batch path is the better serial path.
+                if (count < arch::get_min_elements_for_parallel()) {
+                    batch_func(dist, values.data(), results.data(), count);
+                    break;
+                }
                 parallel_func(dist, values, results);
                 break;
 

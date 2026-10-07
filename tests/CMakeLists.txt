@@ -440,6 +440,12 @@ create_libstats_gtest(test_snapshot_consistency test_snapshot_consistency.cpp)
 # lock per element or ran serially. Timing assertions: in the "timing" label block below.
 create_libstats_gtest(test_parallel_batch_gates test_parallel_batch_gates.cpp)
 
+# Gates from the 2026-10-06 lock and parallel-path audit: Poisson getMedian's recursive shared
+# lock, Uniform's unlocked copy-assignment, the Uniform/Discrete bound setters' TOCTOU, the
+# delegating setters' order, parallelTransform's repeated chunks, PARALLEL below the fork threshold,
+# self-comparison. Correctness, not timing: it asserts values and progress only.
+create_libstats_gtest(test_concurrency_gates test_concurrency_gates.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

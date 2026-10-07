@@ -210,3 +210,17 @@ TEST(SnapshotConsistency, VonMisesCdfBatchUnderSetKappa) {
            const Hint& h) { x.getCumulativeProbability(v, r, h); },
         0.7, a, b);
 }
+
+// Beta's batch kernels took the boundary values (x <= 0, x >= 1) from the scalar methods, one
+// lock and one read of the live shapes per element, not from the batch's snapshot.
+TEST(SnapshotConsistency, BetaBoundaryBatchUnderSetAlpha) {
+    const auto a = BetaDistribution::create(0.5, 2.0).unwrap();  // pdf(0) = +inf
+    const auto b = BetaDistribution::create(2.0, 2.0).unwrap();  // pdf(0) = 0
+    auto d = BetaDistribution::create(0.5, 2.0).unwrap();
+    expectBatchFromOneState(
+        "Beta(·, 2) pdf(0)", d,
+        [](BetaDistribution& x, bool second) { x.setAlpha(second ? 2.0 : 0.5); },
+        [](const BetaDistribution& x, std::span<const double> v, std::span<double> r,
+           const Hint& h) { x.getProbability(v, r, h); },
+        0.0, a, b);
+}

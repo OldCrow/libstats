@@ -50,13 +50,16 @@ UniformDistribution::UniformDistribution(const UniformDistribution& other)
 
 UniformDistribution& UniformDistribution::operator=(const UniformDistribution& other) {
     if (this != &other) {
-        // Acquire locks in a consistent order to prevent deadlock
-
-        // Copy parameters (don't call base class operator= to avoid deadlock)
+        // Both locks at once, in std::lock's deadlock-free order, as the other distributions do;
+        // this assignment took none, so it read other's bounds mid-update.
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         a_ = other.a_;
         b_ = other.b_;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -99,18 +102,10 @@ UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other)
 //==============================================================================
 
 void UniformDistribution::setLowerBound(double a) {
-    // Copy current upper bound for validation (thread-safe)
-    double currentB;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentB = b_;
-    }
-
-    // Validate parameters outside of any lock
-    validateParameters(a, currentB);
-
-    // Set parameter under lock
+    // Validate against the upper bound and write under one lock: a copy validated outside
+    // it let a concurrent setUpperBound leave a >= b.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(a, b_);
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -120,18 +115,10 @@ void UniformDistribution::setLowerBound(double a) {
 }
 
 void UniformDistribution::setUpperBound(double b) {
-    // Copy current lower bound for validation (thread-safe)
-    double currentA;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentA = a_;
-    }
-
-    // Validate parameters outside of any lock
-    validateParameters(currentA, b);
-
-    // Set parameter under lock
+    // Validate against the lower bound and write under one lock: a copy validated outside
+    // it let a concurrent setLowerBound leave a >= b.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(a_, b);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -205,18 +192,12 @@ double UniformDistribution::getWidth() const {
 //==============================================================================
 
 VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
-    double currentB;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentB = b_;
-    }
-
-    auto validation = validateUniformParameters(a, currentB);
+    // One lock for the validation and the write (see setLowerBound).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateUniformParameters(a, b_);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -226,18 +207,12 @@ VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
 }
 
 VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
-    double currentA;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentA = a_;
-    }
-
-    auto validation = validateUniformParameters(currentA, b);
+    // One lock for the validation and the write (see setUpperBound).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateUniformParameters(a_, b);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -1020,6 +995,9 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
 //==============================================================================
 
 bool UniformDistribution::operator==(const UniformDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);

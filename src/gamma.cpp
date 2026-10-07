@@ -1014,6 +1014,9 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
 //==========================================================================
 
 bool GammaDistribution::operator==(const GammaDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     // Use scoped_lock to prevent deadlock when comparing two distributions
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);

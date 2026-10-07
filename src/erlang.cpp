@@ -110,11 +110,10 @@ void ErlangDistribution::setK(int k) {
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(static_cast<double>(k));
     }
-    // Sync gamma_ outside our lock -- same pattern as ChiSquaredDistribution.
-    // gamma_ is private, so no external thread can acquire its lock while we
-    // don't hold ours.
-    (void)gamma_.trySetAlpha(static_cast<double>(k));
 }
 
 void ErlangDistribution::setLambda(double lambda) {
@@ -124,8 +123,10 @@ void ErlangDistribution::setLambda(double lambda) {
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetBeta(lambda);
     }
-    (void)gamma_.trySetBeta(lambda);
 }
 
 void ErlangDistribution::setParameters(int k, double lambda) {
@@ -136,8 +137,10 @@ void ErlangDistribution::setParameters(int k, double lambda) {
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(static_cast<double>(k), lambda);
     }
-    (void)gamma_.trySetParameters(static_cast<double>(k), lambda);
 }
 
 VoidResult ErlangDistribution::trySetK(int k) noexcept {
@@ -149,8 +152,10 @@ VoidResult ErlangDistribution::trySetK(int k) noexcept {
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(static_cast<double>(k));
     }
-    (void)gamma_.trySetAlpha(static_cast<double>(k));
     return VoidResult::ok({});
 }
 
@@ -163,8 +168,10 @@ VoidResult ErlangDistribution::trySetLambda(double lambda) noexcept {
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetBeta(lambda);
     }
-    (void)gamma_.trySetBeta(lambda);
     return VoidResult::ok({});
 }
 
@@ -178,8 +185,10 @@ VoidResult ErlangDistribution::trySetParameters(int k, double lambda) noexcept {
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(static_cast<double>(k), lambda);
     }
-    (void)gamma_.trySetParameters(static_cast<double>(k), lambda);
     return VoidResult::ok({});
 }
 
@@ -258,8 +267,10 @@ void ErlangDistribution::reset() noexcept {
         lambda_ = detail::ONE;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(detail::ONE, detail::ONE);  // Gamma(1,1) = Erlang(1,1)
     }
-    (void)gamma_.trySetParameters(detail::ONE, detail::ONE);  // Gamma(1,1) = Erlang(1,1)
 }
 
 std::string ErlangDistribution::toString() const {

@@ -518,15 +518,19 @@ bool PoissonDistribution::canUseNormalApproximation() const noexcept {
 }
 
 double PoissonDistribution::getMedian() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    // For Poisson distribution, median ≈ λ + 1/3 - 0.02/λ for large λ
-    // For small λ, use numerical approximation via quantile function
-    if (lambda_ > 10.0) {
-        return lambda_ + (1.0 / 3.0) - (0.02 / lambda_);
-    } else {
-        // Use quantile function for more accurate median calculation for small λ
-        return getQuantile(0.5);
+    double lambda;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        lambda = lambda_;
     }
+    // For Poisson distribution, median ≈ λ + 1/3 - 0.02/λ for large λ
+    // For small λ, use numerical approximation via quantile function. getQuantile takes the
+    // shared lock itself: calling it under ours locked the shared_mutex recursively (undefined,
+    // and a deadlock with SRWLOCK once a writer queues in between).
+    if (lambda > 10.0) {
+        return lambda + (1.0 / 3.0) - (0.02 / lambda);
+    }
+    return getQuantile(0.5);
 }
 
 //==============================================================================
@@ -970,6 +974,9 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
 //==============================================================================
 
 bool PoissonDistribution::operator==(const PoissonDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);

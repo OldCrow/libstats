@@ -1025,6 +1025,9 @@ inline bool param_equal(double x, double y) noexcept {
 }  // namespace
 
 bool TruncatedNormalDistribution::operator==(const TruncatedNormalDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);

@@ -104,10 +104,10 @@ void ChiSquaredDistribution::setK(double k) {
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(k / detail::TWO);
     }
-    // Sync gamma_ outside our lock — same pattern as reset(). gamma_ is private,
-    // so no external thread can acquire its lock while we don't hold ours.
-    (void)gamma_.trySetAlpha(k / detail::TWO);
 }
 
 VoidResult ChiSquaredDistribution::trySetK(double k) noexcept {
@@ -120,8 +120,10 @@ VoidResult ChiSquaredDistribution::trySetK(double k) noexcept {
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(k / detail::TWO);
     }
-    (void)gamma_.trySetAlpha(k / detail::TWO);
     return VoidResult::ok({});
 }
 
@@ -161,8 +163,10 @@ void ChiSquaredDistribution::reset() noexcept {
         k_ = detail::ONE;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(detail::HALF);  // Gamma(0.5, 0.5) = χ²(1)
     }
-    (void)gamma_.trySetAlpha(detail::HALF);  // Gamma(0.5, 0.5) = χ²(1)
 }
 
 std::string ChiSquaredDistribution::toString() const {

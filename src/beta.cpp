@@ -337,6 +337,23 @@ void stirlingBetaLogDensityBatch(const double* x, double* out, std::size_t count
             ob[i] = ob[i] + shape_constant - log_x[i] - log_1mx[i];
     }
 }
+
+// The log-density at x outside (0, 1) from one snapshot: −inf out of support; at x = 0 and x = 1
+// the limit by shape (#161, #165): +inf for a shape below 1, log_norm_const for exactly 1, −inf
+// above. Read from α − 1 and β − 1, whose sign and zero are exactly α's and β's against 1. The pdf
+// is its exp. The batch kernels called the scalar methods here, so each such element took the lock
+// and read the live parameters instead of the batch's snapshot.
+[[nodiscard]] double betaLogDensityOutside(double x, double log_norm_const, double alpha_minus_one,
+                                           double beta_minus_one) noexcept {
+    if (x < detail::ZERO_DOUBLE || x > detail::ONE)
+        return -std::numeric_limits<double>::infinity();
+    const double shape_minus_one = (x == detail::ZERO_DOUBLE) ? alpha_minus_one : beta_minus_one;
+    if (shape_minus_one > detail::ZERO_DOUBLE)
+        return -std::numeric_limits<double>::infinity();
+    if (shape_minus_one == detail::ZERO_DOUBLE)  // exactly: just below 1 the limit is +inf
+        return log_norm_const;
+    return std::numeric_limits<double>::infinity();
+}
 }  // namespace
 
 double BetaDistribution::getProbability(double x) const {
@@ -362,25 +379,8 @@ double BetaDistribution::getProbability(double x) const {
             bm1 = betaMinus1_;
         }
     }
-    if (x <= detail::ZERO_DOUBLE || x >= detail::ONE) {
-        // Boundary: PDF = 0 for α,β > 1; ∞ for α or β < 1 (return +inf); 1 for α or β = 1
-        if (x < detail::ZERO_DOUBLE || x > detail::ONE)
-            return detail::ZERO_DOUBLE;
-        // x = 0 or x = 1: handle carefully
-        if (x == detail::ZERO_DOUBLE) {
-            if (a > detail::ONE)
-                return detail::ZERO_DOUBLE;
-            if (a == detail::ONE)  // exactly: just below 1 the limit is +inf
-                return std::exp(lnc);
-            return std::numeric_limits<double>::infinity();
-        }
-        // x = 1
-        if (b > detail::ONE)
-            return detail::ZERO_DOUBLE;
-        if (b == detail::ONE)  // exactly: just below 1 the limit is +inf
-            return std::exp(lnc);
-        return std::numeric_limits<double>::infinity();
-    }
+    if (x <= detail::ZERO_DOUBLE || x >= detail::ONE)
+        return std::exp(betaLogDensityOutside(x, lnc, am1, bm1));
     return std::exp(betaLogDensity(x, a, b, lnc, am1, bm1, betaShapeConstant(a, b)));
 }
 
@@ -407,23 +407,8 @@ double BetaDistribution::getLogProbability(double x) const {
             bm1 = betaMinus1_;
         }
     }
-    if (x < detail::ZERO_DOUBLE || x > detail::ONE) {
-        return -std::numeric_limits<double>::infinity();
-    }
-    if (x == detail::ZERO_DOUBLE) {
-        if (a > detail::ONE)
-            return -std::numeric_limits<double>::infinity();
-        if (a == detail::ONE)  // exactly: just below 1 the limit is +inf
-            return lnc;
-        return std::numeric_limits<double>::infinity();
-    }
-    if (x == detail::ONE) {
-        if (b > detail::ONE)
-            return -std::numeric_limits<double>::infinity();
-        if (b == detail::ONE)  // exactly: just below 1 the limit is +inf
-            return lnc;
-        return std::numeric_limits<double>::infinity();
-    }
+    if (x <= detail::ZERO_DOUBLE || x >= detail::ONE)
+        return betaLogDensityOutside(x, lnc, am1, bm1);
     return betaLogDensity(x, a, b, lnc, am1, bm1, betaShapeConstant(a, b));
 }
 
@@ -924,7 +909,8 @@ void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doubl
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             if (x <= 0.0 || x >= 1.0) {
-                results[i] = getProbability(x);
+                results[i] = std::exp(
+                    betaLogDensityOutside(x, log_norm_const, alpha_minus_one, beta_minus_one));
             } else {
                 results[i] = std::exp(betaLogDensity(x, a, b, log_norm_const, alpha_minus_one,
                                                      beta_minus_one, shape_constant));
@@ -959,7 +945,8 @@ void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doubl
     // Fixup: x <= 0 or x >= 1 (NaN/Inf from log(0) or log of negative)
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= 0.0 || values[i] >= 1.0) {
-            results[i] = getProbability(values[i]);
+            results[i] = std::exp(
+                betaLogDensityOutside(values[i], log_norm_const, alpha_minus_one, beta_minus_one));
         }
     }
 }
@@ -979,7 +966,8 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             if (x <= 0.0 || x >= 1.0) {
-                results[i] = getLogProbability(x);
+                results[i] =
+                    betaLogDensityOutside(x, log_norm_const, alpha_minus_one, beta_minus_one);
             } else {
                 results[i] = betaLogDensity(x, a, b, log_norm_const, alpha_minus_one,
                                             beta_minus_one, shape_constant);
@@ -1009,7 +997,8 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
     // Fixup: x <= 0 or x >= 1
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= 0.0 || values[i] >= 1.0) {
-            results[i] = getLogProbability(values[i]);
+            results[i] =
+                betaLogDensityOutside(values[i], log_norm_const, alpha_minus_one, beta_minus_one);
         }
     }
 }

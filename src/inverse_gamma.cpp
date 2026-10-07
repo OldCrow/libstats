@@ -154,10 +154,10 @@ void InverseGammaDistribution::setAlpha(double alpha) {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(alpha);
     }
-    // Sync the delegate outside our lock -- same pattern as ChiSquared/Erlang.
-    // gamma_ is private, so no external thread can hold its mutex.
-    (void)gamma_.trySetAlpha(alpha);
 }
 
 void InverseGammaDistribution::setBeta(double beta) {
@@ -168,8 +168,10 @@ void InverseGammaDistribution::setBeta(double beta) {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetBeta(beta);  // SCALE here == RATE there
     }
-    (void)gamma_.trySetBeta(beta);  // SCALE here == RATE there
 }
 
 void InverseGammaDistribution::setParameters(double alpha, double beta) {
@@ -181,8 +183,10 @@ void InverseGammaDistribution::setParameters(double alpha, double beta) {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(alpha, beta);
     }
-    (void)gamma_.trySetParameters(alpha, beta);
 }
 
 // The trySet* validate and assign under one lock rather than calling the throwing setters,
@@ -198,8 +202,10 @@ VoidResult InverseGammaDistribution::trySetAlpha(double alpha) noexcept {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(alpha);
     }
-    (void)gamma_.trySetAlpha(alpha);
     return VoidResult::ok({});
 }
 
@@ -213,8 +219,10 @@ VoidResult InverseGammaDistribution::trySetBeta(double beta) noexcept {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetBeta(beta);  // SCALE here == RATE there
     }
-    (void)gamma_.trySetBeta(beta);  // SCALE here == RATE there
     return VoidResult::ok({});
 }
 
@@ -229,8 +237,10 @@ VoidResult InverseGammaDistribution::trySetParameters(double alpha, double beta)
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(alpha, beta);
     }
-    (void)gamma_.trySetParameters(alpha, beta);
     return VoidResult::ok({});
 }
 
@@ -519,8 +529,10 @@ void InverseGammaDistribution::reset() noexcept {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(detail::ONE, detail::ONE);
     }
-    (void)gamma_.trySetParameters(detail::ONE, detail::ONE);
 }
 
 std::string InverseGammaDistribution::toString() const {

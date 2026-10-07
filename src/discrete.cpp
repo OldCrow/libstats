@@ -164,8 +164,10 @@ double DiscreteDistribution::getVariance() const {
 }
 
 void DiscreteDistribution::setLowerBound(int a) {
-    validateParameters(a, b_);
+    // Validate against the other bound and write under one lock: the bound was read with no
+    // lock, so a concurrent setUpperBound could leave a > b and range_ <= 0.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(a, b_);
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -173,8 +175,10 @@ void DiscreteDistribution::setLowerBound(int a) {
 }
 
 void DiscreteDistribution::setUpperBound(int b) {
-    validateParameters(a_, b);
+    // Validate against the other bound and write under one lock: the bound was read with no
+    // lock, so a concurrent setLowerBound could leave a > b and range_ <= 0.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(a_, b);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -284,19 +288,12 @@ double DiscreteDistribution::getSingleOutcomeProbability() const noexcept {
 //==============================================================================
 
 VoidResult DiscreteDistribution::trySetLowerBound(int a) noexcept {
-    // Copy current upper bound for validation (thread-safe)
-    int currentB;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentB = b_;
-    }
-
-    auto validation = validateDiscreteParameters(a, currentB);
+    // One lock for the validation and the write (see setLowerBound).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateDiscreteParameters(a, b_);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -308,19 +305,12 @@ VoidResult DiscreteDistribution::trySetLowerBound(int a) noexcept {
 }
 
 VoidResult DiscreteDistribution::trySetUpperBound(int b) noexcept {
-    // Copy current lower bound for validation (thread-safe)
-    int currentA;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentA = a_;
-    }
-
-    auto validation = validateDiscreteParameters(currentA, b);
+    // One lock for the validation and the write (see setUpperBound).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateDiscreteParameters(a_, b);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
