@@ -1,0 +1,55 @@
+2026-10-05 20:20:48 r3 cpu=26.7% waiting
+2026-10-05 20:21:58 r3 cpu=7% ac=True quiet
+2026-10-05 20:21:58 clock[r3] start (set=True ok=True control=1 state=0)
+2026-10-05 20:22:09 clock[r3] rc=0 ms/pass=130.1/129.4 (boost ~128, base ~190)
+2026-10-05 20:22:09 bench_cc_v241 (WARMUP 20) sha=69c7be4 start (set=True ok=True control=1 state=0)
+2026-10-05 20:24:06 end bench_cc_v241 exit=0 cpu=8.7%
+2026-10-05 20:24:07 bench_cc_v242 (WARMUP 20) start (set=True ok=True control=1 state=0)
+2026-10-05 20:25:50 end bench_cc_v242 exit=0 cpu=8.3%
+2026-10-05 20:25:50 compare exit=0; timing tests one by one, each opted out
+2026-10-05 20:25:52   test_math_comprehensive start (set=True ok=True control=1 state=0)
+2026-10-05 20:25:52   test_math_comprehensive exit=0 2.2s
+2026-10-05 20:25:53   test_performance_dispatcher start (set=True ok=True control=1 state=0)
+2026-10-05 20:25:53   test_performance_dispatcher exit=0 1s
+2026-10-05 20:25:54   test_system_capabilities start (set=True ok=True control=1 state=0)
+2026-10-05 20:25:54   test_system_capabilities exit=0 1.3s
+2026-10-05 20:25:55   test_gaussian_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:25:55   test_gaussian_enhanced exit=1 0.9s
+2026-10-05 20:25:56   test_exponential_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:25:56   test_exponential_enhanced exit=0 1.1s
+2026-10-05 20:25:57   test_discrete_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:25:57   test_discrete_enhanced exit=0 1.1s
+2026-10-05 20:26:03   test_uniform_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:03   test_uniform_enhanced exit=0 5.7s
+2026-10-05 20:26:04   test_poisson_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:04   test_poisson_enhanced exit=0 1.1s
+2026-10-05 20:26:05   test_gamma_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:06   test_gamma_enhanced exit=0 1.3s
+2026-10-05 20:26:07   test_chi_squared_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:07   test_chi_squared_enhanced exit=0 1.4s
+2026-10-05 20:26:08   test_student_t_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:08   test_student_t_enhanced exit=0 1.2s
+2026-10-05 20:26:09   test_beta_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:09   test_beta_enhanced exit=0 1s
+2026-10-05 20:26:10   test_lognormal_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:10   test_lognormal_enhanced exit=0 1.1s
+2026-10-05 20:26:12   test_pareto_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:12   test_pareto_enhanced exit=0 1.4s
+2026-10-05 20:26:12   test_weibull_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:13   test_weibull_enhanced exit=0 0.9s
+2026-10-05 20:26:14   test_rayleigh_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:14   test_rayleigh_enhanced exit=0 1.2s
+2026-10-05 20:26:15   test_von_mises_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:15   test_von_mises_enhanced exit=0 0.9s
+2026-10-05 20:26:16   test_binomial_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:16   test_binomial_enhanced exit=0 1.1s
+2026-10-05 20:26:24   test_negative_binomial_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:24   test_negative_binomial_enhanced exit=0 8.5s
+2026-10-05 20:26:26   test_geometric_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:26   test_geometric_enhanced exit=0 1.2s
+2026-10-05 20:26:26   test_laplace_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:27   test_laplace_enhanced exit=0 0.9s
+2026-10-05 20:26:28   test_cauchy_enhanced start (set=True ok=True control=1 state=0)
+2026-10-05 20:26:28   test_cauchy_enhanced exit=0 1.2s
+2026-10-05 20:26:28 timing: 21/22 passed test_gaussian_enhanced
+2026-10-05 20:26:28 DONE

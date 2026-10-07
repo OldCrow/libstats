@@ -36,3 +36,11 @@ Capture notes:
   Lake's same-tier bundles at d9384f8 (before the 2026-10-04 speed work).
 - No table is updated from this bundle [user, 2026-10-04]: R8 updates after Z and M.
 - No correctness run in this bundle; R1 on build/ (89/89, MSVC and clang-cl) is in PLAN.md.
+
+Superseded [2026-10-06]:
+- These runs ran under Windows power throttling (the screen was locked, nothing opted out):
+  near base clock, single-thread 1.5x and parallel 1.28x slower than the same binary by day.
+  PARALLEL lost less than VECTORIZED, so the crossovers lean sooner (47 of 48 differing
+  AVX-512 rows against the unthrottled clang-cl capture). Do not derive tables from them.
+  Z's capture of record is the clang-cl set 2026-10-06T0*_windows-*_sha-69c7be4; the
+  throttling finding is in docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/.

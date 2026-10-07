@@ -89,37 +89,27 @@ Status by machine (each machine edits only its own line):
   contract violations; Beta pdf/logpdf and the Gamma family 2–10⁴×
   better; Binomial pdf (1.7e-14 → 4.9e-14) and Poisson pdf (5.5e-14 →
   1.2e-13) worse, digit for digit as on K's AVX2 block at `4ceafae`, so
-  the code's, within the contract. R5 skipped [user]. R3 and R8 ran
-  overnight 2026-10-04/05 at `2c5230a` from a detached script (CPU < 8%
-  before each run, 25 s warm-up, Turbo, AC). R3 done
-  (`docs/bench-evidence/2026-10-04-zen4-v242-cost/`): timing 22/22; 23
-  NEW AUTO-vs-best gaps (20 favour PARALLEL), 30 in both versions. Over
-  the 10× guide on Z only, all forced VECTORIZED or per call, MSVC:
-  Beta(25, 25) and Beta(1000, 1000) pdf/logpdf 6.4–11.3× (M 2.3–2.8×;
-  scalar 3.1–5.0×, parallel 2.7–6.3×); Student-t cdf 6.3–11.8× and
-  quantile 10.7–14.5× at ν ≥ 1e3 (M: quantile 7–9×); von Mises quantile
-  10.6–15.9× (M 5.8–8.7×). R8 done: four bundles
-  `2026-10-05T0{2,3,3,4}-*_windows-*_sha-2c5230a`, run-to-run spread
-  9–15 rows > 2×; comparison in the AVX-512 bundle. Against the tables:
-  kAvx512 53 of 81 rows (42 cross sooner), kAvx2 54, kAvx 35 (AVX), 39
-  (SSE2). Against K's same tier at `d9384f8`: 53, 37, 41 rows differ,
-  with no direction (27 sooner, 26 later on AVX2). SSE2 differs from AVX
-  on 19 rows (K: 18). **These R8 bundles must not drive a table [DERIVED,
-  2026-10-05]:** the overnight ran near base clock (single-thread 1.5×,
-  parallel 1.28× slower than the same binary by day), which tilts
-  crossovers towards PARALLEL; R3's ratios hold (both versions alike).
-  Cause found: the locked screen (power throttling; Rules). At
-  `998d985` (2026-10-05): R1 MSVC and clang-cl 89/89, 0 warnings; the
-  sweep bit-identical to `6cab6ed` under both, so the AVX-512 block
-  stands. At `606607f` (clang-cl `/arch:`): clang-cl fresh build 0
-  warnings, 89/89, AVX-512; its sweep through the oracle (to scratch,
-  the doc's block stays MSVC's) 0 contract violations; capped AVX2, AVX,
-  SSE2 trees built and confirmed. R3 and R8 on clang-cl run overnight
-  2026-10-05/06 [user], every process opted out of throttling
-  (`docs/bench-evidence/2026-10-05-zen4-clangcl-v242-cost/`); v2.4.1
-  for R3 built with clang-cl after `v241_clangcl_compat.patch` there,
-  applied uncommitted in `../libstats-v2.4.1`. Then bundles, evidence,
-  and the cross-tier comparison, committed after review.
+  the code's, within the contract. R5 skipped [user]. The MSVC R3/R8
+  overnight of 2026-10-04/05 (`2026-10-04-zen4-v242-cost/`, bundles
+  `2026-10-05T0*_windows-*_sha-2c5230a`) ran under power throttling
+  (base clock; Rules) and is superseded for R8 (manifests say so); its
+  R3 ratios hold. At `998d985`: R1 MSVC and clang-cl 89/89, the sweep
+  bit-identical to `6cab6ed` under both, so the AVX-512 block stands. At
+  `606607f` (clang-cl `/arch:`): clang-cl 0 warnings, 89/89, its sweep
+  0 contract violations through the oracle (to scratch; the block stays
+  MSVC's). **R3 and R8 done on clang-cl** (overnight 2026-10-05/06, every
+  process opted out of throttling, clock at boost throughout;
+  `docs/bench-evidence/2026-10-05-zen4-clangcl-v242-cost/`; v2.4.1 built
+  with `v241_clangcl_compat.patch` there, applied uncommitted in
+  `../libstats-v2.4.1`). R3: timing 21/22, the one failure a single-shot
+  timing that 40 reruns pass (`test_gaussian_enhanced`, filed); von
+  Mises quantile 17–23× and Student-t quantile at ν ≥ 1e3 11.6–13.3×
+  against v2.4.1, the fastest absolute times of the three machines (the
+  ratio is v2.4.1's 18 ns grid lookup); Beta at large shapes 3–4×. R8:
+  bundles `2026-10-06T0*_windows-*_sha-69c7be4`, run-to-run spread 9–13
+  rows > 2×; the cross-tier comparison and the hypothesis tests are in
+  the AVX-512 bundle and under "Trends" below. Z's R1–R3 and R8 are
+  complete at the freeze code.
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
@@ -366,6 +356,17 @@ After Z and M [user's decision]: update only the rows v2.4.2 moved in
 each table, decide on a kSse2 table of its own, then R1 again on every
 machine whose table changed. Inputs: "Trends from the v2.5.0 captures".
 
+Captures complete on K, M and Z at the freeze code (2026-10-06). Decided
+[user, 2026-10-06]: change only the rows that moved for a code reason,
+not a full re-derivation. But the rows under the two parallel-path
+defects found in Z's analysis (Trends; issues filed for v2.5.0) measure
+the defects, not the operations: Bernoulli, Binomial, Geometric,
+NegativeBinomial and the von Mises CDF (per-element lock), the Student-t
+CDF (serial PARALLEL lambda). Their rows are unknown until the fix and a
+re-profile, so the table update waits for both. Next: fix the defects
+(a freeze move, library code), re-profile on every machine, then decide
+the rows.
+
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
 stale test counts), AGENTS "Current status", PROJECT_CONCEPT. CHANGELOG
@@ -550,39 +551,59 @@ anything]:
 - **#4 Post-v3 — Architecture Refactor** (open, 5): #40, #41, #42, #43,
   #128.
 
-## Trends from the v2.5.0 captures [OPEN, 2026-10-05]
-From K's three tiers, M's NEON and Z's first (throttled) overnight. Z's
-clang-cl rerun refines the numbers; the trends hold [user, 2026-10-05].
+## Trends from the v2.5.0 captures [OPEN, 2026-10-05; tested 2026-10-06]
+First extracted from K's three tiers, M's NEON and Z's throttled
+overnight as markers for analysis [user]; tested on 2026-10-06 against
+the three freeze-code datasets (K's AVX2/AVX/SSE2 at `6f86996`, M's NEON
+at `2c5230a`, Z's clang-cl AVX-512/AVX2/AVX/SSE2 at `69c7be4`), per
+machine and together [DERIVED]. A difference counts only beyond that
+row's own three-run spread (grid steps). Three runs in one night are a
+lower bound on noise.
 
-For v2.5.0 (decide with R8, after Z's rerun):
-- **Table noise exceeds table precision.** Every machine has 9–19 of 81
-  rows spreading > 2× across three quiet runs. A capture differs from
-  its table on 30–60% of rows, and K and Z differ on about half the rows
-  of the same tier with no direction. Option: change only the rows that
-  moved for a code reason (von Mises CDF → NEVER, the Weibull and Pareto
-  CDFs later, Student-t pdf sooner, FisherF), keep the overrides, and
-  skip the full re-derivation.
-- **AUTO is too reluctant to go parallel**, on all three machines and in
-  v2.4.1 too: most AUTO-vs-best gaps favour PARALLEL at n = 1e3–1e5.
-  This is likely the post-#143 parallel overhead running lower than the
-  September tables assume. Option: lower the parallel thresholds as one
-  correction, not row by row.
-- **Remaining over-budget rows:** Student-t cdf/quantile at ν ≥ 1e3
-  (7–9× on K and M, up to 12–15× on Z under MSVC), the costliest across
-  machines, and the von Mises quantile (5–9× clang, 10–16× MSVC). Ship
-  them as documented gaps (quantiles are less hot than densities), or
-  give Student-t the von Mises treatment: a fixed-cost method,
-  normal-limited at large ν, as a corvus #44 kernel.
-- **kSse2:** SSE2 differs from AVX on ~20 rows, mostly crossing sooner,
-  on K and Z. Lean: keep the delegation to kAvx and document it; few
-  real machines run this tier.
+For v2.5.0:
+- **"Table noise exceeds table precision": rejected as stated.** Run
+  noise is a median 0–1 grid step; only 3–11 of 81 rows per set spread
+  > 2 steps. Rows differing from their table beyond that noise: K 24
+  (AVX2), 9 (AVX), 27 (SSE2); M 22; Z 41, 42, 28, 38. The tables are
+  off because crossovers are per machine (below) while a table serves an
+  architecture.
+- **"AUTO is too reluctant": true only at costly parameters.** On the
+  profile's default parameters the tables cross too early as often as
+  too late (the cheapest third: early 8–11, late ~2 on most sets). R3's
+  AUTO-vs-best gaps favour PARALLEL (K 23/24, M 23/23, Z 28/33), mostly
+  at costly parameters (Beta 25 and 1000 shapes, Gamma α ≥ 20, Student-t
+  ν ≥ 1e3, large counts: 18/24, 17/23, 19/33). Per-element cost varies
+  up to 10× with the parameters, so one threshold per (distribution,
+  operation) cannot serve both.
+- **Two parallel-path defects** (issues filed for v2.5.0; predate v2.5.0,
+  v2.4.1 has both). (1) The PARALLEL lambdas of `binomial.cpp`,
+  `negative_binomial.cpp` and `von_mises.cpp` call the scalar method per
+  element, and each call takes `withCacheSnapshot`'s `shared_lock` on
+  the object's one mutex: PARALLEL/VECTORIZED at 2M elements 1.5–12×
+  slower, worst on the Macs (GCD) and through Bernoulli and Geometric,
+  which delegate. (2) The Student-t CDF's PARALLEL lambda is a serial
+  loop: exactly 1.00× on every machine. These are the NEVER rows that
+  look costly; their table rows wait for the fix (R8).
+- **kSse2: confirmed, SSE2 crosses sooner.** K 21 sooner / 0 later, Z 15 /
+  1, the rest within noise, following SSE2's cost over AVX (median 1.16×
+  K, 1.65× Z). Delegating to kAvx is late on a fifth to a quarter of rows.
+- **Remaining over-budget rows:** Student-t quantile at ν ≥ 1e3 (K, M
+  7–9×; Z 11.6–13.3×) and the von Mises quantile (K, M 5–9×; Z 17–23×,
+  Z's ratio from v2.4.1's cheap grid; in absolute terms Z is fastest).
+  Ship as documented gaps, or give Student-t the von Mises treatment (a
+  fixed-cost method, normal-limited at large ν; a corvus #44 kernel).
 
 For corvus adoption (v3.0.0) and later:
-- **Thresholds follow per-element cost.** Costlier operations crossed
-  sooner (Student-t pdf to the 64 floor); cheapened ones stopped
-  crossing (von Mises CDF). A threshold behaves like a machine's
-  parallel overhead ÷ an operation's per-element cost, and both are
-  easier to measure than a sustained crossover. Corvus replaces the
+- **Thresholds follow per-element cost: supported** [DERIVED,
+  2026-10-06]. log(crossover) against log(VECTORIZED ns/element) has
+  slope −0.5 to −1.03 (−1 predicted; M −1.03, R² 0.85; K AVX −0.97,
+  0.70; weakest Z SSE2 −0.51, 0.29), and one constant per machine and
+  tier (2^16.8–2^18.2 ns) puts 69% of 648 rows within noise + 1 step,
+  against 75% for the hand-tuned tables. K and Z differ by cost, not by
+  noise: Z crosses later on 19–27 rows and sooner on 9–11, its
+  vectorized cost about half K's, and the crossover ratio follows the
+  cost ratio with slope +1.1 (AVX2, AVX; SSE2 +0.36). Exceptions are the
+  two defects above. Corvus replaces the
   kernels and invalidates every table, so spend little on v2.5.0 table
   precision. Evaluate a cost model (per-element costs × one per-machine
   overhead, perhaps calibrated at startup) against the tables; it ties

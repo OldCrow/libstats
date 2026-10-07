@@ -1,0 +1,21 @@
+2026-10-05 22:04:26 batch start tier=SSE2 build=C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl-sse2 sha=69c7be4 runs=1 2 3
+2026-10-05 22:04:26 system_inspector: System: 12 logical cores, SSE2 SIMD, 16384 KB L3 cache
+2026-10-05 22:04:36 run1 cpu=4.4% ac=True quiet
+2026-10-05 22:04:36 clock[sse2_run1] start (set=True ok=True control=1 state=0)
+2026-10-05 22:04:46 clock[sse2_run1] rc=0 ms/pass=127.6/127.5 (boost ~128, base ~190)
+2026-10-05 22:05:13 run1 (after 25s discarded opted-out strategy_profile warm-up) utc=2026-10-06T02-05-13Z
+2026-10-05 22:05:13 run1 profile start (set=True ok=True control=1 state=0)
+2026-10-05 22:14:51 run1 end exit=0 rows=7777 cpu=3.7%
+2026-10-05 22:15:01 run2 cpu=4.4% ac=True quiet
+2026-10-05 22:15:01 clock[sse2_run2] start (set=True ok=True control=1 state=0)
+2026-10-05 22:15:11 clock[sse2_run2] rc=0 ms/pass=127.6/127.3 (boost ~128, base ~190)
+2026-10-05 22:15:37 run2 (after 25s discarded opted-out strategy_profile warm-up) utc=2026-10-06T02-15-37Z
+2026-10-05 22:15:37 run2 profile start (set=True ok=True control=1 state=0)
+2026-10-05 22:25:27 run2 end exit=0 rows=7777 cpu=3.9%
+2026-10-05 22:25:37 run3 cpu=3.1% ac=True quiet
+2026-10-05 22:25:37 clock[sse2_run3] start (set=True ok=True control=1 state=0)
+2026-10-05 22:25:47 clock[sse2_run3] rc=0 ms/pass=127.5/127.2 (boost ~128, base ~190)
+2026-10-05 22:26:13 run3 (after 25s discarded opted-out strategy_profile warm-up) utc=2026-10-06T02-26-13Z
+2026-10-05 22:26:13 run3 profile start (set=True ok=True control=1 state=0)
+2026-10-05 22:36:09 run3 end exit=0 rows=7777 cpu=4.7%
+2026-10-05 22:36:09 batch DONE
