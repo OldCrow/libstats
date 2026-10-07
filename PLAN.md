@@ -18,14 +18,18 @@ this file names that branch and its code. All milestone code is in, #162 include
 `5367999`), with `SQRT_PI` corrected (`4ec1950`) and the Beta
 large-shape density fixed (`97c67bf`).
 
-**Code freeze at `606607f` [user, 2026-10-05]**, moved from `5367999`
+**Code freeze at `ee11e62` [user, 2026-10-06]**, moved from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
 rename in `gamma.cpp` and `beta.cpp`), the `log1pmx_series` Horner
 written out (`998d985`, so MSVC vectorizes the Beta and Gamma Stirling
-batches) and clang-cl's global flag made cl.exe's `/arch:` (`606607f`).
-The first two are bit-identical on clang and the third is
-Windows-clang-cl-only, so K's runs at `5367999` and M's at `2c5230a`
-stand [user, 2026-10-04/05]. Verified on K (AppleClang 15,
+batches), clang-cl's global flag made cl.exe's `/arch:` (`606607f`), the
+parallel-path fixes (`73ecbfe`: #175, #176; one snapshot per batch,
+sliced batch kernels) and the audit's lock, TOCTOU and parallel-path
+fixes (`ee11e62`; Known Gaps). The first three are bit-identical on
+clang or Windows-only, so K's runs at `5367999` and M's at `2c5230a`
+stand for R1–R3 [user, 2026-10-04/05]. `73ecbfe` and `ee11e62` are
+bit-identical on Z under MSVC and clang-cl (the sweep's result bits);
+every machine reruns R1 with the new gates and re-profiles R8 (R8). Verified on K (AppleClang 15,
 2026-10-05): the AVX2 sweep at the freeze code is bit-identical to
 `4ceafae`'s. CI first ran on this branch at `bb27040` (manual dispatch),
 green on all 10 jobs: GCC 14, Linux clang 17, macOS AppleClang, MSVC,
@@ -108,8 +112,13 @@ Status by machine (each machine edits only its own line):
   ratio is v2.4.1's 18 ns grid lookup); Beta at large shapes 3–4×. R8:
   bundles `2026-10-06T0*_windows-*_sha-69c7be4`, run-to-run spread 9–13
   rows > 2×; the cross-tier comparison and the hypothesis tests are in
-  the AVX-512 bundle and under "Trends" below. Z's R1–R3 and R8 are
-  complete at the freeze code.
+  the AVX-512 bundle and under "Trends" below. Those R8 bundles predate
+  `73ecbfe`/`ee11e62` and are superseded for R8 (R8, "Next on every
+  machine"). At `ee11e62` (2026-10-06): MSVC and clang-cl 0 warnings,
+  90/90, sweep bit-identical to `73ecbfe` and `998d985`; speed gate
+  PARALLEL/VECTORIZED 0.17–0.22 at 1M; every concurrency gate failed on
+  `73ecbfe` (the Poisson one by deadlock) and passes. Next on Z: R8
+  steps 3–4 (quiet; the clang-cl trees need a rebuild at `ee11e62`).
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
@@ -178,7 +187,7 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `606607f` (Status); confirm it with
+- Validate at the freeze head `ee11e62` (Status); confirm it with
   `git log -1` before R1. Library code is frozen: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
   Fix nothing in library code without the user's decision.
@@ -198,7 +207,7 @@ Status by machine (each machine edits only its own line):
   tuning changes. The sandbox also blocks the SSH agent for `git fetch`.
 
 ### Cold start (K, M)
-1. `git fetch`; `dev/v2.4.2` must be at the freeze head `606607f` or
+1. `git fetch`; `dev/v2.4.2` must be at the freeze head `ee11e62` or
    later. Work in a
    worktree beside the main checkout: `git worktree add
    ../libstats-v2.4.2 dev/v2.4.2`, or `git pull` in it if it exists.
@@ -363,9 +372,40 @@ defects found in Z's analysis (Trends; #175, #176) measure
 the defects, not the operations: Bernoulli, Binomial, Geometric,
 NegativeBinomial and the von Mises CDF (per-element lock), the Student-t
 CDF (serial PARALLEL lambda). Their rows are unknown until the fix and a
-re-profile, so the table update waits for both. Next: fix the defects
-(a freeze move, library code), re-profile on every machine, then decide
-the rows.
+re-profile, so the table update waits for both. Fixed at `73ecbfe`
+(2026-10-06; Z: both gates failed on the previous head and pass,
+PARALLEL/VECTORIZED 0.17–0.22 at 1M for all eight operations under
+MSVC and clang-cl; sweep bit-identical). The Macs' 1.5–8.9× slower
+PARALLEL was measured on the unfixed code; the fix is unrun there.
+
+The audit that followed (2026-10-06, `ee11e62`) also changed what R8
+measures: below ParallelUtils' fork threshold, PARALLEL now takes the
+batch path instead of a serial per-element scalar loop, so no capture
+before `ee11e62` measured PARALLEL under 1024–8192 elements as AUTO runs
+it now.
+
+Next on every machine, at `ee11e62`:
+1. Build (R1's commands); correctness ctest, 90 tests (91 with
+   `test_parallel_batch_gates`, which is timing-labelled).
+   `test_snapshot_consistency` and `test_concurrency_gates` carry the
+   new correctness gates; a hang in the latter is the Poisson deadlock
+   (its watchdog ends the process after 60 s).
+2. The accuracy sweep, compared with your last sweep's result bits
+   (`diff` past the two banner lines): expect identical. Any difference
+   is a stop-and-report.
+3. Quiet: `test_parallel_batch_gates` alone; expect every
+   PARALLEL/VECTORIZED ratio below 0.75 (it prints them). Record them.
+4. R8 again, every tier (K: AVX2, AVX, SSE2; M: NEON; Z: clang-cl
+   AVX-512, AVX2, AVX, SSE2), as before; the new bundles supersede all
+   previous v2.5.0 captures.
+5. Macs only, once: a ThreadSanitizer build of
+   `test_concurrency_gates` and `test_work_stealing_pool` (or the
+   pool's own test), as R4's UBSan leg was built. Two fixes have no
+   deterministic gate on Windows: Uniform's copy-assignment (it took no
+   locks) and the work-stealing pool's construction (threads started
+   before their data). Expect TSan clean at `ee11e62`; if time allows,
+   show it reporting both at `73ecbfe`.
+Then decide the rows.
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
@@ -540,8 +580,15 @@ anything]:
   2026-09-17]: every `detail::` special function corvus covers. #126 and
   #141 are absorbed, measured against corvus v1.0.0. Corvus is pinned at
   v1.0.1. State and design: that branch's PLAN.md.
-- **#8 Accuracy, contracts & kernel hygiene patch** (open, 5): ships after
-  corvus (v3.0.0); under review, see above. Bucketed [user, 2026-09-29]:
+- **#8 Accuracy, contracts & kernel hygiene patch** (open, 11): ships after
+  corvus (v3.0.0); under review, see above. #178–#183 filed 2026-10-06
+  from the lock and parallel-path audit, not fixed for v2.5.0 [user]:
+  #178 InverseGamma's serial passes, #179 `parallel_execution.h`'s
+  include-order backend choice (Linux), #180 the global `waitForAll()`
+  after a latched `parallelFor`, #181 the batch-fit fallback racing
+  submitted tasks, #182 FisherF `sample()` mixing a snapshot with the
+  resynced delegate, #183 unlocked validation reads and dead helpers.
+  Bucketed [user, 2026-09-29]:
   - A, independent of adoption: #152 (Codecov measurement); #146 closed.
   - B, re-scope after the post-swap sweep and timing: #103, #104, #144;
     #111 closed.
@@ -585,7 +632,9 @@ For v2.5.0:
   slower, worst on the Macs (GCD) and through Bernoulli and Geometric,
   which delegate. (2) The Student-t CDF's PARALLEL lambda is a serial
   loop: exactly 1.00× on every machine. These are the NEVER rows that
-  look costly; their table rows wait for the fix (R8).
+  look costly; their table rows wait for the fix (R8). Fixed at
+  `73ecbfe`; the audit it prompted found more, fixed at `ee11e62` or
+  filed (Known Gaps, GitHub Milestones).
 - **kSse2: confirmed, SSE2 crosses sooner.** K 21 sooner / 0 later, Z 15 /
   1, the rest within noise, following SSE2's cost over AVX (median 1.16×
   K, 1.65× Z). Delegating to kAvx is late on a fifth to a quarter of rows.
@@ -626,6 +675,20 @@ For corvus adoption (v3.0.0) and later:
   worse than the v2.5.0 block, on every ISA.
 
 ## Known Gaps [OPEN]
+- **Lock and parallel-path audit** [DERIVED, 2026-10-06; read-only agent,
+  findings verified]. Fixed at `ee11e62`, each gate failing first on
+  `73ecbfe` except where noted: Poisson `getMedian`'s recursive shared
+  lock (deadlocked on Windows); Uniform/Discrete bound-setter TOCTOU;
+  Uniform's unlocked copy-assignment (no deterministic gate; TSan, R8
+  step 5); delegate setters (Bernoulli, Geometric, ChiSquared, Erlang,
+  InverseGamma) updating the delegate outside their lock;
+  `parallelTransform`'s repeated chunks; PARALLEL below the fork
+  threshold running a serial scalar loop; Beta's boundary values from
+  the locking scalar methods; `d == d` locking twice (14 distributions;
+  cannot fail first); the work-stealing pool's construction race (TSan).
+  Filed, not fixed for v2.5.0 [user]: #178–#183. The 48 PARALLEL lambdas'
+  own `should_use_parallel` gates are now dead (the dispatcher routes
+  below a higher threshold); left in place.
 - **Over-budget slowdowns** (budget: Decided, "Accuracy-for-speed
   budget"). Resolved 2026-10-04 [DERIVED, K, indicative, against
   v2.4.1]:
