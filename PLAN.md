@@ -102,7 +102,7 @@ Status by machine (each machine edits only its own line):
   `docs/bench-evidence/2026-10-05-zen4-clangcl-v242-cost/`; v2.4.1 built
   with `v241_clangcl_compat.patch` there, applied uncommitted in
   `../libstats-v2.4.1`). R3: timing 21/22, the one failure a single-shot
-  timing that 40 reruns pass (`test_gaussian_enhanced`, filed); von
+  timing that 40 reruns pass (`test_gaussian_enhanced`, #177); von
   Mises quantile 17–23× and Student-t quantile at ν ≥ 1e3 11.6–13.3×
   against v2.4.1, the fastest absolute times of the three machines (the
   ratio is v2.4.1's 18 ns grid lookup); Beta at large shapes 3–4×. R8:
@@ -359,7 +359,7 @@ machine whose table changed. Inputs: "Trends from the v2.5.0 captures".
 Captures complete on K, M and Z at the freeze code (2026-10-06). Decided
 [user, 2026-10-06]: change only the rows that moved for a code reason,
 not a full re-derivation. But the rows under the two parallel-path
-defects found in Z's analysis (Trends; issues filed for v2.5.0) measure
+defects found in Z's analysis (Trends; #175, #176) measure
 the defects, not the operations: Bernoulli, Binomial, Geometric,
 NegativeBinomial and the von Mises CDF (per-element lock), the Student-t
 CDF (serial PARALLEL lambda). Their rows are unknown until the fix and a
@@ -388,7 +388,7 @@ throttling opt-out.
 
 ### R7 — release
 PR
-`dev/v2.4.2` → `main` closing #157–#172 (#173 stays with corvus); CI
+`dev/v2.4.2` → `main` closing #157–#172 and #175–#177 (#173 stays with corvus); CI
 green, including the sanitizer legs; merge; signed tag `v2.5.0`; GitHub
 release from the CHANGELOG section; close milestone #10. Then coordinate
 the pylibstats pin bump (Cross-Repo below), and tell the corvus session
@@ -492,8 +492,9 @@ also changed here since this note was first written. `vector_log1p` and
   code (`a1c71d6`). It is not merged; keep it.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-10-03 (milestones and
-open issues below; no open issue without a milestone; no open PRs).
+Last reconciled against live GitHub state: 2026-10-06 (milestones and
+open issues below; no open issue without a milestone; one open PR,
+#174, a Dependabot bump of reviewdog/action-actionlint).
 - GitHub is the collaborator-facing source for issues and milestones;
   this file is the agent-facing state. Keep both in sync: when creating,
   closing, retitling or moving an issue or milestone, update this section
@@ -524,25 +525,26 @@ anything]:
 - Partly overtaken: #103 (±inf inputs): the support-boundary rule
   (#161, #165) covers x = 0 and out-of-support; check the +inf cases it
   lists before closing or narrowing.
-- Pulled into v2.5.0 by R8 and the speed work: #146 (sustained-crossover
-  tooling; bucket A said "before the threshold re-measure", which is
-  now), #144 (von Mises CDF thresholds), #111 (von Mises batch CDF
-  passes and allocations).
+- Done by the speed work and R8's tooling, closed 2026-10-05: #146
+  (`scripts/analyze_crossovers.py`, `3e9fde3`), #111 (the von Mises
+  batch CDF, `96b157f`). #144 (von Mises CDF thresholds) waits for R8's
+  table update.
 - Unaffected: #152 (Codecov measurement), #114 (review backlog). If the
   above go, #8 is these two; fold them into a post-v3 patch or close #8.
-- **#10 v2.5.0 — Correctness & accuracy** (open, 14): #157–#167, #170–#172.
+- **#10 v2.5.0 — Correctness & accuracy** (open, 17): #157–#167, #170–#172,
+  #175–#177 (filed 2026-10-06: #175 per-element lock in PARALLEL lambdas,
+  #176 Student-t CDF serial PARALLEL, #177 single-shot timing test).
   Closed by the release PR.
 - **#6 v3.0.0 — corvus adoption** (open, 13): #47, #52, #107, #108, #110,
   #113, #126, #136, #137, #138, #141, #156, #173. Full swap [user,
   2026-09-17]: every `detail::` special function corvus covers. #126 and
   #141 are absorbed, measured against corvus v1.0.0. Corvus is pinned at
   v1.0.1. State and design: that branch's PLAN.md.
-- **#8 Accuracy, contracts & kernel hygiene patch** (open, 7): ships after
+- **#8 Accuracy, contracts & kernel hygiene patch** (open, 5): ships after
   corvus (v3.0.0); under review, see above. Bucketed [user, 2026-09-29]:
-  - A, independent of adoption: #146 (before the v2.5.0 threshold
-    re-measure), #152 (Codecov measurement).
-  - B, re-scope after the post-swap sweep and timing: #103, #104, #111,
-    #144.
+  - A, independent of adoption: #152 (Codecov measurement); #146 closed.
+  - B, re-scope after the post-swap sweep and timing: #103, #104, #144;
+    #111 closed.
   - C, one pass after the swap: #114.
 - **#3 v3.1.0 — New Distributions (Extended)** (open, 5): #58 GEV, #59
   LogLogistic, #60 Triangular, #61 Wald, #62 Hypergeometric +
@@ -575,7 +577,7 @@ For v2.5.0:
   ν ≥ 1e3, large counts: 18/24, 17/23, 19/33). Per-element cost varies
   up to 10× with the parameters, so one threshold per (distribution,
   operation) cannot serve both.
-- **Two parallel-path defects** (issues filed for v2.5.0; predate v2.5.0,
+- **Two parallel-path defects** (#175, #176, v2.5.0; predate v2.5.0,
   v2.4.1 has both). (1) The PARALLEL lambdas of `binomial.cpp`,
   `negative_binomial.cpp` and `von_mises.cpp` call the scalar method per
   element, and each call takes `withCacheSnapshot`'s `shared_lock` on
