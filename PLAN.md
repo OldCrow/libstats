@@ -434,7 +434,7 @@ detector shown to fire, or is recorded as a v3 input with no detector.
 | C4 one call mixing two parameter states | Binomial, NegBinomial, von Mises batches; Beta boundary; #182 | stress one-state oracle | M, K, Z |
 | C5 strategy runs the wrong kernel | PARALLEL below the fork threshold | strategy differential (step 1c) | M, K, Z |
 | C6 parallel helper semantics | `parallelTransform` repeated chunks; #181 | call-count gates; #181 needs fault injection | gates all; #181 none |
-| C7 work-stealing cross-waiting | #180 | WORK_STEALING reader alongside another pool user | M, K (no probe written yet) |
+| C7 work-stealing cross-waiting | #180 | WORK_STEALING reader alongside another pool user | K only after #190 (no probe written yet) |
 
 No detector, so v3 inputs unless one is found: `d == d` (undefined, no
 platform shows it), recursive shared locks off Windows, #181's
@@ -447,14 +447,14 @@ can show. The test prints what it reached
 (strategy per batch reader, core counts, lock backend) so coverage is
 read off the log, not assumed:
 - **M** (M1, 4P+4E, no SMT): the only weakly ordered CPU, so missing
-  acquire/release on atomics can show only here; TSan. Corrected
-  2026-10-06 [DERIVED]: `SystemCapabilities` hardcodes physical = logical
-  / 2 (`system_capabilities.cpp:28`, F7 in Known Gaps), so every Mac looks
-  SMT and MAXIMIZE_THROUGHPUT reaches WORK_STEALING on M as well (the test
-  prints it). The recursive shared lock deadlocked here too (C3).
-- **K** (Kaby Lake 4C/8T, SMT): WORK_STEALING as on M, under x86
-  ordering; TSan. The second TSan machine, not the only WORK_STEALING
-  one. Runs after K's R8 quiet runs.
+  acquire/release on atomics can show only here; TSan. Until #190's fix
+  `SystemCapabilities` read physical = logical / 2, so M took
+  WORK_STEALING; with it, MAXIMIZE_THROUGHPUT and AUTO resolve to
+  PARALLEL on M, and no public API reaches WORK_STEALING there. The
+  recursive shared lock deadlocked here too (C3).
+- **K** (Kaby Lake 4C/8T, SMT): the only WORK_STEALING machine after
+  #190, so K verifies every WORK_STEALING lambda (#191's rewiring
+  included) and runs TSan on them. Runs after K's R8 quiet runs.
 - **Z** (Zen 4 8C/16T, Windows): SRWLOCK; Windows resolves
   MAXIMIZE_THROUGHPUT to PARALLEL, so no WORK_STEALING. No TSan (MSVC and
   clang-cl do not support it on Windows). Run the stress test under both
@@ -590,7 +590,31 @@ affect.
   machine); TSan: only #183's setter reads. Commits staged as: format
   drift (4 files), then #189, #187, #188, #184, #185, #186, then docs
   (AGENTS.md's SCALAR note for Q1, this file); each intermediate state
-  built and tested. Next: #190, #191.
+  built and tested; pushed 2026-10-07 (`5765d68`..`7d9cb0b`).
+- #190 and #191 [DERIVED, M, 2026-10-07; uncommitted, awaiting the
+  user's YubiKey]. #190: `SystemCapabilities` reads the detector's
+  physical count (sysctl on macOS), and the x86 CPUID leaf-0xB path
+  divides the core-level logical count by threads per core (unverified
+  natively: Z's `system_inspector --quick` must read 8 physical, 16
+  logical). Guard `ConcurrencyStressMachine.CoreTopology` (in the stress
+  test; `test_system_capabilities` is timing-labelled, so CI never ran
+  it), two-sided against sysctl; failed first (physical 4 vs 8). M now
+  resolves MAXIMIZE_THROUGHPUT to PARALLEL. #191: every PARALLEL and
+  WORK_STEALING lambda runs its VECTORIZED kernel over 1024-element
+  slices (19 files, by a subagent, reviewed; Gamma and Beta CDF and
+  Discrete were also scalar; Cauchy CDF's inline loop moved to a helper;
+  new code drops the redundant `waitForAll`, existing ones stay for
+  #180). The differential now requires PARALLEL and MAXIMIZE_THROUGHPUT
+  to equal VECTORIZED's bits at every size; failed first in 14 tests,
+  passes 27/27 (43 "batch", 38 "="). Stress 109/109, correctness 91/91,
+  TSan only #183. The WORK_STEALING half runs only on K: K's stress
+  test and TSan verify it. No #191 timing gate: the old path also beat
+  VECTORIZED at 1M, so it could not fail first; R8 shows the gain.
+  `test_parallel_batch_gates` on M (first Mac run of the #175/#176 fix,
+  load ~14): 0.19–0.23, all 8 under 0.75.
+- Next: commit #190, #191 and this file; that head is the new freeze
+  head. Then every machine: R1, R2's sweep compare, R8 (M's runs
+  overnight, outside the sandbox), the stress test (K under TSan).
 - Next on K and Z: pull, build, run the stress test (K also under TSan),
   compare with M's lists; no new harness work needed for that.
 
