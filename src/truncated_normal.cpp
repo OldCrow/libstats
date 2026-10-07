@@ -662,72 +662,88 @@ void TruncatedNormalDistribution::fit(const std::vector<double>& values) {
 
     // Bounds are KNOWN (held fixed at their current values) — the standard
     // formulation; see the header's MLE scope note.
-    double a, b;
-    withCacheSnapshot([&] {
-        a = lowerBound_;
-        b = upperBound_;
-    });
+    // The estimate is computed from a snapshot of the bounds and committed under the write lock
+    // only if the bounds are unchanged; otherwise it is recomputed for the new window. Writing it
+    // through setParameters(mu, sig, a, b) undid a concurrent bound setter (#185).
+    for (;;) {
+        double a, b;
+        withCacheSnapshot([&] {
+            a = lowerBound_;
+            b = upperBound_;
+        });
 
-    double sum = detail::ZERO_DOUBLE;
-    for (double v : values) {
-        if (!std::isfinite(v) || v < a || v > b) {
-            throw std::invalid_argument(
-                "Truncated Normal fit requires finite values within the truncation window");
+        double sum = detail::ZERO_DOUBLE;
+        for (double v : values) {
+            if (!std::isfinite(v) || v < a || v > b) {
+                throw std::invalid_argument(
+                    "Truncated Normal fit requires finite values within the truncation window");
+            }
+            sum += v;
         }
-        sum += v;
-    }
-    const double n = static_cast<double>(values.size());
-    const double xbar = sum / n;
-    double ss = detail::ZERO_DOUBLE;
-    for (double v : values) {
-        const double d = v - xbar;
-        ss += d * d;
-    }
-    const double s2 = ss / n;  // MLE (biased) second central moment
-    if (!(s2 > detail::ZERO_DOUBLE)) {
-        throw std::invalid_argument("Data has zero variance - cannot fit Truncated Normal");
-    }
+        const double n = static_cast<double>(values.size());
+        const double xbar = sum / n;
+        double ss = detail::ZERO_DOUBLE;
+        for (double v : values) {
+            const double d = v - xbar;
+            ss += d * d;
+        }
+        const double s2 = ss / n;  // MLE (biased) second central moment
+        if (!(s2 > detail::ZERO_DOUBLE)) {
+            throw std::invalid_argument("Data has zero variance - cannot fit Truncated Normal");
+        }
 
-    // Fixed-point iteration on the exponential-family moment equations
-    // (Cohen 1959 style):  σ² ← s²/(1 + η − δ²),  μ ← x̄ − σδ.
-    double mu = xbar;
-    double sig = std::sqrt(s2);
-    constexpr int kMaxIter = 500;
-    constexpr double kRelTol = 1e-10;
-    bool converged = false;
-    for (int iter = 0; iter < kMaxIter; ++iter) {
-        const auto nc = computeNormalization(mu, sig, a, b);
-        if (!nc.valid) {
-            throw std::runtime_error(
-                "Truncated Normal MLE failed: normalization constant underflowed during "
-                "iteration (window too deep in the tail for the current iterate)");
+        // Fixed-point iteration on the exponential-family moment equations
+        // (Cohen 1959 style):  σ² ← s²/(1 + η − δ²),  μ ← x̄ − σδ.
+        double mu = xbar;
+        double sig = std::sqrt(s2);
+        constexpr int kMaxIter = 500;
+        constexpr double kRelTol = 1e-10;
+        bool converged = false;
+        for (int iter = 0; iter < kMaxIter; ++iter) {
+            const auto nc = computeNormalization(mu, sig, a, b);
+            if (!nc.valid) {
+                throw std::runtime_error(
+                    "Truncated Normal MLE failed: normalization constant underflowed during "
+                    "iteration (window too deep in the tail for the current iterate)");
+            }
+            const double pa = phi_std(nc.alpha), pb = phi_std(nc.beta);
+            const double delta = (pa - pb) / nc.z;
+            const double eta = (zphi(nc.alpha, pa) - zphi(nc.beta, pb)) / nc.z;
+            const double denom = detail::ONE + eta - delta * delta;
+            if (!(denom > detail::ZERO_DOUBLE)) {
+                throw std::runtime_error(
+                    "Truncated Normal MLE failed: degenerate variance ratio (1 + η − δ² ≤ 0)");
+            }
+            const double sig_new = std::sqrt(s2 / denom);
+            const double mu_new = xbar - sig_new * delta;
+            if (!std::isfinite(sig_new) || !std::isfinite(mu_new) ||
+                sig_new <= detail::ZERO_DOUBLE) {
+                throw std::runtime_error("Truncated Normal MLE failed: non-finite iterate");
+            }
+            const bool done = std::fabs(mu_new - mu) <= kRelTol * (detail::ONE + std::fabs(mu)) &&
+                              std::fabs(sig_new - sig) <= kRelTol * sig;
+            mu = mu_new;
+            sig = sig_new;
+            if (done) {
+                converged = true;
+                break;
+            }
         }
-        const double pa = phi_std(nc.alpha), pb = phi_std(nc.beta);
-        const double delta = (pa - pb) / nc.z;
-        const double eta = (zphi(nc.alpha, pa) - zphi(nc.beta, pb)) / nc.z;
-        const double denom = detail::ONE + eta - delta * delta;
-        if (!(denom > detail::ZERO_DOUBLE)) {
-            throw std::runtime_error(
-                "Truncated Normal MLE failed: degenerate variance ratio (1 + η − δ² ≤ 0)");
+        if (!converged) {
+            throw std::runtime_error("Truncated Normal MLE did not converge within 500 iterations");
         }
-        const double sig_new = std::sqrt(s2 / denom);
-        const double mu_new = xbar - sig_new * delta;
-        if (!std::isfinite(sig_new) || !std::isfinite(mu_new) || sig_new <= detail::ZERO_DOUBLE) {
-            throw std::runtime_error("Truncated Normal MLE failed: non-finite iterate");
-        }
-        const bool done = std::fabs(mu_new - mu) <= kRelTol * (detail::ONE + std::fabs(mu)) &&
-                          std::fabs(sig_new - sig) <= kRelTol * sig;
-        mu = mu_new;
-        sig = sig_new;
-        if (done) {
-            converged = true;
-            break;
-        }
+        validateParameters(mu, sig, a, b);
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        if (lowerBound_ != a || upperBound_ != b)
+            continue;  // a bound setter ran during the iteration
+        mean_ = mu;
+        standardDeviation_ = sig;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        updateCacheUnsafe();
+        return;
     }
-    if (!converged) {
-        throw std::runtime_error("Truncated Normal MLE did not converge within 500 iterations");
-    }
-    setParameters(mu, sig, a, b);
 }
 
 void TruncatedNormalDistribution::parallelBatchFit(

@@ -426,9 +426,7 @@ int knownProgramIssue(const std::string& /*row*/, const std::string& /*prog*/) {
     return 0;
 }
 
-int knownPairIssue(const std::string& row, const std::string& pair) {
-    if (row == "TruncatedNormal" && pair.rfind("fit / ", 0) == 0)
-        return 185;  // fit reads the bounds, then writes mu and sigma under a later lock
+int knownPairIssue(const std::string& /*row*/, const std::string& /*pair*/) {
     return 0;
 }
 
