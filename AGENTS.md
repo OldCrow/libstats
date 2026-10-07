@@ -184,6 +184,12 @@ produces silently wrong results or a deadlock, not a build error.
   `WorkStealingPool::parallelFor` deliberately swallows, because its completion
   latch must be decremented on every path or the caller deadlocks. So
   `Strategy::WORK_STEALING` loses what `Strategy::PARALLEL` reports.
+- **One parameter state per batch holds for every strategy but SCALAR.**
+  The VECTORIZED, PARALLEL and WORK_STEALING lambdas take one snapshot;
+  `executeStrategy`'s SCALAR case calls the locking scalar method per
+  element, so under a concurrent setter a SCALAR batch (forced, or AUTO's
+  choice for small counts) can mix states. Decided per-element for v2.x;
+  one state under every strategy is a v3 design input.
 
 Dispatch thresholds are per-(architecture, distribution, operation) in
 `dispatch_thresholds.h`, derived from the profiling data in

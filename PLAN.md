@@ -571,8 +571,26 @@ affect.
   (`knownReaderIssue`, `knownProgramIssue`, `knownPairIssue`). At head:
   exit 0, 25 tests skipped (#182, #184–#187), 68 s; at `6987317` the
   same file still fails every listed defect.
-- Open [user]: whether to fix #184–#191 before or after the freeze
-  (#184 moves the freeze head); Q1; the 68 s run time (budget ~60 s).
+- Decided [user, 2026-10-07]: fix #184–#191 before the freeze (it moves
+  the freeze head; every machine then repeats R1, R2's sweep compare and
+  R8 at the new head); the 68 s run time is accepted; M's pending runs
+  go overnight, outside the sandbox, after the fixes. Q1 decided
+  [user, 2026-10-07]: B, document per-element SCALAR semantics now;
+  one-state batches under every strategy is a v3 design input.
+- Fixes, steps 1–3 [DERIVED, M, 2026-10-07; uncommitted, awaiting the
+  user]: #189 (Poisson `validateCurrentParameters` exported), #187
+  (stream tag length), #188 (no thread_local spare; new per-row
+  `SeededSample` test), #184 (move-assignment locks both objects in
+  `std::lock` order, as copy-assignment does [user, 2026-10-07: parity];
+  `noexcept` kept; base-class contract doc updated), #185 (TruncatedNormal `fit` commits
+  only if the bounds are unchanged, else recomputes), #186 (vector
+  `sample` draws from a delegate copy taken under the owner's lock).
+  Each shown failing first by removing its skip. After: stress 107
+  passed, 1 skipped (#182); correctness 91/91; timing 23/23 (loaded
+  machine); TSan: only #183's setter reads. Commits staged as: format
+  drift (4 files), then #189, #187, #188, #184, #185, #186, then docs
+  (AGENTS.md's SCALAR note for Q1, this file); each intermediate state
+  built and tested. Next: #190, #191.
 - Next on K and Z: pull, build, run the stress test (K also under TSan),
   compare with M's lists; no new harness work needed for that.
 
@@ -869,9 +887,9 @@ For corvus adoption (v3.0.0) and later:
     choice reads it, so the M1 is treated as SMT.
   - F8 (perf) #191: PARALLEL above the fork threshold runs the scalar formula,
     not the batch kernel, in 33 of 81 (distribution, op) pairs.
-  - Q1: FORCE_SCALAR batches lock per element (`executeStrategy`'s
-    SCALAR case) and can mix states; the one-snapshot contract names
-    only the batch lambdas.
+  - Q1 (decided B, 2026-10-07): FORCE_SCALAR batches lock per element
+    (`executeStrategy`'s SCALAR case) and can mix states; documented as
+    per-element, one state under every strategy deferred to v3.
 - **Lock and parallel-path audit** [DERIVED, 2026-10-06; read-only agent,
   findings verified]. Fixed at `ee11e62`, each gate failing first on
   `73ecbfe` except where noted: Poisson `getMedian`'s recursive shared
