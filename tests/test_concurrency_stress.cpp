@@ -314,9 +314,7 @@ std::vector<Reader<D>> makeReaders(const Row<D>& row, const D& fixedA, const D& 
         }
     // Two draws per call, each from its own fresh generator, so each element depends only on the
     // state its call saw (a rejection loop consumes a state-dependent amount of a shared stream).
-    // Two, because GaussianDistribution::sample keeps a thread_local Box-Muller spare (#188): a
-    // draw depends on the parity of the thread's earlier draws, and every sampling call in this
-    // file draws an even count, which keeps the parity fixed.
+    // Two draws also exposed hidden per-thread sampler state (#188); SeededSample gates that.
     rs.push_back({"sample",
                   [](const D& d) {
                       std::mt19937 rng1(1234), rng2(5678);
@@ -829,6 +827,31 @@ void addBoundPairs(Row<D>& r, T a0, T b0, T newA, T newB) {
                             [newB](D& d) { d.setUpperBound(newB); }});
 }
 
+// Seeded reproducibility (no race): a draw from a freshly seeded generator depends only on that
+// generator and the parameters, not on what the thread drew before (#188: Gaussian kept a
+// thread_local Box-Muller spare, so alternate calls returned the previous generator's spare).
+template <typename D>
+void seededSample(const Row<D>& row) {
+    const D d = row.makeA();
+    const auto draw = [&] {
+        std::mt19937 rng(42);
+        const double one = d.sample(rng);
+        std::mt19937 rng2(42);
+        const auto three = d.sample(rng2, 3);
+        Bits b{bitsOf(one)};
+        for (double v : three)
+            b.push_back(bitsOf(v));
+        return b;
+    };
+    // Hidden per-thread state can depend on the parity of earlier draws, so compare the draw with
+    // itself both immediately repeated and after one unrelated draw.
+    const Bits first = draw();
+    EXPECT_EQ(draw(), first) << row.name << ": a repeated freshly seeded draw differs";
+    std::mt19937 other(7);
+    (void)d.sample(other);
+    EXPECT_EQ(draw(), first) << row.name << ": a freshly seeded draw depends on an earlier draw";
+}
+
 // What this machine reaches. physical_cores is logical / 2 on every platform today (#190), so
 // MAXIMIZE_THROUGHPUT reaches WORK_STEALING on every Mac.
 template <typename D>
@@ -862,6 +885,9 @@ void runRow(const Row<D>& row) {
         KnownIssues known;                                                                         \
         raceWriters(MakeRow, known);                                                               \
         SKIP_IF_ONLY_KNOWN(known);                                                                 \
+    }                                                                                              \
+    TEST(ConcurrencyStress_##Name, SeededSample) {                                                 \
+        seededSample(MakeRow);                                                                     \
     }                                                                                              \
     TEST(ConcurrencyStress_##Name, StrategyDifferential) {                                         \
         differential(MakeRow);                                                                     \

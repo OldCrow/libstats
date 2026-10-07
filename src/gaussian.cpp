@@ -326,17 +326,8 @@ double GaussianDistribution::sample(std::mt19937& rng) const {
         cached_sigma = standardDeviation_;
     });
 
-    // Optimized Box-Muller transform with enhanced numerical stability
-    static thread_local bool has_spare = false;
-    static thread_local double spare;
-
-    if (has_spare) {
-        has_spare = false;
-        return cached_mean + cached_sigma * spare;
-    }
-
-    has_spare = true;
-
+    // Box-Muller, one draw per call. The sine branch is discarded: a thread_local spare made a
+    // draw depend on the thread's previous call, whatever generator it used (#188).
     // Use high-quality uniform distribution
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
 
@@ -357,8 +348,7 @@ double GaussianDistribution::sample(std::mt19937& rng) const {
         }
     } while (true);
 
-    spare = magnitude * std::sin(angle);
-    double z = magnitude * std::cos(angle);
+    const double z = magnitude * std::cos(angle);
 
     return cached_mean + cached_sigma * z;
 }
