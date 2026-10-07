@@ -243,7 +243,7 @@ VoidResult PoissonDistribution::trySetParameters(double lambda) noexcept {
     return VoidResult::ok({});
 }
 
-inline VoidResult PoissonDistribution::validateCurrentParameters() const noexcept {
+VoidResult PoissonDistribution::validateCurrentParameters() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return validatePoissonParameters(lambda_);
 }

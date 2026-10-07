@@ -130,15 +130,11 @@ constexpr int kWatchdogSeconds = 120;
 
 using Bits = std::vector<std::uint64_t>;
 
-// PoissonDistribution defines validateCurrentParameters() inline in poisson.cpp, so no symbol is
-// exported and any caller fails to link (#189); the validity element is skipped for it.
 template <typename D>
 double invalidFlag(const D& d) {
-    if constexpr (std::is_same_v<D, PoissonDistribution>)
-        return 0.0;
-    else
-        return d.validateCurrentParameters().isError() ? 1.0 : 0.0;
+    return d.validateCurrentParameters().isError() ? 1.0 : 0.0;
 }
+
 constexpr std::uint64_t kThrew = 0x7ff8dead0000beefULL;
 
 std::uint64_t bitsOf(double v) {
