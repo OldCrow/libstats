@@ -402,74 +402,138 @@ Next on every machine, at `ee11e62`:
 4. R8 again, every tier (K: AVX2, AVX, SSE2; M: NEON; Z: clang-cl
    AVX-512, AVX2, AVX, SSE2), as before; the new bundles supersede all
    previous v2.5.0 captures.
-5. ThreadSanitizer: R9, on M.
+5. R9 (stress test and ThreadSanitizer): written on M; then run on
+   every machine, after that machine's quiet runs.
 Then decide the rows.
 
-### R9 — concurrency stress test and ThreadSanitizer (M) [OPEN]
-Decided [user, 2026-10-06]: M, in parallel with the re-profiles (M has
-its own YubiKey). Why: every audit so far read code, and reading finds
-instances of the classes it looks for; it cannot show absence. Three
-2026-10-06 rounds still found TOCTOUs and lock errors (Known Gaps).
-Nothing mechanical has checked for races: CI has no TSan leg, and only
-this branch's snapshot and concurrency gates race a setter against a
-reader. These two steps are the mechanical check. Run every binary
-outside the Claude Code sandbox (Rules).
+### R9 — mechanical concurrency checks (M writes; M, K, Z run) [OPEN]
+Goal [user, 2026-10-06]: catch mechanically, before the v3 refactor
+redesigns locking, the defect classes that so far only code review has
+found, so later fixes stop triggering unplanned bugfix rounds. Review
+finds instances of the classes it looks for; it cannot show absence.
+Three 2026-10-06 rounds still found TOCTOUs and lock errors (Known
+Gaps); CI has no TSan leg. R9 succeeds when every class below has a
+detector shown to fire, or is recorded as a v3 input with no detector.
 
-1. **Write `tests/test_concurrency_stress.cpp`**, a correctness test
-   (no `timing` label, so CI runs it; keep it under ~60 s). Table-driven
-   over all 27 distributions, one row each:
-   - two valid parameter states A and B, distinct at every probe below;
-   - a writer that flips between them through `setParameters` (one
-     lock, so A and B are the only states), plus a second row variant
-     flipping each single-parameter setter, whose intermediate state
-     goes into the allowed set;
-   - readers: scalar pdf, logpdf and CDF at fixed probes; each batch
-     strategy (`FORCE_SCALAR`, `FORCE_VECTORIZED`, `FORCE_PARALLEL`,
-     `MAXIMIZE_THROUGHPUT`, which reaches WORK_STEALING on macOS) at a
-     size above `arch::get_min_elements_for_parallel()`; `getQuantile`;
-     `getMean`, `getVariance`, `getSkewness`, `getKurtosis`, and mode
-     and entropy where they exist; `sample` with a fixed seed; copy
-     construction, copy assignment, move; `operator==` against fixed A
-     and B; `fit` racing readers; stream `operator>>` racing readers.
-   - The oracle: every result equals state A's value or state B's (an
-     allowed intermediate's for the single-setter variant), bit for
-     bit, computed from fixed instances by the same call; a batch is
-     entirely from one state.
-   - Drive it both as free-running loops and in aligned rounds: copy
-     `racedRounds` from `tests/test_concurrency_gates.cpp`. Loops
-     missed every one-shot race the aligned rounds caught (`ee11e62`'s
-     message).
-   - Give every reader a watchdog (`runWithWatchdog` in the same file),
-     so a deadlock fails the test instead of hanging it.
-2. **Show it catches known defects before trusting it.** Build it in a
-   detached worktree at `6987317` (before #175, #176 and the audit
-   fixes). It must fail on the Binomial, NegativeBinomial and von Mises
-   batches, the Beta boundary batch, Poisson's `getMedian` (deadlock),
-   the Uniform and Discrete bound setters and the Bernoulli/Geometric
-   delegates. Record which it catches; an unseen one means the harness
-   needs work. `test_concurrency_gates.cpp`'s header lists what each
-   defect looked like.
-3. **At `ee11e62`, expect it to pass.** Any failure is a new defect:
-   stop and report with the evidence (it moves the freeze head).
-4. **ThreadSanitizer.** A fresh `build-tsan` (Ninja,
+**Classes and detectors** [DERIVED from `ee11e62`'s message and
+#178–#183; the M/K/Z split: "Per-machine"]:
+
+| Class | Instances so far | Detector | Where it can fire |
+|---|---|---|---|
+| C1 unlocked shared read/write | Uniform copy-assign; pool construction; #183 | TSan | M, K |
+| C2 check-then-act across a lock release | Uniform/Discrete bound setters; 5 delegate setters | stress invariant oracle, aligned rounds | M, K, Z |
+| C3 recursive or double lock | Poisson `getMedian`; `d == d` | stress watchdog (deadlocks only under SRWLOCK) | Z only; `d == d` none |
+| C4 one call mixing two parameter states | Binomial, NegBinomial, von Mises batches; Beta boundary; #182 | stress one-state oracle | M, K, Z |
+| C5 strategy runs the wrong kernel | PARALLEL below the fork threshold | strategy differential (step 1c) | M, K, Z |
+| C6 parallel helper semantics | `parallelTransform` repeated chunks; #181 | call-count gates; #181 needs fault injection | gates all; #181 none |
+| C7 work-stealing cross-waiting | #180 | WORK_STEALING reader alongside another pool user | K only |
+
+No detector, so v3 inputs unless one is found: `d == d` (undefined, no
+platform shows it), recursive shared locks off Windows, #181's
+submit-failure path.
+
+**Per-machine** [user, 2026-10-06: decided, with the strategy
+differential (step 1c) kept]. One test source, not three: the defect
+classes belong to the code, and machines differ only in which classes
+can show. The test prints what it reached
+(strategy per batch reader, core counts, lock backend) so coverage is
+read off the log, not assumed:
+- **M** (M1, 4P+4E, no SMT): the only weakly ordered CPU, so missing
+  acquire/release on atomics can show only here; TSan. MAXIMIZE_THROUGHPUT
+  and AUTO resolve to PARALLEL (no SMT, `performance_dispatcher.cpp:47`),
+  so WORK_STEALING is unreachable.
+- **K** (Kaby Lake 4C/8T, SMT): the only machine where
+  MAXIMIZE_THROUGHPUT and AUTO resolve to WORK_STEALING, so the only
+  WORK_STEALING coverage (C7, and C1 on the work-stealing lambdas under
+  TSan). x86 ordering hides what M shows. Runs after K's R8 quiet runs.
+- **Z** (Zen 4 8C/16T, Windows): SRWLOCK is the only lock backend here
+  where a recursive shared lock deadlocks (C3). No TSan (MSVC and
+  clang-cl do not support it on Windows). Run the stress test under both
+  MSVC and clang-cl; PARALLEL only. Runs after Z's R8 overnight.
+- No machine has Linux; a Linux TSan CI leg is the only check that would
+  stay in place (user's decision, CI-HOUSE-STYLE runner budget).
+
+Run every Mac binary outside the Claude Code sandbox (Rules).
+
+1. **Write `tests/test_concurrency_stress.cpp`** (on M), a correctness
+   test (no `timing` label, so CI runs it). Default run under ~60 s;
+   `LIBSTATS_STRESS_SCALE` (rounds multiplier, default 1) lets the TSan
+   runs shrink it and machine runs grow it. Self-contained: copy
+   `runWithWatchdog` and `racedRounds` from
+   `tests/test_concurrency_gates.cpp`, which does not exist before
+   `ee11e62`. Table-driven, one row per distribution (all 27):
+   a. **States.** Two valid parameter states A and B, distinct at every
+      probe. A writer flips between them through `setParameters` (one
+      lock, so A and B are the only states); a second variant flips
+      each single-parameter setter, ordered so every intermediate is
+      valid, and adds the intermediates to the allowed set.
+   b. **Readers.** Scalar pdf, logpdf, CDF at fixed probes;
+      `getQuantile`; `getMean`, `getVariance`, `getSkewness`,
+      `getKurtosis`, `getMedian`, `getMode`, `getEntropy` (all 27 have
+      them); batch pdf/logpdf/CDF under `FORCE_SCALAR`,
+      `FORCE_VECTORIZED`, `FORCE_PARALLEL`, `MAXIMIZE_THROUGHPUT` and
+      AUTO, at a size above `arch::get_min_elements_for_parallel()`;
+      `sample` with a fresh fixed-seed generator per call; copy
+      construction, copy assignment, move; `operator==` against fixed
+      A and B. Separately, `fit` and stream `operator>>` as writers
+      racing the readers: each produces a state C, computed from a fixed
+      instance fitted to the same data or reading the same stream, and C
+      joins the allowed set.
+   c. **Strategy differential** (C5, no race): for each distribution and
+      batch operation, every strategy against `FORCE_VECTORIZED` at
+      sizes straddling the fork threshold and the SIMD minimum. Open:
+      whether sliced PARALLEL is bit-identical to VECTORIZED above the
+      threshold (slice edges move SIMD tails); establish it on M first,
+      then gate bitwise or record the tolerance.
+   d. **Oracle.** Every racing result equals an allowed state's value
+      bit for bit, computed from fixed instances by the same call; every
+      batch comes entirely from one state.
+   e. **Driving.** Both free-running loops and aligned rounds
+      (`racedRounds`): loops missed every one-shot race the aligned
+      rounds caught (`ee11e62`'s message). Every reader under a
+      watchdog, so a deadlock fails instead of hanging.
+   f. **Reach.** Print which strategy each batch reader resolved to,
+      `logical_cores`/`physical_cores`, and the scale.
+2. **Show it fires before trusting it.** Build it in a detached
+   worktree at `6987317` (before #175, #176 and the audit fixes),
+   registered in that tree's `tests/CMakeLists.txt`. It must fail on the
+   Binomial, NegativeBinomial and von Mises batches, the Beta boundary
+   batch, the Uniform and Discrete bound setters, and the Bernoulli,
+   Geometric, ChiSquared, Erlang and InverseGamma delegates on every
+   machine; on Poisson's `getMedian` (deadlock) on Z. `getMedian` not
+   deadlocking on M or K is the lock backend, not a harness gap; record
+   it either way. Any other miss means the harness needs work. Record
+   per machine which it catches; `test_concurrency_gates.cpp`'s header
+   says what each defect looked like.
+3. **At `ee11e62`, expect it to fail on #182 (FisherF `sample`) and
+   nothing else.** #182 is a defect open at the freeze head, so catching
+   it there shows the harness fires on current code. Mark #182's row an
+   expected failure (GTest skip naming the issue) only after it is seen
+   to fail. Any other failure is a new defect: stop and report with the
+   evidence (it moves the freeze head).
+4. **ThreadSanitizer (M, then K).** A fresh `build-tsan` (Ninja,
    `RelWithDebInfo`, `-DLIBSTATS_BUILD_TOOLS=OFF`, `-fsanitize=thread`
    in `CMAKE_CXX_FLAGS`, `CMAKE_EXE_LINKER_FLAGS` and
-   `CMAKE_SHARED_LINKER_FLAGS`, as R4's UBSan build). Run
-   `test_concurrency_stress`, `test_concurrency_gates`,
-   `test_snapshot_consistency`, `test_thread_pool`,
-   `test_work_stealing_pool`, `test_parallel_execution_integration`,
+   `CMAKE_SHARED_LINKER_FLAGS`, as R4's UBSan build; a fetched corvus
+   and Highway take the same flags). Run with a reduced
+   `LIBSTATS_STRESS_SCALE`: `test_concurrency_stress`,
+   `test_concurrency_gates`, `test_snapshot_consistency`,
+   `test_thread_pool`, `test_work_stealing_pool`,
+   `test_parallel_execution_integration`,
    `test_parallel_exception_propagation`, then the whole correctness
-   ctest (`-LE "timing|benchmark"`, `-j2`). Every report is a finding
-   (file:line, both stacks); triage benign ones explicitly, don't
-   suppress silently. Also run `test_concurrency_gates` under TSan at
-   `73ecbfe`: it should report Uniform's copy-assignment and the
-   work-stealing pool's construction, the two `ee11e62` fixes with no
-   Windows gate.
-5. **Report** to the user: what the stress test caught at `6987317`,
-   its result at `ee11e62`, and the TSan findings. Commit the test and
-   the evidence (`docs/bench-evidence/<date>-m1-concurrency/`) with the
-   user's approval. A Linux TSan CI leg to keep this checked is the
-   user's decision (CI-HOUSE-STYLE runner budget).
+   ctest (`-LE "timing|benchmark"`, `-j2`). Expect #183's unlocked reads
+   in `validateParameters` (the TSan positive control at head). Every
+   other report is a finding (file:line, both stacks); triage benign
+   ones explicitly, never suppress silently. Fail-first for the two
+   `ee11e62` fixes with no deterministic gate, at `73ecbfe`: the stress
+   test (copy assignment under a writer) should report Uniform's
+   copy-assignment, and `test_work_stealing_pool` the pool's
+   construction.
+5. **Report** to the user, per machine: what the stress test caught at
+   `6987317`, its result at `ee11e62`, the TSan findings, and the class
+   table updated with "shown to fire" evidence or "no detector". Commit
+   the test and the evidence (`docs/bench-evidence/<date>-<machine>-concurrency/`)
+   with the user's approval.
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
