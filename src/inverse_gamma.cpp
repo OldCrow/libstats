@@ -1,7 +1,6 @@
 #include "libstats/distributions/inverse_gamma.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel
-
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
@@ -118,7 +117,7 @@ InverseGammaDistribution& InverseGammaDistribution::operator=(
 //==============================================================================
 
 InverseGammaDistribution InverseGammaDistribution::createUnchecked(double alpha,
-                                                                  double beta) noexcept {
+                                                                   double beta) noexcept {
     return InverseGammaDistribution(alpha, beta, true);
 }
 
@@ -515,9 +514,8 @@ void InverseGammaDistribution::fit(const std::vector<double>& values) {
     setParameters(g.getAlpha(), g.getBeta());
 }
 
-void InverseGammaDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<InverseGammaDistribution>& results) {
+void InverseGammaDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                                std::vector<InverseGammaDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 
@@ -592,16 +590,15 @@ void InverseGammaDistribution::getProbability(std::span<const double> values,
         results[i] = std::isnan(results[i]) ? kNaN : std::exp(results[i]);
 }
 
-void InverseGammaDistribution::cdfKernel(const double* values, double* results,
-                                         std::size_t count, double alpha,
-                                         double beta) noexcept {
+void InverseGammaDistribution::cdfKernel(const double* values, double* results, std::size_t count,
+                                         double alpha, double beta) noexcept {
     for (std::size_t i = 0; i < count; ++i)
         results[i] = cdfImpl(values[i], alpha, beta);
 }
 
-void InverseGammaDistribution::getCumulativeProbability(
-    std::span<const double> values, std::span<double> results,
-    const detail::PerformanceHint& hint) const {
+void InverseGammaDistribution::getCumulativeProbability(std::span<const double> values,
+                                                        std::span<double> results,
+                                                        const detail::PerformanceHint& hint) const {
     // No delegation here: detail::gamma_q has no vector form (see the DEFERRED
     // note on vector_gamma_q in math_utils.h), and the delegate's own CDF is
     // the wrong tail. Own scalar kernel under autoDispatch.
@@ -632,8 +629,7 @@ void InverseGammaDistribution::getCumulativeProbability(
                 b = dist.beta_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b);
             });
         },

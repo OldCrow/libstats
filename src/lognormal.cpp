@@ -617,8 +617,7 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 iss2 = d.invSigmaSqrt2_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
                                                           len, mu, iss2);
             });
@@ -827,9 +826,8 @@ void LogNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
                 // math_utils.cpp. z here already carries the /sqrt(2)
                 // factor via cached_inv_sigma_sqrt2, so erfc(-z) is the
                 // direct left-tail form (no extra INV_SQRT_2 needed).
-                results[i] = z < detail::ZERO_DOUBLE
-                                 ? detail::HALF * std::erfc(-z)
-                                 : detail::HALF * (detail::ONE + std::erf(z));
+                results[i] = z < detail::ZERO_DOUBLE ? detail::HALF * std::erfc(-z)
+                                                     : detail::HALF * (detail::ONE + std::erf(z));
             }
         }
         return;

@@ -247,8 +247,7 @@ void ErlangDistribution::fit(const std::vector<double>& values) {
     if (var_x > detail::ZERO_DOUBLE && std::isfinite(mean_x) && std::isfinite(var_x)) {
         const double raw = std::round((mean_x * mean_x) / var_x);
         if (std::isfinite(raw) && raw > 1.0) {
-            k_hat = (raw > kMaxKAsDouble) ? std::numeric_limits<int>::max()
-                                          : static_cast<int>(raw);
+            k_hat = (raw > kMaxKAsDouble) ? std::numeric_limits<int>::max() : static_cast<int>(raw);
         }
     }
     const double lambda_hat = static_cast<double>(k_hat) / mean_x;

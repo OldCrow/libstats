@@ -40,8 +40,7 @@ namespace {
 ///   z ≥ 0 → 1/(1 + e^(−z));  z < 0 → e^(z)/(1 + e^(z)).
 [[nodiscard]] inline double logisticCdfKernel(double z) noexcept {
     const double e = std::exp(-std::fabs(z));
-    return (z >= detail::ZERO_DOUBLE) ? detail::ONE / (detail::ONE + e)
-                                      : e / (detail::ONE + e);
+    return (z >= detail::ZERO_DOUBLE) ? detail::ONE / (detail::ONE + e) : e / (detail::ONE + e);
 }
 
 /// tanh(z/2) = 2·F(z) − 1, evaluated from e = exp(−|z|) so that no overflow can
@@ -423,8 +422,7 @@ void LogisticDistribution::fit(const std::vector<double>& values) {
         else
             u_hi = u;
 
-        double u_next = (gp != detail::ZERO_DOUBLE) ? u - g / gp
-                                                    : detail::HALF * (u_lo + u_hi);
+        double u_next = (gp != detail::ZERO_DOUBLE) ? u - g / gp : detail::HALF * (u_lo + u_hi);
         if (!std::isfinite(u_next) || u_next <= u_lo || u_next >= u_hi)
             u_next = detail::HALF * (u_lo + u_hi);
 
