@@ -24,6 +24,11 @@ using stats::detail::validatePositiveParameter;
 namespace stats {
 
 namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
 // Inputs the log-density formula c + (k−1)·log(x) − (x/λ)^k cannot evaluate; edgeLogDensity
 // gives their value. x < 0 is outside the support; x = 0 is the boundary, where log(x) = −inf;
 // at x = +inf the sum is inf − inf = NaN, so it takes its limit instead (#164). NaN fails both
@@ -626,33 +631,19 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                 km1 = d.shapeMinus1_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (outsideDensity(x)) {
-                        res[i] = std::exp(edgeLogDensity(x, km1, lnc));
-                        return;
-                    }
-                    const double log_x = std::log(x);
-                    const double z = log_x - ls;
-                    res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k,
+                                                    ls, km1, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (outsideDensity(x)) {
-                        res[i] = std::exp(edgeLogDensity(x, km1, lnc));
-                        continue;
-                    }
-                    const double log_x = std::log(x);
-                    const double z = log_x - ls;
-                    res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
-                }
-            }
         },
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double k, ls, km1, lnc;
             d.withCacheSnapshot([&] {
                 k = d.shape_;
@@ -660,17 +651,10 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                 km1 = d.shapeMinus1_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (outsideDensity(x)) {
-                    res[i] = std::exp(edgeLogDensity(x, km1, lnc));
-                    return;
-                }
-                const double log_x = std::log(x);
-                const double z = log_x - ls;
-                res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k, ls,
+                                                km1, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -703,33 +687,19 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                 km1 = d.shapeMinus1_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (outsideDensity(x)) {
-                        res[i] = edgeLogDensity(x, km1, lnc);
-                        return;
-                    }
-                    const double log_x = std::log(x);
-                    const double z = log_x - ls;
-                    res[i] = lnc + km1 * log_x - std::exp(k * z);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       k, ls, km1, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (outsideDensity(x)) {
-                        res[i] = edgeLogDensity(x, km1, lnc);
-                        continue;
-                    }
-                    const double log_x = std::log(x);
-                    const double z = log_x - ls;
-                    res[i] = lnc + km1 * log_x - std::exp(k * z);
-                }
-            }
         },
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double k, ls, km1, lnc;
             d.withCacheSnapshot([&] {
                 k = d.shape_;
@@ -737,17 +707,10 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                 km1 = d.shapeMinus1_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (outsideDensity(x)) {
-                    res[i] = edgeLogDensity(x, km1, lnc);
-                    return;
-                }
-                const double log_x = std::log(x);
-                const double z = log_x - ls;
-                res[i] = lnc + km1 * log_x - std::exp(k * z);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k,
+                                                   ls, km1, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -776,33 +739,28 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                 ls = d.logScale_;
                 k = d.shape_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] =
-                        (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : weibullCdf(x, k, ls);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, ls, k);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] =
-                        (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : weibullCdf(x, k, ls);
-                }
-            }
         },
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double ls, k;
             d.withCacheSnapshot([&] {
                 ls = d.logScale_;
                 k = d.shape_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : weibullCdf(x, k, ls);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, ls, k);
             });
-            pool.waitForAll();
         });
 }
 

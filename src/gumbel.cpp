@@ -21,6 +21,11 @@ using stats::detail::validatePositiveParameter;
 namespace stats {
 
 namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
 
 //------------------------------------------------------------------------------
 // Stable scalar kernels shared by the scalar API and the parallel fallbacks.
@@ -441,41 +446,29 @@ void GumbelDistribution::getProbability(std::span<const double> values, std::spa
                 ib = d.inv_beta_;
                 nlb = d.neg_log_beta_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return detail::ZERO_DOUBLE;
-                return std::exp(gumbelLogKernel((x - m) * ib) + nlb);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                    ib, nlb);
+                });
         },
-        // Work-stealing
         [](const GumbelDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, ib, nlb;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 ib = d.inv_beta_;
                 nlb = d.neg_log_beta_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = detail::ZERO_DOUBLE;
-                else
-                    res[i] = std::exp(gumbelLogKernel((x - m) * ib) + nlb);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m, ib,
+                                                nlb);
             });
-            pool.waitForAll();
         });
 }
 
@@ -506,40 +499,29 @@ void GumbelDistribution::getLogProbability(std::span<const double> values,
                 ib = d.inv_beta_;
                 nlb = d.neg_log_beta_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return detail::NEGATIVE_INFINITY;
-                return gumbelLogKernel((x - m) * ib) + nlb;
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       m, ib, nlb);
+                });
         },
         [](const GumbelDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, ib, nlb;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 ib = d.inv_beta_;
                 nlb = d.neg_log_beta_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = detail::NEGATIVE_INFINITY;
-                else
-                    res[i] = gumbelLogKernel((x - m) * ib) + nlb;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                   ib, nlb);
             });
-            pool.waitForAll();
         });
 }
 
@@ -568,39 +550,28 @@ void GumbelDistribution::getCumulativeProbability(std::span<const double> values
                 m = d.mu_;
                 ib = d.inv_beta_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return (x > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-                return gumbelCdfKernel((x - m) * ib);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, m, ib);
+                });
         },
         [](const GumbelDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, ib;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 ib = d.inv_beta_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = (x > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-                else
-                    res[i] = gumbelCdfKernel((x - m) * ib);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, m, ib);
             });
-            pool.waitForAll();
         });
 }
 

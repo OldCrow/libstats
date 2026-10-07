@@ -36,6 +36,11 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTORS
 //==============================================================================
@@ -558,125 +563,39 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             dist.getProbabilityBatchUnsafeImpl(vals, res, count, lam, loglam, enl);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double cached_lambda, cached_exp_neg_lambda;
+            double lam, loglam, enl;
             dist.withCacheSnapshot([&] {
-                cached_lambda = dist.lambda_;
-                cached_exp_neg_lambda = dist.expNegLambda_;
+                lam = dist.lambda_;
+                loglam = dist.logLambda_;
+                enl = dist.expNegLambda_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        return;
-                    }
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-
-                    // Compute PMF using cached parameters
-                    if (k == 0) {
-                        res[i] = cached_exp_neg_lambda;
-                    } else if (cached_lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                               k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
-                        res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
-                                 PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-                    } else {
-                        double log_result =
-                            detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
-                        res[i] = std::exp(log_result);
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       lam, loglam, enl);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        continue;
-                    }
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-
-                    if (k == 0) {
-                        res[i] = cached_exp_neg_lambda;
-                    } else if (cached_lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                               k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
-                        res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
-                                 PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-                    } else {
-                        double log_result =
-                            detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
-                        res[i] = std::exp(log_result);
-                    }
-                }
-            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double cached_lambda, cached_exp_neg_lambda;
+            double lam, loglam, enl;
             dist.withCacheSnapshot([&] {
-                cached_lambda = dist.lambda_;
-                cached_exp_neg_lambda = dist.expNegLambda_;
+                lam = dist.lambda_;
+                loglam = dist.logLambda_;
+                enl = dist.expNegLambda_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                    res[i] = vals[i];
-                    return;
-                }
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                if (k == 0) {
-                    res[i] = cached_exp_neg_lambda;
-                } else if (cached_lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                           k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
-                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
-                             PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-                } else {
-                    double log_result =
-                        detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
-                    res[i] = std::exp(log_result);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   lam, loglam, enl);
             });
         });
 }
@@ -710,119 +629,59 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                                                   cached_log_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
-            double cached_lambda;
+            double cached_lambda, cached_log_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
+                    if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
+                    }
                     cached_lambda = dist.lambda_;
+                    cached_log_lambda = dist.logLambda_;
                 } else {
                     cached_lambda = dist.lambda_;
+                    cached_log_lambda = dist.logLambda_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        return;
-                    }
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                        return;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                        return;
-                    }
-
-                    // log P(X = k) = k * log(λ) - λ - log(k!), via detail::poisson_log_pmf (#172)
-                    res[i] = detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, cached_lambda, cached_log_lambda);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        continue;
-                    }
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                        continue;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                        continue;
-                    }
-
-                    // log P(X = k) = k * log(λ) - λ - log(k!), via detail::poisson_log_pmf (#172)
-                    res[i] = detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
-                }
-            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
-            double cached_lambda;
+            double cached_lambda, cached_log_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
+                    if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
+                    }
                     cached_lambda = dist.lambda_;
+                    cached_log_lambda = dist.logLambda_;
                 } else {
                     cached_lambda = dist.lambda_;
+                    cached_log_lambda = dist.logLambda_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                    res[i] = vals[i];
-                    return;
-                }
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                    return;
-                }
-
-                // log P(X = k) = k * log(λ) - λ - log(k!), via detail::poisson_log_pmf (#172)
-                res[i] = detail::poisson_log_pmf(static_cast<double>(k), cached_lambda);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      cached_lambda, cached_log_lambda);
             });
         });
 }
@@ -854,119 +713,55 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double cached_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
+                    if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
+                    }
                     cached_lambda = dist.lambda_;
                 } else {
                     cached_lambda = dist.lambda_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        return;
-                    }
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ONE;
-                        return;
-                    }
-
-                    // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                    res[i] = detail::gamma_q(k + 1, cached_lambda);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, cached_lambda);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        continue;
-                    }
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ONE;
-                        continue;
-                    }
-
-                    // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                    res[i] = detail::gamma_q(k + 1, cached_lambda);
-                }
-            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double cached_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
+                    if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
+                    }
                     cached_lambda = dist.lambda_;
                 } else {
                     cached_lambda = dist.lambda_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                    res[i] = vals[i];
-                    return;
-                }
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
-                    return;
-                }
-
-                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = detail::gamma_q(k + 1, cached_lambda);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_lambda);
             });
         });
 }

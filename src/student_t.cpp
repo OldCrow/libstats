@@ -21,6 +21,11 @@ using stats::detail::validatePositiveParameter;
 namespace stats {
 
 namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
 // log(1 + t²/ν) for the Student-t kernel (#159). Past |t| ~ 1e154 t² overflows and the direct form
 // collapses the density to 0 / −inf; there log(1 + t²/ν) = 2·log|t| + log(1/ν) + log1p(ν/t²), and
 // the last term is below double resolution.
@@ -453,9 +458,8 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
             dist.getProbabilityBatchUnsafeImpl(vals, res, count, lnc, nhnpo, inv_nu);
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
@@ -465,35 +469,29 @@ void StudentTDistribution::getProbability(std::span<const double> values, std::s
                 nhnpo = dist.negHalfNuPlusOne_;
                 inv_nu = dist.invNu_;
             });
-            // std::log1p(x²/ν) avoids catastrophic cancellation when x²/ν ≈ 0;
-            // log(1 + x²/ν) loses precision there. See <cmath>: log1p(x) = log(1+x).
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = std::exp(lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu));
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       lnc, nhnpo, inv_nu);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    res[i] = std::exp(lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu));
-                }
-            }
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            const double lnc = dist.logNormConst_;
-            const double nhnpo = dist.negHalfNuPlusOne_;
-            const double inv_nu = dist.invNu_;
-            lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = std::exp(lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu));
+            double lnc, nhnpo, inv_nu;
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                nhnpo = dist.negHalfNuPlusOne_;
+                inv_nu = dist.invNu_;
             });
-            pool.waitForAll();
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   lnc, nhnpo, inv_nu);
+            });
         });
 }
 
@@ -515,44 +513,40 @@ void StudentTDistribution::getLogProbability(std::span<const double> values,
             dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, lnc, nhnpo, inv_nu);
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            const double lnc = dist.logNormConst_;
-            const double nhnpo = dist.negHalfNuPlusOne_;
-            const double inv_nu = dist.invNu_;
-            lock.unlock();
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu);
+            double lnc, nhnpo, inv_nu;
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                nhnpo = dist.negHalfNuPlusOne_;
+                inv_nu = dist.invNu_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, lnc, nhnpo, inv_nu);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    res[i] = lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu);
-                }
-            }
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
-            const double lnc = dist.logNormConst_;
-            const double nhnpo = dist.negHalfNuPlusOne_;
-            const double inv_nu = dist.invNu_;
-            lock.unlock();
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = lnc + nhnpo * log1p_t2_over_nu(vals[i], inv_nu);
+            double lnc, nhnpo, inv_nu;
+            dist.withCacheSnapshot([&] {
+                lnc = dist.logNormConst_;
+                nhnpo = dist.negHalfNuPlusOne_;
+                inv_nu = dist.invNu_;
             });
-            pool.waitForAll();
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      lnc, nhnpo, inv_nu);
+            });
         });
 }
 
@@ -598,11 +592,10 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double cached_nu = dist.nu_;
             lock.unlock();
-            const double lbeta_a_half = detail::lbeta(detail::HALF * cached_nu, detail::HALF);
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = detail::t_cdf(vals[i], cached_nu, lbeta_a_half);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, cached_nu);
             });
-            pool.waitForAll();
         });
 }
 

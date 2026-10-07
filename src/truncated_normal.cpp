@@ -18,6 +18,11 @@
 namespace stats {
 
 namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
 
 // Standard normal pdf φ(z); 0 at ±∞ (the correct limit — avoids inf·0 NaNs
 // in the moment terms below).
@@ -837,25 +842,19 @@ void TruncatedNormalDistribution::getProbability(std::span<const double> values,
                 nhis = d.negHalfInvSigmaSquared_;
                 logc = d.logPdfNormConst_;
             });
-            const auto kernel = [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < a || x > b) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    const double diff = x - mu;
-                    res[i] = std::exp(logc + nhis * (diff * diff));
-                }
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, kernel);
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    kernel(i);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                    mu, a, b, nhis, logc);
+                });
         },
         [](const TruncatedNormalDistribution& d, std::span<const double> vals,
            std::span<double> res, WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double mu, a, b, nhis, logc;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
@@ -864,16 +863,10 @@ void TruncatedNormalDistribution::getProbability(std::span<const double> values,
                 nhis = d.negHalfInvSigmaSquared_;
                 logc = d.logPdfNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < a || x > b) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    const double diff = x - mu;
-                    res[i] = std::exp(logc + nhis * (diff * diff));
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, mu, a,
+                                                b, nhis, logc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -909,25 +902,19 @@ void TruncatedNormalDistribution::getLogProbability(std::span<const double> valu
                 nhis = d.negHalfInvSigmaSquared_;
                 logc = d.logPdfNormConst_;
             });
-            const auto kernel = [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < a || x > b) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else {
-                    const double diff = x - mu;
-                    res[i] = logc + nhis * (diff * diff);
-                }
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, kernel);
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    kernel(i);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       mu, a, b, nhis, logc);
+                });
         },
         [](const TruncatedNormalDistribution& d, std::span<const double> vals,
            std::span<double> res, WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double mu, a, b, nhis, logc;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
@@ -936,16 +923,10 @@ void TruncatedNormalDistribution::getLogProbability(std::span<const double> valu
                 nhis = d.negHalfInvSigmaSquared_;
                 logc = d.logPdfNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < a || x > b) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else {
-                    const double diff = x - mu;
-                    res[i] = logc + nhis * (diff * diff);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, mu,
+                                                   a, b, nhis, logc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -983,49 +964,55 @@ void TruncatedNormalDistribution::getCumulativeProbability(
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double mu, sigma, a, b, al, qa, pa, ea, iz, hiz;
+            double mu, sigma, a, b, al, be, qa, pa, ea, iz, hiz, iss2;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
                 sigma = d.standardDeviation_;
                 a = d.lowerBound_;
                 b = d.upperBound_;
                 al = d.alpha_;
+                be = d.beta_;
                 qa = d.qAlpha_;
                 pa = d.phiAlpha_;
                 ea = d.erfAlpha_;
                 iz = d.invZ_;
                 hiz = d.halfInvZ_;
+                iss2 = d.invSigmaSqrt2_;
             });
-            const auto kernel = [&](std::size_t i) {
-                res[i] = truncnorm_cdf_scalar(vals[i], mu, sigma, a, b, al, qa, pa, ea, iz, hiz);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, kernel);
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    kernel(i);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, mu, sigma, a,
+                                                              b, al, be, qa, pa, ea, iz, hiz, iss2);
+                });
         },
         [](const TruncatedNormalDistribution& d, std::span<const double> vals,
            std::span<double> res, WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            double mu, sigma, a, b, al, qa, pa, ea, iz, hiz;
+            if (count == 0)
+                return;
+            double mu, sigma, a, b, al, be, qa, pa, ea, iz, hiz, iss2;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
                 sigma = d.standardDeviation_;
                 a = d.lowerBound_;
                 b = d.upperBound_;
                 al = d.alpha_;
+                be = d.beta_;
                 qa = d.qAlpha_;
                 pa = d.phiAlpha_;
                 ea = d.erfAlpha_;
                 iz = d.invZ_;
                 hiz = d.halfInvZ_;
+                iss2 = d.invSigmaSqrt2_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = truncnorm_cdf_scalar(vals[i], mu, sigma, a, b, al, qa, pa, ea, iz, hiz);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, mu, sigma, a, b, al, be, qa, pa, ea,
+                                                          iz, hiz, iss2);
             });
-            pool.waitForAll();
         });
 }
 

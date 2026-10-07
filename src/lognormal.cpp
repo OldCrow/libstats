@@ -22,6 +22,11 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -456,36 +461,17 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double mu, ni2s2, lnc;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
                 ni2s2 = d.negInv2SigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        const double log_x = std::log(x);
-                        const double z = log_x - mu;
-                        res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                    mu, ni2s2, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        const double log_x = std::log(x);
-                        const double z = log_x - mu;
-                        res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
-                    }
-                }
-            }
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -494,24 +480,16 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double mu, ni2s2, lnc;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
                 ni2s2 = d.negInv2SigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    const double log_x = std::log(x);
-                    const double z = log_x - mu;
-                    res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, mu,
+                                                ni2s2, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -536,36 +514,17 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double mu, ni2s2, lnc;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
                 ni2s2 = d.negInv2SigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else {
-                        const double log_x = std::log(x);
-                        const double z = log_x - mu;
-                        res[i] = ni2s2 * z * z - log_x + lnc;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       mu, ni2s2, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else {
-                        const double log_x = std::log(x);
-                        const double z = log_x - mu;
-                        res[i] = ni2s2 * z * z - log_x + lnc;
-                    }
-                }
-            }
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -574,24 +533,16 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double mu, ni2s2, lnc;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
                 ni2s2 = d.negInv2SigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else {
-                    const double log_x = std::log(x);
-                    const double z = log_x - mu;
-                    res[i] = ni2s2 * z * z - log_x + lnc;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, mu,
+                                                   ni2s2, lnc);
             });
-            pool.waitForAll();
         });
 }
 

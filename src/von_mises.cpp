@@ -1320,47 +1320,29 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
                 mu = d.mu_;
                 lnorm = d.logNormaliser_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        return;
-                    }
-                    res[i] = std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm)
-                                              : detail::ZERO_DOUBLE;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k,
+                                                    mu, lnorm);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        continue;
-                    }
-                    res[i] = std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm)
-                                              : detail::ZERO_DOUBLE;
-                }
-            }
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double k, mu, lnorm;
             d.withCacheSnapshot([&] {
                 k = d.kappa_;
                 mu = d.mu_;
                 lnorm = d.logNormaliser_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                    res[i] = x;
-                    return;
-                }
-                res[i] =
-                    std::isfinite(x) ? std::exp(k * std::cos(x - mu) - lnorm) : detail::ZERO_DOUBLE;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k, mu,
+                                                lnorm);
             });
-            pool.waitForAll();
         });
 }
 
@@ -1391,47 +1373,29 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
                 mu = d.mu_;
                 lnorm = d.logNormaliser_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        return;
-                    }
-                    res[i] =
-                        std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       k, mu, lnorm);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        continue;
-                    }
-                    res[i] =
-                        std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
-                }
-            }
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double k, mu, lnorm;
             d.withCacheSnapshot([&] {
                 k = d.kappa_;
                 mu = d.mu_;
                 lnorm = d.logNormaliser_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                    res[i] = x;
-                    return;
-                }
-                res[i] =
-                    std::isfinite(x) ? k * std::cos(x - mu) - lnorm : detail::NEGATIVE_INFINITY;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k,
+                                                   mu, lnorm);
             });
-            pool.waitForAll();
         });
 }
 

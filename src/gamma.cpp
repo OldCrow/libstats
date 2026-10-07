@@ -31,6 +31,11 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
 //==========================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==========================================================================
@@ -928,82 +933,38 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double cached_alpha, cached_beta;
+            double alpha, beta;
             dist.withCacheSnapshot([&] {
-                cached_alpha = dist.alpha_;
-                cached_beta = dist.beta_;
+                alpha = dist.alpha_;
+                beta = dist.beta_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        return;
-                    }
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, alpha, beta);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        continue;
-                    }
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                    }
-                }
-            }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double cached_alpha, cached_beta;
+            double alpha, beta;
             dist.withCacheSnapshot([&] {
-                cached_alpha = dist.alpha_;
-                cached_beta = dist.beta_;
+                alpha = dist.alpha_;
+                beta = dist.beta_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                    res[i] = x;
-                    return;
-                }
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, alpha, beta);
             });
-            pool.waitForAll();
         });
 }
 

@@ -692,11 +692,10 @@ void raceWriters(const Row<D>& row, KnownIssues& known) {
 // Strategy differential (C5): no race. At sizes straddling the SIMD and fork thresholds, every
 // strategy must return exactly one known kernel's bits: the batch kernel (FORCE_VECTORIZED's) or
 // the scalar method's (FORCE_SCALAR's, itself gated against the scalar method element by
-// element). Below the fork threshold PARALLEL must be the batch kernel. Settled on M (NEON,
-// 2026-10-06): above the threshold, PARALLEL and MAXIMIZE_THROUGHPUT run the batch kernel in some
-// distributions and the scalar formula in others (#175/#176 rewired only the per-element-locking
-// lambdas), up to 88 ULP apart, so neither alone can be the gate. The kernel each strategy ran is
-// printed per row.
+// element). PARALLEL and MAXIMIZE_THROUGHPUT must be the batch kernel at every size: below the fork
+// threshold PARALLEL takes the batch path, and above it every multithreaded lambda runs the batch
+// kernel over slices (#191; before it, 33 of 81 ran the scalar formula, up to 88 ULP away). The
+// kernel each strategy ran is printed per row.
 template <typename D>
 void differential(const Row<D>& row) {
     const D d = row.makeA();
@@ -730,6 +729,12 @@ void differential(const Row<D>& row) {
                     EXPECT_TRUE(isVec)
                         << row.name << " " << kOpNames[op] << " n=" << n
                         << ": PARALLEL below the fork threshold is not the batch path";
+                // Above it the multithreaded strategies run the batch kernel over slices (#191),
+                // so they too return its bits. AUTO may still choose SCALAR or VECTORIZED.
+                if (n >= fork && std::string(batchHints()[h].name) != "AUTO")
+                    EXPECT_TRUE(isVec)
+                        << row.name << " " << kOpNames[op] << " n=" << n << " "
+                        << batchHints()[h].name << ": not the batch kernel's bits (#191)";
                 if (n >= fork) {
                     const char* k = isVec && isSc ? "=" : isVec ? "batch" : isSc ? "scalar" : "?";
                     if (ran[h].empty())

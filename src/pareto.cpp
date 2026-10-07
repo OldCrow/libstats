@@ -23,6 +23,11 @@ using stats::detail::validatePositiveParameter;
 namespace stats {
 
 namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
 // F(x) = 1 − (s/x)^α for x ≥ s, as −expm1(−α·log1p((x − s)/s)). Formed as 1 − pow(s/x, α), the
 // rounding of s/x near 1 left 3e-4 relative error in a CDF of 1e-6 just above the scale.
 [[nodiscard]] inline double paretoCdf(double x, double scale, double alpha) noexcept {
@@ -462,41 +467,35 @@ void ParetoDistribution::getProbability(std::span<const double> values, std::spa
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double scale, lnc, neg_ap1;
+            double scale, neg_ap1, lnc;
             d.withCacheSnapshot([&] {
                 scale = d.scale_;
-                lnc = d.logNormConst_;
                 neg_ap1 = d.negAlphaPlusOne_;
+                lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] =
-                        (x < scale) ? detail::ZERO_DOUBLE : std::exp(lnc + neg_ap1 * std::log(x));
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                    scale, neg_ap1, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] =
-                        (x < scale) ? detail::ZERO_DOUBLE : std::exp(lnc + neg_ap1 * std::log(x));
-                }
-            }
         },
         [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            double scale, lnc, neg_ap1;
+            if (count == 0)
+                return;
+            double scale, neg_ap1, lnc;
             d.withCacheSnapshot([&] {
                 scale = d.scale_;
-                lnc = d.logNormConst_;
                 neg_ap1 = d.negAlphaPlusOne_;
+                lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x < scale) ? detail::ZERO_DOUBLE : std::exp(lnc + neg_ap1 * std::log(x));
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, scale,
+                                                neg_ap1, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -521,39 +520,35 @@ void ParetoDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double scale, lnc, neg_ap1;
+            double scale, neg_ap1, lnc;
             d.withCacheSnapshot([&] {
                 scale = d.scale_;
-                lnc = d.logNormConst_;
                 neg_ap1 = d.negAlphaPlusOne_;
+                lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x < scale) ? detail::NEGATIVE_INFINITY : lnc + neg_ap1 * std::log(x);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       scale, neg_ap1, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x < scale) ? detail::NEGATIVE_INFINITY : lnc + neg_ap1 * std::log(x);
-                }
-            }
         },
         [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            double scale, lnc, neg_ap1;
+            if (count == 0)
+                return;
+            double scale, neg_ap1, lnc;
             d.withCacheSnapshot([&] {
                 scale = d.scale_;
-                lnc = d.logNormConst_;
                 neg_ap1 = d.negAlphaPlusOne_;
+                lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x < scale) ? detail::NEGATIVE_INFINITY : lnc + neg_ap1 * std::log(x);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   scale, neg_ap1, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -579,37 +574,35 @@ void ParetoDistribution::getCumulativeProbability(std::span<const double> values
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double scale, alpha;
+            double scale, log_scale, neg_alpha;
             d.withCacheSnapshot([&] {
                 scale = d.scale_;
-                alpha = d.alpha_;
+                log_scale = d.logScale_;
+                neg_alpha = d.negAlpha_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x < scale) ? detail::ZERO_DOUBLE : paretoCdf(x, scale, alpha);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, scale, log_scale, neg_alpha);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x < scale) ? detail::ZERO_DOUBLE : paretoCdf(x, scale, alpha);
-                }
-            }
         },
         [](const ParetoDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            double scale, alpha;
+            if (count == 0)
+                return;
+            double scale, log_scale, neg_alpha;
             d.withCacheSnapshot([&] {
                 scale = d.scale_;
-                alpha = d.alpha_;
+                log_scale = d.logScale_;
+                neg_alpha = d.negAlpha_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x < scale) ? detail::ZERO_DOUBLE : paretoCdf(x, scale, alpha);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, scale, log_scale, neg_alpha);
             });
-            pool.waitForAll();
         });
 }
 

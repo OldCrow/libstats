@@ -31,6 +31,11 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -820,14 +825,11 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
             dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_prob);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b;
             double cached_prob;
             dist.withCacheSnapshot([&] {
@@ -835,51 +837,19 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                 cached_b = dist.b_;
                 cached_prob = dist.probability_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        return;
-                    }
-                    if (std::floor(vals[i]) == vals[i] &&
-                        DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                        const int k = static_cast<int>(vals[i]);
-                        res[i] =
-                            (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::ZERO_DOUBLE;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       cached_a, cached_b, cached_prob);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        continue;
-                    }
-                    if (std::floor(vals[i]) == vals[i] &&
-                        DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                        const int k = static_cast<int>(vals[i]);
-                        res[i] =
-                            (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::ZERO_DOUBLE;
-                    }
-                }
-            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b;
             double cached_prob;
             dist.withCacheSnapshot([&] {
@@ -887,20 +857,9 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                 cached_b = dist.b_;
                 cached_prob = dist.probability_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                    res[i] = vals[i];
-                    return;
-                }
-                if (std::floor(vals[i]) == vals[i] &&
-                    DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                    const int k = static_cast<int>(vals[i]);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::ZERO_DOUBLE;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   cached_a, cached_b, cached_prob);
             });
         });
 }
@@ -925,101 +884,41 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
                                                   cached_log_prob);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b;
             double cached_log_prob;
-            bool cached_is_binary;
             dist.withCacheSnapshot([&] {
                 cached_a = dist.a_;
                 cached_b = dist.b_;
                 cached_log_prob = dist.logProbability_;
-                cached_is_binary = dist.isBinary_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        return;
-                    }
-                    if (std::floor(vals[i]) == vals[i] &&
-                        DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                        const int k = static_cast<int>(vals[i]);
-                        if (k >= cached_a && k <= cached_b) {
-                            res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
-                        } else {
-                            res[i] = detail::NEGATIVE_INFINITY;
-                        }
-                    } else {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, cached_a, cached_b, cached_log_prob);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                        res[i] = vals[i];
-                        continue;
-                    }
-                    if (std::floor(vals[i]) == vals[i] &&
-                        DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                        const int k = static_cast<int>(vals[i]);
-                        if (k >= cached_a && k <= cached_b) {
-                            res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
-                        } else {
-                            res[i] = detail::NEGATIVE_INFINITY;
-                        }
-                    } else {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    }
-                }
-            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b;
             double cached_log_prob;
-            bool cached_is_binary;
             dist.withCacheSnapshot([&] {
                 cached_a = dist.a_;
                 cached_b = dist.b_;
                 cached_log_prob = dist.logProbability_;
-                cached_is_binary = dist.isBinary_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (std::isnan(vals[i])) {  // NaN propagates, as on the scalar path
-                    res[i] = vals[i];
-                    return;
-                }
-                if (std::floor(vals[i]) == vals[i] &&
-                    DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                    const int k = static_cast<int>(vals[i]);
-                    if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
-                    } else {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    }
-                } else {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      cached_a, cached_b, cached_log_prob);
             });
         });
 }
@@ -1044,83 +943,43 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                                                          cached_inv_range);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b, cached_range;
             dist.withCacheSnapshot([&] {
                 cached_a = dist.a_;
                 cached_b = dist.b_;
                 cached_range = dist.range_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (std::isnan(vals[i])) {  // #167: NaN would reach the int cast below
-                        res[i] = vals[i];
-                    } else if (vals[i] < static_cast<double>(cached_a)) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else if (vals[i] >= static_cast<double>(cached_b)) {
-                        res[i] = detail::ONE;
-                    } else {
-                        const int k = static_cast<int>(std::floor(vals[i]));
-                        const int numerator = k - cached_a + detail::ONE_INT;
-                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                    }
+            const double cached_inv_range = detail::ONE / static_cast<double>(cached_range);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                                 res.data() + start, len, cached_a,
+                                                                 cached_b, cached_inv_range);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (std::isnan(vals[i])) {  // #167: NaN would reach the int cast below
-                        res[i] = vals[i];
-                    } else if (vals[i] < static_cast<double>(cached_a)) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else if (vals[i] >= static_cast<double>(cached_b)) {
-                        res[i] = detail::ONE;
-                    } else {
-                        const int k = static_cast<int>(std::floor(vals[i]));
-                        const int numerator = k - cached_a + detail::ONE_INT;
-                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                    }
-                }
-            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b, cached_range;
             dist.withCacheSnapshot([&] {
                 cached_a = dist.a_;
                 cached_b = dist.b_;
                 cached_range = dist.range_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (std::isnan(vals[i])) {  // #167: NaN would reach the int cast below
-                    res[i] = vals[i];
-                } else if (vals[i] < static_cast<double>(cached_a)) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (vals[i] >= static_cast<double>(cached_b)) {
-                    res[i] = detail::ONE;
-                } else {
-                    const int k = static_cast<int>(std::floor(vals[i]));
-                    const int numerator = k - cached_a + detail::ONE_INT;
-                    res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                }
+            const double cached_inv_range = detail::ONE / static_cast<double>(cached_range);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, cached_a,
+                                                             cached_b, cached_inv_range);
             });
         });
 }

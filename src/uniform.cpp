@@ -31,6 +31,11 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTORS
 //==============================================================================
@@ -599,16 +604,11 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                                                cached_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_inv_width;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -627,43 +627,19 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                     cached_inv_width = dist.invWidth_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        return;
-                    }
-                    res[i] =
-                        (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       cached_a, cached_b, cached_inv_width);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        continue;
-                    }
-                    res[i] =
-                        (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
-                }
-            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_inv_width;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -682,15 +658,9 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                     cached_inv_width = dist.invWidth_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                    res[i] = x;
-                    return;
-                }
-                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   cached_a, cached_b, cached_inv_width);
             });
         });
 }
@@ -727,18 +697,12 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                                                   cached_log_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_log_inv_width;
-            bool cached_is_unit_interval;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -750,63 +714,27 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                     cached_a = dist.a_;
                     cached_b = dist.b_;
                     cached_log_inv_width = -std::log(dist.width_);
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
                     cached_log_inv_width = -std::log(dist.width_);
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        return;
-                    }
-                    if (x < cached_a || x > cached_b) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else if (cached_is_unit_interval) {
-                        res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                    } else {
-                        res[i] = cached_log_inv_width;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, cached_a, cached_b,
+                                                          cached_log_inv_width);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        continue;
-                    }
-                    if (x < cached_a || x > cached_b) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else if (cached_is_unit_interval) {
-                        res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                    } else {
-                        res[i] = cached_log_inv_width;
-                    }
-                }
-            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_log_inv_width;
-            bool cached_is_unit_interval;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -818,29 +746,15 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                     cached_a = dist.a_;
                     cached_b = dist.b_;
                     cached_log_inv_width = -std::log(dist.width_);
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
                     cached_log_inv_width = -std::log(dist.width_);
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                    res[i] = x;
-                    return;
-                }
-                if (x < cached_a || x > cached_b) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_interval) {
-                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                } else {
-                    res[i] = cached_log_inv_width;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      cached_a, cached_b, cached_log_inv_width);
             });
         });
 }
@@ -879,18 +793,12 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                                                          cached_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_inv_width;
-            bool cached_is_unit_interval;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -902,59 +810,27 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     cached_a = dist.a_;
                     cached_b = dist.b_;
                     cached_inv_width = dist.invWidth_;
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
                     cached_inv_width = dist.invWidth_;
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x < cached_a) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else if (x > cached_b) {
-                        res[i] = detail::ONE;
-                    } else if (cached_is_unit_interval) {
-                        res[i] = x;  // CDF(x) = x for U(0,1)
-                    } else {
-                        res[i] = (x - cached_a) * cached_inv_width;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                                 res.data() + start, len, cached_a,
+                                                                 cached_b, cached_inv_width);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x < cached_a) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else if (x > cached_b) {
-                        res[i] = detail::ONE;
-                    } else if (cached_is_unit_interval) {
-                        res[i] = x;  // CDF(x) = x for U(0,1)
-                    } else {
-                        res[i] = (x - cached_a) * cached_inv_width;
-                    }
-                }
-            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_inv_width;
-            bool cached_is_unit_interval;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -966,27 +842,16 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     cached_a = dist.a_;
                     cached_b = dist.b_;
                     cached_inv_width = dist.invWidth_;
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
                     cached_inv_width = dist.invWidth_;
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < cached_a) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (x > cached_b) {
-                    res[i] = detail::ONE;
-                } else if (cached_is_unit_interval) {
-                    res[i] = x;  // CDF(x) = x for U(0,1)
-                } else {
-                    res[i] = (x - cached_a) * cached_inv_width;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, cached_a,
+                                                             cached_b, cached_inv_width);
             });
         });
 }

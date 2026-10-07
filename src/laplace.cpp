@@ -20,6 +20,11 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -424,48 +429,29 @@ void LaplaceDistribution::getProbability(std::span<const double> values, std::sp
                 nib = d.neg_inv_b_;
                 nlb = d.neg_log2b_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        return;
-                    }
-                    res[i] = std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m))
-                                              : detail::ZERO_DOUBLE;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                    nib, nlb);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        continue;
-                    }
-                    res[i] = std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m))
-                                              : detail::ZERO_DOUBLE;
-                }
-            }
         },
-        // Work-stealing
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, nib, nlb;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 nib = d.neg_inv_b_;
                 nlb = d.neg_log2b_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                    res[i] = x;
-                    return;
-                }
-                res[i] =
-                    std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m)) : detail::ZERO_DOUBLE;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                nib, nlb);
             });
-            pool.waitForAll();
         });
 }
 
@@ -496,47 +482,29 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
                 nib = d.neg_inv_b_;
                 nlb = d.neg_log2b_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        return;
-                    }
-                    res[i] =
-                        std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       m, nib, nlb);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        continue;
-                    }
-                    res[i] =
-                        std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
-                }
-            }
         },
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, nib, nlb;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 nib = d.neg_inv_b_;
                 nlb = d.neg_log2b_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                    res[i] = x;
-                    return;
-                }
-                res[i] =
-                    std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                   nib, nlb);
             });
-            pool.waitForAll();
         });
 }
 
@@ -565,66 +533,28 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
                 m = d.mu_;
                 hib = d.half_inv_b_;
             });
-            const double inv_b = detail::TWO * hib;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        return;
-                    }
-                    if (!std::isfinite(x)) {
-                        res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                        return;
-                    }
-                    const double dv = x - m;
-                    res[i] = (dv <= detail::ZERO_DOUBLE)
-                                 ? detail::HALF * std::exp(dv * inv_b)
-                                 : detail::ONE - detail::HALF * std::exp(-dv * inv_b);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, m, hib);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                        res[i] = x;
-                        continue;
-                    }
-                    if (!std::isfinite(x)) {
-                        res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                        continue;
-                    }
-                    const double dv = x - m;
-                    res[i] = (dv <= detail::ZERO_DOUBLE)
-                                 ? detail::HALF * std::exp(dv * inv_b)
-                                 : detail::ONE - detail::HALF * std::exp(-dv * inv_b);
-                }
-            }
         },
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, hib;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 hib = d.half_inv_b_;
             });
-            const double inv_b = detail::TWO * hib;
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x)) {  // NaN propagates, as on the scalar path
-                    res[i] = x;
-                    return;
-                }
-                if (!std::isfinite(x)) {
-                    res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                    return;
-                }
-                const double dv = x - m;
-                res[i] = (dv <= detail::ZERO_DOUBLE)
-                             ? detail::HALF * std::exp(dv * inv_b)
-                             : detail::ONE - detail::HALF * std::exp(-dv * inv_b);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, m, hib);
             });
-            pool.waitForAll();
         });
 }
 

@@ -445,6 +445,18 @@ double CauchyDistribution::getGammaAtomic() const noexcept {
     return getGamma();
 }
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+
+// Standardized closed-form CDF over [vals, vals + count); the VECTORIZED kernel.
+void cauchyCdfBatch(const double* vals, double* res, std::size_t count, double x0,
+                    double ig) noexcept {
+    for (std::size_t i = 0; i < count; ++i)
+        res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+}
+}  // namespace
+
 //==============================================================================
 // 13. SMART BATCH OPERATIONS
 // PDF/LogPDF: transform z[i] = (x[i] − x₀)/γ, delegate to StudentT(1)'s
@@ -525,8 +537,7 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
                 x0 = dist.x0_;
                 ig = dist.inv_gamma_;
             });
-            for (std::size_t i = 0; i < count; ++i)
-                res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+            cauchyCdfBatch(vals, res, count, x0, ig);
         },
         [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -541,14 +552,10 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
                 ig = dist.inv_gamma_;
             });
 
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    cauchyCdfBatch(vals.data() + start, res.data() + start, len, x0, ig);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
-            }
         },
         [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -564,8 +571,8 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
                 ig = dist.inv_gamma_;
             });
 
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                cauchyCdfBatch(vals.data() + start, res.data() + start, len, x0, ig);
             });
         });
 }

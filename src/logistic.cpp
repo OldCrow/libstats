@@ -21,6 +21,11 @@ using stats::detail::validatePositiveParameter;
 namespace stats {
 
 namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
 
 //------------------------------------------------------------------------------
 // Stable scalar kernels shared by the scalar API and the parallel fallbacks.
@@ -504,47 +509,35 @@ void LogisticDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double m, is, nls;
+            double m, nis, nls;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
-                is = d.inv_s_;
+                nis = d.neg_inv_s_;
                 nls = d.neg_log_s_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return detail::ZERO_DOUBLE;
-                return std::exp(logisticLogKernel((x - m) * is) + nls);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                    nis, nls);
+                });
         },
-        // Work-stealing
         [](const LogisticDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            double m, is, nls;
+            if (count == 0)
+                return;
+            double m, nis, nls;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
-                is = d.inv_s_;
+                nis = d.neg_inv_s_;
                 nls = d.neg_log_s_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = detail::ZERO_DOUBLE;
-                else
-                    res[i] = std::exp(logisticLogKernel((x - m) * is) + nls);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                nis, nls);
             });
-            pool.waitForAll();
         });
 }
 
@@ -569,46 +562,35 @@ void LogisticDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double m, is, nls;
+            double m, nis, nls;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
-                is = d.inv_s_;
+                nis = d.neg_inv_s_;
                 nls = d.neg_log_s_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return detail::NEGATIVE_INFINITY;
-                return logisticLogKernel((x - m) * is) + nls;
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       m, nis, nls);
+                });
         },
         [](const LogisticDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            double m, is, nls;
+            if (count == 0)
+                return;
+            double m, nis, nls;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
-                is = d.inv_s_;
+                nis = d.neg_inv_s_;
                 nls = d.neg_log_s_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = detail::NEGATIVE_INFINITY;
-                else
-                    res[i] = logisticLogKernel((x - m) * is) + nls;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                   nis, nls);
             });
-            pool.waitForAll();
         });
 }
 
@@ -637,39 +619,28 @@ void LogisticDistribution::getCumulativeProbability(std::span<const double> valu
                 m = d.mu_;
                 is = d.inv_s_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return (x > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-                return logisticCdfKernel((x - m) * is);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, m, is);
+                });
         },
         [](const LogisticDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, is;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 is = d.inv_s_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = (x > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-                else
-                    res[i] = logisticCdfKernel((x - m) * is);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, m, is);
             });
-            pool.waitForAll();
         });
 }
 

@@ -19,6 +19,11 @@ using stats::detail::validatePositiveParameter;
 
 namespace stats {
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -732,50 +737,33 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
-                throw std::invalid_argument("Span size mismatch");
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            // Acquire cache once; hoist lgamma prefix for the batch.
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = detail::beta_prefactor_constant(a, b);
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= 0.0)
-                        res[i] = 0.0;
-                    else if (x >= 1.0)
-                        res[i] = 1.0;
-                    else
-                        res[i] = detail::beta_i(x, a, b, log_prefix);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                                 res.data() + start, len, a, b);
                 });
-            } else {
-                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, a, b);
-            }
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             if (vals.size() != res.size())
-                throw std::invalid_argument("Span size mismatch");
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = detail::beta_prefactor_constant(a, b);
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= 0.0)
-                    res[i] = 0.0;
-                else if (x >= 1.0)
-                    res[i] = 1.0;
-                else
-                    res[i] = detail::beta_i(x, a, b, log_prefix);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, a, b);
             });
-            pool.waitForAll();
         });
 }
 

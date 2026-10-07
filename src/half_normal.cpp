@@ -17,6 +17,11 @@
 
 namespace stats {
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
@@ -431,34 +436,28 @@ void HalfNormalDistribution::getProbability(std::span<const double> values,
                 nhis = d.negHalfInvSigmaSquared_;
                 norm = d.normConstant_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                       : norm * std::exp(nhis * (x * x));
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                    nhis, norm);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                       : norm * std::exp(nhis * (x * x));
-                }
-            }
         },
         [](const HalfNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis, norm;
             d.withCacheSnapshot([&] {
                 nhis = d.negHalfInvSigmaSquared_;
                 norm = d.normConstant_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                   : norm * std::exp(nhis * (x * x));
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, nhis,
+                                                norm);
             });
-            pool.waitForAll();
         });
 }
 
@@ -487,34 +486,28 @@ void HalfNormalDistribution::getLogProbability(std::span<const double> values,
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                       : lnc + nhis * (x * x);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       nhis, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                       : lnc + nhis * (x * x);
-                }
-            }
         },
         [](const HalfNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis, lnc;
             d.withCacheSnapshot([&] {
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] =
-                    (x < detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY : lnc + nhis * (x * x);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   nhis, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -537,28 +530,25 @@ void HalfNormalDistribution::getCumulativeProbability(std::span<const double> va
                 return;
             double inv;
             d.withCacheSnapshot([&] { inv = d.invSigmaSqrt2_; });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : std::erf(x * inv);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, inv);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : std::erf(x * inv);
-                }
-            }
         },
         [](const HalfNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double inv;
             d.withCacheSnapshot([&] { inv = d.invSigmaSqrt2_; });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : std::erf(x * inv);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, inv);
             });
-            pool.waitForAll();
         });
 }
 

@@ -24,6 +24,11 @@ using stats::detail::validatePositiveParameter;
 namespace stats {
 
 namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
 // pdf = 0 and logpdf = −∞: x ≤ 0 is outside the support, and at x = +inf the log density
 // log(x) + c − x²/(2σ²) evaluates inf − inf = NaN, so it takes its limit instead (#164).
 // NaN fails both tests and propagates through the formula.
@@ -380,34 +385,28 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = outsideDensity(x) ? detail::ZERO_DOUBLE
-                                               : std::exp(std::log(x) + lnc + nhis * x * x);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                    nhis, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = outsideDensity(x) ? detail::ZERO_DOUBLE
-                                               : std::exp(std::log(x) + lnc + nhis * x * x);
-                }
-            }
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis, lnc;
             d.withCacheSnapshot([&] {
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = outsideDensity(x) ? detail::ZERO_DOUBLE
-                                           : std::exp(std::log(x) + lnc + nhis * x * x);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, nhis,
+                                                lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -436,34 +435,28 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = outsideDensity(x) ? detail::NEGATIVE_INFINITY
-                                               : std::log(x) + lnc + nhis * x * x;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       nhis, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = outsideDensity(x) ? detail::NEGATIVE_INFINITY
-                                               : std::log(x) + lnc + nhis * x * x;
-                }
-            }
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis, lnc;
             d.withCacheSnapshot([&] {
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = outsideDensity(x) ? detail::NEGATIVE_INFINITY
-                                           : std::log(x) + lnc + nhis * x * x;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   nhis, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -486,31 +479,25 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
                 return;
             double nhis;
             d.withCacheSnapshot([&] { nhis = d.negHalfInvSigmaSquared_; });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                        : -std::expm1(nhis * x * x);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, nhis);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                        : -std::expm1(nhis * x * x);
-                }
-            }
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis;
             d.withCacheSnapshot([&] { nhis = d.negHalfInvSigmaSquared_; });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] =
-                    (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : -std::expm1(nhis * x * x);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, nhis);
             });
-            pool.waitForAll();
         });
 }
 
