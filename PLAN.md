@@ -185,7 +185,15 @@ Status by machine (each machine edits only its own line):
   `1f999e3` (2026-10-05): incremental build 0 warnings, 89/89; the
   sweep bit-identical to `2c5230a`'s (10,210 rows), so `998d985`
   changes nothing on AppleClang 21 / NEON either. M's R1–R3 and R8 are
-  complete at the freeze code.
+  complete at the freeze code. At `ee11e62` (2026-10-06, a Claude session
+  whose sandbox bypass was refused, so every binary ran inside the
+  sandbox): Release 0 warnings, correctness 90/90. Next-steps 2–4 (sweep
+  compare, `test_parallel_batch_gates`, R8) not run: they need the
+  bypass (cache sizes read 0 inside) and a quiet machine (Spotlight and
+  `backupd` at ~180% CPU each). R9 steps 1–4 done on M:
+  `tests/test_concurrency_stress.cpp` and
+  `docs/bench-evidence/2026-10-06-m1-concurrency/`, both uncommitted;
+  results under R9.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);
@@ -422,11 +430,11 @@ detector shown to fire, or is recorded as a v3 input with no detector.
 |---|---|---|---|
 | C1 unlocked shared read/write | Uniform copy-assign; pool construction; #183 | TSan | M, K |
 | C2 check-then-act across a lock release | Uniform/Discrete bound setters; 5 delegate setters | stress invariant oracle, aligned rounds | M, K, Z |
-| C3 recursive or double lock | Poisson `getMedian`; `d == d` | stress watchdog (deadlocks only under SRWLOCK) | Z only; `d == d` none |
+| C3 recursive or double lock | Poisson `getMedian`; `d == d` | stress watchdog (deadlock) | M (deadlocked at `6987317`), Z; K untested; `d == d` none |
 | C4 one call mixing two parameter states | Binomial, NegBinomial, von Mises batches; Beta boundary; #182 | stress one-state oracle | M, K, Z |
 | C5 strategy runs the wrong kernel | PARALLEL below the fork threshold | strategy differential (step 1c) | M, K, Z |
 | C6 parallel helper semantics | `parallelTransform` repeated chunks; #181 | call-count gates; #181 needs fault injection | gates all; #181 none |
-| C7 work-stealing cross-waiting | #180 | WORK_STEALING reader alongside another pool user | K only |
+| C7 work-stealing cross-waiting | #180 | WORK_STEALING reader alongside another pool user | M, K (no probe written yet) |
 
 No detector, so v3 inputs unless one is found: `d == d` (undefined, no
 platform shows it), recursive shared locks off Windows, #181's
@@ -439,17 +447,18 @@ can show. The test prints what it reached
 (strategy per batch reader, core counts, lock backend) so coverage is
 read off the log, not assumed:
 - **M** (M1, 4P+4E, no SMT): the only weakly ordered CPU, so missing
-  acquire/release on atomics can show only here; TSan. MAXIMIZE_THROUGHPUT
-  and AUTO resolve to PARALLEL (no SMT, `performance_dispatcher.cpp:47`),
-  so WORK_STEALING is unreachable.
-- **K** (Kaby Lake 4C/8T, SMT): the only machine where
-  MAXIMIZE_THROUGHPUT and AUTO resolve to WORK_STEALING, so the only
-  WORK_STEALING coverage (C7, and C1 on the work-stealing lambdas under
-  TSan). x86 ordering hides what M shows. Runs after K's R8 quiet runs.
-- **Z** (Zen 4 8C/16T, Windows): SRWLOCK is the only lock backend here
-  where a recursive shared lock deadlocks (C3). No TSan (MSVC and
+  acquire/release on atomics can show only here; TSan. Corrected
+  2026-10-06 [DERIVED]: `SystemCapabilities` hardcodes physical = logical
+  / 2 (`system_capabilities.cpp:28`, F7 in Known Gaps), so every Mac looks
+  SMT and MAXIMIZE_THROUGHPUT reaches WORK_STEALING on M as well (the test
+  prints it). The recursive shared lock deadlocked here too (C3).
+- **K** (Kaby Lake 4C/8T, SMT): WORK_STEALING as on M, under x86
+  ordering; TSan. The second TSan machine, not the only WORK_STEALING
+  one. Runs after K's R8 quiet runs.
+- **Z** (Zen 4 8C/16T, Windows): SRWLOCK; Windows resolves
+  MAXIMIZE_THROUGHPUT to PARALLEL, so no WORK_STEALING. No TSan (MSVC and
   clang-cl do not support it on Windows). Run the stress test under both
-  MSVC and clang-cl; PARALLEL only. Runs after Z's R8 overnight.
+  MSVC and clang-cl. Runs after Z's R8 overnight.
 - No machine has Linux; a Linux TSan CI leg is the only check that would
   stay in place (user's decision, CI-HOUSE-STYLE runner budget).
 
@@ -534,6 +543,38 @@ Run every Mac binary outside the Claude Code sandbox (Rules).
    table updated with "shown to fire" evidence or "no detector". Commit
    the test and the evidence (`docs/bench-evidence/<date>-<machine>-concurrency/`)
    with the user's approval.
+
+**R9 on M** [DERIVED, 2026-10-06; evidence
+`docs/bench-evidence/2026-10-06-m1-concurrency/summary.txt`; test and
+evidence uncommitted, awaiting the user]. Run inside the sandbox (the
+bypass was refused); correctness only, which the cache sizes do not
+affect.
+- Step 1c settled: every strategy returns exactly the batch kernel's or
+  the scalar method's bits, never a mix; above the fork threshold
+  PARALLEL runs the scalar formula in 33 of 81 (distribution, op) pairs
+  (F8), up to 88 ULP from VECTORIZED. The gate is "one known kernel", and
+  PARALLEL below the threshold must be the batch kernel.
+- Step 2 at `6987317`: caught every listed defect but InverseGamma's
+  delegate (unseen on Z too); Poisson's recursive lock deadlocked on
+  macOS; Bernoulli and Geometric delegates only at 20× rounds (1–52 of
+  60,000), so the same-setter pairs run 20×.
+- Step 3 at head: #182 fired (1 hit); new F1–F4 below; nothing else.
+  Run time 65 s (budget ~60 s).
+- Step 4 TSan: at head F1 and #183 (positive control) only, beyond a
+  test-side `std::cout` race in `test_work_stealing_pool`; the whole
+  correctness ctest otherwise clean. At `73ecbfe`: Uniform's
+  copy-assignment and the pool's construction both reported.
+- Decided [user, 2026-10-07]: F1–F8 filed (#184–#191); the stress test
+  lands with known-issue skips. A result explained by an open issue
+  prints `[ known ] #N` and does not fail; a test whose only failures are
+  known is skipped naming them; each issue's fix removes its entry
+  (`knownReaderIssue`, `knownProgramIssue`, `knownPairIssue`). At head:
+  exit 0, 25 tests skipped (#182, #184–#187), 68 s; at `6987317` the
+  same file still fails every listed defect.
+- Open [user]: whether to fix #184–#191 before or after the freeze
+  (#184 moves the freeze head); Q1; the 68 s run time (budget ~60 s).
+- Next on K and Z: pull, build, run the stress test (K also under TSan),
+  compare with M's lists; no new harness work needed for that.
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
@@ -803,6 +844,34 @@ For corvus adoption (v3.0.0) and later:
   worse than the v2.5.0 block, on every ISA.
 
 ## Known Gaps [OPEN]
+- **R9 findings on M** [DERIVED, 2026-10-06; filed 2026-10-07 as
+  #184–#191 (F1–F8 in order), milestone "Accuracy, contracts & kernel
+  hygiene patch"; detail in
+  `docs/bench-evidence/2026-10-06-m1-concurrency/summary.txt`]:
+  - F1 (C1) #184: move-assignment takes no lock in all 27 distributions
+    (TSan; the stress test sees wrong values in 26). Same class as
+    Uniform's copy-assignment, fixed in `ee11e62`.
+  - F2 (C2) #185: TruncatedNormal `fit` reads the bounds, computes, then
+    writes μ and σ under a later lock (`truncated_normal.cpp:661`);
+    racing a bound setter, 741–2998 of 3000 rounds end in neither serial
+    order.
+  - F3 (C4) #186: InverseGamma and FisherF `sample(rng, n)` loop the locking
+    scalar `sample`, so one call mixes states; others snapshot once.
+  - F4 #187: Poisson `operator>>` cannot read `operator<<`'s output (`"λ="`
+    + 2 bytes lands on `=`; `poisson.cpp:1020`).
+  - F5 #188: Gaussian `sample`'s `static thread_local` Box–Muller spare
+    (`gaussian.cpp:330`) makes a draw depend on the thread's earlier
+    draws; identically seeded generators disagree.
+  - F6 #189: Poisson `validateCurrentParameters` is defined `inline` in
+    `poisson.cpp:246`; callers fail to link.
+  - F7 #190: `SystemCapabilities` hardcodes physical = logical / 2
+    (`system_capabilities.cpp:28`); the macOS PARALLEL/WORK_STEALING
+    choice reads it, so the M1 is treated as SMT.
+  - F8 (perf) #191: PARALLEL above the fork threshold runs the scalar formula,
+    not the batch kernel, in 33 of 81 (distribution, op) pairs.
+  - Q1: FORCE_SCALAR batches lock per element (`executeStrategy`'s
+    SCALAR case) and can mix states; the one-snapshot contract names
+    only the batch lambdas.
 - **Lock and parallel-path audit** [DERIVED, 2026-10-06; read-only agent,
   findings verified]. Fixed at `ee11e62`, each gate failing first on
   `73ecbfe` except where noted: Poisson `getMedian`'s recursive shared

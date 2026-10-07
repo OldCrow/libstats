@@ -446,6 +446,11 @@ create_libstats_gtest(test_parallel_batch_gates test_parallel_batch_gates.cpp)
 # self-comparison. Correctness, not timing: it asserts values and progress only.
 create_libstats_gtest(test_concurrency_gates test_concurrency_gates.cpp)
 
+# R9 stress test: every distribution's readers raced against writer programs (setters, fit, stream,
+# assignment), two-writer rounds, and a strategy differential. Correctness, not timing: it asserts
+# values and progress only. LIBSTATS_STRESS_SCALE scales its rounds (lower it under TSan).
+create_libstats_gtest(test_concurrency_stress test_concurrency_stress.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

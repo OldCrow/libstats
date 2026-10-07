@@ -1,0 +1,219 @@
+# test_concurrency_stress at ee11e62 (+ test), M1, Release, scale 1, inside the Claude Code sandbox
+[ reach    ] Gaussian: logical 8 physical 4, fork 1536, batch n 3109, MAX_THROUGHPUT -> WORK_STEALING, scale 1
+Gaussian / move assign ::  batch pdf SCALAR: 6 loop, 0 round results outside the allowed states
+Gaussian / move assign ::  batch pdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+Gaussian / move assign ::  batch logpdf SCALAR: 7 loop, 0 round results outside the allowed states
+Gaussian / move assign ::  batch logpdf VECTORIZED: 1 loop, 0 round results outside the allowed states
+Gaussian / move assign ::  batch logpdf PARALLEL: 1 loop, 0 round results outside the allowed states
+Gaussian / move assign ::  batch logpdf MAX_THROUGHPUT: 1 loop, 0 round results outside the allowed states
+Gaussian / move assign ::  batch logpdf AUTO: 1 loop, 0 round results outside the allowed states
+Gaussian / move assign ::  batch cdf SCALAR: 11 loop, 0 round results outside the allowed states
+Gaussian / move assign ::  batch cdf AUTO: 1 loop, 0 round results outside the allowed states
+Exponential / move assign ::  batch pdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+Exponential / move assign ::  batch pdf AUTO: 1 loop, 0 round results outside the allowed states
+Discrete / move assign ::  batch pdf SCALAR: 8 loop, 0 round results outside the allowed states
+Discrete / move assign ::  batch logpdf SCALAR: 11 loop, 0 round results outside the allowed states
+Discrete / move assign ::  batch logpdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+Discrete / move assign ::  batch logpdf PARALLEL: 2 loop, 0 round results outside the allowed states
+Discrete / move assign ::  batch logpdf AUTO: 3 loop, 0 round results outside the allowed states
+Discrete / move assign ::  batch cdf SCALAR: 3 loop, 0 round results outside the allowed states
+Discrete / move assign ::  copy construct: 5 loop, 0 round results outside the allowed states
+Discrete / move assign ::  copy assign: 2 loop, 0 round results outside the allowed states
+Poisson / move assign ::  scalar pdf: 4 loop, 1 round results outside the allowed states
+Poisson / move assign ::  batch pdf SCALAR: 34 loop, 0 round results outside the allowed states
+Poisson / move assign ::  batch pdf VECTORIZED: 1 loop, 0 round results outside the allowed states
+Poisson / move assign ::  batch pdf PARALLEL: 2 loop, 0 round results outside the allowed states
+Poisson / move assign ::  batch pdf MAX_THROUGHPUT: 3 loop, 0 round results outside the allowed states
+Gamma / move assign ::  scalar pdf: 1 loop, 0 round results outside the allowed states
+Gamma / move assign ::  scalar logpdf: 3 loop, 0 round results outside the allowed states
+Gamma / move assign ::  moments: 3 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch pdf SCALAR: 52 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch pdf VECTORIZED: 3 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch pdf PARALLEL: 5 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch pdf MAX_THROUGHPUT: 4 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch pdf AUTO: 2 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch logpdf SCALAR: 40 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch logpdf VECTORIZED: 3 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch logpdf PARALLEL: 1 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch logpdf MAX_THROUGHPUT: 3 loop, 0 round results outside the allowed states
+Gamma / move assign ::  batch logpdf AUTO: 3 loop, 0 round results outside the allowed states
+Bernoulli / move assign ::  copy construct: 43 loop, 4 round results outside the allowed states
+Bernoulli / move assign ::  copy assign: 30 loop, 0 round results outside the allowed states
+Beta / move assign ::  moments: 2 loop, 0 round results outside the allowed states
+Beta / move assign ::  batch pdf SCALAR: 1 loop, 0 round results outside the allowed states
+Beta / move assign ::  batch logpdf SCALAR: 1 loop, 0 round results outside the allowed states
+Binomial / move assign ::  batch pdf SCALAR: 1 loop, 0 round results outside the allowed states
+Binomial / move assign ::  batch logpdf SCALAR: 2 loop, 0 round results outside the allowed states
+Binomial / move assign ::  batch cdf SCALAR: 2 loop, 0 round results outside the allowed states
+StudentT / move assign ::  scalar pdf: 1 loop, 0 round results outside the allowed states
+StudentT / move assign ::  moments: 0 loop, 1 round results outside the allowed states
+StudentT / move assign ::  batch logpdf SCALAR: 2 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  scalar pdf: 3 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  scalar logpdf: 3 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  moments: 5 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch pdf SCALAR: 42 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch pdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch pdf PARALLEL: 1 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch pdf MAX_THROUGHPUT: 5 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch pdf AUTO: 4 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch logpdf SCALAR: 32 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch logpdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch logpdf PARALLEL: 1 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch logpdf MAX_THROUGHPUT: 5 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  batch logpdf AUTO: 4 loop, 0 round results outside the allowed states
+ChiSquared / move assign ::  copy construct: 23 loop, 6 round results outside the allowed states
+ChiSquared / move assign ::  copy assign: 17 loop, 0 round results outside the allowed states
+VonMises / move assign ::  scalar cdf: 1 loop, 0 round results outside the allowed states
+VonMises / move assign ::  batch cdf SCALAR: 18 loop, 0 round results outside the allowed states
+VonMises / move assign ::  batch cdf VECTORIZED: 1 loop, 0 round results outside the allowed states
+VonMises / move assign ::  batch cdf PARALLEL: 1 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  scalar pdf: 3 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  scalar logpdf: 1 loop, 1 round results outside the allowed states
+LogNormal / move assign ::  batch pdf SCALAR: 73 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch pdf VECTORIZED: 4 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch pdf PARALLEL: 3 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch pdf MAX_THROUGHPUT: 1 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch pdf AUTO: 1 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch logpdf SCALAR: 63 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch logpdf VECTORIZED: 3 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch logpdf PARALLEL: 2 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch logpdf MAX_THROUGHPUT: 1 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch logpdf AUTO: 1 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch cdf VECTORIZED: 1 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch cdf PARALLEL: 3 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch cdf MAX_THROUGHPUT: 4 loop, 0 round results outside the allowed states
+LogNormal / move assign ::  batch cdf AUTO: 3 loop, 0 round results outside the allowed states
+Pareto / move assign ::  quantile: 2 loop, 1 round results outside the allowed states
+Pareto / move assign ::  batch pdf SCALAR: 4 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch pdf PARALLEL: 3 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch pdf MAX_THROUGHPUT: 2 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch pdf AUTO: 4 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch logpdf SCALAR: 5 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch logpdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch logpdf PARALLEL: 1 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch logpdf MAX_THROUGHPUT: 2 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch logpdf AUTO: 1 loop, 0 round results outside the allowed states
+Pareto / move assign ::  batch cdf AUTO: 1 loop, 0 round results outside the allowed states
+Pareto / move assign ::  sample: 1 loop, 0 round results outside the allowed states
+Rayleigh / move assign ::  scalar pdf: 1 loop, 0 round results outside the allowed states
+Rayleigh / move assign ::  batch pdf SCALAR: 2 loop, 0 round results outside the allowed states
+Rayleigh / move assign ::  batch logpdf SCALAR: 2 loop, 0 round results outside the allowed states
+Rayleigh / move assign ::  batch logpdf PARALLEL: 1 loop, 0 round results outside the allowed states
+Weibull / move assign ::  scalar pdf: 3 loop, 0 round results outside the allowed states
+Weibull / move assign ::  scalar logpdf: 2 loop, 0 round results outside the allowed states
+Weibull / move assign ::  scalar cdf: 1 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch pdf SCALAR: 58 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch pdf VECTORIZED: 1 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch pdf PARALLEL: 2 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch pdf MAX_THROUGHPUT: 2 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch pdf AUTO: 4 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch logpdf SCALAR: 55 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch logpdf VECTORIZED: 3 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch logpdf PARALLEL: 4 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch logpdf MAX_THROUGHPUT: 3 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch logpdf AUTO: 2 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch cdf SCALAR: 60 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch cdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch cdf PARALLEL: 2 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch cdf MAX_THROUGHPUT: 5 loop, 0 round results outside the allowed states
+Weibull / move assign ::  batch cdf AUTO: 3 loop, 0 round results outside the allowed states
+Cauchy / move assign ::  scalar pdf: 1 loop, 0 round results outside the allowed states
+Cauchy / move assign ::  batch cdf SCALAR: 1 loop, 0 round results outside the allowed states
+Laplace / move assign ::  batch pdf SCALAR: 1 loop, 0 round results outside the allowed states
+Laplace / move assign ::  batch logpdf SCALAR: 4 loop, 0 round results outside the allowed states
+Laplace / move assign ::  batch logpdf VECTORIZED: 1 loop, 0 round results outside the allowed states
+Laplace / move assign ::  batch cdf SCALAR: 1 loop, 0 round results outside the allowed states
+Laplace / move assign ::  batch cdf VECTORIZED: 1 loop, 0 round results outside the allowed states
+Logistic / move assign ::  batch pdf SCALAR: 5 loop, 0 round results outside the allowed states
+Logistic / move assign ::  batch logpdf SCALAR: 2 loop, 0 round results outside the allowed states
+Logistic / move assign ::  batch cdf MAX_THROUGHPUT: 1 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  scalar pdf: 1 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  scalar cdf: 0 loop, 1 round results outside the allowed states
+Gumbel / move assign ::  batch pdf SCALAR: 44 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  batch pdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  batch pdf PARALLEL: 1 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  batch pdf AUTO: 1 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  batch logpdf SCALAR: 30 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  batch logpdf VECTORIZED: 1 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  batch logpdf PARALLEL: 2 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  batch logpdf MAX_THROUGHPUT: 3 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  batch logpdf AUTO: 2 loop, 0 round results outside the allowed states
+Gumbel / move assign ::  copy construct: 0 loop, 1 round results outside the allowed states
+HalfNormal / move assign ::  batch pdf SCALAR: 1 loop, 0 round results outside the allowed states
+HalfNormal / move assign ::  batch pdf PARALLEL: 2 loop, 0 round results outside the allowed states
+HalfNormal / move assign ::  batch pdf AUTO: 1 loop, 0 round results outside the allowed states
+HalfNormal / move assign ::  batch logpdf SCALAR: 1 loop, 0 round results outside the allowed states
+HalfNormal / move assign ::  sample n: 40 loop, 0 round results outside the allowed states
+InverseGamma / single setters ::  sample n: 47 loop, 0 round results outside the allowed states
+InverseGamma / fit ::  sample n: 44 loop, 15 round results outside the allowed states
+InverseGamma / stream ::  sample n: 52 loop, 0 round results outside the allowed states
+InverseGamma / copy assign ::  sample n: 40 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  scalar pdf: 5 loop, 1 round results outside the allowed states
+InverseGamma / move assign ::  scalar logpdf: 3 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  batch pdf SCALAR: 65 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  batch pdf VECTORIZED: 3 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  batch pdf MAX_THROUGHPUT: 4 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  batch pdf AUTO: 5 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  batch logpdf SCALAR: 55 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  batch logpdf PARALLEL: 1 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  batch logpdf MAX_THROUGHPUT: 4 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  batch logpdf AUTO: 4 loop, 0 round results outside the allowed states
+InverseGamma / move assign ::  sample n: 61 loop, 0 round results outside the allowed states
+Erlang / move assign ::  scalar pdf: 2 loop, 4 round results outside the allowed states
+Erlang / move assign ::  scalar logpdf: 3 loop, 2 round results outside the allowed states
+Erlang / move assign ::  moments: 5 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch pdf SCALAR: 70 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch pdf VECTORIZED: 4 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch pdf PARALLEL: 2 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch pdf MAX_THROUGHPUT: 9 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch pdf AUTO: 6 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch logpdf SCALAR: 68 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch logpdf VECTORIZED: 2 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch logpdf PARALLEL: 7 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch logpdf MAX_THROUGHPUT: 3 loop, 0 round results outside the allowed states
+Erlang / move assign ::  batch logpdf AUTO: 5 loop, 0 round results outside the allowed states
+Erlang / move assign ::  copy construct: 35 loop, 3 round results outside the allowed states
+Erlang / move assign ::  copy assign: 25 loop, 0 round results outside the allowed states
+Erlang / move assign ::  sample n: 34 loop, 0 round results outside the allowed states
+FisherF / single setters ::  sample n: 38 loop, 0 round results outside the allowed states
+FisherF / fit ::  sample n: 40 loop, 0 round results outside the allowed states
+FisherF / stream ::  sample: 1 loop, 0 round results outside the allowed states
+FisherF / stream ::  sample n: 50 loop, 0 round results outside the allowed states
+FisherF / copy assign ::  sample n: 31 loop, 0 round results outside the allowed states
+FisherF / move assign ::  scalar pdf: 28 loop, 13 round results outside the allowed states
+FisherF / move assign ::  scalar logpdf: 28 loop, 4 round results outside the allowed states
+FisherF / move assign ::  scalar cdf: 34 loop, 2 round results outside the allowed states
+FisherF / move assign ::  quantile: 57 loop, 3 round results outside the allowed states
+FisherF / move assign ::  moments: 41 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch pdf SCALAR: 64 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch pdf VECTORIZED: 28 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch pdf PARALLEL: 23 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch pdf MAX_THROUGHPUT: 27 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch pdf AUTO: 19 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch logpdf SCALAR: 63 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch logpdf VECTORIZED: 34 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch logpdf PARALLEL: 26 loop, 1 round results outside the allowed states
+FisherF / move assign ::  batch logpdf MAX_THROUGHPUT: 23 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch logpdf AUTO: 17 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch cdf SCALAR: 62 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch cdf VECTORIZED: 15 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch cdf PARALLEL: 32 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch cdf MAX_THROUGHPUT: 30 loop, 0 round results outside the allowed states
+FisherF / move assign ::  batch cdf AUTO: 15 loop, 0 round results outside the allowed states
+FisherF / move assign ::  sample: 35 loop, 0 round results outside the allowed states
+FisherF / move assign ::  sample n: 61 loop, 0 round results outside the allowed states
+Geometric / move assign ::  copy construct: 22 loop, 7 round results outside the allowed states
+Geometric / move assign ::  copy assign: 11 loop, 0 round results outside the allowed states
+NegativeBinomial / move assign ::  batch logpdf SCALAR: 1 loop, 0 round results outside the allowed states
+TruncatedNormal / move assign ::  scalar cdf: 1 loop, 0 round results outside the allowed states
+TruncatedNormal / move assign ::  quantile: 1 loop, 0 round results outside the allowed states
+TruncatedNormal / move assign ::  batch pdf SCALAR: 2 loop, 0 round results outside the allowed states
+TruncatedNormal / move assign ::  batch logpdf SCALAR: 1 loop, 0 round results outside the allowed states
+TruncatedNormal / move assign ::  batch cdf SCALAR: 6 loop, 0 round results outside the allowed states
+TruncatedNormal / move assign ::  sample: 2 loop, 0 round results outside the allowed states
+Poisson / stream: the first step does not change the state, so the program races nothing
+TruncatedNormal / writers fit / setParameters B: 2998 of 3000 rounds ended outside both serial orders
+TruncatedNormal / writers fit / single setter 2: 829 of 3000 rounds ended outside both serial orders
+TruncatedNormal / writers fit / single setter 3: 741 of 3000 rounds ended outside both serial orders
+[  PASSED  ] 54 tests.
+[  FAILED  ] 27 tests, listed below:

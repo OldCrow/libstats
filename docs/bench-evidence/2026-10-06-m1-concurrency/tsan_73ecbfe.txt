@@ -1,0 +1,46 @@
+# TSan at 73ecbfe: the two ee11e62 fixes with no deterministic gate
+## stress test, Uniform.Readers (copy-assignment)
+   14 | data race || stats::UniformDistribution::updateCacheUnsafe uniform.h:864 || stats::UniformDistribution::operator= uniform.cpp:82
+   12 | data race || stats::UniformDistribution::updateCacheUnsafe uniform.h:864 || stats::UniformDistribution::operator= uniform.cpp:58
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getProbability distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:58
+    2 | data race || stats::UniformDistribution::updateCacheUnsafe uniform.h:848 || stats::UniformDistribution::operator= uniform.cpp:56
+    2 | data race || stats::UniformDistribution::updateCacheUnsafe uniform.h:848 || stats::UniformDistribution::operator= uniform.cpp:77
+    1 | data race || stats::WorkStealingPool::workerLoop work_stealing_pool.cpp:195 || stats::WorkStealingPool::WorkStealingPool work_stealing_pool.cpp:59
+    1 | data race || stats::WorkStealingPool::tryStealWork work_stealing_pool.cpp:290 || stats::WorkStealingPool::WorkStealingPool work_stealing_pool.cpp:55
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:56 || stats::UniformDistribution::setParameters uniform.cpp:158
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:56 || stats::UniformDistribution::setParameters uniform.cpp:159
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:56 || stats::UniformDistribution::setLowerBound uniform.cpp:114
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:56 || stats::UniformDistribution::setUpperBound uniform.cpp:135
+    1 | data race || stats::UniformDistribution::setBounds uniform.cpp:146 || stats::UniformDistribution::operator= uniform.cpp:56
+    1 | data race || stats::UniformDistribution::setBounds uniform.cpp:147 || stats::UniformDistribution::operator= uniform.cpp:56
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:56 || stats::UniformDistribution::trySetParameters uniform.cpp:257
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:58 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getCumulativeProbability distribution_cache.h:118
+    1 | data race || stats::UniformDistribution::getLogProbability uniform.cpp:727 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || stats::UniformDistribution::getLogProbability uniform.cpp:832 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getCumulativeProbability distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || stats::UniformDistribution::sample uniform.cpp:386 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getLogProbability distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getQuantile distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || stats::UniformDistribution::getLogProbability uniform.cpp:764 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || stats::UniformDistribution::getMean uniform.cpp:169 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || stats::UniformDistribution::getProbability uniform.cpp:635 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || stats::UniformDistribution::getCumulativeProbability uniform.cpp:980 || stats::UniformDistribution::operator= uniform.cpp:58
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getProbability distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:82 || stats::UniformDistribution::updateCacheUnsafe uniform.h:864
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:82 || stats::UniformDistribution::getVariance uniform.cpp:181
+    1 | data race || stats::UniformDistribution::getProbability uniform.cpp:635 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || stats::UniformDistribution::getLogProbability uniform.cpp:727 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || stats::UniformDistribution::getLogProbability uniform.cpp:832 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getCumulativeProbability distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || stats::UniformDistribution::getProbability uniform.cpp:599 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || stats::UniformDistribution::getProbability uniform.cpp:690 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getLogProbability distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || stats::UniformDistribution::getLogProbability uniform.cpp:764 || stats::UniformDistribution::operator= uniform.cpp:82
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:82 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getCumulativeProbability distribution_cache.h:118
+    1 | data race || stats::UniformDistribution::sample uniform.cpp:386 || stats::UniformDistribution::operator= uniform.cpp:82
+## test_work_stealing_pool x5 (pool construction)
+   30 | data race || stats::WorkStealingPool::WorkStealingPool work_stealing_pool.cpp:55 || stats::WorkStealingPool::tryStealWork work_stealing_pool.cpp:290
+   25 | data race || stats::WorkStealingPool::WorkStealingPool work_stealing_pool.cpp:59 || stats::WorkStealingPool::workerLoop work_stealing_pool.cpp:195
+   20 | data race || stats::WorkStealingPool::workerLoop work_stealing_pool.cpp:195 || stats::WorkStealingPool::WorkStealingPool work_stealing_pool.cpp:59
+   16 | data race || stats::WorkStealingPool::executeTask work_stealing_pool.cpp:315 || stats::WorkStealingPool::executeTask work_stealing_pool.cpp:315
+    7 | data race || stats::WorkStealingPool::tryStealWork work_stealing_pool.cpp:290 || stats::WorkStealingPool::WorkStealingPool work_stealing_pool.cpp:55

@@ -1,0 +1,426 @@
+# TSan, head (ee11e62 + test), build-tsan RelWithDebInfo, LIBSTATS_STRESS_SCALE=0.1; count | kind || first stats frame, stack 1 || stack 2
+## test_concurrency_stress
+   30 | data race || stats::GammaDistribution::updateCacheUnsafe gamma.h:909 || stats::GammaDistribution::operator= gamma.cpp:90
+   23 | data race || stats::BinomialDistribution::updateCacheUnsafe binomial.cpp:865 || stats::BinomialDistribution::operator= binomial.cpp:102
+   23 | data race || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:883 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:140
+   23 | data race || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:884 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:140
+   22 | data race || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:885 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:142
+   22 | data race || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:886 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:146
+   21 | data race || stats::BinomialDistribution::updateCacheUnsafe binomial.cpp:864 || stats::BinomialDistribution::operator= binomial.cpp:102
+   21 | data race || stats::BinomialDistribution::updateCacheUnsafe binomial.cpp:866 || stats::BinomialDistribution::operator= binomial.cpp:104
+   19 | data race || stats::RayleighDistribution::updateCacheUnsafe rayleigh.cpp:715 || stats::RayleighDistribution::operator= rayleigh.cpp:91
+   19 | data race || stats::RayleighDistribution::updateCacheUnsafe rayleigh.cpp:717 || stats::RayleighDistribution::operator= rayleigh.cpp:91
+   19 | data race || stats::RayleighDistribution::updateCacheUnsafe rayleigh.cpp:721 || stats::RayleighDistribution::operator= rayleigh.cpp:93
+   19 | data race || stats::RayleighDistribution::updateCacheUnsafe rayleigh.cpp:726 || stats::RayleighDistribution::operator= rayleigh.cpp:98
+   19 | data race || stats::LogisticDistribution::updateCacheUnsafe logistic.cpp:837 || stats::LogisticDistribution::operator= logistic.cpp:120
+   19 | data race || stats::LogisticDistribution::updateCacheUnsafe logistic.cpp:840 || stats::LogisticDistribution::operator= logistic.cpp:125
+   18 | data race || stats::BinomialDistribution::updateCacheUnsafe binomial.cpp:867 || stats::BinomialDistribution::operator= binomial.cpp:108
+   18 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:793 || stats::ParetoDistribution::operator= pareto.cpp:105
+   18 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:794 || stats::ParetoDistribution::operator= pareto.cpp:105
+   18 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:795 || stats::ParetoDistribution::operator= pareto.cpp:107
+   18 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:796 || stats::ParetoDistribution::operator= pareto.cpp:107
+   18 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:797 || stats::ParetoDistribution::operator= pareto.cpp:109
+   18 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:798 || stats::ParetoDistribution::operator= pareto.cpp:110
+   18 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:801 || stats::ParetoDistribution::operator= pareto.cpp:110
+   18 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:812 || stats::ParetoDistribution::operator= pareto.cpp:116
+   18 | data race || stats::LogisticDistribution::updateCacheUnsafe logistic.cpp:836 || stats::LogisticDistribution::operator= logistic.cpp:120
+   18 | data race || stats::LogisticDistribution::updateCacheUnsafe logistic.cpp:838 || stats::LogisticDistribution::operator= logistic.cpp:122
+   18 | data race || stats::GumbelDistribution::updateCacheUnsafe gumbel.cpp:753 || stats::GumbelDistribution::operator= gumbel.cpp:112
+   18 | data race || stats::GumbelDistribution::updateCacheUnsafe gumbel.cpp:755 || stats::GumbelDistribution::operator= gumbel.cpp:116
+   17 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1037 || stats::BetaDistribution::operator= beta.cpp:108
+   17 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1033 || stats::WeibullDistribution::operator= weibull.cpp:132
+   17 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1034 || stats::WeibullDistribution::operator= weibull.cpp:132
+   17 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1035 || stats::WeibullDistribution::operator= weibull.cpp:134
+   17 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1037 || stats::WeibullDistribution::operator= weibull.cpp:134
+   17 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1041 || stats::WeibullDistribution::operator= weibull.cpp:136
+   17 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1045 || stats::WeibullDistribution::operator= weibull.cpp:137
+   17 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1047 || stats::WeibullDistribution::operator= weibull.cpp:138
+   17 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1049 || stats::WeibullDistribution::operator= weibull.cpp:142
+   17 | data race || stats::GumbelDistribution::updateCacheUnsafe gumbel.cpp:752 || stats::GumbelDistribution::operator= gumbel.cpp:112
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:732 || stats::HalfNormalDistribution::operator= half_normal.cpp:85
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:734 || stats::HalfNormalDistribution::operator= half_normal.cpp:85
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:737 || stats::HalfNormalDistribution::operator= half_normal.cpp:87
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:739 || stats::HalfNormalDistribution::operator= half_normal.cpp:87
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:741 || stats::HalfNormalDistribution::operator= half_normal.cpp:89
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:742 || stats::HalfNormalDistribution::operator= half_normal.cpp:89
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:745 || stats::HalfNormalDistribution::operator= half_normal.cpp:91
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:747 || stats::HalfNormalDistribution::operator= half_normal.cpp:92
+   17 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:749 || stats::HalfNormalDistribution::operator= half_normal.cpp:95
+   16 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1032 || stats::BetaDistribution::operator= beta.cpp:106
+   16 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1034 || stats::BetaDistribution::operator= beta.cpp:108
+   16 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1038 || stats::BetaDistribution::operator= beta.cpp:110
+   16 | data race || stats::VonMisesDistribution::updateCacheUnsafe von_mises.cpp:1665 || stats::VonMisesDistribution::operator= von_mises.cpp:885
+   16 | data race || stats::VonMisesDistribution::updateCacheUnsafe von_mises.cpp:1670 || stats::VonMisesDistribution::operator= von_mises.cpp:887
+   16 | data race || stats::VonMisesDistribution::updateCacheUnsafe von_mises.cpp:1671 || stats::VonMisesDistribution::operator= von_mises.cpp:885
+   16 | data race || stats::VonMisesDistribution::updateCacheUnsafe von_mises.cpp:1674 || stats::VonMisesDistribution::operator= von_mises.cpp:888
+   16 | data race || stats::VonMisesDistribution::updateCacheUnsafe von_mises.cpp:1676 || stats::VonMisesDistribution::operator= von_mises.cpp:890
+   16 | data race || stats::VonMisesDistribution::updateCacheUnsafe von_mises.cpp:1688 || stats::VonMisesDistribution::operator= von_mises.cpp:894
+   16 | data race || stats::LogNormalDistribution::updateCacheUnsafe lognormal.cpp:885 || stats::LogNormalDistribution::operator= lognormal.cpp:96
+   16 | data race || stats::LogNormalDistribution::updateCacheUnsafe lognormal.cpp:887 || stats::LogNormalDistribution::operator= lognormal.cpp:96
+   16 | data race || stats::LogNormalDistribution::updateCacheUnsafe lognormal.cpp:891 || stats::LogNormalDistribution::operator= lognormal.cpp:98
+   16 | data race || stats::LogNormalDistribution::updateCacheUnsafe lognormal.cpp:894 || stats::LogNormalDistribution::operator= lognormal.cpp:100
+   16 | data race || stats::LogNormalDistribution::updateCacheUnsafe lognormal.cpp:895 || stats::LogNormalDistribution::operator= lognormal.cpp:101
+   16 | data race || stats::LogNormalDistribution::updateCacheUnsafe lognormal.cpp:898 || stats::LogNormalDistribution::operator= lognormal.cpp:102
+   16 | data race || stats::LogNormalDistribution::updateCacheUnsafe lognormal.cpp:901 || stats::LogNormalDistribution::operator= lognormal.cpp:106
+   16 | data race || stats::LaplaceDistribution::updateCacheUnsafe laplace.cpp:769 || stats::LaplaceDistribution::operator= laplace.cpp:85
+   16 | data race || stats::LaplaceDistribution::updateCacheUnsafe laplace.cpp:772 || stats::LaplaceDistribution::operator= laplace.cpp:90
+   15 | data race || stats::LaplaceDistribution::updateCacheUnsafe laplace.cpp:768 || stats::LaplaceDistribution::operator= laplace.cpp:85
+   15 | data race || stats::LaplaceDistribution::updateCacheUnsafe laplace.cpp:770 || stats::LaplaceDistribution::operator= laplace.cpp:87
+   14 | data race || stats::PoissonDistribution::updateCacheUnsafe poisson.cpp:1169 || stats::PoissonDistribution::operator= poisson.cpp:83
+   12 | data race || stats::GaussianDistribution::updateCacheUnsafe gaussian.cpp:1308 || stats::GaussianDistribution::operator= gaussian.cpp:93
+   12 | data race || stats::ExponentialDistribution::updateCacheUnsafe exponential.h:759 || stats::ExponentialDistribution::operator= exponential.cpp:80
+   12 | data race || stats::UniformDistribution::updateCacheUnsafe uniform.h:864 || stats::UniformDistribution::operator= uniform.cpp:85
+   12 | data race || stats::CauchyDistribution::updateCacheUnsafe cauchy.cpp:634 || stats::CauchyDistribution::operator= cauchy.cpp:90
+   12 | data race || stats::CauchyDistribution::updateCacheUnsafe cauchy.cpp:636 || stats::CauchyDistribution::operator= cauchy.cpp:95
+   11 | data race || stats::CauchyDistribution::updateCacheUnsafe cauchy.cpp:633 || stats::CauchyDistribution::operator= cauchy.cpp:90
+    9 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getLogProbability distribution_cache.h:118 || stats::GammaDistribution::operator= gamma.cpp:90
+    9 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1045 || stats::BetaDistribution::operator= beta.cpp:111
+    9 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1059 || stats::BetaDistribution::operator= beta.cpp:118
+    8 | data race || stats::GammaDistribution::operator= gamma.cpp:90 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getLogProbability distribution_cache.h:118
+    8 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:779 || stats::StudentTDistribution::operator= student_t.cpp:124
+    8 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:780 || stats::StudentTDistribution::operator= student_t.cpp:124
+    8 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:781 || stats::StudentTDistribution::operator= student_t.cpp:126
+    8 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:782 || stats::StudentTDistribution::operator= student_t.cpp:126
+    8 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:787 || stats::StudentTDistribution::operator= student_t.cpp:128
+    8 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:791 || stats::StudentTDistribution::operator= student_t.cpp:128
+    8 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:805 || stats::StudentTDistribution::operator= student_t.cpp:131
+    8 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:809 || stats::StudentTDistribution::operator= student_t.cpp:136
+    8 | data race || stats::BetaDistribution::trySetParameters beta.cpp:207 || stats::BetaDistribution::operator= beta.cpp:104
+    8 | data race || stats::BetaDistribution::trySetParameters beta.cpp:208 || stats::BetaDistribution::operator= beta.cpp:104
+    8 | data race || stats::BetaDistribution::trySetParameters beta.cpp:209 || stats::BetaDistribution::operator= beta.cpp:118
+    8 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1042 || stats::BetaDistribution::operator= beta.cpp:111
+    8 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1043 || stats::BetaDistribution::operator= beta.cpp:114
+    7 | data race || stats::GammaDistribution::operator= gamma.cpp:90 || stats::GammaDistribution::updateCacheUnsafe gamma.h:909
+    7 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::BinomialDistribution::getProbability distribution_cache.h:118 || stats::BinomialDistribution::operator= binomial.cpp:108
+    6 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ParetoDistribution::getProbability distribution_cache.h:125 || stats::ParetoDistribution::operator= pareto.cpp:112
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1280 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1280
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1281 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1281
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1282 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1282
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1283 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1283
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1285 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1285
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1287 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1287
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1288 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1288
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1291 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1291
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1292 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1292
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1294 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1294
+    6 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1298 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1298
+    5 | data race || stats::DiscreteDistribution::updateCacheUnsafe discrete.cpp:1334 || stats::DiscreteDistribution::operator= discrete.cpp:135
+    5 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getProbability distribution_cache.h:118 || stats::GammaDistribution::operator= gamma.cpp:90
+    5 | data race || stats::GammaDistribution::operator= gamma.cpp:90 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getCumulativeProbability distribution_cache.h:118
+    5 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::VonMisesDistribution::getProbability distribution_cache.h:125 || stats::VonMisesDistribution::operator= von_mises.cpp:887
+    5 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ParetoDistribution::getCumulativeProbability distribution_cache.h:125 || stats::ParetoDistribution::operator= pareto.cpp:112
+    5 | data race || stats::FDistribution::operator= fisher_f.cpp:96 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::FDistribution::getLogProbability distribution_cache.h:118
+    5 | data race || stats::FDistribution::updateCacheUnsafe fisher_f.cpp:924 || stats::FDistribution::operator= fisher_f.cpp:96
+    5 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1299 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1299
+    5 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1300 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1300
+    5 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1304 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1304
+    5 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1306 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1306
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::DiscreteDistribution::getLogProbability distribution_cache.h:118 || stats::DiscreteDistribution::operator= discrete.cpp:135
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::DiscreteDistribution::getProbability distribution_cache.h:118 || stats::DiscreteDistribution::operator= discrete.cpp:135
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::DiscreteDistribution::getCumulativeProbability distribution_cache.h:118 || stats::DiscreteDistribution::operator= discrete.cpp:135
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getCumulativeProbability distribution_cache.h:118 || stats::GammaDistribution::operator= gamma.cpp:90
+    4 | data race || stats::GammaDistribution::operator= gamma.cpp:90 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getEntropy distribution_cache.h:118
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::sample distribution_cache.h:118 || stats::GammaDistribution::operator= gamma.cpp:90
+    4 | data race || stats::BetaDistribution::operator= beta.cpp:106 || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1032
+    4 | data race || stats::BetaDistribution::operator= beta.cpp:108 || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1034
+    4 | data race || stats::BetaDistribution::operator= beta.cpp:110 || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1038
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::StudentTDistribution::getLogProbability distribution_cache.h:125 || stats::StudentTDistribution::operator= student_t.cpp:130
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::StudentTDistribution::getProbability distribution_cache.h:125 || stats::StudentTDistribution::operator= student_t.cpp:130
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::VonMisesDistribution::getCumulativeProbability distribution_cache.h:125 || stats::VonMisesDistribution::operator= von_mises.cpp:887
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::VonMisesDistribution::getLogProbability distribution_cache.h:125 || stats::VonMisesDistribution::operator= von_mises.cpp:887
+    4 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ParetoDistribution::getLogProbability distribution_cache.h:125 || stats::ParetoDistribution::operator= pareto.cpp:112
+    3 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getProbability distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:85
+    3 | data race || stats::BetaDistribution::operator= beta.cpp:111 || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1042
+    3 | data race || stats::BetaDistribution::operator= beta.cpp:112 || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1055
+    3 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::BetaDistribution::getProbability distribution_cache.h:125 || stats::BetaDistribution::operator= beta.cpp:114
+    3 | data race || stats::GammaDistribution::operator= gamma.cpp:90 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getProbability distribution_cache.h:118
+    3 | data race || stats::GammaDistribution::operator= gamma.cpp:84 || stats::GammaDistribution::trySetParameters gamma.cpp:257
+    3 | data race || stats::GammaDistribution::operator= gamma.cpp:90 || stats::GammaDistribution::trySetParameters gamma.cpp:259
+    3 | data race || stats::InverseGammaDistribution::operator= inverse_gamma.cpp:106 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::InverseGammaDistribution::getCumulativeProbability distribution_cache.h:118
+    3 | data race || stats::GammaDistribution::trySetParameters gamma.cpp:258 || stats::GammaDistribution::operator= gamma.cpp:84
+    3 | data race || stats::BetaDistribution::operator= beta.cpp:104 || stats::BetaDistribution::trySetParameters beta.cpp:207
+    3 | data race || stats::FDistribution::operator= fisher_f.cpp:96 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::FDistribution::getProbability distribution_cache.h:118
+    3 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::NegativeBinomialDistribution::getProbability distribution_cache.h:118 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:146
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GaussianDistribution::getProbability distribution_cache.h:118 || stats::GaussianDistribution::operator= gaussian.cpp:93
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GaussianDistribution::getLogProbability distribution_cache.h:118 || stats::GaussianDistribution::operator= gaussian.cpp:93
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GaussianDistribution::getCumulativeProbability distribution_cache.h:118 || stats::GaussianDistribution::operator= gaussian.cpp:93
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ExponentialDistribution::getProbability distribution_cache.h:118 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    2 | data race || stats::UniformDistribution::updateCacheUnsafe uniform.h:848 || stats::UniformDistribution::operator= uniform.cpp:80
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::UniformDistribution::getCumulativeProbability distribution_cache.h:118 || stats::UniformDistribution::operator= uniform.cpp:85
+    2 | data race || stats::DiscreteDistribution::updateCacheUnsafe discrete.cpp:1317 || stats::DiscreteDistribution::operator= discrete.cpp:130
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::DiscreteDistribution::sample distribution_cache.h:118 || stats::DiscreteDistribution::operator= discrete.cpp:135
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::PoissonDistribution::getLogProbabilityExact distribution_cache.h:118 || stats::PoissonDistribution::operator= poisson.cpp:83
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::PoissonDistribution::getProbability distribution_cache.h:118 || stats::PoissonDistribution::operator= poisson.cpp:83
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::PoissonDistribution::sample distribution_cache.h:118 || stats::PoissonDistribution::operator= poisson.cpp:83
+    2 | data race || stats::GammaDistribution::operator= gamma.cpp:84 || stats::GammaDistribution::updateCacheUnsafe gamma.h:887
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::computeQuantile distribution_cache.h:118 || stats::GammaDistribution::operator= gamma.cpp:90
+    2 | data race || stats::BinomialDistribution::operator= binomial.cpp:102 || stats::BinomialDistribution::getEntropy binomial.cpp:486
+    2 | data race || stats::BinomialDistribution::operator= binomial.cpp:102 || stats::BinomialDistribution::updateCacheUnsafe binomial.cpp:864
+    2 | data race || stats::BinomialDistribution::operator= binomial.cpp:104 || stats::BinomialDistribution::updateCacheUnsafe binomial.cpp:866
+    2 | data race || stats::BinomialDistribution::operator= binomial.cpp:100 || stats::BinomialDistribution::getLogProbability binomial.cpp:597
+    2 | data race || stats::BetaDistribution::getProbability beta.cpp:368 || stats::BetaDistribution::operator= beta.cpp:114
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::BetaDistribution::getLogProbability distribution_cache.h:125 || stats::BetaDistribution::operator= beta.cpp:114
+    2 | data race || stats::BetaDistribution::getLogProbability beta.cpp:396 || stats::BetaDistribution::operator= beta.cpp:114
+    2 | data race || stats::GammaDistribution::operator= gamma.cpp:84 || stats::GammaDistribution::getProbability gamma.cpp:355
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::VonMisesDistribution::sample distribution_cache.h:125 || stats::VonMisesDistribution::operator= von_mises.cpp:887
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::VonMisesDistribution::getCumulativeProbability distribution_cache.h:118 || stats::VonMisesDistribution::operator= von_mises.cpp:894
+    2 | data race || stats::ParetoDistribution::operator= pareto.cpp:116 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ParetoDistribution::getProbability distribution_cache.h:118
+    2 | data race || stats::ParetoDistribution::updateCacheUnsafe pareto.cpp:794 || stats::ParetoDistribution::operator= pareto.cpp:103
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ParetoDistribution::sample distribution_cache.h:125 || stats::ParetoDistribution::operator= pareto.cpp:112
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::RayleighDistribution::getProbability distribution_cache.h:118 || stats::RayleighDistribution::operator= rayleigh.cpp:98
+    2 | data race || stats::CauchyDistribution::operator= cauchy.cpp:95 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::CauchyDistribution::getProbability distribution_cache.h:118
+    2 | data race || stats::HalfNormalDistribution::operator= half_normal.cpp:91 || stats::HalfNormalDistribution::getMean half_normal.cpp:144
+    2 | data race || stats::InverseGammaDistribution::updateCacheUnsafe inverse_gamma.cpp:732 || stats::InverseGammaDistribution::operator= inverse_gamma.cpp:100
+    2 | data race || stats::GammaDistribution::trySetParameters gamma.cpp:257 || stats::GammaDistribution::operator= gamma.cpp:84
+    2 | data race || stats::InverseGammaDistribution::updateCacheUnsafe inverse_gamma.cpp:734 || stats::InverseGammaDistribution::operator= inverse_gamma.cpp:106
+    2 | data race || stats::FDistribution::operator= fisher_f.cpp:96 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::FDistribution::getCumulativeProbability distribution_cache.h:118
+    2 | data race || stats::BetaDistribution::operator= beta.cpp:118 || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1059
+    2 | data race || stats::FDistribution::operator= fisher_f.cpp:96 || stats::FDistribution::updateCacheUnsafe fisher_f.cpp:924
+    2 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::FDistribution::sample distribution_cache.h:118 || stats::FDistribution::operator= fisher_f.cpp:96
+    2 | data race || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:260 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::TruncatedNormalDistribution::getCumulativeProbability distribution_cache.h:118
+    2 | data race || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:953 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1292
+    1 | data race || stats::GaussianDistribution::updateCacheUnsafe gaussian.cpp:1295 || stats::GaussianDistribution::operator= gaussian.cpp:88
+    1 | data race || stats::GaussianDistribution::operator= gaussian.cpp:93 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GaussianDistribution::getProbability distribution_cache.h:124
+    1 | data race || stats::GaussianDistribution::operator= gaussian.cpp:93 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GaussianDistribution::getProbability distribution_cache.h:118
+    1 | data race || stats::GaussianDistribution::updateCacheUnsafe gaussian.cpp:1276 || stats::GaussianDistribution::operator= gaussian.cpp:88
+    1 | data race || stats::GaussianDistribution::operator= gaussian.cpp:93 || stats::GaussianDistribution::updateCacheUnsafe gaussian.cpp:1308
+    1 | data race || stats::GaussianDistribution::operator= gaussian.cpp:93 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GaussianDistribution::getCumulativeProbability distribution_cache.h:118
+    1 | data race || stats::GaussianDistribution::sample gaussian.cpp:375 || stats::GaussianDistribution::operator= gaussian.cpp:93
+    1 | data race || stats::ExponentialDistribution::updateCacheUnsafe exponential.h:745 || stats::ExponentialDistribution::operator= exponential.cpp:77
+    1 | data race || stats::ExponentialDistribution::operator= exponential.cpp:80 || stats::ExponentialDistribution::updateCacheUnsafe exponential.h:759
+    1 | data race || stats::ExponentialDistribution::getProbability exponential.cpp:490 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || stats::ExponentialDistribution::getLogProbability exponential.cpp:687 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ExponentialDistribution::getCumulativeProbability distribution_cache.h:118 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || stats::ExponentialDistribution::getCumulativeProbability exponential.cpp:764 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ExponentialDistribution::sample distribution_cache.h:118 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ExponentialDistribution::getQuantile distribution_cache.h:118 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || stats::ExponentialDistribution::getProbability exponential.cpp:452 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || stats::ExponentialDistribution::getProbability exponential.cpp:548 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || stats::ExponentialDistribution::operator= exponential.cpp:80 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ExponentialDistribution::getLogProbability distribution_cache.h:118
+    1 | data race || stats::ExponentialDistribution::getCumulativeProbability exponential.cpp:729 || stats::ExponentialDistribution::operator= exponential.cpp:80
+    1 | data race || stats::ExponentialDistribution::operator= exponential.cpp:80 || stats::ExponentialDistribution::getMean exponential.cpp:110
+    1 | data race || stats::UniformDistribution::operator= uniform.cpp:85 || stats::UniformDistribution::updateCacheUnsafe uniform.h:864
+    1 | data race || stats::UniformDistribution::getProbability uniform.cpp:610 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::UniformDistribution::getLogProbability uniform.cpp:807 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::UniformDistribution::getCumulativeProbability uniform.cpp:891 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::UniformDistribution::getCumulativeProbability uniform.cpp:955 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::UniformDistribution::sample uniform.cpp:361 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::UniformDistribution::getProbability uniform.cpp:665 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::UniformDistribution::getLogProbability uniform.cpp:739 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::UniformDistribution::getCumulativeProbability uniform.cpp:854 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::UniformDistribution::getProbability uniform.cpp:574 || stats::UniformDistribution::operator= uniform.cpp:85
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:135 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::DiscreteDistribution::getProbability distribution_cache.h:124
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:130 || stats::DiscreteDistribution::getProbability discrete.cpp:377
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:130 || stats::DiscreteDistribution::getCumulativeProbability discrete.cpp:426
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:135 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::DiscreteDistribution::getVariance distribution_cache.h:118
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:130 || stats::DiscreteDistribution::getLogProbability discrete.cpp:402
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:130 || stats::DiscreteDistribution::getQuantile discrete.cpp:447
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:130 || stats::DiscreteDistribution::getLowerBound discrete.cpp:213
+    1 | data race || stats::DiscreteDistribution::getCumulativeProbability discrete.cpp:1034 || stats::DiscreteDistribution::operator= discrete.cpp:130
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:130 || stats::DiscreteDistribution::DiscreteDistribution discrete.cpp:47
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::DiscreteDistribution::getMean distribution_cache.h:118 || stats::DiscreteDistribution::operator= discrete.cpp:135
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:135 || stats::DiscreteDistribution::updateCacheUnsafe discrete.cpp:1334
+    1 | data race || stats::DiscreteDistribution::operator= discrete.cpp:85 || stats::DiscreteDistribution::operator= discrete.cpp:130
+    1 | data race || stats::PoissonDistribution::updateCacheUnsafe poisson.cpp:1154 || stats::PoissonDistribution::operator= poisson.cpp:80
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::PoissonDistribution::getProbabilityExact distribution_cache.h:118 || stats::PoissonDistribution::operator= poisson.cpp:83
+    1 | data race || stats::PoissonDistribution::getLogProbability poisson.cpp:790 || stats::PoissonDistribution::operator= poisson.cpp:83
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::PoissonDistribution::getCumulativeProbabilityExact distribution_cache.h:118 || stats::PoissonDistribution::operator= poisson.cpp:83
+    1 | data race || stats::PoissonDistribution::getCumulativeProbability poisson.cpp:864 || stats::PoissonDistribution::operator= poisson.cpp:83
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::PoissonDistribution::getSkewness distribution_cache.h:118 || stats::PoissonDistribution::operator= poisson.cpp:83
+    1 | data race || stats::PoissonDistribution::getCumulativeProbability poisson.cpp:934 || stats::PoissonDistribution::operator= poisson.cpp:83
+    1 | data race || stats::GammaDistribution::updateCacheUnsafe gamma.h:888 || stats::GammaDistribution::operator= gamma.cpp:84
+    1 | data race || stats::GammaDistribution::operator= gamma.cpp:90 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getSkewness distribution_cache.h:118
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:100 || stats::BinomialDistribution::getProbability binomial.cpp:275
+    1 | data race || stats::BernoulliDistribution::getMedian bernoulli.cpp:212 || stats::BernoulliDistribution::operator= bernoulli.cpp:71
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:101 || stats::BinomialDistribution::getKurtosis binomial.cpp:186
+    1 | data race || stats::BinomialDistribution::getProbability binomial.cpp:275 || stats::BinomialDistribution::operator= binomial.cpp:100
+    1 | data race || stats::BinomialDistribution::updateCacheUnsafe binomial.cpp:864 || stats::BinomialDistribution::operator= binomial.cpp:100
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:100 || stats::BinomialDistribution::getProbability binomial.cpp:553
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:100 || stats::BinomialDistribution::getLogProbability binomial.cpp:299
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:108 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::BinomialDistribution::getLogProbability distribution_cache.h:118
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::BinomialDistribution::getLogProbability distribution_cache.h:118 || stats::BinomialDistribution::operator= binomial.cpp:108
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:70 || stats::BinomialDistribution::operator= binomial.cpp:100
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:104 || stats::BetaDistribution::getProbability beta.cpp:375
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:106 || stats::BetaDistribution::getProbability beta.cpp:378
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:108 || stats::BetaDistribution::getProbability beta.cpp:377
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:104 || stats::BetaDistribution::getProbability beta.cpp:370
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:118 || stats::BetaDistribution::getProbability beta.cpp:364
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:108 || stats::BetaDistribution::getMean beta.cpp:226
+    1 | data race || stats::BetaDistribution::getEntropy beta.cpp:599 || stats::BetaDistribution::operator= beta.cpp:106
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:72 || stats::BetaDistribution::operator= beta.cpp:114
+    1 | data race || stats::BetaDistribution::BetaDistribution beta.cpp:50 || stats::BetaDistribution::operator= beta.cpp:112
+    1 | data race || stats::BetaDistribution::updateCacheUnsafe beta.cpp:1032 || stats::BetaDistribution::operator= beta.cpp:104
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:71 || stats::BetaDistribution::operator= beta.cpp:113
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:101 || stats::BinomialDistribution::getLogProbability binomial.cpp:300
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:100 || stats::BinomialDistribution::updateCacheUnsafe binomial.cpp:869
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:100 || stats::BinomialDistribution::getEntropy binomial.cpp:484
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:100 || stats::BinomialDistribution::getCumulativeProbability binomial.cpp:316
+    1 | data race || stats::BinomialDistribution::operator= binomial.cpp:100 || stats::BinomialDistribution::getCumulativeProbability binomial.cpp:657
+    1 | data race || stats::BinomialDistribution::getLogProbability binomial.cpp:299 || stats::BinomialDistribution::operator= binomial.cpp:100
+    1 | data race || stats::BinomialDistribution::getCumulativeProbability binomial.cpp:690 || stats::BinomialDistribution::operator= binomial.cpp:100
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::BinomialDistribution::getCumulativeProbability distribution_cache.h:118 || stats::BinomialDistribution::operator= binomial.cpp:108
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::StudentTDistribution::getProbability distribution_cache.h:118 || stats::StudentTDistribution::operator= student_t.cpp:136
+    1 | data race || stats::StudentTDistribution::getLogProbability student_t.cpp:237 || stats::StudentTDistribution::operator= student_t.cpp:128
+    1 | data race || stats::StudentTDistribution::getLogProbability student_t.cpp:238 || stats::StudentTDistribution::operator= student_t.cpp:126
+    1 | data race || stats::StudentTDistribution::getLogProbability student_t.cpp:239 || stats::StudentTDistribution::operator= student_t.cpp:126
+    1 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:779 || stats::StudentTDistribution::operator= student_t.cpp:123
+    1 | data race || stats::StudentTDistribution::operator= student_t.cpp:136 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::StudentTDistribution::getProbability distribution_cache.h:118
+    1 | data race || stats::StudentTDistribution::updateCacheUnsafe student_t.cpp:806 || stats::StudentTDistribution::operator= student_t.cpp:132
+    1 | data race || stats::StudentTDistribution::StudentTDistribution student_t.cpp:73 || stats::StudentTDistribution::operator= student_t.cpp:131
+    1 | data race || stats::StudentTDistribution::operator= student_t.cpp:93 || stats::StudentTDistribution::operator= student_t.cpp:132
+    1 | data race || stats::ChiSquaredDistribution::getK chi_squared.h:187 || stats::ChiSquaredDistribution::operator= chi_squared.cpp:70
+    1 | data race || stats::GammaDistribution::operator= gamma.cpp:90 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::computeQuantile distribution_cache.h:118
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GammaDistribution::getCumulativeProbability distribution_cache.h:124 || stats::GammaDistribution::operator= gamma.cpp:90
+    1 | data race || stats::VonMisesDistribution::operator= von_mises.cpp:883 || stats::VonMisesDistribution::getProbability von_mises.cpp:1028
+    1 | data race || stats::VonMisesDistribution::operator= von_mises.cpp:885 || stats::VonMisesDistribution::getLogProbability von_mises.cpp:1373
+    1 | data race || stats::VonMisesDistribution::operator= von_mises.cpp:888 || stats::VonMisesDistribution::getCumulativeProbability von_mises.cpp:1057
+    1 | data race || stats::VonMisesDistribution::updateCacheUnsafe von_mises.cpp:1665 || stats::VonMisesDistribution::operator= von_mises.cpp:883
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::VonMisesDistribution::getQuantile distribution_cache.h:125 || stats::VonMisesDistribution::operator= von_mises.cpp:887
+    1 | data race || stats::VonMisesDistribution::operator= von_mises.cpp:894 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::VonMisesDistribution::getCumulativeProbability distribution_cache.h:118
+    1 | data race || stats::VonMisesDistribution::updateCacheUnsafe von_mises.cpp:1690 || stats::VonMisesDistribution::operator= von_mises.cpp:883
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::LogNormalDistribution::getProbability distribution_cache.h:118 || stats::LogNormalDistribution::operator= lognormal.cpp:106
+    1 | data race || stats::LogNormalDistribution::getLogProbability lognormal.cpp:270 || stats::LogNormalDistribution::operator= lognormal.cpp:94
+    1 | data race || stats::LogNormalDistribution::getLogProbability lognormal.cpp:271 || stats::LogNormalDistribution::operator= lognormal.cpp:96
+    1 | data race || stats::LogNormalDistribution::getLogProbability lognormal.cpp:272 || stats::LogNormalDistribution::operator= lognormal.cpp:98
+    1 | data race || stats::LogNormalDistribution::updateCacheUnsafe lognormal.cpp:885 || stats::LogNormalDistribution::operator= lognormal.cpp:94
+    1 | data race || stats::LogNormalDistribution::operator= lognormal.cpp:98 || stats::LogNormalDistribution::getCumulativeProbability lognormal.cpp:617
+    1 | data race || stats::ParetoDistribution::getProbability pareto.cpp:263 || stats::ParetoDistribution::operator= pareto.cpp:103
+    1 | data race || stats::ParetoDistribution::getProbability pareto.cpp:264 || stats::ParetoDistribution::operator= pareto.cpp:107
+    1 | data race || stats::ParetoDistribution::getLogProbability pareto.cpp:277 || stats::ParetoDistribution::operator= pareto.cpp:107
+    1 | data race || stats::ParetoDistribution::operator= pareto.cpp:116 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ParetoDistribution::getProbability distribution_cache.h:124
+    1 | data race || stats::ParetoDistribution::operator= pareto.cpp:64 || stats::ParetoDistribution::operator= pareto.cpp:103
+    1 | data race || stats::ParetoDistribution::operator= pareto.cpp:116 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ParetoDistribution::getLogProbability distribution_cache.h:118
+    1 | data race || stats::ParetoDistribution::operator= pareto.cpp:110 || stats::ParetoDistribution::getQuantile pareto.cpp:306
+    1 | data race || stats::ParetoDistribution::operator= pareto.cpp:103 || stats::ParetoDistribution::getProbability pareto.cpp:448
+    1 | data race || stats::ParetoDistribution::operator= pareto.cpp:107 || stats::ParetoDistribution::getProbability pareto.cpp:449
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::ParetoDistribution::getMedian distribution_cache.h:125 || stats::ParetoDistribution::operator= pareto.cpp:112
+    1 | data race || stats::RayleighDistribution::operator= rayleigh.cpp:91 || stats::RayleighDistribution::getLogProbability rayleigh.cpp:225
+    1 | data race || stats::RayleighDistribution::getQuantile rayleigh.cpp:249 || stats::RayleighDistribution::operator= rayleigh.cpp:90
+    1 | data race || stats::RayleighDistribution::operator= rayleigh.cpp:93 || stats::RayleighDistribution::getLogProbability rayleigh.cpp:224
+    1 | data race || stats::RayleighDistribution::getEntropy rayleigh.cpp:346 || stats::RayleighDistribution::operator= rayleigh.cpp:91
+    1 | data race || stats::RayleighDistribution::operator= rayleigh.cpp:95 || stats::RayleighDistribution::getVariance rayleigh.cpp:159
+    1 | data race || stats::WeibullDistribution::operator= weibull.cpp:130 || stats::WeibullDistribution::getProbability weibull.cpp:312
+    1 | data race || stats::WeibullDistribution::operator= weibull.cpp:134 || stats::WeibullDistribution::getLogProbability weibull.cpp:683
+    1 | data race || stats::WeibullDistribution::operator= weibull.cpp:142 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::WeibullDistribution::getCumulativeProbability distribution_cache.h:118
+    1 | data race || stats::WeibullDistribution::updateCacheUnsafe weibull.cpp:1034 || stats::WeibullDistribution::operator= weibull.cpp:130
+    1 | data race || stats::WeibullDistribution::operator= weibull.cpp:142 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::WeibullDistribution::getEntropy distribution_cache.h:118
+    1 | data race || stats::CauchyDistribution::getProbability cauchy.cpp:230 || stats::CauchyDistribution::operator= cauchy.cpp:88
+    1 | data race || stats::CauchyDistribution::getProbability cauchy.cpp:231 || stats::CauchyDistribution::operator= cauchy.cpp:90
+    1 | data race || stats::CauchyDistribution::updateCacheUnsafe cauchy.cpp:633 || stats::CauchyDistribution::operator= cauchy.cpp:88
+    1 | data race || stats::CauchyDistribution::operator= cauchy.cpp:90 || stats::CauchyDistribution::updateCacheUnsafe cauchy.cpp:633
+    1 | data race || stats::CauchyDistribution::setGamma cauchy.cpp:133 || stats::CauchyDistribution::setParameters cauchy.cpp:145
+    1 | data race || stats::CauchyDistribution::setX0 cauchy.cpp:123 || stats::CauchyDistribution::setGamma cauchy.cpp:135
+    1 | data race || stats::LaplaceDistribution::operator= laplace.cpp:83 || stats::LaplaceDistribution::getProbability laplace.cpp:223
+    1 | data race || stats::LaplaceDistribution::operator= laplace.cpp:85 || stats::LaplaceDistribution::getLogProbability laplace.cpp:522
+    1 | data race || stats::LaplaceDistribution::operator= laplace.cpp:87 || stats::LaplaceDistribution::getCumulativeProbability laplace.cpp:561
+    1 | data race || stats::LaplaceDistribution::operator= laplace.cpp:83 || stats::LaplaceDistribution::updateCacheUnsafe laplace.cpp:768
+    1 | data race || stats::LaplaceDistribution::operator= laplace.cpp:85 || stats::LaplaceDistribution::updateCacheUnsafe laplace.cpp:768
+    1 | data race || stats::LaplaceDistribution::operator= laplace.cpp:87 || stats::LaplaceDistribution::updateCacheUnsafe laplace.cpp:770
+    1 | data race || stats::LaplaceDistribution::operator= laplace.cpp:90 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::LaplaceDistribution::getProbability distribution_cache.h:118
+    1 | data race || stats::LaplaceDistribution::setMu laplace.cpp:132 || stats::LaplaceDistribution::setParameters laplace.cpp:155
+    1 | data race || stats::LaplaceDistribution::setB laplace.cpp:144 || stats::LaplaceDistribution::setMu laplace.cpp:132
+    1 | data race || stats::LaplaceDistribution::setB laplace.cpp:142 || stats::LaplaceDistribution::setMu laplace.cpp:134
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::LogisticDistribution::getProbability distribution_cache.h:118 || stats::LogisticDistribution::operator= logistic.cpp:125
+    1 | data race || stats::LogisticDistribution::operator= logistic.cpp:118 || stats::LogisticDistribution::getLogProbability logistic.cpp:273
+    1 | data race || stats::LogisticDistribution::operator= logistic.cpp:120 || stats::LogisticDistribution::getProbability logistic.cpp:259
+    1 | data race || stats::LogisticDistribution::operator= logistic.cpp:122 || stats::LogisticDistribution::getProbability logistic.cpp:260
+    1 | data race || stats::LogisticDistribution::operator= logistic.cpp:118 || stats::LogisticDistribution::updateCacheUnsafe logistic.cpp:836
+    1 | data race || stats::LogisticDistribution::operator= logistic.cpp:120 || stats::LogisticDistribution::updateCacheUnsafe logistic.cpp:836
+    1 | data race || stats::LogisticDistribution::operator= logistic.cpp:122 || stats::LogisticDistribution::updateCacheUnsafe logistic.cpp:838
+    1 | data race || stats::LogisticDistribution::operator= logistic.cpp:125 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::LogisticDistribution::getProbability distribution_cache.h:118
+    1 | data race || stats::LogisticDistribution::setS logistic.cpp:179 || stats::LogisticDistribution::setMu logistic.cpp:167
+    1 | data race || stats::LogisticDistribution::setMu logistic.cpp:169 || stats::LogisticDistribution::setS logistic.cpp:177
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GumbelDistribution::getProbability distribution_cache.h:118 || stats::GumbelDistribution::operator= gumbel.cpp:116
+    1 | data race || stats::GumbelDistribution::operator= gumbel.cpp:110 || stats::GumbelDistribution::getProbability gumbel.cpp:249
+    1 | data race || stats::GumbelDistribution::operator= gumbel.cpp:112 || stats::GumbelDistribution::getProbability gumbel.cpp:250
+    1 | data race || stats::GumbelDistribution::operator= gumbel.cpp:110 || stats::GumbelDistribution::updateCacheUnsafe gumbel.cpp:752
+    1 | data race || stats::GumbelDistribution::operator= gumbel.cpp:112 || stats::GumbelDistribution::updateCacheUnsafe gumbel.cpp:752
+    1 | data race || stats::GumbelDistribution::operator= gumbel.cpp:116 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::GumbelDistribution::getProbability distribution_cache.h:118
+    1 | data race || stats::GumbelDistribution::setMu gumbel.cpp:158 || stats::GumbelDistribution::setParameters gumbel.cpp:181
+    1 | data race || stats::GumbelDistribution::setBeta gumbel.cpp:168 || stats::GumbelDistribution::setParameters gumbel.cpp:180
+    1 | data race || stats::GumbelDistribution::setMu gumbel.cpp:158 || stats::GumbelDistribution::setBeta gumbel.cpp:170
+    1 | data race || stats::GumbelDistribution::setBeta gumbel.cpp:168 || stats::GumbelDistribution::setMu gumbel.cpp:160
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::HalfNormalDistribution::getProbability distribution_cache.h:118 || stats::HalfNormalDistribution::operator= half_normal.cpp:95
+    1 | data race || stats::HalfNormalDistribution::operator= half_normal.cpp:85 || stats::HalfNormalDistribution::getLogProbability half_normal.cpp:222
+    1 | data race || stats::HalfNormalDistribution::getQuantile half_normal.cpp:251 || stats::HalfNormalDistribution::operator= half_normal.cpp:84
+    1 | data race || stats::HalfNormalDistribution::operator= half_normal.cpp:87 || stats::HalfNormalDistribution::getProbability half_normal.cpp:207
+    1 | data race || stats::HalfNormalDistribution::getEntropy half_normal.cpp:395 || stats::HalfNormalDistribution::operator= half_normal.cpp:85
+    1 | data race || stats::HalfNormalDistribution::operator= half_normal.cpp:89 || stats::HalfNormalDistribution::getCumulativeProbability half_normal.cpp:233
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::HalfNormalDistribution::getCumulativeProbability distribution_cache.h:118 || stats::HalfNormalDistribution::operator= half_normal.cpp:95
+    1 | data race || stats::HalfNormalDistribution::operator= half_normal.cpp:85 || stats::HalfNormalDistribution::getEntropy half_normal.cpp:395
+    1 | data race || stats::HalfNormalDistribution::operator= half_normal.cpp:89 || stats::HalfNormalDistribution::getMedian half_normal.cpp:388
+    1 | data race || stats::HalfNormalDistribution::operator= half_normal.cpp:92 || stats::HalfNormalDistribution::getVariance half_normal.cpp:156
+    1 | data race || stats::HalfNormalDistribution::operator= half_normal.cpp:95 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::HalfNormalDistribution::getEntropy distribution_cache.h:118
+    1 | data race || stats::HalfNormalDistribution::updateCacheUnsafe half_normal.cpp:732 || stats::HalfNormalDistribution::operator= half_normal.cpp:84
+    1 | data race || stats::GammaDistribution::operator= gamma.cpp:84 || stats::GammaDistribution::getLogProbability gamma.cpp:384
+    1 | data race || stats::InverseGammaDistribution::operator= inverse_gamma.cpp:106 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::InverseGammaDistribution::getCumulativeProbability distribution_cache.h:124
+    1 | data race || stats::GammaDistribution::operator= gamma.cpp:84 || stats::GammaDistribution::getLogProbability gamma.cpp:385
+    1 | data race || stats::InverseGammaDistribution::operator= inverse_gamma.cpp:106 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::InverseGammaDistribution::getQuantile distribution_cache.h:118
+    1 | data race || stats::GammaDistribution::trySetParameters gamma.cpp:259 || stats::GammaDistribution::operator= gamma.cpp:90
+    1 | data race || stats::InverseGammaDistribution::setBeta inverse_gamma.cpp:164 || stats::InverseGammaDistribution::setAlpha inverse_gamma.cpp:153
+    1 | data race || stats::InverseGammaDistribution::setBeta inverse_gamma.cpp:167 || stats::InverseGammaDistribution::setAlpha inverse_gamma.cpp:150
+    1 | data race || stats::GammaDistribution::operator= gamma.cpp:84 || stats::GammaDistribution::getProbability gamma.cpp:354
+    1 | data race || stats::ErlangDistribution::getK erlang.h:140 || stats::ErlangDistribution::operator= erlang.cpp:74
+    1 | data race || stats::ErlangDistribution::getLambda erlang.h:146 || stats::ErlangDistribution::operator= erlang.cpp:75
+    1 | data race || stats::ErlangDistribution::operator= erlang.cpp:52 || stats::ErlangDistribution::operator= erlang.cpp:74
+    1 | data race || stats::ErlangDistribution::operator= erlang.cpp:53 || stats::ErlangDistribution::operator= erlang.cpp:75
+    1 | data race || stats::ErlangDistribution::setK erlang.cpp:107 || stats::ErlangDistribution::setParameters erlang.cpp:137
+    1 | data race || stats::ErlangDistribution::setParameters erlang.cpp:136 || stats::ErlangDistribution::setLambda erlang.cpp:120
+    1 | data race || stats::ErlangDistribution::setLambda erlang.cpp:120 || stats::ErlangDistribution::setK erlang.cpp:110
+    1 | data race || stats::ErlangDistribution::setK erlang.cpp:107 || stats::ErlangDistribution::setLambda erlang.cpp:123
+    1 | data race || stats::FDistribution::operator= fisher_f.cpp:90 || stats::FDistribution::updateCacheUnsafe fisher_f.cpp:911
+    1 | data race || stats::FDistribution::operator= fisher_f.cpp:90 || stats::FDistribution::getProbability fisher_f.cpp:438
+    1 | data race || stats::FDistribution::operator= fisher_f.cpp:96 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::FDistribution::getQuantile distribution_cache.h:118
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:64 || stats::BetaDistribution::operator= beta.cpp:106
+    1 | data race || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::FDistribution::getCumulativeProbability distribution_cache.h:118 || stats::FDistribution::operator= fisher_f.cpp:96
+    1 | data race || stats::BetaDistribution::operator= beta.cpp:70 || stats::BetaDistribution::operator= beta.cpp:112
+    1 | data race || stats::FDistribution::setD1 fisher_f.cpp:138 || stats::FDistribution::setParameters fisher_f.cpp:164
+    1 | data race || stats::FDistribution::setD2 fisher_f.cpp:149 || stats::FDistribution::setParameters fisher_f.cpp:163
+    1 | data race || stats::FDistribution::setD1 fisher_f.cpp:141 || stats::FDistribution::setD2 fisher_f.cpp:149
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138 || stats::NegativeBinomialDistribution::getLogProbability negative_binomial.cpp:331
+    1 | data race || stats::GeometricDistribution::getMean geometric.h:131 || stats::GeometricDistribution::operator= geometric.cpp:71
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138 || stats::NegativeBinomialDistribution::getProbability negative_binomial.cpp:309
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:140 || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:883
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:142 || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:885
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:146 || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:886
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138 || stats::NegativeBinomialDistribution::getCumulativeProbability negative_binomial.cpp:698
+    1 | data race || stats::NegativeBinomialDistribution::sample negative_binomial.cpp:402 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:108 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:140
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:146 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::NegativeBinomialDistribution::getLogProbability distribution_cache.h:118
+    1 | data race || stats::GeometricDistribution::operator= geometric.cpp:71 || stats::GeometricDistribution::getP geometric.h:112
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138 || stats::NegativeBinomialDistribution::getProbability negative_binomial.cpp:616
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:140 || stats::NegativeBinomialDistribution::getProbability negative_binomial.cpp:618
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:142 || stats::NegativeBinomialDistribution::getProbability negative_binomial.cpp:619
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:146 || void stats::ThreadSafeCacheManager::withCacheSnapshot<stats::NegativeBinomialDistribution::getProbability distribution_cache.h:118
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138 || stats::NegativeBinomialDistribution::getLogProbability negative_binomial.cpp:330
+    1 | data race || stats::GeometricDistribution::operator= geometric.cpp:71 || stats::GeometricDistribution::GeometricDistribution geometric.cpp:36
+    1 | data race || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:883 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138
+    1 | data race || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138 || stats::NegativeBinomialDistribution::getProbability negative_binomial.cpp:310
+    1 | data race || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:884 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:138
+    1 | data race || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:251 || stats::TruncatedNormalDistribution::getProbability truncated_normal.cpp:533
+    1 | data race || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:253 || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:570
+    1 | data race || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:253 || stats::TruncatedNormalDistribution::getProbability truncated_normal.cpp:535
+    1 | data race || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:569 || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:251
+    1 | data race || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:574 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1283
+    1 | data race || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:577 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1288
+    1 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1285 || stats::TruncatedNormalDistribution::getQuantile truncated_normal.cpp:595
+    1 | data race || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:251 || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:967
+    1 | data race || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:253 || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:969
+    1 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1280 || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:971
+    1 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1283 || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:973
+    1 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1285 || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:972
+    1 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1287 || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:974
+    1 | data race || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1288 || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:975
+    1 | data race || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:943 || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:251
+    1 | data race || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:945 || stats::TruncatedNormalDistribution::operator= truncated_normal.cpp:253
+    1 | data race || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:947 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1281
+    1 | data race || stats::TruncatedNormalDistribution::getCumulativeProbability truncated_normal.cpp:952 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1288
+    1 | data race || stats::TruncatedNormalDistribution::sample truncated_normal.cpp:635 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1285
+    1 | data race || stats::TruncatedNormalDistribution::sample truncated_normal.cpp:636 || stats::TruncatedNormalDistribution::updateCacheUnsafe truncated_normal.cpp:1282
+## test_work_stealing_pool (5 runs; the test's own std::cout from tasks)
+   14 | data race || stats::WorkStealingPool::executeTask work_stealing_pool.cpp:316 || stats::WorkStealingPool::executeTask work_stealing_pool.cpp:316
+## whole correctness ctest (-LE timing|benchmark -j2): reports in two processes only
+    4 | data race || stats::WorkStealingPool::executeTask work_stealing_pool.cpp:316 || stats::WorkStealingPool::executeTask work_stealing_pool.cpp:316
+   26 | data race || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:884 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:140
+   25 | data race || stats::NegativeBinomialDistribution::updateCacheUnsafe negative_binomial.cpp:886 || stats::NegativeBinomialDistribution::operator= negative_binomial.cpp:146
+   24 | data race || stats::GammaDistribution::updateCacheUnsafe gamma.h:909 || stats::GammaDistribution::operator= gamma.cpp:90
