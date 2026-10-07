@@ -31,6 +31,7 @@ using stats::detail::validatePositiveParameter;
 #include <numeric>
 #include <random>
 #include <sstream>
+#include <string_view>
 #include <vector>
 
 namespace stats {
@@ -1011,13 +1012,15 @@ std::istream& operator>>(std::istream& is, PoissonDistribution& distribution) {
         return is;
     }
 
-    // Extract λ value
-    if (token.find("λ=") == std::string::npos) {
+    // Extract λ value. "λ" is two bytes in UTF-8, so the tag's length is its size(), not 2 (#187).
+    constexpr std::string_view kLambdaTag = "λ=";
+    const size_t tag_pos = token.find(kLambdaTag);
+    if (tag_pos == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
 
-    size_t lambda_pos = token.find("λ=") + 2;
+    size_t lambda_pos = tag_pos + kLambdaTag.size();
     size_t close_paren = token.find(")", lambda_pos);
     if (close_paren == std::string::npos) {
         is.setstate(std::ios::failbit);

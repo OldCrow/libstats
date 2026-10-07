@@ -425,9 +425,7 @@ int knownReaderIssue(const std::string& row, const std::string& prog, const std:
     return 0;
 }
 
-int knownProgramIssue(const std::string& row, const std::string& prog) {
-    if (row == "Poisson" && prog == "stream")
-        return 187;  // operator>> cannot read operator<<'s output
+int knownProgramIssue(const std::string& /*row*/, const std::string& /*prog*/) {
     return 0;
 }
 
