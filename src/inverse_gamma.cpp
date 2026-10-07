@@ -9,6 +9,7 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 
@@ -477,10 +478,16 @@ double InverseGammaDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> InverseGammaDistribution::sample(std::mt19937& rng, size_t n) const {
+    // One state per call: copy the delegate under this object's lock (owner, then delegate) and
+    // draw all n from the copy. Looping the scalar sample mixed states under a setter (#186).
+    std::optional<GammaDistribution> gamma;
+    withCacheSnapshot([&] { gamma.emplace(gamma_); });
     std::vector<double> out;
     out.reserve(n);
-    for (size_t i = 0; i < n; ++i)
-        out.push_back(sample(rng));
+    for (size_t i = 0; i < n; ++i) {
+        const double g = gamma->sample(rng);
+        out.push_back(g > detail::ZERO_DOUBLE ? detail::ONE / g : kInf);
+    }
     return out;
 }
 

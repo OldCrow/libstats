@@ -9,6 +9,7 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 
@@ -552,10 +553,22 @@ double FDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> FDistribution::sample(std::mt19937& rng, size_t n) const {
+    // One state per call: snapshot d1, d2 and a copy of the delegate under this object's lock
+    // (owner, then delegate) and draw all n from them. Looping the scalar sample mixed states
+    // under a setter (#186).
+    double d1, d2;
+    std::optional<BetaDistribution> beta;
+    withCacheSnapshot([&] {
+        d1 = d1_;
+        d2 = d2_;
+        beta.emplace(beta_);
+    });
     std::vector<double> out;
     out.reserve(n);
-    for (size_t i = 0; i < n; ++i)
-        out.push_back(sample(rng));
+    for (size_t i = 0; i < n; ++i) {
+        const double y = beta->sample(rng);
+        out.push_back(y >= detail::ONE ? kInf : (d2 / d1) * y / (detail::ONE - y));
+    }
     return out;
 }
 

@@ -415,8 +415,6 @@ bool accepted(const Reader<D>& r, std::size_t ri, const Bits& got,
 // so).
 int knownReaderIssue(const std::string& row, const std::string& /*prog*/,
                      const std::string& reader) {
-    if (reader == "sample n" && (row == "InverseGamma" || row == "FisherF"))
-        return 186;  // the vector sample loops the locking scalar sample
     if (reader == "sample" && row == "FisherF")
         return 182;  // sample mixes a snapshot with the resynced delegate
     return 0;
