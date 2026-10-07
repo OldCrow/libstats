@@ -117,8 +117,12 @@ Status by machine (each machine edits only its own line):
   machine"). At `ee11e62` (2026-10-06): MSVC and clang-cl 0 warnings,
   90/90, sweep bit-identical to `73ecbfe` and `998d985`; speed gate
   PARALLEL/VECTORIZED 0.17–0.22 at 1M; every concurrency gate failed on
-  `73ecbfe` (the Poisson one by deadlock) and passes. Next on Z: R8
-  steps 3–4 (quiet; the clang-cl trees need a rebuild at `ee11e62`).
+  `73ecbfe` (the Poisson one by deadlock) and passes. R8 steps 3–4 run
+  overnight 2026-10-06/07 on the clang-cl trees rebuilt at `ee11e62`
+  (0 warnings, tiers confirmed): the speed gate alone, the 23 timing
+  tests, then three `--large` runs per tier (AVX-512, AVX2, AVX, SSE2),
+  every process opted out of throttling. Bundles and evidence commit
+  after review. R9 runs on M in parallel [user].
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
@@ -398,14 +402,74 @@ Next on every machine, at `ee11e62`:
 4. R8 again, every tier (K: AVX2, AVX, SSE2; M: NEON; Z: clang-cl
    AVX-512, AVX2, AVX, SSE2), as before; the new bundles supersede all
    previous v2.5.0 captures.
-5. Macs only, once: a ThreadSanitizer build of
-   `test_concurrency_gates` and `test_work_stealing_pool` (or the
-   pool's own test), as R4's UBSan leg was built. Two fixes have no
-   deterministic gate on Windows: Uniform's copy-assignment (it took no
-   locks) and the work-stealing pool's construction (threads started
-   before their data). Expect TSan clean at `ee11e62`; if time allows,
-   show it reporting both at `73ecbfe`.
+5. ThreadSanitizer: R9, on M.
 Then decide the rows.
+
+### R9 — concurrency stress test and ThreadSanitizer (M) [OPEN]
+Decided [user, 2026-10-06]: M, in parallel with the re-profiles (M has
+its own YubiKey). Why: every audit so far read code, and reading finds
+instances of the classes it looks for; it cannot show absence. Three
+2026-10-06 rounds still found TOCTOUs and lock errors (Known Gaps).
+Nothing mechanical has checked for races: CI has no TSan leg, and only
+this branch's snapshot and concurrency gates race a setter against a
+reader. These two steps are the mechanical check. Run every binary
+outside the Claude Code sandbox (Rules).
+
+1. **Write `tests/test_concurrency_stress.cpp`**, a correctness test
+   (no `timing` label, so CI runs it; keep it under ~60 s). Table-driven
+   over all 27 distributions, one row each:
+   - two valid parameter states A and B, distinct at every probe below;
+   - a writer that flips between them through `setParameters` (one
+     lock, so A and B are the only states), plus a second row variant
+     flipping each single-parameter setter, whose intermediate state
+     goes into the allowed set;
+   - readers: scalar pdf, logpdf and CDF at fixed probes; each batch
+     strategy (`FORCE_SCALAR`, `FORCE_VECTORIZED`, `FORCE_PARALLEL`,
+     `MAXIMIZE_THROUGHPUT`, which reaches WORK_STEALING on macOS) at a
+     size above `arch::get_min_elements_for_parallel()`; `getQuantile`;
+     `getMean`, `getVariance`, `getSkewness`, `getKurtosis`, and mode
+     and entropy where they exist; `sample` with a fixed seed; copy
+     construction, copy assignment, move; `operator==` against fixed A
+     and B; `fit` racing readers; stream `operator>>` racing readers.
+   - The oracle: every result equals state A's value or state B's (an
+     allowed intermediate's for the single-setter variant), bit for
+     bit, computed from fixed instances by the same call; a batch is
+     entirely from one state.
+   - Drive it both as free-running loops and in aligned rounds: copy
+     `racedRounds` from `tests/test_concurrency_gates.cpp`. Loops
+     missed every one-shot race the aligned rounds caught (`ee11e62`'s
+     message).
+   - Give every reader a watchdog (`runWithWatchdog` in the same file),
+     so a deadlock fails the test instead of hanging it.
+2. **Show it catches known defects before trusting it.** Build it in a
+   detached worktree at `6987317` (before #175, #176 and the audit
+   fixes). It must fail on the Binomial, NegativeBinomial and von Mises
+   batches, the Beta boundary batch, Poisson's `getMedian` (deadlock),
+   the Uniform and Discrete bound setters and the Bernoulli/Geometric
+   delegates. Record which it catches; an unseen one means the harness
+   needs work. `test_concurrency_gates.cpp`'s header lists what each
+   defect looked like.
+3. **At `ee11e62`, expect it to pass.** Any failure is a new defect:
+   stop and report with the evidence (it moves the freeze head).
+4. **ThreadSanitizer.** A fresh `build-tsan` (Ninja,
+   `RelWithDebInfo`, `-DLIBSTATS_BUILD_TOOLS=OFF`, `-fsanitize=thread`
+   in `CMAKE_CXX_FLAGS`, `CMAKE_EXE_LINKER_FLAGS` and
+   `CMAKE_SHARED_LINKER_FLAGS`, as R4's UBSan build). Run
+   `test_concurrency_stress`, `test_concurrency_gates`,
+   `test_snapshot_consistency`, `test_thread_pool`,
+   `test_work_stealing_pool`, `test_parallel_execution_integration`,
+   `test_parallel_exception_propagation`, then the whole correctness
+   ctest (`-LE "timing|benchmark"`, `-j2`). Every report is a finding
+   (file:line, both stacks); triage benign ones explicitly, don't
+   suppress silently. Also run `test_concurrency_gates` under TSan at
+   `73ecbfe`: it should report Uniform's copy-assignment and the
+   work-stealing pool's construction, the two `ee11e62` fixes with no
+   Windows gate.
+5. **Report** to the user: what the stress test caught at `6987317`,
+   its result at `ee11e62`, and the TSan findings. Commit the test and
+   the evidence (`docs/bench-evidence/<date>-m1-concurrency/`) with the
+   user's approval. A Linux TSan CI leg to keep this checked is the
+   user's decision (CI-HOUSE-STYLE runner budget).
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
