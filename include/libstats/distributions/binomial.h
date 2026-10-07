@@ -319,8 +319,8 @@ class BinomialDistribution : public DistributionBase {
                                  int cached_n, double cached_p, double cached_logP,
                                  double cached_log1mP) const noexcept;
 
-    void getCumulativeProbabilityBatchImpl(const double* values, double* results,
-                                           std::size_t count) const noexcept;
+    void getCumulativeProbabilityBatchImpl(const double* values, double* results, std::size_t count,
+                                           int cached_n, double cached_p) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS

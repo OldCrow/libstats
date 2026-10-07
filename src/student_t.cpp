@@ -575,10 +575,12 @@ void StudentTDistribution::getCumulativeProbability(std::span<const double> valu
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double cached_nu = dist.nu_;
             lock.unlock();
-            const double lbeta_a_half = detail::lbeta(detail::HALF * cached_nu, detail::HALF);
-            for (std::size_t i = 0; i < count; ++i) {
-                res[i] = detail::t_cdf(vals[i], cached_nu, lbeta_a_half);
-            }
+            // Slices of the batch kernel; this lambda was a serial loop (#176).
+            constexpr std::size_t CHUNK = 1024;
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, cached_nu);
+            });
         },
         [](const StudentTDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {

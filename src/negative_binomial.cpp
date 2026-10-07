@@ -67,6 +67,11 @@ namespace {
 [[nodiscard]] inline double nbLogPmf(double k, double r, double p) noexcept {
     return detail::binomial_log_pmf(r, k, p) - std::log1p(k / r);
 }
+
+// PARALLEL and WORK_STEALING take one snapshot and run the lock-free batch kernels over slices
+// of this many elements, as Beta does. Calling the scalar methods per element took
+// withCacheSnapshot's shared_lock on every element from every thread (#175).
+constexpr std::size_t kBatchSlice = 1024;
 }  // namespace
 
 //==============================================================================
@@ -331,22 +336,14 @@ double NegativeBinomialDistribution::getLogProbability(double x) const {
 }
 
 double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
-    // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
-    if (!std::isfinite(x)) {
-        if (std::isnan(x))
-            return std::numeric_limits<double>::quiet_NaN();
-        return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
-    }
-    const double k = flooredCount(x);
-    if (k < 0)
-        return detail::ZERO_DOUBLE;
-
     double sp, sr;
     withCacheSnapshot([&] {
         sp = p_;
         sr = r_;
     });
-    return detail::beta_i(sp, sr, k + detail::ONE);
+    double result;
+    getCumulativeProbabilityBatchImpl(&x, &result, 1, sr, sp);
+    return result;
 }
 
 double NegativeBinomialDistribution::getQuantile(double prob) const {
@@ -594,20 +591,37 @@ void NegativeBinomialDistribution::getProbability(std::span<const double> values
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getProbability(vals[i]);
+            double r, sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                r = d.r_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchImpl(vals.data() + start, res.data() + start, len, r, sp,
+                                              lp, l1mp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getProbability(vals[i]);
-            }
         },
         [](const NegativeBinomialDistribution& d, std::span<const double> vals,
            std::span<double> res, WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getProbability(vals[i]); });
+            if (count == 0)
+                return;
+            double r, sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                r = d.r_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchImpl(vals.data() + start, res.data() + start, len, r, sp, lp,
+                                          l1mp);
+            });
             pool.waitForAll();
         });
 }
@@ -635,20 +649,37 @@ void NegativeBinomialDistribution::getLogProbability(std::span<const double> val
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getLogProbability(vals[i]);
+            double r, sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                r = d.r_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchImpl(vals.data() + start, res.data() + start, len, r,
+                                                 sp, lp, l1mp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getLogProbability(vals[i]);
-            }
         },
         [](const NegativeBinomialDistribution& d, std::span<const double> vals,
            std::span<double> res, WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getLogProbability(vals[i]); });
+            if (count == 0)
+                return;
+            double r, sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                r = d.r_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchImpl(vals.data() + start, res.data() + start, len, r, sp,
+                                             lp, l1mp);
+            });
             pool.waitForAll();
         });
 }
@@ -662,7 +693,12 @@ void NegativeBinomialDistribution::getCumulativeProbability(
             return d.getCumulativeProbability(x);
         },
         [](const NegativeBinomialDistribution& d, const double* vals, double* res, size_t count) {
-            d.getCumulativeProbabilityBatchImpl(vals, res, count);
+            double r, sp;
+            d.withCacheSnapshot([&] {
+                r = d.r_;
+                sp = d.p_;
+            });
+            d.getCumulativeProbabilityBatchImpl(vals, res, count, r, sp);
         },
         [](const NegativeBinomialDistribution& d, std::span<const double> vals,
            std::span<double> res) {
@@ -671,20 +707,33 @@ void NegativeBinomialDistribution::getCumulativeProbability(
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getCumulativeProbability(vals[i]);
+            double r, sp;
+            d.withCacheSnapshot([&] {
+                r = d.r_;
+                sp = d.p_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchImpl(vals.data() + start, res.data() + start,
+                                                        len, r, sp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getCumulativeProbability(vals[i]);
-            }
         },
         [](const NegativeBinomialDistribution& d, std::span<const double> vals,
            std::span<double> res, WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getCumulativeProbability(vals[i]); });
+            if (count == 0)
+                return;
+            double r, sp;
+            d.withCacheSnapshot([&] {
+                r = d.r_;
+                sp = d.p_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchImpl(vals.data() + start, res.data() + start, len, r,
+                                                    sp);
+            });
             pool.waitForAll();
         });
 }
@@ -807,9 +856,20 @@ void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values,
 }
 
 void NegativeBinomialDistribution::getCumulativeProbabilityBatchImpl(
-    const double* values, double* results, std::size_t count) const noexcept {
-    for (std::size_t i = 0; i < count; ++i)
-        results[i] = getCumulativeProbability(values[i]);
+    const double* values, double* results, std::size_t count, double cached_r,
+    double cached_p) const noexcept {
+    for (std::size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
+        if (!std::isfinite(x)) {
+            results[i] = std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
+                                       : ((x < 0) ? detail::ZERO_DOUBLE : detail::ONE);
+            continue;
+        }
+        const double k = flooredCount(x);
+        results[i] =
+            (k < 0) ? detail::ZERO_DOUBLE : detail::beta_i(cached_p, cached_r, k + detail::ONE);
+    }
 }
 
 //==============================================================================

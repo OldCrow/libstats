@@ -431,8 +431,14 @@ create_libstats_gtest(test_log1p_density_batches test_log1p_density_batches.cpp)
 create_libstats_gtest(test_discrete_pmf_accuracy test_discrete_pmf_accuracy.cpp)
 
 # Guard: scalar methods racing a setter return one parameter state's value, never a mix or NaN
-# (Binomial pmf/CDF, Poisson pmf, Gamma quantile). Correctness, not timing: it asserts values only.
+# (Binomial pmf/CDF, Poisson pmf, Gamma quantile), and one batch call returns one state under every
+# strategy (#175: Binomial, NegativeBinomial, von Mises). Correctness, not timing: it asserts values
+# only.
 create_libstats_gtest(test_snapshot_consistency test_snapshot_consistency.cpp)
+
+# #175/#176 guard: forced PARALLEL beats forced VECTORIZED at n = 1M where the parallel path took a
+# lock per element or ran serially. Timing assertions: in the "timing" label block below.
+create_libstats_gtest(test_parallel_batch_gates test_parallel_batch_gates.cpp)
 
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
@@ -600,6 +606,7 @@ if(GTEST_FOUND)
         test_negative_binomial_enhanced
         test_performance_dispatcher
         test_system_capabilities
+        test_parallel_batch_gates # #175/#176: PARALLEL beats VECTORIZED at 1M
         PROPERTIES LABELS "timing")
     set_tests_properties(
         test_exponential_enhanced

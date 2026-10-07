@@ -31,6 +31,10 @@ namespace stats {
 // Upper bound of the validated CDF range; above it the CDF uses the
 // wrapped-normal approximation and I0e the Hankel series.
 constexpr double kCdfExactKappaMax = 1000.0;
+// PARALLEL and WORK_STEALING CDF take one snapshot and run the lock-free batch kernel over
+// slices of this many elements. Calling the scalar CDF per element took withCacheSnapshot's
+// shared_lock on every element from every thread (#175).
+constexpr std::size_t kBatchSlice = 1024;
 
 double VonMisesDistribution::wrapAngle(double x) noexcept {
     if (!std::isfinite(x))
@@ -1043,46 +1047,19 @@ double VonMisesDistribution::getLogProbability(double x) const {
 }
 
 double VonMisesDistribution::getCumulativeProbability(double x) const {
-    if (!std::isfinite(x)) {
-        if (std::isnan(x))
-            return std::numeric_limits<double>::quiet_NaN();
-        return (x > 0 ? detail::ONE : detail::ZERO_DOUBLE);
-    }
-
-    double result = detail::ZERO_DOUBLE;
+    double mu, kappa, log_scaled_norm, inv_norm, half_j;
+    bool uniform;
     withCacheSnapshot([&] {
-        const double kappa = kappa_;
-        const double mu = mu_;
-
-        // kappa = 0 (uniform circular distribution): exact linear CDF.
-        if (isUniform_) {
-            const double t = wrapAngle(x - mu);
-            result = std::clamp(((t + detail::PI) + kPiLo) / detail::TWO_PI, detail::ZERO_DOUBLE,
-                                detail::ONE);
-            return;
-        }
-
-        // kappa > 1000: unvalidated range -- use the
-        // pre-#51 wrapped-normal approximation. VM(mu, kappa) ~ N(mu, 1/kappa)
-        // on the circle; approximation error is ~0.043/kappa absolute (measured
-        // against a quadrature oracle at kappa = 1e3, 2e3, 1e4 -- O(1/kappa),
-        // not O(1/kappa^2)). The standardised argument is the WRAPPED
-        // DIFFERENCE, matching the branch below: wrapping x alone and
-        // subtracting mu afterwards leaves a 2*pi offset for every x on the far
-        // side of the +-pi cut from mu (#106).
-        if (kappa > kCdfExactKappaMax) {
-            const double z = wrapAngle(x - mu) * std::sqrt(kappa);
-            result = std::clamp(detail::HALF * (detail::ONE + std::erf(z * detail::INV_SQRT_2)),
-                                detail::ZERO_DOUBLE, detail::ONE);
-            return;
-        }
-
-        // 0 < kappa <= 1000: the central mass near the median, the tail
-        // mass beyond (vonmises_cdf), at t = wrap(x - mu).
-        result = vonmises_cdf(wrapAngle(x - mu), kappa, logScaledNormaliser_, invScaledNormaliser_,
-                              tailHalfJ_);
+        mu = mu_;
+        kappa = kappa_;
+        log_scaled_norm = logScaledNormaliser_;
+        inv_norm = invScaledNormaliser_;
+        half_j = tailHalfJ_;
+        uniform = isUniform_;
     });
-
+    double result;
+    getCumulativeProbabilityBatchUnsafeImpl(&x, &result, 1, mu, kappa, log_scaled_norm, inv_norm,
+                                            half_j, uniform);
     return result;
 }
 
@@ -1479,20 +1456,45 @@ void VonMisesDistribution::getCumulativeProbability(std::span<const double> valu
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getCumulativeProbability(vals[i]);
+            double mu, kappa, log_scaled_norm, inv_norm, half_j;
+            bool uniform;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                kappa = d.kappa_;
+                log_scaled_norm = d.logScaledNormaliser_;
+                inv_norm = d.invScaledNormaliser_;
+                half_j = d.tailHalfJ_;
+                uniform = d.isUniform_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, mu, kappa, log_scaled_norm,
+                        inv_norm, half_j, uniform);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getCumulativeProbability(vals[i]);
-            }
         },
         [](const VonMisesDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getCumulativeProbability(vals[i]); });
+            if (count == 0)
+                return;
+            double mu, kappa, log_scaled_norm, inv_norm, half_j;
+            bool uniform;
+            d.withCacheSnapshot([&] {
+                mu = d.mu_;
+                kappa = d.kappa_;
+                log_scaled_norm = d.logScaledNormaliser_;
+                inv_norm = d.invScaledNormaliser_;
+                half_j = d.tailHalfJ_;
+                uniform = d.isUniform_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, mu, kappa, log_scaled_norm, inv_norm,
+                                                          half_j, uniform);
+            });
             pool.waitForAll();
         });
 }
@@ -1614,24 +1616,39 @@ void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, double cached_mu, double cached_kappa,
     double cached_log_scaled_norm, double cached_inv_norm, double cached_half_j,
     bool cached_uniform) const noexcept {
-    // κ = 0 or κ > 1000: the scalar CDF's closed form or wrapped-normal approximation.
-    if (cached_uniform || cached_kappa > kCdfExactKappaMax) {
-        for (std::size_t i = 0; i < count; ++i)
-            results[i] = getCumulativeProbability(values[i]);
-        return;
-    }
-    // Each element costs one central-mass rule (6-12 exp) or one tail evaluation, so the
-    // element loop dominates: the snapshot only saves the per-element lock. The scalar
-    // contract for non-finite input: NaN -> NaN, +inf -> 1, -inf -> 0.
+    // The scalar CDF is this kernel on one element, from the same snapshot. Each element costs
+    // one central-mass rule (6-12 exp) or one tail evaluation, so the element loop dominates.
+    // Non-finite input: NaN -> NaN, +inf -> 1, -inf -> 0.
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
-        if (std::isnan(x))
+        if (std::isnan(x)) {
             results[i] = std::numeric_limits<double>::quiet_NaN();
-        else if (std::isinf(x))
+            continue;
+        }
+        if (std::isinf(x)) {
             results[i] = x > 0.0 ? detail::ONE : detail::ZERO_DOUBLE;
-        else
+            continue;
+        }
+        if (cached_uniform) {
+            // kappa = 0 (uniform circular distribution): exact linear CDF.
+            const double t = wrapAngle(x - cached_mu);
+            results[i] = std::clamp(((t + detail::PI) + kPiLo) / detail::TWO_PI,
+                                    detail::ZERO_DOUBLE, detail::ONE);
+        } else if (cached_kappa > kCdfExactKappaMax) {
+            // kappa > 1000: unvalidated range -- the pre-#51 wrapped-normal approximation.
+            // VM(mu, kappa) ~ N(mu, 1/kappa) on the circle; approximation error is ~0.043/kappa
+            // absolute (measured against a quadrature oracle at kappa = 1e3, 2e3, 1e4 --
+            // O(1/kappa), not O(1/kappa^2)). The standardised argument is the WRAPPED
+            // DIFFERENCE: wrapping x alone and subtracting mu afterwards leaves a 2*pi offset
+            // for every x on the far side of the +-pi cut from mu (#106).
+            const double z = wrapAngle(x - cached_mu) * std::sqrt(cached_kappa);
+            results[i] = std::clamp(detail::HALF * (detail::ONE + std::erf(z * detail::INV_SQRT_2)),
+                                    detail::ZERO_DOUBLE, detail::ONE);
+        } else {
+            // 0 < kappa <= 1000: the central mass near the median, the tail mass beyond.
             results[i] = vonmises_cdf(wrapAngle(x - cached_mu), cached_kappa,
                                       cached_log_scaled_norm, cached_inv_norm, cached_half_j);
+        }
     }
 }
 

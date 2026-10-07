@@ -21,7 +21,10 @@
 #include <atomic>
 #include <cmath>
 #include <gtest/gtest.h>
+#include <optional>
+#include <span>
 #include <thread>
+#include <vector>
 
 using namespace stats;
 
@@ -49,6 +52,57 @@ void expectOneOfTwoStates(const char* what, Dist& d, Flip flip, Read read, doubl
     EXPECT_EQ(mixed, 0) << what << ": " << mixed << " of " << kReads
                         << " reads matched neither state, first " << first_mixed << " (want "
                         << want_a << " or " << want_b << ")";
+}
+
+// A batch takes one parameter snapshot, so every element of one call comes from the same state
+// (#175). The PARALLEL and WORK_STEALING lambdas of Binomial, NegativeBinomial and von Mises,
+// and the VECTORIZED CDF of the first two, called the scalar method per element, each with its
+// own snapshot: under a concurrent setter one call returned a mix of both states, and every
+// element took the shared lock.
+constexpr std::size_t kBatchN = 50000;
+constexpr int kBatches = 60;
+
+// state_a and state_b are fixed instances of the two states the writer flips between; the wanted
+// values come from the same batch path on them, so only consistency is under test.
+template <typename Dist, typename Flip, typename Batch>
+void expectBatchFromOneState(const char* what, Dist& d, Flip flip, Batch batch, double x,
+                             const Dist& state_a, const Dist& state_b) {
+    using Strategy = detail::PerformanceHint::PreferredStrategy;
+    // MAXIMIZE_THROUGHPUT reaches the WORK_STEALING lambda where the platform prefers it (macOS);
+    // there is no FORCE_ hint for it.
+    for (Strategy s :
+         {Strategy::FORCE_VECTORIZED, Strategy::FORCE_PARALLEL, Strategy::MAXIMIZE_THROUGHPUT}) {
+        const detail::PerformanceHint hint{s, std::nullopt};
+        const std::vector<double> xs(kBatchN, x);
+        std::vector<double> out(kBatchN);
+        batch(state_a, std::span<const double>(xs), std::span<double>(out), hint);
+        const double want_a = out[0];
+        batch(state_b, std::span<const double>(xs), std::span<double>(out), hint);
+        const double want_b = out[0];
+        ASSERT_NE(want_a, want_b) << what << ": the two states must differ at x = " << x;
+        std::atomic<bool> stop{false};
+        std::thread writer([&] {
+            for (long i = 0; !stop.load(); ++i)
+                flip(d, i % 2 == 0);
+        });
+        int mixed_batches = 0, foreign = 0;
+        for (int b = 0; b < kBatches; ++b) {
+            batch(d, std::span<const double>(xs), std::span<double>(out), hint);
+            std::size_t a = 0, bb = 0;
+            for (const double v : out) {
+                a += (v == want_a);
+                bb += (v == want_b);
+            }
+            foreign += static_cast<int>(kBatchN - a - bb);
+            mixed_batches += (a != kBatchN && bb != kBatchN);
+        }
+        stop.store(true);
+        writer.join();
+        EXPECT_EQ(mixed_batches, 0)
+            << what << " strategy " << static_cast<int>(s) << ": " << mixed_batches << " of "
+            << kBatches << " batches mixed the two states (" << foreign
+            << " elements matched neither)";
+    }
 }
 
 }  // namespace
@@ -104,4 +158,55 @@ TEST(SnapshotConsistency, GammaQuantileUnderSetParameters) {
         },
         [](const GammaDistribution& g) { return g.getQuantile(0.3); }, first.getQuantile(0.3),
         second.getQuantile(0.3));
+}
+
+// #175: one batch call, one parameter state, under every batch strategy.
+using Hint = detail::PerformanceHint;
+
+TEST(SnapshotConsistency, BinomialBatchesUnderSetP) {
+    const auto a = BinomialDistribution::create(100, 0.3).unwrap();
+    const auto b = BinomialDistribution::create(100, 0.6).unwrap();
+    auto d = BinomialDistribution::create(100, 0.3).unwrap();
+    const auto flip = [](BinomialDistribution& x, bool second) { x.setP(second ? 0.6 : 0.3); };
+    expectBatchFromOneState(
+        "Binomial(100, ·) pmf(40)", d, flip,
+        [](const BinomialDistribution& x, std::span<const double> v, std::span<double> r,
+           const Hint& h) { x.getProbability(v, r, h); },
+        40.0, a, b);
+    expectBatchFromOneState(
+        "Binomial(100, ·) cdf(45)", d, flip,
+        [](const BinomialDistribution& x, std::span<const double> v, std::span<double> r,
+           const Hint& h) { x.getCumulativeProbability(v, r, h); },
+        45.0, a, b);
+}
+
+TEST(SnapshotConsistency, NegativeBinomialBatchesUnderSetP) {
+    const auto a = NegativeBinomialDistribution::create(5.0, 0.3).unwrap();
+    const auto b = NegativeBinomialDistribution::create(5.0, 0.6).unwrap();
+    auto d = NegativeBinomialDistribution::create(5.0, 0.3).unwrap();
+    const auto flip = [](NegativeBinomialDistribution& x, bool second) {
+        x.setP(second ? 0.6 : 0.3);
+    };
+    expectBatchFromOneState(
+        "NegativeBinomial(5, ·) logpmf(8)", d, flip,
+        [](const NegativeBinomialDistribution& x, std::span<const double> v, std::span<double> r,
+           const Hint& h) { x.getLogProbability(v, r, h); },
+        8.0, a, b);
+    expectBatchFromOneState(
+        "NegativeBinomial(5, ·) cdf(8)", d, flip,
+        [](const NegativeBinomialDistribution& x, std::span<const double> v, std::span<double> r,
+           const Hint& h) { x.getCumulativeProbability(v, r, h); },
+        8.0, a, b);
+}
+
+TEST(SnapshotConsistency, VonMisesCdfBatchUnderSetKappa) {
+    const auto a = VonMisesDistribution::create(0.0, 2.0).unwrap();
+    const auto b = VonMisesDistribution::create(0.0, 5.0).unwrap();
+    auto d = VonMisesDistribution::create(0.0, 2.0).unwrap();
+    expectBatchFromOneState(
+        "VonMises(0, ·) cdf(0.7)", d,
+        [](VonMisesDistribution& x, bool second) { x.setKappa(second ? 5.0 : 2.0); },
+        [](const VonMisesDistribution& x, std::span<const double> v, std::span<double> r,
+           const Hint& h) { x.getCumulativeProbability(v, r, h); },
+        0.7, a, b);
 }

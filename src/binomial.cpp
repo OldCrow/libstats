@@ -34,6 +34,11 @@ double binomialCdf(int k, int n, double p) noexcept {
         return detail::ZERO_DOUBLE;
     return detail::beta_i(detail::ONE - p, static_cast<double>(n - k), static_cast<double>(k + 1));
 }
+
+// PARALLEL and WORK_STEALING take one snapshot and run the lock-free batch kernels over slices
+// of this many elements, as Beta does. Calling the scalar methods per element took
+// withCacheSnapshot's shared_lock on every element from every thread (#175).
+constexpr std::size_t kBatchSlice = 1024;
 }  // namespace
 
 //==============================================================================
@@ -304,12 +309,6 @@ double BinomialDistribution::getLogProbability(double x) const {
 }
 
 double BinomialDistribution::getCumulativeProbability(double x) const {
-    // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
-    if (!std::isfinite(x)) {
-        if (std::isnan(x))
-            return std::numeric_limits<double>::quiet_NaN();
-        return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
-    }
     // Snapshot first: an unlocked n_ above a concurrently shrunk sn gave beta_i a b ≤ 0, and 0.
     int sn;
     double sp;
@@ -317,13 +316,9 @@ double BinomialDistribution::getCumulativeProbability(double x) const {
         sn = n_;
         sp = p_;
     });
-    // #167: range-check the floored double before the int cast.
-    const double floored = std::floor(x);
-    if (floored < detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
-    if (floored >= static_cast<double>(sn))
-        return detail::ONE;
-    return binomialCdf(static_cast<int>(floored), sn, sp);
+    double result;
+    getCumulativeProbabilityBatchImpl(&x, &result, 1, sn, sp);
+    return result;
 }
 
 double BinomialDistribution::getQuantile(double p) const {
@@ -552,21 +547,39 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            // Snapshot vars unused here — batch delegates to scalar getProbability per element.
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getProbability(vals[i]);
+            int n;
+            double sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n, sp,
+                                              lp, l1mp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getProbability(vals[i]);
-            }
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getProbability(vals[i]); });
+            if (count == 0)
+                return;
+            int n;
+            double sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n, sp, lp,
+                                          l1mp);
+            });
             pool.waitForAll();
         });
 }
@@ -594,20 +607,39 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getLogProbability(vals[i]);
+            int n;
+            double sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n,
+                                                 sp, lp, l1mp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getLogProbability(vals[i]);
-            }
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getLogProbability(vals[i]); });
+            if (count == 0)
+                return;
+            int n;
+            double sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n, sp,
+                                             lp, l1mp);
+            });
             pool.waitForAll();
         });
 }
@@ -619,7 +651,13 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
         *this, values, results, hint, detail::OperationType::CDF,
         [](const BinomialDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
-            d.getCumulativeProbabilityBatchImpl(vals, res, count);
+            int n;
+            double sp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+            });
+            d.getCumulativeProbabilityBatchImpl(vals, res, count, n, sp);
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -627,20 +665,35 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getCumulativeProbability(vals[i]);
+            int n;
+            double sp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchImpl(vals.data() + start, res.data() + start,
+                                                        len, n, sp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getCumulativeProbability(vals[i]);
-            }
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getCumulativeProbability(vals[i]); });
+            if (count == 0)
+                return;
+            int n;
+            double sp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n,
+                                                    sp);
+            });
             pool.waitForAll();
         });
 }
@@ -779,9 +832,25 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
 }
 
 void BinomialDistribution::getCumulativeProbabilityBatchImpl(const double* values, double* results,
-                                                             std::size_t count) const noexcept {
-    for (std::size_t i = 0; i < count; ++i)
-        results[i] = getCumulativeProbability(values[i]);
+                                                             std::size_t count, int cached_n,
+                                                             double cached_p) const noexcept {
+    for (std::size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
+        if (!std::isfinite(x)) {
+            results[i] = std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
+                                       : ((x < 0) ? detail::ZERO_DOUBLE : detail::ONE);
+            continue;
+        }
+        // #167: range-check the floored double before the int cast.
+        const double floored = std::floor(x);
+        if (floored < detail::ZERO_DOUBLE)
+            results[i] = detail::ZERO_DOUBLE;
+        else if (floored >= static_cast<double>(cached_n))
+            results[i] = detail::ONE;
+        else
+            results[i] = binomialCdf(static_cast<int>(floored), cached_n, cached_p);
+    }
 }
 
 //==============================================================================
