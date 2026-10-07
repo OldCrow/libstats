@@ -81,12 +81,14 @@ GammaDistribution::GammaDistribution(GammaDistribution&& other) noexcept
 
 GammaDistribution& GammaDistribution::operator=(GammaDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         alpha_ = other.alpha_;
         beta_ = other.beta_;
-        // Preserve noexcept move assignment by avoiding lock acquisition.
-        // As with standard containers, callers must not concurrently access
-        // an object while it is being move-assigned. Cache is invalidated and
-        // rebuilt on next read rather than updated unsafely here.
+        // The cache is invalidated and rebuilt on the next read.
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);

@@ -120,6 +120,11 @@ StudentTDistribution::StudentTDistribution(StudentTDistribution&& other) noexcep
 
 StudentTDistribution& StudentTDistribution::operator=(StudentTDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         nu_ = other.nu_;
         halfNu_ = other.halfNu_;
         halfNuPlusOne_ = other.halfNuPlusOne_;

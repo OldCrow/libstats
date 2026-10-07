@@ -107,6 +107,11 @@ GumbelDistribution::GumbelDistribution(GumbelDistribution&& other) noexcept
 
 GumbelDistribution& GumbelDistribution::operator=(GumbelDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         mu_ = other.mu_;
         beta_ = other.beta_;
         inv_beta_ = other.inv_beta_;

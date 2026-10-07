@@ -97,6 +97,11 @@ BinomialDistribution::BinomialDistribution(BinomialDistribution&& other) noexcep
 
 BinomialDistribution& BinomialDistribution::operator=(BinomialDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         n_ = other.n_;
         p_ = other.p_;
         logNFact_ = other.logNFact_;

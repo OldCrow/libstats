@@ -37,11 +37,13 @@ namespace stats {
  * concurrently with const methods; the internal shared_mutex ensures that
  * cache recomputation and parameter reads are mutually consistent.
  *
- * Move construction and move assignment are @b NOT thread-safe with respect
- * to the source object — the caller must ensure no concurrent access to the
- * source during a move. This follows the same convention as @c std::vector
- * and other STL containers: the source is left in a valid but unspecified
- * state and must not be accessed concurrently during or after the move.
+ * Copy and move assignment lock both objects (std::lock order), so they may run
+ * concurrently with const methods on either, as setters may (#184). A concurrent
+ * reader of a move's source sees its old or its moved-from state, never a mix;
+ * which one is unspecified, so the caller must still not use the source
+ * concurrently with a move. Move construction does not lock the source. This follows the same
+ * convention as @c std::vector and other STL containers: the source is left in a valid but
+ * unspecified state and must not be accessed concurrently during or after the move.
  *
  * @par Usage Example:
  * @code

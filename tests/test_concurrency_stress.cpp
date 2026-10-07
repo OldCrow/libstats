@@ -413,9 +413,8 @@ bool accepted(const Reader<D>& r, std::size_t ri, const Bits& got,
 // skipped with the issue numbers, so it shows in the summary. The programs still run, so a fix
 // shows as the "[ known ]" lines disappearing: remove its entry then (each issue's acceptance says
 // so).
-int knownReaderIssue(const std::string& row, const std::string& prog, const std::string& reader) {
-    if (prog == "move assign")
-        return 184;  // move-assignment takes no lock
+int knownReaderIssue(const std::string& row, const std::string& /*prog*/,
+                     const std::string& reader) {
     if (reader == "sample n" && (row == "InverseGamma" || row == "FisherF"))
         return 186;  // the vector sample loops the locking scalar sample
     if (reader == "sample" && row == "FisherF")

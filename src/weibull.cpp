@@ -127,6 +127,11 @@ WeibullDistribution::WeibullDistribution(WeibullDistribution&& other) noexcept
 
 WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         shape_ = other.shape_;
         scale_ = other.scale_;
         logShape_ = other.logShape_;
