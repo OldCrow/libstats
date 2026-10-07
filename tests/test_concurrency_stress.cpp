@@ -43,6 +43,10 @@
 #include <type_traits>
 #include <vector>
 
+#if defined(__APPLE__)
+    #include <sys/sysctl.h>
+#endif
+
 using namespace stats;
 
 namespace {
@@ -867,6 +871,28 @@ void runRow(const Row<D>& row) {
 }
 
 }  // namespace
+
+// Core topology (#190): physical_cores came from logical / 2 on every platform, so every Mac looked
+// SMT and MAXIMIZE_THROUGHPUT took WORK_STEALING on the M1 (8 cores, no SMT). Two-sided: the
+// expected counts come from sysctl, independent of the library, and the strategy must follow
+// them both ways. Apple only, where sysctl is the oracle; elsewhere only the invariants.
+TEST(ConcurrencyStressMachine, CoreTopology) {
+    const auto& caps = detail::SystemCapabilities::current();
+    EXPECT_GE(caps.physical_cores(), 1u);
+    EXPECT_LE(caps.physical_cores(), caps.logical_cores());
+#if defined(__APPLE__)
+    int physical = 0, logical = 0;
+    std::size_t size = sizeof(int);
+    ASSERT_EQ(sysctlbyname("hw.physicalcpu", &physical, &size, nullptr, 0), 0);
+    size = sizeof(int);
+    ASSERT_EQ(sysctlbyname("hw.logicalcpu", &logical, &size, nullptr, 0), 0);
+    EXPECT_EQ(caps.physical_cores(), static_cast<std::size_t>(physical));
+    const auto strategy = detail::PerformanceDispatcher::selectMultiThreadedStrategy(
+        detail::DistributionType::GAUSSIAN, caps);
+    EXPECT_EQ(strategy == detail::Strategy::WORK_STEALING, logical > physical)
+        << "logical " << logical << ", physical " << physical;
+#endif
+}
 
 #define STRESS_ROW(Name, MakeRow)                                                                  \
     TEST(ConcurrencyStress_##Name, Readers) {                                                      \

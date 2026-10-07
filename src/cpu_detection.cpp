@@ -304,12 +304,15 @@ void detect_topology_info(Features& features) {
             features.topology.threads_per_core = ebx & 0xFFFF;
         }
 
-        // Level 1: Core level
+        // Level 1: Core level. Its EBX counts logical processors in the package, not cores, so
+        // the core count is that over the threads per core (#190).
         safe_cpuid(0xB, 1, eax, ebx, ecx, edx);
         if (((ecx >> 8) & 0xFF) == 2) {  // Core level
             core_mask_width = eax & 0x1F;
-            uint32_t cores_per_package = ebx & 0xFFFF;
-            features.topology.physical_cores = cores_per_package;
+            const uint32_t logical_per_package = ebx & 0xFFFF;
+            const uint32_t threads = features.topology.threads_per_core;
+            features.topology.physical_cores =
+                threads > 1 ? logical_per_package / threads : logical_per_package;
         }
 
         features.topology.packages = 1;  // Assume single package
