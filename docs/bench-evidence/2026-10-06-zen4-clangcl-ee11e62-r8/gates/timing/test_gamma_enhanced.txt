@@ -1,0 +1,121 @@
+[==========] Running 18 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 14 tests from GammaEnhancedTest
+[ RUN      ] GammaEnhancedTest.BasicEnhancedFunctionality
+[       OK ] GammaEnhancedTest.BasicEnhancedFunctionality (15 ms)
+[ RUN      ] GammaEnhancedTest.AdvancedStatisticalMethods
+[       OK ] GammaEnhancedTest.AdvancedStatisticalMethods (0 ms)
+[ RUN      ] GammaEnhancedTest.GoodnessOfFitTests
+
+=== Goodness-of-Fit Tests ===
+
+--- Test 1: Gamma-distributed data (should NOT reject H0) ---
+  Original parameters: alpha=2, beta=1.5, mean=1.33333
+  Fitted parameters: alpha=2.13948, beta=0.693342, mean=3.08574
+  KS test (gamma data): D=0.0608047, p=0.954761, reject=0
+  AD test (gamma data): A²=0.377141, p=1, reject=0
+
+--- Test 2: Non-gamma data (should REJECT H0) ---
+  KS test (non-gamma data): D=0.42001, p=9.5146e-16, reject=1
+  AD test (non-gamma data): A²=77.5565, p=1.05493e-60, reject=1
+  ✓ Both tests correctly accepted gamma data
+[       OK ] GammaEnhancedTest.GoodnessOfFitTests (0 ms)
+[ RUN      ] GammaEnhancedTest.InformationCriteriaTests
+
+=== Information Criteria Tests ===
+  AIC: 402.152, BIC: 407.363, AICc: 402.276
+  Log-likelihood: -199.076
+[       OK ] GammaEnhancedTest.InformationCriteriaTests (0 ms)
+[ RUN      ] GammaEnhancedTest.ThreadSafetyAndEdgeCases
+
+=== Thread Safety and Edge Cases ===
+  ✓ Gamma thread safety test passed
+  ✓ Gamma extreme value handling test passed
+  ✓ Gamma empty batch operations handled gracefully
+[       OK ] GammaEnhancedTest.ThreadSafetyAndEdgeCases (1 ms)
+[ RUN      ] GammaEnhancedTest.BootstrapMethods
+
+=== Bootstrap Methods ===
+  Alpha 95% CI: [2.65018, 3.54531]
+  Beta 95% CI: [2.84797, 6.4042]
+  K-fold CV completed with 5 folds
+[       OK ] GammaEnhancedTest.BootstrapMethods (1 ms)
+[ RUN      ] GammaEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 71.6μs (baseline)
+  Vectorized: 10.1μs (7.08911x speedup)
+  Parallel: 10.1μs (7.08911x speedup)
+  Work Stealing: 10.1μs (7.08911x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 723.8μs (baseline)
+  Vectorized: 103.7μs (6.97975x speedup)
+  Parallel: 59.2μs (12.2264x speedup)
+  Work Stealing: 58.9μs (12.2886x speedup)
+[       OK ] GammaEnhancedTest.SIMDAndParallelBatchImplementations (25 ms)
+[ RUN      ] GammaEnhancedTest.AutoDispatchAssessment
+
+=== Auto-Dispatch Strategy Assessment ===
+  Batch size 5 (expected: SCALAR): Auto 0.080475μs vs Traditional 0.073975μs, Correct: ✅
+  Batch size 50 (expected: SCALAR): Auto 0.18375μs vs Traditional 0.74475μs, Correct: ✅
+  Batch size 500 (expected: VECTORIZED): Auto 1.38μs vs Traditional 10.68μs, Correct: ✅
+  Batch size 5000 (expected: VECTORIZED): Auto 10.15μs vs Traditional 75.825μs, Correct: ✅
+  Batch size 50000 (expected: PARALLEL): Auto 78.1μs vs Traditional 762.4μs, Correct: ✅
+[       OK ] GammaEnhancedTest.AutoDispatchAssessment (43 ms)
+[ RUN      ] GammaEnhancedTest.CachingSpeedupVerification
+
+=== Caching Speedup Verification ===
+  First getter calls (cache miss): 400ns
+  Second getter calls (cache hit): 100ns
+  Cache speedup: 4x
+  After parameter change: 200ns
+[       OK ] GammaEnhancedTest.CachingSpeedupVerification (0 ms)
+[ RUN      ] GammaEnhancedTest.ParallelBatchPerformanceBenchmark
+[       OK ] GammaEnhancedTest.ParallelBatchPerformanceBenchmark (6 ms)
+[ RUN      ] GammaEnhancedTest.ParallelBatchFittingTests
+
+=== Parallel Batch Fitting Tests ===
+  Generated 6 datasets with known parameters
+  ✓ Parallel batch fitting correctness verified
+  Parallel batch fitting: 31μs
+  Sequential individual fits: 29μs
+  Speedup: 0.935484x
+  Testing edge cases...
+  ✓ Edge cases handled correctly
+  Testing thread safety...
+  ✓ Thread safety verified
+[       OK ] GammaEnhancedTest.ParallelBatchFittingTests (0 ms)
+[ RUN      ] GammaEnhancedTest.NumericalStabilityAndEdgeCases
+
+=== Numerical Stability and Edge Cases ===
+  Value 1e-10: PDF=1e-10, LogPDF=-23.0259, CDF=5e-21
+  Value 0.001: PDF=0.000999, LogPDF=-6.90876, CDF=4.99667e-07
+  Value 0.1: PDF=0.0904837, LogPDF=-2.40259, CDF=0.00467884
+  Value 10: PDF=0.000453999, LogPDF=-7.69741, CDF=0.999501
+  Value 100: PDF=3.72008e-42, LogPDF=-95.3948, CDF=1
+  Value 1000: PDF=0, LogPDF=-993.092, CDF=1
+  Edge case testing completed
+[       OK ] GammaEnhancedTest.NumericalStabilityAndEdgeCases (0 ms)
+[ RUN      ] GammaEnhancedTest.InfinityAndNaNInputGates
+[       OK ] GammaEnhancedTest.InfinityAndNaNInputGates (0 ms)
+[ RUN      ] GammaEnhancedTest.ExtremeTailQuantileFinite
+[       OK ] GammaEnhancedTest.ExtremeTailQuantileFinite (0 ms)
+[----------] 14 tests from GammaEnhancedTest (100 ms total)
+
+[----------] 4 tests from Gamma/DistributionEnhancedTest/0, where TypeParam = stats::GammaDistribution
+[ RUN      ] Gamma/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Gamma/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Gamma/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Gamma/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Gamma/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Gamma/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Gamma/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Gamma/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Gamma/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 18 tests from 2 test suites ran. (102 ms total)
+[  PASSED  ] 18 tests.

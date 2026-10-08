@@ -1,0 +1,53 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 20 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 16 tests from ParetoEnhancedTest
+[ RUN      ] ParetoEnhancedTest.KnownPDFValue
+[       OK ] ParetoEnhancedTest.KnownPDFValue (20 ms)
+[ RUN      ] ParetoEnhancedTest.KnownCDFValue
+[       OK ] ParetoEnhancedTest.KnownCDFValue (0 ms)
+[ RUN      ] ParetoEnhancedTest.CDFAtScale
+[       OK ] ParetoEnhancedTest.CDFAtScale (0 ms)
+[ RUN      ] ParetoEnhancedTest.MeanFormula
+[       OK ] ParetoEnhancedTest.MeanFormula (0 ms)
+[ RUN      ] ParetoEnhancedTest.VarianceFormula
+[       OK ] ParetoEnhancedTest.VarianceFormula (0 ms)
+[ RUN      ] ParetoEnhancedTest.LogPDFConsistency
+[       OK ] ParetoEnhancedTest.LogPDFConsistency (0 ms)
+[ RUN      ] ParetoEnhancedTest.OutOfSupport
+[       OK ] ParetoEnhancedTest.OutOfSupport (0 ms)
+[ RUN      ] ParetoEnhancedTest.QuantileRoundTrip
+[       OK ] ParetoEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] ParetoEnhancedTest.MedianFormula
+[       OK ] ParetoEnhancedTest.MedianFormula (0 ms)
+[ RUN      ] ParetoEnhancedTest.ModeEqualsScale
+[       OK ] ParetoEnhancedTest.ModeEqualsScale (0 ms)
+[ RUN      ] ParetoEnhancedTest.BatchMatchesScalar
+[       OK ] ParetoEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] ParetoEnhancedTest.VectorizedMatchesScalar
+[       OK ] ParetoEnhancedTest.VectorizedMatchesScalar (0 ms)
+[ RUN      ] ParetoEnhancedTest.MLEFit
+[       OK ] ParetoEnhancedTest.MLEFit (0 ms)
+[ RUN      ] ParetoEnhancedTest.SetterPropagates
+[       OK ] ParetoEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] ParetoEnhancedTest.InvalidParameters
+[       OK ] ParetoEnhancedTest.InvalidParameters (0 ms)
+[ RUN      ] ParetoEnhancedTest.VectorizedSpeedup
+Pareto LogPDF VECTORIZED speedup: 8.51881x (VECTORIZED 50.5μs, SCALAR 430.2μs)
+[       OK ] ParetoEnhancedTest.VectorizedSpeedup (8 ms)
+[----------] 16 tests from ParetoEnhancedTest (34 ms total)
+
+[----------] 4 tests from Pareto/DistributionEnhancedTest/0, where TypeParam = stats::ParetoDistribution
+[ RUN      ] Pareto/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Pareto/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Pareto/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Pareto/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Pareto/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Pareto/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Pareto/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Pareto/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Pareto/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 20 tests from 2 test suites ran. (36 ms total)
+[  PASSED  ] 20 tests.

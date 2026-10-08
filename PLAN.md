@@ -121,8 +121,20 @@ Status by machine (each machine edits only its own line):
   overnight 2026-10-06/07 on the clang-cl trees rebuilt at `ee11e62`
   (0 warnings, tiers confirmed): the speed gate alone, the 23 timing
   tests, then three `--large` runs per tier (AVX-512, AVX2, AVX, SSE2),
-  every process opted out of throttling. Bundles and evidence commit
-  after review. R9 runs on M in parallel [user].
+  every process opted out of throttling. Done, clock at boost throughout
+  (127.2–127.8 ms), speed gate passed, timing 23/23; superseded before
+  use by #184–#191 (#191 rewired both profiled parallel strategies) and
+  kept as Z's pre-#191 R8 reference: bundles
+  `2026-10-07T0*_windows-*_sha-8271f6e`, evidence
+  `docs/bench-evidence/2026-10-06-zen4-clangcl-ee11e62-r8/`; the
+  `69c7be4` bundles marked superseded too. At `3339fc1` (2026-10-07):
+  #190 reads 6 physical, 12 logical (correct; Z is 6C/12T); clang-cl
+  and MSVC 0 warnings once the stress test got `/bigobj` under MSVC
+  (C1128) and both `std::getenv` calls a `_dupenv_s` reader (clang-cl
+  lacks `_CRT_SECURE_NO_WARNINGS`; tests and tools only); sweep
+  bit-identical to `ee11e62`'s under both; correctness 90/91, the stress
+  test failing only its strategy differential (#191's slice tail, R9;
+  K fixes it [user]). R8 and the stress rerun wait for K's head.
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
@@ -455,7 +467,7 @@ read off the log, not assumed:
 - **K** (Kaby Lake 4C/8T, SMT): the only WORK_STEALING machine after
   #190, so K verifies every WORK_STEALING lambda (#191's rewiring
   included) and runs TSan on them. Runs after K's R8 quiet runs.
-- **Z** (Zen 4 8C/16T, Windows): SRWLOCK; Windows resolves
+- **Z** (Zen 4 6C/12T, Windows): SRWLOCK; Windows resolves
   MAXIMIZE_THROUGHPUT to PARALLEL, so no WORK_STEALING. No TSan (MSVC and
   clang-cl do not support it on Windows). Run the stress test under both
   MSVC and clang-cl. Runs after Z's R8 overnight.
@@ -595,8 +607,9 @@ affect.
   user's YubiKey]. #190: `SystemCapabilities` reads the detector's
   physical count (sysctl on macOS), and the x86 CPUID leaf-0xB path
   divides the core-level logical count by threads per core (unverified
-  natively: Z's `system_inspector --quick` must read 8 physical, 16
-  logical). Guard `ConcurrencyStressMachine.CoreTopology` (in the stress
+  natively: Z's `system_inspector --quick` must read 6 physical, 12
+  logical; Z is 6C/12T, and read 6 and 12 at `3339fc1` under both
+  compilers, 2026-10-07). Guard `ConcurrencyStressMachine.CoreTopology` (in the stress
   test; `test_system_capabilities` is timing-labelled, so CI never ran
   it), two-sided against sysctl; failed first (physical 4 vs 8). M now
   resolves MAXIMIZE_THROUGHPUT to PARALLEL. #191: every PARALLEL and
@@ -617,6 +630,29 @@ affect.
   overnight, outside the sandbox), the stress test (K under TSan).
 - Next on K and Z: pull, build, run the stress test (K also under TSan),
   compare with M's lists; no new harness work needed for that.
+- **#191's slice tail breaks the differential on Z** [DERIVED, Z,
+  2026-10-07, at `3339fc1`]. clang-cl: six `StrategyDifferential` tests
+  fail, 13 (distribution, op) pairs: Beta, StudentT, LogNormal, Rayleigh
+  pdf/logpdf; Weibull pdf/logpdf/cdf; Pareto cdf. MSVC: three tests, 5
+  pairs (Beta pdf/logpdf, Weibull pdf/logpdf, Pareto cdf); MSVC does not
+  contract to FMA, so more scalar fallbacks round as the kernel does. `parallelForSlices(count, 1024, …)` leaves a last slice of
+  `count % 1024` elements; when that is 1 to simdMin − 1
+  (`SIMDPolicy::computeOptimalThreshold`: 8 on AVX-512, AVX2, AVX; 4 on
+  SSE2, NEON), the batch impl's `shouldUseSIMD` is false and the slice
+  runs its scalar fallback (e.g. `weibull.cpp:860`), so one call mixes
+  kernels. Z's fork threshold is 8192, so the sizes 8193 and 24583 end
+  in slices of 1 and 7; M's 1536 gave 513 and 519, which is why M
+  passed (`docs/bench-evidence/2026-10-07-zen4-concurrency/`). Values stay accurate; #191's contract (VECTORIZED's bits at
+  every size) fails, on any machine at such sizes.
+- Decided [user, 2026-10-07]: **K fixes it with its work-stealing
+  work.** Fold a short final slice into the previous one in both
+  helpers, `ParallelUtils::parallelForSlices` (`thread_pool.h:275`,
+  also under `parallelTransform`) and `WorkStealingPool::parallelForSlices`
+  (`work_stealing_pool.h:267`), so every kernel's tail lands on the same
+  elements as VECTORIZED's. Add sizes 1024·k + 1 and 1024·k + simdMin − 1
+  above the fork threshold to the differential, so it fires on every
+  machine; show it failing on K before the fix. Moves the freeze head;
+  Z then reruns R1, the sweep compare, the stress test and R8.
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the

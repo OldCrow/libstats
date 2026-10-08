@@ -4,6 +4,13 @@ Dispatcher profile bundle
 Run ID: 2026-10-06T02-05-13Z_windows-x86_64_dev-v2.4.2_sha-69c7be4
 Captured at (UTC): 2026-10-06T02-05-13Z (run 1; runs 2-3 02:15Z and 02:26Z)
 
+Superseded [2026-10-07]:
+- The code is 606607f, before #175/#176 (73ecbfe), the audit fixes (ee11e62; PARALLEL
+  below the fork threshold took a serial scalar loop) and #191 (19d7f64). The PARALLEL
+  and WORK_STEALING rows measure the old paths; no table is derived from these bundles.
+  The VECTORIZED and SCALAR rows and the cross-tier and hypothesis analyses stand as
+  records of that code.
+
 Files:
 - metadata.json
 - strategy_profile_run1.csv

@@ -1,0 +1,49 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 18 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from Laplace/DistributionEnhancedTest/0, where TypeParam = stats::LaplaceDistribution
+[ RUN      ] Laplace/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Laplace/DistributionEnhancedTest/0.LogPDFConsistency (13 ms)
+[ RUN      ] Laplace/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Laplace/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Laplace/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Laplace/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Laplace/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Laplace/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Laplace/DistributionEnhancedTest/0 (15 ms total)
+
+[----------] 14 tests from LaplaceEnhancedTest
+[ RUN      ] LaplaceEnhancedTest.PDFAtLocation
+[       OK ] LaplaceEnhancedTest.PDFAtLocation (0 ms)
+[ RUN      ] LaplaceEnhancedTest.PDFFormula
+[       OK ] LaplaceEnhancedTest.PDFFormula (0 ms)
+[ RUN      ] LaplaceEnhancedTest.LogPDFFormula
+[       OK ] LaplaceEnhancedTest.LogPDFFormula (0 ms)
+[ RUN      ] LaplaceEnhancedTest.CDFAtLocation
+[       OK ] LaplaceEnhancedTest.CDFAtLocation (0 ms)
+[ RUN      ] LaplaceEnhancedTest.CDFFormula
+[       OK ] LaplaceEnhancedTest.CDFFormula (0 ms)
+[ RUN      ] LaplaceEnhancedTest.QuantileRoundTrip
+[       OK ] LaplaceEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] LaplaceEnhancedTest.QuantileFormula
+[       OK ] LaplaceEnhancedTest.QuantileFormula (0 ms)
+[ RUN      ] LaplaceEnhancedTest.PDFSymmetry
+[       OK ] LaplaceEnhancedTest.PDFSymmetry (0 ms)
+[ RUN      ] LaplaceEnhancedTest.MomentFormulas
+[       OK ] LaplaceEnhancedTest.MomentFormulas (0 ms)
+[ RUN      ] LaplaceEnhancedTest.SetterPropagates
+[       OK ] LaplaceEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] LaplaceEnhancedTest.MLEFitDegenerateIdenticalValues
+[       OK ] LaplaceEnhancedTest.MLEFitDegenerateIdenticalValues (0 ms)
+[ RUN      ] LaplaceEnhancedTest.MLEFit
+[       OK ] LaplaceEnhancedTest.MLEFit (0 ms)
+[ RUN      ] LaplaceEnhancedTest.VectorizedMatchesScalar
+[       OK ] LaplaceEnhancedTest.VectorizedMatchesScalar (0 ms)
+[ RUN      ] LaplaceEnhancedTest.VectorizedSpeedup
+Laplace LogPDF VECTORIZED speedup: 10.3244x (VECTORIZED 29.9µs, SCALAR 308.7µs)
+[       OK ] LaplaceEnhancedTest.VectorizedSpeedup (5 ms)
+[----------] 14 tests from LaplaceEnhancedTest (9 ms total)
+
+[----------] Global test environment tear-down
+[==========] 18 tests from 2 test suites ran. (26 ms total)
+[  PASSED  ] 18 tests.

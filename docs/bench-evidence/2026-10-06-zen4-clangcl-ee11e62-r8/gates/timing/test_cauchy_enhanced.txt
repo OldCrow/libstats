@@ -1,0 +1,55 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 21 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from Cauchy/DistributionEnhancedTest/0, where TypeParam = stats::CauchyDistribution
+[ RUN      ] Cauchy/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Cauchy/DistributionEnhancedTest/0.LogPDFConsistency (24 ms)
+[ RUN      ] Cauchy/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Cauchy/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Cauchy/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Cauchy/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Cauchy/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Cauchy/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Cauchy/DistributionEnhancedTest/0 (26 ms total)
+
+[----------] 17 tests from CauchyEnhancedTest
+[ RUN      ] CauchyEnhancedTest.MomentsAreNaN
+[       OK ] CauchyEnhancedTest.MomentsAreNaN (0 ms)
+[ RUN      ] CauchyEnhancedTest.PDFAtLocation
+[       OK ] CauchyEnhancedTest.PDFAtLocation (0 ms)
+[ RUN      ] CauchyEnhancedTest.PDFFormula
+[       OK ] CauchyEnhancedTest.PDFFormula (0 ms)
+[ RUN      ] CauchyEnhancedTest.LogPDFFormula
+[       OK ] CauchyEnhancedTest.LogPDFFormula (0 ms)
+[ RUN      ] CauchyEnhancedTest.CDFAtLocation
+[       OK ] CauchyEnhancedTest.CDFAtLocation (0 ms)
+[ RUN      ] CauchyEnhancedTest.CDFFormula
+[       OK ] CauchyEnhancedTest.CDFFormula (0 ms)
+[ RUN      ] CauchyEnhancedTest.CDFClosedFormVsMpmath
+[       OK ] CauchyEnhancedTest.CDFClosedFormVsMpmath (0 ms)
+[ RUN      ] CauchyEnhancedTest.QuantileRoundTrip
+[       OK ] CauchyEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] CauchyEnhancedTest.QuantileFormula
+[       OK ] CauchyEnhancedTest.QuantileFormula (0 ms)
+[ RUN      ] CauchyEnhancedTest.PDFSymmetry
+[       OK ] CauchyEnhancedTest.PDFSymmetry (0 ms)
+[ RUN      ] CauchyEnhancedTest.MedianAndMode
+[       OK ] CauchyEnhancedTest.MedianAndMode (0 ms)
+[ RUN      ] CauchyEnhancedTest.Entropy
+[       OK ] CauchyEnhancedTest.Entropy (0 ms)
+[ RUN      ] CauchyEnhancedTest.SetterPropagates
+[       OK ] CauchyEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] CauchyEnhancedTest.MLEFitSingleObservation
+[       OK ] CauchyEnhancedTest.MLEFitSingleObservation (0 ms)
+[ RUN      ] CauchyEnhancedTest.MLEFit
+[       OK ] CauchyEnhancedTest.MLEFit (0 ms)
+[ RUN      ] CauchyEnhancedTest.VectorizedMatchesScalar
+[       OK ] CauchyEnhancedTest.VectorizedMatchesScalar (0 ms)
+[ RUN      ] CauchyEnhancedTest.VectorizedSpeedup
+Cauchy LogPDF VECTORIZED speedup: 4.54885x (VECTORIZED 112.6µs, SCALAR 512.2µs)
+[       OK ] CauchyEnhancedTest.VectorizedSpeedup (10 ms)
+[----------] 17 tests from CauchyEnhancedTest (13 ms total)
+
+[----------] Global test environment tear-down
+[==========] 21 tests from 2 test suites ran. (41 ms total)
+[  PASSED  ] 21 tests.

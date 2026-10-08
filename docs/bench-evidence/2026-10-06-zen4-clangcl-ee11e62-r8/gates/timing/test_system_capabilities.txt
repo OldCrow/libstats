@@ -1,0 +1,27 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from SystemCapabilitiesIntegrationTest
+[ RUN      ] SystemCapabilitiesIntegrationTest.SingletonBehavior
+[       OK ] SystemCapabilitiesIntegrationTest.SingletonBehavior (16 ms)
+[ RUN      ] SystemCapabilitiesIntegrationTest.ReasonableSystemValues
+[       OK ] SystemCapabilitiesIntegrationTest.ReasonableSystemValues (0 ms)
+[ RUN      ] SystemCapabilitiesIntegrationTest.SIMDCapabilityConsistency
+[       OK ] SystemCapabilitiesIntegrationTest.SIMDCapabilityConsistency (0 ms)
+[ RUN      ] SystemCapabilitiesIntegrationTest.ThreadSafety
+[       OK ] SystemCapabilitiesIntegrationTest.ThreadSafety (154 ms)
+[ RUN      ] SystemCapabilitiesIntegrationTest.PerformanceCharacteristicsRealistic
+[       OK ] SystemCapabilitiesIntegrationTest.PerformanceCharacteristicsRealistic (0 ms)
+[ RUN      ] SystemCapabilitiesIntegrationTest.IntegrationWithDispatcher
+[       OK ] SystemCapabilitiesIntegrationTest.IntegrationWithDispatcher (0 ms)
+[ RUN      ] SystemCapabilitiesIntegrationTest.CacheHierarchyLogical
+[       OK ] SystemCapabilitiesIntegrationTest.CacheHierarchyLogical (0 ms)
+[ RUN      ] SystemCapabilitiesIntegrationTest.PlatformSpecificFeatures
+[       OK ] SystemCapabilitiesIntegrationTest.PlatformSpecificFeatures (0 ms)
+[ RUN      ] SystemCapabilitiesIntegrationTest.ConsistentResults
+[       OK ] SystemCapabilitiesIntegrationTest.ConsistentResults (13 ms)
+[----------] 9 tests from SystemCapabilitiesIntegrationTest (188 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (190 ms total)
+[  PASSED  ] 9 tests.

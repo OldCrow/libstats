@@ -1,0 +1,42 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 15 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 11 tests from BetaEnhancedTest
+[ RUN      ] BetaEnhancedTest.UniformCase
+[       OK ] BetaEnhancedTest.UniformCase (12 ms)
+[ RUN      ] BetaEnhancedTest.KnownValuesBeta22
+[       OK ] BetaEnhancedTest.KnownValuesBeta22 (0 ms)
+[ RUN      ] BetaEnhancedTest.CDFSymmetry
+[       OK ] BetaEnhancedTest.CDFSymmetry (0 ms)
+[ RUN      ] BetaEnhancedTest.MomentProperties
+[       OK ] BetaEnhancedTest.MomentProperties (0 ms)
+[ RUN      ] BetaEnhancedTest.LogPDFConsistency
+[       OK ] BetaEnhancedTest.LogPDFConsistency (0 ms)
+[ RUN      ] BetaEnhancedTest.BatchMatchesScalar
+[       OK ] BetaEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] BetaEnhancedTest.QuantileRoundTrip
+[       OK ] BetaEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] BetaEnhancedTest.SetterPropagates
+[       OK ] BetaEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] BetaEnhancedTest.MLEFit
+[       OK ] BetaEnhancedTest.MLEFit (0 ms)
+[ RUN      ] BetaEnhancedTest.InvalidParameters
+[       OK ] BetaEnhancedTest.InvalidParameters (0 ms)
+[ RUN      ] BetaEnhancedTest.OutOfSupport
+[       OK ] BetaEnhancedTest.OutOfSupport (0 ms)
+[----------] 11 tests from BetaEnhancedTest (16 ms total)
+
+[----------] 4 tests from Beta/DistributionEnhancedTest/0, where TypeParam = stats::BetaDistribution
+[ RUN      ] Beta/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Beta/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Beta/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Beta/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Beta/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Beta/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Beta/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Beta/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Beta/DistributionEnhancedTest/0 (1 ms total)
+
+[----------] Global test environment tear-down
+[==========] 15 tests from 2 test suites ran. (19 ms total)
+[  PASSED  ] 15 tests.

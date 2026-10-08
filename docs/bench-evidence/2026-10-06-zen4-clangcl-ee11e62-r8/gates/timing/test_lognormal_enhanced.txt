@@ -1,0 +1,51 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 19 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 15 tests from LogNormalEnhancedTest
+[ RUN      ] LogNormalEnhancedTest.StandardPDFAtOne
+[       OK ] LogNormalEnhancedTest.StandardPDFAtOne (12 ms)
+[ RUN      ] LogNormalEnhancedTest.StandardCDFAtOne
+[       OK ] LogNormalEnhancedTest.StandardCDFAtOne (0 ms)
+[ RUN      ] LogNormalEnhancedTest.MedianEqualsExpMu
+[       OK ] LogNormalEnhancedTest.MedianEqualsExpMu (0 ms)
+[ RUN      ] LogNormalEnhancedTest.ModeFormula
+[       OK ] LogNormalEnhancedTest.ModeFormula (0 ms)
+[ RUN      ] LogNormalEnhancedTest.MeanFormula
+[       OK ] LogNormalEnhancedTest.MeanFormula (0 ms)
+[ RUN      ] LogNormalEnhancedTest.VarianceFormula
+[       OK ] LogNormalEnhancedTest.VarianceFormula (0 ms)
+[ RUN      ] LogNormalEnhancedTest.LogPDFConsistency
+[       OK ] LogNormalEnhancedTest.LogPDFConsistency (0 ms)
+[ RUN      ] LogNormalEnhancedTest.OutOfSupport
+[       OK ] LogNormalEnhancedTest.OutOfSupport (0 ms)
+[ RUN      ] LogNormalEnhancedTest.QuantileRoundTrip
+[       OK ] LogNormalEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] LogNormalEnhancedTest.BatchMatchesScalar
+[       OK ] LogNormalEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] LogNormalEnhancedTest.VectorizedMatchesScalar
+[       OK ] LogNormalEnhancedTest.VectorizedMatchesScalar (0 ms)
+[ RUN      ] LogNormalEnhancedTest.MLEFit
+[       OK ] LogNormalEnhancedTest.MLEFit (0 ms)
+[ RUN      ] LogNormalEnhancedTest.SetterPropagates
+[       OK ] LogNormalEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] LogNormalEnhancedTest.InvalidParameters
+[       OK ] LogNormalEnhancedTest.InvalidParameters (0 ms)
+[ RUN      ] LogNormalEnhancedTest.VectorizedSpeedup
+LogNormal LogPDF VECTORIZED speedup: 6.22361x (VECTORIZED 72μs, SCALAR 448.1μs)
+[       OK ] LogNormalEnhancedTest.VectorizedSpeedup (8 ms)
+[----------] 15 tests from LogNormalEnhancedTest (26 ms total)
+
+[----------] 4 tests from Lognormal/DistributionEnhancedTest/0, where TypeParam = stats::LogNormalDistribution
+[ RUN      ] Lognormal/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Lognormal/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Lognormal/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Lognormal/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Lognormal/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Lognormal/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Lognormal/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Lognormal/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Lognormal/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 19 tests from 2 test suites ran. (28 ms total)
+[  PASSED  ] 19 tests.

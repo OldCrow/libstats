@@ -1,0 +1,685 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 109 tests from 28 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from ConcurrencyStressMachine
+[ RUN      ] ConcurrencyStressMachine.CoreTopology
+[       OK ] ConcurrencyStressMachine.CoreTopology (24 ms)
+[----------] 1 test from ConcurrencyStressMachine (24 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Gaussian
+[ RUN      ] ConcurrencyStress_Gaussian.Readers
+[ reach    ] Gaussian: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Gaussian.Readers (1626 ms)
+[ RUN      ] ConcurrencyStress_Gaussian.Writers
+[       OK ] ConcurrencyStress_Gaussian.Writers (370 ms)
+[ RUN      ] ConcurrencyStress_Gaussian.SeededSample
+[       OK ] ConcurrencyStress_Gaussian.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Gaussian.StrategyDifferential
+[ kernel   ] Gaussian           pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gaussian           logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gaussian           cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Gaussian.StrategyDifferential (13 ms)
+[----------] 4 tests from ConcurrencyStress_Gaussian (2010 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Exponential
+[ RUN      ] ConcurrencyStress_Exponential.Readers
+[ reach    ] Exponential: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Exponential.Readers (1458 ms)
+[ RUN      ] ConcurrencyStress_Exponential.Writers
+[       OK ] ConcurrencyStress_Exponential.Writers (213 ms)
+[ RUN      ] ConcurrencyStress_Exponential.SeededSample
+[       OK ] ConcurrencyStress_Exponential.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Exponential.StrategyDifferential
+[ kernel   ] Exponential        pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Exponential        logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Exponential        cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Exponential.StrategyDifferential (9 ms)
+[----------] 4 tests from ConcurrencyStress_Exponential (1681 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Uniform
+[ RUN      ] ConcurrencyStress_Uniform.Readers
+[ reach    ] Uniform: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Uniform.Readers (1405 ms)
+[ RUN      ] ConcurrencyStress_Uniform.Writers
+[       OK ] ConcurrencyStress_Uniform.Writers (369 ms)
+[ RUN      ] ConcurrencyStress_Uniform.SeededSample
+[       OK ] ConcurrencyStress_Uniform.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Uniform.StrategyDifferential
+[ kernel   ] Uniform            pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Uniform            logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Uniform            cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Uniform.StrategyDifferential (8 ms)
+[----------] 4 tests from ConcurrencyStress_Uniform (1783 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Discrete
+[ RUN      ] ConcurrencyStress_Discrete.Readers
+[ reach    ] Discrete: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Discrete.Readers (1463 ms)
+[ RUN      ] ConcurrencyStress_Discrete.Writers
+[       OK ] ConcurrencyStress_Discrete.Writers (432 ms)
+[ RUN      ] ConcurrencyStress_Discrete.SeededSample
+[       OK ] ConcurrencyStress_Discrete.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Discrete.StrategyDifferential
+[ kernel   ] Discrete           pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Discrete           logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Discrete           cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Discrete.StrategyDifferential (8 ms)
+[----------] 4 tests from ConcurrencyStress_Discrete (1904 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Poisson
+[ RUN      ] ConcurrencyStress_Poisson.Readers
+[ reach    ] Poisson: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Poisson.Readers (3006 ms)
+[ RUN      ] ConcurrencyStress_Poisson.Writers
+[       OK ] ConcurrencyStress_Poisson.Writers (245 ms)
+[ RUN      ] ConcurrencyStress_Poisson.SeededSample
+[       OK ] ConcurrencyStress_Poisson.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Poisson.StrategyDifferential
+[ kernel   ] Poisson            pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Poisson            logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Poisson            cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Poisson.StrategyDifferential (37 ms)
+[----------] 4 tests from ConcurrencyStress_Poisson (3289 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Gamma
+[ RUN      ] ConcurrencyStress_Gamma.Readers
+[ reach    ] Gamma: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Gamma.Readers (2219 ms)
+[ RUN      ] ConcurrencyStress_Gamma.Writers
+[       OK ] ConcurrencyStress_Gamma.Writers (398 ms)
+[ RUN      ] ConcurrencyStress_Gamma.SeededSample
+[       OK ] ConcurrencyStress_Gamma.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Gamma.StrategyDifferential
+[ kernel   ] Gamma              pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gamma              logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gamma              cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Gamma.StrategyDifferential (19 ms)
+[----------] 4 tests from ConcurrencyStress_Gamma (2637 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Bernoulli
+[ RUN      ] ConcurrencyStress_Bernoulli.Readers
+[ reach    ] Bernoulli: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Bernoulli.Readers (1997 ms)
+[ RUN      ] ConcurrencyStress_Bernoulli.Writers
+[       OK ] ConcurrencyStress_Bernoulli.Writers (243 ms)
+[ RUN      ] ConcurrencyStress_Bernoulli.SeededSample
+[       OK ] ConcurrencyStress_Bernoulli.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Bernoulli.StrategyDifferential
+[ kernel   ] Bernoulli          pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Bernoulli          logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Bernoulli          cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Bernoulli.StrategyDifferential (22 ms)
+[----------] 4 tests from ConcurrencyStress_Bernoulli (2263 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Beta
+[ RUN      ] ConcurrencyStress_Beta.Readers
+[ reach    ] Beta: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Beta.Readers (2303 ms)
+[ RUN      ] ConcurrencyStress_Beta.Writers
+[       OK ] ConcurrencyStress_Beta.Writers (522 ms)
+[ RUN      ] ConcurrencyStress_Beta.SeededSample
+[       OK ] ConcurrencyStress_Beta.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Beta.StrategyDifferential
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Beta pdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Beta pdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Beta pdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Beta pdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] Beta               pdf    n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Beta logpdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Beta logpdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Beta logpdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Beta logpdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] Beta               logpdf n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+[ kernel   ] Beta               cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[  FAILED  ] ConcurrencyStress_Beta.StrategyDifferential (16 ms)
+[----------] 4 tests from ConcurrencyStress_Beta (2842 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Binomial
+[ RUN      ] ConcurrencyStress_Binomial.Readers
+[ reach    ] Binomial: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Binomial.Readers (7261 ms)
+[ RUN      ] ConcurrencyStress_Binomial.Writers
+[       OK ] ConcurrencyStress_Binomial.Writers (677 ms)
+[ RUN      ] ConcurrencyStress_Binomial.SeededSample
+[       OK ] ConcurrencyStress_Binomial.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Binomial.StrategyDifferential
+[ kernel   ] Binomial           pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Binomial           logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Binomial           cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Binomial.StrategyDifferential (61 ms)
+[----------] 4 tests from ConcurrencyStress_Binomial (8000 ms total)
+
+[----------] 4 tests from ConcurrencyStress_StudentT
+[ RUN      ] ConcurrencyStress_StudentT.Readers
+[ reach    ] StudentT: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_StudentT.Readers (4189 ms)
+[ RUN      ] ConcurrencyStress_StudentT.Writers
+[       OK ] ConcurrencyStress_StudentT.Writers (428 ms)
+[ RUN      ] ConcurrencyStress_StudentT.SeededSample
+[       OK ] ConcurrencyStress_StudentT.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_StudentT.StrategyDifferential
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+StudentT pdf n=8193 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+StudentT pdf n=8193 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+StudentT pdf n=8193 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+StudentT pdf n=8193 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] StudentT           pdf    n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+StudentT logpdf n=8193 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+StudentT logpdf n=8193 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+StudentT logpdf n=8193 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+StudentT logpdf n=8193 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] StudentT           logpdf n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+[ kernel   ] StudentT           cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[  FAILED  ] ConcurrencyStress_StudentT.StrategyDifferential (40 ms)
+[----------] 4 tests from ConcurrencyStress_StudentT (4659 ms total)
+
+[----------] 4 tests from ConcurrencyStress_ChiSquared
+[ RUN      ] ConcurrencyStress_ChiSquared.Readers
+[ reach    ] ChiSquared: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_ChiSquared.Readers (2666 ms)
+[ RUN      ] ConcurrencyStress_ChiSquared.Writers
+[       OK ] ConcurrencyStress_ChiSquared.Writers (244 ms)
+[ RUN      ] ConcurrencyStress_ChiSquared.SeededSample
+[       OK ] ConcurrencyStress_ChiSquared.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_ChiSquared.StrategyDifferential
+[ kernel   ] ChiSquared         pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] ChiSquared         logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] ChiSquared         cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_ChiSquared.StrategyDifferential (34 ms)
+[----------] 4 tests from ConcurrencyStress_ChiSquared (2945 ms total)
+
+[----------] 4 tests from ConcurrencyStress_VonMises
+[ RUN      ] ConcurrencyStress_VonMises.Readers
+[ reach    ] VonMises: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_VonMises.Readers (5756 ms)
+[ RUN      ] ConcurrencyStress_VonMises.Writers
+[       OK ] ConcurrencyStress_VonMises.Writers (773 ms)
+[ RUN      ] ConcurrencyStress_VonMises.SeededSample
+[       OK ] ConcurrencyStress_VonMises.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_VonMises.StrategyDifferential
+[ kernel   ] VonMises           pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] VonMises           logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] VonMises           cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_VonMises.StrategyDifferential (39 ms)
+[----------] 4 tests from ConcurrencyStress_VonMises (6569 ms total)
+
+[----------] 4 tests from ConcurrencyStress_LogNormal
+[ RUN      ] ConcurrencyStress_LogNormal.Readers
+[ reach    ] LogNormal: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_LogNormal.Readers (1755 ms)
+[ RUN      ] ConcurrencyStress_LogNormal.Writers
+[       OK ] ConcurrencyStress_LogNormal.Writers (370 ms)
+[ RUN      ] ConcurrencyStress_LogNormal.SeededSample
+[       OK ] ConcurrencyStress_LogNormal.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_LogNormal.StrategyDifferential
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+LogNormal pdf n=8193 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+LogNormal pdf n=8193 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+LogNormal pdf n=8193 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+LogNormal pdf n=8193 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] LogNormal          pdf    n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+LogNormal logpdf n=8193 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+LogNormal logpdf n=8193 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+LogNormal logpdf n=8193 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+LogNormal logpdf n=8193 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+LogNormal logpdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+LogNormal logpdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+LogNormal logpdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+LogNormal logpdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] LogNormal          logpdf n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+[ kernel   ] LogNormal          cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[  FAILED  ] ConcurrencyStress_LogNormal.StrategyDifferential (12 ms)
+[----------] 4 tests from ConcurrencyStress_LogNormal (2138 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Pareto
+[ RUN      ] ConcurrencyStress_Pareto.Readers
+[ reach    ] Pareto: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Pareto.Readers (1736 ms)
+[ RUN      ] ConcurrencyStress_Pareto.Writers
+[       OK ] ConcurrencyStress_Pareto.Writers (368 ms)
+[ RUN      ] ConcurrencyStress_Pareto.SeededSample
+[       OK ] ConcurrencyStress_Pareto.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Pareto.StrategyDifferential
+[ kernel   ] Pareto             pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Pareto             logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Pareto cdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Pareto cdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Pareto cdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Pareto cdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] Pareto             cdf    n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+[  FAILED  ] ConcurrencyStress_Pareto.StrategyDifferential (11 ms)
+[----------] 4 tests from ConcurrencyStress_Pareto (2117 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Rayleigh
+[ RUN      ] ConcurrencyStress_Rayleigh.Readers
+[ reach    ] Rayleigh: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Rayleigh.Readers (1523 ms)
+[ RUN      ] ConcurrencyStress_Rayleigh.Writers
+[       OK ] ConcurrencyStress_Rayleigh.Writers (184 ms)
+[ RUN      ] ConcurrencyStress_Rayleigh.SeededSample
+[       OK ] ConcurrencyStress_Rayleigh.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Rayleigh.StrategyDifferential
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Rayleigh pdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Rayleigh pdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Rayleigh pdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Rayleigh pdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] Rayleigh           pdf    n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Rayleigh logpdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Rayleigh logpdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Rayleigh logpdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Rayleigh logpdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] Rayleigh           logpdf n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+[ kernel   ] Rayleigh           cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[  FAILED  ] ConcurrencyStress_Rayleigh.StrategyDifferential (9 ms)
+[----------] 4 tests from ConcurrencyStress_Rayleigh (1718 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Weibull
+[ RUN      ] ConcurrencyStress_Weibull.Readers
+[ reach    ] Weibull: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Weibull.Readers (2419 ms)
+[ RUN      ] ConcurrencyStress_Weibull.Writers
+[       OK ] ConcurrencyStress_Weibull.Writers (523 ms)
+[ RUN      ] ConcurrencyStress_Weibull.SeededSample
+[       OK ] ConcurrencyStress_Weibull.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Weibull.StrategyDifferential
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Weibull pdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Weibull pdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Weibull pdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Weibull pdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] Weibull            pdf    n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Weibull logpdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Weibull logpdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Weibull logpdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Weibull logpdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] Weibull            logpdf n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Weibull cdf n=24583 PARALLEL: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Weibull cdf n=24583 PARALLEL: not the batch kernel's bits (#191)
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(741): error: Value of: isVec || isSc
+  Actual: false
+Expected: true
+Weibull cdf n=24583 MAX_THROUGHPUT: neither the batch kernel's nor the scalar method's bits
+
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\test_concurrency_stress.cpp(752): error: Value of: isVec
+  Actual: false
+Expected: true
+Weibull cdf n=24583 MAX_THROUGHPUT: not the batch kernel's bits (#191)
+
+[ kernel   ] Weibull            cdf    n >= fork: PARALLEL mixed, MAX_THROUGHPUT mixed, AUTO batch
+[  FAILED  ] ConcurrencyStress_Weibull.StrategyDifferential (14 ms)
+[----------] 4 tests from ConcurrencyStress_Weibull (2957 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Cauchy
+[ RUN      ] ConcurrencyStress_Cauchy.Readers
+[ reach    ] Cauchy: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Cauchy.Readers (1656 ms)
+[ RUN      ] ConcurrencyStress_Cauchy.Writers
+[       OK ] ConcurrencyStress_Cauchy.Writers (492 ms)
+[ RUN      ] ConcurrencyStress_Cauchy.SeededSample
+[       OK ] ConcurrencyStress_Cauchy.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Cauchy.StrategyDifferential
+[ kernel   ] Cauchy             pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Cauchy             logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Cauchy             cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Cauchy.StrategyDifferential (13 ms)
+[----------] 4 tests from ConcurrencyStress_Cauchy (2163 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Laplace
+[ RUN      ] ConcurrencyStress_Laplace.Readers
+[ reach    ] Laplace: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Laplace.Readers (1485 ms)
+[ RUN      ] ConcurrencyStress_Laplace.Writers
+[       OK ] ConcurrencyStress_Laplace.Writers (335 ms)
+[ RUN      ] ConcurrencyStress_Laplace.SeededSample
+[       OK ] ConcurrencyStress_Laplace.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Laplace.StrategyDifferential
+[ kernel   ] Laplace            pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Laplace            logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Laplace            cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Laplace.StrategyDifferential (8 ms)
+[----------] 4 tests from ConcurrencyStress_Laplace (1830 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Logistic
+[ RUN      ] ConcurrencyStress_Logistic.Readers
+[ reach    ] Logistic: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Logistic.Readers (1655 ms)
+[ RUN      ] ConcurrencyStress_Logistic.Writers
+[       OK ] ConcurrencyStress_Logistic.Writers (556 ms)
+[ RUN      ] ConcurrencyStress_Logistic.SeededSample
+[       OK ] ConcurrencyStress_Logistic.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Logistic.StrategyDifferential
+[ kernel   ] Logistic           pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Logistic           logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Logistic           cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Logistic.StrategyDifferential (11 ms)
+[----------] 4 tests from ConcurrencyStress_Logistic (2224 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Gumbel
+[ RUN      ] ConcurrencyStress_Gumbel.Readers
+[ reach    ] Gumbel: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Gumbel.Readers (1521 ms)
+[ RUN      ] ConcurrencyStress_Gumbel.Writers
+[       OK ] ConcurrencyStress_Gumbel.Writers (369 ms)
+[ RUN      ] ConcurrencyStress_Gumbel.SeededSample
+[       OK ] ConcurrencyStress_Gumbel.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Gumbel.StrategyDifferential
+[ kernel   ] Gumbel             pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gumbel             logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gumbel             cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Gumbel.StrategyDifferential (11 ms)
+[----------] 4 tests from ConcurrencyStress_Gumbel (1902 ms total)
+
+[----------] 4 tests from ConcurrencyStress_HalfNormal
+[ RUN      ] ConcurrencyStress_HalfNormal.Readers
+[ reach    ] HalfNormal: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_HalfNormal.Readers (1481 ms)
+[ RUN      ] ConcurrencyStress_HalfNormal.Writers
+[       OK ] ConcurrencyStress_HalfNormal.Writers (214 ms)
+[ RUN      ] ConcurrencyStress_HalfNormal.SeededSample
+[       OK ] ConcurrencyStress_HalfNormal.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_HalfNormal.StrategyDifferential
+[ kernel   ] HalfNormal         pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] HalfNormal         logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] HalfNormal         cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_HalfNormal.StrategyDifferential (8 ms)
+[----------] 4 tests from ConcurrencyStress_HalfNormal (1704 ms total)
+
+[----------] 4 tests from ConcurrencyStress_InverseGamma
+[ RUN      ] ConcurrencyStress_InverseGamma.Readers
+[ reach    ] InverseGamma: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_InverseGamma.Readers (2452 ms)
+[ RUN      ] ConcurrencyStress_InverseGamma.Writers
+[       OK ] ConcurrencyStress_InverseGamma.Writers (398 ms)
+[ RUN      ] ConcurrencyStress_InverseGamma.SeededSample
+[       OK ] ConcurrencyStress_InverseGamma.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_InverseGamma.StrategyDifferential
+[ kernel   ] InverseGamma       pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] InverseGamma       logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] InverseGamma       cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_InverseGamma.StrategyDifferential (24 ms)
+[----------] 4 tests from ConcurrencyStress_InverseGamma (2875 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Erlang
+[ RUN      ] ConcurrencyStress_Erlang.Readers
+[ reach    ] Erlang: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Erlang.Readers (1963 ms)
+[ RUN      ] ConcurrencyStress_Erlang.Writers
+[       OK ] ConcurrencyStress_Erlang.Writers (431 ms)
+[ RUN      ] ConcurrencyStress_Erlang.SeededSample
+[       OK ] ConcurrencyStress_Erlang.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Erlang.StrategyDifferential
+[ kernel   ] Erlang             pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Erlang             logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Erlang             cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Erlang.StrategyDifferential (19 ms)
+[----------] 4 tests from ConcurrencyStress_Erlang (2414 ms total)
+
+[----------] 4 tests from ConcurrencyStress_FisherF
+[ RUN      ] ConcurrencyStress_FisherF.Readers
+[ reach    ] FisherF: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_FisherF.Readers (2709 ms)
+[ RUN      ] ConcurrencyStress_FisherF.Writers
+[       OK ] ConcurrencyStress_FisherF.Writers (518 ms)
+[ RUN      ] ConcurrencyStress_FisherF.SeededSample
+[       OK ] ConcurrencyStress_FisherF.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_FisherF.StrategyDifferential
+[ kernel   ] FisherF            pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] FisherF            logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] FisherF            cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_FisherF.StrategyDifferential (36 ms)
+[----------] 4 tests from ConcurrencyStress_FisherF (3264 ms total)
+
+[----------] 4 tests from ConcurrencyStress_Geometric
+[ RUN      ] ConcurrencyStress_Geometric.Readers
+[ reach    ] Geometric: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Geometric.Readers (5646 ms)
+[ RUN      ] ConcurrencyStress_Geometric.Writers
+[       OK ] ConcurrencyStress_Geometric.Writers (401 ms)
+[ RUN      ] ConcurrencyStress_Geometric.SeededSample
+[       OK ] ConcurrencyStress_Geometric.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Geometric.StrategyDifferential
+[ kernel   ] Geometric          pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Geometric          logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Geometric          cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Geometric.StrategyDifferential (79 ms)
+[----------] 4 tests from ConcurrencyStress_Geometric (6127 ms total)
+
+[----------] 4 tests from ConcurrencyStress_NegativeBinomial
+[ RUN      ] ConcurrencyStress_NegativeBinomial.Readers
+[ reach    ] NegativeBinomial: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_NegativeBinomial.Readers (7742 ms)
+[ RUN      ] ConcurrencyStress_NegativeBinomial.Writers
+[       OK ] ConcurrencyStress_NegativeBinomial.Writers (1176 ms)
+[ RUN      ] ConcurrencyStress_NegativeBinomial.SeededSample
+[       OK ] ConcurrencyStress_NegativeBinomial.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_NegativeBinomial.StrategyDifferential
+[ kernel   ] NegativeBinomial   pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] NegativeBinomial   logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] NegativeBinomial   cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_NegativeBinomial.StrategyDifferential (95 ms)
+[----------] 4 tests from ConcurrencyStress_NegativeBinomial (9014 ms total)
+
+[----------] 4 tests from ConcurrencyStress_TruncatedNormal
+[ RUN      ] ConcurrencyStress_TruncatedNormal.Readers
+[ reach    ] TruncatedNormal: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_TruncatedNormal.Readers (1725 ms)
+[ RUN      ] ConcurrencyStress_TruncatedNormal.Writers
+[       OK ] ConcurrencyStress_TruncatedNormal.Writers (891 ms)
+[ RUN      ] ConcurrencyStress_TruncatedNormal.SeededSample
+[       OK ] ConcurrencyStress_TruncatedNormal.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_TruncatedNormal.StrategyDifferential
+[ kernel   ] TruncatedNormal    pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] TruncatedNormal    logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] TruncatedNormal    cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_TruncatedNormal.StrategyDifferential (9 ms)
+[----------] 4 tests from ConcurrencyStress_TruncatedNormal (2625 ms total)
+
+[----------] Global test environment tear-down
+[==========] 109 tests from 28 test suites ran. (85692 ms total)
+[  PASSED  ] 103 tests.
+[  FAILED  ] 6 tests, listed below:
+[  FAILED  ] ConcurrencyStress_Beta.StrategyDifferential
+[  FAILED  ] ConcurrencyStress_StudentT.StrategyDifferential
+[  FAILED  ] ConcurrencyStress_LogNormal.StrategyDifferential
+[  FAILED  ] ConcurrencyStress_Pareto.StrategyDifferential
+[  FAILED  ] ConcurrencyStress_Rayleigh.StrategyDifferential
+[  FAILED  ] ConcurrencyStress_Weibull.StrategyDifferential
+
+ 6 FAILED TESTS
