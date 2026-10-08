@@ -113,10 +113,27 @@ int racedRounds(int rounds, Setup setup, First first, Second second, Check check
     return rejected;
 }
 
+// An environment variable's value, empty when unset. The Windows CRT deprecates std::getenv, and
+// only MSVC builds define _CRT_SECURE_NO_WARNINGS, so clang-cl warned on it.
+std::string envValue(const char* name) {
+#ifdef _WIN32
+    char* buf = nullptr;
+    std::size_t len = 0;
+    std::string value;
+    if (_dupenv_s(&buf, &len, name) == 0 && buf != nullptr)
+        value = buf;
+    std::free(buf);
+    return value;
+#else
+    const char* s = std::getenv(name);
+    return s ? s : "";
+#endif
+}
+
 double stressScale() {
     static const double scale = [] {
-        const char* s = std::getenv("LIBSTATS_STRESS_SCALE");
-        const double v = s ? std::atof(s) : 1.0;
+        const std::string s = envValue("LIBSTATS_STRESS_SCALE");
+        const double v = s.empty() ? 1.0 : std::atof(s.c_str());
         return v > 0.0 ? v : 1.0;
     }();
     return scale;

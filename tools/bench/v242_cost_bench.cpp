@@ -156,9 +156,25 @@ void bench(const std::string& name, const D& d, double lo, double hi, bool integ
         }));
 }
 
+// An environment variable's value, empty when unset. The Windows CRT deprecates std::getenv.
+std::string envValue(const char* name) {
+#ifdef _WIN32
+    char* buf = nullptr;
+    std::size_t len = 0;
+    std::string value;
+    if (_dupenv_s(&buf, &len, name) == 0 && buf != nullptr)
+        value = buf;
+    std::free(buf);
+    return value;
+#else
+    const char* s = std::getenv(name);
+    return s ? s : "";
+#endif
+}
+
 void warmup() {
-    const char* s = std::getenv("LIBSTATS_BENCH_WARMUP_SECONDS");
-    const double secs = s ? std::atof(s) : 0.0;
+    const std::string s = envValue("LIBSTATS_BENCH_WARMUP_SECONDS");
+    const double secs = s.empty() ? 0.0 : std::atof(s.c_str());
     if (secs <= 0.0)
         return;
     volatile double x = 1.0;

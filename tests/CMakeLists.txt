@@ -450,6 +450,11 @@ create_libstats_gtest(test_concurrency_gates test_concurrency_gates.cpp)
 # assignment), two-writer rounds, and a strategy differential. Correctness, not timing: it asserts
 # values and progress only. LIBSTATS_STRESS_SCALE scales its rounds (lower it under TSan).
 create_libstats_gtest(test_concurrency_stress test_concurrency_stress.cpp)
+# Its templated rows exceed COFF's 2^16 sections: MSVC stops with C1128 without /bigobj (clang-cl
+# switches to the big format by itself).
+if(MSVC)
+    target_compile_options(test_concurrency_stress PRIVATE /bigobj)
+endif()
 
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
