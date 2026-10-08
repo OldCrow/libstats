@@ -18,7 +18,17 @@ this file names that branch and its code. All milestone code is in, #162 include
 `5367999`), with `SQRT_PI` corrected (`4ec1950`) and the Beta
 large-shape density fixed (`97c67bf`).
 
-**Code freeze at `ee11e62` [user, 2026-10-06]**, moved from `5367999`
+**Freeze policy [user, 2026-10-07].** v2.5.0's code freezes for good at
+its release and stays frozen until corvus is integrated (v3.0.0). Until
+then the freeze head names the code under validation, not a promise that
+it is final: a defect that affects accuracy, a speedup or a contract's
+validity is fixed, the head moves, and every machine repeats R1, R2's
+sweep compare, R8 and R9 there. v2.5.0 releases from the first head that
+passes every machine's gates with no such defect open. **Freeze head:
+`045acd9`** (K's #191 slice-tail fix, 2026-10-07), over M's #184–#191
+(`5765d68`–`19d7f64`) and Z's MSVC test fix (`ff4cb6d`).
+
+History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
 rename in `gamma.cpp` and `beta.cpp`), the `log1pmx_series` Horner
 written out (`998d985`, so MSVC vectorizes the Beta and Gamma Stirling
@@ -168,7 +178,13 @@ Status by machine (each machine edits only its own line):
   2026-10-05]. R4 stands. K's R1–R4 and R8 are complete at the freeze head.
   At `bb27040` (2026-10-05): incremental build 0 warnings, 89/89; the
   sweep bit-identical to `4ceafae`'s (10,212 lines), so `998d985`
-  changes nothing on AppleClang 15.
+  changes nothing on AppleClang 15. At `045acd9` (2026-10-07, after
+  pulling `e9a7410`): Release 0 warnings; correctness 91/91; sweep
+  bit-identical to `bb27040`'s, so `ee11e62`, #184–#191 and the slice
+  fix change no result bits on AppleClang 15; stress test after K's fix
+  in R9. #184–#191 moved to milestone #10 [user]. Next on K: quiet
+  `test_parallel_batch_gates`, R8 (AVX2, AVX, SSE2; the capped trees
+  rebuilt), then R9's stress test under TSan.
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
@@ -211,8 +227,9 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `ee11e62` (Status); confirm it with
-  `git log -1` before R1. Library code is frozen: see Status.
+- Validate at the freeze head `045acd9` (Status: it moves when a
+  defect is fixed; validate at the latest); confirm it with `git log -1`
+  before R1. Library code changes only by the user's decision: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
   Fix nothing in library code without the user's decision.
 - Quiet runs (R3) alone on the machine: no builds, sweeps or other
@@ -408,7 +425,7 @@ batch path instead of a serial per-element scalar loop, so no capture
 before `ee11e62` measured PARALLEL under 1024–8192 elements as AUTO runs
 it now.
 
-Next on every machine, at `ee11e62`:
+Next on every machine, at the freeze head (Status):
 1. Build (R1's commands); correctness ctest, 90 tests (91 with
    `test_parallel_batch_gates`, which is timing-labelled).
    `test_snapshot_consistency` and `test_concurrency_gates` carry the
@@ -446,7 +463,7 @@ detector shown to fire, or is recorded as a v3 input with no detector.
 | C4 one call mixing two parameter states | Binomial, NegBinomial, von Mises batches; Beta boundary; #182 | stress one-state oracle | M, K, Z |
 | C5 strategy runs the wrong kernel | PARALLEL below the fork threshold | strategy differential (step 1c) | M, K, Z |
 | C6 parallel helper semantics | `parallelTransform` repeated chunks; #181 | call-count gates; #181 needs fault injection | gates all; #181 none |
-| C7 work-stealing cross-waiting | #180 | WORK_STEALING reader alongside another pool user | K only after #190 (no probe written yet) |
+| C7 work-stealing cross-waiting | #180 | `WorkStealingCrossWaiting`: a WORK_STEALING batch beside a blocked pool task | K only after #190; fires on K (12 rows, 28 ops; known #180) |
 
 No detector, so v3 inputs unless one is found: `d == d` (undefined, no
 platform shows it), recursive shared locks off Windows, #181's
@@ -653,6 +670,22 @@ affect.
   above the fork threshold to the differential, so it fires on every
   machine; show it failing on K before the fix. Moves the freeze head;
   Z then reruns R1, the sweep compare, the stress test and R8.
+- **Done on K** [DERIVED, 2026-10-07, `045acd9`]. Both helpers fold a
+  partial final slice into the previous one (any remainder [user]), so
+  slices start at multiples of 1024 and the last holds 1024–2047
+  elements. The differential gains 1024·k + 1 and 1024·k + simdMin − 1
+  above the fork threshold (K: 6145, 6151); before the fix it failed 14
+  distributions on K under PARALLEL and MAX_THROUGHPUT (WORK_STEALING
+  on K), after it all 81 pairs run the batch kernel. **C7 probe written**
+  [user]: `WorkStealingCrossWaiting` runs a MAXIMIZE_THROUGHPUT batch
+  beside a pool task that blocks until released; the batch must return
+  within 1 s. It fires on K for every lambda still calling
+  `pool.waitForAll()` (Beta, Binomial, FisherF, NegativeBinomial, Gamma,
+  LogNormal, InverseGamma, VonMises) and their delegates (ChiSquared,
+  Erlang, Bernoulli, Geometric): 28 operations, known #180 skips until
+  #180's fix; it skips where WORK_STEALING is unreachable (M, Z). K's
+  stress run: 124 passed, 12 skipped (#180), 128 s (M: 68 s; the #180
+  waits are 28 s of it).
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
