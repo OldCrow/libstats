@@ -273,7 +273,10 @@ void WorkStealingPool::parallelForSlices(std::size_t count, std::size_t slice, F
         func(std::size_t{0}, count);  // one full-range slice, single SIMD-kernel call
         return;
     }
-    const std::size_t num_slices = (count + slice - 1) / slice;
+    // A partial final slice is folded into the one before it, as in
+    // ParallelUtils::parallelForSlices: a remainder below a kernel's SIMD
+    // minimum would run its scalar fallback and mix kernels in one call (#191).
+    const std::size_t num_slices = std::max<std::size_t>(1, count / slice);
     // Grain is in SLICE units here; aim for ~4 tasks per worker rather than
     // letting the impl's element-denominated auto-grain lump the whole range
     // into a handful of tasks.
@@ -281,9 +284,9 @@ void WorkStealingPool::parallelForSlices(std::size_t count, std::size_t slice, F
         std::max<std::size_t>(1, num_slices / (std::max<std::size_t>(1, getThreadCount()) * 4));
     parallelForImpl(
         std::size_t{0}, num_slices,
-        [func, slice, count](std::size_t ci) {
+        [func, slice, count, num_slices](std::size_t ci) {
             const std::size_t begin = ci * slice;
-            func(begin, std::min(slice, count - begin));
+            func(begin, ci + 1 == num_slices ? count - begin : slice);
         },
         grain);
 }

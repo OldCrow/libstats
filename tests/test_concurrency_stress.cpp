@@ -24,6 +24,7 @@
 
 #define LIBSTATS_FULL_INTERFACE
 #include "libstats/libstats.h"
+#include "libstats/platform/work_stealing_pool.h"
 
 #include <atomic>
 #include <bit>
@@ -33,6 +34,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <future>
 #include <gtest/gtest.h>
 #include <optional>
 #include <random>
@@ -718,8 +720,15 @@ void differential(const Row<D>& row) {
     const D d = row.makeA();
     const std::size_t fork = arch::get_min_elements_for_parallel();
     const std::size_t simdMin = arch::simd::SIMDPolicy::getMinThreshold();
-    const std::vector<std::size_t> sizes = {simdMin - 1, simdMin, simdMin + 1, 1000,
-                                            fork - 1,    fork,    fork + 1,    3 * fork + 7};
+    // Above the fork threshold, sizes 1 and simdMin - 1 past a multiple of the 1024-element slice
+    // (kBatchSlice in src/): a final slice that short is below the SIMD minimum, so before the
+    // helpers folded it into the previous slice it ran the scalar fallback and mixed kernels.
+    const std::size_t slices = fork / 1024 + 2;
+    const std::vector<std::size_t> sizes = {simdMin - 1,       simdMin,
+                                            simdMin + 1,       1000,
+                                            fork - 1,          fork,
+                                            fork + 1,          3 * fork + 7,
+                                            1024 * slices + 1, 1024 * slices + simdMin - 1};
     for (int op = 0; op < 3; ++op) {
         std::string ran[5];
         for (std::size_t n : sizes) {
@@ -763,6 +772,65 @@ void differential(const Row<D>& row) {
         }
         std::printf("[ kernel   ] %-18s %-6s n >= fork: PARALLEL %s, MAX_THROUGHPUT %s, AUTO %s\n",
                     row.name.c_str(), kOpNames[op], ran[2].c_str(), ran[3].c_str(), ran[4].c_str());
+    }
+}
+
+// Work-stealing cross-waiting (C7, #180). A WORK_STEALING batch must wait for its own slices only:
+// one task submitted to the global pool blocks until released, and a batch run beside it must
+// return while it is still blocked. A lambda that calls the pool's global waitForAll() after its
+// latched loop waits for that task instead. Reachable only where MAXIMIZE_THROUGHPUT resolves to
+// WORK_STEALING (SMT machines after #190); elsewhere the test skips, saying so.
+constexpr int kCrossWaitSeconds = 1;  // a batch of row.xs takes milliseconds, even under TSan
+
+// The lambdas that still call pool.waitForAll(), and the delegates that reach them (ChiSquared and
+// Erlang through Gamma, Bernoulli through Binomial, Geometric through NegativeBinomial).
+int knownCrossWaitIssue(const std::string& row) {
+    for (const char* r :
+         {"Beta", "Binomial", "FisherF", "NegativeBinomial", "Gamma", "LogNormal", "InverseGamma",
+          "VonMises", "ChiSquared", "Erlang", "Bernoulli", "Geometric"})
+        if (row == r)
+            return 180;
+    return 0;
+}
+
+template <typename D>
+void crossWaiting(const Row<D>& row, KnownIssues& known) {
+    if (detail::PerformanceDispatcher::selectMultiThreadedStrategy(
+            D::kDistributionType, detail::SystemCapabilities::current()) !=
+        detail::Strategy::WORK_STEALING)
+        GTEST_SKIP() << "MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine";
+    const D d = row.makeA();
+    for (int op = 0; op < 3; ++op) {
+        bool returned = false;
+        runWithWatchdog(row.name + " " + kOpNames[op] + " beside a blocked pool task", 60, [&] {
+            std::promise<void> release;
+            std::shared_future<void> released = release.get_future().share();
+            std::atomic<bool> started{false}, finished{false};
+            GlobalWorkStealingPool::getInstance().submit([&started, &finished, released] {
+                started.store(true);
+                released.wait();
+                finished.store(true);
+            });
+            while (!started.load())
+                std::this_thread::yield();
+            auto batch = std::async(std::launch::async, [&] {
+                return batchBits(d, row.xs, op, {Pref::MAXIMIZE_THROUGHPUT, std::nullopt});
+            });
+            returned = batch.wait_for(std::chrono::seconds(kCrossWaitSeconds)) ==
+                       std::future_status::ready;
+            release.set_value();
+            (void)batch.get();
+            while (!finished.load())  // the pool is idle again before the next op
+                std::this_thread::yield();
+        });
+        if (returned)
+            continue;
+        const std::string what = row.name + " " + kOpNames[op] +
+                                 ": the WORK_STEALING batch waited for another pool user's task";
+        if (const int issue = knownCrossWaitIssue(row.name))
+            known.hit(issue, what);
+        else
+            ADD_FAILURE() << what << " (#180)";
     }
 }
 
@@ -873,8 +941,8 @@ void seededSample(const Row<D>& row) {
     EXPECT_EQ(draw(), first) << row.name << ": a freshly seeded draw depends on an earlier draw";
 }
 
-// What this machine reaches. physical_cores is logical / 2 on every platform today (#190), so
-// MAXIMIZE_THROUGHPUT reaches WORK_STEALING on every Mac.
+// What this machine reaches. physical_cores comes from the CPU detector (#190), so
+// MAXIMIZE_THROUGHPUT reaches WORK_STEALING only where logical > physical (K, not M or Z).
 template <typename D>
 void runRow(const Row<D>& row) {
     std::printf(
@@ -934,6 +1002,11 @@ TEST(ConcurrencyStressMachine, CoreTopology) {
     }                                                                                              \
     TEST(ConcurrencyStress_##Name, StrategyDifferential) {                                         \
         differential(MakeRow);                                                                     \
+    }                                                                                              \
+    TEST(ConcurrencyStress_##Name, WorkStealingCrossWaiting) {                                     \
+        KnownIssues known;                                                                         \
+        crossWaiting(MakeRow, known);                                                              \
+        SKIP_IF_ONLY_KNOWN(known);                                                                 \
     }
 
 // clang-format off

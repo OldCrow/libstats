@@ -256,9 +256,9 @@ class ParallelUtils {
     }
 
     /// Slice-parallel loop over `count` ELEMENTS: task(start, len) receives
-    /// contiguous [start, start+len) slices of at most `slice` elements, so
-    /// each parallel task runs a SIMD batch kernel on its slice instead of a
-    /// per-index scalar body.
+    /// contiguous [start, start+len) slices of `slice` elements (the last up
+    /// to 2·slice − 1; see below), so each parallel task runs a SIMD batch
+    /// kernel on its slice instead of a per-index scalar body.
     ///
     /// The serial-fallback gate here is denominated in ELEMENTS (`count`),
     /// unlike parallelFor's range gate. The sliced batch paths of
@@ -269,6 +269,11 @@ class ParallelUtils {
     /// profiling: forced-PARALLEL timings identical to VECTORIZED at every
     /// size). Below the gate the whole range is handed to task as ONE slice,
     /// preserving the single SIMD-pipeline call of the old serial branches.
+    ///
+    /// A partial final slice is folded into the one before it, so every slice
+    /// starts at a multiple of `slice` and none is shorter than `slice`. A
+    /// remainder below a kernel's SIMD minimum would otherwise run that
+    /// kernel's scalar fallback, and one call would mix two kernels (#191).
     ///
     /// Exception contract: identical to parallelFor (#118) on both branches.
     template <typename Func>
@@ -281,12 +286,12 @@ class ParallelUtils {
             task(std::size_t{0}, count);
             return;
         }
-        const std::size_t num_slices = (count + slice - 1) / slice;
+        const std::size_t num_slices = std::max<std::size_t>(1, count / slice);
         parallelForUngated(
             std::size_t{0}, num_slices,
-            [&task, slice, count](std::size_t ci) {
+            [&task, slice, count, num_slices](std::size_t ci) {
                 const std::size_t begin = ci * slice;
-                task(begin, std::min(slice, count - begin));
+                task(begin, ci + 1 == num_slices ? count - begin : slice);
             },
             std::size_t{1});
     }
