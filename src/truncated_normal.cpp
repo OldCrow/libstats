@@ -65,33 +65,83 @@ inline bool truncnorm_near_lower_band(double d, double alpha) noexcept {
     return d * std::max(detail::ONE, std::fabs(alpha)) <= 0.25;
 }
 
-// CDF numerator via the probabilists'-Hermite expansion
-//   Φ(α+d) − Φ(α) = φ(α) · Σ_{n≥1} (−1)^{n−1} He_{n−1}(α) dⁿ/n!,
+// Scaled CDF numerator via the probabilists'-Hermite expansion
+//   S(d, α) = (Φ(α+d) − Φ(α)) / φ(α) = Σ_{n≥1} Tₙ,  Tₙ = (−1)^{n−1} He_{n−1}(α) dⁿ/n!,
 // He_{k+1} = α·He_k − k·He_{k−1}. d is formed from x−a, which is exact for
-// x this close to a (Sterbenz), so the sum carries full relative precision.
-// |α|·d ≤ 1/4 bounds the term ratio: ~20 terms reach 1e-17, so the 64-term
-// cap is unreachable slack. φ(α) stays representable for every accepted
-// window (the factory rejects windows whose Z — of the same exp scale —
-// underflows).
-inline double truncnorm_cdf_near_lower(double d, double alpha, double inv_z) noexcept {
+// x this close to a (Sterbenz), so the sum carries full relative precision:
+// S lies in [0.75d, 1.3d] throughout the band, so no term cancels against
+// the sum and the rounding error is a few ε.
+//
+// Stopping rule: two consecutive terms both ≤ τ = 1e-17·|sum|. One term
+// alone is not evidence — He_{n−1}(α) = 0 exactly when α is a root of a
+// Hermite polynomial (0, ±1, ±√3, ±0.742, ±2.334, …), and the series then
+// stopped after the linear term with a relative error of d²/6 (1e-2 at
+// α = 0, d = 1/4). Consecutive Hermite polynomials share no root, and the
+// recurrence bounds every later term by the two before it:
+//   |T_{m+2}| ≤ (|α|d/(m+2))·|T_{m+1}| + (m·d²/((m+1)(m+2)))·|T_m|
+//            ≤ 0.094·max(|T_m|, |T_{m+1}|)   for |α|d ≤ 1/4, d ≤ 1/4, m ≥ 1,
+// so once two consecutive terms are ≤ τ the whole tail is ≤ 0.21·τ: the
+// truncation error is below 2.1e-18 relative, whatever α is. ~20 terms
+// reach it at the band edge; the 64-term cap is unreachable slack.
+inline double truncnorm_hermite_sum(double d, double alpha) noexcept {
     double hkm1 = detail::ONE;   // He_0(α)
     double hk = alpha;           // He_1(α)
     double dn = d;               // dⁿ/n! at n = 1
     double sum = dn;             // n = 1 term: He_0 · d
+    double prev = dn;            // |T_{n−1}|
     double sign = -detail::ONE;  // sign of the n = 2 term
     for (int n = 2; n <= 64; ++n) {
         dn *= d / static_cast<double>(n);
         const double term = sign * hk * dn;
         sum += term;
-        if (std::fabs(term) <= std::fabs(sum) * 1e-17)
+        const double tau = std::fabs(sum) * 1e-17;
+        const double abs_term = std::fabs(term);
+        if (abs_term <= tau && prev <= tau)
             break;
+        prev = abs_term;
         const double hn = alpha * hk - static_cast<double>(n - 1) * hkm1;  // He_n
         hkm1 = hk;
         hk = hn;
         sign = -sign;
     }
-    const double phi_alpha_pdf = detail::INV_SQRT_2PI * std::exp(-detail::HALF * alpha * alpha);
-    return clamp01(phi_alpha_pdf * inv_z * sum);
+    return sum;
+}
+
+// φ(α)/Z: the factor that turns S(d, α) into the CDF. The same expression in
+// the CDF and the quantile keeps F(Q(p)) a round trip at the ulp level. φ(α)
+// stays representable for every accepted window (the factory rejects windows
+// whose Z — of the same exp scale — underflows).
+inline double truncnorm_band_scale(double alpha, double inv_z) noexcept {
+    return detail::INV_SQRT_2PI * std::exp(-detail::HALF * alpha * alpha) * inv_z;
+}
+
+inline double truncnorm_cdf_near_lower(double d, double alpha, double inv_z) noexcept {
+    return clamp01(truncnorm_band_scale(alpha, inv_z) * truncnorm_hermite_sum(d, alpha));
+}
+
+// d with S(d, α) = t, for a target inside the band: Newton on S, whose
+// derivative is S'(d) = e^{−αd − d²/2} in closed form. S(d) = d − αd²/2 + …,
+// so d₀ = t·(1 + αt/2) starts within O((αt)²) ≤ 1/16 relative and the
+// quadratic iteration reaches an ulp in ≤ 4 steps; the loop stops on a step
+// below 2^-53·d (the 8-step cap is slack). Each S evaluation is accurate to a
+// few ε and the Newton correction is the exact residual over the exact
+// derivative, so the returned d carries the same few-ε relative error as S.
+inline double truncnorm_band_invert(double t, double alpha) noexcept {
+    double d = t * (detail::ONE + detail::HALF * alpha * t);
+    if (!(d > detail::ZERO_DOUBLE))
+        d = t;
+    for (int i = 0; i < 8; ++i) {
+        const double f = truncnorm_hermite_sum(d, alpha) - t;
+        const double step = f * std::exp(alpha * d + detail::HALF * d * d);  // f / S'(d)
+        d -= step;
+        if (!(d > detail::ZERO_DOUBLE)) {
+            d = t;  // cannot happen for a target inside the band; keep the iteration finite
+            continue;
+        }
+        if (std::fabs(step) <= 0x1p-53 * d)
+            break;
+    }
+    return d;
 }
 
 // Regime-split scalar CDF (single source of truth: the scalar method, the
@@ -129,8 +179,40 @@ inline double truncnorm_cdf_scalar(double x, double mu, double sigma, double a, 
 // non-negative quantities (q_low + s_high = 1 identically), and whichever
 // half-target is ≤ ½ is inverted in the erfc/survival domain — no cancelled
 // difference is ever reconstructed.
+//
+// Near either bound the sums below lose what the band expansion keeps: at
+// α = 0, Φ(α) + p·Z rounds p·Z = 5e-16 to the half-ulp of ½ and the quantile
+// at p = 1e-15 came back 1.6e-3 relative off. So a target inside the
+// near-bound band — p ≤ F(a + σ·d_max), decided by the same S(d_max, α) the
+// CDF uses — is inverted on the band expansion instead, and a target within
+// the mirror-image band at the upper bound (1 − p ≤ the reflected window's
+// F, with 1 − p exact for p ≥ ½) likewise, since the window (−b, −a) has
+// lower bound −β. S(d) ≤ e^{1/4}·d < 1.3d screens most targets out before
+// the series is summed.
 inline double truncnorm_quantile_core(double p, double mu, double sigma, double a, double b,
-                                      double phi_alpha, double q_beta, double z) noexcept {
+                                      double alpha, double beta, double phi_alpha, double q_beta,
+                                      double z, double inv_z) noexcept {
+    if (std::isfinite(alpha)) {
+        const double scale = truncnorm_band_scale(alpha, inv_z);
+        const double d_max = 0.25 / std::max(detail::ONE, std::fabs(alpha));
+        if (p <= scale * 1.3 * d_max && p <= scale * truncnorm_hermite_sum(d_max, alpha)) {
+            double x = a + sigma * truncnorm_band_invert(p / scale, alpha);
+            if (x > b)
+                x = b;
+            return x;
+        }
+    }
+    if (std::isfinite(beta)) {
+        const double q = detail::ONE - p;
+        const double scale = truncnorm_band_scale(beta, inv_z);
+        const double d_max = 0.25 / std::max(detail::ONE, std::fabs(beta));
+        if (q <= scale * 1.3 * d_max && q <= scale * truncnorm_hermite_sum(d_max, -beta)) {
+            double x = b - sigma * truncnorm_band_invert(q / scale, -beta);
+            if (x < a)
+                x = a;
+            return x;
+        }
+    }
     const double q_low = phi_alpha + p * z;                // Φ target from below
     const double s_high = q_beta + (detail::ONE - p) * z;  // survival target from above
     double xi;
@@ -595,59 +677,69 @@ double TruncatedNormalDistribution::getQuantile(double p) const {
             "Probability must be in [0, 1] for Truncated Normal distribution");
     }
 
-    double mu, sigma, a, b, pa, qb, z;
+    double mu, sigma, a, b, al, be, pa, qb, z, iz;
     withCacheSnapshot([&] {
         mu = mean_;
         sigma = standardDeviation_;
         a = lowerBound_;
         b = upperBound_;
+        al = alpha_;
+        be = beta_;
         pa = phiAlpha_;
         qb = qBeta_;
         z = z_;
+        iz = invZ_;
     });
 
     if (p == detail::ZERO_DOUBLE)
         return a;
     if (p == detail::ONE)
         return b;
-    return truncnorm_quantile_core(p, mu, sigma, a, b, pa, qb, z);
+    return truncnorm_quantile_core(p, mu, sigma, a, b, al, be, pa, qb, z, iz);
 }
 
 double TruncatedNormalDistribution::sample(std::mt19937& rng) const {
-    double mu, sigma, a, b, pa, qb, z;
+    double mu, sigma, a, b, al, be, pa, qb, z, iz;
     withCacheSnapshot([&] {
         mu = mean_;
         sigma = standardDeviation_;
         a = lowerBound_;
         b = upperBound_;
+        al = alpha_;
+        be = beta_;
         pa = phiAlpha_;
         qb = qBeta_;
         z = z_;
+        iz = invZ_;
     });
     // Inverse-CDF transform — exact in every regime because the quantile is
     // computed tail-stably in the survival domain (see header). No rejection
     // step, so far-tail windows cost the same as central ones.
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
-    return truncnorm_quantile_core(uniform(rng), mu, sigma, a, b, pa, qb, z);
+    return truncnorm_quantile_core(uniform(rng), mu, sigma, a, b, al, be, pa, qb, z, iz);
 }
 
 std::vector<double> TruncatedNormalDistribution::sample(std::mt19937& rng, size_t n) const {
     std::vector<double> samples;
     samples.reserve(n);
 
-    double mu, sigma, a, b, pa, qb, z;
+    double mu, sigma, a, b, al, be, pa, qb, z, iz;
     withCacheSnapshot([&] {
         mu = mean_;
         sigma = standardDeviation_;
         a = lowerBound_;
         b = upperBound_;
+        al = alpha_;
+        be = beta_;
         pa = phiAlpha_;
         qb = qBeta_;
         z = z_;
+        iz = invZ_;
     });
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
     for (size_t i = 0; i < n; ++i) {
-        samples.push_back(truncnorm_quantile_core(uniform(rng), mu, sigma, a, b, pa, qb, z));
+        samples.push_back(
+            truncnorm_quantile_core(uniform(rng), mu, sigma, a, b, al, be, pa, qb, z, iz));
     }
     return samples;
 }

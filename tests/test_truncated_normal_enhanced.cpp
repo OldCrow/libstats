@@ -92,8 +92,7 @@ TEST_F(TruncatedNormalEnhancedTest, CentralWindowVsMpmath) {
     for (const auto& r : rows) {
         EXPECT_LE(relerr(tn_.getCumulativeProbability(r.x), r.cdf), 1e-13) << "cdf x=" << r.x;
         EXPECT_NEAR(tn_.getLogProbability(r.x), r.logpdf, 1e-13) << "logpdf x=" << r.x;
-        EXPECT_LE(relerr(tn_.getProbability(r.x), std::exp(r.logpdf)), 1e-13)
-            << "pdf x=" << r.x;
+        EXPECT_LE(relerr(tn_.getProbability(r.x), std::exp(r.logpdf)), 1e-13) << "pdf x=" << r.x;
     }
     EXPECT_LE(relerr(tn_.getQuantile(0.05), -1.4722616410327654), 1e-12);
     EXPECT_NEAR(tn_.getQuantile(0.5), 0.0, 1e-15);
@@ -142,8 +141,7 @@ TEST_F(TruncatedNormalEnhancedTest, SameTailWindow_5_6) {
         // LogPDF embeds log Z = -15.068... — exact log space, so a naive-Z
         // implementation shifts every value by its log-Z error.
         EXPECT_NEAR(t.getLogProbability(r.x), r.logpdf, 1e-12) << "logpdf x=" << r.x;
-        EXPECT_LE(relerr(t.getProbability(r.x), std::exp(r.logpdf)), 1e-12)
-            << "pdf x=" << r.x;
+        EXPECT_LE(relerr(t.getProbability(r.x), std::exp(r.logpdf)), 1e-12) << "pdf x=" << r.x;
     }
 
     // Quantiles (bisection references at dps=60) and round trips.
@@ -276,8 +274,8 @@ TEST_F(TruncatedNormalEnhancedTest, WindowPolicyEdges) {
 
     // Setters enforce the same policy (window slides out of range).
     auto t = TruncatedNormalDistribution::create(0.0, 1.0, 37.0, 38.0).unwrap();
-    EXPECT_TRUE(t.trySetMu(-10.0).isError());  // would put the window at 47..48 sigma
-    EXPECT_TRUE(t.trySetSigma(0.1).isError()); // would put it at 370..380 sigma
+    EXPECT_TRUE(t.trySetMu(-10.0).isError());   // would put the window at 47..48 sigma
+    EXPECT_TRUE(t.trySetSigma(0.1).isError());  // would put it at 370..380 sigma
     EXPECT_THROW(t.setMu(-10.0), std::invalid_argument);
     // Unchanged after the rejections:
     EXPECT_DOUBLE_EQ(t.getMu(), 0.0);
@@ -399,13 +397,13 @@ TEST_F(TruncatedNormalEnhancedTest, NaNPropagationScalarAndBatch) {
 
 TEST_F(TruncatedNormalEnhancedTest, QuantileNeverNaNInOpenInterval) {
     // #104 across window regimes, including the deepest accepted one.
-    const double ps[] = {1e-300, 1e-16, 1e-6, 0.25, 0.5, 0.75, 1.0 - 1e-6, 1.0 - 1e-14,
-                         0.9999999999999999};
+    const double ps[] = {
+        1e-300, 1e-16, 1e-6, 0.25, 0.5, 0.75, 1.0 - 1e-6, 1.0 - 1e-14, 0.9999999999999999};
     const struct {
         double mu, sigma, a, b;
     } windows[] = {
-        {0.0, 1.0, -2.0, 2.0},   {0.0, 1.0, 5.0, 6.0},   {0.0, 1.0, 8.0, 9.0},
-        {0.0, 1.0, 10.0, kInf},  {0.0, 1.0, -kInf, 0.0}, {0.0, 1.0, -kInf, kInf},
+        {0.0, 1.0, -2.0, 2.0},  {0.0, 1.0, 5.0, 6.0},   {0.0, 1.0, 8.0, 9.0},
+        {0.0, 1.0, 10.0, kInf}, {0.0, 1.0, -kInf, 0.0}, {0.0, 1.0, -kInf, kInf},
         {0.0, 1.0, 37.0, 38.0},
     };
     for (const auto& w : windows) {
@@ -413,14 +411,14 @@ TEST_F(TruncatedNormalEnhancedTest, QuantileNeverNaNInOpenInterval) {
         double prev = -kInf;
         for (double p : ps) {
             const double q = t.getQuantile(p);
-            EXPECT_FALSE(std::isnan(q)) << "quantile(" << p << ") NaN in window [" << w.a << ","
-                                        << w.b << "]";
+            EXPECT_FALSE(std::isnan(q))
+                << "quantile(" << p << ") NaN in window [" << w.a << "," << w.b << "]";
             EXPECT_TRUE(std::isfinite(q))
                 << "quantile(" << p << ") not finite in [" << w.a << "," << w.b << "]";
             EXPECT_GE(q, w.a);
             EXPECT_LE(q, w.b);
-            EXPECT_GE(q, prev) << "quantile not monotone at p=" << p << " in [" << w.a << ","
-                               << w.b << "]";
+            EXPECT_GE(q, prev) << "quantile not monotone at p=" << p << " in [" << w.a << "," << w.b
+                               << "]";
             prev = q;
         }
         EXPECT_EQ(t.getQuantile(0.0), w.a);
@@ -436,9 +434,8 @@ TEST_F(TruncatedNormalEnhancedTest, BatchSizeMismatchThrows) {
                  std::invalid_argument);
     EXPECT_THROW(tn_.getLogProbability(std::span<const double>(in), std::span<double>(out)),
                  std::invalid_argument);
-    EXPECT_THROW(
-        tn_.getCumulativeProbability(std::span<const double>(in), std::span<double>(out)),
-        std::invalid_argument);
+    EXPECT_THROW(tn_.getCumulativeProbability(std::span<const double>(in), std::span<double>(out)),
+                 std::invalid_argument);
 }
 
 //==============================================================================
@@ -525,9 +522,8 @@ TEST_F(TruncatedNormalEnhancedTest, CDFNearLowerBoundRelativeAccuracy) {
     for (const auto& c : cases) {
         auto t = TruncatedNormalDistribution::create(c.mu, c.sigma, c.a, c.b).unwrap();
         const double got = t.getCumulativeProbability(c.x);
-        EXPECT_NEAR(got / c.ref, 1.0, 1e-12)
-            << "CDF(" << c.x << ") in [" << c.a << "," << c.b << "]: got " << got << ", ref "
-            << c.ref;
+        EXPECT_NEAR(got / c.ref, 1.0, 1e-12) << "CDF(" << c.x << ") in [" << c.a << "," << c.b
+                                             << "]: got " << got << ", ref " << c.ref;
     }
 
     // Both sides of the near-bound/difference-form handoff stay accurate
@@ -557,6 +553,131 @@ TEST_F(TruncatedNormalEnhancedTest, CDFNearLowerBoundRelativeAccuracy) {
     }
 }
 
+TEST_F(TruncatedNormalEnhancedTest, CDFAtHermiteRootsVsMpmath) {
+    // Defect-hunt D1: the near-lower-bound Hermite series stopped on a single
+    // negligible term, and He_{n-1}(α) = 0 exactly when α is a root of a
+    // Hermite polynomial — α = 0 (He_1), ±1 (He_2), ±√3 (He_3), ±0.742 and
+    // ±2.334 (He_4), ±1.356 and ±2.857 (He_5), 7.619 (He_22) — so the series
+    // ended after the term before it: TN(0,1,0,∞).cdf(0.25) was 1e-2 relative
+    // off, the whole band up to a + σ/4. Every α here is the double nearest a
+    // root; x is α + d for d at 1e-6, 0.3, 0.7 and 1.0 of the band width
+    // 1/(4·max(1,|α|)), on the one-sided window (α, ∞) and a finite one.
+    // References: mpmath at dps 380 (the numerator cancels to the depth of d),
+    // (Φ(x) − Φ(α)) / (Φ(b) − Φ(α)) in erfc form, from the exact double inputs.
+    // The budget 1e-13 is above the φ(α)/Z prefactor's |ln Z|·2^-52 (3e-14 at
+    // α = 7.62) and below every pre-fix error (1e-6 at α = −2.857 and worse).
+    struct Case {
+        double a, b, x, ref;
+    };
+    const double s3 = 1.7320508075688772;
+    const Case cases[] = {
+        {0.0, kInf, 1e-6, 7.978845608027323390139754e-07},
+        {0.0, kInf, 0.075, 0.0597852881057895283891934},
+        {0.0, kInf, 0.25, 0.1974126513658474484817076},
+        {0.0, 2.0, 0.25, 0.2068231597126517888009172},
+        {1.0, kInf, 1.001, 0.001524372708649802091737102},
+        {1.0, kInf, 1.175, 0.2436597280865701824302},
+        {1.0, kInf, 1.375, 0.466984419010351970384183},
+        {1.0, 3.0, 1.25, 0.3369591579472730603145587},
+        {-1.0, kInf, -0.999, 0.0002877437709006767509246109},
+        {-1.0, kInf, -0.825, 0.05471067791281549702158874},
+        {-1.0, kInf, -0.625, 0.1275699118806875665501719},
+        {-1.0, 1.0, -0.75, 0.09956517454609095789731283},
+        {s3, kInf, 1.733050807568877, 0.002136300022791996619437786},
+        {s3, kInf, 1.8330871046770616, 0.1978621724768453109633024},
+        {s3, kInf, 1.948557158514987, 0.3833107472328762855446355},
+        {s3, 3.732050807568877, 1.8763883748662837, 0.2727975797720269749028086},
+        {-s3, kInf, -1.7310508075688773, 0.00009296345325414800319795996},
+        {-s3, kInf, -1.6310145104606928, 0.01023758430347573661858746},
+        {-s3, kInf, -1.5155444566227674, 0.02419220837647690747534686},
+        {-s3, 0.2679491924311228, -1.5877132402714706, 0.02578613204579993804364319},
+        {2.3344142183389773, kInf, 2.335414218338977, 0.002669383526163283831009252},
+        {2.3344142183389773, kInf, 2.4093794916933007, 0.1836294433893733294070999},
+        {2.3344142183389773, kInf, 2.495054089812527, 0.3566074665301272224920982},
+        {2.3344142183389773, 4.334414218338978, 2.4415074659880105, 0.2529704377966360244040258},
+        {-2.3344142183389773, kInf, -2.3334142183389774, 0.00002644519216240114867163667},
+        {-2.3344142183389773, kInf, -2.259448944984654, 0.0021618731727935157407976},
+        {-2.3344142183389773, kInf, -2.173774346865428, 0.0051241718814694602682866},
+        {-2.3344142183389773, -0.33441421833897733, -2.227320970689944,
+         0.008840430245756804811533641},
+        {0.7419637843027258, kInf, 0.9169637843027258, 0.2159913910527510056739392},
+        {0.7419637843027258, kInf, 1.1169637843027258, 0.423696871463591913592809},
+        {-0.7419637843027258, kInf, -0.3669637843027258, 0.1657294841770732928402109},
+        {-0.7419637843027258, 1.2580362156972742, -0.4919637843027258, 0.1234602011445019634916118},
+        {1.355626179974266, kInf, 1.6322511120828498, 0.4142923857538895036433251},
+        {-2.8569700138728056, kInf, -2.7257120734047278, 0.001071908222528950873941743},
+        {7.619048541679758, kInf, 7.6200485416797585, 0.007716687702522277808210088},
+        {7.619048541679758, kInf, 7.642017288898347, 0.1632068768945994370698146},
+        {7.619048541679758, kInf, 7.668267285719591, 0.3178098177847970922634009},
+        {7.619048541679758, 9.619048541679758, 7.651861037706314, 0.2248506549494900432556923},
+    };
+    detail::PerformanceHint hint_vec;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    for (const auto& c : cases) {
+        auto t = TruncatedNormalDistribution::create(0.0, 1.0, c.a, c.b).unwrap();
+        const double got = t.getCumulativeProbability(c.x);
+        EXPECT_LE(relerr(got, c.ref), 1e-13) << "CDF(" << c.x << ") on (" << c.a << ", " << c.b
+                                             << "): got " << got << ", ref " << c.ref;
+        // The batch kernel routes near-bound lanes through the same scalar
+        // series: bit-identical, so the batch path cannot regress separately.
+        vector<double> xs(8, c.x), out(8);
+        t.getCumulativeProbability(span<const double>(xs), span<double>(out), hint_vec);
+        EXPECT_EQ(out[3], got) << "batch lane differs from scalar at x=" << c.x;
+    }
+}
+
+TEST_F(TruncatedNormalEnhancedTest, QuantileNearBoundVsMpmath) {
+    // Defect-hunt D1, quantile half: Φ(α) + p·Z rounded p·Z to the half-ulp of
+    // Φ(α) — at α = 0, p = 1e-15 the sum holds 5e-16 to one part in 1e3, and
+    // TN(0,1,0,∞).quantile(1e-15) came back 1.6e-3 relative off; at p = 1e-300
+    // it came back as the bound itself. A target inside the near-bound band is
+    // now inverted on the band series, at either bound (the upper one by
+    // reflection). References: mpmath at dps 400, bisection in log(x − a) on
+    // the erfc-form CDF, from the exact double inputs; the budget is 1e-13 of
+    // the distance to the nearer finite bound plus one ulp of x itself, which
+    // is all a double near a non-zero bound can carry.
+    struct Case {
+        double mu, sigma, a, b, p, ref;
+    };
+    const double up15 = 1.0 - 1e-15;
+    const Case cases[] = {
+        {0, 1, 0.0, kInf, 1e-15, 1.253314137315500348597159e-15},
+        {0, 1, 0.0, kInf, 1e-300, 1.253314137315500282614797e-300},
+        {0, 1, 0.0, kInf, 0.001, 0.001253314465432554538310308},
+        {0, 1, 0.0, kInf, 0.19, 0.2404260311423079497064346},  // inside the band
+        {0, 1, 0.0, kInf, 0.2, 0.2533471031357998131665731},   // just outside it
+        {0, 1, 1.0, kInf, 1e-15, 1.000000000000000655679542},
+        {0, 1, 1.0, kInf, 1e-6, 1.000000655679757376770559},
+        {0, 1, -1.0, 1.0, 1e-15, -0.9999999999999971786277307},
+        {0, 1, -1.0, 1.0, 1e-9, -0.9999999971786277346951746},
+        {0, 1, -kInf, 0.0, up15, -1.252312391102295115005266e-15},
+        {0, 1, -kInf, 0.0, 1.0 - 1e-9, -1.25331410186935571783704e-9},
+        {0, 1, -1.0, 1.0, up15, 0.999999999999997180882791},
+        {0, 1, 8.0, kInf, 1e-15, 8.000000000000000123131963},
+        {0, 1, -8.0, -7.0, 1e-15, -7.999999999999746808825838},
+        {0, 1, -8.0, -7.0, up15, -7.000000000000000139924153},
+        {0, 1, 1.7320508075688772, kInf, 1e-12, 1.732050807569344886991738},
+        {0, 1, 2.3344142183389773, kInf, 1e-12, 2.33441421833935151286378},
+        {0, 1, 0.0, 0.1, 0.5, 0.04993753911119762343230051},  // both bands overlap
+        {0, 1, 0.0, 0.1, 0.999, 0.09989966650222044658640754},
+        {3, 2, 3.0, kInf, 1e-15, 3.000000000000002506628275},
+    };
+    for (const auto& c : cases) {
+        auto t = TruncatedNormalDistribution::create(c.mu, c.sigma, c.a, c.b).unwrap();
+        const double got = t.getQuantile(c.p);
+        double scale = std::fabs(c.ref);
+        if (std::isfinite(c.a))
+            scale = std::min(scale, std::fabs(c.ref - c.a));
+        if (std::isfinite(c.b))
+            scale = std::min(scale, std::fabs(c.b - c.ref));
+        const double budget = 1e-13 * scale + std::fabs(c.ref) * 0x1p-52;
+        EXPECT_LE(std::fabs(got - c.ref), budget) << "quantile(" << c.p << ") on (" << c.a << ", "
+                                                  << c.b << "): got " << got << ", ref " << c.ref;
+        EXPECT_GE(got, c.a);
+        EXPECT_LE(got, c.b);
+    }
+}
+
 //==============================================================================
 // Sampling and MLE
 //==============================================================================
@@ -568,8 +689,8 @@ TEST_F(TruncatedNormalEnhancedTest, SamplingMatchesCDF) {
         double mu, sigma, a, b;
     } windows[] = {
         {0.0, 1.0, -2.0, 2.0},
-        {0.0, 1.0, 5.0, 6.0},     // two-sided far tail
-        {0.0, 1.0, 10.0, kInf},   // one-sided far tail
+        {0.0, 1.0, 5.0, 6.0},    // two-sided far tail
+        {0.0, 1.0, 10.0, kInf},  // one-sided far tail
     };
     for (const auto& w : windows) {
         auto t = TruncatedNormalDistribution::create(w.mu, w.sigma, w.a, w.b).unwrap();
@@ -648,15 +769,11 @@ struct stats::tests::DistTraits<stats::TruncatedNormalDistribution>
     static std::vector<std::function<bool()>> invalid_creators() {
         return {
             [] {
-                return stats::TruncatedNormalDistribution::create(0.0, -1.0, -2.0, 2.0)
-                    .isError();
+                return stats::TruncatedNormalDistribution::create(0.0, -1.0, -2.0, 2.0).isError();
             },
+            [] { return stats::TruncatedNormalDistribution::create(0.0, 1.0, 2.0, 2.0).isError(); },
             [] {
-                return stats::TruncatedNormalDistribution::create(0.0, 1.0, 2.0, 2.0).isError();
-            },
-            [] {
-                return stats::TruncatedNormalDistribution::create(0.0, 1.0, 40.0, 41.0)
-                    .isError();
+                return stats::TruncatedNormalDistribution::create(0.0, 1.0, 40.0, 41.0).isError();
             },
         };
     }

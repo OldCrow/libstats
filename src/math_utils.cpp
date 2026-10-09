@@ -13,6 +13,7 @@
 #include <array>
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace stats {
 namespace detail {
@@ -788,76 +789,116 @@ double trigamma(double x) noexcept {
     return result;
 }
 
+// x with I_x(a, b) = p (#137), by Newton in the logit u = log(x/(1 − x)) on the small side of
+// the probability scale, the gamma_p_inv pattern. For p > ½ the problem is reflected,
+// I_y(b, a) = 1 − p with y = 1 − x, so the target is always exact (1 − p is exact for p ≥ ½)
+// and beta_i evaluates its direct continued fraction, never 1 − (something near 1). The
+// density of U = logit(X), e^{au}/(1 + e^u)^{a+b}, is log-concave for every a, b > 0 (its log
+// has second derivative −(a + b)·e^u/(1 + e^u)²), so f(u) = log I − log p is concave and
+// solve_concave converges from any start. |f'(u)| = x(1 − x)·pdf(x)/I, the logit prefactor
+// over I. Before this the linear-CDF Newton stopped at |I − p| < 1e-8 and clamped its start to
+// [1e-8, 1 − 1e-8]: Beta(1, 1).Q(1e-100) = 1e-8 and Beta(2, 3).Q(1 − 1.7e-6) was 1.4e-5 off.
 double inverse_beta_i(double p, double a, double b) noexcept {
-    // Inverse regularized incomplete beta I_x(a,b) = p  =>  solve for x in (0,1).
+    if (std::isnan(p) || std::isnan(a) || std::isnan(b) || a <= detail::ZERO_DOUBLE ||
+        b <= detail::ZERO_DOUBLE)
+        return std::numeric_limits<double>::quiet_NaN();
     if (p <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
     if (p >= detail::ONE)
         return detail::ONE;
-    if (a <= detail::ZERO_DOUBLE || b <= detail::ZERO_DOUBLE) {
-        return std::numeric_limits<double>::quiet_NaN();
-    }
+    if (a == b && p == detail::HALF)
+        return detail::HALF;  // by symmetry; beta_i returns ½ at that point too
 
-    // Initial estimate.
-    // The normal approximation N(a/(a+b), sqrt(ab/(a+b)^2/(a+b+1))) is accurate
-    // in the middle of [0,1] but can give x <= 0 or x >= 1 in the tails, after
-    // which Newton oscillates between the clamp boundaries and never converges.
-    //
-    // Tail asymptotic: I_x(a,b) ~ x^a / (a*B(a,b)) for small x
-    //   => x ~ (p * a * B(a,b))^(1/a)
-    // Symmetry for large p: use (1-p) and reversed parameters.
+    const bool upper = p > detail::HALF;
+    if (upper) {
+        std::swap(a, b);
+        p = detail::ONE - p;
+    }
+    const double log_target = std::log(p);
     const double lb = lbeta(a, b);
-    double x;
+    const double pc = beta_prefactor_constant(a, b);
+
+    // I_x(a, b) = x^a/(a·B)·(1 + a(1 − b)x/(a + 1) + …): the leading term's root t_lb in
+    // t = log x bounds the answer from below for b ≥ 1 (then (1 − s)^{b−1} ≤ 1 under the
+    // integral) and from above for b < 1. Where x·max(1, b) < 1e-20 the correction is below
+    // 1e-20 relative and the leading term is the answer — the only route to it once x cannot
+    // hold the logit (below t = −700) or at all (the root underflows to 0 or a subnormal).
+    const double t_lb = (log_target + std::log(a) + lb) / a;
+    if (t_lb < -700.0 && t_lb + std::log(std::max(detail::ONE, b)) < -46.0)
+        return upper ? detail::ONE - std::exp(t_lb) : std::exp(t_lb);
+
+    // Bracket in u. Lower: the leading-term bound (for b < 1 loosened by the (1 − x)^{b−1}
+    // factor at x_lb, since the root is below x_lb there), else the smallest logit a double
+    // holds. Upper: Markov, P(X ≥ 2·mean) ≤ ½, so the root at p ≤ ½ is at most 2a/(a + b);
+    // u = 745 stands for x = 1 when that bound is vacuous.
+    double lo = -745.0;
+    if (t_lb < detail::ZERO_DOUBLE) {
+        lo = t_lb;
+        if (b < detail::ONE)
+            lo += (detail::ONE - b) / a * std::log1p(-std::exp(t_lb));
+        lo = std::max(lo, -745.0);
+    }
+    double hi = 745.0;
     {
-        const double mu = a / (a + b);
-        const double sigma = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
-        x = mu + sigma * inverse_normal_cdf(p);
+        const double two_mean = detail::TWO * a / (a + b);
+        if (two_mean < detail::ONE)
+            hi = std::log(two_mean / (detail::ONE - two_mean));
     }
-    // Blend normal approximation with the tail asymptotic.
-    // For small p the normal approximation can give x slightly above 0 (e.g. 4e-4
-    // instead of the true ~0.06 for Beta(2,3) at p=0.023).  Clamping a very small
-    // positive x to max(1e-8,...) leaves Newton too far from the root and the first
-    // step diverges.  Taking max(normal, asymptotic) for p<0.1 avoids this.
-    if (x <= detail::ZERO_DOUBLE) {
-        x = std::pow(p * a * std::exp(lb), 1.0 / a);
-    } else if (x >= detail::ONE) {
-        x = 1.0 - std::pow((1.0 - p) * b * std::exp(lb), 1.0 / b);
-    } else {
-        if (p < 0.1) {
-            const double x_asymp = std::pow(p * a * std::exp(lb), 1.0 / a);
-            x = std::max(x, x_asymp);  // never start below the asymptotic estimate
-        } else if (p > 0.9) {
-            const double x_asymp = 1.0 - std::pow((1.0 - p) * b * std::exp(lb), 1.0 / b);
-            x = std::min(x, x_asymp);
+    if (!(lo < hi))
+        hi = lo + detail::ONE;
+
+    // Seed: the normal approximation in the centre, the leading term in the lower tail (where the
+    // normal approximation lands at or below 0), in the logit; a seed outside the bracket starts
+    // at the lower bound, where the leading term already is the root to O(x).
+    double u;
+    {
+        const double mean = a / (a + b);
+        const double sd = std::sqrt(a * b / ((a + b) * (a + b) * (a + b + detail::ONE)));
+        double x0 = mean + sd * inverse_normal_cdf(p);
+        if (p < 0.1)
+            x0 = std::max(x0, std::exp(t_lb));
+        u = (x0 > detail::ZERO_DOUBLE && x0 < detail::ONE) ? std::log(x0 / (detail::ONE - x0)) : lo;
+        if (!(u > lo && u < hi))
+            u = lo;
+    }
+
+    const double u_root = solve_concave(u, lo, hi, true, [&](double uu, double& slope) {
+        // x and 1 − x each to relative ε from the logit, whichever side is the small one.
+        double x, omx;
+        if (uu < detail::ZERO_DOUBLE) {
+            const double e = std::exp(uu);
+            x = e / (detail::ONE + e);
+            omx = detail::ONE / (detail::ONE + e);
+        } else {
+            const double e = std::exp(-uu);
+            x = detail::ONE / (detail::ONE + e);
+            omx = e / (detail::ONE + e);
         }
+        // log I formed as beta_i forms I, but without ever taking the prefactor out of the log:
+        // at large shapes it underflows a double long before the tail does (Beta(1e4, 1e4) at
+        // x = 0.36 has I = 1e-323 with a prefactor of e^-745), and log of the underflowed I put
+        // the root of a subnormal p at x = 1, or in the bulk.
+        const double bt_log = log_beta_prefactor(x, a, b, pc);
+        double log_i;
+        if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
+            log_i = bt_log + std::log(beta_continued_fraction(x, a, b));
+        } else {
+            const double c = std::exp(bt_log) * beta_continued_fraction(omx, b, a);
+            log_i = c < detail::ONE ? std::log1p(-c) : -std::numeric_limits<double>::infinity();
+        }
+        slope = std::exp(bt_log - log_i);  // x(1 − x)·pdf(x)/I = x^a(1 − x)^b/(B·I)
+        return log_i - log_target;
+    });
+
+    // Back to x. The logit gives y and 1 − y each to relative ε, so the reflected answer is
+    // read off as 1 − y directly rather than subtracted (Beta(½, 1e6).Q(1 − 1e-15) = 3.2e-5 is
+    // 1 − y with y near 1, where 1 − y from the rounded y would lose 7e-12).
+    if (u_root < detail::ZERO_DOUBLE) {
+        const double e = std::exp(u_root);
+        return upper ? detail::ONE / (detail::ONE + e) : e / (detail::ONE + e);
     }
-    x = std::max(1e-8, std::min(1.0 - 1e-8, x));  // clamp to (0,1)
-
-    // Newton-Raphson: x_{n+1} = x_n - (I_{x_n}(a,b) - p) / f(x_n)
-    // where f(x) = x^(a-1)(1-x)^(b-1)/B(a,b) is the Beta PDF.
-    const int max_iter = detail::MAX_NEWTON_ITERATIONS;
-    const double tol = detail::DEFAULT_TOLERANCE;
-    const double log_norm = -lbeta(a, b);  // -ln B(a,b)
-
-    for (int i = 0; i < max_iter; ++i) {
-        const double cdf_val = beta_i(x, a, b);
-        const double error = cdf_val - p;
-
-        if (std::abs(error) < tol)
-            break;
-
-        // PDF = exp((a-1)*log(x) + (b-1)*log(1-x) + log_norm)
-        const double log_pdf = (a - detail::ONE) * std::log(x) +
-                               (b - detail::ONE) * std::log(detail::ONE - x) + log_norm;
-        const double pdf_val = std::exp(log_pdf);
-
-        if (pdf_val <= detail::ZERO_DOUBLE)
-            break;
-
-        x -= error / pdf_val;
-        x = std::max(1e-10, std::min(detail::ONE - 1e-10, x));
-    }
-    return x;
+    const double e = std::exp(-u_root);
+    return upper ? e / (detail::ONE + e) : detail::ONE / (detail::ONE + e);
 }
 
 // =============================================================================

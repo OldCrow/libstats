@@ -398,6 +398,11 @@ create_libstats_gtest(test_incomplete_gamma_beta_accuracy test_incomplete_gamma_
 # mpmath from p = 1e-300 to 1 - 1e-15; the linear-CDF Newton solver was 5e139 relative off.
 create_libstats_gtest(test_gamma_quantile_accuracy test_gamma_quantile_accuracy.cpp)
 
+# #137 guard: Beta quantiles and detail::inverse_beta_i within the accuracy law of mpmath from
+# the smallest subnormal p to 1 - 1e-15, both tails; the absolute-1e-8 Newton solver returned
+# 1e-8 for every p below it and 0.9999999999 for Beta(25, 1000).Q(6.57e-5).
+create_libstats_gtest(test_beta_quantile_accuracy test_beta_quantile_accuracy.cpp)
+
 # #159 guard: Student-t quantile, CDF, pdf and logpdf in the deep tail, at large nu and past
 # |t| ~ 1e154, within the accuracy law of mpmath; scalar and every batch strategy.
 create_libstats_gtest(test_student_t_tails test_student_t_tails.cpp)
