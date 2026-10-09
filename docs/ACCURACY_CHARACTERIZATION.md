@@ -852,7 +852,7 @@ Sweep banner: `commit=c09efd0  isa=AVX-512  date=2026-10-04`
 
 ## Generated tables: AVX2
 
-Sweep banner: `commit=4ceafae  isa=AVX2  date=2026-10-04`
+Sweep banner: `commit=6920ece  isa=AVX2  date=2026-10-08`
 
 ### bernoulli
 
@@ -870,13 +870,13 @@ Sweep banner: `commit=4ceafae  isa=AVX2  date=2026-10-04`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 1.415e-14 | 9.529e-14 | 5.799e-14 | 4.062 | - | 0.382934 |
-| cdf | batch | 1.415e-14 | 9.529e-14 | 5.799e-14 | 4.062 | abs=0, rel=0 | 0.382934 |
-| logpdf | scalar | 4.765e-11 | 2.98e-14 | 2.98e-14 | - | - | 0.489076 |
-| logpdf | batch | 4.765e-11 | 2.751e-14 | 2.751e-14 | - | abs=7.105e-15, rel=2.291e-15 | 0.489076 |
-| pdf | scalar | 0.006308 | 1.036e-13 | 8.519e-14 | - | - | 0.382934 |
-| pdf | batch | 0.006387 | 1.036e-13 | 8.519e-14 | - | abs=0.0127, rel=7.062e-15 | 0.382934 |
-| quantile | scalar | 0.002211 | 8.018e+259 | 8.018e+259 | - | - | 0.001 |
+| cdf | scalar | 8.135e-15 | 1.698e-13 | 6.675e-14 | 5.542 | - | 0.375483 |
+| cdf | batch | 8.135e-15 | 1.698e-13 | 6.675e-14 | 5.542 | abs=0, rel=0 | 0.375483 |
+| logpdf | scalar | 4.765e-11 | 2.664e-14 | 1.355e-14 | - | - | 0.510924 |
+| logpdf | batch | 4.765e-11 | 2.206e-14 | 1.126e-14 | - | abs=7.105e-15, rel=4.581e-15 | 0.510924 |
+| pdf | scalar | 5.169e+251 | 2.056e-13 | 1.096e-13 | - | - | 0.375483 |
+| pdf | batch | 5.169e+251 | 2.054e-13 | 1.096e-13 | - | abs=0.0127, rel=7.062e-15 | 0.375483 |
+| quantile | scalar | 2.937e-16 | 1.424e-13 | 1.424e-13 | - | - | 0.1 |
 
 ### binomial
 
@@ -990,8 +990,8 @@ Sweep banner: `commit=4ceafae  isa=AVX2  date=2026-10-04`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 3.351e-11 | 4.313e-11 | 4.313e-11 | 0.1689 | - | 1.5e+06 |
-| cdf | batch | 3.351e-11 | 4.313e-11 | 4.313e-11 | 0.1689 | abs=0, rel=0 | 1.5e+06 |
+| cdf | scalar | 9.447e-17 | 2.289e-16 | 2.289e-16 | 0.08105 | - | 2 |
+| cdf | batch | 9.447e-17 | 2.289e-16 | 2.289e-16 | 0.08105 | abs=0, rel=0 | 2 |
 | logpdf | scalar | 9.473e-13 | 1.075e-15 | 1.075e-15 | - | - | 16 |
 | logpdf | batch | 9.473e-13 | 1.075e-15 | 1.075e-15 | - | abs=0, rel=0 | 16 |
 | pdf | scalar | 7.474e-17 | 1.451e-13 | 1.451e-13 | - | - | 6.51e+08 |
@@ -1140,7 +1140,7 @@ Sweep banner: `commit=4ceafae  isa=AVX2  date=2026-10-04`
 | logpdf | batch | 1.048e-13 | 4.832e-14 | 2.685e-14 | - | abs=0, rel=0 | 10.3951 |
 | pdf | scalar | 7.752e-15 | 1.047e-13 | 7.58e-14 | - | - | -2447.35 |
 | pdf | batch | 7.579e-15 | 1.047e-13 | 7.58e-14 | - | abs=4.441e-16, rel=1.737e-16 | -2447.35 |
-| quantile | scalar | 1.854e-13 | 1.638e-16 | 1.638e-16 | - | - | 1 |
+| quantile | scalar | 1.854e-13 | 1.115e-16 | 1.115e-16 | - | - | 0.01 |
 
 ### uniform
 
