@@ -920,8 +920,16 @@ class DiscreteRef(Ref):
             return mp.mpf(a)
         if pm >= 1:
             return mp.mpf(b)
-        k = a - 1 + int(mp.ceil(pm * n))
-        return mp.mpf(min(max(k, a), b))
+        k = min(max(a - 1 + int(mp.ceil(pm * n)), a), b)
+        # The contract is the smallest k whose *library* CDF reaches p (Decided; #116, #170,
+        # #204), and the library's F(k) is the double (k - a + 1) / n. At a tie, where p equals
+        # that double but not the exact (k - a + 1) / n, the two rules differ by one count.
+        pf = float(p)
+        while k > a and float(k - a) / n >= pf:
+            k -= 1
+        while k < b and float(k - a + 1) / n < pf:
+            k += 1
+        return mp.mpf(k)
 
 
 @_reg("student_t")
