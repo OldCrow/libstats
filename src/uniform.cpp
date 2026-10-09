@@ -24,6 +24,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -77,6 +78,7 @@ UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
     other.b_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
     // Cache will be updated on first use
 }
 
@@ -95,7 +97,9 @@ UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other)
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -311,6 +315,8 @@ double UniformDistribution::getCumulativeProbability(double x) const {
 }
 
 double UniformDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -448,6 +454,7 @@ void UniformDistribution::reset() noexcept {
 std::string UniformDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "UniformDistribution(a=" << a_ << ", b=" << b_ << ")";
     return oss.str();
 }

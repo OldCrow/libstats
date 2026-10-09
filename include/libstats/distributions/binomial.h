@@ -221,7 +221,8 @@ class BinomialDistribution : public DistributionBase {
      *          treated as a lower bound, not a reliable point estimate.
      *
      * @param values Non-negative integer observations
-     * @throws std::invalid_argument if values is empty
+     * @throws std::invalid_argument if values is empty, or holds a non-finite, negative or
+     *         beyond-int-range observation
      */
     void fit(const std::vector<double>& values) override;
 

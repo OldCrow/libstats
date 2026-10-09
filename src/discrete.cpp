@@ -22,6 +22,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <numeric>
 #include <random>
@@ -127,6 +128,7 @@ DiscreteDistribution::DiscreteDistribution(DiscreteDistribution&& other) noexcep
     other.b_ = detail::ONE_INT;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
     // Cache will be updated on first use
 }
 
@@ -145,7 +147,9 @@ DiscreteDistribution& DiscreteDistribution::operator=(DiscreteDistribution&& oth
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -447,6 +451,8 @@ double DiscreteDistribution::getCumulativeProbability(double x) const {
 }
 
 double DiscreteDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -456,17 +462,18 @@ double DiscreteDistribution::getQuantile(double p) const {
         range = range_;
         a = a_;
     });
-    // For discrete uniform: quantile(p) = a + ceil(p * (b-a+1)) - 1, with the ceiling of the exact
-    // product: p * n can round down onto an integer m while the true product exceeds it (p = 0.1,
-    // n = 10 gives 1, but the double 0.1 is above 1/10), and the fma remainder says which. A
-    // non-integer product cannot round across an integer below 2^53.
+    // min{k : F(k) >= p} against the CDF as getCumulativeProbability rounds it, F(a + j - 1) =
+    // fl(j/n), ties included (DH D7). ceil(p·n) is within one of that j, and fl(j/n) is monotone
+    // in j, so one step either way settles it; deciding by the exact product instead (the fma
+    // remainder) disagreed with the rounded quotient exactly at the ties.
     const double n = static_cast<double>(range);
-    const double scaled = p * n;
-    double m = std::ceil(scaled);
-    if (m == scaled && std::fma(p, n, -scaled) > detail::ZERO_DOUBLE)
-        m += detail::ONE;
-    const int k = static_cast<int>(m) - 1;
-    return static_cast<double>(a + std::max(0, std::min(k, range - 1)));
+    const auto cdf = [n](int j) { return static_cast<double>(j) / n; };
+    int j = static_cast<int>(std::min(std::max(std::ceil(p * n), detail::ONE), n));
+    while (j > 1 && cdf(j - 1) >= p)
+        --j;
+    while (j < range && cdf(j) < p)
+        ++j;
+    return static_cast<double>(a + j - 1);
 }
 
 double DiscreteDistribution::sample(std::mt19937& rng) const {
@@ -574,6 +581,7 @@ void DiscreteDistribution::reset() noexcept {
 std::string DiscreteDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "DiscreteUniform(a=" << a_ << ", b=" << b_ << ")";
     return oss.str();
 }

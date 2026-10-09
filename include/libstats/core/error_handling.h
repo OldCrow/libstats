@@ -1,5 +1,7 @@
 #pragma once
 
+#include "math_constants.h"
+
 #include <climits>
 #include <cmath>
 #include <limits>
@@ -367,6 +369,11 @@ inline VoidResult validateRayleighParameters(double sigma) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Sigma (σ) must be a positive finite number");
     }
+    // σ² must stay finite and normal (DH D6); the upper bound is Gaussian's.
+    if (sigma < detail::MIN_SQUARABLE_SCALE || sigma > detail::MAX_STANDARD_DEVIATION) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Sigma (σ) is outside the range where σ² is a normal double");
+    }
     return VoidResult::ok({});
 }
 
@@ -379,6 +386,11 @@ inline VoidResult validateHalfNormalParameters(double sigma) noexcept {
     if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Sigma (σ) must be a positive finite number");
+    }
+    // σ² must stay finite and normal (DH D6); the upper bound is Gaussian's.
+    if (sigma < detail::MIN_SQUARABLE_SCALE || sigma > detail::MAX_STANDARD_DEVIATION) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Sigma (σ) is outside the range where σ² is a normal double");
     }
     return VoidResult::ok({});
 }

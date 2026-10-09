@@ -311,10 +311,15 @@ class FDistribution : public DistributionBase {
      */
     [[nodiscard]] double getSurvivalProbability(double x) const;
 
+    /** @brief Survival through getSurvivalProbability(), the directly formed complement (AR A11).
+     */
+    [[nodiscard]] double getSurvival(double x) const override { return getSurvivalProbability(x); }
+
     /**
      * @brief Quantile function (inverse CDF).
      * @param p Probability in [0, 1]
-     * @throws std::invalid_argument if p is NaN or outside [0, 1]
+     * @return NaN for NaN p.
+     * @throws std::invalid_argument if p is outside [0, 1]
      * @see the class-level "Quantile accuracy" note for the algorithm and its
      *      measured accuracy.
      */

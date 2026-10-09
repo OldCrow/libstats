@@ -20,6 +20,7 @@ using stats::detail::validatePositiveParameter;
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <ranges>
@@ -63,6 +64,7 @@ ExponentialDistribution& ExponentialDistribution::operator=(const ExponentialDis
         lambda_ = other.lambda_;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -73,6 +75,7 @@ ExponentialDistribution::ExponentialDistribution(ExponentialDistribution&& other
     other.lambda_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
     // Cache will be updated on first use
 }
 
@@ -90,7 +93,9 @@ ExponentialDistribution& ExponentialDistribution::operator=(
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -242,7 +247,24 @@ double ExponentialDistribution::getCumulativeProbability(double x) const {
     return -std::expm1(neg_lam * x);
 }
 
+double ExponentialDistribution::getSurvival(double x) const {
+    // S(x) = exp(−λx): exact in the upper tail, where 1 − F cancels to 0 (AR A11).
+    if (std::isnan(x))
+        return x;
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+    bool is_unit;
+    double neg_lam;
+    withCacheSnapshot([&] {
+        is_unit = isUnitRate_;
+        neg_lam = negLambda_;
+    });
+    return is_unit ? std::exp(-x) : std::exp(neg_lam * x);
+}
+
 double ExponentialDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -352,6 +374,7 @@ void ExponentialDistribution::reset() noexcept {
 std::string ExponentialDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "ExponentialDistribution(lambda=" << lambda_ << ")";
     return oss.str();
 }

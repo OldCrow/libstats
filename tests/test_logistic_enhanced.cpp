@@ -46,8 +46,8 @@ struct stats::tests::DistTraits<stats::LogisticDistribution> : stats::tests::Dis
                     .isError();
             },
             [] {
-                return stats::LogisticDistribution::create(
-                           0.0, std::numeric_limits<double>::quiet_NaN())
+                return stats::LogisticDistribution::create(0.0,
+                                                           std::numeric_limits<double>::quiet_NaN())
                     .isError();
             },
         };
@@ -282,8 +282,8 @@ TEST_F(LogisticEnhancedTest, Contract103_InfiniteLimits_ScalarAndBatch) {
             const bool pos = xs[i] > 0.0;
             EXPECT_EQ(pdf[i], 0.0) << strategyName(hint) << " pdf at i=" << i;
             EXPECT_TRUE(std::isinf(lpdf[i]) && lpdf[i] < 0.0)
-                << strategyName(hint) << " logpdf must be exactly -inf at i=" << i
-                << ", got " << lpdf[i];
+                << strategyName(hint) << " logpdf must be exactly -inf at i=" << i << ", got "
+                << lpdf[i];
             EXPECT_EQ(cdf[i], pos ? 1.0 : 0.0) << strategyName(hint) << " cdf at i=" << i;
             // Batch must equal scalar element-for-element.
             EXPECT_EQ(pdf[i], sl_.getProbability(xs[i]));
@@ -327,8 +327,8 @@ TEST_F(LogisticEnhancedTest, ContractNaNPropagation_ScalarAndBatch) {
 
 TEST_F(LogisticEnhancedTest, Contract104_QuantileNeverNaN) {
     auto l = LogisticDistribution::create(-7.5, 0.125).unwrap();
-    for (double p : {1e-300, 1e-100, 1e-16, 1e-8, 0.1, 0.5, 0.9,
-                     1.0 - 1e-8, 1.0 - 1e-15, std::nextafter(1.0, 0.0)}) {
+    for (double p : {1e-300, 1e-100, 1e-16, 1e-8, 0.1, 0.5, 0.9, 1.0 - 1e-8, 1.0 - 1e-15,
+                     std::nextafter(1.0, 0.0)}) {
         for (const auto* d : {&sl_, &l}) {
             const double q = d->getQuantile(p);
             EXPECT_FALSE(std::isnan(q)) << "quantile(" << p << ") is NaN";
@@ -342,7 +342,7 @@ TEST_F(LogisticEnhancedTest, Contract104_QuantileNeverNaN) {
     // Out of range and NaN are rejected, not silently answered.
     EXPECT_THROW((void)sl_.getQuantile(-0.1), std::invalid_argument);
     EXPECT_THROW((void)sl_.getQuantile(1.1), std::invalid_argument);
-    EXPECT_THROW((void)sl_.getQuantile(kNaN), std::invalid_argument);
+    EXPECT_TRUE(std::isnan(sl_.getQuantile(kNaN)));  // NaN in, NaN out, as all 27 (AR D3)
 }
 
 // ─── Born-compliant contracts: size mismatch throws ──────────────────────────

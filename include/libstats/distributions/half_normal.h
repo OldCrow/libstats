@@ -84,7 +84,8 @@ class HalfNormalDistribution : public DistributionBase {
     /**
      * @brief Construct a Half-Normal distribution.
      * @param sigma Scale parameter σ (must be positive, default 1)
-     * @throws std::invalid_argument if sigma is not strictly positive or non-finite
+     * @throws std::invalid_argument if sigma is not in [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      *
      * Default σ = 1 is the standard Half-Normal distribution.
      * Implementation in .cpp.
@@ -139,7 +140,8 @@ class HalfNormalDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter σ.
-     * @throws std::invalid_argument if sigma <= 0 or non-finite
+     * @throws std::invalid_argument if sigma is not in [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      */
     void setSigma(double sigma);
 
@@ -361,6 +363,11 @@ class HalfNormalDistribution : public DistributionBase {
     static void validateParameters(double sigma) {
         if (std::isnan(sigma) || std::isinf(sigma) || sigma <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Sigma (σ) must be a positive finite number");
+        }
+        // σ² must stay finite and normal (DH D6); the upper bound is Gaussian's.
+        if (sigma < detail::MIN_SQUARABLE_SCALE || sigma > detail::MAX_STANDARD_DEVIATION) {
+            throw std::invalid_argument(
+                "Sigma (σ) is outside the range where σ² is a normal double");
         }
     }
 

@@ -262,8 +262,8 @@ VoidResult BinomialDistribution::validateCurrentParameters() const noexcept {
 double BinomialDistribution::logBinomCoeff(int k) const noexcept {
     if (k < 0 || k > n_)
         return detail::NEGATIVE_INFINITY;
-    return logNFact_ - std::lgamma(static_cast<double>(k + 1)) -
-           std::lgamma(static_cast<double>(n_ - k + 1));
+    return logNFact_ - detail::lgamma(static_cast<double>(k + 1)) -
+           detail::lgamma(static_cast<double>(n_ - k + 1));
 }
 
 double BinomialDistribution::getProbability(double x) const {
@@ -327,6 +327,8 @@ double BinomialDistribution::getCumulativeProbability(double x) const {
 }
 
 double BinomialDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
@@ -387,20 +389,24 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
     double sum = detail::ZERO_DOUBLE;
     double sum_sq = detail::ZERO_DOUBLE;
     std::size_t count = 0;
+    // Invalid data throws before any state changes, as in the other 26 fits (AR D4); this loop
+    // used to drop such observations silently.
     for (double v : values) {
-        if (v >= detail::ZERO_DOUBLE && std::isfinite(v)) {
-            // #167: an observation beyond int range cannot be a trial count; skip it
-            // as invalid rather than cast it (UB).
-            const double rounded = std::round(v);
-            if (rounded > static_cast<double>(std::numeric_limits<int>::max()))
-                continue;
-            const int k = static_cast<int>(rounded);
-            maxObs = std::max(maxObs, k);
-            const double kd = static_cast<double>(k);
-            sum += kd;
-            sum_sq += kd * kd;
-            ++count;
-        }
+        if (!std::isfinite(v) || v < detail::ZERO_DOUBLE)
+            throw std::invalid_argument(
+                "All values must be non-negative and finite for Binomial distribution");
+        // #167: an observation beyond int range cannot be a trial count; casting it is UB.
+        if (std::round(v) > static_cast<double>(std::numeric_limits<int>::max()))
+            throw std::invalid_argument(
+                "Observation exceeds the largest representable trial count");
+    }
+    for (double v : values) {
+        const int k = static_cast<int>(std::round(v));
+        maxObs = std::max(maxObs, k);
+        const double kd = static_cast<double>(k);
+        sum += kd;
+        sum_sq += kd * kd;
+        ++count;
     }
     if (count == 0 || maxObs == 0) {
         reset();
@@ -451,7 +457,7 @@ void BinomialDistribution::reset() noexcept {
 std::string BinomialDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "BinomialDistribution(n=" << n_ << ",p=" << p_ << ")";
     return oss.str();
 }
@@ -510,8 +516,8 @@ double BinomialDistribution::getEntropy() const {
         double h = detail::ZERO_DOUBLE;
         for (int k = 0; k <= n; ++k) {
             // log P(k): log-binomial coefficient + log p^k (1-p)^(n-k)
-            const double log_pmf = lnf - std::lgamma(static_cast<double>(k + 1)) -
-                                   std::lgamma(static_cast<double>(n - k + 1)) +
+            const double log_pmf = lnf - detail::lgamma(static_cast<double>(k + 1)) -
+                                   detail::lgamma(static_cast<double>(n - k + 1)) +
                                    static_cast<double>(k) * lp + static_cast<double>(n - k) * l1mp;
             // P(k) * log P(k); guard against log_pmf = -inf when P(k) is tiny
             if (std::isfinite(log_pmf))
@@ -866,7 +872,7 @@ void BinomialDistribution::getCumulativeProbabilityBatchImpl(const double* value
 //==============================================================================
 
 void BinomialDistribution::updateCacheUnsafe() const noexcept {
-    logNFact_ = std::lgamma(static_cast<double>(n_ + 1));
+    logNFact_ = detail::lgamma(static_cast<double>(n_ + 1));
     logP_ = (p_ > detail::ZERO_DOUBLE) ? std::log(p_) : detail::NEGATIVE_INFINITY;
     log1mP_ = (p_ < detail::ONE) ? std::log1p(-p_) : detail::NEGATIVE_INFINITY;
     cache_valid_ = true;

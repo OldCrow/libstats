@@ -12,6 +12,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -268,6 +269,8 @@ double CauchyDistribution::getCumulativeProbability(double x) const {
 }
 
 double CauchyDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
@@ -414,7 +417,7 @@ void CauchyDistribution::reset() noexcept {
 std::string CauchyDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "CauchyDistribution(x0=" << x0_ << ",gamma=" << gamma_ << ")";
     return oss.str();
 }
@@ -467,10 +470,13 @@ void cauchyCdfBatch(const double* vals, double* res, std::size_t count, double x
 void CauchyDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                         const detail::PerformanceHint& hint) const {
     const std::size_t n = values.size();
-    if (n == 0)
-        return;
+    // Size check before the empty return, and the overlap assert on the caller's spans: the
+    // delegate below sees the scratch buffer z, never values (AR D5).
     if (n != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
+    LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), n, "CauchyDistribution batch");
+    if (n == 0)
+        return;
 
     double x0, ig;
     withCacheSnapshot([&] {
@@ -495,10 +501,13 @@ void CauchyDistribution::getLogProbability(std::span<const double> values,
                                            std::span<double> results,
                                            const detail::PerformanceHint& hint) const {
     const std::size_t n = values.size();
-    if (n == 0)
-        return;
+    // Size check before the empty return, and the overlap assert on the caller's spans: the
+    // delegate below sees the scratch buffer z, never values (AR D5).
     if (n != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
+    LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), n, "CauchyDistribution batch");
+    if (n == 0)
+        return;
 
     double x0, ig, lg;
     withCacheSnapshot([&] {

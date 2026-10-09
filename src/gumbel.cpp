@@ -12,6 +12,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -293,7 +294,9 @@ double GumbelDistribution::getCumulativeProbability(double x) const {
 }
 
 double GumbelDistribution::getQuantile(double p) const {
-    if (std::isnan(p) || p < detail::ZERO_DOUBLE || p > detail::ONE)
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
         return -std::numeric_limits<double>::infinity();
@@ -398,7 +401,7 @@ void GumbelDistribution::reset() noexcept {
 std::string GumbelDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "GumbelDistribution(mu=" << mu_ << ",beta=" << beta_ << ")";
     return oss.str();
 }

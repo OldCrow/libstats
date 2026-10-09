@@ -15,6 +15,7 @@ using stats::detail::validatePositiveParameter;
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -37,6 +38,16 @@ inline double roundedCount(double x) noexcept {
 }
 inline double flooredCount(double x) noexcept {
     return std::floor(x);
+}
+
+// CDF at a count k >= 0, I_p(r, k + 1), shared by getCumulativeProbability and getQuantile's
+// search so the two agree everywhere. At r = 1 (Geometric) the closed form
+// 1 - (1 - p)^(k+1) = -expm1((k + 1)·log1p(-p)) is exact to a few ulps, where the incomplete
+// beta erred 2e-7 relative at p = 1e-12 and was not monotone in k (DH D4).
+inline double cdfAtCount(double k, double r, double p) noexcept {
+    if (r == detail::ONE)
+        return -std::expm1((k + detail::ONE) * std::log1p(-p));
+    return detail::beta_i(p, r, k + detail::ONE);
 }
 
 // X ~ Poisson(lambda) as a count in double, for the gamma-Poisson sampler.
@@ -352,6 +363,8 @@ double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
 }
 
 double NegativeBinomialDistribution::getQuantile(double prob) const {
+    if (std::isnan(prob))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (prob < detail::ZERO_DOUBLE || prob > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (prob == detail::ZERO_DOUBLE)
@@ -376,9 +389,7 @@ double NegativeBinomialDistribution::getQuantile(double prob) const {
     // CDF at an integer count carried in double: the same I_p(r, k+1) that
     // getCumulativeProbability computes (which also carries its count in
     // double, #125), so the public CDF agrees with this search everywhere.
-    const auto cdf_at = [&](std::int64_t k) {
-        return detail::beta_i(p, r, static_cast<double>(k) + detail::ONE);
-    };
+    const auto cdf_at = [&](std::int64_t k) { return cdfAtCount(static_cast<double>(k), r, p); };
 
     // Smallest k with CDF(k) >= prob, searched outward from the normal
     // approximation: two or three CDF evaluations near the centre.
@@ -529,7 +540,7 @@ void NegativeBinomialDistribution::reset() noexcept {
 std::string NegativeBinomialDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "NegativeBinomialDistribution(r=" << r_ << ",p=" << p_ << ")";
     return oss.str();
 }
@@ -875,8 +886,7 @@ void NegativeBinomialDistribution::getCumulativeProbabilityBatchImpl(
             continue;
         }
         const double k = flooredCount(x);
-        results[i] =
-            (k < 0) ? detail::ZERO_DOUBLE : detail::beta_i(cached_p, cached_r, k + detail::ONE);
+        results[i] = (k < 0) ? detail::ZERO_DOUBLE : cdfAtCount(k, cached_r, cached_p);
     }
 }
 
@@ -885,7 +895,7 @@ void NegativeBinomialDistribution::getCumulativeProbabilityBatchImpl(
 //==============================================================================
 
 void NegativeBinomialDistribution::updateCacheUnsafe() const noexcept {
-    logGammaR_ = std::lgamma(r_);
+    logGammaR_ = detail::lgamma(r_);
     logP_ = std::log(p_);
     log1mP_ = (p_ < detail::ONE) ? std::log1p(-p_) : detail::NEGATIVE_INFINITY;
     cache_valid_ = true;

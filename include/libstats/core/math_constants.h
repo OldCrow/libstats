@@ -186,6 +186,10 @@ inline constexpr double LOG_PROBABILITY_EPSILON_PRECISION = 1.0e-300;
 inline constexpr double MIN_STD_DEV = 1.0e-6;
 inline constexpr double HIGH_PRECISION_UPPER_BOUND = 1.0e12;
 inline constexpr double MAX_STANDARD_DEVIATION = 1.0e10;
+/// Smallest scale σ whose square is a normal double: √DBL_MIN. Rayleigh and HalfNormal form σ²
+/// (and 1/σ²); below this it is subnormal or 0 and their CDFs read 1 or NaN (DH D6). Their upper
+/// bound is Gaussian's MAX_STANDARD_DEVIATION.
+inline constexpr double MIN_SQUARABLE_SCALE = 1.4916681462400413e-154;
 
 /// Convergence tolerance of the incomplete gamma and beta series and continued fractions:
 /// 3·DBL_EPSILON, as Numerical Recipes and Boost use. Until v2.4.2 they stopped at

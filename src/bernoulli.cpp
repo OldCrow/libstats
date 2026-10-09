@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -195,6 +197,7 @@ void BernoulliDistribution::reset() noexcept {
 std::string BernoulliDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "BernoulliDistribution(p=" << p_ << ")";
     return oss.str();
 }

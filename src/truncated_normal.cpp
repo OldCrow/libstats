@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -864,6 +865,7 @@ void TruncatedNormalDistribution::reset() noexcept {
 std::string TruncatedNormalDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "TruncatedNormalDistribution(mu=" << mean_ << ", sigma=" << standardDeviation_
         << ", a=" << lowerBound_ << ", b=" << upperBound_ << ")";
     return oss.str();
@@ -1165,29 +1167,61 @@ std::istream& operator>>(std::istream& is, TruncatedNormalDistribution& d) {
         is.setstate(std::ios::failbit);
         return is;
     }
-    const auto grab = [&line](const char* key) -> std::string {
-        const size_t kp = line.find(key);
-        if (kp == std::string::npos)
-            return {};
-        const size_t vs = kp + std::string(key).size();
-        const size_t ve = line.find_first_of(",)", vs);
-        if (ve == std::string::npos)
-            return {};
-        return line.substr(vs, ve - vs);
-    };
-    try {
-        const std::string ms = grab("mu="), ss = grab("sigma="), as = grab("a="), bs = grab("b=");
-        if (ms.empty() || ss.empty() || as.empty() || bs.empty()) {
+    // Tokenize "key=value" fields between the parentheses on ','; each of mu, sigma, a, b exactly
+    // once and nothing else. A substring search found "a=" inside "sigma=" (AR D2).
+    const size_t open = line.find('(');
+    const size_t close = line.find(')', open);
+    if (close == std::string::npos) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    const std::string body = line.substr(open + 1, close - open - 1);
+    const char* const keys[] = {"mu", "sigma", "a", "b"};
+    double values[4] = {};
+    bool seen[4] = {};
+    size_t pos = 0;
+    while (pos <= body.size()) {
+        size_t comma = body.find(',', pos);
+        if (comma == std::string::npos)
+            comma = body.size();
+        const std::string field = body.substr(pos, comma - pos);
+        pos = comma + 1;
+        const size_t eq = field.find('=');
+        const size_t ks = field.find_first_not_of(" \t");
+        if (eq == std::string::npos || ks == std::string::npos || ks >= eq) {
             is.setstate(std::ios::failbit);
             return is;
         }
-        const double mu = std::stod(ms), sg = std::stod(ss), a = std::stod(as), b = std::stod(bs);
-        auto result = d.trySetParameters(mu, sg, a, b);
-        if (result.isError())
+        const std::string key = field.substr(ks, field.find_last_not_of(" \t", eq - 1) - ks + 1);
+        const std::string value = field.substr(eq + 1);
+        int idx = -1;
+        for (int i = 0; i < 4; ++i)
+            if (key == keys[i])
+                idx = i;
+        if (idx < 0 || seen[idx]) {
             is.setstate(std::ios::failbit);
-    } catch (...) {
-        is.setstate(std::ios::failbit);
+            return is;
+        }
+        try {
+            size_t used = 0;
+            values[idx] = std::stod(value, &used);
+            if (value.find_first_not_of(" \t", used) != std::string::npos) {
+                is.setstate(std::ios::failbit);
+                return is;
+            }
+        } catch (...) {
+            is.setstate(std::ios::failbit);
+            return is;
+        }
+        seen[idx] = true;
     }
+    if (!(seen[0] && seen[1] && seen[2] && seen[3])) {
+        is.setstate(std::ios::failbit);
+        return is;
+    }
+    auto result = d.trySetParameters(values[0], values[1], values[2], values[3]);
+    if (result.isError())
+        is.setstate(std::ios::failbit);
     return is;
 }
 
@@ -1368,7 +1402,9 @@ TruncatedNormalDistribution::computeNormalization(double mean, double sigma, dou
         n.z = detail::HALF * (std::erf(n.beta * detail::INV_SQRT_2) - n.erf_alpha);
     }
 
-    n.valid = std::isfinite(n.z) && n.z > detail::ZERO_DOUBLE;
+    // Z must be a normal double: a subnormal Z (≈ 3e-316 for the window (−40, −38)) has lost
+    // most of its bits and 1/Z overflows, so the CDF read NaN where the pdf was finite (DH D9).
+    n.valid = std::isfinite(n.z) && n.z >= std::numeric_limits<double>::min();
     n.log_z = n.valid ? std::log(n.z) : detail::NEGATIVE_INFINITY;
     return n;
 }

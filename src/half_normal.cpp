@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -248,6 +249,8 @@ double HalfNormalDistribution::getCumulativeProbability(double x) const {
 }
 
 double HalfNormalDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1] for Half-Normal distribution");
     }
@@ -373,7 +376,7 @@ void HalfNormalDistribution::reset() noexcept {
 std::string HalfNormalDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "HalfNormalDistribution(sigma=" << sigma_ << ")";
     return oss.str();
 }

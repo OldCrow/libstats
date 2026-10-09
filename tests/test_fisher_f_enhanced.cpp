@@ -78,8 +78,8 @@ constexpr double kSf_1e6 = 3.7537030784668575e-28;
 constexpr double kQ_1e_12 = 8.9721396668572137e-6;
 constexpr double kQ_1e_6 = 0.0022591356950394809;
 constexpr double kQ_0_5 = 0.93193316085104795;
-constexpr double kQ_1m1e_6 = 49.356539766593084;    // p = double(1 - 1e-6)
-constexpr double kQ_1m1e_12 = 819.54320819126184;   // p = double(1 - 1e-12)
+constexpr double kQ_1m1e_6 = 49.356539766593084;   // p = double(1 - 1e-6)
+constexpr double kQ_1m1e_12 = 819.54320819126184;  // p = double(1 - 1e-12)
 
 // ---- F(100, 200): large-parameter case ----
 constexpr double kBigPdf_1_0 = 2.2988201089185847;
@@ -476,8 +476,8 @@ TEST_F(FisherFEnhancedTest, QuantileNeverNaN) {
     // Out-of-range p throws rather than returning a sentinel.
     EXPECT_THROW((void)f_.getQuantile(-0.1), std::invalid_argument);
     EXPECT_THROW((void)f_.getQuantile(1.1), std::invalid_argument);
-    EXPECT_THROW((void)f_.getQuantile(std::numeric_limits<double>::quiet_NaN()),
-                 std::invalid_argument);
+    // NaN in, NaN out, as all 27 (AR D3).
+    EXPECT_TRUE(std::isnan(f_.getQuantile(std::numeric_limits<double>::quiet_NaN())));
 
     // Round trip across the whole range, including the tails that
     // detail::inverse_beta_i's absolute stopping rule cannot reach.
@@ -519,8 +519,7 @@ TEST_F(FisherFEnhancedTest, CDFSurvivesDenormalArguments) {
     EXPECT_LT(relErr(f.getCumulativeProbability(1e-310), 0.014092489973099284), 1e-10)
         << "CDF at a many-bit denormal";
     // Complement-native survival must not saturate to 1 there.
-    EXPECT_LT(relErr(f.getSurvivalProbability(2.4209216646221081e-322), 0.98767157384481783),
-              1e-3)
+    EXPECT_LT(relErr(f.getSurvivalProbability(2.4209216646221081e-322), 0.98767157384481783), 1e-3)
         << "SF at a sub-(DBL_TRUE_MIN/d1) denormal";
     // quantile→cdf closes instead of collapsing to zero.
     const double q = f.getQuantile(1e-300);
@@ -600,8 +599,7 @@ TEST_F(FisherFEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(FDistribution::create(-1.0, 1.0).isError());
     EXPECT_TRUE(FDistribution::create(1.0, 0.0).isError());
     EXPECT_TRUE(FDistribution::create(1.0, -1.0).isError());
-    EXPECT_TRUE(
-        FDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
+    EXPECT_TRUE(FDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
     EXPECT_TRUE(FDistribution::create(1.0, std::numeric_limits<double>::infinity()).isError());
 
     auto f = FDistribution::create(5.0, 10.0).unwrap();
@@ -620,9 +618,7 @@ TEST_F(FisherFEnhancedTest, InvalidParameters) {
 //==============================================================================
 template <>
 struct stats::tests::DistTraits<stats::FDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::FDistribution make() {
-        return stats::FDistribution::create(5.0, 10.0).unwrap();
-    }
+    static stats::FDistribution make() { return stats::FDistribution::create(5.0, 10.0).unwrap(); }
     static std::vector<double> domain() { return {0.2, 0.5, 1.0, 2.0, 5.0}; }
     static double batch_lo() { return 0.05; }
     static double batch_hi() { return 6.0; }
@@ -634,8 +630,7 @@ struct stats::tests::DistTraits<stats::FDistribution> : stats::tests::DistTraits
             [] { return stats::FDistribution::create(-1.0, 1.0).isError(); },
             [] { return stats::FDistribution::create(1.0, 0.0).isError(); },
             [] {
-                return stats::FDistribution::create(1.0,
-                                                    std::numeric_limits<double>::quiet_NaN())
+                return stats::FDistribution::create(1.0, std::numeric_limits<double>::quiet_NaN())
                     .isError();
             },
         };

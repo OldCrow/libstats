@@ -320,7 +320,7 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getEntropy() const override;
 
     /**
-     * @brief True if κ = 0 within tolerance (uniform circular distribution).
+     * @brief True if κ = 0 exactly (uniform circular distribution).
      * When true, PDF = 1/(2π) everywhere.
      */
     [[nodiscard]] bool isUniform() const noexcept {
@@ -469,7 +469,7 @@ class VonMisesDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief True if κ < 1e-10 (uniform circular distribution). */
+    /** @brief True if κ == 0 (uniform circular distribution); exact equality only. */
     mutable bool isUniform_{false};
 
     //==========================================================================

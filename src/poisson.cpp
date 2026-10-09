@@ -26,6 +26,7 @@ using stats::detail::validatePositiveParameter;
 #include <any>
 #include <cmath>
 #include <cstdint>
+#include <iomanip>
 #include <limits>
 #include <map>
 #include <numeric>
@@ -68,6 +69,7 @@ PoissonDistribution& PoissonDistribution::operator=(const PoissonDistribution& o
         lambda_ = other.lambda_;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -78,6 +80,7 @@ PoissonDistribution::PoissonDistribution(PoissonDistribution&& other) noexcept
     other.lambda_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
     // Cache will be updated on first use
 }
 
@@ -94,7 +97,9 @@ PoissonDistribution& PoissonDistribution::operator=(PoissonDistribution&& other)
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -163,19 +168,19 @@ double PoissonDistribution::getLambdaAtomic() const noexcept {
     return getLambda();
 }
 
-inline int PoissonDistribution::getNumParameters() const noexcept {
+int PoissonDistribution::getNumParameters() const noexcept {
     return 1;
 }
 
-inline bool PoissonDistribution::isDiscrete() const noexcept {
+bool PoissonDistribution::isDiscrete() const noexcept {
     return true;
 }
 
-inline double PoissonDistribution::getSupportLowerBound() const noexcept {
+double PoissonDistribution::getSupportLowerBound() const noexcept {
     return 0.0;
 }
 
-inline double PoissonDistribution::getSupportUpperBound() const noexcept {
+double PoissonDistribution::getSupportUpperBound() const noexcept {
     return std::numeric_limits<double>::infinity();
 }
 
@@ -303,6 +308,8 @@ double PoissonDistribution::getCumulativeProbability(double x) const {
 }
 
 double PoissonDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0,1]");
     }
@@ -454,6 +461,7 @@ void PoissonDistribution::reset() noexcept {
 
 std::string PoissonDistribution::toString() const {
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     oss << "Poisson(λ=" << lambda_ << ")";
     return oss.str();
@@ -960,7 +968,7 @@ void PoissonDistribution::updateCacheUnsafe() const noexcept {
     invLambda_ = detail::ONE / lambda_;
 
     // Stirling's approximation for log(Γ(λ+1)) = log(λ!)
-    logGammaLambdaPlus1_ = std::lgamma(lambda_ + detail::ONE);
+    logGammaLambdaPlus1_ = detail::lgamma(lambda_ + detail::ONE);
 
     // Optimization flags
     isSmallLambda_ = (lambda_ < detail::SMALL_LAMBDA_THRESHOLD);
@@ -1044,7 +1052,7 @@ double PoissonDistribution::logFactorial(int n) noexcept {
     }
 
     // Use Stirling's approximation: log(n!) ≈ n*log(n) - n + 0.5*log(2πn)
-    return std::lgamma(n + detail::ONE);
+    return detail::lgamma(n + detail::ONE);
 }
 
 //==========================================================================

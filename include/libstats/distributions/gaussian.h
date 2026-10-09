@@ -402,6 +402,13 @@ class GaussianDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = 1 − F(x), formed as the complement itself (AR A11), so it keeps full
+     * relative precision in the upper tail, where 1 − F(x) cancels to 0, and getHazard stays
+     * finite inside the support.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      * Uses inverse error function for accurate quantile calculation
      *

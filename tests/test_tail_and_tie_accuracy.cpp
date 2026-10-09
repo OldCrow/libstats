@@ -72,11 +72,14 @@ TEST(TailAndTie, CauchyQuantileTails) {
 }
 
 TEST(TailAndTie, DiscreteQuantileAtExactTies) {
-    // Uniform on {0..9}: the smallest k with (k + 1)/10 >= p, for p the double nearest each
-    // literal. 0.1 and 0.9 lie just above k/10 and 0.3 just below.
+    // Uniform on {0..9}: the smallest k with F(k) >= p, F(k) = fl((k + 1)/10) as
+    // getCumulativeProbability returns it (DH D7). The doubles 0.1, 0.3 and 0.9 are exactly
+    // F(0), F(2) and F(8), so each is its own quantile's CDF value. (Until v2.5.0 the quantile
+    // compared against the exact (k + 1)/10 and returned 1 and 9 for 0.1 and 0.9, so
+    // Q(F(k)) != k at those ties.)
     const auto d = DiscreteDistribution::create(0, 9).unwrap();
-    EXPECT_EQ(d.getQuantile(0.1), 1.0);
-    EXPECT_EQ(d.getQuantile(0.9), 9.0);
+    EXPECT_EQ(d.getQuantile(0.1), 0.0);
+    EXPECT_EQ(d.getQuantile(0.9), 8.0);
     EXPECT_EQ(d.getQuantile(0.3), 2.0);
     EXPECT_EQ(d.getQuantile(0.25), 2.0);
     EXPECT_EQ(d.getQuantile(1.0), 9.0);

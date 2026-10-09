@@ -12,6 +12,7 @@ using stats::detail::validatePositiveParameter;
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <limits>
 #include <numeric>
 #include <random>
@@ -259,6 +260,8 @@ double StudentTDistribution::getCumulativeProbability(double x) const {
 }
 
 double StudentTDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1]");
     }
@@ -419,6 +422,7 @@ void StudentTDistribution::reset() noexcept {
 std::string StudentTDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "StudentTDistribution(nu=" << nu_ << ")";
     return oss.str();
 }

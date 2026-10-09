@@ -451,6 +451,16 @@ create_libstats_gtest(test_parallel_batch_gates test_parallel_batch_gates.cpp)
 # self-comparison. Correctness, not timing: it asserts values and progress only.
 create_libstats_gtest(test_concurrency_gates test_concurrency_gates.cpp)
 
+# Contract gates from the 2026-10-07 architecture review and defect hunt: atomic getters after
+# assignment, stream round trips, NaN quantiles, fit validation, survival complements, tiny-kappa
+# von Mises, Geometric closed-form CDF, scale ranges, quantile ties, signgam (#173). Correctness,
+# not timing: deliberately NOT in the "timing" label block below.
+create_libstats_gtest(test_contract_gates test_contract_gates.cpp)
+# AR D19: no `inline` member definitions in src/*.cpp (Poisson's overrides, the #189 class).
+add_test(NAME check_inline_member_definitions
+         COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -P
+                 ${CMAKE_CURRENT_SOURCE_DIR}/check_inline_member_definitions.cmake)
+
 # R9 stress test: every distribution's readers raced against writer programs (setters, fit, stream,
 # assignment), two-writer rounds, and a strategy differential. Correctness, not timing: it asserts
 # values and progress only. LIBSTATS_STRESS_SCALE scales its rounds (lower it under TSan).
@@ -615,9 +625,6 @@ if(GTEST_FOUND)
     set_tests_properties(
         test_math_comprehensive # vectorized math speedup assertions
         test_gaussian_enhanced
-        test_chi_squared_enhanced
-        test_student_t_enhanced
-        test_beta_enhanced
         test_lognormal_enhanced
         test_pareto_enhanced
         test_weibull_enhanced
@@ -625,9 +632,12 @@ if(GTEST_FOUND)
         test_von_mises_enhanced
         test_binomial_enhanced
         test_negative_binomial_enhanced
-        test_performance_dispatcher
         test_system_capabilities
         test_parallel_batch_gates # #175/#176: PARALLEL beats VECTORIZED at 1M
+        # test_chi_squared_enhanced, test_student_t_enhanced, test_beta_enhanced and
+        # test_performance_dispatcher left this list (AR T1, 2026-10-07): none has a clock, duration
+        # or speedup assertion, so the label only kept their gates (#103 among them) out of CI's
+        # correctness run (-LE "timing|benchmark"), the #97 trap.
         PROPERTIES LABELS "timing")
     set_tests_properties(
         test_exponential_enhanced

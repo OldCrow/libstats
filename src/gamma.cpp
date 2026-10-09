@@ -22,6 +22,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <numeric>
@@ -431,6 +432,8 @@ double GammaDistribution::getCumulativeProbability(double x) const {
 }
 
 double GammaDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -604,6 +607,7 @@ void GammaDistribution::reset() noexcept {
 std::string GammaDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "GammaDistribution(alpha=" << alpha_ << ", beta=" << beta_ << ")";
     return oss.str();
 }
@@ -1297,7 +1301,7 @@ double GammaDistribution::incompleteGamma(double a, double x) noexcept {
     if (a <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
     }
-    return detail::gamma_p(a, x) * std::exp(std::lgamma(a));
+    return detail::gamma_p(a, x) * std::exp(detail::lgamma(a));
 }
 
 double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcept {
@@ -1432,6 +1436,11 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
 
     // Initial guess using method of moments
     double s = std::log(mean_x) - mean_log_x;
+    // s = log(mean) − mean(log) ≥ 0 (Jensen), and 0 exactly for one point or all-equal data,
+    // where the Choi-Wette estimate is 0/0 and the fit was left at α = β = NaN (DH D13).
+    if (!(s > detail::ZERO_DOUBLE) || !std::isfinite(s))
+        throw std::invalid_argument(
+            "Gamma MLE needs at least two distinct observations (data has zero variance)");
     double alpha_est =
         (detail::THREE - s + std::sqrt((s - detail::THREE) * (s - detail::THREE) + 24.0 * s)) /
         (12.0 * s);

@@ -15,6 +15,11 @@
 #include <stdexcept>
 #include <utility>
 
+#if defined(__APPLE__) && !defined(_REENTRANT)
+// POSIX lgamma_r: in libSystem, declared by Apple's <math.h> only under _REENTRANT.
+extern "C" double lgamma_r(double, int*);
+#endif
+
 namespace stats {
 namespace detail {
 
@@ -130,7 +135,7 @@ namespace {
 double stirling_error(double m) noexcept {
     if (m >= kStirlingPrefactorShape)
         return stirling_remainder(m);
-    return std::lgamma(m + detail::ONE) -
+    return detail::lgamma(m + detail::ONE) -
            ((m + detail::HALF) * std::log(m) - m + detail::HALF * detail::LN_2PI);
 }
 
@@ -172,7 +177,7 @@ double poisson_log_pmf(double k, double lambda) noexcept {
     if (k == detail::ZERO_DOUBLE)
         return -lambda;
     if (k < kStirlingPrefactorShape && lambda < kStirlingPrefactorShape)
-        return k * std::log(lambda) - lambda - std::lgamma(k + detail::ONE);
+        return k * std::log(lambda) - lambda - detail::lgamma(k + detail::ONE);
     // log pmf = −D(k, λ) − ½·log(2πk) − c(k).
     return -deviance(k, lambda) - detail::HALF * (std::log(k) + detail::LN_2PI) - stirling_error(k);
 }
@@ -189,8 +194,8 @@ double binomial_log_pmf(double xa, double xb, double pa) noexcept {
         return xa * std::log(pa);
     const DoubleDouble n = two_sum(xa, xb);
     if (n.hi < kStirlingPrefactorShape)
-        return std::lgamma(n.hi + detail::ONE) - std::lgamma(xa + detail::ONE) -
-               std::lgamma(xb + detail::ONE) + xa * std::log(pa) + xb * std::log1p(-pa);
+        return detail::lgamma(n.hi + detail::ONE) - detail::lgamma(xa + detail::ONE) -
+               detail::lgamma(xb + detail::ONE) + xa * std::log(pa) + xb * std::log1p(-pa);
 
     // The means Ma = n·pa and Mb = n − Ma as double-doubles, so Ma + Mb = xa + xb to ~ε²·n. Then
     //   log pmf = c(n) − c(xa) − c(xb) + ½·log(n/(2π·xa·xb)) − D(xa, Ma) − D(xb, Mb)
@@ -346,8 +351,17 @@ double erf_inv(double x) noexcept {
     return sign * result;
 }
 
+// log|Γ(x)| without the global signgam write of std::lgamma, which POSIX marks MT-unsafe and glibc
+// documents as race:signgam (#173). lgamma_r is the same libm routine with the sign returned
+// through its argument, so the result bits are std::lgamma's. MSVC's lgamma writes no signgam
+// and has no lgamma_r.
 double lgamma(double x) noexcept {
+#if defined(_WIN32)
     return std::lgamma(x);
+#else
+    int sign = 0;
+    return ::lgamma_r(x, &sign);
+#endif
 }
 
 // Below this shape gamma_q forms Q directly where x ≤ a + 1 (gamma_q_small_shape); above it
@@ -551,7 +565,7 @@ double gamma_p_inv(double a, double p) noexcept {
         // P(a, x) ≤ x^a/Γ(a + 1), so the root is at or above that bound's root. Below t = −700
         // the bound equals P to a relative a·x/(a + 1) < 1e-304, so it is the answer — and the
         // only route to it when x underflows.
-        const double t_bound = (log_target + std::lgamma(a + detail::ONE)) / a;
+        const double t_bound = (log_target + detail::lgamma(a + detail::ONE)) / a;
         if (t_bound < -700.0)
             return std::exp(t_bound);
         lo = t_bound;
@@ -598,6 +612,11 @@ double beta_i(double x, double a, double b) noexcept {
 
     // Use continued fraction approximation
     double bt = std::exp(log_beta_prefactor(x, a, b, beta_prefactor_constant(a, b)));
+    // An underflowed prefactor decides the result without the continued fraction, which at a
+    // shape past ~1e154 overflows its products to inf/inf = NaN (NegativeBinomial cdf(1e300)).
+    // bt·cf is then below 2^-1074·cf, so the small side is 0 and its complement 1.
+    if (bt == detail::ZERO_DOUBLE)
+        return x < (a + detail::ONE) / (a + b + detail::TWO) ? detail::ZERO_DOUBLE : detail::ONE;
 
     if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
         return bt * beta_continued_fraction(x, a, b);
@@ -623,6 +642,8 @@ double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
     // log_beta_prefix is the caller's hoisted beta_prefactor_constant(a, b), in the direct or the
     // Stirling form as the shapes select (#166).
     double bt = std::exp(log_beta_prefactor(x, a, b, log_beta_prefix));
+    if (bt == detail::ZERO_DOUBLE)  // as in the overload above
+        return x < (a + detail::ONE) / (a + b + detail::TWO) ? detail::ZERO_DOUBLE : detail::ONE;
 
     if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
         return bt * beta_continued_fraction(x, a, b);
@@ -742,9 +763,9 @@ double lbeta(double a, double b) noexcept {
     const double x = std::max(a, b);
     const double y = std::min(a, b);
     if (x < kStirlingPrefactorShape || y <= detail::ZERO_DOUBLE)
-        return std::lgamma(a) + std::lgamma(b) - std::lgamma(a + b);
+        return detail::lgamma(a) + detail::lgamma(b) - detail::lgamma(a + b);
     const double s = x + y;
-    return std::lgamma(y) - (x - detail::HALF) * std::log1p(y / x) - y * std::log(s) + y +
+    return detail::lgamma(y) - (x - detail::HALF) * std::log1p(y / x) - y * std::log(s) + y +
            stirling_remainder(x) - stirling_remainder(s);
 }
 

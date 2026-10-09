@@ -14,6 +14,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -302,7 +303,23 @@ double ParetoDistribution::getCumulativeProbability(double x) const {
     return paretoCdf(x, scale, alpha);
 }
 
+double ParetoDistribution::getSurvival(double x) const {
+    // S(x) = (x_m/x)^α, in paretoCdf's log1p form (AR A11).
+    if (std::isnan(x))
+        return x;
+    double scale, alpha;
+    withCacheSnapshot([&] {
+        scale = scale_;
+        alpha = alpha_;
+    });
+    if (x < scale)
+        return detail::ONE;
+    return std::exp(-alpha * std::log1p((x - scale) / scale));
+}
+
 double ParetoDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1] for Pareto distribution");
     }
@@ -396,7 +413,7 @@ void ParetoDistribution::reset() noexcept {
 std::string ParetoDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "ParetoDistribution(scale=" << scale_ << ",alpha=" << alpha_ << ")";
     return oss.str();
 }

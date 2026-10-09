@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <limits>
 #include <numeric>
 #include <optional>
@@ -427,7 +428,9 @@ double InverseGammaDistribution::getSurvivalProbability(double x) const {
 }
 
 double InverseGammaDistribution::getQuantile(double p) const {
-    if (std::isnan(p) || p < detail::ZERO_DOUBLE || p > detail::ONE)
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability p must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
@@ -548,6 +551,7 @@ void InverseGammaDistribution::reset() noexcept {
 std::string InverseGammaDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "InverseGammaDistribution(alpha=" << alpha_ << ",beta=" << beta_ << ")";
     return oss.str();
 }
@@ -562,6 +566,10 @@ void InverseGammaDistribution::getLogProbability(std::span<const double> values,
     if (values.size() != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
     const std::size_t count = values.size();
+    // The delegate sees the scratch buffer, so its own overlap assert cannot see the caller's
+    // spans; the fixup pass below re-reads values after results is written (AR D5).
+    LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), count,
+                               "InverseGammaDistribution::getLogProbability");
     if (count == 0)
         return;
 

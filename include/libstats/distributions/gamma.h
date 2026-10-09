@@ -548,7 +548,8 @@ class GammaDistribution : public DistributionBase {
      * For Gamma distribution, uses method of moments as initial guess, then Newton-Raphson.
      *
      * @param values Vector of observed positive data
-     * @throws std::invalid_argument if values is empty or contains non-positive values
+     * @throws std::invalid_argument if values is empty, contains non-positive values, or has
+     *         fewer than two distinct values
      */
     void fit(const std::vector<double>& values) override;
 
@@ -884,7 +885,7 @@ class GammaDistribution : public DistributionBase {
      */
     void updateCacheUnsafe() const noexcept override {
         // Primary calculations - compute once, reuse multiple times
-        logGammaAlpha_ = std::lgamma(alpha_);
+        logGammaAlpha_ = detail::lgamma(alpha_);
         logBeta_ = std::log(beta_);
         alphaLogBeta_ = alpha_ * logBeta_;
         alphaMinusOne_ = alpha_ - detail::ONE;

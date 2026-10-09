@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -280,6 +282,7 @@ void ErlangDistribution::reset() noexcept {
 std::string ErlangDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "ErlangDistribution(k=" << k_ << ",lambda=" << lambda_ << ")";
     return oss.str();
 }

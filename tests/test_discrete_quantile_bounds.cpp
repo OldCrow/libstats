@@ -57,7 +57,9 @@ constexpr double kIntMax = 2147483647.0;
 TEST(DiscreteQuantileBounds, GeometricQuantileBeyondIntMax) {
     constexpr double p = 1e-9;
     auto g = stats::GeometricDistribution::create(p).unwrap();
-    const auto cdf_at = [&](double k) { return stats::detail::beta_i(p, 1.0, k + 1.0); };
+    // The closed form 1 - (1-p)^(k+1), which getCumulativeProbability uses at r = 1 since
+    // v2.5.0 (DH D4); I_p(1, k+1) through detail::beta_i erred ~1e-8 here.
+    const auto cdf_at = [&](double k) { return -std::expm1((k + 1.0) * std::log1p(-p)); };
 
     for (double q : {0.5, 0.99}) {
         const double k = g.getQuantile(q);
@@ -65,10 +67,9 @@ TEST(DiscreteQuantileBounds, GeometricQuantileBeyondIntMax) {
         EXPECT_NEAR(k, closed_form, 1e-5 * closed_form)
             << "Geometric(1e-9).getQuantile(" << q << ") = " << k << ", closed form "
             << closed_form;
-        // The discrete quantile's defining property, evaluated through
-        // detail::beta_i -- the same I_p(r, k+1) the public
-        // getCumulativeProbability computes, but without the
-        // static_cast<int>(std::floor(x)) it applies to its argument first.
+        // The discrete quantile's defining property, evaluated through the
+        // closed form -- the same value the public getCumulativeProbability
+        // computes at r = 1, but without the floor it applies first.
         // A too-small search bound fails the first of these (the search
         // returns max_k, whose CDF is below q), so neither is tautological
         // against the bisection.

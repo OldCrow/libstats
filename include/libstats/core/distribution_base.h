@@ -135,7 +135,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
     }
 
     // =============================================================================
-    // SURVIVAL ANALYSIS - Concrete (derived from core interface)
+    // SURVIVAL ANALYSIS - Virtual (Override Optional)
     // =============================================================================
 
     /**
@@ -145,10 +145,18 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * as a reliability / survival probability for Weibull, Exponential, Pareto
      * and other positive-support distributions.
      *
+     * The default forms 1 - F(x), which cancels to 0 in the upper tail where
+     * S(x) is still representable. Exponential, Weibull, Rayleigh, Pareto,
+     * Gaussian, FisherF and InverseGamma override it with the complement
+     * formed directly (AR A11). Virtual since v2.5.0: an ABI change for code
+     * built against an earlier v2.x header that derives from DistributionBase.
+     *
      * @param x Evaluation point.
      * @return S(x) in [0, 1].
      */
-    [[nodiscard]] double getSurvival(double x) const { return 1.0 - getCumulativeProbability(x); }
+    [[nodiscard]] virtual double getSurvival(double x) const {
+        return 1.0 - getCumulativeProbability(x);
+    }
 
     /**
      * @brief Hazard function h(x) = f(x) / S(x).

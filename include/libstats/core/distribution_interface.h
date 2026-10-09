@@ -70,7 +70,7 @@ class DistributionInterface {
     /**
      * @brief Quantile function (inverse CDF)
      * @param p Probability value in [0,1]
-     * @return x such that P(X <= x) = p
+     * @return x such that P(X <= x) = p; NaN when p is NaN (every distribution)
      * @throws std::invalid_argument if p not in [0,1]
      */
     virtual double getQuantile(double p) const = 0;

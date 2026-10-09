@@ -18,6 +18,8 @@ using stats::detail::validatePositiveParameter;
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
 #include <numeric>
 #include <ranges>
 #include <span>
@@ -74,6 +76,7 @@ GaussianDistribution& GaussianDistribution::operator=(const GaussianDistribution
         standardDeviation_ = other.standardDeviation_;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -86,6 +89,7 @@ GaussianDistribution::GaussianDistribution(GaussianDistribution&& other) noexcep
     other.standardDeviation_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) noexcept {
@@ -103,7 +107,9 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -307,7 +313,23 @@ double GaussianDistribution::getCumulativeProbability(double x) const {
     return cdf_from_erf_arg((x - m) / sigma_sqrt2);
 }
 
+double GaussianDistribution::getSurvival(double x) const {
+    // S(x) = Φ(−z): the erfc branch of cdf_from_erf_arg serves the upper tail (AR A11).
+    bool is_std;
+    double m, sigma_sqrt2;
+    withCacheSnapshot([&] {
+        is_std = isStandardNormal_;
+        m = mean_;
+        sigma_sqrt2 = sigmaSqrt2_;
+    });
+    if (is_std)
+        return cdf_from_erf_arg(-x * detail::INV_SQRT_2);
+    return cdf_from_erf_arg(-((x - m) / sigma_sqrt2));
+}
+
 double GaussianDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -571,6 +593,7 @@ void GaussianDistribution::reset() noexcept {
 std::string GaussianDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "GaussianDistribution(mean=" << mean_ << ", stddev=" << standardDeviation_ << ")";
     return oss.str();
 }

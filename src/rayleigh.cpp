@@ -246,7 +246,20 @@ double RayleighDistribution::getCumulativeProbability(double x) const {
     return -std::expm1(nhis * x * x);
 }
 
+double RayleighDistribution::getSurvival(double x) const {
+    // S(x) = exp(−x²/(2σ²)) (AR A11).
+    if (std::isnan(x))
+        return x;
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+    double nhis;
+    withCacheSnapshot([&] { nhis = negHalfInvSigmaSquared_; });
+    return std::exp(nhis * x * x);
+}
+
 double RayleighDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1] for Rayleigh distribution");
     }
@@ -324,7 +337,7 @@ void RayleighDistribution::reset() noexcept {
 std::string RayleighDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "RayleighDistribution(sigma=" << sigma_ << ")";
     return oss.str();
 }

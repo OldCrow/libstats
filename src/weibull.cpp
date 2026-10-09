@@ -362,7 +362,23 @@ double WeibullDistribution::getCumulativeProbability(double x) const {
     return weibullCdf(x, k, ls);
 }
 
+double WeibullDistribution::getSurvival(double x) const {
+    // S(x) = exp(−(x/λ)^k), the complement weibullCdf forms with expm1 (AR A11).
+    if (std::isnan(x))
+        return x;
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+    double k, ls;
+    withCacheSnapshot([&] {
+        k = shape_;
+        ls = logScale_;
+    });
+    return std::exp(-std::exp(k * (std::log(x) - ls)));
+}
+
 double WeibullDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1] for Weibull distribution");
     }
@@ -544,7 +560,7 @@ void WeibullDistribution::reset() noexcept {
 std::string WeibullDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "WeibullDistribution(shape=" << shape_ << ",scale=" << scale_ << ")";
     return oss.str();
 }
@@ -1000,11 +1016,11 @@ void WeibullDistribution::updateCacheUnsafe() const noexcept {
     logNormConst_ = logShape_ - shape_ * logScale_;
 
     // Mean: λ·Γ(1 + 1/k)
-    const double g1 = std::exp(std::lgamma(detail::ONE + detail::ONE / shape_));
+    const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / shape_));
     mean_ = scale_ * g1;
 
     // Variance: λ²·[Γ(1 + 2/k) − Γ(1 + 1/k)²]
-    const double g2 = std::exp(std::lgamma(detail::ONE + detail::TWO / shape_));
+    const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / shape_));
     variance_ = scale_ * scale_ * (g2 - g1 * g1);
 
     isExponential_ = (std::fabs(shape_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);

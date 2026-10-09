@@ -1242,7 +1242,7 @@ void VonMisesDistribution::reset() noexcept {
 std::string VonMisesDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "VonMisesDistribution(mu=" << mu_ << ",kappa=" << kappa_ << ")";
     return oss.str();
 }
@@ -1642,7 +1642,7 @@ void VonMisesDistribution::updateCacheUnsafe() const noexcept {
     // J(-pi/2), the per-kappa constant of the tail's mode quadrature.
     tailHalfJ_ = vonmises_half_tail_j(kappa_);
 
-    isUniform_ = (kappa_ < 1e-10);
+    isUniform_ = (kappa_ == detail::ZERO_DOUBLE);  // exact equality only (AR D6)
 
     // Circular variance = 1 − I₁(κ)/I₀(κ), via the dedicated complement helper
     // (#93). Forming it as `ONE - i1 / i0` discarded ~log₂(2κ) bits — about 9
