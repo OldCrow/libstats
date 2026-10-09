@@ -470,6 +470,13 @@ create_libstats_gtest(test_concurrency_stress test_concurrency_stress.cpp)
 if(MSVC)
     target_compile_options(test_concurrency_stress PRIVATE /bigobj)
 endif()
+# Its racing threads need the cores to themselves: under ctest --parallel on a 3-vCPU runner they
+# starved and tripped the 120 s watchdog. Same for the gates, which race the same way.
+foreach(_t test_concurrency_stress test_concurrency_gates)
+    if(TEST ${_t})
+        set_tests_properties(${_t} PROPERTIES RUN_SERIAL TRUE)
+    endif()
+endforeach()
 
 # Oracle-free identities over all 27 distributions (2026-10-07 defect hunt, proposal 1): CDF range
 # and monotonicity, Q(F(x)) and F(Q(p)) round trips, discrete quantile minimality, pdf against

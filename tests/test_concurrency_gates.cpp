@@ -85,13 +85,22 @@ namespace {
 // one-shot race needs both calls inside the same few hundred nanoseconds, which a shared start
 // makes common and two free-running loops make rare: the loop form of these gates passed on the
 // unfixed code.
+// Spin briefly, then yield. On an idle machine the racers stay hot, so the two calls still start
+// within a few cycles of each other; on an oversubscribed one pure spinning starved the threads
+// that had to run (CI macos-15, 3 vCPUs under ctest --parallel: a 3 s section hit the 120 s
+// watchdog and read as a deadlock).
+inline void spinOrYield(int& spins) {
+    if (++spins > 2000)
+        std::this_thread::yield();
+}
+
 template <typename Setup, typename First, typename Second, typename Check>
 int racedRounds(int rounds, Setup setup, First first, Second second, Check check) {
     std::atomic<int> go{0}, done{0};
     std::atomic<bool> quit{false};
     const auto worker = [&](auto& call) {
         for (int r = 1;; ++r) {
-            while (go.load(std::memory_order_acquire) < r)
+            for (int spins = 0; go.load(std::memory_order_acquire) < r; spinOrYield(spins))
                 if (quit.load(std::memory_order_acquire))
                     return;
             call();
@@ -105,7 +114,7 @@ int racedRounds(int rounds, Setup setup, First first, Second second, Check check
         setup();
         done.store(0, std::memory_order_release);
         go.store(r, std::memory_order_release);
-        while (done.load(std::memory_order_acquire) < 2) {
+        for (int spins = 0; done.load(std::memory_order_acquire) < 2; spinOrYield(spins)) {
         }
         rejected += !check();
     }

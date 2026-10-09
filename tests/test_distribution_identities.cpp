@@ -152,6 +152,10 @@ std::string knownIssue(const Where& w) {
         if (std::max(a, b) / std::min(a, b) >= 1e5 && (roundTrip || w.check == "deriv"))
             return "113";
     }
+    // #126: Binomial at n >= 1e9 takes beta_i at b ~ n, which loses ~1e-6 absolute there: pmf vs
+    // F(k) - F(k-1) at the median differs by 3.6e-7 relative under MSVC (CI, 2026-10-08).
+    if (f == "binomial" && w.par[0] >= 1e9 && (roundTrip || w.check == "deriv"))
+        return "126";
     // #126: NegativeBinomial with tiny p (beta_i at x = p, b ~ 1/p) is ~1e-10 relative at r = 3.
     // r = 1 (Geometric) takes the closed form (#202) and is checked.
     if (f == "negative_binomial" && w.par[0] != 1.0 && w.par[1] <= 1e-4 &&
@@ -932,6 +936,11 @@ TEST(DistributionIdentities, TruncatedNormal) {
 // ---------------------------------------------------------------------------------------------
 // Cross-class identities between independent code paths
 // ---------------------------------------------------------------------------------------------
+// exp(-lambda x) evaluated by two classes forms its argument by different roundings (lambda * x
+// against x / scale); an argument error of eps |lambda x| is a relative error of the same size in
+// the value, about 1e-10 at lambda x ~ 5e5 (a libm-dependent last bit: macos-15 CI, 2026-10-08).
+constexpr double kExpArgCond = 4 * std::numeric_limits<double>::epsilon();
+
 struct Cross {
     Report r;
     // extraRel: the reference formula's own conditioning at x (a cancelling difference), added to
@@ -1004,13 +1013,15 @@ TEST(DistributionIdentitiesCrossClass, ContinuousSpecialCases) {
             [&](double v) { return ga.getCumulativeProbability(v); }, x, 1e-13);
         c.cmp(
             "exp=gamma1 pdf" + s, [&](double v) { return e.getProbability(v); },
-            [&](double v) { return ga.getProbability(v); }, x, 1e-13);
+            [&](double v) { return ga.getProbability(v); }, x, 1e-13,
+            [l](double v) { return kExpArgCond * l * v; });
         c.cmp(
             "exp=weibull1 cdf" + s, [&](double v) { return e.getCumulativeProbability(v); },
             [&](double v) { return w.getCumulativeProbability(v); }, x, 1e-13);
         c.cmp(
             "exp=weibull1 pdf" + s, [&](double v) { return e.getProbability(v); },
-            [&](double v) { return w.getProbability(v); }, x, 1e-13);
+            [&](double v) { return w.getProbability(v); }, x, 1e-13,
+            [l](double v) { return kExpArgCond * l * v; });
         c.cmp(
             "exp=gamma1 quantile" + s, [&](double p) { return e.getQuantile(p); },
             [&](double p) { return ga.getQuantile(p); }, unit, 1e-11);

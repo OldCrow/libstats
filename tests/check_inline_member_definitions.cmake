@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.25)  # IN_LIST (CMP0057) in script mode
 # AR D19 / #189 class: an `inline` member-function definition in a .cpp file is ill-formed (no
 # diagnostic required) once any other translation unit calls it directly; Poisson's four virtual
 # overrides linked only because the vtable forced their emission. Fails on any such definition in

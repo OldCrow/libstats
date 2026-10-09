@@ -85,13 +85,22 @@ void runWithWatchdog(const std::string& what, int seconds, Body body) {
 
 // Rounds of two calls started together: setup() between rounds, then first() and second() on two
 // threads released at the same instant, then check(). Returns the rounds that check() rejected.
+// Spin briefly, then yield. On an idle machine the racers stay hot, so the two calls still start
+// within a few cycles of each other; on an oversubscribed one pure spinning starved the threads
+// that had to run (CI macos-15, 3 vCPUs under ctest --parallel: a 3 s section hit the 120 s
+// watchdog and read as a deadlock).
+inline void spinOrYield(int& spins) {
+    if (++spins > 2000)
+        std::this_thread::yield();
+}
+
 template <typename Setup, typename First, typename Second, typename Check>
 int racedRounds(int rounds, Setup setup, First first, Second second, Check check) {
     std::atomic<int> go{0}, done{0};
     std::atomic<bool> quit{false};
     const auto worker = [&](auto& call) {
         for (int r = 1;; ++r) {
-            while (go.load(std::memory_order_acquire) < r)
+            for (int spins = 0; go.load(std::memory_order_acquire) < r; spinOrYield(spins))
                 if (quit.load(std::memory_order_acquire))
                     return;
             call();
@@ -105,7 +114,7 @@ int racedRounds(int rounds, Setup setup, First first, Second second, Check check
         setup();
         done.store(0, std::memory_order_release);
         go.store(r, std::memory_order_release);
-        while (done.load(std::memory_order_acquire) < 2) {
+        for (int spins = 0; done.load(std::memory_order_acquire) < 2; spinOrYield(spins)) {
         }
         rejected += !check();
     }
@@ -751,16 +760,18 @@ void differential(const Row<D>& row) {
                     << row.name << " " << kOpNames[op] << " n=" << n << " " << batchHints()[h].name
                     << ": neither the batch kernel's nor the scalar "
                     << "method's bits";
-                if (std::string(batchHints()[h].name) == "PARALLEL" && n < fork)
+                if (std::string(batchHints()[h].name) == "PARALLEL" && n < fork) {
                     EXPECT_TRUE(isVec)
                         << row.name << " " << kOpNames[op] << " n=" << n
                         << ": PARALLEL below the fork threshold is not the batch path";
+                }
                 // Above it the multithreaded strategies run the batch kernel over slices (#191),
                 // so they too return its bits. AUTO may still choose SCALAR or VECTORIZED.
-                if (n >= fork && std::string(batchHints()[h].name) != "AUTO")
+                if (n >= fork && std::string(batchHints()[h].name) != "AUTO") {
                     EXPECT_TRUE(isVec)
                         << row.name << " " << kOpNames[op] << " n=" << n << " "
                         << batchHints()[h].name << ": not the batch kernel's bits (#191)";
+                }
                 if (n >= fork) {
                     const char* k = isVec && isSc ? "=" : isVec ? "batch" : isSc ? "scalar" : "?";
                     if (ran[h].empty())
