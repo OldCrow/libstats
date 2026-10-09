@@ -25,8 +25,9 @@ it is final: a defect that affects accuracy, a speedup or a contract's
 validity is fixed, the head moves, and every machine repeats R1, R2's
 sweep compare, R8 and R9 there. v2.5.0 releases from the first head that
 passes every machine's gates with no such defect open. **Freeze head:
-`045acd9`** (K's #191 slice-tail fix, 2026-10-07), over M's #184–#191
-(`5765d68`–`19d7f64`) and Z's MSVC test fix (`ff4cb6d`).
+`b0ac2ad`** (2026-10-08: the review fix round, `6a56806`–`b0ac2ad`, over K's
+#191 slice-tail fix `045acd9`); #223–#226 and #228 are being fixed next
+[user, 2026-10-08], which moves it again.
 
 History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
@@ -185,6 +186,32 @@ Status by machine (each machine edits only its own line):
   in R9. #184–#191 moved to milestone #10 [user]. Next on K: quiet
   `test_parallel_batch_gates`, R8 (AVX2, AVX, SSE2; the capped trees
   rebuilt), then R9's stress test under TSan.
+  **2026-10-07/08 review and fix round** [DERIVED, K; committed 2026-10-08
+  as `6a56806` (#201, #137), `a8c125d` (#192–#209, #173), `b0ac2ad` (#183,
+  #227, #210), `6920ece` (oracle tie rule); AVX2 block at `6920ece`]: an architecture review and
+  a defect hunt (reports in the session scratchpad; skill
+  `numerical-defect-hunt`, dotfiles `6c03c2d`); fixes #192–#209, #173,
+  #137, #183 and #227, each with a guard shown failing first (#183's is
+  TSan: 18 setter races → 0); CI tests `test_distribution_identities`
+  and `test_io_fit_fuzz` (#210); `detail::parse_double` so
+  full-precision output (#208) reads back subnormals; the oracle scores
+  discrete ties by the library-CDF rule. Decided [user, 2026-10-08]:
+  keep F15's tie rule (#204); accept F6 (`getSurvival` virtual), F14
+  (Rayleigh/HalfNormal σ ≤ 1e10, as Gaussian), F19 (17 significant
+  digits); fix #183 and #227 now. Next [user, 2026-10-08]: fix #223–#226 and
+  #228 (Beta sampler returns 0.5 at small shapes).
+  Verified on the final tree: Release 0 warnings, correctness 99/99,
+  stress 124 passed + 12 skipped (#180), TSan stress 0 races, sweep
+  bit-identical to the merged tree (Beta, TN, Geometric CDF and
+  Discrete-tie rows changed against `045acd9`), oracle 0 contract
+  violations. Overnight 2026-10-07/08 (code hash `3a00b1e8208bfe3b`,
+  before #183/#227, which touch setters only; sweep unchanged by them):
+  `test_parallel_batch_gates` 0.27–0.33 (all < 0.75); R8 AVX2, AVX,
+  SSE2 three runs each, #191 moved 25–35 rows per tier to PARALLEL
+  sooner (many NEVER → ~4096, the fork threshold), 2–8 later; tables
+  now differ on 50/36/47 rows; R9 TSan: only #183 and the test-side
+  `std::cout` race in `test_work_stealing_pool`. Bundles: `data(profiles)` at
+  `b0ac2ad`.
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
@@ -227,7 +254,7 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `045acd9` (Status: it moves when a
+- Validate at the freeze head `b0ac2ad` (Status: it moves when a
   defect is fixed; validate at the latest); confirm it with `git log -1`
   before R1. Library code changes only by the user's decision: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
