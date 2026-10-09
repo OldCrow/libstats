@@ -305,6 +305,28 @@ TEST_F(FisherFEnhancedTest, MatchesBetaIdentity) {
     }
 }
 
+// #228 through the Beta delegate: F(d1, d2) draws are (d2/d1)·Y/(1 − Y) with Y ~ Beta(d1/2, d2/2),
+// and at small df the delegate returned Y = ½ exactly, so every draw was 1.0. Two-sided: the number
+// of draws in (0.5, 2) must match n·(F(2) − F(0.5)) within five binomial sigmas plus three.
+TEST_F(FisherFEnhancedTest, SmallDfSamplesFollowTheCDF) {
+    constexpr size_t n = 10000;
+    for (double df : {1e-9, 1e-3, 0.5, 2.0, 5.0}) {
+        const auto f = FDistribution::create(df, df).unwrap();
+        std::mt19937 rng(1);
+        const auto draws = f.sample(rng, n);
+        size_t middle = 0;
+        for (double x : draws) {
+            ASSERT_TRUE(x >= 0.0) << "F(" << df << ", " << df << ") drew " << x;
+            middle += (x > 0.5 && x < 2.0);
+        }
+        const double pm = f.getCumulativeProbability(2.0) - f.getCumulativeProbability(0.5);
+        const double expected = static_cast<double>(n) * pm;
+        const double tol = 5.0 * std::sqrt(static_cast<double>(n) * pm * (1.0 - pm)) + 3.0;
+        EXPECT_NEAR(static_cast<double>(middle), expected, tol)
+            << "F(" << df << ", " << df << "): draws in (0.5, 2)";
+    }
+}
+
 //==============================================================================
 // SETTERS PROPAGATE THROUGH THE CACHE AND THE DELEGATE
 //==============================================================================

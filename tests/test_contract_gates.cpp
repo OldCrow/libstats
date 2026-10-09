@@ -14,6 +14,7 @@
 #include <limits>
 #include <math.h>  // signgam (POSIX)
 #include <numbers>
+#include <optional>
 #include <random>
 #include <span>
 #include <sstream>
@@ -923,5 +924,47 @@ TEST(ContractGates, F21_DelegateAgreement_Geometric) {
             [](const D& d) { return std::vector<double>{d.getP()}; },
             [](const std::vector<double>& p) { return D(p[0]); },
             [](const D& d) { return d.getLogProbability(2.0); });
+    }
+}
+
+//==============================================================================
+// F22 (#224): the Gamma and Erlang CDFs are 1 where x·rate overflows to +inf,
+// scalar and under every batch strategy, and detail::gamma_p / gamma_q take
+// x = +inf as 1 and 0. Unfixed: gamma_p(a, inf) was NaN (the continued
+// fraction's prefactor is -inf + ...), so Gamma(100, 100).cdf(DBL_MAX) and
+// Erlang(1, 1e300).cdf(1e18) were NaN while cdf(+inf) itself was guarded.
+//==============================================================================
+
+TEST(ContractGates, F22_GammaCdfOneWhereRateTimesXOverflows) {
+    constexpr double kMax = std::numeric_limits<double>::max();
+    EXPECT_EQ(detail::gamma_p(2.5, std::numeric_limits<double>::infinity()), 1.0);
+    EXPECT_EQ(detail::gamma_q(2.5, std::numeric_limits<double>::infinity()), 0.0);
+
+    const GammaDistribution g(100.0, 100.0);
+    EXPECT_EQ(g.getCumulativeProbability(kMax), 1.0);
+    EXPECT_EQ(g.getCumulativeProbability(1e307), 1.0);
+    const ErlangDistribution e(1, 1e300);
+    EXPECT_EQ(e.getCumulativeProbability(1e18), 1.0);
+    EXPECT_EQ(e.getCumulativeProbability(kMax), 1.0);
+
+    // Batch, every strategy: the overflow elements among ordinary ones.
+    std::vector<double> xs(69, 1.0);  // 8*8+5: SIMD body and scalar tail on every tier width
+    xs[0] = kMax;
+    xs[1] = 1e307;
+    xs[68] = kMax;
+    using PS = detail::PerformanceHint::PreferredStrategy;
+    for (PS s : {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL}) {
+        std::vector<double> out(xs.size(), -1.0);
+        g.getCumulativeProbability(std::span<const double>(xs), std::span<double>(out),
+                                   detail::PerformanceHint{s, std::nullopt});
+        EXPECT_EQ(out[0], 1.0) << static_cast<int>(s);
+        EXPECT_EQ(out[1], 1.0) << static_cast<int>(s);
+        EXPECT_EQ(out[68], 1.0) << static_cast<int>(s);
+        EXPECT_EQ(out[2], g.getCumulativeProbability(1.0)) << static_cast<int>(s);
+        std::vector<double> eout(xs.size(), -1.0);
+        e.getCumulativeProbability(std::span<const double>(xs), std::span<double>(eout),
+                                   detail::PerformanceHint{s, std::nullopt});
+        EXPECT_EQ(eout[0], 1.0) << static_cast<int>(s);
+        EXPECT_EQ(eout[2], 1.0) << static_cast<int>(s);  // 1e300 * 1 = 1e300: Q(1, 1e300) = 0
     }
 }

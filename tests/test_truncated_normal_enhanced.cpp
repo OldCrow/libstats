@@ -732,6 +732,53 @@ TEST_F(TruncatedNormalEnhancedTest, MLEFit) {
 }
 
 // Invalid parameters rejected
+// #225: TruncatedNormal(0, 1, −∞, 0).Q(denorm_min) was NaN — the Φ target p·Z rounded to 0 for
+// Z ≤ ½ and the subnormal inverse made ∞ − ∞. Every window must return a finite quantile inside
+// [a, b] at the extreme p, with F(Q(p)) = p to the |ln p|·2⁻⁵² law where F can represent it, and
+// Q non-decreasing across the extreme p grid.
+TEST_F(TruncatedNormalEnhancedTest, QuantileFiniteAtExtremeP) {
+    const double ps[] = {std::numeric_limits<double>::denorm_min(),
+                         std::numeric_limits<double>::min(),
+                         1e-300,
+                         1e-100,
+                         1e-20,
+                         1.0 - 1e-10,
+                         1.0 - 1e-15,
+                         1.0 - 2.220446049250313e-16,
+                         1.0 - 1.1102230246251565e-16};
+    const struct {
+        double a, b;
+    } windows[] = {{-kInf, 0.0}, {-kInf, 1.0}, {-kInf, -1.0}, {-kInf, 40.0}, {0.0, kInf},
+                   {1.0, kInf},  {-1.0, kInf}, {-40.0, kInf}, {-1.0, 1.0},   {0.0, 1.0},
+                   {-40.0, 0.0}, {0.0, 40.0},  {-40.0, -1.0}, {1.0, 40.0},   {-40.0, 40.0}};
+    for (const auto& w : windows) {
+        auto r = TruncatedNormalDistribution::create(0.0, 1.0, w.a, w.b);
+        ASSERT_TRUE(r.isOk()) << "window (" << w.a << ", " << w.b << ")";
+        const auto d = std::move(r).unwrap();
+        double prev = -kInf;
+        for (double p : ps) {
+            const double q = d.getQuantile(p);
+            ASSERT_TRUE(std::isfinite(q))
+                << "Q(" << p << ") = " << q << " on (" << w.a << ", " << w.b << ")";
+            EXPECT_GE(q, w.a) << "p = " << p;
+            EXPECT_LE(q, w.b) << "p = " << p;
+            EXPECT_GE(q, prev) << "Q not monotone at p = " << p << " on (" << w.a << ", " << w.b
+                               << ")";
+            prev = q;
+            if (q > w.a && q < w.b) {
+                const double f = d.getCumulativeProbability(q);
+                const double side = std::min(p, 1.0 - p);
+                if (side >= std::numeric_limits<double>::min() * 4.0) {
+                    // relative on the small side: |ln p|·2⁻⁵² conditioning, with headroom
+                    const double fs = p < 0.5 ? f : 1.0 - f;
+                    EXPECT_NEAR(fs, side, side * 1e-12 + 4e-16)
+                        << "F(Q(" << p << ")) on (" << w.a << ", " << w.b << ")";
+                }
+            }
+        }
+    }
+}
+
 TEST_F(TruncatedNormalEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(TruncatedNormalDistribution::create(kNaN, 1.0, -2.0, 2.0).isError());
     EXPECT_TRUE(TruncatedNormalDistribution::create(0.0, 0.0, -2.0, 2.0).isError());

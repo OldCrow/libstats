@@ -66,15 +66,19 @@ namespace detail {
 /**
  * @brief Regularized incomplete gamma function P(a,x) = γ(a,x)/Γ(a)
  * @param a Shape parameter (a > 0)
- * @param x Input value (x >= 0)
+ * @param x Input value (x >= 0); +inf gives 1 (#224)
  * @return P(a,x)
+ *
+ * Series below x = a + 1, continued fraction above; from a = 1e4 near the median (|η| ≤ 0.6 in
+ * Temme's variable) the uniform asymptotic expansion, which the series and fraction, needing
+ * ~9√a terms there, cannot reach for a beyond ~1e10 (#226).
  */
 [[nodiscard]] double gamma_p(double a, double x) noexcept;
 
 /**
  * @brief Regularized incomplete gamma function Q(a,x) = 1 - P(a,x)
  * @param a Shape parameter (a > 0)
- * @param x Input value (x >= 0)
+ * @param x Input value (x >= 0); +inf gives 0 (#224)
  * @return Q(a,x)
  */
 [[nodiscard]] double gamma_q(double a, double x) noexcept;
@@ -174,7 +178,9 @@ namespace detail {
  *
  * Solves log P(a, x) = log p below the median and log Q(a, x) = log(1 − p) above it, by Newton
  * in t = log x (#160). Both residuals are concave in t, so the iteration converges from any
- * start. Relative-accurate down to subnormal answers; 0 when the answer underflows.
+ * start; they are formed in the log, finite for every p down to the smallest subnormal (#214,
+ * #223). Relative-accurate down to subnormal answers; 0 when the answer underflows. From
+ * a = 1e16 the Wilson-Hilferty value, exact to double there, in constant time (#226).
  */
 [[nodiscard]] double gamma_p_inv(double a, double p) noexcept;
 
@@ -467,7 +473,7 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
 
 /**
  * @brief Inverse of the standard normal survival function Q(u) = ½·erfc(u/√2)
- * @param s upper-tail probability in (0, ½]; s ≥ ½ returns 0, s below DBL_MIN is clamped to it
+ * @param s upper-tail probability in (0, ½]; s ≥ ½ returns 0, s = 0 returns +∞
  * @return u = Φ⁻¹(1 − s) ≥ 0, finite for every s > 0
  *
  * Solved in the erfc domain, so no 1 − s is ever formed: accurate to the |ln s|·2⁻⁵²
@@ -475,6 +481,18 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  * HalfNormal and TruncatedNormal quantiles (#158).
  */
 [[nodiscard]] double inv_survival_normal(double s) noexcept;
+
+/**
+ * @brief inv_survival_normal with the target given as log s
+ * @param log_s log of the upper-tail probability; −∞ returns +∞, NaN returns NaN
+ * @return u = Φ⁻¹(1 − s) ≥ 0
+ *
+ * The subnormal branch of inv_survival_normal (Newton on log Q(u)), exposed for a target that
+ * is a product or sum formed in log space because the value itself is not representable —
+ * TruncatedNormal's p·Z at p = denorm_min (#225). log_s ≥ log(DBL_MIN) forwards to
+ * inv_survival_normal(exp(log_s)).
+ */
+[[nodiscard]] double inv_survival_normal_log(double log_s) noexcept;
 
 /**
  * @brief Starting point for a discrete quantile search: the Cornish-Fisher

@@ -217,6 +217,11 @@ class BetaDistribution : public DistributionBase {
 
     /**
      * @brief Generate a single random sample using X/(X+Y) with X~Gamma(α,1), Y~Gamma(β,1).
+     *
+     * With a shape below 1 the variates are drawn as logs (Marsaglia–Tsang with the U^(1/α)
+     * boost kept as log U / α) and the ratio formed as a logistic, so small shapes never
+     * collapse to ½ through a 0/0 (#228). Both shapes ≥ 1 draw std::gamma_distribution, the
+     * v2.4.1 stream.
      */
     [[nodiscard]] double sample(std::mt19937& rng) const override;
 

@@ -99,6 +99,9 @@ std::uint64_t fnv1a(const std::string& s) {
     return h;
 }
 
+std::vector<double> logGrid(Rng& g, int n, double lo,
+                            double hi);  // defined with the families below
+
 std::string fmt(double v) {
     std::ostringstream o;
     o << std::setprecision(17) << v;
@@ -136,10 +139,9 @@ struct Where {
 std::string knownIssue(const Where& w) {
     const auto& f = w.family;
     const bool roundTrip = w.check == "fq" || w.check == "qmono" || w.check == "qf";
-    // #214: Gamma-family quantile seed fails below p ~ 1e-300: Q non-monotone in p, F(Q(p)) up to
-    // 100 orders above p. Student-t shares the symptom at p = denorm_min (defect hunt D3).
-    if ((f == "gamma" || f == "chi_squared" || f == "erlang" || f == "student_t") &&
-        (w.check == "fq" || w.check == "qmono") && w.v < 1e-300)
+    // #214: Student-t quantile at p = denorm_min is 28 orders off (defect hunt D3); the Gamma
+    // family's share of #214 is fixed and checked.
+    if (f == "student_t" && (w.check == "fq" || w.check == "qmono") && w.v < 1e-300)
         return "214";
     // #215: von Mises mu != 0: Q(p) for p <~ 1e-16 is mu + pi (wrapped), where the CDF wraps x - mu
     // onto +pi and returns 1.
@@ -161,18 +163,6 @@ std::string knownIssue(const Where& w) {
     if (f == "negative_binomial" && w.par[0] != 1.0 && w.par[1] <= 1e-4 &&
         (roundTrip || w.check == "deriv"))
         return "126";
-    // Found by this test on 2026-10-07 (#223-#225; disposition pending):
-    // #223: Gamma quantile in the upper tail for shape below ~0.004 stops far from the root:
-    // Gamma(0.001338, 0.9328).Q(0.9999189344) = 1.89678, F of it 0.9999094; Q not monotone.
-    if (f == "gamma" && w.par[0] < 0.004 && (roundTrip || w.check == "fq"))
-        return "223";
-    // #224: Gamma/Erlang CDF is NaN where x * rate overflows: Gamma(100, 100).cdf(DBL_MAX),
-    // Erlang(1, 1e300).cdf(1e18).
-    if ((f == "gamma" || f == "erlang") && w.check == "edge" && std::fabs(w.v) >= 1e18)
-        return "224";
-    // #225: TruncatedNormal(0, 1, -inf, 0).Q(denorm_min) is NaN.
-    if (f == "truncated_normal" && w.check == "qnan" && std::isinf(w.par[2]) && w.par[3] == 0.0)
-        return "225";
     return {};
 }
 
@@ -633,7 +623,7 @@ TEST(DistributionIdentities, Uniform) {
         [](Rng& g) { return P{g.logUni(1e-3, 1e3), g.logUni(2e3, 1e6)}; }, false);
 }
 TEST(DistributionIdentities, Gamma) {
-    // Stirling switch at shape 20; the p < 1e-300 seed failure is N1.
+    // Stirling switch at shape 20.
     runFamily<GammaDistribution>(
         "gamma", [](const P& p) { return GammaDistribution(p[0], p[1]); },
         {{2, 1},
@@ -725,6 +715,48 @@ TEST(DistributionIdentities, Geometric) {
         {{0.3}, {0.05}, {0.999999}, {1e-12}, {0.5}, {1}, {1e-6}, {2.243476974e-09}},
         [](Rng& g) { return P{g.logUni(1e-9, 1 - 1e-9)}; }, true);
 }
+// #229: at extreme small shapes the CDF left [0, 1] and decreased: I_0.01(1e-300, 1) =
+// 1 + 4.7e-15, I_x(1e-300, 1e-300) = ½ ± 3.9e-14 on the wrong side at both ends. Range and
+// monotonicity over a log grid of x at shapes 1e-300 … 1e-10, one and two tiny shapes, plus the
+// small-shape limits that make the row two-sided: I_x(a, 1) = x^a, I_x(1, a) = 1 − (1 − x)^a,
+// and I_x(a, a) = ½ + (a/2)·log(x/(1 − x)) + O(a²), each to 4e-14 absolute.
+TEST(DistributionIdentities, BetaTinyShapeCDF) {
+    Rng g(229);
+    auto xs = logGrid(g, 120, 1e-300, 1.0 - 1e-16);
+    for (double s : logGrid(g, 60, 1e-16, 0.5))  // dense near 1, past the branch point
+        xs.push_back(1.0 - s);
+    for (double x : {0.5, 2.0 / 3.0, 0.99, 1.0 - 1e-8})
+        xs.push_back(x);
+    std::sort(xs.begin(), xs.end());
+    for (double a : {1e-300, 1e-200, 1e-100, 1e-30, 1e-10}) {
+        const struct {
+            double a, b;
+            int kind;  // 0: (a, 1)  1: (1, a)  2: (a, a)
+        } rows[] = {{a, 1.0, 0}, {1.0, a, 1}, {a, a, 2}};
+        for (const auto& row : rows) {
+            BetaDistribution d(row.a, row.b);
+            const std::string name = "beta(" + fmt(row.a) + "," + fmt(row.b) + ")";
+            double prev = 0.0;
+            for (double x : xs) {
+                const double Fx = d.getCumulativeProbability(x);
+                EXPECT_TRUE(Fx >= 0.0 && Fx <= 1.0) << name << " F(" << fmt(x) << ") = " << fmt(Fx);
+                EXPECT_GE(Fx, prev - 8 * kEps * prev)
+                    << name << " F(" << fmt(x) << ") = " << fmt(Fx)
+                    << " below F(prev) = " << fmt(prev);
+                prev = std::max(prev, Fx);
+                double limit;
+                if (row.kind == 0)
+                    limit = std::exp(a * std::log(x));
+                else if (row.kind == 1)
+                    limit = -std::expm1(a * std::log1p(-x));
+                else
+                    limit = 0.5 + 0.5 * a * (std::log(x) - std::log1p(-x));
+                EXPECT_NEAR(Fx, limit, 4e-14) << name << " at x = " << fmt(x);
+            }
+        }
+    }
+}
+
 TEST(DistributionIdentities, Beta) {
     // Quantile: 1e-8 absolute Newton tolerance and floor, wrong end at Beta(25,1000) (D2).
     runFamily<BetaDistribution>(

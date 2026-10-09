@@ -451,20 +451,83 @@ double BetaDistribution::getQuantile(double p) const {
     return detail::inverse_beta_i(p, a, b);
 }
 
+namespace {
+// A Beta draw is X/(X + Y) with X ~ Gamma(α, 1), Y ~ Gamma(β, 1). A gamma variate at shape
+// s < 1 is Gamma(s + 1)·U^{1/s}, and that boost underflows once log U / s < −708: at
+// Beta(1e-4, 1e-4) 86% of the draws had both variates at 0 and the 0/0 fallback returned ½,
+// where a U-shaped Beta has almost no mass (#228). Both variates are therefore held as logs —
+// Marsaglia–Tsang on s (or s + 1), the boost added as log U / s, finite for every s ≥ ~1e-308 —
+// and the ratio is the logistic of log Y − log X, formed on whichever side keeps full relative
+// precision. Two shapes both ≥ 1 take std::gamma_distribution as before (no underflow is
+// possible there), so their sample streams are bit-identical to v2.4.1.
+struct LogGammaSampler {
+    std::normal_distribution<double> normal{detail::ZERO_DOUBLE, detail::ONE};
+    std::uniform_real_distribution<double> uniform{detail::ZERO_DOUBLE, detail::ONE};
+    // The boost uniform is drawn on [DBL_MIN, 1) so its log is finite.
+    std::uniform_real_distribution<double> boost{std::numeric_limits<double>::min(), detail::ONE};
+
+    // log of a Gamma(shape, 1) variate.
+    double operator()(std::mt19937& rng, double shape) {
+        const bool boosted = shape < detail::ONE;
+        const double d = (boosted ? shape + detail::ONE : shape) - detail::ONE / detail::THREE;
+        const double c = detail::ONE / std::sqrt(detail::NINE * d);
+        double v;
+        while (true) {
+            double x;
+            do {
+                x = normal(rng);
+                v = detail::ONE + c * x;
+            } while (v <= detail::ZERO_DOUBLE);
+            v = v * v * v;
+            const double u = uniform(rng);
+            const double x2 = x * x;
+            if (u < detail::ONE - 0.0331 * x2 * x2)
+                break;
+            if (std::log(u) < detail::HALF * x2 + d * (detail::ONE - v + std::log(v)))
+                break;
+        }
+        double log_g = std::log(d * v);
+        if (boosted)
+            log_g += std::log(boost(rng)) / shape;
+        return log_g;
+    }
+
+    // X/(X + Y) from log X and log Y.
+    double ratio(std::mt19937& rng, double log_x, double log_y, double a, double b) {
+        const double dl = log_y - log_x;  // log(Y/X); ±∞ when exactly one variate underflowed
+        if (std::isnan(dl)) {
+            // Both −∞: shapes below ~1e-308, where even log U / shape overflows. The limit of
+            // Beta(a, b) as a, b → 0 is the two-point law P(X = 1) = a/(a + b).
+            return uniform(rng) * (a + b) < a ? detail::ONE : detail::ZERO_DOUBLE;
+        }
+        if (dl >= detail::ZERO_DOUBLE) {  // x ≤ ½: t/(1 + t) keeps relative precision near 0
+            const double t = std::exp(-dl);
+            return t / (detail::ONE + t);
+        }
+        return detail::ONE / (detail::ONE + std::exp(dl));  // x > ½: absolute precision ulp(1)
+    }
+};
+}  // namespace
+
 double BetaDistribution::sample(std::mt19937& rng) const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double a = alpha_, b = beta_;
     lock.unlock();
 
-    // X ~ Gamma(α, 1), Y ~ Gamma(β, 1) → X/(X+Y) ~ Beta(α, β)
-    std::gamma_distribution<double> gamma_a(a, detail::ONE);
-    std::gamma_distribution<double> gamma_b(b, detail::ONE);
-    const double x = gamma_a(rng);
-    const double y = gamma_b(rng);
-    const double sum = x + y;
-    if (sum <= detail::ZERO_DOUBLE)
-        return detail::HALF;  // numerical safety
-    return x / sum;
+    if (a >= detail::ONE && b >= detail::ONE) {
+        std::gamma_distribution<double> gamma_a(a, detail::ONE);
+        std::gamma_distribution<double> gamma_b(b, detail::ONE);
+        const double x = gamma_a(rng);
+        const double y = gamma_b(rng);
+        const double sum = x + y;
+        if (sum > detail::ZERO_DOUBLE)
+            return x / sum;
+        // x = y = 0 (a shape of exactly 1 can draw 0): fall through to the log construction.
+    }
+    LogGammaSampler g;
+    const double log_x = g(rng, a);
+    const double log_y = g(rng, b);
+    return g.ratio(rng, log_x, log_y, a, b);
 }
 
 std::vector<double> BetaDistribution::sample(std::mt19937& rng, size_t n) const {
@@ -473,15 +536,30 @@ std::vector<double> BetaDistribution::sample(std::mt19937& rng, size_t n) const 
     const double a = alpha_, b = beta_;
     lock.unlock();
 
-    std::gamma_distribution<double> gamma_a(a, detail::ONE);
-    std::gamma_distribution<double> gamma_b(b, detail::ONE);
     std::vector<double> samples;
     samples.reserve(n);
+    LogGammaSampler g;
+    if (a >= detail::ONE && b >= detail::ONE) {
+        std::gamma_distribution<double> gamma_a(a, detail::ONE);
+        std::gamma_distribution<double> gamma_b(b, detail::ONE);
+        for (size_t i = 0; i < n; ++i) {
+            const double x = gamma_a(rng);
+            const double y = gamma_b(rng);
+            const double sum = x + y;
+            if (sum > detail::ZERO_DOUBLE) {
+                samples.push_back(x / sum);
+            } else {
+                const double log_x = g(rng, a);
+                const double log_y = g(rng, b);
+                samples.push_back(g.ratio(rng, log_x, log_y, a, b));
+            }
+        }
+        return samples;
+    }
     for (size_t i = 0; i < n; ++i) {
-        const double x = gamma_a(rng);
-        const double y = gamma_b(rng);
-        const double sum = x + y;
-        samples.push_back(sum <= detail::ZERO_DOUBLE ? detail::HALF : x / sum);
+        const double log_x = g(rng, a);
+        const double log_y = g(rng, b);
+        samples.push_back(g.ratio(rng, log_x, log_y, a, b));
     }
     return samples;
 }

@@ -216,11 +216,29 @@ inline double truncnorm_quantile_core(double p, double mu, double sigma, double 
     }
     const double q_low = phi_alpha + p * z;                // Φ target from below
     const double s_high = q_beta + (detail::ONE - p) * z;  // survival target from above
+    // A target below DBL_MIN is inverted from its log: the product p·Z (Φ(α) = 0 for an
+    // infinite or underflowed lower bound) rounds to 0 at p = denorm_min for Z ≤ ½, and
+    // inv_survival_normal(0) was NaN (#225); as a subnormal it carries only a few bits.
+    // log p + log Z is exact to an ulp either way. With Φ(α) > 0 (then itself subnormal)
+    // the sum is what it is and its log is taken directly. Same for the survival target.
+    constexpr double dbl_min = std::numeric_limits<double>::min();
     double xi;
     if (q_low <= s_high) {
-        xi = -detail::inv_survival_normal(q_low);
+        if (q_low < dbl_min) {
+            const double log_q =
+                phi_alpha == detail::ZERO_DOUBLE ? std::log(p) + std::log(z) : std::log(q_low);
+            xi = -detail::inv_survival_normal_log(log_q);
+        } else {
+            xi = -detail::inv_survival_normal(q_low);
+        }
     } else {
-        xi = detail::inv_survival_normal(s_high);
+        if (s_high < dbl_min) {
+            const double log_s =
+                q_beta == detail::ZERO_DOUBLE ? std::log1p(-p) + std::log(z) : std::log(s_high);
+            xi = detail::inv_survival_normal_log(log_s);
+        } else {
+            xi = detail::inv_survival_normal(s_high);
+        }
     }
     double x = mu + sigma * xi;
     if (x < a)

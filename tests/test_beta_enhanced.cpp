@@ -165,6 +165,42 @@ TEST_F(BetaEnhancedTest, OutOfSupport) {
     EXPECT_NEAR(dist23_.getCumulativeProbability(1.0), 1.0, 1e-14);
 }
 
+// #228: at small shapes both gamma variates of X/(X+Y) underflowed to 0 and the 0/0 fallback
+// returned ½, where a U-shaped Beta has almost no mass (Beta(1e-4, 1e-4): 8623 of 10,000 draws
+// were exactly ½). Two-sided: the number of draws in (0.01, 0.99) must match n·(I_0.99 − I_0.01)
+// within five binomial sigmas (plus three draws of slack for expectations near 0 or n) on either
+// side, from shapes 1e-300 to 10, symmetric and asymmetric, fixed seed. Correctness-labelled.
+TEST_F(BetaEnhancedTest, SmallShapeSamplesFollowTheCDF) {
+    struct Case {
+        double a, b;
+    };
+    const Case cases[] = {{1e-300, 1e-300}, {1e-10, 1e-10}, {1e-4, 1e-4}, {1e-2, 1e-2}, {0.5, 0.5},
+                          {1e-4, 2.0},      {2.0, 1e-6},    {0.3, 5.0},   {0.5, 1.0},   {1.0, 1.0},
+                          {1e-300, 1.0},    {10.0, 10.0},   {10.0, 0.1},  {1.0, 1e-3}};
+    constexpr size_t n = 10000;
+    for (const auto& c : cases) {
+        auto r = BetaDistribution::create(c.a, c.b);
+        ASSERT_TRUE(r.isOk());
+        const auto d = std::move(r).unwrap();
+        std::mt19937 rng(1);
+        const auto draws = d.sample(rng, n);
+        ASSERT_EQ(draws.size(), n);
+        size_t middle = 0;
+        for (double x : draws) {
+            ASSERT_TRUE(x >= 0.0 && x <= 1.0) << "Beta(" << c.a << ", " << c.b << ") drew " << x;
+            middle += (x > 0.01 && x < 0.99);
+        }
+        const double pm = d.getCumulativeProbability(0.99) - d.getCumulativeProbability(0.01);
+        const double expected = static_cast<double>(n) * pm;
+        const double tol = 5.0 * std::sqrt(static_cast<double>(n) * pm * (1.0 - pm)) + 3.0;
+        EXPECT_NEAR(static_cast<double>(middle), expected, tol)
+            << "Beta(" << c.a << ", " << c.b << "): draws in (0.01, 0.99)";
+        // The scalar overload shares the construction: its first draw is the batch's first.
+        std::mt19937 rng1(1);
+        EXPECT_EQ(d.sample(rng1), draws[0]) << "Beta(" << c.a << ", " << c.b << ")";
+    }
+}
+
 }  // namespace stats
 
 //==============================================================================
