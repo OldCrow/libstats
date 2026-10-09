@@ -25,9 +25,8 @@ it is final: a defect that affects accuracy, a speedup or a contract's
 validity is fixed, the head moves, and every machine repeats R1, R2's
 sweep compare, R8 and R9 there. v2.5.0 releases from the first head that
 passes every machine's gates with no such defect open. **Freeze head:
-`b0ac2ad`** (2026-10-08: the review fix round, `6a56806`–`b0ac2ad`, over K's
-#191 slice-tail fix `045acd9`); #223–#226 and #228 are being fixed next
-[user, 2026-10-08], which moves it again.
+`f380bde`** (2026-10-09: the review fix rounds `6a56806`–`b0ac2ad`, `6703edc`
+and `f380bde`, over K's #191 slice-tail fix `045acd9`).
 
 History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
@@ -219,16 +218,20 @@ Status by machine (each machine edits only its own line):
   Gamma residual, Temme expansion for a ≥ 1e4; #225 TN quantile at
   denorm_min; #228 Beta sampler in log space for shapes < 1, streams
   unchanged for shapes ≥ 1; #229 Beta CDF at shapes < 1e-3; CI green, run
-  37874653275). #230 (inverse_beta_i at shapes < 1e-3: three causes,
-  quantiles off by up to the whole interval, e.g. Beta(1, 1e-300)
-  .Q(3.68e-299) = 0.53) fixed, verified and staged, awaiting the user's
-  YubiKey: correctness 99/99, stress 124 + 12 skipped, identity and Beta
-  quantile tests 3/3, sweep byte-identical. Batch CDF at Gamma α 0.5 and
-  2.5 ~13–16% slower, α 1e6 50× faster. R8 (AVX2, AVX, SSE2), the quiet
-  batch gates and TSan stress run overnight 2026-10-08/09 on 6703edc +
-  #230 (code hash `a7dbdbcd7ad4e71f`); bundles commit at the #230 sha
-  once the committed tree matches the hash. Then the AVX2 block at that
-  sha, and the freeze head moves there.
+  37874653275). `f380bde` (#230: inverse_beta_i at shapes < 1e-3 had three faults —
+  quantiles anywhere in the interval, e.g. Beta(1, 1e-300).Q(3.68e-299)
+  = 0.53; fixed with the #229 machinery, ordinary shapes byte-identical;
+  correctness 99/99, stress 124 + 12 skipped, identity and Beta quantile
+  tests 3/3). Batch CDF at Gamma α 0.5 and 2.5 ~13–16% slower, α 1e6
+  50× faster. The overnight of 2026-10-08/09 (code hash
+  `a7dbdbcd7ad4e71f` = `f380bde`) is void: the Claude app restarted at
+  23:58 (Claude Code update) and its cleanup SIGKILLed the run's children
+  from 00:05 (AVX2 three runs and AVX run 1 completed; SSE2 and TSan
+  none). `nohup … & disown` keeps the process group; detach in a new
+  session next time. Next [user, 2026-10-09]: another review for
+  remaining defects until every one is fixed or assigned a milestone;
+  then the AVX2 block at the freeze head and a full R8 (AVX2, AVX,
+  SSE2), the quiet batch gates and TSan.
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
@@ -271,7 +274,7 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `b0ac2ad` (Status: it moves when a
+- Validate at the freeze head `f380bde` (Status: it moves when a
   defect is fixed; validate at the latest); confirm it with `git log -1`
   before R1. Library code changes only by the user's decision: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
