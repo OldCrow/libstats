@@ -210,8 +210,25 @@ Status by machine (each machine edits only its own line):
   SSE2 three runs each, #191 moved 25–35 rows per tier to PARALLEL
   sooner (many NEVER → ~4096, the fork threshold), 2–8 later; tables
   now differ on 50/36/47 rows; R9 TSan: only #183 and the test-side
-  `std::cout` race in `test_work_stealing_pool`. Bundles: `data(profiles)` at
-  `b0ac2ad`.
+  `std::cout` race in `test_work_stealing_pool`. Bundles: superseded by the next
+  round (below); not committed.
+  **2026-10-08 second fix round** [DERIVED, K]: `00d1597` (CI test fixes:
+  CMake script policy, strict-GCC braces, a busy-spin starvation that read
+  as a deadlock on CI's 3-vCPU runner, two budgets; CI green, run
+  37867646381); `6703edc` (#223, #224, #226 and Gamma #214: log-space
+  Gamma residual, Temme expansion for a ≥ 1e4; #225 TN quantile at
+  denorm_min; #228 Beta sampler in log space for shapes < 1, streams
+  unchanged for shapes ≥ 1; #229 Beta CDF at shapes < 1e-3; CI green, run
+  37874653275). #230 (inverse_beta_i at shapes < 1e-3: three causes,
+  quantiles off by up to the whole interval, e.g. Beta(1, 1e-300)
+  .Q(3.68e-299) = 0.53) fixed, verified and staged, awaiting the user's
+  YubiKey: correctness 99/99, stress 124 + 12 skipped, identity and Beta
+  quantile tests 3/3, sweep byte-identical. Batch CDF at Gamma α 0.5 and
+  2.5 ~13–16% slower, α 1e6 50× faster. R8 (AVX2, AVX, SSE2), the quiet
+  batch gates and TSan stress run overnight 2026-10-08/09 on 6703edc +
+  #230 (code hash `a7dbdbcd7ad4e71f`); bundles commit at the #230 sha
+  once the committed tree matches the hash. Then the AVX2 block at that
+  sha, and the freeze head moves there.
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
