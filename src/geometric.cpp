@@ -280,7 +280,7 @@ std::istream& operator>>(std::istream& is, GeometricDistribution& dist) {
     }
 
     try {
-        p = std::stod(token.substr(p_pos + 2, close - p_pos - 2));
+        p = detail::parse_double(token.substr(p_pos + 2, close - p_pos - 2));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

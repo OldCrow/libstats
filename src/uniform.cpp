@@ -932,7 +932,7 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
 
     try {
         std::string a_str = line.substr(a_pos, comma_pos - a_pos);
-        a = std::stod(a_str);
+        a = detail::parse_double(a_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -953,7 +953,7 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
 
     try {
         std::string b_str = line.substr(b_pos, close_paren - b_pos);
-        b = std::stod(b_str);
+        b = detail::parse_double(b_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

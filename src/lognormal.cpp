@@ -651,8 +651,9 @@ std::istream& operator>>(std::istream& is, LogNormalDistribution& d) {
         return is;
     }
     try {
-        const double mu = std::stod(token.substr(mu_pos + 3, comma - mu_pos - 3));
-        const double sigma = std::stod(token.substr(sigma_pos + 6, close - sigma_pos - 6));
+        const double mu = detail::parse_double(token.substr(mu_pos + 3, comma - mu_pos - 3));
+        const double sigma =
+            detail::parse_double(token.substr(sigma_pos + 6, close - sigma_pos - 6));
         auto result = d.trySetParameters(mu, sigma);
         if (result.isError())
             is.setstate(std::ios::failbit);

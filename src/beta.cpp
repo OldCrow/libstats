@@ -833,8 +833,8 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
         return is;
     }
     try {
-        const double a = std::stod(line.substr(a_pos + 6, comma - a_pos - 6));
-        const double b = std::stod(line.substr(b_pos + 5, close - b_pos - 5));
+        const double a = detail::parse_double(line.substr(a_pos + 6, comma - a_pos - 6));
+        const double b = detail::parse_double(line.substr(b_pos + 5, close - b_pos - 5));
         auto result = dist.trySetParameters(a, b);
         if (result.isError())
             is.setstate(std::ios::failbit);

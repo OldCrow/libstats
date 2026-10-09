@@ -515,6 +515,12 @@ inline VoidResult validateChiSquaredParameters(double k) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Degrees of freedom k must be a positive finite number");
     }
+    // The Gamma(k/2, 1/2) delegate must accept k/2: at the smallest subnormal k, k/2 rounds to
+    // zero, and an owner that accepted it would desync from its delegate (#227).
+    if (validateGammaParameters(k * 0.5, 0.5).isError()) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Degrees of freedom k is too small: k/2 underflows to zero");
+    }
     return VoidResult::ok({});
 }
 
@@ -541,7 +547,8 @@ inline VoidResult validateGeometricParameters(double p) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Success probability p must be in (0, 1]");
     }
-    return VoidResult::ok({});
+    // Whatever this accepts, the NegativeBinomial(1, p) delegate must accept too (#227).
+    return validateNegativeBinomialParameters(1.0, p);
 }
 
 /**
@@ -632,7 +639,8 @@ inline VoidResult validateBernoulliParameters(double p) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Success probability p must be in [0, 1]");
     }
-    return VoidResult::ok({});
+    // Whatever this accepts, the Binomial(1, p) delegate must accept too (#227).
+    return validateBinomialParameters(1, p);
 }
 
 /**
@@ -656,7 +664,8 @@ inline VoidResult validateErlangParameters(int k, double lambda) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Rate parameter lambda must be a positive finite number");
     }
-    return VoidResult::ok({});
+    // Whatever this accepts, the Gamma(k, lambda) delegate must accept too (#227).
+    return validateGammaParameters(static_cast<double>(k), lambda);
 }
 
 /**
@@ -682,6 +691,13 @@ inline VoidResult validateFisherFParameters(double d1, double d2) noexcept {
             ValidationError::InvalidParameter,
             "Denominator degrees of freedom d2 must be a positive finite number");
     }
+    // The Beta(d1/2, d2/2) delegate must accept both halves: at the smallest subnormal, d/2
+    // rounds to zero, and an owner that accepted it would desync from its delegate (#227).
+    if (validateBetaParameters(d1 * 0.5, d2 * 0.5).isError()) {
+        return VoidResult::makeError(
+            ValidationError::InvalidParameter,
+            "Degrees of freedom d1 and d2 are too small: d/2 underflows to zero");
+    }
     return VoidResult::ok({});
 }
 
@@ -704,7 +720,8 @@ inline VoidResult validateInverseGammaParameters(double alpha, double beta) noex
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter beta must be a positive finite number");
     }
-    return VoidResult::ok({});
+    // Whatever this accepts, the Gamma(alpha, rate = beta) delegate must accept too (#227).
+    return validateGammaParameters(alpha, beta);
 }
 
 }  // namespace stats

@@ -558,7 +558,7 @@ std::istream& operator>>(std::istream& is, RayleighDistribution& d) {
         return is;
     }
     try {
-        const double sg = std::stod(token.substr(sg_pos + 6, close - sg_pos - 6));
+        const double sg = detail::parse_double(token.substr(sg_pos + 6, close - sg_pos - 6));
         auto result = d.trySetSigma(sg);
         if (result.isError())
             is.setstate(std::ios::failbit);

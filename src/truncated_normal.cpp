@@ -1204,7 +1204,7 @@ std::istream& operator>>(std::istream& is, TruncatedNormalDistribution& d) {
         }
         try {
             size_t used = 0;
-            values[idx] = std::stod(value, &used);
+            values[idx] = detail::parse_double(value, &used);
             if (value.find_first_not_of(" \t", used) != std::string::npos) {
                 is.setstate(std::ios::failbit);
                 return is;

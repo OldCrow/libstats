@@ -292,9 +292,6 @@ class BinomialDistribution : public DistributionBase {
     static BinomialDistribution createUnchecked(int n, double p) noexcept;
     BinomialDistribution(int n, double p, bool /*bypassValidation*/) noexcept;
 
-    /** @brief Compute log C(n,k) = logNFact_ − lgamma(k+1) − lgamma(n−k+1). */
-    double logBinomCoeff(int k) const noexcept;
-
     //==========================================================================
     // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================

@@ -126,8 +126,8 @@ CauchyDistribution::CauchyDistribution(double x0, double gamma, bool /*bypassVal
 //==============================================================================
 
 void CauchyDistribution::setX0(double x0) {
-    validateParameters(x0, gamma_);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(x0, gamma_);
     x0_ = x0;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -136,8 +136,8 @@ void CauchyDistribution::setX0(double x0) {
 }
 
 void CauchyDistribution::setGamma(double gamma) {
-    validateParameters(x0_, gamma);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(x0_, gamma);
     gamma_ = gamma;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -161,10 +161,10 @@ void CauchyDistribution::setParameters(double x0, double gamma) {
 //==============================================================================
 
 VoidResult CauchyDistribution::trySetX0(double x0) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateCauchyParameters(x0, gamma_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     x0_ = x0;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -174,10 +174,10 @@ VoidResult CauchyDistribution::trySetX0(double x0) noexcept {
 }
 
 VoidResult CauchyDistribution::trySetGamma(double gamma) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateCauchyParameters(x0_, gamma);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     gamma_ = gamma;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -633,8 +633,8 @@ std::istream& operator>>(std::istream& is, CauchyDistribution& dist) {
     }
 
     try {
-        x0 = std::stod(token.substr(x0_pos + 3, gamma_pos - x0_pos - 3));
-        gamma = std::stod(token.substr(gamma_pos + 7, close - gamma_pos - 7));
+        x0 = detail::parse_double(token.substr(x0_pos + 3, gamma_pos - x0_pos - 3));
+        gamma = detail::parse_double(token.substr(gamma_pos + 7, close - gamma_pos - 7));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

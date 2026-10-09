@@ -868,12 +868,6 @@ class GammaDistribution : public DistributionBase {
     /** @brief Quantile via detail::gamma_p_inv, solved in log x (#160) */
     [[nodiscard]] double computeQuantile(double p) const noexcept;
 
-    /** @brief Sample using Marsaglia-Tsang method for α ≥ 1 */
-    [[nodiscard]] double sampleMarsagliaTsang(std::mt19937& rng) const noexcept;
-
-    /** @brief Sample using Ahrens-Dieter method for α < 1 */
-    [[nodiscard]] double sampleAhrensDieter(std::mt19937& rng) const noexcept;
-
     /** @brief Fit parameters using method of moments */
     void fitMethodOfMoments(const std::vector<double>& values);
 

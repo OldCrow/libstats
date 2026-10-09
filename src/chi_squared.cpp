@@ -26,8 +26,10 @@ namespace stats {
 // Helper: validate k and return it, throwing before any member is constructed.
 // Used in the initializer list so that gamma_ is never constructed for invalid k.
 static double requireValidDOF(double k) {
-    if (k <= 0.0 || !std::isfinite(k)) {
-        throw std::invalid_argument("Degrees of freedom k must be a positive finite number");
+    // The same rule as create() and the setters, including the delegate's k/2 > 0 (#227).
+    auto v = validateChiSquaredParameters(k);
+    if (v.isError()) {
+        throw std::invalid_argument(v.message());
     }
     return k;
 }
@@ -232,7 +234,7 @@ std::istream& operator>>(std::istream& is, ChiSquaredDistribution& dist) {
     }
 
     try {
-        k = std::stod(token.substr(k_pos + 2, close - k_pos - 2));
+        k = detail::parse_double(token.substr(k_pos + 2, close - k_pos - 2));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

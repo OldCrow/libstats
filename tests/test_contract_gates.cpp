@@ -9,10 +9,12 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <gtest/gtest.h>
 #include <limits>
 #include <math.h>  // signgam (POSIX)
 #include <numbers>
+#include <random>
 #include <span>
 #include <sstream>
 #include <stdexcept>
@@ -690,3 +692,236 @@ TEST(ContractGatesDeathTest, F5_OverlapAssertOnCallerSpans) {
     EXPECT_DEATH(ig.getProbability(in, out), "overlap");
 }
 #endif
+
+//==============================================================================
+// F21 (#227): an owner that delegates (ChiSquared, Erlang, InverseGamma -> Gamma;
+// FisherF -> Beta; Bernoulli -> Binomial; Geometric -> NegativeBinomial) must
+// reject every value its delegate rejects, and after every accepted set must
+// behave bit for bit like a freshly constructed owner with the same parameters.
+// Unfixed: ChiSquared k = 4.94e-324 (k/2 rounds to 0) and FisherF d1 or d2 =
+// 4.94e-324 were accepted, the delegate kept its old parameters, and a fresh
+// owner with the new parameters could not be constructed at all.
+//==============================================================================
+
+namespace {
+constexpr double kDenormMin = std::numeric_limits<double>::denorm_min();
+
+const std::vector<double>& delegateProbes() {
+    static const std::vector<double> probes{-1.0,
+                                            -0.0,
+                                            0.0,
+                                            kDenormMin,
+                                            2.0 * kDenormMin,
+                                            3.0 * kDenormMin,
+                                            std::numeric_limits<double>::min(),
+                                            1e-300,
+                                            0.25,
+                                            0.5,
+                                            std::nextafter(1.0, 0.0),
+                                            1.0,
+                                            std::nextafter(1.0, 2.0),
+                                            2.0,
+                                            7.5,
+                                            1e300,
+                                            std::numeric_limits<double>::max(),
+                                            std::numeric_limits<double>::infinity(),
+                                            kNaN};
+    return probes;
+}
+
+// One settable parameter of one delegating class.
+template <class D>
+struct DelegateParam {
+    const char* name;
+    std::function<VoidResult(D&, double)> trySet;
+    std::function<void(D&, double)> set;
+    // Would the delegate accept the parameters `d` would have after setting v?
+    std::function<bool(const D&, double)> delegateAccepts;
+};
+
+template <class D>
+void checkDelegateAgreement(const char* cls, const D& base,
+                            const std::vector<DelegateParam<D>>& params,
+                            const std::function<std::vector<double>(const D&)>& getParams,
+                            const std::function<D(const std::vector<double>&)>& fresh,
+                            const std::function<double(const D&)>& probe) {
+    for (const auto& p : params) {
+        for (double v : delegateProbes()) {
+            SCOPED_TRACE(std::string(cls) + "::" + p.name + "(" + std::to_string(v) + ")");
+            const bool delegateOk = p.delegateAccepts(base, v);
+            D d = base;
+            const auto before = getParams(d);
+            const auto r = p.trySet(d, v);
+            if (r.isError()) {
+                EXPECT_EQ(getParams(d), before) << "a rejected set changed the parameters";
+            } else {
+                EXPECT_TRUE(delegateOk) << "owner accepted a value its delegate rejects";
+                try {
+                    const D f = fresh(getParams(d));
+                    EXPECT_EQ(bitsOf(probe(d)), bitsOf(probe(f)))
+                        << "owner and delegate disagree after an accepted set";
+                } catch (const std::exception& e) {
+                    ADD_FAILURE() << "a fresh owner rejects parameters the setter accepted: "
+                                  << e.what();
+                }
+            }
+            D e = base;
+            bool threw = false;
+            try {
+                p.set(e, v);
+            } catch (const std::invalid_argument&) {
+                threw = true;
+            }
+            EXPECT_EQ(threw, r.isError()) << "throwing setter and trySet disagree";
+            EXPECT_EQ(getParams(e), getParams(d));
+        }
+    }
+}
+}  // namespace
+
+TEST(ContractGates, F21_DelegateAgreement_ChiSquared) {
+    {
+        using D = ChiSquaredDistribution;
+        checkDelegateAgreement<D>(
+            "ChiSquared", D(3.0),
+            {{"k", [](D& d, double v) { return d.trySetK(v); }, [](D& d, double v) { d.setK(v); },
+              [](const D&, double v) { return validateGammaParameters(v / 2.0, 0.5).isOk(); }}},
+            [](const D& d) { return std::vector<double>{d.getK()}; },
+            [](const std::vector<double>& p) { return D(p[0]); },
+            [](const D& d) { return d.getMean(); });
+        // The issue's own quantity: the delegate's mean is k.
+        D d(3.0);
+        EXPECT_TRUE(d.trySetK(2.0 * kDenormMin).isOk());
+        EXPECT_EQ(d.getMean(), 2.0 * kDenormMin);
+        D s(3.0);
+        std::istringstream in("ChiSquaredDistribution(k=4.9406564584124654e-324)");
+        in >> s;
+        EXPECT_TRUE(in.fail()) << "operator>> accepted a k the delegate rejects";
+        EXPECT_EQ(s.getK(), 3.0);
+        EXPECT_EQ(s.getMean(), 3.0);
+        D fitted(3.0);
+        EXPECT_THROW(fitted.fit(std::vector<double>{kDenormMin, kDenormMin}),
+                     std::invalid_argument);
+        EXPECT_EQ(fitted.getK(), 3.0);
+        EXPECT_EQ(fitted.getMean(), 3.0);
+        // Last: unfixed, create() reached Gamma's throwing constructor from a noexcept path and
+        // called std::terminate.
+        EXPECT_THROW(D{kDenormMin}, std::invalid_argument);
+        EXPECT_TRUE(D::create(kDenormMin).isError());
+    }
+}
+
+TEST(ContractGates, F21_DelegateAgreement_FisherF) {
+    {
+        using D = FDistribution;
+        const auto betaOk = [](double d1, double d2) {
+            return validateBetaParameters(d1 * 0.5, d2 * 0.5).isOk();
+        };
+        checkDelegateAgreement<D>(
+            "FisherF", D(5.0, 7.0),
+            {{"d1", [](D& d, double v) { return d.trySetD1(v); },
+              [](D& d, double v) { d.setD1(v); },
+              [&](const D& d, double v) { return betaOk(v, d.getD2()); }},
+             {"d2", [](D& d, double v) { return d.trySetD2(v); },
+              [](D& d, double v) { d.setD2(v); },
+              [&](const D& d, double v) { return betaOk(d.getD1(), v); }},
+             {"params", [](D& d, double v) { return d.trySetParameters(v, v); },
+              [](D& d, double v) { d.setParameters(v, v); },
+              [&](const D&, double v) { return betaOk(v, v); }}},
+            [](const D& d) { return std::vector<double>{d.getD1(), d.getD2()}; },
+            [](const std::vector<double>& p) { return D(p[0], p[1]); },
+            [](const D& d) {
+                // beta_ is observable only through sample(); the Beta sampler does not return
+                // for extreme shapes, so sample where it terminates. Outside that range the
+                // rejection side above still applies.
+                const auto ok = [](double v) { return v >= 1e-2 && v <= 1e8; };
+                if (!ok(d.getD1()) || !ok(d.getD2()))
+                    return 0.0;
+                std::mt19937 rng(42);
+                return d.sample(rng);
+            });
+        D s(5.0, 7.0);
+        std::istringstream in("FDistribution(d1=4.9406564584124654e-324,d2=7)");
+        in >> s;
+        EXPECT_TRUE(in.fail()) << "operator>> accepted a d1 the delegate rejects";
+        EXPECT_EQ(s.getD1(), 5.0);
+        EXPECT_THROW((D{kDenormMin, 1.0}), std::invalid_argument);
+        EXPECT_TRUE(D::create(kDenormMin, 1.0).isError());
+        EXPECT_TRUE(D::create(1.0, kDenormMin).isError());
+    }
+}
+
+TEST(ContractGates, F21_DelegateAgreement_Erlang) {
+    {
+        using D = ErlangDistribution;
+        const auto gammaOk = [](double k, double l) {
+            return validateGammaParameters(k, l).isOk();
+        };
+        // k is an int: the probes map through a saturating cast (negative, 0, 1, 2, 7, INT_MAX).
+        const auto toK = [](double v) {
+            if (!(v > 0.0))
+                return std::isnan(v) ? 0 : -1;
+            return v >= 2147483647.0 ? 2147483647 : static_cast<int>(v);
+        };
+        checkDelegateAgreement<D>(
+            "Erlang", D(3, 2.0),
+            {{"k", [&](D& d, double v) { return d.trySetK(toK(v)); },
+              [&](D& d, double v) { d.setK(toK(v)); },
+              [&](const D& d, double v) { return toK(v) >= 1 && gammaOk(toK(v), d.getLambda()); }},
+             {"lambda", [](D& d, double v) { return d.trySetLambda(v); },
+              [](D& d, double v) { d.setLambda(v); },
+              [&](const D& d, double v) { return gammaOk(d.getK(), v); }}},
+            [](const D& d) {
+                return std::vector<double>{static_cast<double>(d.getK()), d.getLambda()};
+            },
+            [](const std::vector<double>& p) { return D(static_cast<int>(p[0]), p[1]); },
+            [](const D& d) { return d.getLogProbability(0.75); });
+    }
+}
+
+TEST(ContractGates, F21_DelegateAgreement_InverseGamma) {
+    {
+        using D = InverseGammaDistribution;
+        checkDelegateAgreement<D>(
+            "InverseGamma", D(3.0, 2.0),
+            {{"alpha", [](D& d, double v) { return d.trySetAlpha(v); },
+              [](D& d, double v) { d.setAlpha(v); },
+              [](const D& d, double v) { return validateGammaParameters(v, d.getBeta()).isOk(); }},
+             {"beta", [](D& d, double v) { return d.trySetBeta(v); },
+              [](D& d, double v) { d.setBeta(v); },
+              [](const D& d, double v) {
+                  return validateGammaParameters(d.getAlpha(), v).isOk();
+              }}},
+            [](const D& d) { return std::vector<double>{d.getAlpha(), d.getBeta()}; },
+            [](const std::vector<double>& p) { return D(p[0], p[1]); },
+            [](const D& d) { return d.getLogProbability(0.75); });
+    }
+}
+
+TEST(ContractGates, F21_DelegateAgreement_Bernoulli) {
+    {
+        using D = BernoulliDistribution;
+        checkDelegateAgreement<D>(
+            "Bernoulli", D(0.3),
+            {{"p", [](D& d, double v) { return d.trySetP(v); }, [](D& d, double v) { d.setP(v); },
+              [](const D&, double v) { return validateBinomialParameters(1, v).isOk(); }}},
+            [](const D& d) { return std::vector<double>{d.getP()}; },
+            [](const std::vector<double>& p) { return D(p[0]); },
+            [](const D& d) { return d.getProbability(1.0); });
+    }
+}
+
+TEST(ContractGates, F21_DelegateAgreement_Geometric) {
+    {
+        using D = GeometricDistribution;
+        checkDelegateAgreement<D>(
+            "Geometric", D(0.3),
+            {{"p", [](D& d, double v) { return d.trySetP(v); }, [](D& d, double v) { d.setP(v); },
+              [](const D&, double v) {
+                  return validateNegativeBinomialParameters(1.0, v).isOk();
+              }}},
+            [](const D& d) { return std::vector<double>{d.getP()}; },
+            [](const std::vector<double>& p) { return D(p[0]); },
+            [](const D& d) { return d.getLogProbability(2.0); });
+    }
+}

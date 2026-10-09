@@ -140,8 +140,8 @@ double LaplaceDistribution::getBAtomic() const noexcept {
 }
 
 void LaplaceDistribution::setMu(double mu) {
-    validateParameters(mu, b_);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu, b_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -150,8 +150,8 @@ void LaplaceDistribution::setMu(double mu) {
 }
 
 void LaplaceDistribution::setB(double b) {
-    validateParameters(mu_, b);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu_, b);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -175,10 +175,10 @@ void LaplaceDistribution::setParameters(double mu, double b) {
 //==============================================================================
 
 VoidResult LaplaceDistribution::trySetMu(double mu) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateLaplaceParameters(mu, b_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -188,10 +188,10 @@ VoidResult LaplaceDistribution::trySetMu(double mu) noexcept {
 }
 
 VoidResult LaplaceDistribution::trySetB(double b) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateLaplaceParameters(mu_, b);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -607,8 +607,8 @@ std::istream& operator>>(std::istream& is, LaplaceDistribution& dist) {
     }
 
     try {
-        mu = std::stod(token.substr(mu_pos + 3, b_pos - mu_pos - 3));
-        b = std::stod(token.substr(b_pos + 3, close - b_pos - 3));
+        mu = detail::parse_double(token.substr(mu_pos + 3, b_pos - mu_pos - 3));
+        b = detail::parse_double(token.substr(b_pos + 3, close - b_pos - 3));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

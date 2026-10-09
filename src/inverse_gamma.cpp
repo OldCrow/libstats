@@ -153,9 +153,9 @@ double InverseGammaDistribution::getBetaAtomic() const noexcept {
 }
 
 void InverseGammaDistribution::setAlpha(double alpha) {
-    validateParameters(alpha, beta_);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(alpha, beta_);
         alpha_ = alpha;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -167,9 +167,9 @@ void InverseGammaDistribution::setAlpha(double alpha) {
 }
 
 void InverseGammaDistribution::setBeta(double beta) {
-    validateParameters(alpha_, beta);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(alpha_, beta);
         beta_ = beta;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -724,8 +724,8 @@ std::istream& operator>>(std::istream& is, InverseGammaDistribution& dist) {
 
     double alpha, beta;
     try {
-        alpha = std::stod(token.substr(a_pos + 6, a_comma - a_pos - 6));
-        beta = std::stod(token.substr(b_pos + 5, b_close - b_pos - 5));
+        alpha = detail::parse_double(token.substr(a_pos + 6, a_comma - a_pos - 6));
+        beta = detail::parse_double(token.substr(b_pos + 5, b_close - b_pos - 5));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

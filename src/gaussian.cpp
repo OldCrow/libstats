@@ -945,7 +945,7 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
 
     try {
         std::string mean_str = line.substr(mean_pos, comma_pos - mean_pos);
-        mean = std::stod(mean_str);
+        mean = detail::parse_double(mean_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -966,7 +966,7 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
 
     try {
         std::string stddev_str = line.substr(stddev_pos, close_paren - stddev_pos);
-        stddev = std::stod(stddev_str);
+        stddev = detail::parse_double(stddev_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

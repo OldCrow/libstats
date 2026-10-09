@@ -153,18 +153,9 @@ double GammaDistribution::getMode() const {
 }
 
 void GammaDistribution::setAlpha(double alpha) {
-    // Copy current beta for validation (thread-safe)
-    double currentBeta;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentBeta = beta_;
-    }
-
-    // Validate parameters
-    validateParameters(alpha, currentBeta);
-
-    // Update with unique lock
+    // Validate against the other parameter under the lock that commits (#183).
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(alpha, beta_);
     alpha_ = alpha;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -172,18 +163,9 @@ void GammaDistribution::setAlpha(double alpha) {
 }
 
 void GammaDistribution::setBeta(double beta) {
-    // Copy current alpha for validation (thread-safe)
-    double currentAlpha;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentAlpha = alpha_;
-    }
-
-    // Validate parameters
-    validateParameters(currentAlpha, beta);
-
-    // Update with unique lock
+    // Validate against the other parameter under the lock that commits (#183).
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(alpha_, beta);
     beta_ = beta;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -208,19 +190,13 @@ void GammaDistribution::setParameters(double alpha, double beta) {
 //==========================================================================
 
 VoidResult GammaDistribution::trySetAlpha(double alpha) noexcept {
-    // Copy current beta for validation (thread-safe)
-    double currentBeta;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentBeta = beta_;
-    }
-
-    auto validation = validateGammaParameters(alpha, currentBeta);
+    // Validate against the other parameter under the lock that commits (#183).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateGammaParameters(alpha, beta_);
     if (validation.isError()) {
         return validation;
     }
 
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     alpha_ = alpha;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -232,19 +208,13 @@ VoidResult GammaDistribution::trySetAlpha(double alpha) noexcept {
 }
 
 VoidResult GammaDistribution::trySetBeta(double beta) noexcept {
-    // Copy current alpha for validation (thread-safe)
-    double currentAlpha;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentAlpha = alpha_;
-    }
-
-    auto validation = validateGammaParameters(currentAlpha, beta);
+    // Validate against the other parameter under the lock that commits (#183).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateGammaParameters(alpha_, beta);
     if (validation.isError()) {
         return validation;
     }
 
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     beta_ = beta;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -1017,7 +987,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
         if (equals_pos != std::string::npos && comma_pos != std::string::npos) {
             std::string alpha_str =
                 temp.substr(equals_pos + detail::ONE_INT, comma_pos - equals_pos - detail::ONE_INT);
-            alpha = std::stod(alpha_str);
+            alpha = detail::parse_double(alpha_str);
 
             // Read "beta=value)"
             is >> temp;
@@ -1028,7 +998,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
                     std::string beta_str =
                         temp.substr(beta_equals_pos + detail::ONE_INT,
                                     close_paren_pos - beta_equals_pos - detail::ONE_INT);
-                    beta = std::stod(beta_str);
+                    beta = detail::parse_double(beta_str);
 
                     // Set parameters if valid
                     auto result = dist.trySetParameters(alpha, beta);
@@ -1332,65 +1302,6 @@ double GammaDistribution::computeQuantile(double p) const noexcept {
         b = beta_;
     });
     return detail::gamma_p_inv(a, p) / b;
-}
-
-double GammaDistribution::sampleMarsagliaTsang(std::mt19937& rng) const noexcept {
-    // Marsaglia-Tsang "squeeze" method for α ≥ 1
-    // This is a fast rejection sampling method
-
-    std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
-    std::normal_distribution<double> normal(detail::ZERO_DOUBLE, detail::ONE);
-
-    const double d = alpha_ - detail::ONE / detail::THREE;
-    const double c = detail::ONE / std::sqrt(detail::NINE * d);
-
-    while (true) {
-        double x, v;
-
-        do {
-            x = normal(rng);
-            v = detail::ONE + c * x;
-        } while (v <= detail::ZERO_DOUBLE);
-
-        v = v * v * v;
-        double u = uniform(rng);
-
-        // Quick accept
-        if (u < detail::ONE - 0.0331 * (x * x) * (x * x)) {
-            return d * v / beta_;
-        }
-
-        // Quick reject
-        if (std::log(u) < detail::HALF * x * x + d * (detail::ONE - v + std::log(v))) {
-            return d * v / beta_;
-        }
-    }
-}
-
-double GammaDistribution::sampleAhrensDieter(std::mt19937& rng) const noexcept {
-    // Ahrens-Dieter acceptance-rejection method for α < 1
-    std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
-
-    const double b = (detail::E + alpha_) / detail::E;
-
-    while (true) {
-        double u = uniform(rng);
-        double p = b * u;
-
-        if (p <= detail::ONE) {
-            double x = std::pow(p, detail::ONE / alpha_);
-            double u2 = uniform(rng);
-            if (u2 <= std::exp(-x)) {
-                return x / beta_;
-            }
-        } else {
-            double x = -std::log((b - p) / alpha_);
-            double u2 = uniform(rng);
-            if (u2 <= std::pow(x, alpha_ - detail::ONE)) {
-                return x / beta_;
-            }
-        }
-    }
 }
 
 void GammaDistribution::fitMethodOfMoments(const std::vector<double>& values) {

@@ -837,7 +837,7 @@ std::istream& operator>>(std::istream& is, PoissonDistribution& distribution) {
 
     try {
         std::string lambda_str = token.substr(lambda_pos, close_paren - lambda_pos);
-        lambda = std::stod(lambda_str);
+        lambda = detail::parse_double(lambda_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

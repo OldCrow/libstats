@@ -671,8 +671,8 @@ std::istream& operator>>(std::istream& is, ParetoDistribution& d) {
         return is;
     }
     try {
-        const double sc = std::stod(token.substr(sc_pos + 6, comma - sc_pos - 6));
-        const double al = std::stod(token.substr(al_pos + 6, close - al_pos - 6));
+        const double sc = detail::parse_double(token.substr(sc_pos + 6, comma - sc_pos - 6));
+        const double al = detail::parse_double(token.substr(al_pos + 6, close - al_pos - 6));
         auto result = d.trySetParameters(sc, al);
         if (result.isError())
             is.setstate(std::ios::failbit);

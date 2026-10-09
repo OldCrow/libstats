@@ -471,6 +471,16 @@ if(MSVC)
     target_compile_options(test_concurrency_stress PRIVATE /bigobj)
 endif()
 
+# Oracle-free identities over all 27 distributions (2026-10-07 defect hunt, proposal 1): CDF range
+# and monotonicity, Q(F(x)) and F(Q(p)) round trips, discrete quantile minimality, pdf against
+# dF/dx, logpdf against log(pdf), scalar against vectorised batch, cross-class identities.
+# Correctness, not timing: it asserts values only, so it must stay out of the "timing" label.
+create_libstats_gtest(test_distribution_identities test_distribution_identities.cpp)
+
+# Stream round trip at awkward parameter values and fit on degenerate data (defect hunt, proposal
+# 3). Correctness, not timing.
+create_libstats_gtest(test_io_fit_fuzz test_io_fit_fuzz.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to

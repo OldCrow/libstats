@@ -166,8 +166,8 @@ double GumbelDistribution::getBetaAtomic() const noexcept {
 }
 
 void GumbelDistribution::setMu(double mu) {
-    validateParameters(mu, beta_);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu, beta_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -176,8 +176,8 @@ void GumbelDistribution::setMu(double mu) {
 }
 
 void GumbelDistribution::setBeta(double beta) {
-    validateParameters(mu_, beta);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu_, beta);
     beta_ = beta;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -201,10 +201,10 @@ void GumbelDistribution::setParameters(double mu, double beta) {
 //==============================================================================
 
 VoidResult GumbelDistribution::trySetMu(double mu) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateGumbelParameters(mu, beta_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -214,10 +214,10 @@ VoidResult GumbelDistribution::trySetMu(double mu) noexcept {
 }
 
 VoidResult GumbelDistribution::trySetBeta(double beta) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateGumbelParameters(mu_, beta);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     beta_ = beta;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -625,8 +625,8 @@ std::istream& operator>>(std::istream& is, GumbelDistribution& dist) {
     }
 
     try {
-        mu = std::stod(token.substr(mu_pos + 3, beta_pos - mu_pos - 3));
-        beta = std::stod(token.substr(beta_pos + 6, close - beta_pos - 6));
+        mu = detail::parse_double(token.substr(mu_pos + 3, beta_pos - mu_pos - 3));
+        beta = detail::parse_double(token.substr(beta_pos + 6, close - beta_pos - 6));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

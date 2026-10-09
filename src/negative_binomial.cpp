@@ -802,8 +802,8 @@ std::istream& operator>>(std::istream& is, NegativeBinomialDistribution& d) {
         return is;
     }
     try {
-        const double r = std::stod(token.substr(r_pos + 2, comma - r_pos - 2));
-        const double p = std::stod(token.substr(p_pos + 2, close - p_pos - 2));
+        const double r = detail::parse_double(token.substr(r_pos + 2, comma - r_pos - 2));
+        const double p = detail::parse_double(token.substr(p_pos + 2, close - p_pos - 2));
         auto result = d.trySetParameters(r, p);
         if (result.isError())
             is.setstate(std::ios::failbit);

@@ -111,9 +111,9 @@ ErlangDistribution::ErlangDistribution(int k, double lambda, bool /*bypassValida
 //==============================================================================
 
 void ErlangDistribution::setK(int k) {
-    validateParameters(k, lambda_);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(k, lambda_);
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -124,9 +124,9 @@ void ErlangDistribution::setK(int k) {
 }
 
 void ErlangDistribution::setLambda(double lambda) {
-    validateParameters(k_, lambda);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(k_, lambda);
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -151,11 +151,11 @@ void ErlangDistribution::setParameters(int k, double lambda) {
 }
 
 VoidResult ErlangDistribution::trySetK(int k) noexcept {
-    auto v = validateErlangParameters(k, lambda_);
-    if (v.isError())
-        return v;
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateErlangParameters(k, lambda_);
+        if (v.isError())
+            return v;
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -167,11 +167,11 @@ VoidResult ErlangDistribution::trySetK(int k) noexcept {
 }
 
 VoidResult ErlangDistribution::trySetLambda(double lambda) noexcept {
-    auto v = validateErlangParameters(k_, lambda);
-    if (v.isError())
-        return v;
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateErlangParameters(k_, lambda);
+        if (v.isError())
+            return v;
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -360,8 +360,8 @@ std::istream& operator>>(std::istream& is, ErlangDistribution& dist) {
     int k;
     double lambda;
     try {
-        const double k_raw = std::stod(token.substr(k_pos + 2, k_comma - k_pos - 2));
-        lambda = std::stod(token.substr(lambda_pos + 7, lambda_close - lambda_pos - 7));
+        const double k_raw = detail::parse_double(token.substr(k_pos + 2, k_comma - k_pos - 2));
+        lambda = detail::parse_double(token.substr(lambda_pos + 7, lambda_close - lambda_pos - 7));
         // #125-class guard: static_cast<int> of a double outside int's range is
         // UB. A serialized k beyond INT_MAX cannot be a valid round-trip, so
         // reject it (failbit) rather than saturate. The comparison also rejects

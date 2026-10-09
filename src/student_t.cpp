@@ -648,7 +648,7 @@ std::istream& operator>>(std::istream& is, StudentTDistribution& dist) {
         return is;
     }
     try {
-        nu = std::stod(token.substr(nu_pos + 3, close - nu_pos - 3));
+        nu = detail::parse_double(token.substr(nu_pos + 3, close - nu_pos - 3));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

@@ -259,13 +259,6 @@ VoidResult BinomialDistribution::validateCurrentParameters() const noexcept {
 // 5. CORE PROBABILITY METHODS
 //==============================================================================
 
-double BinomialDistribution::logBinomCoeff(int k) const noexcept {
-    if (k < 0 || k > n_)
-        return detail::NEGATIVE_INFINITY;
-    return logNFact_ - detail::lgamma(static_cast<double>(k + 1)) -
-           detail::lgamma(static_cast<double>(n_ - k + 1));
-}
-
 double BinomialDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
@@ -756,7 +749,7 @@ std::istream& operator>>(std::istream& is, BinomialDistribution& d) {
         return is;
     }
     try {
-        const double n_val = std::stod(token.substr(n_pos + 2, comma - n_pos - 2));
+        const double n_val = detail::parse_double(token.substr(n_pos + 2, comma - n_pos - 2));
         // #167: reject n outside int range before the cast (UB); NaN fails the test too.
         if (!(n_val >= static_cast<double>(std::numeric_limits<int>::min()) &&
               n_val <= static_cast<double>(std::numeric_limits<int>::max()))) {
@@ -764,7 +757,7 @@ std::istream& operator>>(std::istream& is, BinomialDistribution& d) {
             return is;
         }
         const int n = static_cast<int>(n_val);
-        const double p = std::stod(token.substr(p_pos + 2, close - p_pos - 2));
+        const double p = detail::parse_double(token.substr(p_pos + 2, close - p_pos - 2));
         auto result = d.trySetParameters(n, p);
         if (result.isError())
             is.setstate(std::ios::failbit);

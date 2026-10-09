@@ -174,8 +174,8 @@ double LogisticDistribution::getSAtomic() const noexcept {
 }
 
 void LogisticDistribution::setMu(double mu) {
-    validateParameters(mu, s_);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu, s_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -184,8 +184,8 @@ void LogisticDistribution::setMu(double mu) {
 }
 
 void LogisticDistribution::setS(double s) {
-    validateParameters(mu_, s);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu_, s);
     s_ = s;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -209,10 +209,10 @@ void LogisticDistribution::setParameters(double mu, double s) {
 //==============================================================================
 
 VoidResult LogisticDistribution::trySetMu(double mu) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateLogisticParameters(mu, s_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -222,10 +222,10 @@ VoidResult LogisticDistribution::trySetMu(double mu) noexcept {
 }
 
 VoidResult LogisticDistribution::trySetS(double s) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateLogisticParameters(mu_, s);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     s_ = s;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -693,8 +693,8 @@ std::istream& operator>>(std::istream& is, LogisticDistribution& dist) {
     }
 
     try {
-        mu = std::stod(token.substr(mu_pos + 3, s_pos - mu_pos - 3));
-        s = std::stod(token.substr(s_pos + 3, close - s_pos - 3));
+        mu = detail::parse_double(token.substr(mu_pos + 3, s_pos - mu_pos - 3));
+        s = detail::parse_double(token.substr(s_pos + 3, close - s_pos - 3));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

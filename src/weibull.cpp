@@ -828,8 +828,8 @@ std::istream& operator>>(std::istream& is, WeibullDistribution& d) {
         return is;
     }
     try {
-        const double sh = std::stod(token.substr(sh_pos + 6, comma - sh_pos - 6));
-        const double sc = std::stod(token.substr(sc_pos + 6, close - sc_pos - 6));
+        const double sh = detail::parse_double(token.substr(sh_pos + 6, comma - sh_pos - 6));
+        const double sc = detail::parse_double(token.substr(sc_pos + 6, close - sc_pos - 6));
         auto result = d.trySetParameters(sh, sc);
         if (result.isError())
             is.setstate(std::ios::failbit);

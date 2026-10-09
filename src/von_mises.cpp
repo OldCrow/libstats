@@ -1516,8 +1516,9 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
         return is;
     }
     try {
-        const double mu = std::stod(token.substr(mu_pos + 3, comma - mu_pos - 3));
-        const double kappa = std::stod(token.substr(kappa_pos + 6, close - kappa_pos - 6));
+        const double mu = detail::parse_double(token.substr(mu_pos + 3, comma - mu_pos - 3));
+        const double kappa =
+            detail::parse_double(token.substr(kappa_pos + 6, close - kappa_pos - 6));
         auto result = d.trySetParameters(mu, kappa);
         if (result.isError())
             is.setstate(std::ios::failbit);

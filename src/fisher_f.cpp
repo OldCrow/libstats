@@ -44,6 +44,10 @@ static double requireValidDF(double v, const char* which) {
             std::string(which) + " degrees of freedom must be a positive finite number";
         throw std::invalid_argument(msg);
     }
+    if (v * detail::HALF <= 0.0) {  // the Beta delegate's d/2 must not underflow (#227)
+        throw std::invalid_argument(std::string(which) +
+                                    " degrees of freedom is too small: d/2 underflows to zero");
+    }
     return v;
 }
 
@@ -142,9 +146,9 @@ double FDistribution::getD2Atomic() const noexcept {
 }
 
 void FDistribution::setD1(double d1) {
-    validateParameters(d1, d2_);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(d1, d2_);
         d1_ = d1;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -153,9 +157,9 @@ void FDistribution::setD1(double d1) {
 }
 
 void FDistribution::setD2(double d2) {
-    validateParameters(d1_, d2);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(d1_, d2);
         d2_ = d2;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -912,8 +916,8 @@ std::istream& operator>>(std::istream& is, FDistribution& dist) {
 
     double d1, d2;
     try {
-        d1 = std::stod(token.substr(d1_pos + 3, d1_comma - d1_pos - 3));
-        d2 = std::stod(token.substr(d2_pos + 3, d2_close - d2_pos - 3));
+        d1 = detail::parse_double(token.substr(d1_pos + 3, d1_comma - d1_pos - 3));
+        d2 = detail::parse_double(token.substr(d2_pos + 3, d2_close - d2_pos - 3));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
