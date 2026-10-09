@@ -26,6 +26,7 @@
 #include <gtest/gtest.h>
 #include <limits>
 #include <string>
+#include <vector>
 
 using namespace stats;
 
@@ -227,6 +228,87 @@ TEST(BetaQuantileAccuracy, RoundTripAndMonotone) {
                 const double ulp_shift = d.getProbability(x) * x * kEps;
                 EXPECT_NEAR(back, p, 1e-12 * std::min(p, 1.0 - p) + ulp_shift + 1e-15)
                     << "F(Q(p)) at Beta(" << s[0] << ", " << s[1] << ") p=" << p;
+            }
+        }
+    }
+}
+
+// #230: at a tiny shape the quantile's log residual (a) cancelled lgamma(a) against the 1/a of
+// the continued fraction, and (b) above the branch point formed log I as log1p(−c) from the
+// complement c = 1 − I, which rounds to 1 when the second shape is tiny — Beta(1,
+// 1e-300).Q(3.7e-299) was 0.53 (true 1 − x = e^-36.8) and Beta(1, 1e-30).Q(2.3e-34) was 1 − 5.5e-13
+// (true x = 2.3e-4, the seed landing in the broken branch). Two-sided against the exact closed
+// forms I_x(a, 1) = x^a and I_x(1, a) = 1 − (1 − x)^a, within the law budget and an ulp of the
+// small side; then monotonicity and F(Q(p)) round trips over a p grid, both shapes tiny included.
+TEST(BetaQuantileAccuracy, TinyShapes) {
+    constexpr double kHalfUlpAtOne = 0x1p-53;
+    // (1, a) at p = a·k: 1 − x = (1 − p)^(1/a) = e^(−k)(1 + O(p)).
+    // (a, 1) at p = 1 − a·k: x = p^(1/a) = e^(−k)(1 + O(a·k)), representable while a·k > ε/2.
+    const struct {
+        double a, k;
+    } rows[] = {{1e-300, 20}, {1e-200, 5}, {1e-100, 0.01}, {1e-30, 34}, {1e-16, 661},
+                {1e-12, 10},  {1e-10, 30}, {1e-6, 1e-3},   {1e-4, 2}};
+    for (const auto& r : rows) {
+        // (1, a): x near 1, small side 1 − x
+        {
+            const double p = r.a * r.k;
+            const auto d = BetaDistribution::create(1.0, r.a).unwrap();
+            const double got = d.getQuantile(p);
+            const double want = std::exp(std::log1p(-p) / r.a);  // 1 − x, exact form
+            // law: κ = q/(s·pdf) = p/(a·s^a) = p/(a(1 − p))
+            const double kappa = p / (r.a * (1.0 - p));
+            const double budget = kLawFactor * kEps * (1.0 + std::fabs(std::log(p)) * kappa);
+            EXPECT_LE(std::fabs((1.0 - got) - want), budget * want + kHalfUlpAtOne)
+                << "Beta(1, " << r.a << ").Q(" << p << ") = " << got << ", want 1 - " << want;
+        }
+        // (a, 1): x tiny at p near 1
+        if (r.a * r.k > 1e-15) {
+            const double p = 1.0 - r.a * r.k;
+            const double q = 1.0 - p;  // exact
+            const auto d = BetaDistribution::create(r.a, 1.0).unwrap();
+            const double got = d.getQuantile(p);
+            const double want = std::exp(std::log(p) / r.a);
+            // law: κ = q/(x·pdf(x)) = q/(a·x^a) = q/(a·p)
+            const double kappa = q / (r.a * p);
+            const double budget = kLawFactor * kEps * (1.0 + std::fabs(std::log(q)) * kappa);
+            EXPECT_LE(std::fabs(got - want), budget * want + want * kEps)
+                << "Beta(" << r.a << ", 1).Q(" << p << ") = " << got << ", want " << want;
+        }
+    }
+    // Monotone in p and F(Q(p)) = p to the CDF's accuracy plus the ulp of x, for one and two
+    // tiny shapes; p across the subnormal-to-½ range and the plateau band where Q is interior.
+    const double shapes[][2] = {{1, 1e-300}, {1e-300, 1}, {1e-300, 1e-300}, {1e-10, 1e-10},
+                                {1, 1e-10},  {1e-10, 1},  {1e-10, 1e-300},  {1e-300, 1e-10}};
+    for (const auto& s : shapes) {
+        const auto d = BetaDistribution::create(s[0], s[1]).unwrap();
+        std::vector<double> ps;
+        for (int i = 0; i <= 100; ++i)
+            ps.push_back(std::pow(10.0, -320.0 + 3.2 * i));
+        const double tiny = std::min(s[0], s[1]);
+        for (int i = 1; i <= 40; ++i) {  // p = (plateau) ± tiny·k, k log-spaced 1e-3..700
+            const double off = tiny * std::pow(10.0, -3.0 + 5.85 * i / 40.0);
+            for (double base : {0.0, 0.5, 1.0})
+                for (double sg : {-1.0, 1.0}) {
+                    const double p = base + sg * off;
+                    if (p > 0.0 && p < 1.0)
+                        ps.push_back(p);
+                }
+        }
+        std::sort(ps.begin(), ps.end());
+        double prev = -1.0;
+        for (double p : ps) {
+            const double x = d.getQuantile(p);
+            ASSERT_TRUE(x >= 0.0 && x <= 1.0)
+                << "Beta(" << s[0] << ", " << s[1] << ").Q(" << p << ") = " << x;
+            EXPECT_GE(x, prev) << "non-monotone at Beta(" << s[0] << ", " << s[1] << ") p=" << p;
+            prev = std::max(prev, x);
+            if (x > 1e-300 && 1.0 - x > 1e-15) {
+                const double back = d.getCumulativeProbability(x);
+                const double small = std::min(p, 1.0 - p);
+                const double ulp_shift = d.getProbability(x) * std::max(x, 1.0 - x) * kEps;
+                // 1e-15: the ulp of p itself near 1 (F(x) = 1 − 1.6e-10 is held to 1.1e-16)
+                EXPECT_NEAR(back, p, 1e-12 * small + ulp_shift + 1e-15)
+                    << "F(Q(p)) at Beta(" << s[0] << ", " << s[1] << ") p=" << p << " x=" << x;
             }
         }
     }

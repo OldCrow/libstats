@@ -26,7 +26,7 @@ namespace detail {
 // Forward declarations
 static double beta_continued_fraction(double x, double a, double b) noexcept;
 static double beta_continued_fraction_unscaled(double x, double a, double b) noexcept;
-static double log_beta_prefactor_over_a(double x, double a, double b) noexcept;
+static double log_beta_prefactor_over_a(double x, double omx, double a, double b) noexcept;
 static double gamma_p_series(double a, double x) noexcept;
 double gamma_q(double a, double x) noexcept;
 
@@ -902,9 +902,13 @@ constexpr double kTinyBetaShape = 1e-3;
 //   a·B(a, b) = Γ(a + 1)Γ(b)/Γ(a + b) = ((a + b)/b) · (a + b + 1) · B(a + 1, b + 1),
 // and lbeta carries the Stirling form for a large shape — the other shape may be anything up
 // to DBL_MAX (a NegativeBinomial CDF at k = DBL_MAX), where lgamma(b + 1) alone is ∞.
-static double log_beta_prefactor_over_a(double x, double a, double b) noexcept {
-    return a * std::log(x) + b * std::log1p(-x) + std::log(b / (a + b)) -
-           std::log(a + b + detail::ONE) - lbeta(a + detail::ONE, b + detail::ONE);
+// omx is 1 − x, used for the (1 − x)^b factor from x ≥ ½, where the caller may hold it more
+// exactly than 1 − x (the quantile solver's logit: x rounds to 1 while 1 − x is e^-661, and
+// log1p(−x) = −∞ there zeroed the Newton slope).
+static double log_beta_prefactor_over_a(double x, double omx, double a, double b) noexcept {
+    return a * std::log(x) + b * (x < detail::HALF ? std::log1p(-x) : std::log(omx)) +
+           std::log(b / (a + b)) - std::log(a + b + detail::ONE) -
+           lbeta(a + detail::ONE, b + detail::ONE);
 }
 
 // I_x(a, b) below the branch point x_b = (a + 1)/(a + b + 2): the direct orientation, with the
@@ -912,7 +916,7 @@ static double log_beta_prefactor_over_a(double x, double a, double b) noexcept {
 // continued fraction, whose products overflow at a shape past ~1e154), and the product clamped
 // to 1, where a few ε of rounding could otherwise land above it.
 static double beta_i_tiny_direct(double x, double a, double b) noexcept {
-    const double pf = std::exp(log_beta_prefactor_over_a(x, a, b));
+    const double pf = std::exp(log_beta_prefactor_over_a(x, detail::ONE - x, a, b));
     if (pf == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
     return std::min(pf * beta_continued_fraction_unscaled(x, a, b), detail::ONE);
@@ -933,19 +937,23 @@ static double beta_i_tiny_direct(double x, double a, double b) noexcept {
 // (s₀^b − s^b)/b is expm1(b·log(s/s₀))·s₀^b/(−b), finite as b → 0, and 1/B(a, b) is
 // b·(a/(a + b))/((a + b + 1)·B(a + 1, b + 1)) as in log_beta_prefactor_over_a. The sum is
 // non-negative and increasing in x, so I_x stays ≥ I_{x_b} and non-decreasing.
-static double beta_i_tiny_shape(double x, double a, double b) noexcept {
+//
+// omx is 1 − x: exact from x for x ≥ x_b ≥ ⅓ (Sterbenz), but the quantile solver holds x and
+// 1 − x separately from the logit and passes its own, since 1 − x from an x next to 1 has lost
+// the digits the tail integral reads (Beta(1e-16, 1).Q(1 − 6.6e-14) needs 1 − y = e^-661).
+static double beta_i_tiny_shape(double x, double omx, double a, double b) noexcept {
     const double x_b = (a + detail::ONE) / (a + b + detail::TWO);
     if (x < x_b)
         return beta_i_tiny_direct(x, a, b);
     if (b >= kTinyBetaShape) {
-        const double pf = std::exp(log_beta_prefactor_over_a(detail::ONE - x, b, a));
+        const double pf = std::exp(log_beta_prefactor_over_a(omx, x, b, a));
         if (pf == detail::ZERO_DOUBLE)
             return detail::ONE;
         return detail::ONE -
-               std::min(pf * beta_continued_fraction_unscaled(detail::ONE - x, b, a), detail::ONE);
+               std::min(pf * beta_continued_fraction_unscaled(omx, b, a), detail::ONE);
     }
     const double s0 = (b + detail::ONE) / (a + b + detail::TWO);  // 1 − x_b, formed directly
-    const double s = detail::ONE - x;                             // exact: x ≥ x_b ≥ ⅓
+    const double s = omx;
     if (s >= s0)
         return beta_i_tiny_direct(x, a, b);  // x_b rounded past x
     const double log_rho = std::log(s / s0);
@@ -988,7 +996,7 @@ double beta_i(double x, double a, double b) noexcept {
         return detail::HALF;
 
     if (std::min(a, b) < kTinyBetaShape)
-        return beta_i_tiny_shape(x, a, b);
+        return beta_i_tiny_shape(x, detail::ONE - x, a, b);
 
     // Use continued fraction approximation
     double bt = std::exp(log_beta_prefactor(x, a, b, beta_prefactor_constant(a, b)));
@@ -1020,7 +1028,7 @@ double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
         return detail::HALF;  // by symmetry; see the overload above
 
     if (std::min(a, b) < kTinyBetaShape)
-        return beta_i_tiny_shape(x, a, b);  // the hoisted prefix is the cancelling form
+        return beta_i_tiny_shape(x, detail::ONE - x, a, b);  // the hoisted prefix cancels
 
     // log_beta_prefix is the caller's hoisted beta_prefactor_constant(a, b), in the direct or the
     // Stirling form as the shapes select (#166).
@@ -1204,13 +1212,21 @@ double inverse_beta_i(double p, double a, double b) noexcept {
     const double log_target = std::log(p);
     const double lb = lbeta(a, b);
     const double pc = beta_prefactor_constant(a, b);
+    // Below kTinyBetaShape the residual and the leading-term constant are formed as
+    // beta_i_tiny_shape forms I (#229, #230): log(a·B(a, b)) = lbeta(a + 1, b) + log(a + b) with
+    // no lgamma(a) against log a, and above the branch point log I from the tail integral
+    // rather than log1p(−c) with c = 1 − I, which rounds to 1 when the second shape is tiny —
+    // Beta(1, 1e-300).Q(3.7e-299) was 0.53 (true 1 − x = e^-36.8), and a seed landing in that
+    // branch left Beta(1, 1e-30).Q(2.3e-34) at 1 − 5.5e-13 (true x = 2.3e-4).
+    const bool tiny = std::min(a, b) < kTinyBetaShape;
 
     // I_x(a, b) = x^a/(a·B)·(1 + a(1 − b)x/(a + 1) + …): the leading term's root t_lb in
     // t = log x bounds the answer from below for b ≥ 1 (then (1 − s)^{b−1} ≤ 1 under the
     // integral) and from above for b < 1. Where x·max(1, b) < 1e-20 the correction is below
     // 1e-20 relative and the leading term is the answer — the only route to it once x cannot
     // hold the logit (below t = −700) or at all (the root underflows to 0 or a subnormal).
-    const double t_lb = (log_target + std::log(a) + lb) / a;
+    const double t_lb = tiny ? (log_target + lbeta(a + detail::ONE, b) + std::log(a + b)) / a
+                             : (log_target + std::log(a) + lb) / a;
     if (t_lb < -700.0 && t_lb + std::log(std::max(detail::ONE, b)) < -46.0)
         return upper ? detail::ONE - std::exp(t_lb) : std::exp(t_lb);
 
@@ -1265,6 +1281,14 @@ double inverse_beta_i(double p, double a, double b) noexcept {
         // at large shapes it underflows a double long before the tail does (Beta(1e4, 1e4) at
         // x = 0.36 has I = 1e-323 with a prefactor of e^-745), and log of the underflowed I put
         // the root of a subnormal p at x = 1, or in the bulk.
+        if (tiny) {
+            const double lpo = log_beta_prefactor_over_a(x, omx, a, b);
+            const double log_i = x < (a + detail::ONE) / (a + b + detail::TWO)
+                                     ? lpo + std::log(beta_continued_fraction_unscaled(x, a, b))
+                                     : std::log(beta_i_tiny_shape(x, omx, a, b));
+            slope = std::exp(lpo + std::log(a) - log_i);  // the full prefactor is a·exp(lpo)
+            return log_i - log_target;
+        }
         const double bt_log = log_beta_prefactor(x, a, b, pc);
         double log_i;
         if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
