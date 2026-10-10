@@ -995,36 +995,50 @@ static double beta_i_tiny_direct(double x, double omx, double a, double b) noexc
     return std::min(pf * beta_continued_fraction_unscaled(x, omx, a, b), detail::ONE);
 }
 
-// I_x(a, b) for min(a, b) < kTinyBetaShape, x in (0, 1).
-//
-// Below x_b the direct orientation. Above it, with a the tiny shape, I_x is 1 − (something
-// small) and the swapped orientation 1 − I_{1−x}(b, a) carries it. With b the tiny shape I_x is
-// itself small — b·∫₀ˣ t^(a−1)/(1 − t) dt, 1e-302 at Beta(1, 1e-300) and x = 0.01 — and the
-// swapped orientation returns 1 − (1 − small) = 0 above x_b (a decrease from the direct value
-// below it), while the direct continued fraction converges like ((1 − √s)/(1 + √s))ᵐ, s = 1 − x,
-// too slowly near 1. So the tail is integrated from the branch point instead:
-//   I_x = I_{x_b} + (1/B(a, b)) ∫_s^{s₀} (1 − u)^(a−1) u^(b−1) du,   s₀ = 1 − x_b,
+// Below this second shape I_x(a, b) can be small above the branch point x_b, where the ordinary
+// routing formed it as 1 − I_{1−x}(b, a) and lost (1 − I)/I of the complement's error: I at x_b
+// tends to Q(b, b + 1) as a grows (the gamma upper tail), 2.2e-4 at b = 1e-3, 0.08 at b = ½,
+// 0.14 at b = 1, so the loss was 3e4 ε at b = 1e-3 and 200 ε at b = 0.1. Below it the small
+// side is formed directly by beta_i_tail_integral wherever that is ≤ ½. From b = 1 the
+// complement's amplification is at most (1 − 0.135)/0.135 = 6.4, while the integral's
+// alternating series cancels more (a·s₀ < b + 1, see below) and its continued fraction at x_b
+// carries up to ~30 ε at large a, so the complement stays.
+constexpr double kTailIntegralShape = 1.0;
+
+// log Γ(a + b) − log Γ(a) − b·log(a + b), for a ≥ 1 and b < kTailIntegralShape. Every term is
+// O(b): from a = kStirlingPrefactorShape, Stirling's (a − ½)·log1p(b/a) − b + c(a + b) − c(a);
+// below it the recurrence Γ(z + 1) = z·Γ(z) lifts a there, one log1p(b/z) per step. The direct
+// difference of lgammas cancels terms of size log Γ(a), the lbeta form terms of size b·log a.
+static double lgamma_ratio_excess(double a, double b) noexcept {
+    double z = a;
+    double acc = detail::ZERO_DOUBLE;
+    while (z < kStirlingPrefactorShape) {
+        acc -= std::log1p(b / z);
+        z += detail::ONE;
+    }
+    if (z != a)
+        acc += b * std::log((z + b) / (a + b));
+    return acc + (z - detail::HALF) * std::log1p(b / z) - b + stirling_remainder(z + b) -
+           stirling_remainder(z);
+}
+
+// I_x(a, b) for x ≥ x_b = (a + 1)/(a + b + 2) and b < kTailIntegralShape, as the direct value
+// at the branch point plus the integral from there:
+//   I_x = I_{x_b} + (1/B(a, b)) ∫_s^{s₀} (1 − u)^(a−1) u^(b−1) du,   s₀ = 1 − x_b, s = 1 − x,
 //       = I_{x_b} + (1/B(a, b)) Σ_{n≥0} C(a−1, n)(−1)ⁿ (s₀^(n+b) − s^(n+b))/(n + b),
-// a·s₀ = a(b + 1)/(a + b + 2) < 1, so the terms fall at least like (a·s₀)ⁿ/n! for a > 1 and
-// like s₀ⁿ ≤ 2⁻ⁿ for a ≤ 1 (every coefficient then positive: no cancellation). The n = 0 term's
-// (s₀^b − s^b)/b is expm1(b·log(s/s₀))·s₀^b/(−b), finite as b → 0, and 1/B(a, b) is
-// b·(a/(a + b))/((a + b + 1)·B(a + 1, b + 1)) as in log_beta_prefactor_over_a. The sum is
-// non-negative and increasing in x, so I_x stays ≥ I_{x_b} and non-decreasing.
+// a·s₀ = a(b + 1)/(a + b + 2) < b + 1, so the terms fall at least like (a·s₀)ⁿ/n! for a > 1 and
+// like s₀ⁿ for a ≤ 1 (every coefficient then positive: no cancellation; s₀ < (b + 1)/(b + 2)).
+// For a > 1 the signs alternate and the sum of magnitudes exceeds the sum by at most
+// ((1 + s₀)/(1 − s₀))^(a−1) < e^(2(b+1)), and far less where the interval reaches small u, which
+// the weight u^(b−1) favours. The n = 0 term's (s₀^b − s^b)/b is expm1(b·log(s/s₀))·s₀^b/(−b),
+// finite as b → 0. The sum is non-negative and increasing in x, so I_x stays ≥ I_{x_b} and
+// non-decreasing. Both terms are positive, so the result carries their relative error whatever
+// its size: the small side formed directly, never 1 − (something near 1).
 //
 // omx is 1 − x: exact from x for x ≥ x_b ≥ ⅓ (Sterbenz), but the quantile solver holds x and
 // 1 − x separately from the logit and passes its own, since 1 − x from an x next to 1 has lost
-// the digits the tail integral reads (Beta(1e-16, 1).Q(1 − 6.6e-14) needs 1 − y = e^-661).
-static double beta_i_tiny_shape(double x, double omx, double a, double b) noexcept {
-    const double x_b = (a + detail::ONE) / (a + b + detail::TWO);
-    if (x < x_b)
-        return beta_i_tiny_direct(x, omx, a, b);
-    if (b >= kTinyBetaShape) {
-        const double pf = std::exp(log_beta_prefactor_over_a(omx, x, b, a));
-        if (pf == detail::ZERO_DOUBLE)
-            return detail::ONE;
-        return detail::ONE -
-               std::min(pf * beta_continued_fraction_unscaled(omx, x, b, a), detail::ONE);
-    }
+// the digits the integral reads (Beta(1e-16, 1).Q(1 − 6.6e-14) needs 1 − y = e^-661).
+static double beta_i_tail_integral(double x, double omx, double a, double b) noexcept {
     const double s0 = (b + detail::ONE) / (a + b + detail::TWO);  // 1 − x_b, formed directly
     const double s = omx;
     if (s >= s0)
@@ -1040,18 +1054,50 @@ static double beta_i_tiny_shape(double x, double omx, double a, double b) noexce
         if (std::fabs(t) <= 1e-17 * std::fabs(sum))
             break;
     }
-    const double log_s0 = std::log(s0);
-    const double scale = b * (a / (a + b)) *
-                         std::exp(b * log_s0 - lbeta(a + detail::ONE, b + detail::ONE) -
-                                  std::log(a + b + detail::ONE));
-    // I_{x_b} as beta_i_tiny_direct forms it, with log x_b = log1p(−s₀) rather than the log of
-    // the rounded x_b (see log_beta_prefactor_over_a_logs).
-    const double pf_b = std::exp(log_beta_prefactor_over_a_logs(std::log1p(-s0), log_s0, a, b));
+    // scale = s₀^b/B(a, b) and the prefactor x_b^a s₀^b/(a·B(a, b)), from
+    //   s₀^b·Γ(a + b)/(Γ(a)·Γ(b + 1)) = (a/(a + b))·K,  K = s₀^b·Γ(a + b + 1)/(Γ(a + 1)·Γ(b + 1)),
+    // whose log is O(1) terms only (see lgamma_ratio_excess): through lbeta(a + 1, b + 1) the
+    // exponent cancelled terms of size (b + 1)·log a, 30 ε at a = 1e6. The a/(a + b) stays a
+    // factor, outside the exponent, where a tiny a cannot put |log a|·ε into it.
+    const double k =
+        std::exp(b * std::log((a + b + detail::ONE) * s0) +
+                 lgamma_ratio_excess(a + detail::ONE, b) - detail::lgamma(b + detail::ONE));
+    const double scale = b * (a / (a + b)) * k;
+    // I_{x_b}, with log x_b = log1p(−s₀) rather than the log of the rounded x_b (see
+    // log_beta_prefactor_over_a_logs). An underflowed prefactor decides it without the continued
+    // fraction, as in beta_i_tiny_direct.
+    const double pf_b = (b / (a + b)) * k * std::exp(a * std::log1p(-s0));
+    const double x_b = (a + detail::ONE) / (a + b + detail::TWO);
     const double i_b =
         pf_b == detail::ZERO_DOUBLE
             ? detail::ZERO_DOUBLE
             : std::min(pf_b * beta_continued_fraction_unscaled(x_b, s0, a, b), detail::ONE);
     return std::min(i_b + scale * sum, detail::ONE);
+}
+
+// I_x(a, b) for min(a, b) < kTinyBetaShape, x in (0, 1).
+//
+// Below x_b the direct orientation. Above it, with a the tiny shape, I_x is 1 − (something
+// small) and the swapped orientation 1 − I_{1−x}(b, a) carries it. With b the tiny shape I_x is
+// itself small — b·∫₀ˣ t^(a−1)/(1 − t) dt, 1e-302 at Beta(1, 1e-300) and x = 0.01 — and the
+// swapped orientation returns 1 − (1 − tiny) = 0 above x_b (a decrease from the direct value
+// below it), while the direct continued fraction converges like ((1 − √s)/(1 + √s))ᵐ, s = 1 − x,
+// too slowly near 1; the tail integral carries it. Between the two the rule of beta_i applies:
+// the tail integral wherever it is ≤ ½.
+static double beta_i_tiny_shape(double x, double omx, double a, double b) noexcept {
+    if (x < (a + detail::ONE) / (a + b + detail::TWO))
+        return beta_i_tiny_direct(x, omx, a, b);
+    if (b < kTinyBetaShape)
+        return beta_i_tail_integral(x, omx, a, b);
+    if (b < kTailIntegralShape) {
+        const double i = beta_i_tail_integral(x, omx, a, b);
+        if (i <= detail::HALF)
+            return i;
+    }
+    const double pf = std::exp(log_beta_prefactor_over_a(omx, x, b, a));
+    if (pf == detail::ZERO_DOUBLE)
+        return detail::ONE;
+    return detail::ONE - std::min(pf * beta_continued_fraction_unscaled(omx, x, b, a), detail::ONE);
 }
 
 double beta_i(double x, double a, double b) noexcept {
@@ -1087,11 +1133,17 @@ double beta_i(double x, double a, double b) noexcept {
     if (bt == detail::ZERO_DOUBLE)
         return x < (a + detail::ONE) / (a + b + detail::TWO) ? detail::ZERO_DOUBLE : detail::ONE;
 
-    if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
+    if (x < (a + detail::ONE) / (a + b + detail::TWO))
         return bt * beta_continued_fraction(x, detail::ONE - x, a, b);
-    } else {
-        return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, x, b, a);
+    // Above the branch point the swapped orientation gives 1 − I, which is the small side only
+    // while I > ½; with b below kTailIntegralShape, I itself can be small there, and is then
+    // formed directly (see kTailIntegralShape).
+    if (b < kTailIntegralShape) {
+        const double i = beta_i_tail_integral(x, detail::ONE - x, a, b);
+        if (i <= detail::HALF)
+            return i;
     }
+    return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, x, b, a);
 }
 
 double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
@@ -1117,11 +1169,14 @@ double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
     if (bt == detail::ZERO_DOUBLE)  // as in the overload above
         return x < (a + detail::ONE) / (a + b + detail::TWO) ? detail::ZERO_DOUBLE : detail::ONE;
 
-    if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
+    if (x < (a + detail::ONE) / (a + b + detail::TWO))
         return bt * beta_continued_fraction(x, detail::ONE - x, a, b);
-    } else {
-        return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, x, b, a);
+    if (b < kTailIntegralShape) {  // as in the overload above
+        const double i = beta_i_tail_integral(x, detail::ONE - x, a, b);
+        if (i <= detail::HALF)
+            return i;
     }
+    return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, x, b, a);
 }
 
 // Helper function for beta incomplete function continued fraction
@@ -1393,8 +1448,15 @@ double inverse_beta_i(double p, double a, double b) noexcept {
         if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
             log_i = bt_log + std::log(beta_continued_fraction(x, omx, a, b));
         } else {
-            const double c = std::exp(bt_log) * beta_continued_fraction(omx, x, b, a);
-            log_i = c < detail::ONE ? std::log1p(-c) : -std::numeric_limits<double>::infinity();
+            // The small side directly where it is I (see kTailIntegralShape), else log1p(−c).
+            const double i =
+                b < kTailIntegralShape ? beta_i_tail_integral(x, omx, a, b) : detail::ONE;
+            if (i <= detail::HALF) {
+                log_i = std::log(i);
+            } else {
+                const double c = std::exp(bt_log) * beta_continued_fraction(omx, x, b, a);
+                log_i = c < detail::ONE ? std::log1p(-c) : -std::numeric_limits<double>::infinity();
+            }
         }
         slope = std::exp(bt_log - log_i);  // x(1 − x)·pdf(x)/I = x^a(1 − x)^b/(B·I)
         return log_i - log_target;

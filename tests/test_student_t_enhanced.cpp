@@ -164,8 +164,10 @@ TEST_F(StudentTEnhancedTest, MLEFitRecoversHeavyTails) {
 // limit), so n = 1e5 resolves θ only to σ ≈ 1.7e-3: ν = 1e4 and 1e5 are indistinguishable from a
 // Gaussian at this n. The honest checks are therefore on the θ scale:
 //   (a) every fit lies within 4.5σ of the true θ (two-sided; 1e8 counts as θ ≈ 0);
-//   (b) the estimator reaches past the old cap: P(θ̂ < 1e-3) ≈ Φ(0.59) ≈ 0.72 per replicate, so at
-//       least 3 of 8 must exceed 1000 (P(fewer) < 1e-2 under the model; the capped fit gives 0);
+//   (b) the estimator reaches past the old cap: P(θ̂ < 1e-3) ≥ Φ(0.53) ≈ 0.70 per replicate
+//       (ν = 1e4 the lowest), so pooled over the 24 replicates at least 6 must exceed 1000
+//       (P(fewer) = 7.9e-7 under the model; the capped fit gives 0). Per case, 3 of 8 would
+//       false-alarm at 1.1e-2, and libstdc++'s draws hit it on CI;
 //   (c) data no heavier-tailed than a Gaussian returns the documented limit ν = 1e8 exactly;
 //   (d) ordinary ν is recovered as before.
 TEST_F(StudentTEnhancedTest, MLEFitBeyondOldCapAndGaussianLimit) {
@@ -173,8 +175,8 @@ TEST_F(StudentTEnhancedTest, MLEFitBeyondOldCapAndGaussianLimit) {
     constexpr size_t n = 100000;
     const double sigma_theta = 1.0 / std::sqrt(3.5 * static_cast<double>(n));
 
+    int above_old_cap = 0;
     for (double nu : {1e4, 1e5, std::numeric_limits<double>::infinity()}) {
-        int above_old_cap = 0;
         for (unsigned rep = 0; rep < 8; ++rep) {
             mt19937 rng(1000 + rep);
             vector<double> data(n);
@@ -194,8 +196,8 @@ TEST_F(StudentTEnhancedTest, MLEFitBeyondOldCapAndGaussianLimit) {
             if (nu_hat > 1000.0)
                 ++above_old_cap;
         }
-        EXPECT_GE(above_old_cap, 3) << "nu = " << nu;
     }
+    EXPECT_GE(above_old_cap, 6) << "of 24 replicates at nu = 1e4, 1e5 and a Gaussian";
 
     // (c) Lighter than Gaussian: ±1, a uniform grid, and a Gaussian quantile grid (whose truncated
     // tails make its fourth moment fall short of 3). The score is positive at every ν, so the

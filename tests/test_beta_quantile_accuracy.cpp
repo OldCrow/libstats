@@ -393,8 +393,17 @@ TEST(BetaQuantileAccuracy, ReflectedRootWithinEpsOfOne) {
 // absolute error is ε per unit of its largest terms (b·log(a + b) ≈ 14 for the tiny shapes at
 // a = 1e6, a·log1p(·) up to ~20); the fixed code's worst row uses 60ε (Kaby Lake, AppleClang).
 // Where beta_i forms the result as the complement 1 − prefactor·h (an ordinary shape at
-// x ≥ x_b) the absolute error of that complement is the budget, so the relative allowance is
-// 128ε·max(1, (1 − I)/I). The unfixed code misses by 1.6e2…4e5 ε.
+// x ≥ x_b with I > ½, or b ≥ 1) the absolute error of that complement is the budget, so the
+// relative allowance is 128ε·max(1, (1 − I)/I). The unfixed code misses by 1.6e2…4e5 ε.
+//
+// Small side above the branch point: with b < 1 (kTailIntegralShape) I_x(a, b) is small just
+// above x_b — it tends to Q(b, b + 1) as a grows, 2.2e-4 at b = 1e-3 — and was formed as the
+// complement there, losing (1 − I)/I of its error: 3e4 ε at (1000, 1e-3) and (1e4, 3e-3),
+// 4e3 ε at (10, 0.01), 2e2 ε at (1000, 0.1). Those rows now hold the plain 128ε budget, and the
+// block of rows below them covers b = 0.01, 0.1, 0.3 at a = 10, 1000, 1e6, at x_b,
+// 1 − x = ½(1 − x_b) and 1 − x = 0.01(1 − x_b) (mpmath dps 50). The fixed code's worst row
+// there uses 40ε, the continued fraction's own rounding at x_b; the unfixed code misses the
+// b = 1e-3 rows by 1e2× the budget.
 TEST(BetaQuantileAccuracy, BetaIncompleteNearBranchPoint) {
     constexpr double kTinyB = 0x1.0624dd2f1a9fbp-10;  // nextafter(1e-3, 0)
     const struct {
@@ -467,12 +476,41 @@ TEST(BetaQuantileAccuracy, BetaIncompleteNearBranchPoint) {
         {0x1.004189374bc6ap-1, 100000.0, 100000.0, 0.6726394155565660410392},
         {0x1.ff7ced916872bp-2, 1000000.0, 1000000.0, 0.07864957758090163149818},
         {0x1.d1743e963dc48p-1, 1000000.0, 100000.0, 0.4983160107012059572908},
+        // Small side above the branch point, b < kTailIntegralShape (see above).
+        {0x1.d4f14ad151a38p-1, 10.0, 0.01, 0.00293926035816126679927741},
+        {0x1.ea78a568a8d1cp-1, 10.0, 0.01, 0.006908274450221883282519573},
+        {0x1.ff91c5de40d10p-1, 10.0, 0.01, 0.04177371038342293444250817},
+        {0x1.d1745d1745d17p-1, 10.0, 0.1, 0.02788355872011476767488751},
+        {0x1.e8ba2e8ba2e8cp-1, 10.0, 0.1, 0.06574898221282361842061498},
+        {0x1.ff88d7f88d7f9p-1, 10.0, 0.1, 0.3465423211039324331889209},
+        {0x1.c9e2dc9e2dc9ep-1, 10.0, 0.3, 0.07525646140157915875193839},
+        {0x1.e4f16e4f16e4fp-1, 10.0, 0.3, 0.1784341981227007410595651},
+        {0x1.ff7577f7577f7p-1, 10.0, 0.3, 0.719036279504861995432438},
+        {0x1.ff7be20181e30p-1, 1000.0, 0.01, 0.002186931531970765686466351},
+        {0x1.ffbdf100c0f18p-1, 1000.0, 0.01, 0.005580203394182696089931918},
+        {0x1.fffeadc7b1f06p-1, 1000.0, 0.01, 0.03958171355591396433316065},
+        {0x1.ff701f791d819p-1, 1000.0, 0.1, 0.02067145226501674845716038},
+        {0x1.ffb80fbc8ec0cp-1, 1000.0, 0.1, 0.05316892253355302211606026},
+        {0x1.fffe8facbb2cdp-1, 1000.0, 0.1, 0.331261978578476197302323},
+        {0x1.ff55ff55ff560p-1, 1000.0, 0.3, 0.05538993133963437755263258},
+        {0x1.ffaaffaaffab0p-1, 1000.0, 0.3, 0.144705375932435925695536},
+        {0x1.fffe4ccb1997ep-1, 1000.0, 0.3, 0.6983370201557041142183645},
+        {0x1.ffffde1c2ef9ep-1, 1000000.0, 0.01, 0.002179609174855216294798053},
+        {0x1.ffffef0e177cfp-1, 1000000.0, 0.01, 0.005566640028174063081830573},
+        {0x1.ffffffa93de8ep-1, 1000000.0, 0.01, 0.03955798395087712554335932},
+        {0x1.ffffdb17177fap-1, 1000000.0, 0.1, 0.02060084885682007334186491},
+        {0x1.ffffed8b8bbfdp-1, 1000000.0, 0.1, 0.05303911871097039895024834},
+        {0x1.ffffffa182cb8p-1, 1000000.0, 0.1, 0.3310937977995635901167729},
+        {0x1.ffffd4611c57cp-1, 1000000.0, 0.3, 0.05519296075146412732473402},
+        {0x1.ffffea308e2bep-1, 1000000.0, 0.3, 0.144349352628909511886895},
+        {0x1.ffffff9054c37p-1, 1000000.0, 0.3, 0.6981005426063846042587836},
     };
     constexpr double kBudget = 128.0 * kEps;
     for (const auto& r : rows) {
         const double got = detail::beta_i(r.x, r.a, r.b);
-        const bool complement =
-            std::min(r.a, r.b) >= 1e-3 && r.x >= (r.a + 1.0) / (r.a + r.b + 2.0);
+        const bool complement = std::min(r.a, r.b) >= 1e-3 &&
+                                r.x >= (r.a + 1.0) / (r.a + r.b + 2.0) &&
+                                (r.b >= 1.0 || r.ref > 0.5);
         const double allowance =
             complement ? kBudget * std::max(1.0, (1.0 - r.ref) / r.ref) : kBudget;
         EXPECT_LE(std::fabs(got - r.ref), allowance * r.ref)
