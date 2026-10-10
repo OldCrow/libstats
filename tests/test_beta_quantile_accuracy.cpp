@@ -306,10 +306,10 @@ TEST(BetaQuantileAccuracy, TinyShapes) {
             prev = std::max(prev, x);
             if (x > 1e-300 && 1.0 - x > 1e-15) {
                 const double back = d.getCumulativeProbability(x);
-                const double small = std::min(p, 1.0 - p);
+                const double small_side = std::min(p, 1.0 - p);
                 const double ulp_shift = d.getProbability(x) * std::max(x, 1.0 - x) * kEps;
                 // 1e-15: the ulp of p itself near 1 (F(x) = 1 − 1.6e-10 is held to 1.1e-16)
-                EXPECT_NEAR(back, p, 1e-12 * small + ulp_shift + 1e-15)
+                EXPECT_NEAR(back, p, 1e-12 * small_side + ulp_shift + 1e-15)
                     << "F(Q(p)) at Beta(" << s[0] << ", " << s[1] << ") p=" << p << " x=" << x;
             }
         }

@@ -247,7 +247,13 @@ class StudentTDistribution : public DistributionBase {
      *   ∂L/∂ν = n·[ψ((ν+1)/2) − ψ(ν/2) − 1/ν] − Σlog(1+xᵢ²/ν) + ((ν+1)/ν)·Σxᵢ²/(ν+xᵢ²)
      *
      * Method-of-moments (excess kurtosis) provides the initial estimate when ν > 4;
-     * otherwise ν is initialised to 5.
+     * otherwise ν is initialised to 5. The root is bracketed in log ν on [0.1, 1e8].
+     *
+     * Large ν: the likelihood is flat there. In θ = 1/ν the estimate has standard error
+     * ~1/sqrt(3.5·n) near θ = 0, so n observations tell ν from a Gaussian only up to
+     * ν ~ sqrt(3.5·n), and an estimate past that is noise. When the score is still positive at
+     * ν = 1e8 (data no heavier-tailed than a Gaussian, e.g. Gaussian samples about half the time)
+     * the fit returns exactly 1e8, the Gaussian limit: t(1e8) differs from N(0, 1) by ~1e-8.
      *
      * @param values Observed data (any finite real values)
      * @throws std::invalid_argument if values is empty or contains non-finite entries

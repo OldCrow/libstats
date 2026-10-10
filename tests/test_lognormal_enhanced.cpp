@@ -187,6 +187,26 @@ TEST_F(LogNormalEnhancedTest, InvalidParameters) {
 
 // Speedup: VECTORIZED batch must complete faster than N scalar calls on large batch
 // (labelled timing — only run with ctest -j1)
+// ─── Large-batch VECTORIZED vs SCALAR (correctness; runs in CI) ──────────────
+// Same inputs and tolerance as the VectorizedSpeedup timing case, which is excluded from
+// the correctness run.
+
+TEST_F(LogNormalEnhancedTest, VectorizedMatchesScalarLarge) {
+    const size_t N = 50000;
+    vector<double> xs(N), out_vec(N), out_scl(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = 0.01 + 0.001 * static_cast<double>(i + 1);
+
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+
+    std_ln_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    std_ln_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+    for (size_t i = 0; i < N; ++i)
+        ASSERT_NEAR(out_vec[i], out_scl[i], 1e-10) << "mismatch at i=" << i;
+}
+
 TEST_F(LogNormalEnhancedTest, VectorizedSpeedup) {
     const size_t N = 50000;
     vector<double> xs(N);

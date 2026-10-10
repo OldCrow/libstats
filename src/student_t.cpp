@@ -35,6 +35,39 @@ namespace {
     return std::isfinite(u) ? std::log1p(u) : 2.0 * std::log(std::fabs(t)) + std::log(inv_nu);
 }
 
+// D(ν) = ψ((ν+1)/2) − ψ(ν/2) − 1/ν, the digamma part of the ν score, and D'(ν). The two digammas
+// agree to 1/ν and D ~ 1/(2ν²), so the direct form loses about 2·log10(ν) digits: 4e-8 relative at
+// ν = 1e4, nothing left by 1e8. From ν = 100 use the asymptotic series
+// ψ(z + ½) − ψ(z) = Σ_k (2 − 2^{1−k})·B_k / (k·z^k), z = ν/2; its first omitted term is below
+// 1e-17 relative there, and it meets the direct form to 3e-12 at the switch.
+struct TScoreDigammaPart {
+    double d;
+    double dd;
+};
+[[nodiscard]] inline TScoreDigammaPart tScoreDigammaPart(double nu) noexcept {
+    if (nu >= 100.0) {
+        const double w = 1.0 / (nu * nu);
+        return {w * (0.5 + w * (-0.25 + w * (0.5 + w * (-17.0 / 8.0 + w * 15.5)))),
+                -w / nu * (1.0 + w * (-1.0 + w * (3.0 + w * (-17.0 + w * 155.0))))};
+    }
+    return {
+        detail::digamma((nu + 1.0) * 0.5) - detail::digamma(nu * 0.5) - 1.0 / nu,
+        0.5 * (detail::trigamma((nu + 1.0) * 0.5) - detail::trigamma(nu * 0.5)) + 1.0 / (nu * nu)};
+}
+
+// log(1 + t²/ν) − r with r = t²/(ν + t²). Both terms are ~t²/ν and the difference ~r²/2, so for
+// small r sum the series −log(1 − r) − r = Σ_{k≥2} r^k/k (1 − r = 1/(1 + t²/ν)), all terms
+// positive; its first omitted term is below 1e-21 relative at r < 1e-3.
+[[nodiscard]] inline double log1pMinusRatio(double t, double inv_nu, double r) noexcept {
+    if (r < 1e-3) {
+        return r * r *
+               (1.0 / 2 +
+                r * (1.0 / 3 +
+                     r * (1.0 / 4 + r * (1.0 / 5 + r * (1.0 / 6 + r * (1.0 / 7 + r / 8))))));
+    }
+    return log1p_t2_over_nu(t, inv_nu) - r;
+}
+
 // The SIMD pipeline forms x² and returns 0 / −inf where it overflows; redo those lanes through the
 // overflow-safe form, deciding from the input, not the result.
 [[nodiscard]] inline bool kernelOverflows(double t, double inv_nu) noexcept {
@@ -321,10 +354,11 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
 
     const double n = static_cast<double>(values.size());
 
-    // Upper bound: beyond NU_MAX the t-distribution is indistinguishable from
-    // Gaussian, and the score function flattens (psi((nu+1)/2) - psi(nu/2) ~ 1/(2*nu)),
-    // making Newton-Raphson steps unstable.
-    constexpr double NU_MAX = 1000.0;
+    // Upper bound, the Gaussian limit. In θ = 1/ν the MLE is asymptotically N(θ, 1/(3.5 n)) near
+    // θ = 0, so n data resolve ν only up to ~sqrt(3.5 n); the old bound of 1000 was reached by
+    // Gaussian data at any n and cut off estimates the data supported (n ≳ 1e6). 1e8 is past any
+    // ν a sample held in memory can tell from a Gaussian, and t(1e8) differs from N(0, 1) by ~1e-8.
+    constexpr double NU_MAX = 1e8;
 
     // Initial estimate: method of moments using sample kurtosis.
     // Excess kurtosis = 6/(nu-4) for nu>4, so nu = 4 + 6/kurtosis.
@@ -373,29 +407,41 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
     constexpr double NU_MIN = 0.1;
     const int max_iter = 100;
     const double tol = 1e-8;
-    double nu = nu_est;
-    double lo = std::log(NU_MIN), hi = std::log(NU_MAX);
-
-    for (int iter = 0; iter < max_iter; ++iter) {
-        // Score S(nu)
-        const double psi_plus = detail::digamma((nu + detail::ONE) * detail::HALF);
-        const double psi_half = detail::digamma(nu * detail::HALF);
-        double s = n * (psi_plus - psi_half - detail::ONE / nu);
-        // Exact derivative S'(nu)
-        const double tpsi_plus = detail::trigamma((nu + detail::ONE) * detail::HALF);
-        const double tpsi_half = detail::trigamma(nu * detail::HALF);
-        double ds = n * (detail::HALF * (tpsi_plus - tpsi_half) + detail::ONE / (nu * nu));
-
+    // S and S' at ν. The data term −log(1 + xi²/ν) + ((ν+1)/ν)·r is formed as r/ν − (log(1 + xi²/ν)
+    // − r), and the digamma part through tScoreDigammaPart, so that S keeps its relative accuracy
+    // where it falls as ~1/ν²: per observation S ≈ (1 + 2xi² − xi⁴)/(2ν²) at large ν.
+    const auto score = [&values, n](double nu, double& s, double& ds) {
+        const TScoreDigammaPart dig = tScoreDigammaPart(nu);
+        const double inv_nu = detail::ONE / nu;
+        s = n * dig.d;
+        ds = n * dig.dd;
         // r = xi²/(ν + xi²), formed as 1/(1 + ν/xi²) so that xi² = 0 gives 0 and an overflowed
         // xi² gives 1; then (xi² − ν)/(ν + xi²) = 2r − 1. The log term is overflow-safe (#159).
         for (double xi : values) {
             const double r = detail::ONE / (detail::ONE + nu / (xi * xi));
-            s -= log1p_t2_over_nu(xi, detail::ONE / nu);
-            s += (nu + detail::ONE) / nu * r;
-            ds -= r * (detail::TWO * r - detail::ONE) / (nu * nu);
+            s += r * inv_nu - log1pMinusRatio(xi, inv_nu, r);
+            ds -= r * (detail::TWO * r - detail::ONE) * inv_nu * inv_nu;
         }
+    };
 
-        if (std::abs(s) < tol * n)
+    // Gaussian limit: where S(NU_MAX) ≥ 0 the likelihood still rises at the bound (the data are no
+    // heavier-tailed than a Gaussian), and the fit returns NU_MAX itself.
+    double s = 0.0, ds = 0.0;
+    score(NU_MAX, s, ds);
+    if (!(s < detail::ZERO_DOUBLE)) {
+        setNu(NU_MAX);
+        return;
+    }
+
+    double nu = nu_est;
+    double lo = std::log(NU_MIN), hi = std::log(NU_MAX);
+
+    for (int iter = 0; iter < max_iter; ++iter) {
+        score(nu, s, ds);
+
+        // S falls as ~1/ν² at large ν, so an unscaled |S| < tol·n is met anywhere past ν ~ 1e4;
+        // test ν²·S there (the score in θ = 1/ν).
+        if (std::abs(s) * std::max(detail::ONE, nu * nu) < tol * n)
             break;
 
         const double u = std::log(nu);

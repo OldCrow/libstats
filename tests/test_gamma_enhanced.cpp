@@ -324,6 +324,45 @@ TEST_F(GammaEnhancedTest, BootstrapMethods) {
 // SIMD AND PARALLEL BATCH IMPLEMENTATIONS WITH FULSOME COMPARISONS
 //==============================================================================
 
+// Correctness half of SIMDAndParallelBatchImplementations (timing-labelled, so not run in
+// CI's correctness set): same distribution, inputs, strategies and tolerance.
+TEST_F(GammaEnhancedTest, BatchStrategiesMatchScalar) {
+    auto dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
+
+    for (size_t batch_size : {size_t(5000), size_t(50000)}) {
+        std::vector<double> test_values(batch_size);
+        std::mt19937 gen(42);
+        std::uniform_real_distribution<> dis(0.1, 10.0);  // Positive values for Gamma
+        for (size_t i = 0; i < batch_size; ++i) {
+            test_values[i] = dis(gen);
+        }
+
+        std::vector<double> expected(batch_size);
+        for (size_t i = 0; i < batch_size; ++i) {
+            expected[i] = dist.getProbability(test_values[i]);
+        }
+
+        const std::span<const double> input_span(test_values);
+        const std::pair<const char*, detail::PerformanceHint::PreferredStrategy> kStrategies[] = {
+            {"SIMD", detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED},
+            {"Parallel", detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL},
+            {"Work-stealing", detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT},
+        };
+        for (const auto& [name, strategy] : kStrategies) {
+            std::vector<double> out(batch_size);
+            detail::PerformanceHint hint;
+            hint.strategy = strategy;
+            dist.getProbability(input_span, std::span<double>(out), hint);
+            // Same sample as the timing case: the first 100 elements.
+            const size_t verification_samples = std::min(batch_size, size_t(100));
+            for (size_t i = 0; i < verification_samples; ++i) {
+                EXPECT_NEAR(out[i], expected[i], 1e-12) << name << " result mismatch at index " << i
+                                                        << " for batch size " << batch_size;
+            }
+        }
+    }
+}
+
 TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
     auto stdGamma = stats::GammaDistribution::create(2.0, 1.0).unwrap();
 
@@ -436,6 +475,35 @@ TEST_F(GammaEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 // AUTO-DISPATCH ASSESSMENT
 //==============================================================================
+
+// Correctness half of AutoDispatchAssessment (timing-labelled): same inputs and tolerance.
+TEST_F(GammaEnhancedTest, AutoDispatchMatchesScalar) {
+    auto dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();
+
+    std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
+    for (size_t i = 0; i < batch_sizes.size(); ++i) {
+        const size_t batch_size = batch_sizes[i];
+        std::vector<double> test_values(batch_size);
+        std::vector<double> auto_results(batch_size);
+        std::vector<double> traditional_results(batch_size);
+
+        std::mt19937 gen(42 + static_cast<unsigned int>(i));
+        std::uniform_real_distribution<> dis(0.1, 5.0);
+        for (size_t j = 0; j < batch_size; ++j) {
+            test_values[j] = dis(gen);
+        }
+
+        dist.getProbability(std::span<const double>(test_values), std::span<double>(auto_results));
+        for (size_t j = 0; j < batch_size; ++j) {
+            traditional_results[j] = dist.getProbability(test_values[j]);
+        }
+        for (size_t j = 0; j < batch_size; ++j) {
+            ASSERT_NEAR(auto_results[j], traditional_results[j], 1e-10)
+                << "Auto-dispatch result mismatch at index " << j << " for batch size "
+                << batch_size;
+        }
+    }
+}
 
 TEST_F(GammaEnhancedTest, AutoDispatchAssessment) {
     auto gamma_dist = stats::GammaDistribution::create(2.0, 1.0).unwrap();

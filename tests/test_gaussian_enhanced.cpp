@@ -283,6 +283,45 @@ TEST_F(GaussianEnhancedTest, BootstrapMethods) {
 // SIMD AND PARALLEL BATCH IMPLEMENTATIONS WITH FULSOME COMPARISONS
 //==============================================================================
 
+// Correctness half of SIMDAndParallelBatchImplementations (timing-labelled, so not run in
+// CI's correctness set): same distribution, inputs, strategies and tolerance.
+TEST_F(GaussianEnhancedTest, BatchStrategiesMatchScalar) {
+    auto dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+
+    for (size_t batch_size : {size_t(5000), size_t(50000)}) {
+        std::vector<double> test_values(batch_size);
+        std::mt19937 gen(42);
+        std::uniform_real_distribution<> dis(-3.0, 3.0);
+        for (size_t i = 0; i < batch_size; ++i) {
+            test_values[i] = dis(gen);
+        }
+
+        std::vector<double> expected(batch_size);
+        for (size_t i = 0; i < batch_size; ++i) {
+            expected[i] = dist.getProbability(test_values[i]);
+        }
+
+        const std::span<const double> input_span(test_values);
+        const std::pair<const char*, detail::PerformanceHint::PreferredStrategy> kStrategies[] = {
+            {"SIMD", detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED},
+            {"Parallel", detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL},
+            {"Work-stealing", detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT},
+        };
+        for (const auto& [name, strategy] : kStrategies) {
+            std::vector<double> out(batch_size);
+            detail::PerformanceHint hint;
+            hint.strategy = strategy;
+            dist.getProbability(input_span, std::span<double>(out), hint);
+            // Same sample as the timing case: the first 100 elements.
+            const size_t verification_samples = std::min(batch_size, size_t(100));
+            for (size_t i = 0; i < verification_samples; ++i) {
+                EXPECT_NEAR(out[i], expected[i], 1e-12) << name << " result mismatch at index " << i
+                                                        << " for batch size " << batch_size;
+            }
+        }
+    }
+}
+
 TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
     auto stdNormal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
@@ -396,6 +435,35 @@ TEST_F(GaussianEnhancedTest, SIMDAndParallelBatchImplementations) {
 //==============================================================================
 // AUTO-DISPATCH ASSESSMENT
 //==============================================================================
+
+// Correctness half of AutoDispatchAssessment (timing-labelled): same inputs and tolerance.
+TEST_F(GaussianEnhancedTest, AutoDispatchMatchesScalar) {
+    auto dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+
+    std::vector<size_t> batch_sizes = {5, 50, 500, 5000, 50000};
+    for (size_t i = 0; i < batch_sizes.size(); ++i) {
+        const size_t batch_size = batch_sizes[i];
+        std::vector<double> test_values(batch_size);
+        std::vector<double> auto_results(batch_size);
+        std::vector<double> traditional_results(batch_size);
+
+        std::mt19937 gen(42 + static_cast<unsigned int>(i));
+        std::uniform_real_distribution<> dis(-2.0, 2.0);
+        for (size_t j = 0; j < batch_size; ++j) {
+            test_values[j] = dis(gen);
+        }
+
+        dist.getProbability(std::span<const double>(test_values), std::span<double>(auto_results));
+        for (size_t j = 0; j < batch_size; ++j) {
+            traditional_results[j] = dist.getProbability(test_values[j]);
+        }
+        for (size_t j = 0; j < batch_size; ++j) {
+            ASSERT_NEAR(auto_results[j], traditional_results[j], 1e-10)
+                << "Auto-dispatch result mismatch at index " << j << " for batch size "
+                << batch_size;
+        }
+    }
+}
 
 TEST_F(GaussianEnhancedTest, AutoDispatchAssessment) {
     auto gauss_dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
@@ -895,6 +963,39 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
 // the same serial loop and the ratio measured only the clock and the CPU's frequency state. This
 // times enough datasets to take the pool path, each dataset small enough that a single fit() stays
 // serial, so the sequential baseline is genuinely single-threaded. Interleaved minimum (#169).
+// Correctness half of ParallelBatchFittingSpeedup (timing-labelled): same datasets, exact match.
+TEST_F(GaussianEnhancedTest, ParallelBatchFitMatchesSequential) {
+    constexpr std::size_t kNumDatasets = 256;
+    static_assert(kNumDatasets >= detail::dispatch_table::BATCH_FIT_MIN,
+                  "the batch must take the parallel path");
+    const std::size_t points_per_dataset =
+        std::min<std::size_t>(2000, arch::get_min_elements_for_distribution_parallel() - 1);
+
+    std::mt19937 rng(177);
+    std::normal_distribution<double> gen(3.0, 2.0);
+    std::vector<std::vector<double>> datasets(kNumDatasets);
+    for (auto& dataset : datasets) {
+        dataset.resize(points_per_dataset);
+        for (auto& x : dataset) {
+            x = gen(rng);
+        }
+    }
+
+    std::vector<GaussianDistribution> batch_results(kNumDatasets);
+    std::vector<GaussianDistribution> sequential_results(kNumDatasets);
+    GaussianDistribution::parallelBatchFit(datasets, batch_results);
+    for (std::size_t i = 0; i < kNumDatasets; ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
+
+    for (std::size_t i = 0; i < kNumDatasets; ++i) {
+        ASSERT_EQ(batch_results[i].getMean(), sequential_results[i].getMean()) << "dataset " << i;
+        ASSERT_EQ(batch_results[i].getStandardDeviation(),
+                  sequential_results[i].getStandardDeviation())
+            << "dataset " << i;
+    }
+}
+
 TEST_F(GaussianEnhancedTest, ParallelBatchFittingSpeedup) {
     const unsigned hardware_threads = std::thread::hardware_concurrency();
     if (hardware_threads < 4) {

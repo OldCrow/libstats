@@ -232,6 +232,45 @@ TEST_F(DiscreteEnhancedTest, BootstrapMethods) {
 // SIMD AND PARALLEL BATCH IMPLEMENTATIONS WITH FULSOME COMPARISONS
 //==============================================================================
 
+// Correctness half of SIMDAndParallelBatchImplementations (timing-labelled, so not run in
+// CI's correctness set): same distribution, inputs, strategies and tolerance.
+TEST_F(DiscreteEnhancedTest, BatchStrategiesMatchScalar) {
+    auto dist = stats::DiscreteDistribution::create(1, 6).unwrap();
+
+    for (size_t batch_size : {size_t(5000), size_t(50000)}) {
+        std::vector<double> test_values(batch_size);
+        std::mt19937 gen(42);
+        std::uniform_int_distribution<> dis(1, 6);
+        for (size_t i = 0; i < batch_size; ++i) {
+            test_values[i] = static_cast<double>(dis(gen));
+        }
+
+        std::vector<double> expected(batch_size);
+        for (size_t i = 0; i < batch_size; ++i) {
+            expected[i] = dist.getProbability(test_values[i]);
+        }
+
+        const std::span<const double> input_span(test_values);
+        const std::pair<const char*, detail::PerformanceHint::PreferredStrategy> kStrategies[] = {
+            {"SIMD", detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED},
+            {"Parallel", detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL},
+            {"Work-stealing", detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT},
+        };
+        for (const auto& [name, strategy] : kStrategies) {
+            std::vector<double> out(batch_size);
+            detail::PerformanceHint hint;
+            hint.strategy = strategy;
+            dist.getProbability(input_span, std::span<double>(out), hint);
+            // Same sample as the timing case: the first 100 elements.
+            const size_t verification_samples = std::min(batch_size, size_t(100));
+            for (size_t i = 0; i < verification_samples; ++i) {
+                EXPECT_NEAR(out[i], expected[i], 1e-12) << name << " result mismatch at index " << i
+                                                        << " for batch size " << batch_size;
+            }
+        }
+    }
+}
+
 TEST_F(DiscreteEnhancedTest, SIMDAndParallelBatchImplementations) {
     auto stdDiscrete = stats::DiscreteDistribution::create(1, 6).unwrap();
 
@@ -355,6 +394,25 @@ TEST_F(DiscreteEnhancedTest, AdvancedStatisticalMethods) {
 //==============================================================================
 // CACHING SPEEDUP VERIFICATION TESTS
 //==============================================================================
+
+// Correctness half of CachingSpeedupVerification (timing-labelled): cached values repeat
+// exactly and parameter changes invalidate the cache.
+TEST_F(DiscreteEnhancedTest, CachedMomentsConsistentAndInvalidated) {
+    auto discrete_dist = stats::DiscreteDistribution::create(1, 6).unwrap();
+
+    double mean_first = discrete_dist.getMean();
+    double var_first = discrete_dist.getVariance();
+    double skew_first = discrete_dist.getSkewness();
+    double kurt_first = discrete_dist.getKurtosis();
+
+    EXPECT_EQ(mean_first, discrete_dist.getMean());
+    EXPECT_EQ(var_first, discrete_dist.getVariance());
+    EXPECT_EQ(skew_first, discrete_dist.getSkewness());
+    EXPECT_EQ(kurt_first, discrete_dist.getKurtosis());
+
+    discrete_dist.setBounds(2, 8);            // This should invalidate the cache
+    EXPECT_EQ(discrete_dist.getMean(), 5.0);  // Mean of uniform(2,8) is (2+8)/2 = 5
+}
 
 TEST_F(DiscreteEnhancedTest, CachingSpeedupVerification) {
     std::cout << "\n=== Caching Speedup Verification ===\n";

@@ -230,6 +230,45 @@ TEST_F(PoissonEnhancedTest, BootstrapMethods) {
 // SIMD AND PARALLEL BATCH IMPLEMENTATIONS WITH FULSOME COMPARISONS
 //==============================================================================
 
+// Correctness half of SIMDAndParallelBatchImplementations (timing-labelled, so not run in
+// CI's correctness set): same distribution, inputs, strategies and tolerance.
+TEST_F(PoissonEnhancedTest, BatchStrategiesMatchScalar) {
+    auto dist = stats::PoissonDistribution::create(2.0).unwrap();
+
+    for (size_t batch_size : {size_t(5000), size_t(50000)}) {
+        std::vector<double> test_values(batch_size);
+        std::mt19937 gen(42);
+        std::uniform_int_distribution<> dis(0, 10);
+        for (size_t i = 0; i < batch_size; ++i) {
+            test_values[i] = static_cast<double>(dis(gen));
+        }
+
+        std::vector<double> expected(batch_size);
+        for (size_t i = 0; i < batch_size; ++i) {
+            expected[i] = dist.getProbability(test_values[i]);
+        }
+
+        const std::span<const double> input_span(test_values);
+        const std::pair<const char*, detail::PerformanceHint::PreferredStrategy> kStrategies[] = {
+            {"SIMD", detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED},
+            {"Parallel", detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL},
+            {"Work-stealing", detail::PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT},
+        };
+        for (const auto& [name, strategy] : kStrategies) {
+            std::vector<double> out(batch_size);
+            detail::PerformanceHint hint;
+            hint.strategy = strategy;
+            dist.getProbability(input_span, std::span<double>(out), hint);
+            // Same sample as the timing case: the first 100 elements.
+            const size_t verification_samples = std::min(batch_size, size_t(100));
+            for (size_t i = 0; i < verification_samples; ++i) {
+                EXPECT_NEAR(out[i], expected[i], 1e-12) << name << " result mismatch at index " << i
+                                                        << " for batch size " << batch_size;
+            }
+        }
+    }
+}
+
 TEST_F(PoissonEnhancedTest, SIMDAndParallelBatchImplementations) {
     auto stdPoisson = stats::PoissonDistribution::create(2.0).unwrap();
 

@@ -6,6 +6,7 @@
 
 #include "include/enhanced_test_suite.h"
 #include "include/tests.h"
+#include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/student_t.h"
 
 #include <cmath>
@@ -154,6 +155,75 @@ TEST_F(StudentTEnhancedTest, MLEFitRecoversHeavyTails) {
         auto fitted = StudentTDistribution::create(1.0).unwrap();
         fitted.fit(data);
         EXPECT_NEAR(fitted.getNu(), nu, 0.15 * nu) << "fit at nu = " << nu;
+    }
+}
+
+// The ν fit solved its score equation on [0.1, 1000] and clamped, so data from t(ν ≫ 1000) or a
+// Gaussian returned 1000 or less, never more. In θ = 1/ν the MLE is asymptotically normal about
+// the truth with variance 1/(3.5 n) at θ = 0 (Fisher information of the t family at the Gaussian
+// limit), so n = 1e5 resolves θ only to σ ≈ 1.7e-3: ν = 1e4 and 1e5 are indistinguishable from a
+// Gaussian at this n. The honest checks are therefore on the θ scale:
+//   (a) every fit lies within 4.5σ of the true θ (two-sided; 1e8 counts as θ ≈ 0);
+//   (b) the estimator reaches past the old cap: P(θ̂ < 1e-3) ≈ Φ(0.59) ≈ 0.72 per replicate, so at
+//       least 3 of 8 must exceed 1000 (P(fewer) < 1e-2 under the model; the capped fit gives 0);
+//   (c) data no heavier-tailed than a Gaussian returns the documented limit ν = 1e8 exactly;
+//   (d) ordinary ν is recovered as before.
+TEST_F(StudentTEnhancedTest, MLEFitBeyondOldCapAndGaussianLimit) {
+    constexpr double kNuLimit = 1e8;  // StudentTDistribution::fit's documented Gaussian limit
+    constexpr size_t n = 100000;
+    const double sigma_theta = 1.0 / std::sqrt(3.5 * static_cast<double>(n));
+
+    for (double nu : {1e4, 1e5, std::numeric_limits<double>::infinity()}) {
+        int above_old_cap = 0;
+        for (unsigned rep = 0; rep < 8; ++rep) {
+            mt19937 rng(1000 + rep);
+            vector<double> data(n);
+            if (std::isfinite(nu)) {
+                data = StudentTDistribution::create(nu).unwrap().sample(rng, n);
+            } else {
+                normal_distribution<double> g(0.0, 1.0);
+                for (auto& x : data)
+                    x = g(rng);
+            }
+            auto fitted = StudentTDistribution::create(1.0).unwrap();
+            fitted.fit(data);
+            const double nu_hat = fitted.getNu();
+            EXPECT_LE(nu_hat, kNuLimit);
+            EXPECT_NEAR(1.0 / nu_hat, 1.0 / nu, 4.5 * sigma_theta)
+                << "nu = " << nu << ", rep " << rep << ", nu_hat = " << nu_hat;
+            if (nu_hat > 1000.0)
+                ++above_old_cap;
+        }
+        EXPECT_GE(above_old_cap, 3) << "nu = " << nu;
+    }
+
+    // (c) Lighter than Gaussian: ±1, a uniform grid, and a Gaussian quantile grid (whose truncated
+    // tails make its fourth moment fall short of 3). The score is positive at every ν, so the
+    // likelihood still rises at the bound.
+    vector<double> pm1(1000);
+    for (size_t i = 0; i < pm1.size(); ++i)
+        pm1[i] = (i % 2 == 0) ? 1.0 : -1.0;
+    vector<double> uniform_grid(1001);
+    for (size_t i = 0; i < uniform_grid.size(); ++i)
+        uniform_grid[i] = -1.0 + 2.0 * static_cast<double>(i) / 1000.0;
+    auto stdnorm = GaussianDistribution::create(0.0, 1.0).unwrap();
+    vector<double> gauss_grid(20000);
+    for (size_t i = 0; i < gauss_grid.size(); ++i)
+        gauss_grid[i] = stdnorm.getQuantile((static_cast<double>(i) + 0.5) / 20000.0);
+    for (const auto* data : {&pm1, &uniform_grid, &gauss_grid}) {
+        auto fitted = StudentTDistribution::create(1.0).unwrap();
+        fitted.fit(*data);
+        EXPECT_EQ(fitted.getNu(), kNuLimit);
+    }
+
+    // (d) Ordinary ν: unchanged recovery (bands as in MLEFitRecoversHeavyTails, wider at ν = 100
+    // where the replicate SE at n = 1e5 is ~13).
+    for (double nu : {5.0, 30.0, 100.0}) {
+        mt19937 rng(7);
+        const auto data = StudentTDistribution::create(nu).unwrap().sample(rng, n);
+        auto fitted = StudentTDistribution::create(1.0).unwrap();
+        fitted.fit(data);
+        EXPECT_NEAR(fitted.getNu(), nu, (nu < 50.0 ? 0.15 : 0.5) * nu) << "fit at nu = " << nu;
     }
 }
 
