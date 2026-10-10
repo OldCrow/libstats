@@ -283,7 +283,9 @@ TEST(BetaQuantileAccuracy, TinyShapes) {
         const auto d = BetaDistribution::create(s[0], s[1]).unwrap();
         std::vector<double> ps;
         for (int i = 0; i <= 100; ++i)
-            ps.push_back(std::pow(10.0, -320.0 + 3.2 * i));
+            // Integer exponent numerator: -320.0 + 3.2 * i contracts to an FMA on AArch64 and
+            // gives 1.8e-14, not 0, at i = 100, so p = 1 + 4e-14.
+            ps.push_back(std::pow(10.0, (32 * i - 3200) / 10.0));
         const double tiny = std::min(s[0], s[1]);
         for (int i = 1; i <= 40; ++i) {  // p = (plateau) ± tiny·k, k log-spaced 1e-3..700
             const double off = tiny * std::pow(10.0, -3.0 + 5.85 * i / 40.0);

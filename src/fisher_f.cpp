@@ -427,8 +427,8 @@ double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2
 
     const FBetaArgs args = f_beta_args(x, d1, d2);
     if (args.extreme) {
-        const double small = f_extreme_small_side(args.log_r, a, b);
-        return args.log_r > detail::ZERO_DOUBLE ? small : detail::ONE - small;
+        const double small_side = f_extreme_small_side(args.log_r, a, b);
+        return args.log_r > detail::ZERO_DOUBLE ? small_side : detail::ONE - small_side;
     }
 
     const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
@@ -452,8 +452,8 @@ double FDistribution::sfImpl(double x, double a, double b, double d1, double d2,
 
     const FBetaArgs args = f_beta_args(x, d1, d2);
     if (args.extreme) {
-        const double small = f_extreme_small_side(args.log_r, a, b);
-        return args.log_r < detail::ZERO_DOUBLE ? small : detail::ONE - small;
+        const double small_side = f_extreme_small_side(args.log_r, a, b);
+        return args.log_r < detail::ZERO_DOUBLE ? small_side : detail::ONE - small_side;
     }
 
     const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);

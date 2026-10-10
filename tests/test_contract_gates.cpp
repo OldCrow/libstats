@@ -1202,7 +1202,9 @@ TEST(ContractGates, DH2_S2_UniformWidthOverflow) {
     // Ordinary widths: the half-width form reproduces the direct one exactly.
     const UniformDistribution o(-3.0, 7.5);
     EXPECT_EQ(o.getCumulativeProbability(1.2), (1.2 - (-3.0)) * (1.0 / 10.5));
-    EXPECT_EQ(o.getQuantile(0.3), -3.0 + 0.3 * 10.5);
+    // lo + p·w, as before the fix; the compiler may contract it to an FMA (AArch64 does).
+    const double q = o.getQuantile(0.3);
+    EXPECT_TRUE(q == -3.0 + 0.3 * 10.5 || q == std::fma(0.3, 10.5, -3.0)) << q;
     EXPECT_EQ(o.getEntropy(), std::log(10.5));
 }
 

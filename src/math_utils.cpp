@@ -137,11 +137,11 @@ static double log_beta_prefactor_logs(double x, double a, double b, double log_x
     // beyond ~1e10, where the complement of the small quotient rounds to 1) the separately
     // rounded quotients below are kept, with their pre-existing first-order error.
     const double sum = a + b;
-    const double small = std::min(a, b);
+    const double min_shape = std::min(a, b);
     double x0;
     double one_minus_x0;
     double linear = detail::ZERO_DOUBLE;  // a·u + b·v
-    if (sum * sum * std::numeric_limits<double>::epsilon() <= small) {
+    if (sum * sum * std::numeric_limits<double>::epsilon() <= min_shape) {
         const double bv = sum - a;
         const double sum_err = (a - (sum - bv)) + (b - bv);  // a + b = sum + sum_err exactly
         if (a <= b) {
