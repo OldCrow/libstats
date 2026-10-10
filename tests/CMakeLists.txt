@@ -640,40 +640,62 @@ create_libstats_test_dynamic(test_exponential_basic_dynamic test_exponential_bas
 # on non-existent tests, so guard this block -- unlike DEPENDS which tolerates missing targets.
 if(GTEST_FOUND)
     set_tests_properties(
-        test_math_comprehensive # vectorized math speedup assertions
-        test_gaussian_enhanced
-        test_lognormal_enhanced
-        test_pareto_enhanced
-        test_weibull_enhanced
-        test_rayleigh_enhanced
-        test_von_mises_enhanced
-        test_binomial_enhanced
-        test_negative_binomial_enhanced
-        test_system_capabilities
         test_parallel_batch_gates # #175/#176: PARALLEL beats VECTORIZED at 1M
         # test_chi_squared_enhanced, test_student_t_enhanced, test_beta_enhanced and
         # test_performance_dispatcher left this list (AR T1, 2026-10-07): none has a clock, duration
         # or speedup assertion, so the label only kept their gates (#103 among them) out of CI's
         # correctness run (-LE "timing|benchmark"), the #97 trap.
         PROPERTIES LABELS "timing")
-    set_tests_properties(
-        test_exponential_enhanced
-        test_uniform_enhanced
-        test_poisson_enhanced
-        test_discrete_enhanced
-        test_gamma_enhanced
-        test_geometric_enhanced
-        test_laplace_enhanced
-        test_cauchy_enhanced
-        # v2.4.0 note: NO new enhanced binary carries the timing label. None of
-        # the eight new distributions' enhanced tests asserts a speedup ratio
-        # (Bernoulli's VectorizedSpeedup only PRINTS the ratio and asserts
-        # parallel==scalar values), and the #103/#104 contract gates live in
-        # these binaries — a timing label would exclude them from CI's
-        # correctness run (-LE "timing|benchmark"), the #97 guard-that-never-
-        # runs trap. test_bernoulli_enhanced/test_erlang_enhanced were labelled
-        # at first landing and unlabelled here for exactly that reason.
-        PROPERTIES LABELS "timing")
+    # #212: the other binaries mix correctness and timing cases. Labelling a whole binary "timing"
+    # kept its correctness cases (#48, #95, #103/#104 gates among them) out of CI's correctness run,
+    # the #97 trap. Each mixed binary is registered twice instead: <name> runs everything except its
+    # timing cases, unlabelled; <name>_timing runs only those, labelled "timing". A case is timing
+    # when it asserts on a duration, speedup or ratio of times; printing one does not count. The
+    # binaries test_binomial_enhanced, test_negative_binomial_enhanced, test_geometric_enhanced,
+    # test_von_mises_enhanced and test_system_capabilities time things but assert none of it, so
+    # they carry no label at all (the #198 pattern). The filter goes through GTEST_FILTER, the
+    # environment form of --gtest_filter, because the test's command is set where it is created.
+    function(libstats_split_timing_cases TEST_NAME)
+        list(JOIN ARGN ":" timing_filter)
+        set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "GTEST_FILTER=-${timing_filter}")
+        add_test(NAME ${TEST_NAME}_timing COMMAND $<TARGET_FILE:${TEST_NAME}>)
+        # A renamed case would select nothing and pass silently; fail on an empty selection.
+        set_tests_properties(
+            ${TEST_NAME}_timing
+            PROPERTIES LABELS
+                       "timing"
+                       ENVIRONMENT
+                       "GTEST_FILTER=${timing_filter}"
+                       WORKING_DIRECTORY
+                       ${CMAKE_BINARY_DIR}
+                       FAIL_REGULAR_EXPRESSION
+                       "Running 0 tests")
+    endfunction()
+
+    libstats_split_timing_cases(test_math_comprehensive MathUtilsTest.ErfPerformance
+                                MathUtilsTest.GammaPerformance)
+    libstats_split_timing_cases(
+        test_gaussian_enhanced GaussianEnhancedTest.SIMDAndParallelBatchImplementations
+        GaussianEnhancedTest.AutoDispatchAssessment
+        GaussianEnhancedTest.ParallelBatchFittingSpeedup)
+    libstats_split_timing_cases(
+        test_gamma_enhanced GammaEnhancedTest.SIMDAndParallelBatchImplementations
+        GammaEnhancedTest.AutoDispatchAssessment)
+    libstats_split_timing_cases(
+        test_discrete_enhanced DiscreteEnhancedTest.SIMDAndParallelBatchImplementations
+        DiscreteEnhancedTest.CachingSpeedupVerification)
+    libstats_split_timing_cases(test_exponential_enhanced
+                                ExponentialEnhancedTest.SIMDAndParallelBatchImplementations)
+    libstats_split_timing_cases(test_poisson_enhanced
+                                PoissonEnhancedTest.SIMDAndParallelBatchImplementations)
+    libstats_split_timing_cases(test_uniform_enhanced
+                                UniformEnhancedTest.SIMDAndParallelBatchImplementations)
+    libstats_split_timing_cases(test_cauchy_enhanced CauchyEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_laplace_enhanced LaplaceEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_lognormal_enhanced LogNormalEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_pareto_enhanced ParetoEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_rayleigh_enhanced RayleighEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_weibull_enhanced WeibullEnhancedTest.VectorizedSpeedup)
 
     # test_benchmark is a benchmark, not a correctness test. It used to be kept
     # out of run_tests (now run_tests_correctness) by name, via "^test_benchmark$" in that target's -E

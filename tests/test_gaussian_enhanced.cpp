@@ -5,6 +5,7 @@
 #endif
 
 #include "include/tests.h"
+#include "libstats/core/dispatch_thresholds.h"  // for dispatch_table::BATCH_FIT_MIN
 #include "libstats/distributions/gaussian.h"
 #include "libstats/stats/analysis/analysis.h"
 #include "libstats/stats/analysis/gaussian_analysis.h"
@@ -803,29 +804,12 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
 
     std::cout << "  ✓ Parallel batch fitting correctness verified\n";
 
-    // Test 2: Performance comparison with sequential batch fitting
+    // Test 2: Sequential individual fits agree with the batch path. The speedup gate is a separate
+    // case, ParallelBatchFittingSpeedup (timing label, #177), so this one runs in CI (#212).
     std::vector<GaussianDistribution> sequential_results(datasets.size());
-
-    // Minimum over interleaved rounds: steady-state costs, same machine state (#129). Six
-    // 1000-point fits take a few tens of microseconds; fitting is idempotent on a dataset.
-    constexpr int kTimingRepetitions = 15;
-    using stats::tests::validators::interleavedMinElapsedMicros;
-    const auto run_parallel = [&] {
-        GaussianDistribution::parallelBatchFit(datasets, batch_results);
-    };
-    const auto run_sequential = [&] {
-        for (size_t i = 0; i < datasets.size(); ++i) {
-            sequential_results[i].fit(datasets[i]);
-        }
-    };
-    const auto [parallel_time, sequential_time] =
-        interleavedMinElapsedMicros(kTimingRepetitions, run_parallel, run_sequential);
-
-    double speedup = sequential_time / parallel_time;
-
-    std::cout << "  Parallel batch fitting: " << parallel_time << "μs\n";
-    std::cout << "  Sequential individual fits: " << sequential_time << "μs\n";
-    std::cout << "  Speedup: " << speedup << "x\n";
+    for (size_t i = 0; i < datasets.size(); ++i) {
+        sequential_results[i].fit(datasets[i]);
+    }
 
     // Verify sequential and parallel results match
     for (size_t i = 0; i < datasets.size(); ++i) {
@@ -904,13 +888,71 @@ TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
 
     std::cout << "  ✓ Thread safety verified\n";
 
-    // Performance expectations
-    if (std::thread::hardware_concurrency() > 1) {
-        EXPECT_GT(speedup, 0.8)
-            << "Parallel batch fitting should provide reasonable speedup on multi-core systems";
+    std::cout << "✅ All parallel batch fitting tests passed\n";
+}
+
+// #177: the old gate timed six datasets, below dispatch_table::BATCH_FIT_MIN, so both paths ran
+// the same serial loop and the ratio measured only the clock and the CPU's frequency state. This
+// times enough datasets to take the pool path, each dataset small enough that a single fit() stays
+// serial, so the sequential baseline is genuinely single-threaded. Interleaved minimum (#169).
+TEST_F(GaussianEnhancedTest, ParallelBatchFittingSpeedup) {
+    const unsigned hardware_threads = std::thread::hardware_concurrency();
+    if (hardware_threads < 4) {
+        GTEST_SKIP() << "needs at least 4 hardware threads; have " << hardware_threads;
     }
 
-    std::cout << "✅ All parallel batch fitting tests passed\n";
+    constexpr std::size_t kNumDatasets = 256;
+    static_assert(kNumDatasets >= detail::dispatch_table::BATCH_FIT_MIN,
+                  "the timed batch must take the parallel path");
+    const std::size_t points_per_dataset =
+        std::min<std::size_t>(2000, arch::get_min_elements_for_distribution_parallel() - 1);
+
+    std::mt19937 rng(177);
+    std::normal_distribution<double> gen(3.0, 2.0);
+    std::vector<std::vector<double>> datasets(kNumDatasets);
+    for (auto& dataset : datasets) {
+        dataset.resize(points_per_dataset);
+        for (auto& x : dataset) {
+            x = gen(rng);
+        }
+    }
+
+    std::vector<GaussianDistribution> batch_results(kNumDatasets);
+    std::vector<GaussianDistribution> sequential_results(kNumDatasets);
+    const auto run_parallel = [&] {
+        GaussianDistribution::parallelBatchFit(datasets, batch_results);
+    };
+    const auto run_sequential = [&] {
+        for (std::size_t i = 0; i < kNumDatasets; ++i) {
+            sequential_results[i].fit(datasets[i]);
+        }
+    };
+    run_parallel();  // warm-up: thread-pool start, page faults, cache fill
+    run_sequential();
+
+    // Fitting is idempotent on a dataset, so every round does identical work.
+    constexpr int kTimingRepetitions = 21;
+    using stats::tests::validators::interleavedMinElapsedMicros;
+    const auto [parallel_time, sequential_time] =
+        interleavedMinElapsedMicros(kTimingRepetitions, run_parallel, run_sequential);
+    const double speedup = sequential_time / parallel_time;
+
+    std::cout << "  " << kNumDatasets << " datasets x " << points_per_dataset << " points, "
+              << hardware_threads << " hardware threads\n";
+    std::cout << "  Parallel batch fitting: " << parallel_time << " us\n";
+    std::cout << "  Sequential individual fits: " << sequential_time << " us\n";
+    std::cout << "  Speedup: " << speedup << "x\n";
+
+    for (std::size_t i = 0; i < kNumDatasets; ++i) {
+        ASSERT_EQ(batch_results[i].getMean(), sequential_results[i].getMean()) << "dataset " << i;
+        ASSERT_EQ(batch_results[i].getStandardDeviation(),
+                  sequential_results[i].getStandardDeviation())
+            << "dataset " << i;
+    }
+
+    // A serial batch path reads ~1.0x; the pool path on >= 4 threads reads well above this.
+    EXPECT_GT(speedup, 1.5) << "parallelBatchFit should beat sequential fits across "
+                            << kNumDatasets << " datasets on " << hardware_threads << " threads";
 }
 
 }  // namespace stats
