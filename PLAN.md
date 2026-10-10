@@ -25,8 +25,9 @@ it is final: a defect that affects accuracy, a speedup or a contract's
 validity is fixed, the head moves, and every machine repeats R1, R2's
 sweep compare, R8 and R9 there. v2.5.0 releases from the first head that
 passes every machine's gates with no such defect open. **Freeze head:
-`f380bde`** (2026-10-09: the review fix rounds `6a56806`–`b0ac2ad`, `6703edc`
-and `f380bde`, over K's #191 slice-tail fix `045acd9`).
+`d7e9dbd`** (2026-10-10: hunt-2 fix round `4eb0816`–`d7e9dbd` over
+`f380bde`; CI green, run 38093601954). A targeted hunt on that round's
+library changes runs before the AVX2 block and R8 [user, 2026-10-10].
 
 History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
@@ -232,6 +233,23 @@ Status by machine (each machine edits only its own line):
   remaining defects until every one is fixed or assigned a milestone;
   then the AVX2 block at the freeze head and a full R8 (AVX2, AVX,
   SSE2), the quiet batch gates and TSan.
+  **2026-10-10 hunt-2 fix round** [DERIVED, K]: `4eb0816` (#212 timing
+  split via `libstats_split_timing_cases`, 283 cases into CI's correctness
+  run; #177 batch-fit gate above `BATCH_FIT_MIN`); `cd9a2ab` (#216,
+  #231–#242; plus a found defect: the beta continued fraction lost
+  0.68·a·ε at its branch point, now an odd contraction with the cancelling
+  term in closed form, and the Stirling prefactor's dropped linear term);
+  `317cf66` (MSVC `small` macro; two guards made FMA-contraction-robust on
+  AArch64); `7806429` (Student-t fit to ν = 1e8 with a Gaussian limit;
+  correctness checks moved out of timing cases in 12 files); `d7e9dbd`
+  (Beta small side computed directly above x_b for b < 1, was up to
+  3.1e4 ε; Student-t fit guard pooled). #241's Beta part (1–3 ulp
+  non-monotone at shapes ≤ 1e-3, needs a correctly rounded I_x) is #247 in
+  #6. Sweep vs `merge3`: 402 rows changed, all explained; oracle 0
+  contract violations; correctness 117/117. The von Mises sampler's
+  streams change in the last bits at ordinary κ [user: keep]. A memory
+  exhaustion (three agents building at once) restarted K mid-round: cap
+  concurrent builds on K.
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
@@ -274,7 +292,7 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `f380bde` (Status: it moves when a
+- Validate at the freeze head `d7e9dbd` (Status: it moves when a
   defect is fixed; validate at the latest); confirm it with `git log -1`
   before R1. Library code changes only by the user's decision: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
