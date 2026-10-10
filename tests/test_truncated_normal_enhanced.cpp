@@ -712,6 +712,140 @@ TEST_F(TruncatedNormalEnhancedTest, SamplingMatchesCDF) {
     }
 }
 
+// M3: the closed-form moments cancel for a narrow window — TN(0, 1, 3, 3.0000001) had a
+// variance of 3e-8 (true 8.3e-16, the uniform limit w²/12) and a kurtosis of 4.5e8 (true
+// −1.2) — and for a far-tail one (TN(0, 1, 36, 37) kurtosis 1.3% off). Where the closed
+// forms cancel the moments are now integrated in central form. References: mpmath (dps 60)
+// quadrature with the density scaled to its maximum on the window; the unfixed values miss
+// the 1e-12 budget by 4 … 24 orders on the first rows and by 2 … 4 orders on (8, 9), (5, ∞)
+// and (0.1, 0.2). The nearly symmetric window (−1.0000001, 1) stays on the closed forms, with
+// φ(α) − φ(β) through expm1 (its mean was 8e-10 off). Skewness within 1e-8 of 0 is
+// intrinsically a cancellation of O(1) pieces and is checked absolutely.
+TEST_F(TruncatedNormalEnhancedTest, NarrowAndTailWindowMomentsVsMpmath) {
+    const struct {
+        double mu, sd, a, b, mean, var, skew, kurt;
+    } rows[] = {
+        {0, 1, 3.0, 3.0000001, 3.0000000499999974, 8.3333333060569785e-16, 1.0392305001610509e-7,
+         -1.1999999999999847},
+        {0, 1, -1e-9, 1e-9, 0.0, 3.3333333333333337e-19, 0.0, -1.2},
+        {0, 1, 36.0, 37.0, 36.02773507528106, 0.00076805548097327476, 1.995410990970349,
+         5.9633788512533474},
+        {0, 1, 8.0, 9.0, 8.1211889929797971, 0.014148542782748111, 1.8532542803795512,
+         4.6780634916842614},
+        {0, 2, 10.0, 12.0, 10.366294180954347, 0.11780972307393223, 1.5278985329995121,
+         2.4918697912781989},
+        {0, 1, 5.0, kInf, 5.1865039671258421, 0.032696434617112225, 1.831082783346084,
+         4.7591828604083536},
+        {0, 1, 0.1, 0.2, 0.14987504213000676, 0.00083304622263865092, 0.0051937968325182406,
+         -1.1996198577539225},
+        {0, 1, -0.25, 0.25, 0.0, 0.020660241054482109, 0.0, -1.1914108967772406},
+        {0, 1, -1.0000001, 1.0, -3.5443744025795688e-8, 0.29112511989797493, -2.8571868227064827e-8,
+         -1.0590800657111782},
+    };
+    constexpr double kRel = 1e-12;
+    for (const auto& r : rows) {
+        const auto d = TruncatedNormalDistribution::create(r.mu, r.sd, r.a, r.b).unwrap();
+        const std::string w =
+            " at window (" + std::to_string(r.a) + ", " + std::to_string(r.b) + ")";
+        EXPECT_NEAR(d.getMean(), r.mean, kRel * std::max(std::fabs(r.mean), r.sd)) << "mean" << w;
+        EXPECT_NEAR(d.getVariance(), r.var, kRel * r.var) << "variance" << w;
+        EXPECT_NEAR(d.getKurtosis(), r.kurt, kRel * std::fabs(r.kurt)) << "kurtosis" << w;
+        if (std::fabs(r.skew) > 1e-2)
+            EXPECT_NEAR(d.getSkewness(), r.skew, kRel * std::fabs(r.skew)) << "skewness" << w;
+        else
+            EXPECT_NEAR(d.getSkewness(), r.skew, 1e-14) << "skewness" << w;
+    }
+}
+
+// F3: the fixed-point MLE iteration cycled to its cap on windows such as (1, 3), (0.5, 2),
+// (8, 9), (5, ∞) and (−0.25, 0.25) with data drawn from the model itself. The damped Newton
+// on the natural parameters converges on every window; the fitted model's first two moments
+// match the sample's (the MLE condition) to 1e-8 of the sample sd, and on the identifiable
+// windows the parameters come back within 5 single-fit standard errors (measured over 16
+// replicates at n = 1e5 on this seed family). The unfixed fit throws on all seven.
+TEST_F(TruncatedNormalEnhancedTest, FitConvergesOnTailAndNarrowWindows) {
+    const struct {
+        double mu, sd, a, b, se_mu, se_sd;  // se = 0: not identifiable at this n, moments only
+    } rows[] = {
+        {0, 1, 1.0, 3.0, 0.042, 0.012},   {0, 1, 0.5, 2.0, 0.035, 0.014},
+        {0, 1, 8.0, 9.0, 2.5, 0.14},      {0, 1, 5.0, kInf, 0.56, 0.052},
+        {0, 1, -0.25, 0.25, 0.021, 0.14}, {0, 2, 10.0, 12.0, 1.5, 0.14},
+        {0, 1, 30.0, kInf, 0.0, 0.0},
+    };
+    constexpr size_t n = 100000;
+    mt19937 rng(20261009);
+    for (const auto& r : rows) {
+        const auto truth = TruncatedNormalDistribution::create(r.mu, r.sd, r.a, r.b).unwrap();
+        const auto data = truth.sample(rng, n);
+        auto fitted = TruncatedNormalDistribution::create(0.0, 1.0, r.a, r.b).unwrap();
+        const std::string w =
+            " at window (" + std::to_string(r.a) + ", " + std::to_string(r.b) + ")";
+        ASSERT_NO_THROW(fitted.fit(data)) << "fit threw" << w;
+        double sum = 0.0, sum2 = 0.0;
+        for (double v : data) {
+            sum += v;
+            sum2 += v * v;
+        }
+        const double xbar = sum / static_cast<double>(n);
+        const double s2 = sum2 / static_cast<double>(n) - xbar * xbar;
+        EXPECT_NEAR(fitted.getMean(), xbar, 1e-8 * std::sqrt(s2)) << "mean match" << w;
+        EXPECT_NEAR(fitted.getVariance(), s2, 1e-8 * s2) << "variance match" << w;
+        if (r.se_mu > 0.0) {
+            EXPECT_NEAR(fitted.getMu(), r.mu, 5 * r.se_mu) << "mu" << w;
+            EXPECT_NEAR(fitted.getSigma(), r.sd, 5 * r.se_sd) << "sigma" << w;
+        }
+        EXPECT_DOUBLE_EQ(fitted.getLowerBound(), r.a);
+        EXPECT_DOUBLE_EQ(fitted.getUpperBound(), r.b);
+    }
+}
+
+// The near-bound band's handoff: inside d·max(1, |α|) ≤ ¼ of a bound the CDF is the Hermite
+// series and the quantile its inversion, beyond it the erfc differences; each side is accurate
+// to a few ε, so the handoff could step down by an ulp or two — TN(0, 1, 0, ∞).F(0.25 + 1 ulp)
+// < F(0.25), and the quantile at (−2, ∞), (−1, ∞), (2, ∞), (√3, ∞), (0.742, ∞) — which the
+// floor at the band edge removes. Monotone from 3 doubles inside the band to 1 past the
+// edge, in x and in p (the erfc difference's own wobble of a few ulps further out — a 1-ulp
+// erfc error is 2–3 ulps of F at (0.742, ∞) — is below the 8ε contract resolution and not
+// checked here). The unfixed code fails at (0, ∞) in x and at (−2, ∞) in p.
+TEST_F(TruncatedNormalEnhancedTest, BandEdgeHandoffMonotone) {
+    const double r3 = std::sqrt(3.0);
+    const struct {
+        double a, b;
+    } windows[] = {{0.0, kInf},  {1.0, kInf},  {-1.0, kInf},  {2.0, kInf},
+                   {-2.0, kInf}, {r3, kInf},   {0.742, kInf}, {-2.0, 2.0},
+                   {0.1, 0.2},   {-kInf, 0.0}, {-kInf, 1.5},  {8.0, 9.0}};
+    for (const auto& w : windows) {
+        const auto d = TruncatedNormalDistribution::create(0.0, 1.0, w.a, w.b).unwrap();
+        const std::string tag =
+            " at window (" + std::to_string(w.a) + ", " + std::to_string(w.b) + ")";
+        auto check = [&](double xe) {
+            double x = xe, prevF = -1.0;
+            for (int i = 0; i < 3; ++i)
+                x = std::nextafter(x, -kInf);
+            const double pe = d.getCumulativeProbability(xe);
+            double p = pe, prevQ = -kInf;
+            for (int i = 0; i < 3; ++i)
+                p = std::nextafter(p, 0.0);
+            for (int i = -3; i <= 1; ++i) {
+                const double F = d.getCumulativeProbability(x);
+                EXPECT_GE(F, prevF) << "F(" << x << ") stepped down" << tag;
+                prevF = std::max(prevF, F);
+                x = std::nextafter(x, kInf);
+                if (p > 0.0 && p < 1.0) {
+                    const double q = d.getQuantile(p);
+                    EXPECT_GE(q, prevQ) << "Q(" << p << ") stepped down" << tag;
+                    prevQ = std::max(prevQ, q);
+                }
+                p = std::nextafter(p, 1.0);
+            }
+        };
+        if (std::isfinite(w.a))
+            check(w.a + 0.25 / std::max(1.0, std::fabs(w.a)));
+        if (std::isfinite(w.b))
+            check(w.b - 0.25 / std::max(1.0, std::fabs(w.b)));
+    }
+}
+
 TEST_F(TruncatedNormalEnhancedTest, MLEFit) {
     // Bounds KNOWN (fixed); recover (mu, sigma) from samples.
     mt19937 rng(42);

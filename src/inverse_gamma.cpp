@@ -370,7 +370,9 @@ double InverseGammaDistribution::cdfImpl(double x, double alpha, double beta) no
 
     const double t = beta / x;
     if (!std::isfinite(t))
-        return detail::ZERO_DOUBLE;  // x subnormal-tiny: Q(alpha, +inf) = 0
+        return detail::ZERO_DOUBLE;              // x subnormal-tiny: Q(alpha, +inf) = 0
+    if (t < std::numeric_limits<double>::min())  // β/x below DBL_MIN: log space (#216)
+        return detail::gamma_q_from_log_x(alpha, std::log(beta) - std::log(x));
     return detail::gamma_q(alpha, t);
 }
 
@@ -389,6 +391,8 @@ double InverseGammaDistribution::sfImpl(double x, double alpha, double beta) noe
     const double t = beta / x;
     if (!std::isfinite(t))
         return detail::ONE;
+    if (t < std::numeric_limits<double>::min())  // β/x below DBL_MIN: log space (#216)
+        return detail::gamma_p_from_log_x(alpha, std::log(beta) - std::log(x));
     return detail::gamma_p(alpha, t);
 }
 

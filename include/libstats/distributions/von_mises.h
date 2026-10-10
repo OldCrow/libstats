@@ -314,8 +314,9 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getMode() const;
 
     /**
-     * @brief Entropy = log(2π) − log I₀(κ) + κ·I₁(κ)/I₀(κ).
-     * Matches the uniform entropy log(2π) at κ = 0.
+     * @brief Entropy = log(2π I₀(κ)) − κ·I₁(κ)/I₀(κ).
+     * Matches the uniform entropy log(2π) at κ = 0; decreases through 0 near
+     * κ ≈ 4.4 and tends to ½·log(2π/κ) + ½ as κ → ∞ (the Gaussian limit).
      */
     [[nodiscard]] double getEntropy() const override;
 

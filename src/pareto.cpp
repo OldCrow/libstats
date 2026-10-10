@@ -31,8 +31,20 @@ constexpr std::size_t kBatchSlice = 1024;
 namespace {
 // F(x) = 1 − (s/x)^α for x ≥ s, as −expm1(−α·log1p((x − s)/s)). Formed as 1 − pow(s/x, α), the
 // rounding of s/x near 1 left 3e-4 relative error in a CDF of 1e-6 just above the scale.
+//
+// log(x/s): log1p((x − s)/s) up to x = s·kLogRatioDirect, where (x − s)/s could overflow for a
+// scale below 1 (Pareto(1e-6, 0.01).cdf(1e303) was 1, true 0.99919, #216); above, log x − log s,
+// which no longer cancels there.
+constexpr double kLogRatioDirect = 1e300;
+
+[[nodiscard]] inline double paretoLogRatio(double x, double scale) noexcept {
+    if (x >= scale * kLogRatioDirect)
+        return std::log(x) - std::log(scale);
+    return std::log1p((x - scale) / scale);
+}
+
 [[nodiscard]] inline double paretoCdf(double x, double scale, double alpha) noexcept {
-    return -std::expm1(-alpha * std::log1p((x - scale) / scale));
+    return -std::expm1(-alpha * paretoLogRatio(x, scale));
 }
 }  // namespace
 //==============================================================================
@@ -314,7 +326,7 @@ double ParetoDistribution::getSurvival(double x) const {
     });
     if (x < scale)
         return detail::ONE;
-    return std::exp(-alpha * std::log1p((x - scale) / scale));
+    return std::exp(-alpha * paretoLogRatio(x, scale));
 }
 
 double ParetoDistribution::getQuantile(double p) const {
@@ -793,10 +805,14 @@ void ParetoDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     arch::simd::VectorOps::vector_expm1(results, results, count);
     arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
 
-    // Fixup: x < scale is outside support; CDF = 0.
+    // Fixup: x < scale is outside support; CDF = 0. From x = s·1e300 the step-1 ratio can
+    // overflow (#216): those lanes take the scalar form, log x − log s.
+    const double direct_above = cached_scale * kLogRatioDirect;
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < cached_scale)
             results[i] = detail::ZERO_DOUBLE;
+        else if (values[i] >= direct_above)
+            results[i] = paretoCdf(values[i], cached_scale, -cached_neg_alpha);
     }
 }
 

@@ -365,9 +365,16 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
     // = 2 trigamma calls + 1 additional data pass.
     // Beta already uses the same exact-derivative pattern; StudentT converges in fewer steps.
 
-    const int max_iter = 50;
+    // Solved as a bracketed Newton in u = log ν on [log NU_MIN, log NU_MAX]: S > 0 raises the
+    // lower end, S < 0 lowers the upper, a Newton step (g'(u) = ν·S'(ν)) is taken only where it
+    // is a descent step that stays inside the bracket, a bisection otherwise. The plain step in
+    // ν this replaced was capped upward but not downward, so from the ν = 5 start on data with
+    // ν ≤ 2 the first step overshot to the 0.1 floor and stopped there (F1).
+    constexpr double NU_MIN = 0.1;
+    const int max_iter = 100;
     const double tol = 1e-8;
     double nu = nu_est;
+    double lo = std::log(NU_MIN), hi = std::log(NU_MAX);
 
     for (int iter = 0; iter < max_iter; ++iter) {
         // Score S(nu)
@@ -390,19 +397,25 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
 
         if (std::abs(s) < tol * n)
             break;
-        if (std::abs(ds) < 1e-15)
-            break;  // Flat; can't iterate
 
-        double step = s / ds;
-        step = std::max(step, -(nu - 0.1));  // clamp away from nu=0
-        nu -= step;
-        nu = std::clamp(nu, 0.1, NU_MAX);
-
+        const double u = std::log(nu);
+        if (s > detail::ZERO_DOUBLE)
+            lo = u;
+        else
+            hi = u;
+        if (hi - lo < tol)
+            break;
+        // g(u) = S(eᵘ), g'(u) = ν·S'(ν); Newton where S is falling, inside the bracket.
+        double next = u - s / (nu * ds);
+        if (!(ds < detail::ZERO_DOUBLE) || !(next > lo && next < hi))
+            next = detail::HALF * (lo + hi);
+        const double step = next - u;
+        nu = std::exp(next);
         if (std::abs(step) < tol)
             break;
     }
 
-    setNu(nu);
+    setNu(std::clamp(nu, NU_MIN, NU_MAX));
 }
 
 void StudentTDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,

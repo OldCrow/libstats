@@ -428,19 +428,11 @@ std::vector<double> WeibullDistribution::sample(std::mt19937& rng, size_t n) con
 
 namespace {
 
-/// Method-of-moments seed for Weibull k using coefficient-of-variation.
-/// Returns a positive estimate of k; 1.0 as fallback.
-double weibull_mom_k_init(double mean, double variance) noexcept {
-    if (mean <= detail::ZERO || variance <= detail::ZERO)
-        return detail::ONE;
-    const double cv = std::sqrt(variance) / mean;
-    double k_est;
-    if (cv < 0.2)
-        k_est = detail::ONE / (cv * cv * detail::SIX);
-    else if (cv < detail::ONE)
-        k_est = std::pow(1.2 / cv, 1.086);  // Thoman-Bain-Antle approximation
-    else
-        k_est = detail::ONE / cv;
+/// Seed for Weibull k from the spread of log x: Var[log X] = π²/(6k²), so k ≈ π/(√6·sd(log x)).
+/// Scale-free (the method-of-moments seed from Σx and Σx² under- or overflowed with the data
+/// scale, DH2 F2). Requires sd_log > 0.
+double weibull_log_k_init(double sd_log) noexcept {
+    const double k_est = detail::PI / (std::sqrt(detail::SIX) * sd_log);
     return std::max(detail::MIN_DISTRIBUTION_PARAMETER,
                     std::min(k_est, detail::MAX_DISTRIBUTION_PARAMETER));
 }
@@ -451,6 +443,11 @@ double weibull_mom_k_init(double mean, double variance) noexcept {
 ///   where E_k[log x] = Σ(xᵢ^k · log xᵢ) / Σ(xᵢ^k) and s̄ = mean(log xᵢ).
 /// Derivative: g'(k) = Var_k[log x] + 1/k² > 0 always (Newton always converges).
 /// After convergence: λ̂ = (Σxᵢ^k / n)^(1/k).
+///
+/// The score is invariant to a shift of log x (a rescaling of the data), so the caller passes
+/// log(xᵢ / max x) ≤ 0: every xᵢ^k is then in (0, 1], the largest exactly 1, and the sums cannot
+/// overflow or vanish whatever the data scale (DH2 F2). The λ̂ returned is in the same units,
+/// i.e. λ̂ / max x.
 ///
 /// @return {k, lambda} pair
 std::pair<double, double> weibull_mle_newton(const std::vector<double>& log_x,
@@ -487,12 +484,11 @@ std::pair<double, double> weibull_mle_newton(const std::vector<double>& log_x,
             break;
     }
 
-    // λ̂ = (Σxᵢ^k / n)^(1/k)
+    // λ̂ = (Σxᵢ^k / n)^(1/k); s0f ≥ 1 for the shifted logs, so the quotient is defined.
     double s0f = detail::ZERO_DOUBLE;
     for (std::size_t i = 0; i < sz; ++i)
         s0f += std::exp(k * log_x[i]);
-    const double lambda =
-        (s0f > detail::ZERO && n > detail::ZERO) ? std::exp(std::log(s0f / n) / k) : detail::ONE;
+    const double lambda = std::exp(std::log(s0f / n) / k);
     return {k, lambda};
 }
 
@@ -503,39 +499,53 @@ void WeibullDistribution::fit(const std::vector<double>& values) {
         throw std::invalid_argument("Cannot fit distribution to empty data");
     }
 
-    std::vector<double> log_x, log_x2;
+    // Everything is formed on log(x / max x) (DH2 F2): the profile score is shift-invariant in
+    // log x, so the fit is invariant to the data scale across the finite range, and λ̂ is
+    // restored as max x · λ̂'. The seed comes from the spread of log x.
+    std::vector<double> log_x;
     log_x.reserve(values.size());
-    log_x2.reserve(values.size());
-
-    double sum = detail::ZERO_DOUBLE;
-    double sum_sq = detail::ZERO_DOUBLE;
-    double sum_log = detail::ZERO_DOUBLE;
-    std::size_t count = 0;
-
+    double x_max = detail::ZERO_DOUBLE;
     for (double v : values) {
         if (v <= detail::ZERO_DOUBLE || !std::isfinite(v)) {
             throw std::invalid_argument(
                 "Weibull distribution requires strictly positive finite values");
         }
-        ++count;
-        sum += v;
-        sum_sq += v * v;
-        const double l = std::log(v);
+        log_x.push_back(std::log(v));
+        x_max = std::max(x_max, v);
+    }
+    const double log_max = std::log(x_max);
+
+    const double n = static_cast<double>(log_x.size());
+    double sum_log = detail::ZERO_DOUBLE;
+    for (double& l : log_x) {
+        l -= log_max;
         sum_log += l;
-        log_x.push_back(l);
+    }
+    const double s_bar = sum_log / n;
+    std::vector<double> log_x2;
+    log_x2.reserve(log_x.size());
+    double ss_log = detail::ZERO_DOUBLE;
+    for (const double l : log_x) {
         log_x2.push_back(l * l);
+        ss_log += (l - s_bar) * (l - s_bar);
+    }
+    const double sd_log = std::sqrt(ss_log / n);
+    if (!(sd_log > detail::ZERO_DOUBLE)) {
+        // Every value equal: the shape is unbounded above and the likelihood has no maximum.
+        // An exception, not a default (the #207 class).
+        throw std::invalid_argument(
+            "Weibull fit requires at least two distinct values: the shape is undefined for "
+            "constant data");
     }
 
-    const double n = static_cast<double>(count);
-    const double mean = sum / n;
-    const double var = sum_sq / n - mean * mean;
-    const double s_bar = sum_log / n;
-    const double k_init = weibull_mom_k_init(mean, var);
+    const auto [k, lambda_scaled] =
+        weibull_mle_newton(log_x, log_x2, n, s_bar, weibull_log_k_init(sd_log));
+    const double lambda = lambda_scaled * x_max;  // λ̂' · max x
 
-    const auto [k, lambda] = weibull_mle_newton(log_x, log_x2, n, s_bar, k_init);
-
-    if (std::isfinite(k) && std::isfinite(lambda) && k > detail::ZERO && lambda > detail::ZERO &&
-        k < detail::MAX_DISTRIBUTION_PARAMETER && lambda < detail::MAX_DISTRIBUTION_PARAMETER) {
+    // λ̂ is positive and finite wherever the data are: no magnitude bound on it (detail::ZERO,
+    // 1e-30, rejected every fit at a scale below it).
+    if (std::isfinite(k) && std::isfinite(lambda) && k > detail::ZERO_DOUBLE &&
+        lambda > detail::ZERO_DOUBLE && k < detail::MAX_DISTRIBUTION_PARAMETER) {
         setParameters(k, lambda);
     } else {
         throw std::runtime_error("Weibull MLE did not converge to a valid estimate");

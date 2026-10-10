@@ -260,6 +260,38 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
                                          : detail::log_gamma_prefactor_constant(alpha);
 }
 
+// F(x) = P(α, βx) for x > 0 finite. Once βx is below DBL_MIN (a subnormal x at a rate below
+// 1, or a product that underflowed to 0) the argument is taken in log space: the mass there is
+// not small for small shapes (#216: Gamma(0.005, 0.5).cdf(5e-324) = 0.024, which βx = 0 gave
+// as 0).
+[[nodiscard]] inline double gammaCdfCore(double alpha, double beta, double x) noexcept {
+    const double y = beta * x;
+    if (y < std::numeric_limits<double>::min())
+        return detail::gamma_p_from_log_x(alpha, std::log(beta) + std::log(x));
+    return detail::gamma_p(alpha, y);
+}
+
+// Entropy at shapes from kEntropyStirlingShape: the direct form α + lgamma(α) + (1 − α)ψ(α)
+// cancels at α·log α (DH2 M2: 7.5e-7 relative at 1e10, −64 for 19.84 at 1e16). From the
+// Stirling series of lgamma and ψ with Bernoulli numbers B_2k,
+//   h = ½·log(2πeα) − 1/(2α) + Σ_k B_2k / ((2k−1) α^(2k−1)) − Σ_k B_2k / (2k α^(2k)),
+// whose first terms are −1/(3α) − 1/(12α²) − 1/(90α³) + 1/(120α⁴) + 1/(210α⁵) − 1/(252α⁶)
+// − 1/(210α⁷) + 1/(240α⁸). The next term, 5/(594α⁹), is 8e-21 at α = 100; the direct form's
+// error there is ~α·log α·ε = 1e-13.
+constexpr double kEntropyStirlingShape = 100.0;
+
+[[nodiscard]] inline double gammaEntropyStirling(double alpha) noexcept {
+    const double t = detail::ONE / alpha;
+    const double tail =
+        t * (-1.0 / 3.0 +
+             t * (-1.0 / 12.0 +
+                  t * (-1.0 / 90.0 +
+                       t * (1.0 / 120.0 +
+                            t * (1.0 / 210.0 +
+                                 t * (-1.0 / 252.0 + t * (-1.0 / 210.0 + t * (1.0 / 240.0))))))));
+    return detail::HALF * (detail::LN_2PI + detail::ONE + std::log(alpha)) + tail;
+}
+
 // log of the Gamma(α, rate β) density at a finite x > 0. From α = 20 it is log P(α, βx) − log x,
 // with P = (βx)^α·e^{−βx}/Γ(α) in Stirling form: the direct α·log β − lgamma(α) + (α − 1)·log x −
 // βx cancels terms of size α·log α, 2e-11 relative at α = 1e4. density_constant is
@@ -398,7 +430,7 @@ double GammaDistribution::getCumulativeProbability(double x) const {
         b = beta_;
     });
     // Use regularized incomplete gamma function P(α, βx)
-    return detail::gamma_p(a, b * x);
+    return gammaCdfCore(a, b, x);
 }
 
 double GammaDistribution::getQuantile(double p) const {
@@ -705,7 +737,9 @@ double GammaDistribution::getEntropy() const {
         lga = logGammaAlpha_;
         da = digammaAlpha_;
     });
-    // H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α)
+    // H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α); the Stirling form from α = 100 (DH2 M2).
+    if (a >= kEntropyStirlingShape)
+        return gammaEntropyStirling(a) - lb;
     return a - lb + lga + (detail::ONE - a) * da;
 }
 
@@ -1228,7 +1262,7 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
             } else if (values[i] == std::numeric_limits<double>::infinity()) {
                 results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
             } else {
-                results[i] = detail::gamma_p(alpha, beta * values[i]);
+                results[i] = gammaCdfCore(alpha, beta, values[i]);
             }
         }
         return;
@@ -1252,6 +1286,8 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
             results[i] = detail::ZERO_DOUBLE;
         } else if (values[i] == std::numeric_limits<double>::infinity()) {
             results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
+        } else if (scaled_values[i] < std::numeric_limits<double>::min()) {
+            results[i] = gammaCdfCore(alpha, beta, values[i]);  // log-space argument (#216)
         } else {
             results[i] = detail::gamma_p(alpha, scaled_values[i]);
         }

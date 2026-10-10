@@ -844,15 +844,23 @@ class UniformDistribution : public DistributionBase {
      * Updates cached values when parameters change - assumes mutex is already held
      */
     void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
+        // Primary calculations - compute once, reuse multiple times.
+        // The half-width b/2 − a/2 cannot overflow where b − a can (Uniform(−1e308, 1e308) is a
+        // valid instance, DH2 S2); halving is exact, so for every ordinary pair it is width_/2
+        // bit for bit and the derived values below are unchanged. Only when width_ overflowed are
+        // 1/width, log(width) and the midpoint taken through the half-width (1/(2h), log h + log 2,
+        // a/2 + b/2), since 1/inf = 0 made the density 0 and the CDF 0 everywhere.
         width_ = b_ - a_;
-        invWidth_ = detail::ONE / width_;
+        halfWidth_ = detail::HALF * b_ - detail::HALF * a_;
+        const bool width_overflows = !std::isfinite(width_);
+        invWidth_ = width_overflows ? detail::HALF / halfWidth_ : detail::ONE / width_;
         widthSquared_ = width_ * width_;
 
         // Core cached values
-        midpoint_ = (a_ + b_) * detail::HALF;
+        midpoint_ =
+            width_overflows ? detail::HALF * a_ + detail::HALF * b_ : (a_ + b_) * detail::HALF;
         variance_ = widthSquared_ / 12.0;
-        logInvWidth_ = -std::log(width_);
+        logInvWidth_ = width_overflows ? -(std::log(halfWidth_) + detail::LN2) : -std::log(width_);
 
         // Optimization flags
         isUnitInterval_ = (std::abs(a_ - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE &&
@@ -914,8 +922,12 @@ class UniformDistribution : public DistributionBase {
     // 22. PERFORMANCE CACHE
     //==========================================================================
 
-    /** @brief Cached value of (b - a) for efficiency */
+    /** @brief Cached value of (b - a) for efficiency; +inf where it overflows */
     mutable double width_{detail::ONE};
+
+    /** @brief Cached value of b/2 - a/2: width_/2 where that is finite, and the finite stand-in
+     *  for the width where b - a overflows (DH2 S2) */
+    mutable double halfWidth_{detail::HALF};
 
     /** @brief Cached value of 1/(b - a) for efficiency in PDF calculations */
     mutable double invWidth_{detail::ONE};

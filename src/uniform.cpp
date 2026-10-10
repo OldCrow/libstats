@@ -33,6 +33,26 @@ using stats::detail::validatePositiveParameter;
 namespace stats {
 
 namespace {
+// Width-dependent forms that hold when b − a overflows (DH2 S2). Each equals the direct form
+// bit for bit whenever the width is finite (halving and doubling are exact), so the direct form
+// is kept on that path and these are reached only from an overflowed width.
+//   a + t·(b − a)      →  2·(a/2 + t·h),      h = b/2 − a/2
+//   (x − a)/(b − a)    →  (x/2 − a/2)/h
+[[nodiscard]] inline double uniformAffine(double a, double t, double width,
+                                          double half_width) noexcept {
+    if (std::isfinite(width))
+        return a + t * width;
+    return detail::TWO * (detail::HALF * a + t * half_width);
+}
+
+[[nodiscard]] inline double uniformCdfInterior(double x, double a, double b,
+                                               double inv_width) noexcept {
+    const double width = b - a;
+    if (std::isfinite(width))
+        return (x - a) * inv_width;
+    return (detail::HALF * x - detail::HALF * a) / (detail::HALF * b - detail::HALF * a);
+}
+
 // PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
 constexpr std::size_t kBatchSlice = 1024;
 }  // namespace
@@ -280,19 +300,19 @@ double UniformDistribution::getLogProbability(double x) const {
     // Ensure cache is valid
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-    double lo, hi, w;
+    double lo, hi, log_inv_w;
     bool is_unit;
     withCacheSnapshot([&] {
         lo = a_;
         hi = b_;
         is_unit = isUnitInterval_;
-        w = width_;
+        log_inv_w = logInvWidth_;
     });
     if (x < lo || x > hi)
         return detail::NEGATIVE_INFINITY;
     if (is_unit)
         return detail::ZERO_DOUBLE;
-    return -std::log(w);
+    return log_inv_w;
 }
 
 double UniformDistribution::getCumulativeProbability(double x) const {
@@ -311,7 +331,7 @@ double UniformDistribution::getCumulativeProbability(double x) const {
         return detail::ONE;
     if (is_unit)
         return x;
-    return (x - lo) * inv_w;
+    return uniformCdfInterior(x, lo, hi, inv_w);
 }
 
 double UniformDistribution::getQuantile(double p) const {
@@ -321,13 +341,14 @@ double UniformDistribution::getQuantile(double p) const {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    double lo, hi, w;
+    double lo, hi, w, hw;
     bool is_unit;
     withCacheSnapshot([&] {
         lo = a_;
         hi = b_;
         is_unit = isUnitInterval_;
         w = width_;
+        hw = halfWidth_;
     });
     if (p == detail::ZERO_DOUBLE) {
         return lo;
@@ -337,16 +358,17 @@ double UniformDistribution::getQuantile(double p) const {
     }
     if (is_unit)
         return p;
-    return lo + p * w;
+    return uniformAffine(lo, p, w, hw);
 }
 
 double UniformDistribution::sample(std::mt19937& rng) const {
     bool cached_is_unit_interval;
-    double cached_a, cached_width;
+    double cached_a, cached_width, cached_half_width;
     withCacheSnapshot([&] {
         cached_is_unit_interval = isUnitInterval_;
         cached_a = a_;
         cached_width = width_;
+        cached_half_width = halfWidth_;
     });
 
     // Use high-quality uniform distribution
@@ -360,7 +382,7 @@ double UniformDistribution::sample(std::mt19937& rng) const {
     }
 
     // General case: linear transformation X = a + (b-a)*U
-    return cached_a + cached_width * u;
+    return uniformAffine(cached_a, u, cached_width, cached_half_width);
 }
 
 std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) const {
@@ -370,7 +392,7 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
     std::uniform_real_distribution<double> dist(detail::ZERO_DOUBLE, detail::ONE);
 
     // Snapshot cached fields; no re-acquire = no TOCTOU gap.
-    double cached_a, cached_width;
+    double cached_a, cached_width, cached_half_width;
     bool cached_is_unit_interval;
     {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -381,10 +403,12 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
                 updateCacheUnsafe();
             cached_a = a_;
             cached_width = width_;
+            cached_half_width = halfWidth_;
             cached_is_unit_interval = isUnitInterval_;
         } else {
             cached_a = a_;
             cached_width = width_;
+            cached_half_width = halfWidth_;
             cached_is_unit_interval = isUnitInterval_;
         }
     }
@@ -395,7 +419,7 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
         if (cached_is_unit_interval) {
             samples.push_back(u);
         } else {
-            samples.push_back(cached_a + u * cached_width);
+            samples.push_back(uniformAffine(cached_a, u, cached_width, cached_half_width));
         }
     }
 
@@ -547,7 +571,11 @@ bool UniformDistribution::contains(double x) const noexcept {
 
 double UniformDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return std::log(b_ - a_);  // ln(range)
+    const double w = b_ - a_;
+    if (std::isfinite(w))
+        return std::log(w);  // ln(range)
+    return std::log(detail::HALF * b_ - detail::HALF * a_) +
+           detail::LN2;  // range overflowed (DH2 S2)
 }
 
 bool UniformDistribution::isUnitInterval() const noexcept {
@@ -563,12 +591,14 @@ bool UniformDistribution::isSymmetricAroundZero() const noexcept {
 
 double UniformDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return (a_ + b_) / 2.0;
+    const double sum = a_ + b_;
+    return std::isfinite(sum) ? sum / 2.0 : detail::HALF * a_ + detail::HALF * b_;
 }
 
 double UniformDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return (a_ + b_) / 2.0;
+    const double sum = a_ + b_;
+    return std::isfinite(sum) ? sum / 2.0 : detail::HALF * a_ + detail::HALF * b_;
 }
 
 double UniformDistribution::getMidpoint() const noexcept {
@@ -690,7 +720,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                 // Snapshot under unique_lock — eliminates TOCTOU gap.
                 const double cached_a = dist.a_;
                 const double cached_b = dist.b_;
-                const double cached_log_inv_width = -std::log(dist.width_);
+                const double cached_log_inv_width = dist.logInvWidth_;
                 dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
                                                       cached_log_inv_width);
                 return;
@@ -698,7 +728,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
+            const double cached_log_inv_width = dist.logInvWidth_;
             lock.unlock();
             dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
                                                   cached_log_inv_width);
@@ -720,11 +750,11 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_log_inv_width = dist.logInvWidth_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_log_inv_width = dist.logInvWidth_;
                 }
             }
             ParallelUtils::parallelForSlices(
@@ -752,11 +782,11 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_log_inv_width = dist.logInvWidth_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_log_inv_width = -std::log(dist.width_);
+                    cached_log_inv_width = dist.logInvWidth_;
                 }
             }
             pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
@@ -1085,8 +1115,19 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             } else if (x > b) {
                 results[i] = detail::ONE;
             } else {
-                results[i] = (x - a) * inv_width;
+                results[i] = uniformCdfInterior(x, a, b, inv_width);
             }
+        }
+        return;
+    }
+
+    if (!std::isfinite(b - a)) {
+        // b − a overflowed (DH2 S2): the linear form below would give inf·0 at x − a = inf.
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            results[i] = (x < a)   ? detail::ZERO_DOUBLE
+                         : (x > b) ? detail::ONE
+                                   : uniformCdfInterior(x, a, b, inv_width);
         }
         return;
     }

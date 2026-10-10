@@ -94,21 +94,26 @@ namespace stats {
  * - Variance: σ²·(1 + (αφ(α)−βφ(β))/Z − δ²)
  * - Skewness/kurtosis from central moments of the recursion.
  * - Entropy:  ½log(2πe) + log σ + log Z + (αφ(α)−βφ(β))/(2Z)
- * CONDITIONING NOTE: variance/skewness/kurtosis are differences of
- * same-scale moment terms; in deep same-tail windows they lose relative
- * digits proportionally to how far the window sits in the tail (measured:
- * variance relative error ~1e-12 at (a,b) = (8σ,9σ), ~1e-9 at (37σ,38σ)).
- * This is a property of the moment formulas, not of Z.
+ * CONDITIONING NOTE: the closed forms are differences of same-scale
+ * moment terms and lose (max(1, m²)/c2)^(k/2) digits, m and c2 the
+ * standardised mean and variance — everything for a narrow window
+ * (width ≲ 1e-4σ) and 1% of the kurtosis at (36σ, 37σ). They are used
+ * where c2 ≥ 0.05·max(1, m²); elsewhere the moments are integrated in
+ * central form by segmented Gauss–Legendre quadrature (a far-tail window
+ * cut at α + 50/α), accurate to ~1e-13 relative throughout.
  *
  * @par MLE (fit):
  * SCOPE DECISION (standard formulation): the truncation bounds a, b are
  * treated as KNOWN and kept at their current values; fit() estimates μ and
  * σ only. With fixed bounds the truncated normal is a two-parameter
  * exponential family in (Σx, Σx²), so the MLE equations coincide with
- * matching the first two truncated moments. fit() solves them by the
- * standard fixed-point iteration σ² ← s²/(1 + η − δ²), μ ← x̄ − σδ
- * (Cohen 1959 style), convergence-guarded (relative tolerance 1e-12,
- * max 500 iterations, degenerate-ratio and Z-underflow guards throw).
+ * matching the first two truncated moments. fit() solves them by a damped
+ * Newton iteration on the natural parameters (μ/σ², −1/(2σ²)), where the
+ * log-likelihood is strictly concave with gradient (x̄ − E X, x̄² − E X²) and
+ * Hessian −Cov(X, X²), on data standardised to mean 0 and variance 1;
+ * converged at a moment residual of 1e-10 (sample-sd units), max 200
+ * iterations. Sample moments the window cannot match (a variance above the
+ * uniform limit on a finite window) and a Z underflow throw.
  *
  * @par Batch SIMD:
  * PDF/LogPDF: the Gaussian log-space pipeline plus the −log Z offset;
@@ -240,8 +245,7 @@ class TruncatedNormalDistribution : public DistributionBase {
     /** @brief Set upper bound b. @throws std::invalid_argument (incl. window policy) */
     void setUpperBound(double upperBound);
     /** @brief Set all four parameters atomically. @throws std::invalid_argument */
-    void setParameters(double mean, double standardDeviation, double lowerBound,
-                       double upperBound);
+    void setParameters(double mean, double standardDeviation, double lowerBound, double upperBound);
 
     /** @brief Distribution mean = μ + σ·(φ(α)−φ(β))/Z (truncated moment). */
     [[nodiscard]] double getMean() const override;
@@ -336,8 +340,8 @@ class TruncatedNormalDistribution : public DistributionBase {
      *               [a, b]
      * @throws std::invalid_argument on empty/too-small data or values
      *         outside the window
-     * @throws std::runtime_error if the fixed-point iteration fails to
-     *         converge or degenerates
+     * @throws std::runtime_error if the Newton iteration fails to converge
+     *         or the sample moments lie outside what the window admits
      */
     void fit(const std::vector<double>& values) override;
 
@@ -414,24 +418,21 @@ class TruncatedNormalDistribution : public DistributionBase {
     /** @brief SIMD PDF pipeline: shift, square, scale, +logC, exp; fixup
      *  outside [a,b] → 0 (see class-level Batch SIMD notes). */
     void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                       double mu, double a, double b,
-                                       double neg_half_inv_sigma2,
+                                       double mu, double a, double b, double neg_half_inv_sigma2,
                                        double log_pdf_norm) const noexcept;
 
     /** @brief SIMD LogPDF pipeline: shift, square, scale, +logC; fixup −∞. */
     void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                          double mu, double a, double b,
-                                          double neg_half_inv_sigma2,
+                                          double mu, double a, double b, double neg_half_inv_sigma2,
                                           double log_pdf_norm) const noexcept;
 
     /** @brief SIMD CDF: vector_erf chain for straddling windows with
      *  per-lane erfc fixups; whole-scalar for same-tail windows (class notes). */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                  std::size_t count, double mu, double sigma,
-                                                 double a, double b, double alpha,
-                                                 double beta, double q_alpha, double phi_alpha,
-                                                 double erf_alpha, double inv_z,
-                                                 double half_inv_z,
+                                                 double a, double b, double alpha, double beta,
+                                                 double q_alpha, double phi_alpha, double erf_alpha,
+                                                 double inv_z, double half_inv_z,
                                                  double inv_sigma_sqrt2) const noexcept;
 
     //==========================================================================
@@ -443,14 +444,14 @@ class TruncatedNormalDistribution : public DistributionBase {
     /** @brief Regime-split Z and tail pieces; the single source of truth for
      *  the normalization (used by validation, cache update, and fit). */
     struct NormalizationConstants {
-        double alpha, beta;      // standardized bounds (may be ±∞)
-        double z;                // Φ(β) − Φ(α), regime-split
-        double log_z;            // log(z)
-        double phi_alpha;        // Φ(α)  = ½ erfc(−α/√2)
-        double q_alpha;          // 1−Φ(α) = ½ erfc(α/√2)
-        double q_beta;           // 1−Φ(β)
-        double erf_alpha;        // erf(α/√2)
-        bool valid;              // z > 0 and finite
+        double alpha, beta;  // standardized bounds (may be ±∞)
+        double z;            // Φ(β) − Φ(α), regime-split
+        double log_z;        // log(z)
+        double phi_alpha;    // Φ(α)  = ½ erfc(−α/√2)
+        double q_alpha;      // 1−Φ(α) = ½ erfc(α/√2)
+        double q_beta;       // 1−Φ(β)
+        double erf_alpha;    // erf(α/√2)
+        bool valid;          // z > 0 and finite
     };
     static NormalizationConstants computeNormalization(double mean, double sigma, double a,
                                                        double b) noexcept;

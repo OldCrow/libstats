@@ -9,6 +9,7 @@
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/fisher_f.h"
 
+#include <algorithm>
 #include <cmath>
 #include <gtest/gtest.h>
 #include <limits>
@@ -547,6 +548,99 @@ TEST_F(FisherFEnhancedTest, CDFSurvivesDenormalArguments) {
     const double q = f.getQuantile(1e-300);
     ASSERT_TRUE(std::isfinite(q));
     EXPECT_GT(f.getCumulativeProbability(q), 0.0) << "CDF(quantile(1e-300)) collapsed to 0";
+}
+
+// d1·x overflowed at DBL_MAX and the CDF returned 1 ("y is 1 to every bit available"),
+// although ybar = d2/(d1·x) is still representable and, at d2 = 0.001, carries 70% of the
+// mass: F(5, 0.001) has survival 0.6987 at DBL_MAX. The lower-tail mirror: F(0.01, 100) at
+// x = 5e-324 has y below DBL_MIN, where the old form gave 0. References mpmath dps=50.
+TEST_F(FisherFEnhancedTest, CDFAndSurvivalAtTheDoubleRangeEdges) {
+    constexpr double kMax = std::numeric_limits<double>::max();
+    struct Row {
+        double d1, d2, x, sf;
+    };
+    constexpr Row kUpper[] = {
+        {5, 0.001, kMax, 0.69871670070670757807},   {5, 0.01, kMax, 0.028054699228057844935},
+        {5, 0.1, kMax, 3.3846269086526688255e-16},  {5, 2, kMax, 5.5626846462680041005e-309},
+        {1e-3, 1e-3, kMax, 0.35062495674401984083}, {5, 0.001, 1e300, 0.70538867313837891799},
+        {5, 0.01, 1e300, 0.030851706760945188973},
+    };
+    for (const Row& r : kUpper) {
+        const auto f = FDistribution::create(r.d1, r.d2).unwrap();
+        EXPECT_LT(relErr(f.getSurvivalProbability(r.x), r.sf), 1e-12)
+            << "sf F(" << r.d1 << ", " << r.d2 << ") at " << r.x;
+        EXPECT_LE(std::fabs(f.getCumulativeProbability(r.x) - (1.0 - r.sf)), 2e-15)
+            << "cdf F(" << r.d1 << ", " << r.d2 << ") at " << r.x;
+    }
+    constexpr Row kLower[] = {
+        {0.01, 100, 5e-324, 0.023614926359299116738},  // 5e-324 is 2^-1074 as a double
+        {0.01, 100, 1e-310, 0.027524388065881426241},
+        {1e-3, 1e-3, 5e-324, 0.34460142985206034238},
+    };
+    for (const Row& r : kLower) {  // r.sf holds the CDF here
+        const auto f = FDistribution::create(r.d1, r.d2).unwrap();
+        EXPECT_LT(relErr(f.getCumulativeProbability(r.x), r.sf), 1e-12)
+            << "cdf F(" << r.d1 << ", " << r.d2 << ") at " << r.x;
+        EXPECT_LT(relErr(f.getSurvivalProbability(r.x), 1.0 - r.sf), 1e-12)
+            << "sf F(" << r.d1 << ", " << r.d2 << ") at " << r.x;
+    }
+}
+
+// The Beta-delegate transform (d2/d1)·Y/(1 − Y) rounded Y to 1, and the draw to +inf, for 98%
+// of the draws at F(5, 0.001), where the CDF puts 70% of the mass above DBL_MAX; at d2 = 2 it
+// could never draw above (d2/d1)·2^53. Fixed-seed Kolmogorov–Smirnov of the draws (+inf
+// counted at F = 1) against the library CDF, at a per-instance false-alarm rate of 1e-4
+// (critical D·√n = 2.22; n = 20000), and the +inf share against the survival at DBL_MAX to 5σ.
+// No draw may be NaN or negative.
+TEST_F(FisherFEnhancedTest, SamplesFollowTheCDFAtTinyAndOrdinaryDf) {
+    constexpr size_t n = 20000;
+    constexpr double kMax = std::numeric_limits<double>::max();
+    struct Row {
+        double d1, d2;
+        unsigned seed;
+    };
+    constexpr Row kRows[] = {{5, 0.001, 1}, {5, 0.01, 2},  {0.01, 100, 3}, {1e-3, 1e-3, 4},
+                             {0.5, 3, 5},   {1, 1, 6},     {2, 2, 7},      {5, 7, 8},
+                             {1, 0.5, 9},   {100, 100, 10}};
+    for (const Row& r : kRows) {
+        const auto f = FDistribution::create(r.d1, r.d2).unwrap();
+        std::mt19937 rng(r.seed);
+        auto draws = f.sample(rng, n);
+        ASSERT_EQ(draws.size(), n);
+        size_t n_inf = 0;
+        for (double x : draws) {
+            ASSERT_FALSE(std::isnan(x)) << "F(" << r.d1 << ", " << r.d2 << ") drew NaN";
+            ASSERT_GE(x, 0.0) << "F(" << r.d1 << ", " << r.d2 << ") drew " << x;
+            n_inf += std::isinf(x);
+        }
+        std::sort(draws.begin(), draws.end());
+        // Tied blocks are atoms: a draw of +inf stands for (DBL_MAX, ∞), a draw of 0 for
+        // [0, DBL_TRUE_MIN) (the underflowed lower tail), so the block is compared against
+        // the CDF at both ends of the interval it stands for.
+        double D = 0.0;
+        for (size_t i = 0; i < n;) {
+            size_t j = i;
+            while (j < n && draws[j] == draws[i])
+                ++j;
+            const double x = draws[i];
+            const double F_lo = std::isinf(x) ? f.getCumulativeProbability(kMax)
+                                : x == 0.0    ? 0.0
+                                              : f.getCumulativeProbability(x);
+            const double F_hi =
+                std::isinf(x) ? 1.0
+                : x == 0.0 ? f.getCumulativeProbability(std::numeric_limits<double>::denorm_min())
+                           : F_lo;
+            D = std::max({D, std::fabs(F_lo - static_cast<double>(i) / n),
+                          std::fabs(F_hi - static_cast<double>(j) / n)});
+            i = j;
+        }
+        EXPECT_LT(D * std::sqrt(static_cast<double>(n)), 2.22)
+            << "KS of F(" << r.d1 << ", " << r.d2 << ") draws against the CDF";
+        const double p_inf = f.getSurvivalProbability(kMax);
+        const double sd = std::sqrt(n * p_inf * (1.0 - p_inf));
+        EXPECT_NEAR(static_cast<double>(n_inf), n * p_inf, 5.0 * sd + 1.0)
+            << "F(" << r.d1 << ", " << r.d2 << "): +inf draws vs survival at DBL_MAX";
+    }
 }
 
 //==============================================================================

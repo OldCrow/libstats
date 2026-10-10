@@ -314,6 +314,172 @@ TEST(BetaQuantileAccuracy, TinyShapes) {
     }
 }
 
+// B1: the ordinary-shape residual of inverse_beta_i re-formed 1 − x from x, so a reflected
+// root within ε of 1 (one shape just above kTinyBetaShape = 1e-3, p on the far side) had
+// b·log(1 − x) = −∞ and the solver returned Beta(0.001, 1).Q(0.7) = 6.6e-37 for 0.7^1000 =
+// 1.25e-155, while one ulp below 1e-3 the tiny-shape path was right: a 118-order jump at the
+// shape switch. The rows are mpmath (dps 50) on both sides of 1e-3 (nudge = ±1 ulp on the
+// first shape), budget 4e-12 relative on the small side of the root — the solver's own
+// 1/a·ε amplification is ~2e-13; the unfixed rows miss by 1e32 … 1e112. The rows whose true
+// 1 − x is below half an ulp of 1 must return exactly 1.0 (they returned 1 − 6.6e-14). The
+// tiny-path side of (1e-3, 1e6) carried 1.6e-11 from the shared continued fraction's rounding
+// at the branch point (see BetaIncompleteNearBranchPoint) until the fraction was contracted.
+TEST(BetaQuantileAccuracy, ReflectedRootWithinEpsOfOne) {
+    const struct {
+        double a, b, p;
+        int nudge;      // applied to a with nextafter
+        double ref;     // the root's small side: x where x < ½, else 1 − x
+        bool upper;     // the small side is 1 − x
+        double budget;  // relative
+    } rows[] = {
+        {1e-3, 1.0, 0.7, -1, 1.25325663996555118620e-155, false, 4e-12},
+        {1e-3, 1.0, 0.7, 0, 1.25325663996564811500e-155, false, 4e-12},
+        {1e-3, 1.0, 0.7, +1, 1.25325663996574504380e-155, false, 4e-12},
+        {1e-3, 1.0, 0.9, 0, 1.74787125172269856600e-46, false, 4e-12},
+        {1e-3, 0.01, 0.7, -1, 3.04535692043075611130e-114, false, 4e-12},
+        {1e-3, 0.01, 0.7, 0, 3.04535692043098873770e-114, false, 4e-12},
+        {1e-3, 0.01, 0.7, +1, 3.04535692043122136400e-114, false, 4e-12},
+        {1e-3, 0.5, 0.9, 0, 6.98001068297128695140e-46, false, 4e-12},
+        {0.01, 1.0, 0.7, 0, 3.23447650962473987290e-16, false, 4e-12},
+        {1e-3, 1e6, 0.99, -1, 2.42594405028736441780e-11, false, 4e-12},
+        {1e-3, 1e6, 0.99, 0, 2.42594405028736970530e-11, false, 4e-12},
+        {1e-3, 1e6, 0.99, +1, 2.42594405028737499270e-11, false, 4e-12},
+        {1e-3, 1e3, 0.99, 0, 2.42715507189121879440e-8, false, 4e-12},
+        {5e-3, 2.0, 0.9, 0, 2.60189362288074831920e-10, false, 4e-12},
+        {2e-3, 3.0, 0.8, 0, 7.83599212197829702000e-50, false, 4e-12},
+        {1.0, 1e-3, 0.1, 0, 1.74786784598834180380e-46, true, 0.0},
+        {1e6, 1e-3, 0.1, 0, 1.33638235504609782310e-51, true, 0.0},
+    };
+    for (const auto& r : rows) {
+        const double kBudget = r.budget;
+        double a = r.a;
+        if (r.nudge < 0)
+            a = std::nextafter(a, 0.0);
+        else if (r.nudge > 0)
+            a = std::nextafter(a, 1.0);
+        const auto d = BetaDistribution::create(a, r.b).unwrap();
+        const double x = d.getQuantile(r.p);
+        if (r.upper) {
+            // 1 − x = 1.7e-46 is below half an ulp of 1: the double answer is 1.0 exactly.
+            ASSERT_LT(r.ref, 0x1p-54);
+            EXPECT_EQ(x, 1.0) << "Beta(" << a << ", " << r.b << ").Q(" << r.p << ") = " << x;
+        } else {
+            EXPECT_LE(std::fabs(x - r.ref), kBudget * r.ref)
+                << "Beta(" << a << ", " << r.b << ").Q(" << r.p << ") = " << x << ", want "
+                << r.ref;
+        }
+    }
+}
+
+// I_x(a, b) near the branch point x_b = (a + 1)/(a + b + 2) with one shape large. Two defects
+// put cond·ε there, cond ≈ a, where a few ε is achievable:
+//  - the continued fraction. Uncontracted, its Lentz steps formed 1 + d₂ₘ₊₁ = 1 − (1 − O(1/a))
+//    from a rounded product of x, so h came out as if x were off by an ulp: 4e-11 for
+//    I_{x_b}(1e6, 1e-3⁻) (the tiny-shape tail integral's I_{x_b}), 1e-10 one ulp below x_b at
+//    (1e6, ½). Its single-step stopping rule then stopped on rounding noise (54 steps where the
+//    true fraction needs 84), but stepping on did not help: the error random-walked at that
+//    level for hundreds of steps;
+//  - the Stirling-form prefactor (both shapes ≥ 20) dropped its linear terms a·u + b·v as if x₀
+//    = a/(a + b) were exact; they are first order in its rounding, 1e-11 at (1e6, 30).
+// The rows are mpmath (dps 60, the fraction summed to 1e-45, and betainc agreeing to 1e-41
+// where it finishes within 20 s): each shape regime at x_b, one ulp below it (the direct
+// orientation), 1 − x = 1.5·(1 − x_b) and ½·(1 − x_b) (both sides), and the mirror
+// I_{1−x_b}(b, a). kTinyB = 1e-3⁻ takes the tiny-shape path, 1e-3 the ordinary one.
+//
+// Budget, relative: 128ε for the product prefactor·h — the contracted fraction's rounding is a
+// few ε per step (≤ 27ε over 325 mpmath rows of the fraction alone), and the log prefactor's
+// absolute error is ε per unit of its largest terms (b·log(a + b) ≈ 14 for the tiny shapes at
+// a = 1e6, a·log1p(·) up to ~20); the fixed code's worst row uses 60ε (Kaby Lake, AppleClang).
+// Where beta_i forms the result as the complement 1 − prefactor·h (an ordinary shape at
+// x ≥ x_b) the absolute error of that complement is the budget, so the relative allowance is
+// 128ε·max(1, (1 − I)/I). The unfixed code misses by 1.6e2…4e5 ε.
+TEST(BetaQuantileAccuracy, BetaIncompleteNearBranchPoint) {
+    constexpr double kTinyB = 0x1.0624dd2f1a9fbp-10;  // nextafter(1e-3, 0)
+    const struct {
+        double x, a, b, ref;
+    } rows[] = {
+        {0x1.ff7d0f16c2e09p-1, 1000.0, kTinyB, 0.0002199763873226718607634},
+        {0x1.ff7d0f16c2e08p-1, 1000.0, kTinyB, 0.0002199763873226308922148},
+        {0x1.ff3b96a22450ep-1, 1000.0, kTinyB, 0.000100320409766249992366},
+        {0x1.ffbe878b61704p-1, 1000.0, kTinyB, 0.0005608245188184241700156},
+        {0x1.05e1d27a3ee00p-10, kTinyB, 1000.0, 0.9997800236126773281392},
+        {0x1.ff7d0f16c2e09p-1, 1000.0, 0.001, 0.0002199763873226719085118},
+        {0x1.ff7d0f16c2e08p-1, 1000.0, 0.001, 0.0002199763873226309399632},
+        {0x1.ff3b96a22450ep-1, 1000.0, 0.001, 0.0001003204097662500141484},
+        {0x1.ffbe878b61704p-1, 1000.0, 0.001, 0.0005608245188184242916884},
+        {0x1.05e1d27a3ee00p-10, 0.001, 1000.0, 0.9997800236126773280915},
+        {0x1.ff3be1de0972dp-1, 1000.0, 0.5, 0.08357291560848345154254},
+        {0x1.ff3be1de0972cp-1, 1000.0, 0.5, 0.08357291560847197994086},
+        {0x1.fed9d2cd0e2c4p-1, 1000.0, 0.5, 0.03403987965685674608024},
+        {0x1.ff9df0ef04b96p-1, 1000.0, 0.5, 0.2212191380162711543774},
+        {0x1.883c43ed1a600p-10, 0.5, 1000.0, 0.9164270843915165484575},
+        {0x1.f09ec27b09ec2p-1, 1000.0, 30.0, 0.4088681199283411441872},
+        {0x1.f09ec27b09ec1p-1, 1000.0, 30.0, 0.4088681199283330836787},
+        {0x1.e8ee23b88ee23p-1, 1000.0, 30.0, 0.00363057626266943242808},
+        {0x1.f84f613d84f61p-1, 1000.0, 30.0, 0.9993978288739856552961},
+        {0x1.ec27b09ec27c0p-6, 30.0, 1000.0, 0.5911318800716588558128},
+        {0x1.fffeb02079aafp-1, 100000.0, kTinyB, 0.0002192479881525252717913},
+        {0x1.fffeb02079aaep-1, 100000.0, kTinyB, 0.0002192479881484466100974},
+        {0x1.fffe0830b6806p-1, 100000.0, kTinyB, 0.00009993379134364119948358},
+        {0x1.ffff58103cd58p-1, 100000.0, kTinyB, 0.0005594742908839788829199},
+        {0x1.4fdf865510000p-17, kTinyB, 100000.0, 0.9997807520118474747282},
+        {0x1.fffeb02079aafp-1, 100000.0, 0.001, 0.0002192479881525253193817},
+        {0x1.fffeb02079aaep-1, 100000.0, 0.001, 0.0002192479881484466576879},
+        {0x1.fffe0830b6806p-1, 100000.0, 0.001, 0.00009993379134364122118214},
+        {0x1.ffff58103cd58p-1, 100000.0, 0.001, 0.0005594742908839790043},
+        {0x1.4fdf865510000p-17, 0.001, 100000.0, 0.9997807520118474746806},
+        {0x1.fffe08b233c7ap-1, 100000.0, 0.5, 0.08326760027381212000246},
+        {0x1.fffe08b233c79p-1, 100000.0, 0.5, 0.08326760027267089641023},
+        {0x1.fffd0d0b4dab7p-1, 100000.0, 0.5, 0.03389630299547638468535},
+        {0x1.ffff045919e3dp-1, 100000.0, 0.5, 0.2206768433700350004482},
+        {0x1.f74dcc3860000p-17, 0.5, 100000.0, 0.9167323997261878799975},
+        {0x1.ffd76174201a3p-1, 100000.0, 30.0, 0.4046950475916362780844},
+        {0x1.ffd76174201a2p-1, 100000.0, 30.0, 0.4046950475908681272086},
+        {0x1.ffc3122e30274p-1, 100000.0, 30.0, 0.004045849780099099952568},
+        {0x1.ffebb0ba100d2p-1, 100000.0, 30.0, 0.9993024616137355393467},
+        {0x1.44f45eff2e800p-12, 30.0, 100000.0, 0.5953049524083637219156},
+        {0x1.ffffde697e203p-1, 1000000.0, kTinyB, 0.0002192413690733307465408},
+        {0x1.ffffde697e202p-1, 1000000.0, kTinyB, 0.0002192413690325457819616},
+        {0x1.ffffcd9e3d304p-1, 1000000.0, kTinyB, 0.0000999302793149507268749},
+        {0x1.ffffef34bf102p-1, 1000000.0, kTinyB, 0.0005594620148811916133412},
+        {0x1.0cb40efe80000p-20, kTinyB, 1000000.0, 0.9997807586309266692535},
+        {0x1.ffffde697e203p-1, 1000000.0, 0.001, 0.0002192413690733307941298},
+        {0x1.ffffde697e202p-1, 1000000.0, 0.001, 0.0002192413690325458295506},
+        {0x1.ffffcd9e3d304p-1, 1000000.0, 0.001, 0.00009993027931495074857271},
+        {0x1.ffffef34bf102p-1, 1000000.0, 0.001, 0.0005594620148811917347187},
+        {0x1.0cb40efe80000p-20, 0.001, 1000000.0, 0.9997807586309266692059},
+        {0x1.ffffcdab215cfp-1, 1000000.0, 0.5, 0.0832648250265163436823},
+        {0x1.ffffcdab215cep-1, 1000000.0, 0.5, 0.0832648250151046469655},
+        {0x1.ffffb480b20b6p-1, 1000000.0, 0.5, 0.03389499847017054427593},
+        {0x1.ffffe6d590ae8p-1, 1000000.0, 0.5, 0.2206719100887263947893},
+        {0x1.92a6f51880000p-20, 0.5, 1000000.0, 0.9167351749734836563177},
+        {0x1.fffbefd88c707p-1, 1000000.0, 30.0, 0.4046564665509220220411},
+        {0x1.fffbefd88c706p-1, 1000000.0, 30.0, 0.4046564665432439339764},
+        {0x1.fff9e7c4d2a8ap-1, 1000000.0, 30.0, 0.004049794865869385974957},
+        {0x1.fffdf7ec46384p-1, 1000000.0, 30.0, 0.9993015182432069560378},
+        {0x1.0409dce3e4000p-15, 30.0, 1000000.0, 0.5953435334490779779589},
+        {0x1.ff7ceda292179p-1, 1000000.0, 1000.0, 0.4832137490019648379176},
+        {0x1.ff7ceda292178p-1, 1000000.0, 1000.0, 0.4832137490005643283106},
+        {0x1.0624badbd0e00p-10, 1000.0, 1000000.0, 0.5167862509980351620824},
+        {0x1.ff7ced916872bp-2, 100000.0, 100000.0, 0.3273605844434160361667},
+        {0x1.004189374bc6ap-1, 100000.0, 100000.0, 0.6726394155565660410392},
+        {0x1.ff7ced916872bp-2, 1000000.0, 1000000.0, 0.07864957758090163149818},
+        {0x1.d1743e963dc48p-1, 1000000.0, 100000.0, 0.4983160107012059572908},
+    };
+    constexpr double kBudget = 128.0 * kEps;
+    for (const auto& r : rows) {
+        const double got = detail::beta_i(r.x, r.a, r.b);
+        const bool complement =
+            std::min(r.a, r.b) >= 1e-3 && r.x >= (r.a + 1.0) / (r.a + r.b + 2.0);
+        const double allowance =
+            complement ? kBudget * std::max(1.0, (1.0 - r.ref) / r.ref) : kBudget;
+        EXPECT_LE(std::fabs(got - r.ref), allowance * r.ref)
+            << "I_x(" << r.a << ", " << r.b << ") at x = " << r.x << ": " << got << ", want "
+            << r.ref << " (rel " << std::fabs(got - r.ref) / r.ref << " = "
+            << std::fabs(got - r.ref) / r.ref / kEps << " eps)";
+    }
+}
+
 TEST(BetaQuantileAccuracy, Edges) {
     const auto d = BetaDistribution::create(2.0, 3.0).unwrap();
     EXPECT_EQ(d.getQuantile(0.0), 0.0);

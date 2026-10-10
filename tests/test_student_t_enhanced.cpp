@@ -142,6 +142,21 @@ TEST_F(StudentTEnhancedTest, MLEFit) {
     EXPECT_LT(fitted.getNu(), 15.0);
 }
 
+// F1: the Newton step in ν was capped upward but not downward, so from the ν = 5 start on data
+// with ν ≤ 2 the first step landed on the 0.1 floor and the fit returned 0.1 for ν = 0.5, 1,
+// 1.5, 2. The MLE at these ν exists and is close to the truth at n = 20000; the bound is
+// generous (the replicate SE at ν = 1 is ~0.02) but two-sided, and 0.1 fails it at every row.
+TEST_F(StudentTEnhancedTest, MLEFitRecoversHeavyTails) {
+    for (double nu : {0.5, 1.0, 1.5, 2.0, 3.0, 30.0}) {
+        mt19937 rng(7);
+        auto source = StudentTDistribution::create(nu).unwrap();
+        const auto data = source.sample(rng, 20000);
+        auto fitted = StudentTDistribution::create(1.0).unwrap();
+        fitted.fit(data);
+        EXPECT_NEAR(fitted.getNu(), nu, 0.15 * nu) << "fit at nu = " << nu;
+    }
+}
+
 TEST_F(StudentTEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(StudentTDistribution::create(0.0).isError());
     EXPECT_TRUE(StudentTDistribution::create(-1.0).isError());

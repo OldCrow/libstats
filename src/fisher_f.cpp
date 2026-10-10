@@ -370,29 +370,50 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
 // output lands there, so quantile→cdf did not close). That band switches to
 // the algebraically identical
 //   y = x/(x + d2/d1),  ybar = (d2/d1)/(x + d2/d1)
-// where x enters exactly. If d2/d1 itself overflows, y underflows to 0 in
-// every form, so the pre-switch result is restored. Returns false when
-// d1·x + d2 overflows: y is 1 to every bit available.
-static inline bool f_beta_args(double x, double d1, double d2, double& y, double& ybar) noexcept {
+// where x enters exactly. The same form serves when d1·x overflows, where
+// the old code returned "y is 1 to every bit available" although ybar is
+// still representable: F(5, 0.001)'s survival at DBL_MAX is 0.30, not 0.
+// If d2/d1 itself is out of range, the ratio r = d2/(d1·x) is formed as
+// (d2/x)/d1 instead, y = 1/(1 + r), ybar = r/(1 + r). Where the smaller of
+// y and ybar leaves the normal range (subnormal, too few bits for z^s, or 0),
+// `extreme` is set and log_r = log d2 − log d1 − log x carries the argument
+// instead: there the incomplete beta is its leading term z^s/(s·B(a, b)) with
+// z = min(y, ybar) < DBL_MIN, to a relative O(z·(a + b)).
+struct FBetaArgs {
+    double y, ybar;  // when !extreme
+    double log_r;    // log(d2/(d1·x)), when extreme
+    bool extreme;
+};
+
+static inline FBetaArgs f_beta_args(double x, double d1, double d2) noexcept {
+    FBetaArgs r{};
     const double dx = d1 * x;
-    if (!std::isfinite(dx + d2))
-        return false;
-    if (dx >= std::numeric_limits<double>::min()) {
-        const double denom = dx + d2;
-        y = dx / denom;
-        ybar = d2 / denom;
+    const double denom = dx + d2;
+    if (dx >= std::numeric_limits<double>::min() && std::isfinite(denom)) {
+        r.y = dx / denom;
+        r.ybar = d2 / denom;
+    } else if (const double c = d2 / d1; c >= std::numeric_limits<double>::min() &&
+                                         std::isfinite(c) && std::isfinite(x + c)) {
+        r.y = x / (x + c);
+        r.ybar = c / (x + c);
     } else {
-        const double c = d2 / d1;
-        if (std::isfinite(c)) {
-            const double denom = x + c;
-            y = x / denom;
-            ybar = c / denom;
-        } else {
-            y = detail::ZERO_DOUBLE;
-            ybar = detail::ONE;
-        }
+        const double ratio = (d2 / x) / d1;
+        r.y = detail::ONE / (detail::ONE + ratio);
+        r.ybar = ratio / (detail::ONE + ratio);
     }
-    return true;
+    if (std::min(r.y, r.ybar) >= std::numeric_limits<double>::min())
+        return r;
+    r.extreme = true;
+    r.log_r = std::log(d2) - std::log(d1) - std::log(x);
+    return r;
+}
+
+// The survival (log_r < 0, the upper tail) or the CDF (log_r > 0, the lower
+// tail) where the beta argument is below DBL_MIN: the leading term of
+// I_z(s, ·), z^s/(s·B(a, b)), with log z = −|log_r|.
+static inline double f_extreme_small_side(double log_r, double a, double b) noexcept {
+    const double s = log_r < detail::ZERO_DOUBLE ? b : a;
+    return std::exp(-s * std::fabs(log_r) - std::log(s) - detail::lbeta(a, b));
 }
 
 double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2,
@@ -404,15 +425,17 @@ double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2
     if (x == kInf)
         return detail::ONE;
 
-    double y, ybar;
-    if (!f_beta_args(x, d1, d2, y, ybar))
-        return detail::ONE;  // d1*x overflowed: y is 1 to every bit available
+    const FBetaArgs args = f_beta_args(x, d1, d2);
+    if (args.extreme) {
+        const double small = f_extreme_small_side(args.log_r, a, b);
+        return args.log_r > detail::ZERO_DOUBLE ? small : detail::ONE - small;
+    }
 
     const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
 
-    if (y < switch_point)
-        return detail::beta_i(y, a, b, log_beta_prefix);
-    return detail::ONE - detail::beta_i(ybar, b, a, log_beta_prefix);
+    if (args.y < switch_point)
+        return detail::beta_i(args.y, a, b, log_beta_prefix);
+    return detail::ONE - detail::beta_i(args.ybar, b, a, log_beta_prefix);
 }
 
 // Survival function, complement-native: I_ybar(b,a) is computed, never
@@ -427,17 +450,19 @@ double FDistribution::sfImpl(double x, double a, double b, double d1, double d2,
     if (x == kInf)
         return detail::ZERO_DOUBLE;
 
-    double y, ybar;
-    if (!f_beta_args(x, d1, d2, y, ybar))
-        return detail::ZERO_DOUBLE;
+    const FBetaArgs args = f_beta_args(x, d1, d2);
+    if (args.extreme) {
+        const double small = f_extreme_small_side(args.log_r, a, b);
+        return args.log_r < detail::ZERO_DOUBLE ? small : detail::ONE - small;
+    }
 
     const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
 
     // Mirror of cdfImpl: whichever argument is on its small side is the one
     // handed to beta_i; only the branch that is already accurate is complemented.
-    if (y < switch_point)
-        return detail::ONE - detail::beta_i(y, a, b, log_beta_prefix);
-    return detail::beta_i(ybar, b, a, log_beta_prefix);
+    if (args.y < switch_point)
+        return detail::ONE - detail::beta_i(args.y, a, b, log_beta_prefix);
+    return detail::beta_i(args.ybar, b, a, log_beta_prefix);
 }
 
 double FDistribution::getProbability(double x) const {
@@ -542,40 +567,119 @@ double FDistribution::getQuantile(double p) const {
     return std::exp(detail::HALF * (lo + hi));
 }
 
+namespace {
+// X = (d2/d1)·G₁/G₂ with G₁ ~ Gamma(d1/2, 1), G₂ ~ Gamma(d2/2, 1), the variates held as logs
+// (Marsaglia–Tsang on s or s + 1, the s < 1 boost added as log U / s, as BetaDistribution's
+// sampler does, #228) so that the ratio is exp(log G₁ − log G₂ + log d2 − log d1): +inf only
+// where the draw itself exceeds DBL_MAX. The Beta-delegate transform (d2/d1)·Y/(1 − Y) this
+// replaced rounded Y to 1 — and the draw to +inf — for 98% of the draws at F(5, 0.001), where
+// 30% exceed DBL_MAX, and could never return a draw above (d2/d1)·2^53 at any d2. Two shapes
+// both ≥ 1 draw std::gamma_distribution directly: no underflow is possible there, and the
+// stream consumes the RNG exactly as the Beta delegate did.
+struct LogGammaRatioSampler {
+    std::normal_distribution<double> normal{detail::ZERO_DOUBLE, detail::ONE};
+    std::uniform_real_distribution<double> uniform{detail::ZERO_DOUBLE, detail::ONE};
+    // The boost uniform is drawn on [DBL_MIN, 1) so its log is finite.
+    std::uniform_real_distribution<double> boost{std::numeric_limits<double>::min(), detail::ONE};
+
+    // log of a Gamma(shape, 1) variate.
+    double logGamma(std::mt19937& rng, double shape) {
+        const bool boosted = shape < detail::ONE;
+        const double d = (boosted ? shape + detail::ONE : shape) - detail::ONE / detail::THREE;
+        const double c = detail::ONE / std::sqrt(detail::NINE * d);
+        double v;
+        while (true) {
+            double x;
+            do {
+                x = normal(rng);
+                v = detail::ONE + c * x;
+            } while (v <= detail::ZERO_DOUBLE);
+            v = v * v * v;
+            const double u = uniform(rng);
+            const double x2 = x * x;
+            if (u < detail::ONE - 0.0331 * x2 * x2)
+                break;
+            if (std::log(u) < detail::HALF * x2 + d * (detail::ONE - v + std::log(v)))
+                break;
+        }
+        double log_g = std::log(d * v);
+        if (boosted)
+            log_g += std::log(boost(rng)) / shape;
+        return log_g;
+    }
+
+    // One F(d1, d2) draw from the log variates; log_scale = log d2 − log d1.
+    double draw(std::mt19937& rng, double a, double b, double log_scale) {
+        const double dl = logGamma(rng, a) - logGamma(rng, b);
+        if (std::isnan(dl)) {
+            // Both −∞: shapes below ~1e-308, where even log U / shape overflows. The limit of
+            // the Beta(a, b) ratio is the two-point law P(Y = 1) = a/(a + b): X = +inf there.
+            return uniform(rng) * (a + b) < a ? kInf : detail::ZERO_DOUBLE;
+        }
+        return std::exp(dl + log_scale);
+    }
+};
+}  // namespace
+
+// One draw. gamma_a/gamma_b are the direct std::gamma_distribution pair when both shapes are
+// ≥ 1, null otherwise.
+static double f_sample_one(std::mt19937& rng, double d1, double d2, double a, double b,
+                           std::gamma_distribution<double>* gamma_a,
+                           std::gamma_distribution<double>* gamma_b, LogGammaRatioSampler& g) {
+    const double log_scale = std::log(d2) - std::log(d1);
+    if (gamma_a) {
+        const double x = (*gamma_a)(rng);
+        const double y = (*gamma_b)(rng);
+        if (x > detail::ZERO_DOUBLE && y > detail::ZERO_DOUBLE) {
+            const double v = (x / y) * (d2 / d1);
+            if (std::isfinite(v) && v > detail::ZERO_DOUBLE)
+                return v;
+            return std::exp(std::log(x) - std::log(y) + log_scale);  // d2/d1 or x/y out of range
+        }
+        // A shape of exactly 1 can draw 0: fall through to the log construction.
+    }
+    return g.draw(rng, a, b, log_scale);
+}
+
 double FDistribution::sample(std::mt19937& rng) const {
-    // Y ~ Beta(d1/2, d2/2)  =>  X = (d2/d1) Y/(1-Y) ~ F(d1,d2).
-    // The 1-Y here is unavoidable (the delegate hands back Y, not its
-    // complement), so a draw in the extreme upper tail is resolution-limited.
-    // That is a property of the sampled value, not of a precision contract:
-    // the probability functions never go through this transform.
-    double d1, d2;
+    double d1, d2, a, b;
     withCacheSnapshot([&] {
         d1 = d1_;
         d2 = d2_;
+        a = a_;
+        b = b_;
     });
-    const double y = beta_.sample(rng);
-    if (y >= detail::ONE)
-        return kInf;
-    return (d2 / d1) * y / (detail::ONE - y);
+    LogGammaRatioSampler g;
+    if (a >= detail::ONE && b >= detail::ONE) {
+        std::gamma_distribution<double> gamma_a(a, detail::ONE);
+        std::gamma_distribution<double> gamma_b(b, detail::ONE);
+        return f_sample_one(rng, d1, d2, a, b, &gamma_a, &gamma_b, g);
+    }
+    return f_sample_one(rng, d1, d2, a, b, nullptr, nullptr, g);
 }
 
 std::vector<double> FDistribution::sample(std::mt19937& rng, size_t n) const {
-    // One state per call: snapshot d1, d2 and a copy of the delegate under this object's lock
-    // (owner, then delegate) and draw all n from them. Looping the scalar sample mixed states
-    // under a setter (#186).
-    double d1, d2;
-    std::optional<BetaDistribution> beta;
+    // One state per call: snapshot the parameters under this object's lock and draw all n from
+    // them. Looping the scalar sample mixed states under a setter (#186).
+    double d1, d2, a, b;
     withCacheSnapshot([&] {
         d1 = d1_;
         d2 = d2_;
-        beta.emplace(beta_);
+        a = a_;
+        b = b_;
     });
     std::vector<double> out;
     out.reserve(n);
-    for (size_t i = 0; i < n; ++i) {
-        const double y = beta->sample(rng);
-        out.push_back(y >= detail::ONE ? kInf : (d2 / d1) * y / (detail::ONE - y));
+    LogGammaRatioSampler g;
+    if (a >= detail::ONE && b >= detail::ONE) {
+        std::gamma_distribution<double> gamma_a(a, detail::ONE);
+        std::gamma_distribution<double> gamma_b(b, detail::ONE);
+        for (size_t i = 0; i < n; ++i)
+            out.push_back(f_sample_one(rng, d1, d2, a, b, &gamma_a, &gamma_b, g));
+        return out;
     }
+    for (size_t i = 0; i < n; ++i)
+        out.push_back(f_sample_one(rng, d1, d2, a, b, nullptr, nullptr, g));
     return out;
 }
 

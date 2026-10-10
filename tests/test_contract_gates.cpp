@@ -6,8 +6,13 @@
 #define LIBSTATS_FULL_INTERFACE
 #include "libstats/libstats.h"
 
+#include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <gtest/gtest.h>
@@ -20,6 +25,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace stats;
@@ -37,6 +43,49 @@ std::uint64_t bitsOf(double v) {
     std::uint64_t u;
     std::memcpy(&u, &v, sizeof u);
     return u;
+}
+
+// One-sample Kolmogorov-Smirnov on u = F(x), with Stephens' finite-n correction on the
+// asymptotic Kolmogorov survival. Returns the p-value.
+double ksPValue(std::vector<double> u) {
+    std::sort(u.begin(), u.end());
+    const double n = static_cast<double>(u.size());
+    double D = 0.0;
+    for (std::size_t i = 0; i < u.size(); ++i) {
+        const double i0 = static_cast<double>(i);
+        D = std::max(D, std::max(u[i] - i0 / n, (i0 + 1.0) / n - u[i]));
+    }
+    const double lam = D * (std::sqrt(n) + 0.12 + 0.11 / std::sqrt(n));
+    if (lam < 1e-3)
+        return 1.0;
+    double s = 0.0;
+    for (int k = 1; k < 200; ++k) {
+        const double t = 2.0 * ((k % 2) ? 1.0 : -1.0) * std::exp(-2.0 * k * k * lam * lam);
+        s += t;
+        if (std::fabs(t) < 1e-18)
+            break;
+    }
+    return std::min(1.0, std::max(0.0, s));
+}
+
+// Runs fn on a worker thread; if it has not returned within `seconds`, the defect under
+// test is a hang (DH2 S1), which no assertion can report, so the process exits non-zero.
+// The worker is left running: _Exit skips the destructors it would otherwise race.
+template <typename Fn>
+void runOrHang(Fn&& fn, int seconds, const char* what) {
+    std::atomic<bool> done{false};
+    std::thread worker([&] {
+        fn();
+        done.store(true, std::memory_order_release);
+    });
+    for (int i = 0; i < seconds * 100 && !done.load(std::memory_order_acquire); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    if (!done.load(std::memory_order_acquire)) {
+        std::fprintf(stderr, "HANG: %s did not return within %d s\n", what, seconds);
+        std::fflush(stderr);
+        std::_Exit(3);
+    }
+    worker.join();
 }
 
 }  // namespace
@@ -967,4 +1016,251 @@ TEST(ContractGates, F22_GammaCdfOneWhereRateTimesXOverflows) {
         EXPECT_EQ(eout[0], 1.0) << static_cast<int>(s);
         EXPECT_EQ(eout[2], 1.0) << static_cast<int>(s);  // 1e300 * 1 = 1e300: Q(1, 1e300) = 0
     }
+}
+
+//==============================================================================
+// DH2 S1: von Mises sample() never returned for kappa in [1e-9, ~1.5e-8). The Best-Fisher
+// constants were formed as rho = (tau - sqrt(2 tau)) / (2 kappa) with tau = 1 + sqrt(1 + 4
+// kappa^2), which is 2 - 2 = 0 exactly once 4 kappa^2 < epsilon: r = +inf, the acceptance test
+// compared NaN, and the rejection loop never accepted. Just above, rho carried only a few bits and
+// the draws were biased. Both overloads. Now rho = 2 kappa / (tau + sqrt(2 tau)) (no cancellation),
+// so every kappa terminates and the draws follow the library CDF.
+//
+// Fixed seed. KS of u = F(x) at 6 kappa x 2 overloads = 12 tests, rejected at p < 1e-4: a
+// false alarm once in ~800 runs of the suite if the sampler is right.
+//==============================================================================
+
+TEST(ContractGates, DH2_S1_VonMisesSamplerTerminatesAndFollowsCdf) {
+    for (const double kappa : {1e-12, 1e-9, 1e-8, 1e-6, 1e-3, 1.0}) {
+        const VonMisesDistribution v(0.3, kappa);
+        std::vector<double> xs, xv;
+        runOrHang(
+            [&] {
+                std::mt19937 rng(20261009);
+                xs.reserve(4000);
+                for (int i = 0; i < 4000; ++i)
+                    xs.push_back(v.sample(rng));
+                xv = v.sample(rng, 4000);
+            },
+            20, "VonMises sample at tiny kappa");
+        for (const auto* draws : {&xs, &xv}) {
+            ASSERT_EQ(draws->size(), 4000u);
+            std::vector<double> u;
+            u.reserve(draws->size());
+            for (const double x : *draws) {
+                ASSERT_TRUE(std::isfinite(x)) << kappa;
+                ASSERT_GT(x, -kPi) << kappa;
+                ASSERT_LE(x, kPi) << kappa;
+                u.push_back(v.getCumulativeProbability(x));
+            }
+            EXPECT_GT(ksPValue(u), 1e-4)
+                << "kappa " << kappa << (draws == &xs ? " scalar" : " vector");
+        }
+    }
+}
+
+//==============================================================================
+// DH2 M1: von Mises getEntropy() had both signs wrong, in the code and in the header formula:
+// log(2 pi) - log I0(kappa) + kappa I1/I0. The entropy is log(2 pi I0(kappa)) - kappa I1/I0.
+// kappa = 1 returned 2.0484 (true 1.6274), kappa = 100 returned 4.557 (true -0.881); only
+// kappa -> 0 agreed. References: mpmath, dps 50.
+//==============================================================================
+
+TEST(ContractGates, DH2_M1_VonMisesEntropy) {
+    struct Row {
+        double kappa, h, tol;
+    };
+    // Tolerance: the Tier 2 (A&S 9.8) Bessel polynomials carry ~2e-7 relative in I0 and I1,
+    // so log I0 and kappa * A(kappa) inherit it below the asymptotic cut (kappa < 50); from
+    // the cut the scaled asymptotic series are accurate to double on both tiers.
+    for (const Row& r :
+         {Row{0.01, 1.8378520668780868, 1e-6}, Row{0.5, 1.7781769793044258, 1e-6},
+          Row{1.0, 1.6274014590199896, 1e-6}, Row{10.0, 0.29485088997958145, 5e-6},
+          Row{100.0, -0.88112754416494736, 1e-9}, Row{700.0, -1.8562441080454707, 1e-9},
+          Row{1e4, -3.1862066509081582, 1e-9}, Row{1e6, -5.4888164957772768, 1e-9},
+          Row{1e8, -7.7914018362715100, 1e-9}}) {
+        const VonMisesDistribution v(0.0, r.kappa);
+        EXPECT_NEAR(v.getEntropy(), r.h, r.tol) << r.kappa;
+    }
+    EXPECT_EQ(VonMisesDistribution(0.0, 0.0).getEntropy(), detail::LN_2PI);
+}
+
+//==============================================================================
+// DH2 M2: Gamma getEntropy() formed alpha - log beta + lgamma(alpha) + (1 - alpha) psi(alpha)
+// directly, which cancels at alpha ln alpha: 7.5e-7 relative at 1e10, 15.238 for 15.2344 at
+// 1e12, -64 for 19.84 at 1e16, 0 at 1e20; ChiSquared(1e17) gave 0 for 21.34. Alpha >= 100
+// now takes the Stirling form 1/2 log(2 pi e alpha) - 1/(3 alpha) - ... - log beta.
+// ChiSquared and Erlang delegate. References: mpmath, dps 50.
+//==============================================================================
+
+TEST(ContractGates, DH2_M2_GammaEntropyLargeShape) {
+    struct Row {
+        double alpha, h;
+    };
+    for (const Row& r :
+         {Row{20.0, 2.8999283345986621}, Row{50.0, 3.3682499483781684},
+          Row{100.0, 3.7181819485047462}, Row{1e3, 4.8724827560179718},
+          Row{1e4, 6.0240753850260863}, Row{1e6, 8.3266934788533931}, Row{1e8, 10.629278901847522},
+          Row{1e10, 12.931863998141568}, Row{1e12, 15.234449091168614},
+          Row{1e16, 19.839619277157038}, Row{1e20, 24.44478946314513}}) {
+        // Below the switch the direct form is unchanged and carries ~alpha log alpha eps.
+        const double tol = r.alpha < 100.0 ? 1e-11 : 2e-12;
+        EXPECT_NEAR(GammaDistribution(r.alpha, 1.0).getEntropy(), r.h, tol) << r.alpha;
+        // - log beta is additive: beta = 4 shifts by -log 4.
+        EXPECT_NEAR(GammaDistribution(r.alpha, 4.0).getEntropy(), r.h - std::log(4.0), tol)
+            << r.alpha;
+    }
+    EXPECT_NEAR(ChiSquaredDistribution(1e17).getEntropy(), 21.337485413934034, 2e-12);
+    EXPECT_NEAR(ErlangDistribution(1000000, 2.0).getEntropy(), 8.3266934788533931 - std::log(2.0),
+                2e-12);
+    // The series' own tail: 1e300 is 1/2 log(2 pi e alpha) to double.
+    EXPECT_NEAR(GammaDistribution(1e300, 1.0).getEntropy(),
+                0.5 * std::log(2.0 * kPi * std::exp(1.0)) + 0.5 * std::log(1e300), 1e-12);
+}
+
+//==============================================================================
+// DH2 F2: Weibull fit was not scale-invariant. The method-of-moments seed used sum(x^2), the
+// Newton iterate exp(k log x) underflowed or overflowed with the scale, and lambda was
+// bounded by MAX_DISTRIBUTION_PARAMETER: Weibull(3, 1e-50) data fitted (1, 1) silently (the
+// reset defaults, the #207 class), Weibull(3, 1e30) data threw. Now the seed comes from the
+// variance of log x and the sums are formed on x / max(x), so the fit is invariant to the
+// data scale across the finite range; constant data throws.
+//==============================================================================
+
+TEST(ContractGates, DH2_F2_WeibullFitScaleInvariant) {
+    std::mt19937 rng(42);
+    const WeibullDistribution truth(3.0, 1.0);
+    const std::vector<double> base = truth.sample(rng, 2000);
+    WeibullDistribution ref(1.0, 1.0);
+    ref.fit(base);
+    EXPECT_NEAR(ref.getShape(), 3.0, 0.15);
+    EXPECT_NEAR(ref.getScale(), 1.0, 0.03);
+    for (const double s : {1e-300, 1e-100, 1e-30, 1e-7, 1e7, 1e30, 1e100, 1e300}) {
+        std::vector<double> scaled(base.size());
+        for (std::size_t i = 0; i < base.size(); ++i)
+            scaled[i] = base[i] * s;
+        WeibullDistribution f(1.0, 1.0);
+        ASSERT_NO_THROW(f.fit(scaled)) << s;
+        EXPECT_LT(relErr(f.getShape(), ref.getShape()), 1e-9) << s;
+        EXPECT_LT(relErr(f.getScale(), ref.getScale() * s), 1e-9) << s;
+    }
+    // Constant data: the shape is undefined. An exception, never a silent default.
+    WeibullDistribution c(2.0, 5.0);
+    EXPECT_THROW(c.fit(std::vector<double>(50, 2.5)), std::invalid_argument);
+    EXPECT_EQ(c.getShape(), 2.0);
+    EXPECT_EQ(c.getScale(), 5.0);
+}
+
+//==============================================================================
+// DH2 S2: Uniform(-1e308, 1e308) is a valid instance whose width b - a overflows. sample()
+// returned +inf (a + U (b - a)), getEntropy() +inf, the quantile +inf, the CDF 0 everywhere
+// (1 / inf = 0 as the cached 1/width) and the log-density -inf. Everything width-dependent is
+// now formed from the half-width b/2 - a/2, which cannot overflow; at ordinary widths the
+// results are bit-identical (halving and doubling are exact).
+//==============================================================================
+
+TEST(ContractGates, DH2_S2_UniformWidthOverflow) {
+    const UniformDistribution u(-1e308, 1e308);
+    std::mt19937 rng(7);
+    for (int i = 0; i < 1000; ++i) {
+        const double x = u.sample(rng);
+        ASSERT_TRUE(std::isfinite(x)) << i;
+        ASSERT_GE(x, -1e308);
+        ASSERT_LE(x, 1e308);
+    }
+    const auto xs = u.sample(rng, 1000);
+    for (const double x : xs) {
+        ASSERT_TRUE(std::isfinite(x));
+        ASSERT_GE(x, -1e308);
+        ASSERT_LE(x, 1e308);
+    }
+    EXPECT_NEAR(u.getEntropy(), 709.88935582272602, 1e-12);  // log(2e308), mpmath
+    EXPECT_EQ(u.getCumulativeProbability(0.0), 0.5);
+    EXPECT_EQ(u.getCumulativeProbability(5e307), 0.75);
+    EXPECT_EQ(u.getQuantile(0.75), 5e307);
+    EXPECT_EQ(u.getQuantile(0.5), 0.0);
+    EXPECT_LT(relErr(u.getProbability(0.0), 5e-309), 1e-10);  // subnormal, representable
+    EXPECT_NEAR(u.getLogProbability(0.0), -709.88935582272602, 1e-12);
+    EXPECT_EQ(u.getMean(), 0.0);
+    EXPECT_EQ(u.getMedian(), 0.0);
+    // Batch CDF under every strategy: the linear form must not overflow at x - a.
+    std::vector<double> in(69, 5e307), out(69, -1.0);
+    in[1] = -1e308;
+    in[2] = 1e308;
+    using PS = detail::PerformanceHint::PreferredStrategy;
+    for (PS s : {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL}) {
+        u.getCumulativeProbability(std::span<const double>(in), std::span<double>(out),
+                                   detail::PerformanceHint{s, std::nullopt});
+        EXPECT_EQ(out[0], 0.75) << static_cast<int>(s);
+        EXPECT_EQ(out[1], 0.0) << static_cast<int>(s);
+        EXPECT_EQ(out[2], 1.0) << static_cast<int>(s);
+        EXPECT_EQ(out[68], 0.75) << static_cast<int>(s);
+        u.getLogProbability(std::span<const double>(in), std::span<double>(out),
+                            detail::PerformanceHint{s, std::nullopt});
+        EXPECT_NEAR(out[0], -709.88935582272602, 1e-12) << static_cast<int>(s);
+    }
+    // Ordinary widths: the half-width form reproduces the direct one exactly.
+    const UniformDistribution o(-3.0, 7.5);
+    EXPECT_EQ(o.getCumulativeProbability(1.2), (1.2 - (-3.0)) * (1.0 / 10.5));
+    EXPECT_EQ(o.getQuantile(0.3), -3.0 + 0.3 * 10.5);
+    EXPECT_EQ(o.getEntropy(), std::log(10.5));
+}
+
+//==============================================================================
+// #216 class (DH2): a CDF argument formed as x * rate, rate / x or x / x_m before the special
+// function under- or overflowed where the mass is not small. Gamma(0.005, 0.5).cdf(5e-324)
+// returned 0 (mass 0.0242; ChiSquared(0.01) is the same instance), Gamma(0.01, 0.01) 0 for
+// 5.6e-4, InverseGamma(0.01, 1e-20).cdf(1e308) 1 for 0.99947 (beta / x underflowed to 0),
+// Pareto(1e-6, 0.01).cdf(1e303) 1 for 0.99919 ((x - x_m) / x_m overflowed to +inf). The
+// arguments are now taken in log space where they leave the normal range. References:
+// mpmath, dps 50. Weibull, LogNormal, Exponential, Erlang, Rayleigh were checked and do not
+// carry the pattern (log-space already, or the true mass is itself below DBL_MIN).
+//==============================================================================
+
+TEST(ContractGates, DH2_Issue216_CdfArgumentUnderOverflow) {
+    constexpr double kDenormMin = std::numeric_limits<double>::denorm_min();
+    constexpr double kMax = std::numeric_limits<double>::max();
+    using PS = detail::PerformanceHint::PreferredStrategy;
+    const auto batchAll = [](const auto& d, double x, double want, double tol, const char* who) {
+        std::vector<double> xs(69, x), out(69, -1.0);
+        xs[3] = 1.0;  // an ordinary element among the extreme ones
+        for (PS s : {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL}) {
+            d.getCumulativeProbability(std::span<const double>(xs), std::span<double>(out),
+                                       detail::PerformanceHint{s, std::nullopt});
+            EXPECT_LT(relErr(out[0], want), tol) << who << " strategy " << static_cast<int>(s);
+            EXPECT_LT(relErr(out[68], want), tol) << who << " strategy " << static_cast<int>(s);
+            // The ordinary element agrees with the scalar path to the vector kernels' ulp.
+            EXPECT_LT(relErr(out[3], d.getCumulativeProbability(1.0)), 1e-14) << who;
+        }
+    };
+
+    const GammaDistribution g1(0.005, 0.5);
+    EXPECT_LT(relErr(g1.getCumulativeProbability(kDenormMin), 0.0241661948617129), 1e-13);
+    batchAll(g1, kDenormMin, 0.0241661948617129, 1e-13, "Gamma(0.005,0.5)");
+    const GammaDistribution g2(0.01, 0.01);
+    EXPECT_LT(relErr(g2.getCumulativeProbability(kDenormMin), 5.6157674581888378e-4), 1e-13);
+    const GammaDistribution g3(0.5, 0.5);
+    EXPECT_LT(relErr(g3.getCumulativeProbability(kDenormMin), 1.7735048886036273e-162), 1e-13);
+    EXPECT_LT(relErr(g3.getCumulativeProbability(1e-300), 7.9788456080286536e-151), 1e-13);
+    const GammaDistribution g4(1e-3, 1e-3);
+    EXPECT_LT(relErr(g4.getCumulativeProbability(1e-310), 0.48668764850593823), 1e-13);
+    EXPECT_LT(relErr(ChiSquaredDistribution(0.01).getCumulativeProbability(kDenormMin),
+                     0.0241661948617129),
+              1e-13);
+    // Unchanged where the argument is normal: rate 1 at the same x was already right.
+    EXPECT_LT(relErr(GammaDistribution(0.005, 1.0).getCumulativeProbability(kDenormMin),
+                     0.024250093812704406),
+              1e-12);
+
+    const InverseGammaDistribution ig(0.01, 1e-20);
+    EXPECT_LT(relErr(ig.getCumulativeProbability(1e308), 0.9994721977110211), 1e-13);
+    EXPECT_LT(relErr(ig.getSurvivalProbability(1e308), 5.2780228897890254e-4), 1e-13);
+    batchAll(ig, 1e308, 0.9994721977110211, 1e-13, "InverseGamma(0.01,1e-20)");
+
+    const ParetoDistribution pa(1e-6, 0.01);
+    EXPECT_LT(relErr(pa.getCumulativeProbability(1e303), 0.9991871694838359), 1e-13);
+    EXPECT_LT(relErr(pa.getCumulativeProbability(kMax), 0.99927980045211548), 1e-13);
+    EXPECT_LT(relErr(pa.getSurvival(kMax), 7.2019954788452102e-4), 1e-13);
+    batchAll(pa, 1e303, 0.9991871694838359, 1e-13, "Pareto(1e-6,0.01)");
+    batchAll(pa, kMax, 0.99927980045211548, 1e-13, "Pareto(1e-6,0.01)");
 }

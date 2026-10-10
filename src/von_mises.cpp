@@ -20,6 +20,7 @@ using stats::detail::validatePositiveParameter;
 #include <random>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace stats {
@@ -1111,6 +1112,34 @@ double VonMisesDistribution::getQuantile(double p) const {
     return wrapAngle(t + mu);
 }
 
+namespace {
+
+/// Below this κ the sampler draws uniformly on the circle. The Best–Fisher
+/// constants are finite down to κ ≈ 1e-308 (ρ ≈ κ/2 must stay normal so that
+/// r = 1/(2ρ) is finite); at 1e-300 the density differs from uniform by one
+/// part in 1e300, far inside the sampler's own double resolution, so this is
+/// not a tolerance shortcut of the #199 kind (value paths are uniform at
+/// κ == 0 only).
+constexpr double kBestFisherMinKappa = 1e-300;
+
+/// Best–Fisher envelope constants (ρ, r) for κ > 0.
+///
+/// τ = 1 + √(1 + 4κ²) and ρ = (τ − √(2τ)) / (2κ) is the textbook form; it
+/// cancels as κ → 0, where τ → 2 and τ − √(2τ) → 0: at κ < 1.5e-8 it is
+/// exactly 0 (r = +inf, the acceptance test compares NaN and the rejection
+/// loop never accepts, DH2 S1), and just above it carries a few bits only.
+/// Multiplying by (τ + √(2τ)) / (τ + √(2τ)) and using τ² − 2τ = τ(τ − 2) with
+/// τ − 2 = √(1 + 4κ²) − 1 = 4κ² / τ gives ρ = 2κ / (τ + √(2τ)): every
+/// operation is an addition of positives, accurate at every κ, and ρ → κ/2.
+[[nodiscard]] inline std::pair<double, double> bestFisherConstants(double kappa) noexcept {
+    const double tau = detail::ONE + std::sqrt(detail::ONE + 4.0 * kappa * kappa);
+    const double rho = detail::TWO * kappa / (tau + std::sqrt(detail::TWO * tau));
+    const double r = (detail::ONE + rho * rho) / (detail::TWO * rho);
+    return {rho, r};
+}
+
+}  // namespace
+
 double VonMisesDistribution::sample(std::mt19937& rng) const {
     double kappa, mu;
     withCacheSnapshot([&] {
@@ -1118,8 +1147,7 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
         mu = mu_;
     });
 
-    // Near-uniform case (κ ≈ 0): sample uniformly on the circle.
-    if (kappa < 1e-9) {
+    if (kappa < kBestFisherMinKappa) {
         std::uniform_real_distribution<double> u(-detail::PI, detail::PI);
         return u(rng);
     }
@@ -1127,9 +1155,7 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
     // Best (1979) rejection sampler for the Von Mises distribution.
     // Reference: D.J. Best and N.I. Fisher (1979). Efficient simulation of
     //            the von Mises distribution. Applied Statistics 28(2), 152–157.
-    const double tau = detail::ONE + std::sqrt(detail::ONE + 4.0 * kappa * kappa);
-    const double rho = (tau - std::sqrt(detail::TWO * tau)) / (detail::TWO * kappa);
-    const double r = (detail::ONE + rho * rho) / (detail::TWO * rho);
+    const auto [rho, r] = bestFisherConstants(kappa);
 
     std::uniform_real_distribution<double> u01(detail::ZERO_DOUBLE, detail::ONE);
 
@@ -1165,7 +1191,7 @@ std::vector<double> VonMisesDistribution::sample(std::mt19937& rng, size_t n) co
     std::vector<double> samples;
     samples.reserve(n);
 
-    if (kappa < 1e-9) {
+    if (kappa < kBestFisherMinKappa) {
         std::uniform_real_distribution<double> u(-detail::PI, detail::PI);
         for (size_t i = 0; i < n; ++i)
             samples.push_back(u(rng));
@@ -1173,9 +1199,7 @@ std::vector<double> VonMisesDistribution::sample(std::mt19937& rng, size_t n) co
     }
 
     // Best (1979) rejection sampler — precompute constants outside the loop.
-    const double tau = detail::ONE + std::sqrt(detail::ONE + 4.0 * kappa * kappa);
-    const double rho = (tau - std::sqrt(detail::TWO * tau)) / (detail::TWO * kappa);
-    const double r = (detail::ONE + rho * rho) / (detail::TWO * rho);
+    const auto [rho, r] = bestFisherConstants(kappa);
     std::uniform_real_distribution<double> u01(detail::ZERO_DOUBLE, detail::ONE);
 
     for (size_t i = 0; i < n; ++i) {
@@ -1279,15 +1303,21 @@ double VonMisesDistribution::getEntropy() const {
         is_uniform = isUniform_;
         k = kappa_;
     });
-    // H = log(2π) − log I₀(κ) + κ·I₁(κ)/I₀(κ)
-    // At κ=0: H = log(2π) − log(1) + 0 = log(2π) ✓ (uniform on the circle)
+    // H = log(2π I₀(κ)) − κ·I₁(κ)/I₀(κ). (DH2 M1: this read log(2π) − log I₀ + κA,
+    // both signs wrong, 2(log I₀ − κA) off at every κ > 0.)
+    // At κ=0: H = log(2π) + log(1) − 0 = log(2π) (uniform on the circle).
     if (is_uniform)
         return detail::LN_2PI;
+    if (k >= detail::kBesselRatioAsymptoticCut) {
+        // log I₀(κ) ≈ κ and κA(κ) ≈ κ cancel to ½log(2π/κ) + ½ + ..., so form
+        // both in their scaled versions: log(e^−κ I₀(κ)) and κ(1 − A(κ)), the
+        // latter from the asymptotic complement helper (#93).
+        return detail::LN_2PI + detail::log_bessel_i0_scaled(k) +
+               k * detail::bessel_i1_i0_complement(k);
+    }
     const double log_i0 = detail::log_bessel_i0(k);
-    // A(κ) via the ratio helper: the direct i1/i0 form returned NaN above
-    // κ ≈ 713 where both values overflow (#93).
     const double A1 = detail::bessel_i1_over_i0(k);
-    return detail::LN_2PI - log_i0 + k * A1;
+    return detail::LN_2PI + log_i0 - k * A1;
 }
 
 //==============================================================================

@@ -284,6 +284,36 @@ inline constexpr double kTwoPi = 6.283185307179586476925286766559;
 
 inline constexpr double kBesselRatioAsymptoticCut = 50.0;
 
+/// @brief log(e^{−x} I₀(x)), the scaled log Bessel function. Requires x ≥ 0.
+///
+/// For a caller that would otherwise subtract x from log I₀(x) (the von Mises
+/// entropy log(2π I₀(κ)) − κ A(κ), whose two κ-sized terms cancel to ½·log(2π/κ)
+/// + ½ as κ → ∞, DH2 M1). From the ratio cut, the large-x series
+///     I₀(x) ~ e^x/√(2πx) · Σ_k c_k x^-k,   c_k = ((2k−1)!!)² / (k! 8^k)
+/// to ten terms (c₁₁/50¹¹ ≈ 1e-16: double accuracy on both tiers, where Tier 2's
+/// A&S polynomials carry ~2e-7); below it, log I₀(x) − x on the tier's I₀, which
+/// loses at most x·ε. Tier-independent, like the ratio helpers that follow.
+/// log_bessel_i0 keeps its own series above 700 unchanged.
+[[nodiscard]] inline double log_bessel_i0_scaled(double x) noexcept {
+    if (x >= kBesselRatioAsymptoticCut) {
+        // Coefficients are exact dyadic rationals generated from the c_k formula.
+        const double t = 1.0 / x;
+        const double s =
+            t * (0.125 + t * (0.0703125 +
+                              t * (0.0732421875 +
+                                   t * (0.112152099609375 +
+                                        t * (0.22710800170898438 +
+                                             t * (0.5725014209747314 +
+                                                  t * (1.7277275025844574 +
+                                                       t * (6.074042001273483 +
+                                                            t * (24.380529699556064 +
+                                                                 t * 110.01714026924674)))))))));
+        constexpr double two_pi = 6.283185307179586476925286766559;  // kTwoPi is Tier 1 only
+        return -0.5 * std::log(two_pi * x) + std::log1p(s);
+    }
+    return log_bessel_i0(x) - x;
+}
+
 /// @brief 1 − I₁(x)/I₀(x) — the von Mises circular variance. Requires x ≥ 0.
 [[nodiscard]] inline double bessel_i1_i0_complement(double x) noexcept {
     if (x >= kBesselRatioAsymptoticCut) {

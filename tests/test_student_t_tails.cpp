@@ -24,6 +24,7 @@
 #include <cmath>
 #include <cstdio>
 #include <gtest/gtest.h>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -117,7 +118,8 @@ TEST(StudentTTails, QuantileDeepTailAndLargeNu) {
             kLawFactor * kEps * (1.0 + std::max(1.0, std::fabs(std::log(mass))) * kappa);
         const auto d = StudentTDistribution::create(r.nu).unwrap();
         expectRel(caseLabel("quantile", r.nu, r.p), d.getQuantile(r.p), r.t, budget);
-        expectRel(caseLabel("inverse_t_cdf", r.nu, r.p), detail::inverse_t_cdf(r.p, r.nu), r.t, budget);
+        expectRel(caseLabel("inverse_t_cdf", r.nu, r.p), detail::inverse_t_cdf(r.p, r.nu), r.t,
+                  budget);
     }
 }
 
@@ -143,9 +145,54 @@ TEST(StudentTTails, CdfLargeNuAndBeyondOverflow) {
         const auto d = StudentTDistribution::create(r.nu).unwrap();
         expectRel(caseLabel("cdf", r.nu, r.t), d.getCumulativeProbability(r.t), r.F, budget);
         expectRel(caseLabel("t_cdf", r.nu, r.t), detail::t_cdf(r.t, r.nu), r.F, budget);
-        expectBatch(caseLabel("cdf", r.nu, r.t), r.t, r.F, budget, [&](auto in, auto out, auto hint) {
-            d.getCumulativeProbability(in, out, hint);
-        });
+        expectBatch(
+            caseLabel("cdf", r.nu, r.t), r.t, r.F, budget,
+            [&](auto in, auto out, auto hint) { d.getCumulativeProbability(in, out, hint); });
+    }
+}
+
+// B2: from ν ≈ 4e17 both x = ν/(ν + t²) and the BGRAT bound (a + 1)/(a + 2.5) round to 1, so the
+// comparison on x sent every |t| to the central continued fraction at y ≈ 0: cdf(−6.36) was
+// −2e-8 at ν = 1e20, Q(1e-10) = −10.5 with F(Q) = 0.5 at ν = 1e18, and 3.5 s per quantile at
+// ν = 1e300. The branch is now decided on u = t²/ν. References: mpmath dps=40 quadrature of the
+// density below t (the lgamma difference by its asymptotic series from ν = 1e20); at ν = 1e18
+// the tail still differs from the normal limit by 1.5e-12 at t = −37, so the rows are two-sided.
+TEST(StudentTTails, CdfAndQuantileBeyondTheBranchCollapse) {
+    struct Row {
+        double nu, t, F;
+    };
+    constexpr Row kRows[] = {
+        {4e17, -1.5, 6.6807201268858066399e-2},    {4e17, -6.36, 1.0087687466392944292e-10},
+        {4e17, -12.0, 1.7764821120777023396e-33},  {4e17, -37.0, 5.7255712225312932684e-300},
+        {1e18, -1.5, 6.6807201268858066162e-2},    {1e18, -6.36, 1.00876874663929378e-10},
+        {1e18, -12.0, 1.7764821120776883345e-33},  {1e18, -37.0, 5.725571222527263401e-300},
+        {1e20, -1.5, 6.6807201268858066006e-2},    {1e20, -6.36, 1.0087687466392933515e-10},
+        {1e20, -12.0, 1.7764821120776790911e-33},  {1e20, -37.0, 5.7255712225246036885e-300},
+        {1e100, -6.36, 1.0087687466392933472e-10}, {1e100, -37.0, 5.7255712225245768227e-300},
+        {1e300, -1.5, 6.6807201268858066004e-2},   {1e300, -6.36, 1.0087687466392933472e-10},
+        {1e300, -12.0, 1.7764821120776789977e-33}, {1e300, -37.0, 5.7255712225245768227e-300},
+    };
+    for (const Row& r : kRows) {
+        const double budget = kLawFactor * kEps * std::max(1.0, std::fabs(std::log(r.F)));
+        const auto d = StudentTDistribution::create(r.nu).unwrap();
+        expectRel(caseLabel("cdf", r.nu, r.t), d.getCumulativeProbability(r.t), r.F, budget);
+        expectRel(caseLabel("cdf", r.nu, -r.t), d.getCumulativeProbability(-r.t), 1 - r.F, kEps);
+        // The quantile closes on the CDF, at the quantile's own conditioning.
+        const double q = d.getQuantile(r.F);
+        expectRel(caseLabel("quantile", r.nu, r.F), q, r.t, 1e-13);
+        expectRel(caseLabel("cdf(quantile)", r.nu, r.F), d.getCumulativeProbability(q), r.F,
+                  budget);
+    }
+    // Monotone in p across the collapse, and matching the ν = 3e17 side to the law.
+    for (double nu : {4e17, 1e18, 1e20, 1e300}) {
+        const auto d = StudentTDistribution::create(nu).unwrap();
+        double prev = -std::numeric_limits<double>::infinity();
+        for (double p = 1e-300; p < 0.5; p *= 10) {
+            const double q = d.getQuantile(p);
+            ASSERT_TRUE(std::isfinite(q)) << caseLabel("quantile", nu, p);
+            EXPECT_GT(q, prev) << caseLabel("quantile", nu, p);
+            prev = q;
+        }
     }
 }
 

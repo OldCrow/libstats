@@ -42,6 +42,148 @@ inline double zphi(double z, double pdf) noexcept {
     return z * pdf;
 }
 
+// Standardised moments of ξ = (X − μ)/σ on [α, β]: the mean m = E ξ, the central moments
+// c2, c3, c4, and η = E ξ² − 1 (the entropy term).
+struct TruncMoments {
+    double m, c2, c3, c4, eta;
+};
+
+// Closed forms from the raw-moment recursion m_k = (k−1)m_{k−2} + (α^{k−1}φα − β^{k−1}φβ)/Z
+// (terms with an infinite bound or an underflowed φ are exactly 0 — zphi). The central
+// moments are differences of raw moments of size max(1, m²)^(k/2), so they lose
+// (max(1, m²)/c2)^(k/2)·ε: exact to a few ε where the window holds the bulk, garbage where
+// the window is narrow or deep in a tail — TN(0, 1, 3, 3.0000001) gave a variance of 3e-8
+// (true 8.3e-16) and a kurtosis of 4.5e8 (true −1.2); TN(0, 1, 36, 37) a kurtosis 1.3% off
+// (M3). truncnorm_moments below keeps these only where c2 ≥ 0.05·max(1, m²), which bounds
+// the kurtosis cancellation at ~400·ε, and integrates otherwise.
+inline TruncMoments truncnorm_moments_closed(double al, double be, double z) noexcept {
+    const double pa = phi_std(al), pb = phi_std(be);
+    double t1 = pa - pb;
+    double t2 = zphi(al, pa) - zphi(be, pb);
+    double t3 = zphi(al, zphi(al, pa)) - zphi(be, zphi(be, pb));
+    const double t4 = zphi(al, zphi(al, zphi(al, pa))) - zphi(be, zphi(be, zphi(be, pb)));
+    // A nearly symmetric window (α ≈ −β) cancels φ(α) − φ(β) and α²φ(α) − β²φ(β) — the mean
+    // and third moment — to the ulp of φ: TN(0, 1, −1.0000001, 1) had its mean of −3.5e-8 to
+    // 8e-10 and its skewness to 2e-8. With φ(α)/φ(β) = e^g, g = (β − α)(β + α)/2, both are
+    // φ(β)·expm1(g) up to a term that does not cancel; used while |g| ≤ 1, where the plain
+    // difference would lose more than a digit.
+    if (std::isfinite(al) && std::isfinite(be) && pb > detail::ZERO_DOUBLE) {
+        const double g = detail::HALF * (be - al) * (be + al);
+        if (std::fabs(g) <= detail::ONE) {
+            const double em1 = std::expm1(g);
+            t1 = pb * em1;
+            t2 = pb * ((al - be) + al * em1);
+            t3 = pb * (al * al * em1 - detail::TWO * g);
+        }
+    }
+    const double m1 = t1 / z;
+    const double m2 = detail::ONE + t2 / z;
+    const double m3 = detail::TWO * m1 + t3 / z;
+    const double m4 = detail::THREE * m2 + t4 / z;
+    TruncMoments r;
+    r.m = m1;
+    r.c2 = m2 - m1 * m1;
+    r.c3 = m3 - detail::THREE * m1 * m2 + detail::TWO * m1 * m1 * m1;
+    r.c4 = m4 - detail::FOUR * m1 * m3 + detail::SIX * m1 * m1 * m2 -
+           detail::THREE * m1 * m1 * m1 * m1;
+    r.eta = m2 - detail::ONE;
+    return r;
+}
+
+// 20-point Gauss–Legendre rule on [−1, 1]: nodes ±x_i, weights w_i (mpmath, dps 40).
+constexpr double kGaussLegendre20[10][2] = {
+    {0.076526521133497333755, 0.1527533871307258507},
+    {0.22778585114164507808, 0.14917298647260374679},
+    {0.37370608871541956067, 0.14209610931838205133},
+    {0.510867001950827098, 0.1316886384491766269},
+    {0.63605368072651502545, 0.11819453196151841731},
+    {0.74633190646015079261, 0.10193011981724043504},
+    {0.83911697182221882339, 0.083276741576704748725},
+    {0.91223442825132590587, 0.06267204833410906357},
+    {0.96397192727791379127, 0.040601429800386941331},
+    {0.99312859918509492479, 0.017614007139152118312},
+};
+
+// The moments by quadrature, in central form: the mean from a first pass, then
+// ∫ (ξ − m)^k e^{−ξ²/2} dξ summed node by node, so an even central moment is a sum of
+// non-negative terms and nothing cancels. A left-tail window is mirrored (ξ → −ξ flips the
+// sign of m and c3); a right-tail one is cut at α + 50/α, beyond which the density is below
+// e^{−50} of its value at α and the discarded share of c4 is under 2e-16. The range is
+// split into segments [c, c + 8/(|c| + 4)]: on each, mapped to t ∈ [−1, 1], the exponent
+// varies by λt + μt² with λ ≤ 4 and μ ≤ ½, where the 20-point Gauss–Legendre rule is exact
+// to ~1e-26 of the segment's own scale (the integrand is entire; its bound on the Bernstein
+// ellipse ρ = 10 is e^{33} against ρ^{−40}). The weights are scaled by e^{r²/2}, r the point
+// of highest density in the window, so nothing overflows for an accepted window.
+inline TruncMoments truncnorm_moments_quad(double al, double be) noexcept {
+    const bool mirror = be <= detail::ZERO_DOUBLE;
+    const double lo = mirror ? -be : al;
+    double hi = mirror ? -al : be;
+    if (lo > detail::ONE)
+        hi = std::min(hi, lo + 50.0 / lo);
+    else if (!std::isfinite(hi))
+        hi = lo + 50.0;
+    // Node positions are held as offsets y = ξ − lo: a narrow window far from 0 has its
+    // width below the ulp of ξ (at (3, 3.0000001) the nodes rounded to 4e-9 of the width),
+    // while offsets carry the width to relative ε. The exponent −(ξ² − r²)/2, r the point of
+    // highest density in the window, is −y·(y + 2·lo)/2 with r = lo for a window past 0 and
+    // −(y + lo)²/2 for one holding it: no cancellation in either.
+    const double width = hi - lo;
+    const bool tail = lo > detail::ZERO_DOUBLE;
+    // First pass about y0 (0 where the mass sits against the lower bound, else the midpoint):
+    // m − y0 is then a sum of same-sign terms of the size of the window's scale.
+    const double y0 = lo >= detail::ZERO_DOUBLE ? detail::ZERO_DOUBLE : detail::HALF * width;
+    double s0 = detail::ZERO_DOUBLE, s1 = detail::ZERO_DOUBLE;
+    auto sweep = [&](auto&& accumulate) {
+        double cur = detail::ZERO_DOUBLE;
+        while (cur < width) {
+            const double w = std::min(8.0 / (std::fabs(lo + cur) + 4.0), width - cur);
+            const double mid = cur + detail::HALF * w;
+            const double half = detail::HALF * w;
+            for (const auto& nw : kGaussLegendre20) {
+                for (double sgn : {-detail::ONE, detail::ONE}) {
+                    const double y = mid + sgn * half * nw[0];
+                    const double e = tail ? y * (y + detail::TWO * lo) : (y + lo) * (y + lo);
+                    const double weight = nw[1] * half * std::exp(-detail::HALF * e);
+                    accumulate(y, weight);
+                }
+            }
+            cur += w;
+        }
+    };
+    sweep([&](double y, double weight) {
+        s0 += weight;
+        s1 += weight * (y - y0);
+    });
+    const double my = y0 + s1 / s0;
+    const double m = lo + my;
+    double s2 = detail::ZERO_DOUBLE, s3 = detail::ZERO_DOUBLE, s4 = detail::ZERO_DOUBLE;
+    sweep([&](double y, double weight) {
+        const double d = y - my;
+        const double d2 = d * d;
+        s2 += weight * d2;
+        s3 += weight * d2 * d;
+        s4 += weight * d2 * d2;
+    });
+    TruncMoments res;
+    res.m = mirror ? -m : m;
+    res.c2 = s2 / s0;
+    res.c3 = (mirror ? -s3 : s3) / s0;
+    res.c4 = s4 / s0;
+    res.eta = res.c2 + m * m - detail::ONE;
+    return res;
+}
+
+inline TruncMoments truncnorm_moments(double al, double be, double z) noexcept {
+    const TruncMoments cm = truncnorm_moments_closed(al, be, z);
+    // The quadrature needs the bound the mass sits against to be finite; a window with its
+    // only finite bound on the far side of 0 holds the bulk (c2 ≥ 0.36), so this is a guard,
+    // not a route.
+    const bool quad_possible = std::isfinite(be <= detail::ZERO_DOUBLE ? be : al);
+    if (!quad_possible || cm.c2 >= 0.05 * std::max(detail::ONE, cm.m * cm.m))
+        return cm;
+    return truncnorm_moments_quad(al, be);
+}
+
 // Clamp to [0,1] with explicit branches so NaN passes through unchanged
 // (std::clamp/min/max would convert NaN to a bound — a #103 clamp escape).
 inline double clamp01(double c) noexcept {
@@ -64,6 +206,17 @@ inline double clamp01(double c) noexcept {
 // intended routing — an infinite lower bound has no near-bound band.
 inline bool truncnorm_near_lower_band(double d, double alpha) noexcept {
     return d * std::max(detail::ONE, std::fabs(alpha)) <= 0.25;
+}
+
+// Just outside the band — within 2^-40 of its edge — the difference form is floored at the
+// band's value at the edge (the CDF) or its inverse (the quantile): both sides are accurate to
+// a few ε, so the handoff could step down by an ulp or two (TN(0, 1, 0, ∞).F(0.25 + 1 ulp) <
+// F(0.25); the quantile at (−1, ∞), (2, ∞), (√3, ∞), (0.742, ∞)), and the monotone contract
+// is restored by the floor at the cost of one series sum in a 1e-12-wide sliver. Beyond the
+// sliver the true function has moved by ≫ ε·F, so no floor is needed. The batch kernel routes
+// sliver lanes through the scalar kernel, keeping them bit-identical to it.
+inline bool truncnorm_near_lower_band_or_sliver(double d, double alpha) noexcept {
+    return d * std::max(detail::ONE, std::fabs(alpha)) <= 0.25 * (detail::ONE + 0x1p-40);
 }
 
 // Scaled CDF numerator via the probabilists'-Hermite expansion
@@ -155,24 +308,31 @@ inline double truncnorm_cdf_scalar(double x, double mu, double sigma, double a, 
         return detail::ZERO_DOUBLE;  // exact, also covers x = −∞
     if (x >= b)
         return detail::ONE;  // exact, also covers x = +∞
+    double floor = detail::ZERO_DOUBLE;
     {
         const double d = (x - a) / sigma;
         if (truncnorm_near_lower_band(d, alpha))
             return truncnorm_cdf_near_lower(d, alpha, inv_z);
+        if (truncnorm_near_lower_band_or_sliver(d, alpha)) {
+            const double d_edge = 0.25 / std::max(detail::ONE, std::fabs(alpha));
+            floor = truncnorm_cdf_near_lower(d_edge, alpha, inv_z);
+        }
     }
     const double xi = (x - mu) / sigma;
+    double f;
     if (alpha >= detail::ZERO_DOUBLE) {
         // Whole window in the right tail (ξ ≥ α ≥ 0): survival difference
         // Q(α) − Q(ξ) — small same-scale erfc quantities, well-conditioned.
-        return clamp01((q_alpha - detail::HALF * std::erfc(xi * detail::INV_SQRT_2)) * inv_z);
-    }
-    if (xi <= detail::ZERO_DOUBLE) {
+        f = clamp01((q_alpha - detail::HALF * std::erfc(xi * detail::INV_SQRT_2)) * inv_z);
+    } else if (xi <= detail::ZERO_DOUBLE) {
         // Left half (α ≤ ξ ≤ 0): reflected erfc difference Φ(ξ) − Φ(α).
-        return clamp01((detail::HALF * std::erfc(-xi * detail::INV_SQRT_2) - phi_alpha) * inv_z);
+        f = clamp01((detail::HALF * std::erfc(-xi * detail::INV_SQRT_2) - phi_alpha) * inv_z);
+    } else {
+        // Straddling lane (α < 0 < ξ): erf difference — both arguments benign,
+        // and the expression matches the batch vector_erf chain term-for-term.
+        f = clamp01((std::erf(xi * detail::INV_SQRT_2) - erf_alpha) * half_inv_z);
     }
-    // Straddling lane (α < 0 < ξ): erf difference — both arguments benign,
-    // and the expression matches the batch vector_erf chain term-for-term.
-    return clamp01((std::erf(xi * detail::INV_SQRT_2) - erf_alpha) * half_inv_z);
+    return f < floor ? floor : f;
 }
 
 // Regime-split quantile core (see the header's Quantile notes). p ∈ (0,1)
@@ -193,25 +353,38 @@ inline double truncnorm_cdf_scalar(double x, double mu, double sigma, double a, 
 inline double truncnorm_quantile_core(double p, double mu, double sigma, double a, double b,
                                       double alpha, double beta, double phi_alpha, double q_beta,
                                       double z, double inv_z) noexcept {
+    // Floors from the band inversions at their edges, for a target within 2^-40 of an edge
+    // (see truncnorm_near_lower_band_or_sliver).
+    double x_floor = a, x_ceil = b;
     if (std::isfinite(alpha)) {
         const double scale = truncnorm_band_scale(alpha, inv_z);
         const double d_max = 0.25 / std::max(detail::ONE, std::fabs(alpha));
-        if (p <= scale * 1.3 * d_max && p <= scale * truncnorm_hermite_sum(d_max, alpha)) {
-            double x = a + sigma * truncnorm_band_invert(p / scale, alpha);
-            if (x > b)
-                x = b;
-            return x;
+        if (p <= scale * 1.3 * d_max) {
+            const double p_edge = scale * truncnorm_hermite_sum(d_max, alpha);
+            if (p <= p_edge) {
+                double x = a + sigma * truncnorm_band_invert(p / scale, alpha);
+                if (x > b)
+                    x = b;
+                return x;
+            }
+            if (p <= p_edge * (detail::ONE + 0x1p-40))
+                x_floor = a + sigma * truncnorm_band_invert(p_edge / scale, alpha);
         }
     }
     if (std::isfinite(beta)) {
         const double q = detail::ONE - p;
         const double scale = truncnorm_band_scale(beta, inv_z);
         const double d_max = 0.25 / std::max(detail::ONE, std::fabs(beta));
-        if (q <= scale * 1.3 * d_max && q <= scale * truncnorm_hermite_sum(d_max, -beta)) {
-            double x = b - sigma * truncnorm_band_invert(q / scale, -beta);
-            if (x < a)
-                x = a;
-            return x;
+        if (q <= scale * 1.3 * d_max) {
+            const double q_edge = scale * truncnorm_hermite_sum(d_max, -beta);
+            if (q <= q_edge) {
+                double x = b - sigma * truncnorm_band_invert(q / scale, -beta);
+                if (x < a)
+                    x = a;
+                return x;
+            }
+            if (q <= q_edge * (detail::ONE + 0x1p-40))
+                x_ceil = b - sigma * truncnorm_band_invert(q_edge / scale, -beta);
         }
     }
     const double q_low = phi_alpha + p * z;                // Φ target from below
@@ -241,10 +414,10 @@ inline double truncnorm_quantile_core(double p, double mu, double sigma, double 
         }
     }
     double x = mu + sigma * xi;
-    if (x < a)
-        x = a;
-    if (x > b)
-        x = b;
+    if (x < x_floor)
+        x = x_floor;
+    if (x > x_ceil)
+        x = x_ceil;
     return x;
 }
 
@@ -493,15 +666,8 @@ double TruncatedNormalDistribution::getSkewness() const {
         be = beta_;
         z = z_;
     });
-    // Raw-moment recursion m_k = (k−1)m_{k−2} + (α^{k−1}φα − β^{k−1}φβ)/Z
-    // (terms with infinite bound or underflowed φ are exactly 0 — zphi).
-    const double pa = phi_std(al), pb = phi_std(be);
-    const double m1 = (pa - pb) / z;
-    const double m2 = detail::ONE + (zphi(al, pa) - zphi(be, pb)) / z;
-    const double m3 = detail::TWO * m1 + (zphi(al, zphi(al, pa)) - zphi(be, zphi(be, pb))) / z;
-    const double c2 = m2 - m1 * m1;
-    const double c3 = m3 - detail::THREE * m1 * m2 + detail::TWO * m1 * m1 * m1;
-    return c3 / (c2 * std::sqrt(c2));
+    const TruncMoments mo = truncnorm_moments(al, be, z);
+    return mo.c3 / (mo.c2 * std::sqrt(mo.c2));
 }
 
 double TruncatedNormalDistribution::getKurtosis() const {
@@ -511,16 +677,8 @@ double TruncatedNormalDistribution::getKurtosis() const {
         be = beta_;
         z = z_;
     });
-    const double pa = phi_std(al), pb = phi_std(be);
-    const double m1 = (pa - pb) / z;
-    const double m2 = detail::ONE + (zphi(al, pa) - zphi(be, pb)) / z;
-    const double m3 = detail::TWO * m1 + (zphi(al, zphi(al, pa)) - zphi(be, zphi(be, pb))) / z;
-    const double m4 = detail::THREE * m2 +
-                      (zphi(al, zphi(al, zphi(al, pa))) - zphi(be, zphi(be, zphi(be, pb)))) / z;
-    const double c2 = m2 - m1 * m1;
-    const double c4 = m4 - detail::FOUR * m1 * m3 + detail::SIX * m1 * m1 * m2 -
-                      detail::THREE * m1 * m1 * m1 * m1;
-    return c4 / (c2 * c2) - detail::THREE;  // excess kurtosis
+    const TruncMoments mo = truncnorm_moments(al, be, z);
+    return mo.c4 / (mo.c2 * mo.c2) - detail::THREE;  // excess kurtosis
 }
 
 double TruncatedNormalDistribution::getNormalizationConstant() const noexcept {
@@ -808,46 +966,105 @@ void TruncatedNormalDistribution::fit(const std::vector<double>& values) {
             throw std::invalid_argument("Data has zero variance - cannot fit Truncated Normal");
         }
 
-        // Fixed-point iteration on the exponential-family moment equations
-        // (Cohen 1959 style):  σ² ← s²/(1 + η − δ²),  μ ← x̄ − σδ.
-        double mu = xbar;
-        double sig = std::sqrt(s2);
-        constexpr int kMaxIter = 500;
-        constexpr double kRelTol = 1e-10;
+        // MLE with the bounds fixed. In the natural parameters θ = (μ/σ², −1/(2σ²)) the
+        // log-likelihood ℓ(θ) = θ₁·x̄ + θ₂·x̄² − A(θ) is strictly concave: its gradient is the
+        // moment residual (x̄ − E X, x̄² − E X²) and its Hessian −Cov(X, X²), so a damped
+        // Newton converges from any start. The fixed-point iteration this replaces
+        // (σ² ← s²/(1 + η − δ²), μ ← x̄ − σδ) is not a contraction on windows such as
+        // (1, 3), (0.5, 2), (8, 9), (5, ∞) and (−0.25, 0.25), where it cycled to its
+        // iteration cap on data drawn from the model itself (F3). The data are standardised
+        // to mean 0 and variance 1, which keeps the sufficient statistics, the gradient and
+        // the Hessian O(1) whatever the units, and the window in those units always holds a
+        // point within one standard deviation of 0, so the start (μ, σ) = (0, 1) has a
+        // representable Z.
+        const double s = std::sqrt(s2);
+        const double a_s = (a - xbar) / s, b_s = (b - xbar) / s;  // ±∞ pass through
+        struct State {
+            double th1, th2, mu, sig, ll;
+            TruncMoments mo;
+        };
+        auto evaluate = [&](double th1, double th2, State& st) -> bool {
+            if (!(th2 < detail::ZERO_DOUBLE))
+                return false;
+            const double var = -detail::HALF / th2;
+            st.th1 = th1;
+            st.th2 = th2;
+            st.sig = std::sqrt(var);
+            st.mu = th1 * var;
+            const auto nc = computeNormalization(st.mu, st.sig, a_s, b_s);
+            if (!nc.valid)
+                return false;
+            st.mo = truncnorm_moments(nc.alpha, nc.beta, nc.z);
+            // ℓ per observation without its constants: Σ(y − μ)²/n = 1 + μ² for standardised y.
+            st.ll =
+                -std::log(st.sig) - detail::HALF * (detail::ONE + st.mu * st.mu) / var - nc.log_z;
+            return std::isfinite(st.ll);
+        };
+        State st;
+        if (!evaluate(detail::ZERO_DOUBLE, -detail::HALF, st)) {
+            throw std::runtime_error(
+                "Truncated Normal MLE failed: normalization constant underflowed at the start");
+        }
+        constexpr int kMaxIter = 200;
+        constexpr double kGradTol = 1e-10;  // moment match, in units of the sample sd
         bool converged = false;
         for (int iter = 0; iter < kMaxIter; ++iter) {
-            const auto nc = computeNormalization(mu, sig, a, b);
-            if (!nc.valid) {
-                throw std::runtime_error(
-                    "Truncated Normal MLE failed: normalization constant underflowed during "
-                    "iteration (window too deep in the tail for the current iterate)");
-            }
-            const double pa = phi_std(nc.alpha), pb = phi_std(nc.beta);
-            const double delta = (pa - pb) / nc.z;
-            const double eta = (zphi(nc.alpha, pa) - zphi(nc.beta, pb)) / nc.z;
-            const double denom = detail::ONE + eta - delta * delta;
-            if (!(denom > detail::ZERO_DOUBLE)) {
-                throw std::runtime_error(
-                    "Truncated Normal MLE failed: degenerate variance ratio (1 + η − δ² ≤ 0)");
-            }
-            const double sig_new = std::sqrt(s2 / denom);
-            const double mu_new = xbar - sig_new * delta;
-            if (!std::isfinite(sig_new) || !std::isfinite(mu_new) ||
-                sig_new <= detail::ZERO_DOUBLE) {
-                throw std::runtime_error("Truncated Normal MLE failed: non-finite iterate");
-            }
-            const bool done = std::fabs(mu_new - mu) <= kRelTol * (detail::ONE + std::fabs(mu)) &&
-                              std::fabs(sig_new - sig) <= kRelTol * sig;
-            mu = mu_new;
-            sig = sig_new;
-            if (done) {
+            // Moments of Y = μ + σξ: E Y, and the central moments σ^k·c_k.
+            const double ey = st.mu + st.sig * st.mo.m;
+            const double sg2 = st.sig * st.sig;
+            const double mu2 = sg2 * st.mo.c2, mu3 = sg2 * st.sig * st.mo.c3,
+                         mu4 = sg2 * sg2 * st.mo.c4;
+            const double g1 = -ey;                            // ȳ − E Y, ȳ = 0
+            const double g2 = detail::ONE - (ey * ey + mu2);  // ȳ² − E Y², ȳ² = 1
+            if (std::fabs(g1) <= kGradTol && std::fabs(g2) <= kGradTol) {
                 converged = true;
+                break;
+            }
+            // Cov(Y, Y²): Var Y = μ₂, Cov(Y, Y²) = μ₃ + 2·E Y·μ₂, Var Y² = μ₄ − μ₂² + 4·E Y·μ₃ +
+            // 4·(E Y)²·μ₂.
+            const double v11 = mu2;
+            const double v12 = mu3 + detail::TWO * ey * mu2;
+            const double v22 =
+                mu4 - mu2 * mu2 + detail::FOUR * ey * mu3 + detail::FOUR * ey * ey * mu2;
+            const double det = v11 * v22 - v12 * v12;
+            if (!(det > detail::ZERO_DOUBLE) || !std::isfinite(det)) {
+                throw std::runtime_error(
+                    "Truncated Normal MLE failed: singular information matrix");
+            }
+            const double d1 = (v22 * g1 - v12 * g2) / det;
+            const double d2 = (v11 * g2 - v12 * g1) / det;
+            // Backtrack on ℓ: the Newton direction ascends by concavity, so a step that does
+            // not (or leaves the model, θ₂ ≥ 0 or an underflowed Z) is halved. The slack
+            // admits the rounding of ℓ once the residual is at the noise floor.
+            double step = detail::ONE;
+            State next;
+            bool accepted = false;
+            for (int k = 0; k < 60; ++k, step *= detail::HALF) {
+                if (evaluate(st.th1 + step * d1, st.th2 + step * d2, next) &&
+                    next.ll >= st.ll - 1e-12 * (detail::ONE + std::fabs(st.ll))) {
+                    accepted = true;
+                    break;
+                }
+            }
+            if (!accepted) {
+                throw std::runtime_error(
+                    "Truncated Normal MLE failed: no ascent step (the sample moments lie "
+                    "outside what the window admits)");
+            }
+            const bool tiny_step =
+                std::fabs(step * d1) <= 1e-14 * (detail::ONE + std::fabs(st.th1)) &&
+                std::fabs(step * d2) <= 1e-14 * std::fabs(st.th2);
+            st = next;
+            if (tiny_step) {
+                converged = true;  // at the rounding floor of the residual
                 break;
             }
         }
         if (!converged) {
-            throw std::runtime_error("Truncated Normal MLE did not converge within 500 iterations");
+            throw std::runtime_error("Truncated Normal MLE did not converge within 200 iterations");
         }
+        const double mu = xbar + s * st.mu;
+        const double sig = s * st.sig;
         validateParameters(mu, sig, a, b);
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
         if (lowerBound_ != a || upperBound_ != b)
@@ -1371,10 +1588,11 @@ void TruncatedNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             results[i] = detail::ZERO_DOUBLE;
         } else if (x >= b) {
             results[i] = detail::ONE;
-        } else if (truncnorm_near_lower_band((x - a) / sigma, alpha)) {
-            // Near-lower-bound lanes take the series path in every regime —
-            // route through the scalar kernel so the lane is bit-identical
-            // to getCumulativeProbability(x).
+        } else if (truncnorm_near_lower_band_or_sliver((x - a) / sigma, alpha)) {
+            // Near-lower-bound lanes (and the floored sliver past the band)
+            // take the series path in every regime — route through the
+            // scalar kernel so the lane is bit-identical to
+            // getCumulativeProbability(x).
             results[i] = truncnorm_cdf_scalar(x, mu, sigma, a, b, alpha, q_alpha, phi_alpha,
                                               erf_alpha, inv_z, half_inv_z);
         } else {
@@ -1447,15 +1665,13 @@ void TruncatedNormalDistribution::updateCacheUnsafe() const noexcept {
     invSigmaSqrt2_ = detail::ONE / (standardDeviation_ * detail::SQRT_2);
     logPdfNormConst_ = -logSigma_ - logZ_ - detail::HALF_LN_2PI;
 
-    // Truncated first/second moment terms (guarded against ∞·0).
-    const double pa = phi_std(alpha_), pb = phi_std(beta_);
-    delta_ = (pa - pb) / z_;
-    eta_ = (zphi(alpha_, pa) - zphi(beta_, pb)) / z_;
+    // Standardised mean and variance; the closed forms where they hold, quadrature where
+    // they cancel (M3).
+    const TruncMoments mo = truncnorm_moments(alpha_, beta_, z_);
+    delta_ = mo.m;
+    eta_ = mo.eta;
     distMean_ = mean_ + standardDeviation_ * delta_;
-    double c2 = detail::ONE + eta_ - delta_ * delta_;
-    if (c2 < detail::ZERO_DOUBLE)
-        c2 = detail::ZERO_DOUBLE;  // deep same-tail windows: cancellation floor
-    distVariance_ = standardDeviation_ * standardDeviation_ * c2;
+    distVariance_ = standardDeviation_ * standardDeviation_ * mo.c2;
 
     cache_valid_ = true;
     cacheValidAtomic_.store(true, std::memory_order_release);
