@@ -1382,10 +1382,11 @@ void expectAllStrategies(const D& d, double x, double want, double tol, Op op, c
         op(d, std::span<const double>(in), std::span<double>(out),
            detail::PerformanceHint{s, std::nullopt});
         for (std::size_t i : {std::size_t{0}, std::size_t{68}}) {
-            if (tol == 0.0 || std::isinf(want))
+            if (tol == 0.0 || std::isinf(want)) {
                 EXPECT_EQ(out[i], want) << who << " strategy " << static_cast<int>(s);
-            else
+            } else {
                 EXPECT_LT(relErr(out[i], want), tol) << who << " strategy " << static_cast<int>(s);
+            }
         }
     }
 }
@@ -1926,8 +1927,9 @@ TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
                 break;
             case Op::LogPdf:
                 EXPECT_LT(relErr(g.getLogProbability(r.x), r.want), r.tol) << r.alpha << " " << r.x;
-                if (r.alpha < 2147483647.0)
+                if (r.alpha < 2147483647.0) {
                     EXPECT_LT(relErr(e.getLogProbability(r.x), r.want), r.tol) << r.x;
+                }
                 for (PS s : {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL,
                              PS::MAXIMIZE_THROUGHPUT}) {
                     g.getLogProbability(std::span<const double>(in), std::span<double>(out),
@@ -1939,8 +1941,9 @@ TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
             case Op::Cdf:
                 EXPECT_LT(relErr(g.getCumulativeProbability(r.x), r.want), r.tol)
                     << r.alpha << " " << r.x;
-                if (r.alpha < 2147483647.0)
+                if (r.alpha < 2147483647.0) {
                     EXPECT_LT(relErr(e.getCumulativeProbability(r.x), r.want), r.tol) << r.x;
+                }
                 for (PS s : {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL,
                              PS::MAXIMIZE_THROUGHPUT}) {
                     g.getCumulativeProbability(std::span<const double>(in), std::span<double>(out),

@@ -221,11 +221,15 @@ rule; not `threshold_validator`); recipe in
 
 **A new error-free transform (Kahan/Neumaier, TwoSum/Fast2Sum, `fma(a,b,-a*b)`
 residuals) must spell every intended fusion explicitly, or scope
-`-ffp-contract=off` to that file.** No `-ffp-contract` flag is set anywhere in
-this build, so every TU takes its compiler default (GCC `fast`, AppleClang
-and clang-cl `on`, MSVC off; clang-cl's FMAs are visible in its Beta and
-Gamma batch code, 2026-10-05); an unspelled contraction silently breaks the exactness
-the transform's proof assumes. The three compensated sequences in
+`-ffp-contract=off` to that file.** Only `src/gamma.cpp` and
+`src/inverse_gamma.cpp` set it (CMakeLists.txt: their rate-product residuals
+need fl(βx) to stay rounded; a contracted `β·x − α` double-counted it on
+AArch64, CI on 08d48aa). Every other TU takes its compiler default (GCC
+`fast`, AppleClang and clang-cl `on`, MSVC off; clang-cl's FMAs are visible in
+its Beta and Gamma batch code, 2026-10-05); an unspelled contraction silently
+breaks the exactness the transform's proof assumes. CI's `fma-contraction`
+leg (clang-17, `-mfma -ffp-contract=on`) runs the correctness suite under
+contraction on Linux. The three compensated sequences in
 `src/simd_neon.cpp` are safe today (#84, audited 2026-08-16) because every
 fusion is an explicit `vfmaq_f64`/`vfmsq_f64` and the one remaining
 multiply-then-add is exact by construction.

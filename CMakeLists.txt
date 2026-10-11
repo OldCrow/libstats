@@ -437,6 +437,23 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/discrete_analysis.cpp # Discrete-uniform-specific analysis
 )
 
+# FP-contraction rule (AGENTS.md): Gamma and InverseGamma carry the rounding of y = fl(βx)
+# (fl(β·(1/x))) as an exact fma residual, which holds only if y stays rounded wherever it is
+# used. A contracted β·x − α uses the exact product and the correction is then added twice:
+# −1.5e-7 at Gamma(1e16, 3) on AArch64 (CI on 08d48aa). Splitting the statement protects
+# Clang's per-expression `on`; GCC's `fast` fuses across statements, so contraction is off for
+# these two files. cl.exe does not contract by default; clang-cl takes the flag via /clang:.
+set(_libstats_no_contract_sources src/gamma.cpp src/inverse_gamma.cpp)
+if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # cl.exe: /fp:precise does not contract unless /fp:contract is given.
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32)
+    set_source_files_properties(${_libstats_no_contract_sources}
+                                PROPERTIES COMPILE_OPTIONS "/clang:-ffp-contract=off")
+else()
+    set_source_files_properties(${_libstats_no_contract_sources}
+                                PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+endif()
+
 # SIMD sources are added separately by the SIMD detection system These compile with specific
 # architecture flags and are platform-dependent
 

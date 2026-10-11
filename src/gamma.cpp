@@ -381,14 +381,22 @@ void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, do
         const double* xb = x + start;
         double* ob = out + start;
         arch::simd::VectorOps::vector_log(xb, log_x, n);
-        for (std::size_t i = 0; i < n; ++i)
-            ob[i] = detail::log1pmx_series((beta * xb[i] - alpha) / alpha);
+        // y = fl(βx) in its own statement, as the scalar path forms it: written inline,
+        // (β·x − α) contracts to fma(β, x, −α) under -ffp-contract=on (AppleClang on AArch64,
+        // clang-cl with FMA), which uses the exact product, and withRateProductRounding below
+        // then adds the product's rounding a second time (−1.5e-7 at Gamma(1e16, 3), CI 08d48aa).
+        // Contraction is per expression there, so a separate statement keeps y rounded.
+        for (std::size_t i = 0; i < n; ++i) {
+            const double y = beta * xb[i];
+            ob[i] = detail::log1pmx_series((y - alpha) / alpha);
+        }
         // The few lanes past the series, gathered first: written as a guarded log in one loop,
         // AppleClang (no errno on Darwin, so log is pure) calls the log for every lane, 1.35x
         // the whole batch at alpha = 20 (Kaby Lake, 2026-10-04).
         std::size_t n_far = 0;
         for (std::size_t i = 0; i < n; ++i) {
-            const double t = (beta * xb[i] - alpha) / alpha;
+            const double y = beta * xb[i];  // separate statement: see above
+            const double t = (y - alpha) / alpha;
             if (std::fabs(t) >= detail::LOG1PMX_SERIES_LIMIT)
                 far_index[n_far++] = i;
         }
