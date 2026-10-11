@@ -250,6 +250,23 @@ Status by machine (each machine edits only its own line):
   streams change in the last bits at ordinary κ [user: keep]. A memory
   exhaustion (three agents building at once) restarted K mid-round: cap
   concurrent builds on K.
+  **2026-10-10/11 hunt-3 round** [DERIVED, K; OPEN — uncommitted in the
+  main checkout, message drafted]: targeted hunt on d7e9dbd's changes,
+  then three fix agents plus digamma/trigamma: beta log1p prefactor and
+  beta_i_pair (Binomial, Fisher-F), Fisher-F extremes and small side,
+  beta past the shape-ratio switch (F(50,1e20).Q(0.5) 163.84 → 0.9867),
+  von Mises hang at κ ≥ 6.5e15, Student-t fit derivative, Uniform, TN,
+  Gamma/Weibull contract edges, TN entropy/kurtosis. Verified: 117/117,
+  stress, identities 3/3, 0 warnings, sweep 148 rows (explained), oracle
+  0 violations. Deferred: #248–#253. Open from the corvus-pattern audit
+  and the unswept-band probe (decisions pending): von Mises CDF above
+  κ = 1000 collapses below ~1e-20 (erf form; should be erfc); TN
+  left-half-infinite windows underflow; discrete quantiles one step low
+  at p = 1 − 1e-15 (F-side comparison); Cauchy subnormal pdf 5.4e-5;
+  Gamma series-side 25–58 ε beside its switches; oracle hardening
+  (relerr absolute below 1e-290, per-row budgets, sweep coverage of
+  switch bands, Cauchy reference cancellation, self-check gaps). Probe
+  artifacts: `../libstats-probe4/build-probe/probe/`.
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
@@ -770,6 +787,13 @@ against the throttling finding). Start from an inventory of stale
 statements (read-only search agent), not from memory. Cross-repo:
 standards WINDOWS-TOOLCHAIN gains the `/arch:` equivalence and the
 throttling opt-out.
+
+CI_CD_GUIDE [user, 2026-10-10; OPEN]: note that `test_concurrency_stress`
+on the macos-15 runner varies 97–372 s on unchanged code (six runs,
+`00d1597`–`d7e9dbd`) while Linux and Windows hold 68–102 s; shared ARM
+VMs and the spin-then-yield barriers, not a regression. Headroom: ctest's
+1,500 s default and the 120 s per-race watchdog. If macOS nears half the
+limit, lower `LIBSTATS_STRESS_SCALE` for that job.
 
 ### R7 — release
 PR
