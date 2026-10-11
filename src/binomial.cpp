@@ -24,7 +24,9 @@ using stats::detail::validatePositiveParameter;
 namespace stats {
 
 namespace {
-// P(X ≤ k) for 0 ≤ k < n from one (n, p) copy: I_{1−p}(n − k, k + 1).
+// P(X ≤ k) for 0 ≤ k < n from one (n, p) copy: I_{1−p}(n − k, k + 1). p is exact and 1 − p
+// rounded below p = ½, so the pair form takes log(1 − p) as log1p(−p) and log p directly, rather
+// than both from the rounded 1 − p, whose ε/2 the shape n − k multiplies.
 double binomialCdf(int k, int n, double p) noexcept {
     if (k < 0)
         return detail::ZERO_DOUBLE;
@@ -32,7 +34,9 @@ double binomialCdf(int k, int n, double p) noexcept {
         return detail::ONE;
     if (p == detail::ONE)
         return detail::ZERO_DOUBLE;
-    return detail::beta_i(detail::ONE - p, static_cast<double>(n - k), static_cast<double>(k + 1));
+    const double a = static_cast<double>(n - k);
+    const double b = static_cast<double>(k + 1);
+    return detail::beta_i_pair(detail::ONE - p, p, a, b, detail::beta_prefactor_constant(a, b));
 }
 
 // PARALLEL and WORK_STEALING take one snapshot and run the lock-free batch kernels over slices

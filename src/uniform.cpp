@@ -45,11 +45,15 @@ namespace {
     return detail::TWO * (detail::HALF * a + t * half_width);
 }
 
-[[nodiscard]] inline double uniformCdfInterior(double x, double a, double b,
-                                               double inv_width) noexcept {
+// F(x) on [a, b], by division rather than by the cached 1/(b − a). The reciprocal is subnormal
+// from width 4.5e307 (U(−DBL_MAX, 0).cdf(0) = 1 − 1.1e-16) and +inf at a subnormal width
+// (U(0, 1e-320).cdf(5e-321) = inf), and even at ordinary widths w·fl(1/w) need not be 1
+// (49·fl(1/49) = 1 − 1.1e-16). The quotient is correctly rounded, exactly 0 at a and 1 at b
+// (fl(b − a)/fl(b − a)), and monotone in x.
+[[nodiscard]] inline double uniformCdfInterior(double x, double a, double b) noexcept {
     const double width = b - a;
     if (std::isfinite(width))
-        return (x - a) * inv_width;
+        return (x - a) / width;
     return (detail::HALF * x - detail::HALF * a) / (detail::HALF * b - detail::HALF * a);
 }
 
@@ -317,13 +321,12 @@ double UniformDistribution::getLogProbability(double x) const {
 
 double UniformDistribution::getCumulativeProbability(double x) const {
     // Ensure cache is valid
-    double lo, hi, inv_w;
+    double lo, hi;
     bool is_unit;
     withCacheSnapshot([&] {
         lo = a_;
         hi = b_;
         is_unit = isUnitInterval_;
-        inv_w = invWidth_;
     });
     if (x < lo)
         return detail::ZERO_DOUBLE;
@@ -331,7 +334,7 @@ double UniformDistribution::getCumulativeProbability(double x) const {
         return detail::ONE;
     if (is_unit)
         return x;
-    return uniformCdfInterior(x, lo, hi, inv_w);
+    return uniformCdfInterior(x, lo, hi);
 }
 
 double UniformDistribution::getQuantile(double p) const {
@@ -603,7 +606,8 @@ double UniformDistribution::getMode() const {
 
 double UniformDistribution::getMidpoint() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return (a_ + b_) * detail::HALF;  // Multiplication is faster than division
+    const double sum = a_ + b_;  // overflows near ±DBL_MAX; the halves do not
+    return std::isfinite(sum) ? sum * detail::HALF : detail::HALF * a_ + detail::HALF * b_;
 }
 
 //==============================================================================
@@ -816,18 +820,14 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                 // Snapshot under unique_lock — eliminates TOCTOU gap.
                 const double cached_a = dist.a_;
                 const double cached_b = dist.b_;
-                const double cached_inv_width = dist.invWidth_;
-                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
-                                                             cached_inv_width);
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b);
                 return;
             }
             // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
             lock.unlock();
-            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
-                                                         cached_inv_width);
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -835,7 +835,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double cached_a, cached_b, cached_inv_width;
+            double cached_a, cached_b;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -846,18 +846,15 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_inv_width = dist.invWidth_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_inv_width = dist.invWidth_;
                 }
             }
             ParallelUtils::parallelForSlices(
                 count, kBatchSlice, [&](std::size_t start, std::size_t len) {
-                    dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
-                                                                 res.data() + start, len, cached_a,
-                                                                 cached_b, cached_inv_width);
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, cached_a, cached_b);
                 });
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
@@ -867,7 +864,7 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double cached_a, cached_b, cached_inv_width;
+            double cached_a, cached_b;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -878,17 +875,14 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_inv_width = dist.invWidth_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_inv_width = dist.invWidth_;
                 }
             }
             pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
-                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
-                                                             res.data() + start, len, cached_a,
-                                                             cached_b, cached_inv_width);
+                dist.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_a, cached_b);
             });
         });
 }
@@ -1012,11 +1006,10 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
 // fill guarded by a bounds check, and there is no arithmetic to vectorize
 // without a blend/select primitive in VectorOps.
 //
-// CDF is partially vectorized. The interior is a linear function
-// (x - a) * inv_width that maps cleanly to scalar_add + scalar_multiply.
-// A scalar fixup pass then clamps values outside [a, b]. The unit-interval
-// special case collapses to the same formula (a=0, inv_width=1), so the
-// two-branch structure in the old SIMD path has been removed.
+// CDF is partially vectorized. The interior (x - a)/(b - a) is a branch-free
+// loop the compiler packs into subtract and divide; a scalar fixup pass then
+// clamps values outside [a, b]. The unit-interval special case collapses to
+// the same formula (a=0, b=1).
 //==============================================================================
 
 void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -1102,8 +1095,7 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
 void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values,
                                                                   double* results,
                                                                   std::size_t count, double a,
-                                                                  double b,
-                                                                  double inv_width) const noexcept {
+                                                                  double b) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
@@ -1115,30 +1107,31 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             } else if (x > b) {
                 results[i] = detail::ONE;
             } else {
-                results[i] = uniformCdfInterior(x, a, b, inv_width);
+                results[i] = uniformCdfInterior(x, a, b);
             }
         }
         return;
     }
 
-    if (!std::isfinite(b - a)) {
+    const double width = b - a;
+    if (!std::isfinite(width)) {
         // b − a overflowed (DH2 S2): the linear form below would give inf·0 at x − a = inf.
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             results[i] = (x < a)   ? detail::ZERO_DOUBLE
                          : (x > b) ? detail::ONE
-                                   : uniformCdfInterior(x, a, b, inv_width);
+                                   : uniformCdfInterior(x, a, b);
         }
         return;
     }
 
-    // Vectorize the linear interior (x-a)*inv_width across the full batch,
-    // then a scalar pass clamps the boundary values.
-    // The unit-interval case (a=0, inv_width=1) is handled by the same formula.
-    // Step 1: results = values - a
-    arch::simd::VectorOps::scalar_add(values, -a, results, count);
-    // Step 2: results = (values - a) * inv_width
-    arch::simd::VectorOps::scalar_multiply(results, inv_width, results, count);
+    // The interior (x − a)/(b − a) across the full batch, then a scalar pass clamps the
+    // boundary values. The quotient is uniformCdfInterior's, element for element, so every
+    // strategy returns the scalar result bit for bit; the branch-free loop vectorizes to a
+    // packed subtract and divide (VectorOps has no divide-by-scalar).
+    // The unit-interval case (a = 0, b = 1) is handled by the same formula.
+    for (std::size_t i = 0; i < count; ++i)
+        results[i] = (values[i] - a) / width;
     // Clamp fixup: boundaries are 0 below a and 1 above b.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < a) {

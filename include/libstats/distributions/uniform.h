@@ -833,8 +833,8 @@ class UniformDistribution : public DistributionBase {
 
     /** @brief Internal implementation for batch CDF calculation */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                 std::size_t count, double a, double b,
-                                                 double inv_width) const noexcept;
+                                                 std::size_t count, double a,
+                                                 double b) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS (if needed)
@@ -856,15 +856,20 @@ class UniformDistribution : public DistributionBase {
         invWidth_ = width_overflows ? detail::HALF / halfWidth_ : detail::ONE / width_;
         widthSquared_ = width_ * width_;
 
-        // Core cached values
-        midpoint_ =
-            width_overflows ? detail::HALF * a_ + detail::HALF * b_ : (a_ + b_) * detail::HALF;
-        variance_ = widthSquared_ / 12.0;
+        // Core cached values. a + b overflows independently of b − a (both bounds near
+        // −DBL_MAX: U(−DBL_MAX, −1e308) has a finite width and an infinite sum), so the midpoint
+        // falls back to a/2 + b/2 on the sum, not on the width. (b − a)²/12 overflows in the
+        // square from width 1.3e154 while the variance stays finite to 4.6e154; (w/12)·w is
+        // finite there and +inf only where the variance itself overflows.
+        const double sum = a_ + b_;
+        midpoint_ = std::isfinite(sum) ? sum * detail::HALF : detail::HALF * a_ + detail::HALF * b_;
+        variance_ = std::isfinite(widthSquared_) ? widthSquared_ / 12.0 : (width_ / 12.0) * width_;
         logInvWidth_ = width_overflows ? -(std::log(halfWidth_) + detail::LN2) : -std::log(width_);
 
-        // Optimization flags
-        isUnitInterval_ = (std::abs(a_ - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE &&
-                           std::abs(b_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+        // Optimization flags. The unit-interval fast paths return x for the CDF and 1 for the
+        // density, so the flag must be exact: a tolerance of 1e-8 made U(0, 1 + 1e-9).cdf(b)
+        // exceed 1 and U(1e-9, 1).cdf(a) nonzero.
+        isUnitInterval_ = (a_ == detail::ZERO_DOUBLE && b_ == detail::ONE);
         isSymmetric_ = (std::abs(a_ + b_) <= detail::DEFAULT_TOLERANCE);
         isNarrowInterval_ = (width_ < detail::DEFAULT_TOLERANCE * 100.0);
         isWideInterval_ = (width_ > detail::THOUSAND);

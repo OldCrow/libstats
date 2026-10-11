@@ -14,6 +14,7 @@
 #include <limits>
 #include <random>
 #include <span>
+#include <string>
 #include <vector>
 
 using namespace std;
@@ -226,6 +227,80 @@ TEST_F(StudentTEnhancedTest, MLEFitBeyondOldCapAndGaussianLimit) {
         auto fitted = StudentTDistribution::create(1.0).unwrap();
         fitted.fit(data);
         EXPECT_NEAR(fitted.getNu(), nu, (nu < 50.0 ? 0.15 : 0.5) * nu) << "fit at nu = " << nu;
+    }
+}
+
+// The ν fit's Newton step used a wrong derivative of the score (its data term), so it crept toward
+// a root past ~1e4 by ~0.17% a step, stopped at max_iter = 100 and returned the last iterate as if
+// converged; elsewhere a loose |ν²S| test stopped it up to ~1e-5 short. t(100) data,
+// mt19937(305), n = 1e4 (libc++ draws):
+// ν = 26099.018, the root of the score is 27470.35 (mpmath, dps 40). The check is on the root
+// itself, so it holds on any standard library's draws: the score, computed here independently of
+// the library, must change sign across ν̂·(1 ∓ 1e-6). The fit stops at a step or bracket below
+// 1e-8 in log ν, and this score is accurate to ~1e-11 of its slope there, so 1e-6 is 100 times the
+// fit's own tolerance; the unfixed fit is 5% off in the repro.
+namespace {
+
+// ψ((ν+1)/2) − ψ(ν/2) − 1/ν. Shifted up by the recurrence
+// d(ν) = d(ν + 2m) + Σ_{k<m} 1/(4(x+k)(x+k+½)(x+k+1)), x = ν/2 (every term positive), then the
+// asymptotic series in w = 1/ν², whose relative error is below 6e-16 from ν = 60 (both checked
+// against mpmath).
+double scoreDigammaPart(double nu) {
+    double acc = 0.0;
+    const double x = 0.5 * nu;
+    int k = 0;
+    for (; nu + 2.0 * k < 80.0; ++k) {
+        const double y = x + k;
+        acc += 1.0 / (4.0 * y * (y + 0.5) * (y + 1.0));
+    }
+    const double big = nu + 2.0 * k;
+    const double w = 1.0 / (big * big);
+    return acc + w * (0.5 + w * (-0.25 + w * (0.5 + w * (-17.0 / 8.0 + w * 15.5))));
+}
+
+// The t log-likelihood score in ν: n·d(ν) + Σ [r/ν − (log(1 + x²/ν) − r)], r = x²/(ν + x²).
+double tScore(const vector<double>& data, double nu) {
+    double s = static_cast<double>(data.size()) * scoreDigammaPart(nu);
+    for (double x : data) {
+        const double a = x * x / nu;
+        const double r = a / (1.0 + a);
+        s += r / nu - (std::log1p(a) - r);
+    }
+    return s;
+}
+
+// ν̂ is the score's root to relative `rel`: S > 0 just below, S < 0 just above.
+void expectScoreRoot(const vector<double>& data, double nu_hat, double rel, const string& what) {
+    EXPECT_GT(tScore(data, nu_hat * (1.0 - rel)), 0.0) << what << ", nu_hat = " << nu_hat;
+    EXPECT_LT(tScore(data, nu_hat * (1.0 + rel)), 0.0) << what << ", nu_hat = " << nu_hat;
+}
+
+}  // namespace
+
+TEST_F(StudentTEnhancedTest, MLEFitReachesTheScoreRoot) {
+    constexpr double kNuLimit = 1e8;  // the documented Gaussian limit: no interior root
+    {
+        mt19937 rng(305);
+        const auto data = StudentTDistribution::create(100.0).unwrap().sample(rng, 10000);
+        auto fitted = StudentTDistribution::create(1.0).unwrap();
+        fitted.fit(data);
+        ASSERT_LT(fitted.getNu(), kNuLimit);
+        expectScoreRoot(data, fitted.getNu(), 1e-6, "repro t(100), seed 305");
+    }
+    // A sweep over ν and seeds, from heavy tails to past the old creeping range. Every fit either
+    // returns the Gaussian limit or the root; none throws (the fit now throws rather than return an
+    // unconverged ν, which its iteration bound makes unreachable).
+    for (double nu : {0.5, 2.0, 10.0, 100.0, 1e3, 1e4}) {
+        for (unsigned seed = 300; seed < 306; ++seed) {
+            mt19937 rng(seed);
+            const auto data = StudentTDistribution::create(nu).unwrap().sample(rng, 10000);
+            auto fitted = StudentTDistribution::create(1.0).unwrap();
+            ASSERT_NO_THROW(fitted.fit(data)) << "nu = " << nu << ", seed " << seed;
+            if (fitted.getNu() == kNuLimit)
+                continue;
+            expectScoreRoot(data, fitted.getNu(), 1e-6,
+                            "nu = " + to_string(nu) + ", seed " + to_string(seed));
+        }
     }
 }
 

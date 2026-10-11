@@ -296,12 +296,26 @@ constexpr double kEntropyStirlingShape = 100.0;
 // with P = (βx)^α·e^{−βx}/Γ(α) in Stirling form: the direct α·log β − lgamma(α) + (α − 1)·log x −
 // βx cancels terms of size α·log α, 2e-11 relative at α = 1e4. density_constant is
 // gammaDensityConstant(α, …).
+// log1p(t) − t for t = βx/α − 1 where the product βx overflows (DH3: Gamma(100, 1e300).pdf(1e300)
+// formed (inf − α)/α and log(inf) − inf, NaN; the direct form below α = 20 is −inf there
+// already). The ratio is taken as β·(x/α), which overflows only where βx/α does; then
+// α·(log1p(t) − t) < −βx/2 < −DBL_MAX and the log-density is −inf.
+[[nodiscard]] inline double log1pmxOverflowedRate(double x, double alpha, double beta) noexcept {
+    const double r = beta * (x / alpha);
+    if (!std::isfinite(r))
+        return detail::NEGATIVE_INFINITY;
+    return std::log(r) - (r - detail::ONE);
+}
+
 [[nodiscard]] inline double gammaLogDensity(double x, double alpha, double beta,
                                             double density_constant,
                                             double alpha_minus_one) noexcept {
     if (alpha < kStirlingDensityShape)
         return density_constant + alpha_minus_one * std::log(x) - beta * x;
-    return detail::log_gamma_prefactor(alpha, beta * x, density_constant) - std::log(x);
+    const double y = beta * x;
+    if (!std::isfinite(y))
+        return alpha * log1pmxOverflowedRate(x, alpha, beta) + density_constant - std::log(x);
+    return detail::log_gamma_prefactor(alpha, y, density_constant) - std::log(x);
 }
 
 // gammaLogDensity's Stirling branch (α ≥ 20) over a batch: α·log1pmx(t) + C − log x with
@@ -336,6 +350,10 @@ void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, do
         for (std::size_t k = 0; k < n_far; ++k) {
             const std::size_t i = far_index[k];
             const double xp = beta * xb[i];
+            if (!std::isfinite(xp)) {
+                ob[i] = log1pmxOverflowedRate(xb[i], alpha, beta);  // as gammaLogDensity
+                continue;
+            }
             const double t = (xp - alpha) / alpha;
             ob[i] = std::log(xp / alpha) - t;  // log1p(t) as the scalar path forms it
         }
@@ -730,17 +748,17 @@ double GammaDistribution::getDegreesOfFreedom() const {
 }
 
 double GammaDistribution::getEntropy() const {
-    double a, lb, lga, da;
+    double a, lb, lga;
     withCacheSnapshot([&] {
         a = alpha_;
         lb = logBeta_;
         lga = logGammaAlpha_;
-        da = digammaAlpha_;
     });
     // H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α); the Stirling form from α = 100 (DH2 M2).
+    // detail::digamma carries its series to B₁₄ from x ≥ 10, 4.4e-17 truncation (DH3).
     if (a >= kEntropyStirlingShape)
         return gammaEntropyStirling(a) - lb;
-    return a - lb + lga + (detail::ONE - a) * da;
+    return a - lb + lga + (detail::ONE - a) * detail::digamma(a);
 }
 
 bool GammaDistribution::canUseNormalApproximation() const noexcept {

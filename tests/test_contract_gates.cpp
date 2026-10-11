@@ -1060,6 +1060,90 @@ TEST(ContractGates, DH2_S1_VonMisesSamplerTerminatesAndFollowsCdf) {
 }
 
 //==============================================================================
+// DH3: von Mises sample() at large kappa. The Best-Fisher sampler returned acos(f) and accepted on
+// c = kappa (r - f), with f within 1/kappa of 1 near the mean, where doubles are 1.1e-16 apart. The
+// draws sat on a lattice of relative spacing ~1.1e-16 kappa near theta = 1/sqrt(kappa): 59
+// repeated values in 20000 draws at kappa = 1e9, 9062 at 1e12, KS sqrt(n) D = 6.97 at 1e14 and
+// 21 at 1e15. From kappa ~ 6.5e15, r = (1 + rho^2)/(2 rho) rounded to 1, c = 0, every draw was
+// rejected and sample() never returned. Now: Best-Fisher in half-angle form from kappa = 1e4,
+// a normal draw with sigma = 1/sqrt(kappa) from 1e15 (where the von Mises law and the normal
+// differ by < 4.4e-17 in CDF), the textbook form (unchanged streams) below 1e4. Both overloads.
+//==============================================================================
+
+TEST(ContractGates, DH3_VonMisesSamplerTerminatesAtHugeKappa) {
+    for (const double kappa : {6.5e15, 1e16, 1e300, std::numeric_limits<double>::max()}) {
+        const VonMisesDistribution v(0.3, kappa);
+        std::vector<double> xs, xv;
+        runOrHang(
+            [&] {
+                std::mt19937 rng(20261010);
+                for (int i = 0; i < 1000; ++i)
+                    xs.push_back(v.sample(rng));
+                xv = v.sample(rng, 1000);
+            },
+            20, "VonMises sample at huge kappa");
+        ASSERT_EQ(xs.size(), 1000u);
+        ASSERT_EQ(xv.size(), 1000u);
+        // In range, and within 10 standard deviations of the mean (the normal draw is at most
+        // ~9.4 sigma: Box-Muller's u1 is at least 2^-64).
+        for (const auto* draws : {&xs, &xv}) {
+            for (const double x : *draws) {
+                ASSERT_TRUE(std::isfinite(x)) << kappa;
+                ASSERT_GT(x, -kPi) << kappa;
+                ASSERT_LE(x, kPi) << kappa;
+                ASSERT_LE(std::fabs(x - 0.3), 10.0 / std::sqrt(kappa) + 1e-16) << kappa;
+            }
+        }
+    }
+}
+
+// KS of u = F(x) against the library CDF at the defect's kappa and on both sides of the two new
+// switches (1e4, 1e15): 8 kappa x 2 overloads = 16 tests at n = 20000, rejected at p < 1e-4, a
+// false alarm once in ~600 runs of the suite if the seed were varied (it is fixed). Above kappa =
+// 1000 the CDF is the wrapped normal, 0.0435/kappa absolute off (4e-6 at 1e4), far below the KS
+// resolution 1/sqrt(n) = 7e-3. At mu = 0
+// the draws are theta itself, at full relative precision, so a correct sampler repeats a value in
+// 20000 draws with probability ~1e-7; the lattice repeated 59 times at kappa = 1e9.
+TEST(ContractGates, DH3_VonMisesSamplerFollowsCdfAtLargeKappa) {
+    for (const double kappa : {9999.0, 1e4, 1e9, 1e12, 1e14, 9.99e14, 1e15, 1e16}) {
+        for (const double mu : {0.3, 0.0}) {
+            const VonMisesDistribution v(mu, kappa);
+            std::vector<double> xs, xv;
+            runOrHang(
+                [&] {
+                    std::mt19937 rng(20261010);
+                    xs.reserve(20000);
+                    for (int i = 0; i < 20000; ++i)
+                        xs.push_back(v.sample(rng));
+                    xv = v.sample(rng, 20000);
+                },
+                20, "VonMises sample at large kappa");
+            for (const auto* draws : {&xs, &xv}) {
+                const char* which = (draws == &xs ? " scalar" : " vector");
+                ASSERT_EQ(draws->size(), 20000u);
+                if (mu == 0.0) {
+                    std::vector<double> sorted = *draws;
+                    std::sort(sorted.begin(), sorted.end());
+                    const auto last = std::unique(sorted.begin(), sorted.end());
+                    const auto repeats = static_cast<std::size_t>(sorted.end() - last);
+                    EXPECT_EQ(repeats, 0u) << "kappa " << kappa << which;
+                    continue;
+                }
+                std::vector<double> u;
+                u.reserve(draws->size());
+                for (const double x : *draws) {
+                    ASSERT_TRUE(std::isfinite(x)) << kappa;
+                    ASSERT_GT(x, -kPi) << kappa;
+                    ASSERT_LE(x, kPi) << kappa;
+                    u.push_back(v.getCumulativeProbability(x));
+                }
+                EXPECT_GT(ksPValue(u), 1e-4) << "kappa " << kappa << which;
+            }
+        }
+    }
+}
+
+//==============================================================================
 // DH2 M1: von Mises getEntropy() had both signs wrong, in the code and in the header formula:
 // log(2 pi) - log I0(kappa) + kappa I1/I0. The entropy is log(2 pi I0(kappa)) - kappa I1/I0.
 // kappa = 1 returned 2.0484 (true 1.6274), kappa = 100 returned 4.557 (true -0.881); only
@@ -1201,7 +1285,7 @@ TEST(ContractGates, DH2_S2_UniformWidthOverflow) {
     }
     // Ordinary widths: the half-width form reproduces the direct one exactly.
     const UniformDistribution o(-3.0, 7.5);
-    EXPECT_EQ(o.getCumulativeProbability(1.2), (1.2 - (-3.0)) * (1.0 / 10.5));
+    EXPECT_EQ(o.getCumulativeProbability(1.2), (1.2 - (-3.0)) / 10.5);  // DH3 U1: a quotient
     // lo + p·w, as before the fix; the compiler may contract it to an FMA (AArch64 does).
     const double q = o.getQuantile(0.3);
     EXPECT_TRUE(q == -3.0 + 0.3 * 10.5 || q == std::fma(0.3, 10.5, -3.0)) << q;
@@ -1265,4 +1349,229 @@ TEST(ContractGates, DH2_Issue216_CdfArgumentUnderOverflow) {
     EXPECT_LT(relErr(pa.getSurvival(kMax), 7.2019954788452102e-4), 1e-13);
     batchAll(pa, 1e303, 0.9991871694838359, 1e-13, "Pareto(1e-6,0.01)");
     batchAll(pa, kMax, 0.99927980045211548, 1e-13, "Pareto(1e-6,0.01)");
+}
+
+//==============================================================================
+// DH3 contract round, 2026-10-10. References: mpmath, dps 50-120 (the truncated-normal moments
+// by tn_moments in the hunt oracle). Each gate failed on the unfixed code, as noted per block.
+//==============================================================================
+
+namespace {
+
+// Every batch strategy's result for one repeated input, beside the scalar call. 69 elements:
+// past the SIMD threshold, with a scalar tail.
+template <typename D, typename Op>
+void expectAllStrategies(const D& d, double x, double want, double tol, Op op, const char* who) {
+    using PS = detail::PerformanceHint::PreferredStrategy;
+    std::vector<double> in(69, x), out(69, -1.0);
+    for (PS s :
+         {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL, PS::MAXIMIZE_THROUGHPUT}) {
+        op(d, std::span<const double>(in), std::span<double>(out),
+           detail::PerformanceHint{s, std::nullopt});
+        for (std::size_t i : {std::size_t{0}, std::size_t{68}}) {
+            if (tol == 0.0 || std::isinf(want))
+                EXPECT_EQ(out[i], want) << who << " strategy " << static_cast<int>(s);
+            else
+                EXPECT_LT(relErr(out[i], want), tol) << who << " strategy " << static_cast<int>(s);
+        }
+    }
+}
+
+const auto kCdfBatch = [](const auto& d, std::span<const double> in, std::span<double> out,
+                          const detail::PerformanceHint& h) {
+    d.getCumulativeProbability(in, out, h);
+};
+const auto kPdfBatch = [](const auto& d, std::span<const double> in, std::span<double> out,
+                          const detail::PerformanceHint& h) { d.getProbability(in, out, h); };
+const auto kLogPdfBatch = [](const auto& d, std::span<const double> in, std::span<double> out,
+                             const detail::PerformanceHint& h) { d.getLogProbability(in, out, h); };
+
+}  // namespace
+
+// DH3 U1: Uniform at extreme and near-unit bounds. Unfixed: U(-DBL_MAX, -1e308).getMean() =
+// -inf (a + b overflowed with a finite width); U(0, 3e154).getVariance() = inf for 7.5e307
+// ((b - a)^2 overflowed); F(b) < 1 wherever w * fl(1/w) != 1: 0.99999999999999989 for
+// U(-DBL_MAX, 0) (1/w subnormal) and for U(0, 49); U(0, 1e-320).cdf(5e-321) = +inf and the
+// survival -inf (1/w = inf); and the unit-interval fast path took U(0, 1 + 1e-9) and
+// U(1e-9, 1) for [0, 1] at tolerance 1e-8: F(b) = 1.000000001, F(a) = 1e-9, density 1, while
+// the batch kernels used the true bounds.
+TEST(ContractGates, DH3_U1_UniformExtremeBounds) {
+    constexpr double kMax = std::numeric_limits<double>::max();
+    const UniformDistribution m(-kMax, -1e308);
+    EXPECT_EQ(m.getMean(), -1.398846567431158e308);  // (a + b)/2, as getMedian forms it
+    EXPECT_EQ(m.getMean(), m.getMedian());
+    EXPECT_EQ(m.getMidpoint(), m.getMedian());
+    EXPECT_EQ(m.getVariance(), std::numeric_limits<double>::infinity());  // 5.3e614
+    EXPECT_LT(relErr(UniformDistribution(0.0, 3e154).getVariance(), 7.5e307), 1e-15);
+    EXPECT_EQ(UniformDistribution(-1e300, -9e299).getVariance(), (1e299 * 1e299) / 12.0);
+
+    struct Row {
+        double a, b, x, f;
+    };
+    for (const Row& r : {Row{-kMax, 0.0, 0.0, 1.0}, Row{-kMax, 0.0, -kMax, 0.0},
+                         Row{-8e307, 8e307, 8e307, 1.0}, Row{-8e307, 8e307, 4e307, 0.75},
+                         Row{0.0, 1e-320, 5e-321, 0.5}, Row{0.0, 1e-320, 1e-320, 1.0},
+                         Row{0.0, 49.0, 49.0, 1.0}, Row{0.0, 1.0 + 1e-9, 1.0 + 1e-9, 1.0},
+                         Row{1e-9, 1.0, 1e-9, 0.0}, Row{-3.0, 7.5, 1.2, 4.2 / 10.5}}) {
+        const UniformDistribution u(r.a, r.b);
+        EXPECT_EQ(u.getCumulativeProbability(r.x), r.f) << r.a << " " << r.b << " " << r.x;
+        EXPECT_EQ(u.getSurvival(r.x), 1.0 - r.f) << r.a << " " << r.b << " " << r.x;
+        expectAllStrategies(u, r.x, r.f, 0.0, kCdfBatch, "Uniform cdf");
+    }
+    const UniformDistribution nu(1e-9, 1.0);
+    const double dens = 1.0 / (1.0 - 1e-9);
+    EXPECT_EQ(nu.getProbability(0.5), dens);
+    EXPECT_EQ(nu.getLogProbability(0.5), -std::log(1.0 - 1e-9));
+    expectAllStrategies(nu, 0.5, dens, 0.0, kPdfBatch, "Uniform(1e-9, 1) pdf");
+}
+
+// DH3 T1: TruncatedNormal pdf/logpdf where sigma^2 over- or underflows (both sigma accepted).
+// Unfixed: -(x - mu)^2 / (2 sigma^2) gave -0 * inf or 0 * (-inf), NaN under every strategy
+// (TN(1e300, 1e299, 1.1e300, 1.5e300).pdf(1.2e300), TN(0, 1e-170, -1e-170, 1e-170).pdf(0)); the
+// variance sigma^2 * c2 was +inf for a finite 7e306 at sigma = 1e160.
+TEST(ContractGates, DH3_T1_TruncatedNormalSigmaSquaredRange) {
+    struct Row {
+        double mu, sigma, a, b, x, logpdf;
+    };
+    for (const Row& r : {Row{1e300, 1e299, 1.1e300, 1.5e300, 1.2e300, -689.5508578866559},
+                         Row{0.0, 1e-170, -1e-170, 1e-170, 0.0, 390.90224242208524},
+                         Row{0.0, 1e-170, -1e-170, 1e-170, 5e-171, 390.77724242208524}}) {
+        const TruncatedNormalDistribution t(r.mu, r.sigma, r.a, r.b);
+        EXPECT_LT(std::fabs(t.getLogProbability(r.x) - r.logpdf), 1e-12 * std::fabs(r.logpdf))
+            << r.sigma;
+        EXPECT_LT(relErr(t.getProbability(r.x), std::exp(r.logpdf)), 1e-12) << r.sigma;
+        expectAllStrategies(t, r.x, r.logpdf, 1e-14, kLogPdfBatch, "TN logpdf");
+        expectAllStrategies(t, r.x, std::exp(r.logpdf), 1e-12, kPdfBatch, "TN pdf");
+    }
+    // sigma^2 = 1e320 overflows; c2 = 8.3e-14 for the window (0, 1e-6 sigma).
+    const TruncatedNormalDistribution w(0.0, 1e160, 0.0, 1e154);
+    EXPECT_LT(relErr(w.getVariance(), 8.333333333333055e306), 1e-12);
+}
+
+// DH3 G1: Gamma density where the rate-scaled argument beta * x overflows at shapes >= 20.
+// Unfixed: Gamma(100, 1e300).pdf(1e300) formed (inf - alpha)/alpha and log(inf) - inf: NaN
+// under every strategy (shape 5 was already 0). Gamma(1.5e308, 2) at 1e308 has a finite
+// log-density, -6.85e306, also NaN.
+TEST(ContractGates, DH3_G1_GammaDensityRateOverflow) {
+    const GammaDistribution g(100.0, 1e300);
+    EXPECT_EQ(g.getProbability(1e300), 0.0);
+    EXPECT_EQ(g.getLogProbability(1e300), -std::numeric_limits<double>::infinity());
+    expectAllStrategies(g, 1e300, 0.0, 0.0, kPdfBatch, "Gamma(100, 1e300) pdf");
+    expectAllStrategies(g, 1e300, -std::numeric_limits<double>::infinity(), 0.0, kLogPdfBatch,
+                        "Gamma(100, 1e300) logpdf");
+    const GammaDistribution h(1.5e308, 2.0);
+    EXPECT_LT(relErr(h.getLogProbability(1e308), -6.847689132232862e306), 1e-13);
+    expectAllStrategies(h, 1e308, -6.847689132232862e306, 1e-13, kLogPdfBatch,
+                        "Gamma(1.5e308, 2) logpdf");
+}
+
+// DH3 W1: Weibull moments where Gamma(1 + n/k) overflows or the scale's powers do. Unfixed:
+// the variance inf - inf = NaN from k = 0.0117 down (Weibull(0.01, 1e-100) is 7.9e174), the
+// skewness and kurtosis NaN at (0.02, 1), (0.01, 1e-100) and (2, 1e200) (Gamma(1 + n/k),
+// lambda^n or the variance overflowed), the kurtosis -3 at (0.05, 1e-100) and NaN at
+// (0.5, 1e-100) (lambda^4 = 0). Where the true value overflows (+inf rows) +inf is right.
+TEST(ContractGates, DH3_W1_WeibullMomentOverflow) {
+    constexpr double kInf = std::numeric_limits<double>::infinity();
+    const WeibullDistribution a(0.01, 1e-100);
+    EXPECT_LT(relErr(a.getVariance(), 7.886578673647731e174), 1e-12);
+    EXPECT_LT(relErr(a.getMean(), 9.332621544394325e57), 1e-12);
+    EXPECT_LT(relErr(a.getSkewness(), 1.3818792121546423e52), 1e-12);
+    EXPECT_LT(relErr(a.getKurtosis(), 1.0295250013541385e119), 1e-12);
+    EXPECT_EQ(WeibullDistribution(0.01, 1.0).getVariance(), kInf);  // 7.9e374
+    const WeibullDistribution b(0.003, 1e-100);
+    EXPECT_EQ(b.getMean(), kInf);  // 7.2e597
+    EXPECT_EQ(b.getVariance(), kInf);
+    EXPECT_LT(relErr(b.getSkewness(), 1.8781803558133598e175), 1e-12);
+    EXPECT_EQ(b.getKurtosis(), kInf);  // 5.2e399
+    const WeibullDistribution c(0.02, 1.0);
+    EXPECT_LT(relErr(c.getSkewness(), 6.337061601553519e25), 1e-12);
+    EXPECT_LT(relErr(c.getKurtosis(), 9.054851465610302e58), 1e-12);
+    EXPECT_LT(relErr(WeibullDistribution(0.05, 1e-100).getKurtosis(), 1.0750720873489566e23),
+              1e-12);
+    const WeibullDistribution d(2.0, 1e200);
+    EXPECT_EQ(d.getVariance(), kInf);  // 2.1e399
+    EXPECT_LT(relErr(d.getSkewness(), 0.6311106578189372), 1e-13);
+    EXPECT_LT(relErr(d.getKurtosis(), 0.24508930068763807), 1e-13);
+    EXPECT_LT(relErr(WeibullDistribution(0.5, 1e-100).getKurtosis(), 84.72), 1e-13);
+}
+
+// DH3 G2: Gamma entropy below the Stirling switch took psi from detail::digamma, whose
+// asymptotic series stops at 1/(252 x^6) after lifting x past 6: 1.2e-8 absolute at alpha = 6,
+// 6.3e-10 at 0.5 (relative 6.9e-9).
+TEST(ContractGates, DH3_G2_GammaEntropySmallShape) {
+    struct Row {
+        double alpha, h;
+    };
+    for (const Row& r : {Row{0.5, 0.09060992991398835}, Row{3.0, 1.8475785103630111},
+                         Row{5.6, 2.218086627766992}, Row{6.0, 2.2569034006230435},
+                         Row{20.0, 2.899928334598662}, Row{50.0, 3.3682499483781685}}) {
+        // From alpha = 20 the direct form's own alpha log alpha eps cancellation dominates.
+        const double tol = r.alpha < 10.0 ? 2e-14 : 6e-14;
+        EXPECT_NEAR(GammaDistribution(r.alpha, 1.0).getEntropy(), r.h, tol) << r.alpha;
+        EXPECT_NEAR(GammaDistribution(r.alpha, 4.0).getEntropy(), r.h - std::log(4.0), tol)
+            << r.alpha;
+    }
+}
+
+// DH3 T2/T3: TruncatedNormal on narrow windows and just past the closed-form switch. Unfixed:
+// log Z from the erfc difference Q(alpha) - Q(beta) lost 1/(alpha * width) of its arguments'
+// rounding, so the entropy was off by 7.4e-10 at (20, 20 + 1.41e-6) and 1.3e-9 at
+// (37, 37 + 1e-6), and the log-density by as much; the kurtosis took the closed forms from
+// c2 = 0.05 max(1, m^2), 8e-13 absolute at (-1.5, -0.5513).
+TEST(ContractGates, DH3_T2_TruncatedNormalNarrowWindowsAndKurtosis) {
+    struct Row {
+        double a, b, h, kurt, logpdf_mid;
+    };
+    for (const Row& r :
+         {Row{20.0, 20.0 + 1.41e-6, -13.471920854015579, -1.1999999998681492, 13.471920853949428},
+          Row{37.0, 37.000001, -13.815510560546073, -1.1999999997731028, 13.815510560432031},
+          Row{-3.0, -2.999999, -13.81551055782487, -1.1999999999984743, 13.815510557824163},
+          Row{0.0, 1e-6, -13.815510557964274, -1.1999999999999658, 13.815510557964316},
+          Row{-1.5, -0.5513167019494862, -0.08954339525050585, -1.0235359908519184,
+              0.05162480839418757},
+          Row{1.182179, 2.924669, 0.20611090042918168, 0.4103303796461589, -0.8802914185414576},
+          Row{-3.0, -1.23396, 0.19623333155808514, 0.5233648939064417, -0.927231948877003}}) {
+        const TruncatedNormalDistribution t(0.0, 1.0, r.a, r.b);
+        EXPECT_NEAR(t.getEntropy(), r.h, 1e-14) << r.a << " " << r.b;
+        EXPECT_NEAR(t.getKurtosis(), r.kurt, 3e-14) << r.a << " " << r.b;
+        EXPECT_NEAR(t.getLogProbability(0.5 * (r.a + r.b)), r.logpdf_mid, 1e-13)
+            << r.a << " " << r.b;
+        // sigma = 4 (exact scaling of the bounds) shifts the entropy by log 4.
+        const TruncatedNormalDistribution s(0.0, 4.0, 4.0 * r.a, 4.0 * r.b);
+        EXPECT_NEAR(s.getEntropy(), r.h + std::log(4.0), 1e-14) << r.a << " " << r.b;
+    }
+}
+
+// DH3: detail::digamma lifted x past 6 and stopped its series at 1/(252x⁶) (truncation
+// 1/(240x⁸) = 2.5e-9 at 6; ψ(1) was −0.57721566727); detail::trigamma stopped at 1/(30x⁹)
+// (2.1e-10 at 6). Their consumers (Gamma, InverseGamma, Beta, Fisher-F, Student-t entropies;
+// the Gamma, Beta, Student-t and NegativeBinomial fits) carried those errors. Both now lift
+// past 10 and run through B₁₄ (first omitted term < 1e-16). References: mpmath, dps 40, at
+// the doubles shown; rows straddle the old (6) and new (10) shift points.
+TEST(ContractGates, DH3_D1_DigammaTrigammaSeries) {
+    struct Row {
+        double x, psi, psi1;
+    };
+    const Row rows[] = {
+        {0.001, -1000.5755719318102797, 1000001.6425331958273},
+        {0.5, -1.9635100260214234794, 4.9348022005446793094},
+        {1.0, -0.57721566490153286061, 1.6449340668482264365},
+        {2.5, 0.70315664064524318723, 0.49035775610023486497},
+        {5.5, 1.6110931485817511237, 0.19934238698962765913},
+        {5.999999999999999, 1.7061176684318003117, 0.18132295573711535448},
+        {6.0, 1.7061176684318004727, 0.18132295573711532536},
+        {9.5, 2.1977378764029495332, 0.11099728846909903237},
+        {9.999999999999998, 2.2517525890667209208, 0.10516633568168576575},
+        {10.0, 2.2517525890667211076, 0.10516633568168574612},
+        {37.25, 3.6041690730056271675, 0.0272092058039555752},
+        {1000.0, 6.9072551956488120521, 0.0010005001666666333334},
+    };
+    constexpr double kEps = std::numeric_limits<double>::epsilon();
+    for (const auto& r : rows) {
+        // 16ε of max(1, |ψ|): the recurrence sums up to ~10 terms of size 1/x.
+        EXPECT_NEAR(detail::digamma(r.x), r.psi, 16.0 * kEps * std::max(1.0, std::abs(r.psi)))
+            << "digamma(" << r.x << ")";
+        EXPECT_NEAR(detail::trigamma(r.x), r.psi1, 16.0 * kEps * r.psi1)
+            << "trigamma(" << r.x << ")";
+    }
 }

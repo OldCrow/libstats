@@ -353,13 +353,8 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
 //
 // The complement ybar = d2/(d1 x + d2) is formed by division, never as 1 - y:
 // as x grows y -> 1 and `1 - y` in double loses every significant bit of the
-// complement (the #49 cancellation class). detail::beta_i's own internal
-// series/complement switch is `z < (A+1)/(A+B+2)`; we pick the branch that
-// satisfies it, so beta_i always takes its direct continued-fraction path.
-//
-//   y < (a+1)/(a+b+2)  =>  I_y(a,b)              (direct)
-//   otherwise          =>  1 - I_ybar(b,a), and  y > (a+1)/(a+b+2) implies
-//                          ybar < (b+1)/(a+b+2), so that call is direct too.
+// complement (the #49 cancellation class). The orientation is chosen at
+// cdfImpl below.
 //
 // The log-beta prefix lgamma(a+b)-lgamma(a)-lgamma(b) is symmetric in (a,b),
 // so one cached value serves both branches.
@@ -377,8 +372,7 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
 // (d2/x)/d1 instead, y = 1/(1 + r), ybar = r/(1 + r). Where the smaller of
 // y and ybar leaves the normal range (subnormal, too few bits for z^s, or 0),
 // `extreme` is set and log_r = log d2 − log d1 − log x carries the argument
-// instead: there the incomplete beta is its leading term z^s/(s·B(a, b)) with
-// z = min(y, ybar) < DBL_MIN, to a relative O(z·(a + b)).
+// instead (see f_extreme_tails).
 struct FBetaArgs {
     double y, ybar;  // when !extreme
     double log_r;    // log(d2/(d1·x)), when extreme
@@ -408,14 +402,82 @@ static inline FBetaArgs f_beta_args(double x, double d1, double d2) noexcept {
     return r;
 }
 
-// The survival (log_r < 0, the upper tail) or the CDF (log_r > 0, the lower
-// tail) where the beta argument is below DBL_MIN: the leading term of
-// I_z(s, ·), z^s/(s·B(a, b)), with log z = −|log_r|.
-static inline double f_extreme_small_side(double log_r, double a, double b) noexcept {
-    const double s = log_r < detail::ZERO_DOUBLE ? b : a;
-    return std::exp(-s * std::fabs(log_r) - std::log(s) - detail::lbeta(a, b));
+// CDF and survival where the beta argument z = min(y, ybar) is below DBL_MIN. The small side is
+// the CDF for log_r > 0 (z = y, shape s = a) and the survival for log_r < 0 (z = ybar, s = b),
+// with log z = −|log_r| to a relative 1/r < DBL_MIN; t is the other shape.
+//
+// While (a + b)·z ≤ 2^-60 it is the leading term of I_z(s, t), z^s/(s·B(a, b)), whose relative
+// error is of order t·z. Past that — t ≳ 1e289, so d₂ or d₁ near the top of the range — the
+// leading term exceeded 1 (F(2, 1.6e308).cdf(1.5) = 1.4999999999998, for 0.777) and lbeta of two
+// huge shapes is ∞ − ∞ (F(DBL_MAX, DBL_MAX) was NaN at every x). There I_z(s, t) is its gamma
+// limit P(s, λ), λ = t·z, to a relative O(s/t + s·z): t·z ≤ t·DBL_MIN ≤ 4 there, so P(s, λ) is
+// nonzero only for s up to a few hundred, against t ≥ 1e289. λ = t·z is a·x·ybar on the CDF side
+// and a·ybar = b·y/x on the survival side, and the factor next to 1 is 1 to within z, so
+// λ = a·x or b/x, each one rounding.
+struct FTails {
+    double cdf, sf;
+};
+
+static inline FTails f_extreme_tails(double log_r, double x, double a, double b) noexcept {
+    const bool lower = log_r > detail::ZERO_DOUBLE;
+    const double s = lower ? a : b;
+    const double abs_log_r = std::fabs(log_r);
+    constexpr double kLeadingTermLimit = -41.58883083359672;  // log 2^-60
+    if (std::log(a + b) - abs_log_r <= kLeadingTermLimit) {
+        const double t = lower ? b : a;
+        if (s <= detail::HALF && t >= detail::ONE) {
+            // A small s puts the leading term near 1, I = exp(L) with L = s·log z − log(s·B(s, t))
+            // of order s, and its complement 1 − exp(L) lost the digits of L (F(1e-47, 2).sf at
+            // x = 3.4e-275 was 0 for 3.7e-45). Here log(s·B(s, t)) is formed without the
+            // cancellation of log s against lbeta, and the complement is −expm1(L).
+            const double l = -s * abs_log_r - detail::log_small_shape_beta(s, t);
+            const double leading = std::exp(l);
+            const double other = -std::expm1(l);
+            return lower ? FTails{leading, other} : FTails{other, leading};
+        }
+        const double lb = detail::lbeta(a, b);
+        if (std::isfinite(lb)) {
+            const double small_side = std::exp(-s * abs_log_r - std::log(s) - lb);
+            return lower ? FTails{small_side, detail::ONE - small_side}
+                         : FTails{detail::ONE - small_side, small_side};
+        }
+        // Both shapes beyond ~2.5e305: the small side is below e^(−700·s), and P(s, λ ≤ 4)
+        // below returns that 0.
+    }
+    // Each side from the small one: gamma_p(5e-301, 0.5) is 1 − 3.5e-14, where gamma_q is right.
+    const double lambda = lower ? a * x : b / x;
+    double p = detail::gamma_p(s, lambda);
+    double q = detail::gamma_q(s, lambda);
+    if (p <= q)
+        q = detail::ONE - p;
+    else
+        p = detail::ONE - q;
+    return lower ? FTails{p, q} : FTails{q, p};
 }
 
+// y below the branch point (a + 1)/(a + b + 2), decided on ybar where that is the smaller: next to
+// 1, y and the branch point both round to 1. F(9e220, 2).cdf(0.06) = y^a = 6.3e-8 was taken as
+// 1 − (1 − 6.3e-8), 3e6·ε off, and F(7.8e138, 2).cdf(0.015) was 0 for 3.3e-29.
+static inline bool f_y_below_switch(const FBetaArgs& args, double a, double b) noexcept {
+    if (args.y <= args.ybar)
+        return args.y < (a + detail::ONE) / (a + b + detail::TWO);
+    return args.ybar > (b + detail::ONE) / (a + b + detail::TWO);
+}
+
+// The beta arguments y and ybar are each formed to relative ε, so both go to beta_i_pair, which
+// takes the log of the smaller and log1p(−smaller) for the other: 1 − y re-formed from y next to
+// 0 lost the large shape's product with its rounding, and 1 at y < ε (F(1, 1e18).cdf(2) was
+// 2.29, F(2, 1e300).cdf(2) 0 for 0.865).
+//
+// The orientation is chosen as before, by the branch point (a + 1)/(a + b + 2) (f_y_below_switch):
+// I_y(a, b) below it and 1 − I_ybar(b, a) above, except where the side wanted can be small on the
+// far side of that point. beta_i_pair forms I_y(a, b) itself there when b < 1 (its tail-integral
+// side, kTailIntegralShape in math_utils.cpp), so the CDF is handed to it directly for b < 1 and
+// the survival I_ybar(b, a) for a < 1. The complement lost them: F(2, 3.2e-15).cdf(4.62e-11) was
+// 1.6320e-14 for 1.6433e-14, F(2, 6.2e-262).cdf(2.13e-260) was 0 for 1.3e-261 and
+// F(4.03e-152, 2).sf(2.63e124) 0 for 1.27e-150. Where that direct value is the large side, it is
+// the complement of the other side instead, so CDF + survival = 1 to an ulp (F(0.001, 1e300) at
+// x = 1: the direct CDF carried the prefactor's log(1e300)-sized cancellation, 9.5e-15).
 double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2,
                               double log_beta_prefix) noexcept {
     if (std::isnan(x))
@@ -426,16 +488,16 @@ double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2
         return detail::ONE;
 
     const FBetaArgs args = f_beta_args(x, d1, d2);
-    if (args.extreme) {
-        const double small_side = f_extreme_small_side(args.log_r, a, b);
-        return args.log_r > detail::ZERO_DOUBLE ? small_side : detail::ONE - small_side;
+    if (args.extreme)
+        return f_extreme_tails(args.log_r, x, a, b).cdf;
+
+    if (f_y_below_switch(args, a, b) || b < detail::ONE) {
+        const double i = detail::beta_i_pair(args.y, args.ybar, a, b, log_beta_prefix);
+        if (a < detail::ONE && i > detail::HALF)  // the survival is the small side
+            return detail::ONE - detail::beta_i_pair(args.ybar, args.y, b, a, log_beta_prefix);
+        return i;
     }
-
-    const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
-
-    if (args.y < switch_point)
-        return detail::beta_i(args.y, a, b, log_beta_prefix);
-    return detail::ONE - detail::beta_i(args.ybar, b, a, log_beta_prefix);
+    return detail::ONE - detail::beta_i_pair(args.ybar, args.y, b, a, log_beta_prefix);
 }
 
 // Survival function, complement-native: I_ybar(b,a) is computed, never
@@ -451,18 +513,17 @@ double FDistribution::sfImpl(double x, double a, double b, double d1, double d2,
         return detail::ZERO_DOUBLE;
 
     const FBetaArgs args = f_beta_args(x, d1, d2);
-    if (args.extreme) {
-        const double small_side = f_extreme_small_side(args.log_r, a, b);
-        return args.log_r < detail::ZERO_DOUBLE ? small_side : detail::ONE - small_side;
+    if (args.extreme)
+        return f_extreme_tails(args.log_r, x, a, b).sf;
+
+    // Mirror of cdfImpl.
+    if (!f_y_below_switch(args, a, b) || a < detail::ONE) {
+        const double i = detail::beta_i_pair(args.ybar, args.y, b, a, log_beta_prefix);
+        if (b < detail::ONE && i > detail::HALF)  // the CDF is the small side
+            return detail::ONE - detail::beta_i_pair(args.y, args.ybar, a, b, log_beta_prefix);
+        return i;
     }
-
-    const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
-
-    // Mirror of cdfImpl: whichever argument is on its small side is the one
-    // handed to beta_i; only the branch that is already accurate is complemented.
-    if (args.y < switch_point)
-        return detail::ONE - detail::beta_i(args.y, a, b, log_beta_prefix);
-    return detail::beta_i(args.ybar, b, a, log_beta_prefix);
+    return detail::ONE - detail::beta_i_pair(args.y, args.ybar, a, b, log_beta_prefix);
 }
 
 double FDistribution::getProbability(double x) const {

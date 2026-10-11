@@ -43,10 +43,27 @@ inline double zphi(double z, double pdf) noexcept {
 }
 
 // Standardised moments of ξ = (X − μ)/σ on [α, β]: the mean m = E ξ, the central moments
-// c2, c3, c4, and η = E ξ² − 1 (the entropy term).
+// c2, c3, c4, and η = E ξ² − 1 (the entropy term). The quadrature also returns log Z and the
+// standardised entropy h = H − log σ, formed from its own integral of the density (quad set);
+// the closed forms leave those two NaN, the caller keeping its erfc-difference Z.
 struct TruncMoments {
     double m, c2, c3, c4, eta;
+    double log_z = std::numeric_limits<double>::quiet_NaN();
+    double h = std::numeric_limits<double>::quiet_NaN();
+    bool quad = false;
 };
+
+// ξ = (x − μ)/σ, formed before anything is squared: σ² overflows from σ = 1.3e154 and
+// underflows below 1.5e-154, both accepted, and −(x − μ)²/(2σ²) read −0·inf or 0·(−inf) = NaN
+// there (TN(1e300, 1e299, 1.1e300, 1.5e300).pdf(1.2e300), TN(0, 1e-170, −1e-170, 1e-170).pdf(0)).
+// Where x − μ itself overflows (a finite x and μ of opposite sign near ±DBL_MAX) the halves are
+// differenced; halving is exact there.
+inline double tn_standardize(double x, double mu, double sigma) noexcept {
+    const double d = x - mu;
+    if (std::isfinite(d) || !std::isfinite(x))
+        return d / sigma;
+    return (detail::HALF * x - detail::HALF * mu) / (detail::HALF * sigma);
+}
 
 // Closed forms from the raw-moment recursion m_k = (k−1)m_{k−2} + (α^{k−1}φα − β^{k−1}φβ)/Z
 // (terms with an infinite bound or an underflowed φ are exactly 0 — zphi). The central
@@ -54,8 +71,9 @@ struct TruncMoments {
 // (max(1, m²)/c2)^(k/2)·ε: exact to a few ε where the window holds the bulk, garbage where
 // the window is narrow or deep in a tail — TN(0, 1, 3, 3.0000001) gave a variance of 3e-8
 // (true 8.3e-16) and a kurtosis of 4.5e8 (true −1.2); TN(0, 1, 36, 37) a kurtosis 1.3% off
-// (M3). truncnorm_moments below keeps these only where c2 ≥ 0.05·max(1, m²), which bounds
-// the kurtosis cancellation at ~400·ε, and integrates otherwise.
+// (M3). truncnorm_moments below keeps these only where c2 ≥ 0.05·max(1, m²) for the mean,
+// variance and entropy, and 0.35·max(1, m²) for the skewness and kurtosis, and integrates
+// otherwise.
 inline TruncMoments truncnorm_moments_closed(double al, double be, double z) noexcept {
     const double pa = phi_std(al), pb = phi_std(be);
     double t1 = pa - pb;
@@ -156,6 +174,7 @@ inline TruncMoments truncnorm_moments_quad(double al, double be) noexcept {
     });
     const double my = y0 + s1 / s0;
     const double m = lo + my;
+    const double log_s0 = std::log(s0);
     double s2 = detail::ZERO_DOUBLE, s3 = detail::ZERO_DOUBLE, s4 = detail::ZERO_DOUBLE;
     sweep([&](double y, double weight) {
         const double d = y - my;
@@ -170,16 +189,43 @@ inline TruncMoments truncnorm_moments_quad(double al, double be) noexcept {
     res.c3 = (mirror ? -s3 : s3) / s0;
     res.c4 = s4 / s0;
     res.eta = res.c2 + m * m - detail::ONE;
+    // Z and the entropy from the same integral (DH3): s0 is ∫ e^{−(ξ² − r²)/2} over the window,
+    // r = lo in a tail and 0 otherwise, so Z = φ(r)·√(2π)·s0. The erfc difference
+    // Q(α) − Q(β) loses (|α|·w)⁻¹ of its arguments' rounding on a narrow window — log Z, the
+    // log-density and the entropy were off by 8.6e-10 at (20, 20 + 1.41e-6) and 1.3e-9 at
+    // (37, 37 + 1e-6). With E ξ² = c2 + m², H − log σ = ½log(2π) + log Z + ½E ξ² is
+    //   log s0 + ½c2 + ½·my·(my + 2·lo)   in a tail (m² − lo² taken as a product),
+    //   log s0 + ½(c2 + m²)                otherwise,
+    // sums of terms that do not cancel.
+    res.quad = true;
+    if (tail) {
+        res.log_z = log_s0 - detail::HALF * lo * lo - detail::HALF_LN_2PI;
+        res.h = log_s0 + detail::HALF * res.c2 + detail::HALF * my * (my + detail::TWO * lo);
+    } else {
+        res.log_z = log_s0 - detail::HALF_LN_2PI;
+        res.h = log_s0 + detail::HALF * (res.c2 + m * m);
+    }
     return res;
 }
 
-inline TruncMoments truncnorm_moments(double al, double be, double z) noexcept {
+// The closed forms are kept where c2 ≥ ratio·max(1, m²). The k-th central moment loses
+// (max(1, m²)/c2)^(k/2)·ε, so the switch the mean and variance need (0.05: ≤ 20ε in c2) is
+// too loose for the skewness and kurtosis: the kurtosis took up to 8e-13 absolute just above
+// it (DH3: (−1.5, −0.5513) at c2/m² = 0.07; 2.1e-12 relative at (−3, −1.23396)). Against
+// mpmath on 600 random windows the quadrature holds both to 1e-14 absolute up to c2/m² = 0.35
+// and the closed forms do better past it (the quadrature's error grows with the window), so
+// the third and fourth moments switch there.
+constexpr double kMomentClosedRatio = 0.05;
+constexpr double kHigherMomentClosedRatio = 0.35;
+
+inline TruncMoments truncnorm_moments(double al, double be, double z,
+                                      double closed_ratio = kMomentClosedRatio) noexcept {
     const TruncMoments cm = truncnorm_moments_closed(al, be, z);
     // The quadrature needs the bound the mass sits against to be finite; a window with its
     // only finite bound on the far side of 0 holds the bulk (c2 ≥ 0.36), so this is a guard,
     // not a route.
     const bool quad_possible = std::isfinite(be <= detail::ZERO_DOUBLE ? be : al);
-    if (!quad_possible || cm.c2 >= 0.05 * std::max(detail::ONE, cm.m * cm.m))
+    if (!quad_possible || cm.c2 >= closed_ratio * std::max(detail::ONE, cm.m * cm.m))
         return cm;
     return truncnorm_moments_quad(al, be);
 }
@@ -456,7 +502,6 @@ TruncatedNormalDistribution::TruncatedNormalDistribution(const TruncatedNormalDi
     invZ_ = other.invZ_;
     halfInvZ_ = other.halfInvZ_;
     logSigma_ = other.logSigma_;
-    negHalfInvSigmaSquared_ = other.negHalfInvSigmaSquared_;
     invSigmaSqrt2_ = other.invSigmaSqrt2_;
     logPdfNormConst_ = other.logPdfNormConst_;
     distMean_ = other.distMean_;
@@ -505,7 +550,6 @@ TruncatedNormalDistribution::TruncatedNormalDistribution(
     invZ_ = other.invZ_;
     halfInvZ_ = other.halfInvZ_;
     logSigma_ = other.logSigma_;
-    negHalfInvSigmaSquared_ = other.negHalfInvSigmaSquared_;
     invSigmaSqrt2_ = other.invSigmaSqrt2_;
     logPdfNormConst_ = other.logPdfNormConst_;
     distMean_ = other.distMean_;
@@ -666,7 +710,7 @@ double TruncatedNormalDistribution::getSkewness() const {
         be = beta_;
         z = z_;
     });
-    const TruncMoments mo = truncnorm_moments(al, be, z);
+    const TruncMoments mo = truncnorm_moments(al, be, z, kHigherMomentClosedRatio);
     return mo.c3 / (mo.c2 * std::sqrt(mo.c2));
 }
 
@@ -677,7 +721,7 @@ double TruncatedNormalDistribution::getKurtosis() const {
         be = beta_;
         z = z_;
     });
-    const TruncMoments mo = truncnorm_moments(al, be, z);
+    const TruncMoments mo = truncnorm_moments(al, be, z, kHigherMomentClosedRatio);
     return mo.c4 / (mo.c2 * mo.c2) - detail::THREE;  // excess kurtosis
 }
 
@@ -797,38 +841,38 @@ VoidResult TruncatedNormalDistribution::validateCurrentParameters() const noexce
 //==============================================================================
 
 double TruncatedNormalDistribution::getProbability(double x) const {
-    double mu, a, b, nhis, logc;
+    double mu, sd, a, b, logc;
     withCacheSnapshot([&] {
         mu = mean_;
+        sd = standardDeviation_;
         a = lowerBound_;
         b = upperBound_;
-        nhis = negHalfInvSigmaSquared_;
         logc = logPdfNormConst_;
     });
     if (x < a || x > b)
         return detail::ZERO_DOUBLE;
     // x = ±∞ with an infinite bound falls through the comparisons above
     // (−∞ < −∞ is false) but the formula yields the correct limit:
-    // diff² = ∞ → exp(−∞) = 0. NaN propagates.
-    const double diff = x - mu;
-    return std::exp(logc + nhis * (diff * diff));
+    // ξ² = ∞ → exp(−∞) = 0. NaN propagates.
+    const double xi = tn_standardize(x, mu, sd);
+    return std::exp(logc - detail::HALF * (xi * xi));
 }
 
 double TruncatedNormalDistribution::getLogProbability(double x) const {
-    double mu, a, b, nhis, logc;
+    double mu, sd, a, b, logc;
     withCacheSnapshot([&] {
         mu = mean_;
+        sd = standardDeviation_;
         a = lowerBound_;
         b = upperBound_;
-        nhis = negHalfInvSigmaSquared_;
         logc = logPdfNormConst_;
     });
     if (x < a || x > b)
         return detail::NEGATIVE_INFINITY;
     // Exact log space; log Z is finite by the supported-window policy, so
     // the result is never NaN and never a clamp constant inside the support.
-    const double diff = x - mu;
-    return logc + nhis * (diff * diff);
+    const double xi = tn_standardize(x, mu, sd);
+    return logc - detail::HALF * (xi * xi);
 }
 
 double TruncatedNormalDistribution::getCumulativeProbability(double x) const {
@@ -1125,12 +1169,20 @@ double TruncatedNormalDistribution::getMedian() const {
 }
 
 double TruncatedNormalDistribution::getEntropy() const {
-    double ls, lz, eta;
+    double ls, lz, eta, al, be, z;
     withCacheSnapshot([&] {
         ls = logSigma_;
         lz = logZ_;
         eta = eta_;
+        al = alpha_;
+        be = beta_;
+        z = z_;
     });
+    // Where the moments are integrated, so is the entropy (DH3): log Z + η/2 cancels to the
+    // log of the window width there, and the erfc difference's log Z carried 1e-9.
+    const TruncMoments mo = truncnorm_moments(al, be, z);
+    if (mo.quad)
+        return ls + mo.h;
     // H = ½log(2πe) + log σ + log Z + η/2,  η = (αφ(α)−βφ(β))/Z
     return detail::HALF_LN_2PI + detail::HALF + ls + lz + detail::HALF * eta;
 }
@@ -1146,15 +1198,15 @@ void TruncatedNormalDistribution::getProbability(std::span<const double> values,
         *this, values, results, hint, detail::OperationType::PDF,
         [](const TruncatedNormalDistribution& d, double x) { return d.getProbability(x); },
         [](const TruncatedNormalDistribution& d, const double* vals, double* res, size_t count) {
-            double mu, a, b, nhis, logc;
+            double mu, sd, a, b, logc;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
                 a = d.lowerBound_;
                 b = d.upperBound_;
-                nhis = d.negHalfInvSigmaSquared_;
+                sd = d.standardDeviation_;
                 logc = d.logPdfNormConst_;
             });
-            d.getProbabilityBatchUnsafeImpl(vals, res, count, mu, a, b, nhis, logc);
+            d.getProbabilityBatchUnsafeImpl(vals, res, count, mu, a, b, sd, logc);
         },
         [](const TruncatedNormalDistribution& d, std::span<const double> vals,
            std::span<double> res) {
@@ -1163,18 +1215,18 @@ void TruncatedNormalDistribution::getProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double mu, a, b, nhis, logc;
+            double mu, sd, a, b, logc;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
                 a = d.lowerBound_;
                 b = d.upperBound_;
-                nhis = d.negHalfInvSigmaSquared_;
+                sd = d.standardDeviation_;
                 logc = d.logPdfNormConst_;
             });
             ParallelUtils::parallelForSlices(
                 count, kBatchSlice, [&](std::size_t start, std::size_t len) {
                     d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
-                                                    mu, a, b, nhis, logc);
+                                                    mu, a, b, sd, logc);
                 });
         },
         [](const TruncatedNormalDistribution& d, std::span<const double> vals,
@@ -1184,17 +1236,17 @@ void TruncatedNormalDistribution::getProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double mu, a, b, nhis, logc;
+            double mu, sd, a, b, logc;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
                 a = d.lowerBound_;
                 b = d.upperBound_;
-                nhis = d.negHalfInvSigmaSquared_;
+                sd = d.standardDeviation_;
                 logc = d.logPdfNormConst_;
             });
             pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
                 d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, mu, a,
-                                                b, nhis, logc);
+                                                b, sd, logc);
             });
         });
 }
@@ -1206,15 +1258,15 @@ void TruncatedNormalDistribution::getLogProbability(std::span<const double> valu
         *this, values, results, hint, detail::OperationType::LOG_PDF,
         [](const TruncatedNormalDistribution& d, double x) { return d.getLogProbability(x); },
         [](const TruncatedNormalDistribution& d, const double* vals, double* res, size_t count) {
-            double mu, a, b, nhis, logc;
+            double mu, sd, a, b, logc;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
                 a = d.lowerBound_;
                 b = d.upperBound_;
-                nhis = d.negHalfInvSigmaSquared_;
+                sd = d.standardDeviation_;
                 logc = d.logPdfNormConst_;
             });
-            d.getLogProbabilityBatchUnsafeImpl(vals, res, count, mu, a, b, nhis, logc);
+            d.getLogProbabilityBatchUnsafeImpl(vals, res, count, mu, a, b, sd, logc);
         },
         [](const TruncatedNormalDistribution& d, std::span<const double> vals,
            std::span<double> res) {
@@ -1223,18 +1275,18 @@ void TruncatedNormalDistribution::getLogProbability(std::span<const double> valu
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double mu, a, b, nhis, logc;
+            double mu, sd, a, b, logc;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
                 a = d.lowerBound_;
                 b = d.upperBound_;
-                nhis = d.negHalfInvSigmaSquared_;
+                sd = d.standardDeviation_;
                 logc = d.logPdfNormConst_;
             });
             ParallelUtils::parallelForSlices(
                 count, kBatchSlice, [&](std::size_t start, std::size_t len) {
                     d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
-                                                       mu, a, b, nhis, logc);
+                                                       mu, a, b, sd, logc);
                 });
         },
         [](const TruncatedNormalDistribution& d, std::span<const double> vals,
@@ -1244,17 +1296,17 @@ void TruncatedNormalDistribution::getLogProbability(std::span<const double> valu
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double mu, a, b, nhis, logc;
+            double mu, sd, a, b, logc;
             d.withCacheSnapshot([&] {
                 mu = d.mean_;
                 a = d.lowerBound_;
                 b = d.upperBound_;
-                nhis = d.negHalfInvSigmaSquared_;
+                sd = d.standardDeviation_;
                 logc = d.logPdfNormConst_;
             });
             pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
                 d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, mu,
-                                                   a, b, nhis, logc);
+                                                   a, b, sd, logc);
             });
         });
 }
@@ -1484,7 +1536,7 @@ std::istream& operator>>(std::istream& is, TruncatedNormalDistribution& d) {
 
 void TruncatedNormalDistribution::getProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, double mu, double a, double b,
-    double neg_half_inv_sigma2, double log_pdf_norm) const noexcept {
+    double sigma, double log_pdf_norm) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
@@ -1494,18 +1546,19 @@ void TruncatedNormalDistribution::getProbabilityBatchUnsafeImpl(
                 results[i] = detail::ZERO_DOUBLE;
                 continue;
             }
-            const double diff = x - mu;
-            results[i] = std::exp(log_pdf_norm + neg_half_inv_sigma2 * (diff * diff));
+            const double xi = tn_standardize(x, mu, sigma);
+            results[i] = std::exp(log_pdf_norm - detail::HALF * (xi * xi));
         }
         return;
     }
 
-    // Step 1: results = x − μ
-    arch::simd::VectorOps::scalar_add(values, -mu, results, count);
-    // Step 2: results = (x − μ)²
+    // Step 1: results = ξ = (x − μ)/σ, as the scalar path forms it (never through σ²)
+    for (std::size_t i = 0; i < count; ++i)
+        results[i] = tn_standardize(values[i], mu, sigma);
+    // Step 2: results = ξ²
     arch::simd::VectorOps::vector_multiply(results, results, results, count);
-    // Step 3: results = −(x − μ)²/(2σ²)
-    arch::simd::VectorOps::scalar_multiply(results, neg_half_inv_sigma2, results, count);
+    // Step 3: results = −ξ²/2
+    arch::simd::VectorOps::scalar_multiply(results, -detail::HALF, results, count);
     // Step 4: results += −log σ − log Z − ½log(2π)
     arch::simd::VectorOps::scalar_add(results, log_pdf_norm, results, count);
     // Step 5: results = exp(·) — underflows cleanly to 0 in the far tail
@@ -1520,7 +1573,7 @@ void TruncatedNormalDistribution::getProbabilityBatchUnsafeImpl(
 
 void TruncatedNormalDistribution::getLogProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, double mu, double a, double b,
-    double neg_half_inv_sigma2, double log_pdf_norm) const noexcept {
+    double sigma, double log_pdf_norm) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
@@ -1530,16 +1583,17 @@ void TruncatedNormalDistribution::getLogProbabilityBatchUnsafeImpl(
                 results[i] = detail::NEGATIVE_INFINITY;
                 continue;
             }
-            const double diff = x - mu;
-            results[i] = log_pdf_norm + neg_half_inv_sigma2 * (diff * diff);
+            const double xi = tn_standardize(x, mu, sigma);
+            results[i] = log_pdf_norm - detail::HALF * (xi * xi);
         }
         return;
     }
 
     // Steps 1–4 of the PDF pipeline (no exp) — exact log space.
-    arch::simd::VectorOps::scalar_add(values, -mu, results, count);
+    for (std::size_t i = 0; i < count; ++i)
+        results[i] = tn_standardize(values[i], mu, sigma);
     arch::simd::VectorOps::vector_multiply(results, results, results, count);
-    arch::simd::VectorOps::scalar_multiply(results, neg_half_inv_sigma2, results, count);
+    arch::simd::VectorOps::scalar_multiply(results, -detail::HALF, results, count);
     arch::simd::VectorOps::scalar_add(results, log_pdf_norm, results, count);
 
     // Fixup: outside [a, b] → −∞.
@@ -1652,7 +1706,6 @@ void TruncatedNormalDistribution::updateCacheUnsafe() const noexcept {
     alpha_ = nc.alpha;
     beta_ = nc.beta;
     z_ = nc.z;
-    logZ_ = nc.log_z;
     phiAlpha_ = nc.phi_alpha;
     qAlpha_ = nc.q_alpha;
     qBeta_ = nc.q_beta;
@@ -1660,18 +1713,24 @@ void TruncatedNormalDistribution::updateCacheUnsafe() const noexcept {
     invZ_ = detail::ONE / z_;
     halfInvZ_ = detail::HALF / z_;
 
+    // Standardised mean and variance; the closed forms where they hold, quadrature where
+    // they cancel (M3). Where the quadrature ran, its log Z replaces the erfc difference's
+    // for the density (DH3); z_ and the CDF keep the erfc pieces, whose errors cancel at b.
+    const TruncMoments mo = truncnorm_moments(alpha_, beta_, z_);
+    logZ_ = mo.quad ? mo.log_z : nc.log_z;
+
     logSigma_ = std::log(standardDeviation_);
-    negHalfInvSigmaSquared_ = -detail::HALF / (standardDeviation_ * standardDeviation_);
     invSigmaSqrt2_ = detail::ONE / (standardDeviation_ * detail::SQRT_2);
     logPdfNormConst_ = -logSigma_ - logZ_ - detail::HALF_LN_2PI;
 
-    // Standardised mean and variance; the closed forms where they hold, quadrature where
-    // they cancel (M3).
-    const TruncMoments mo = truncnorm_moments(alpha_, beta_, z_);
     delta_ = mo.m;
     eta_ = mo.eta;
     distMean_ = mean_ + standardDeviation_ * delta_;
-    distVariance_ = standardDeviation_ * standardDeviation_ * mo.c2;
+    // σ² over- or underflows where σ·(σ·c2) need not (σ = 1e-170: 0 for a variance of 3e-341).
+    const double sd2 = standardDeviation_ * standardDeviation_;
+    distVariance_ = (std::isfinite(sd2) && sd2 >= std::numeric_limits<double>::min())
+                        ? sd2 * mo.c2
+                        : standardDeviation_ * (standardDeviation_ * mo.c2);
 
     cache_valid_ = true;
     cacheValidAtomic_.store(true, std::memory_order_release);

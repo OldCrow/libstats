@@ -125,6 +125,35 @@ namespace detail {
 [[nodiscard]] double beta_i(double x, double a, double b, double log_beta_prefix) noexcept;
 
 /**
+ * @brief I_x(a, b) from x and its complement y = 1 − x held separately
+ *
+ * For callers that hold 1 − x more exactly than 1 − x re-formed from a rounded x: the
+ * Fisher-F arguments d₁x/(d₁x + d₂) and d₂/(d₁x + d₂), each formed by division, and the
+ * binomial's 1 − p beside an exact p. The smaller of x and y enters its own log and the
+ * other's as log1p(−smaller), so a large shape never multiplies the rounding of a value
+ * next to 1. Like beta_i, it returns the small side directly where I is small (see
+ * kTailIntegralShape in math_utils.cpp).
+ *
+ * @param x Input value in [0, 1]
+ * @param y 1 − x, to relative precision
+ * @param a First shape parameter (a > 0)
+ * @param b Second shape parameter (b > 0)
+ * @param log_beta_prefix beta_prefactor_constant(a, b)
+ * @return I_x(a, b)
+ */
+[[nodiscard]] double beta_i_pair(double x, double y, double a, double b,
+                                 double log_beta_prefix) noexcept;
+
+/**
+ * @brief log(s·B(s, t)) for 0 < s ≤ ½ and t ≥ 1, to relative precision as s → 0
+ *
+ * log s + lbeta(s, t) cancels terms of size |log s| to leave a result of order s; this forms
+ * lgamma(1 + s) and lgamma(t + s) − lgamma(t) by their series instead. Fisher-F's extreme-tail
+ * complement −expm1(s·log z − log(s·B)) reads it.
+ */
+[[nodiscard]] double log_small_shape_beta(double s, double t) noexcept;
+
+/**
  * @brief Natural logarithm of the beta function ln(B(a,b))
  * @param a First parameter (a > 0)
  * @param b Second parameter (b > 0)
@@ -184,7 +213,8 @@ namespace detail {
  *
  * Implements the pattern established by inverse_t_cdf and inverse_chi_squared_cdf:
  * normal-approximation initial estimate refined by Newton-Raphson with
- * clamping to (0, 1). Used by BetaDistribution::getQuantile.
+ * clamping to (0, 1). Used by BetaDistribution::getQuantile. A NaN, non-positive or infinite
+ * shape returns NaN, as beta_i returns NaN for an infinite shape.
  */
 [[nodiscard]] double inverse_beta_i(double p, double a, double b) noexcept;
 

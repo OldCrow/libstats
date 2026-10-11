@@ -104,6 +104,34 @@ double beta_prefactor_constant(double a, double b) noexcept {
            stirling_remainder(sum) - stirling_remainder(a) - stirling_remainder(b);
 }
 
+// log x and log(1 − x) from x and omx = 1 − x, each held to relative ε. The smaller of the two is
+// the one the caller holds exactly. While that is x, log(1 − x) is log1p(−x). Re-formed from the
+// rounded 1 − x, the log carried that rounding as an absolute ε/2, which the shape multiplied:
+// relative b·ε/4 in I_x(a, b) (Beta(1, 1e6).cdf(1.5e-6) erred 1.2e-11). Once b·x is O(1) with
+// x < ε, 1 − x rounds to 1, b·log(1 − x) = 0, and the prefactor is e^{b·x} too large
+// (Beta(1, 4.19e46).cdf(3.65e-47) was 3.6). Above ½, 1 − x from x is exact, and each log is taken
+// directly while omx is that complement; in a pair that is not exactly complementary (beta_i_pair:
+// F's y next to 1 beside its ybar) the small omx is the exact one, and log x is log1p(−omx).
+static void pair_logs(double x, double omx, double& log_x, double& log_omx) noexcept {
+    if (x <= omx) {
+        log_x = std::log(x);
+        log_omx = std::log1p(-x);
+        return;
+    }
+    log_x = omx == detail::ONE - x ? std::log(x) : std::log1p(-omx);
+    log_omx = std::log(omx);
+}
+
+// x below the branch point x_b = (a + 1)/(a + b + 2) of the continued fraction, decided on
+// the smaller of x and omx = 1 − x: next to 1 both x and x_b round to 1 within the
+// complement's own scale (F(50, 1e20) at x = 5: y = 1 − 2.5e-18 and x_b = 1 − 5.2e-19 both
+// rounded to 1, and the survival was taken from the wrong side, 1 for 1e-19).
+static bool below_branch_point(double x, double omx, double a, double b) noexcept {
+    if (x <= omx)
+        return x < (a + detail::ONE) / (a + b + detail::TWO);
+    return omx > (b + detail::ONE) / (a + b + detail::TWO);
+}
+
 // log of the incomplete-beta prefactor x^a·(1 − x)^b / B(a, b) (#166), with the same
 // cancellation as the gamma one: lgamma(a + b) − lgamma(a) − lgamma(b) + a·log(x) + b·log(1 − x)
 // carries terms of size (a + b)·log 2, 3e-11 relative at a = b = 1e4. For a, b ≥ 20, Stirling
@@ -112,38 +140,35 @@ double beta_prefactor_constant(double a, double b) noexcept {
 // cancel exactly, and x₀ is the stationary point, so its rounding enters only at second order.
 // shape_constant is beta_prefactor_constant(a, b), in whichever form the shapes select.
 //
-// log_x and log_omx are log x and log(1 − x) for the factors below the Stirling shapes: the
-// public overload passes log(x) and log(1 − x), the quantile solver the exact logs of its
-// logit, which it holds where x itself has rounded to 1 (Beta(0.001, 1).Q(0.7): the reflected
-// root is 1 − 0.7^1000, and 1 − x re-formed from x was 0, so b·log(1 − x) = −∞ zeroed the
-// residual and the Newton slope, and the solver returned 6.6e-37 for 1.25e-155 — B1) and where
-// a·log x magnifies the rounding of x (Beta(0.001, 1e6).Q(0.99): a = 1e6 against x = 1 − 2e-11
-// put 1e-10 into the prefactor and 4e-8 into the root). The Stirling branch keeps reading x:
-// both shapes ≥ 20 put the root of p ≤ ½ at 1 − x ≳ 20/(a + b), representable unless the
-// larger shape exceeds ~2e17.
-static double log_beta_prefactor_logs(double x, double a, double b, double log_x, double log_omx,
-                                      double shape_constant) noexcept {
+// omx is 1 − x, and log_x and log_omx are log x and log(1 − x): the public overload passes
+// 1 − x and pair_logs(x, 1 − x), beta_i_pair the caller's complement, the quantile solver the
+// exact logs of its logit, which it holds where x itself has rounded to 1 (Beta(0.001, 1).Q(0.7):
+// the reflected root is 1 − 0.7^1000, and 1 − x re-formed from x was 0, so b·log(1 − x) = −∞
+// zeroed the residual and the Newton slope, and the solver returned 6.6e-37 for 1.25e-155 — B1)
+// and where a·log x magnifies the rounding of x (Beta(0.001, 1e6).Q(0.99): a = 1e6 against
+// x = 1 − 2e-11 put 1e-10 into the prefactor and 4e-8 into the root). The Stirling branch reads
+// x − x₀ from the smaller of x and 1 − x.
+static double log_beta_prefactor_logs(double x, double omx, double a, double b, double log_x,
+                                      double log_omx, double shape_constant) noexcept {
     if (a < kStirlingPrefactorShape || b < kStirlingPrefactorShape)
         return shape_constant + a * log_x + b * log_omx;
-    // x₀ = a/(a + b) and 1 − x₀ as an exact complementary pair: 1 − (the smaller quotient)
-    // rounded, the other its complement, exact by Sterbenz. a·log(x/x₀) + b·log((1 − x)/(1 − x₀))
-    // then differs from its value at the exact a/(a + b) only at second order, but the dropped
-    // linear term a·u + b·v is first order in that rounding:
-    //   a·u + b·v = (x − x₀)·(a − (a + b)·x₀)/(x₀(1 − x₀)),
-    // of size (x − x₀)·(a + b)²·ε/b, 1e-11 of the prefactor at (1e6, 30) near the branch point.
-    // So it is added back, its numerator formed from a + b split exactly by TwoSum (no
-    // products: contraction-safe) and one explicit fma. The second-order cost of the pair is
-    // (a + b)²ε²/(4·min(a, b)), below ε/4 while (a + b)²·ε ≤ min(a, b); past that (shape ratios
-    // beyond ~1e10, where the complement of the small quotient rounds to 1) the separately
-    // rounded quotients below are kept, with their pre-existing first-order error.
     const double sum = a + b;
     const double min_shape = std::min(a, b);
-    double x0;
-    double one_minus_x0;
-    double linear = detail::ZERO_DOUBLE;  // a·u + b·v
+    const double bv = sum - a;
+    const double sum_err = (a - (sum - bv)) + (b - bv);  // a + b = sum + sum_err exactly
     if (sum * sum * std::numeric_limits<double>::epsilon() <= min_shape) {
-        const double bv = sum - a;
-        const double sum_err = (a - (sum - bv)) + (b - bv);  // a + b = sum + sum_err exactly
+        // x₀ = a/(a + b) and 1 − x₀ as an exact complementary pair: 1 − (the smaller quotient)
+        // rounded, the other its complement, exact by Sterbenz. The sum
+        //   a·log(x/x₀) + b·log((1 − x)/(1 − x₀))
+        // then differs from its value at the exact a/(a + b) only at second order, but the
+        // dropped linear term a·u + b·v is first order in that rounding:
+        //   a·u + b·v = (x − x₀)·(a − (a + b)·x₀)/(x₀(1 − x₀)),
+        // of size (x − x₀)·(a + b)²·ε/b, 1e-11 of the prefactor at (1e6, 30) near the branch
+        // point. So it is added back, its numerator formed from a + b split exactly by TwoSum (no
+        // products: contraction-safe) and one explicit fma. The second-order cost of the pair is
+        // (a + b)²ε²/(4·min(a, b)), below ε/4 while (a + b)²·ε ≤ min(a, b).
+        double x0;
+        double one_minus_x0;
         if (a <= b) {
             one_minus_x0 = detail::ONE - a / sum;
             x0 = detail::ONE - one_minus_x0;
@@ -151,24 +176,72 @@ static double log_beta_prefactor_logs(double x, double a, double b, double log_x
             x0 = detail::ONE - b / sum;
             one_minus_x0 = detail::ONE - x0;
         }
+        // x − x₀ = (1 − x₀) − (1 − x) exactly when 1 − x is x's exact complement, so both forms
+        // round the same real number; from 1 − x where that is the smaller, which the caller may
+        // hold more exactly than x.
+        const double d = x <= omx ? x - x0 : one_minus_x0 - omx;
         const double lin_num = std::fma(-sum, x0, a) - sum_err * x0;
-        linear = (x - x0) * (lin_num / (x0 * one_minus_x0));
-    } else {
-        x0 = a / sum;
-        one_minus_x0 = b / sum;
+        const double linear = d * (lin_num / (x0 * one_minus_x0));
+        const double u = d / x0;
+        const double v = -d / one_minus_x0;
+        // log(1 + v) = log((1 − x)/(1 − x₀)) beyond the series: from log1p(−x) while x is the
+        // smaller, 1 − x then near 1; else as the log of the ratio, with 1 − x as held. Near
+        // x = 1 the rounded v has lost 1 − x as u loses x near 0, log1p(−x) of a rounded x next to
+        // 1 loses it too (beta_i_pair: 2e7·ε at (2.6e8, 50) from F's y), and the difference of
+        // two logs of small quantities cancels terms of size log(a + b) (520·ε at (3e8, 20)).
+        const double lv = std::fabs(v) < LOG1PMX_SERIES_LIMIT
+                              ? log1pmx_series(v)
+                              : (x <= omx ? std::log1p(-x) - std::log(one_minus_x0)
+                                          : std::log(omx / one_minus_x0)) -
+                                    v;
+        return a * log1pmx_ratio(u, x, x0) + b * lv + linear + shape_constant;
     }
-    const double u = (x - x0) / x0;
-    const double v = (x0 - x) / one_minus_x0;
-    // log(1 + v) = log((1 − x)/(1 − x₀)) beyond the series, from log1p(−x): 1 − x near 1 as x
-    // near 0 is exact, and near x = 1 the rounded v has lost 1 − x as u loses x near 0.
-    const double lv = std::fabs(v) < LOG1PMX_SERIES_LIMIT
-                          ? log1pmx_series(v)
-                          : (std::log1p(-x) - std::log(one_minus_x0)) - v;
-    return a * log1pmx_ratio(u, x, x0) + b * lv + linear + shape_constant;
+    // Shape ratios beyond (a + b)²·ε > min(a, b) (~1e8 at min 20): the complement of the small
+    // quotient rounds far from the stationary point, and the pair above would cost more than ε
+    // at second order. Separately rounded quotients lost x − x₀ instead: x₀ next to 1 holds it
+    // to an absolute ε/2, which the large shape multiplies (1.5e11·ε at (1e11, 20); F(50,
+    // 1e20).Q(0.5) was 163.84 for 0.9867). Here only the small quotient m = min(a, b)/(a + b)
+    // is formed, with one rounding; x₀ is m or 1 − m held implicitly, x − x₀ is read off x
+    // where x₀ = m and off 1 − x where x₀ = 1 − m, the complement of m enters only as a
+    // denominator and through log1p(−m), and the linear term is added back with the exact
+    // numerator a − (a + b)·x₀ as above. m's rounding is relative, so the second-order cost is
+    // min(a, b)·ε², and nothing in the form grows with the ratio.
+    double d;
+    double num;  // a − (a + b)·x₀
+    double x0;
+    double one_minus_x0;
+    double lu_far;  // log(x/x₀), used beyond the series
+    double lv_far;  // log((1 − x)/(1 − x₀)), likewise
+    if (a <= b) {
+        x0 = a / sum;
+        one_minus_x0 = detail::ONE - x0;
+        d = x - x0;
+        num = std::fma(-sum, x0, a) - sum_err * x0;
+        lu_far = std::log(x / x0);
+        lv_far = log_omx - std::log1p(-x0);
+    } else {
+        one_minus_x0 = b / sum;
+        x0 = detail::ONE - one_minus_x0;
+        d = one_minus_x0 - omx;
+        num = sum_err * one_minus_x0 - std::fma(-sum, one_minus_x0, b);
+        lu_far = log_x - std::log1p(-one_minus_x0);
+        lv_far = std::log(omx / one_minus_x0);
+    }
+    // The ratio of the two small quantities is logged as one, not as a difference of two logs of
+    // size log(a + b): that cancellation cost 7e-13 at (8e85, 50).
+    const double linear = d * (num / (x0 * one_minus_x0));
+    const double u = d / x0;
+    const double v = -d / one_minus_x0;
+    const double lu = std::fabs(u) < LOG1PMX_SERIES_LIMIT ? log1pmx_series(u) : lu_far - u;
+    const double lv = std::fabs(v) < LOG1PMX_SERIES_LIMIT ? log1pmx_series(v) : lv_far - v;
+    return a * lu + b * lv + linear + shape_constant;
 }
 
 double log_beta_prefactor(double x, double a, double b, double shape_constant) noexcept {
-    return log_beta_prefactor_logs(x, a, b, std::log(x), std::log(detail::ONE - x), shape_constant);
+    const double omx = detail::ONE - x;
+    double log_x, log_omx;
+    pair_logs(x, omx, log_x, log_omx);
+    return log_beta_prefactor_logs(x, omx, a, b, log_x, log_omx, shape_constant);
 }
 
 // Discrete log-pmfs at large counts (#172). Formed directly, k·log λ − λ − lgamma(k + 1) and the
@@ -969,8 +1042,9 @@ constexpr double kTinyBetaShape = 1e-3;
 // exactly than 1 − x (the quantile solver's logit: x rounds to 1 while 1 − x is e^-661, and
 // log1p(−x) = −∞ there zeroed the Newton slope).
 static double log_beta_prefactor_over_a(double x, double omx, double a, double b) noexcept {
-    return log_beta_prefactor_over_a_logs(std::log(x),
-                                          x < detail::HALF ? std::log1p(-x) : std::log(omx), a, b);
+    double log_x, log_omx;
+    pair_logs(x, omx, log_x, log_omx);
+    return log_beta_prefactor_over_a_logs(log_x, log_omx, a, b);
 }
 
 // The same from log x and log(1 − x) held by the caller: the quantile solver's exact logit
@@ -1020,6 +1094,40 @@ static double lgamma_ratio_excess(double a, double b) noexcept {
         acc += b * std::log((z + b) / (a + b));
     return acc + (z - detail::HALF) * std::log1p(b / z) - b + stirling_remainder(z + b) -
            stirling_remainder(z);
+}
+
+double log_small_shape_beta(double s, double t) noexcept {
+    // log(s·B(s, t)) = lgamma(1 + s) − (lgamma(t + s) − lgamma(t)), each part of order s; the
+    // second as lgamma_ratio_excess(t, s) + s·log(t + s), but to relative rather than absolute
+    // ε: there c(z) alone absorbed the O(s) terms (0 at s = 1e-228), and c(z + s) − c(z), of
+    // order s/(12z²), is formed term by term from 1/(z + s) − 1/z = −s/(z(z + s)).
+    double z = t;
+    double acc = detail::ZERO_DOUBLE;
+    while (z < kStirlingPrefactorShape) {
+        acc -= std::log1p(s / z);
+        z += detail::ONE;
+    }
+    if (z != t)
+        acc += s * std::log((z + s) / (t + s));
+    // c(r) = r/12 − r³/360 + r⁵/1260 − r⁷/1680 + r⁹/1188 at r = 1/(z + s) less at r = 1/z:
+    // qⁿ − pⁿ = (q − p)·(qⁿ⁻¹ + qⁿ⁻²p + … + pⁿ⁻¹).
+    const double p = detail::ONE / z;
+    const double q = detail::ONE / (z + s);
+    const double dq = -s / (z * (z + s));
+    static constexpr double kStirlingCoeff[] = {1.0 / 12.0, -1.0 / 360.0, 1.0 / 1260.0,
+                                                -1.0 / 1680.0, 1.0 / 1188.0};
+    double dc = detail::ZERO_DOUBLE;
+    double geometric = detail::ONE;  // q^(n−1) + … + p^(n−1) for n = 1, 3, 5, …
+    double q_pow = detail::ONE;      // q^(n−1)
+    for (int k = 0; k < 5; ++k) {
+        dc += kStirlingCoeff[k] * geometric;
+        // n → n + 2 by S_{n+1} = qⁿ + p·S_n twice.
+        const double s_next = q_pow * q + p * geometric;
+        q_pow *= q * q;
+        geometric = q_pow + p * s_next;
+    }
+    const double excess = acc + (z - detail::HALF) * std::log1p(s / z) - s + dq * dc;
+    return lgamma1p_small(s) - excess - s * std::log(t + s);
 }
 
 // I_x(a, b) for x ≥ x_b = (a + 1)/(a + b + 2) and b < kTailIntegralShape, as the direct value
@@ -1085,7 +1193,7 @@ static double beta_i_tail_integral(double x, double omx, double a, double b) noe
 // too slowly near 1; the tail integral carries it. Between the two the rule of beta_i applies:
 // the tail integral wherever it is ≤ ½.
 static double beta_i_tiny_shape(double x, double omx, double a, double b) noexcept {
-    if (x < (a + detail::ONE) / (a + b + detail::TWO))
+    if (below_branch_point(x, omx, a, b))
         return beta_i_tiny_direct(x, omx, a, b);
     if (b < kTinyBetaShape)
         return beta_i_tail_integral(x, omx, a, b);
@@ -1098,6 +1206,33 @@ static double beta_i_tiny_shape(double x, double omx, double a, double b) noexce
     if (pf == detail::ZERO_DOUBLE)
         return detail::ONE;
     return detail::ONE - std::min(pf * beta_continued_fraction_unscaled(omx, x, b, a), detail::ONE);
+}
+
+// I_x(a, b) for x in (0, 1), omx = 1 − x, both shapes from kTinyBetaShape; shape_constant is
+// beta_prefactor_constant(a, b).
+static double beta_i_regular(double x, double omx, double a, double b,
+                             double shape_constant) noexcept {
+    double log_x, log_omx;
+    pair_logs(x, omx, log_x, log_omx);
+    const double bt =
+        std::exp(log_beta_prefactor_logs(x, omx, a, b, log_x, log_omx, shape_constant));
+    // An underflowed prefactor decides the result without the continued fraction, which at a
+    // shape past ~1e154 overflows its products to inf/inf = NaN (NegativeBinomial cdf(1e300)).
+    // bt·cf is then below 2^-1074·cf, so the small side is 0 and its complement 1.
+    if (bt == detail::ZERO_DOUBLE)
+        return below_branch_point(x, omx, a, b) ? detail::ZERO_DOUBLE : detail::ONE;
+
+    if (below_branch_point(x, omx, a, b))
+        return bt * beta_continued_fraction(x, omx, a, b);
+    // Above the branch point the swapped orientation gives 1 − I, which is the small side only
+    // while I > ½; with b below kTailIntegralShape, I itself can be small there, and is then
+    // formed directly (see kTailIntegralShape).
+    if (b < kTailIntegralShape) {
+        const double i = beta_i_tail_integral(x, omx, a, b);
+        if (i <= detail::HALF)
+            return i;
+    }
+    return detail::ONE - bt * beta_continued_fraction(omx, x, b, a);
 }
 
 double beta_i(double x, double a, double b) noexcept {
@@ -1124,26 +1259,7 @@ double beta_i(double x, double a, double b) noexcept {
 
     if (std::min(a, b) < kTinyBetaShape)
         return beta_i_tiny_shape(x, detail::ONE - x, a, b);
-
-    // Use continued fraction approximation
-    double bt = std::exp(log_beta_prefactor(x, a, b, beta_prefactor_constant(a, b)));
-    // An underflowed prefactor decides the result without the continued fraction, which at a
-    // shape past ~1e154 overflows its products to inf/inf = NaN (NegativeBinomial cdf(1e300)).
-    // bt·cf is then below 2^-1074·cf, so the small side is 0 and its complement 1.
-    if (bt == detail::ZERO_DOUBLE)
-        return x < (a + detail::ONE) / (a + b + detail::TWO) ? detail::ZERO_DOUBLE : detail::ONE;
-
-    if (x < (a + detail::ONE) / (a + b + detail::TWO))
-        return bt * beta_continued_fraction(x, detail::ONE - x, a, b);
-    // Above the branch point the swapped orientation gives 1 − I, which is the small side only
-    // while I > ½; with b below kTailIntegralShape, I itself can be small there, and is then
-    // formed directly (see kTailIntegralShape).
-    if (b < kTailIntegralShape) {
-        const double i = beta_i_tail_integral(x, detail::ONE - x, a, b);
-        if (i <= detail::HALF)
-            return i;
-    }
-    return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, x, b, a);
+    return beta_i_regular(x, detail::ONE - x, a, b, beta_prefactor_constant(a, b));
 }
 
 double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
@@ -1162,21 +1278,23 @@ double beta_i(double x, double a, double b, double log_beta_prefix) noexcept {
 
     if (std::min(a, b) < kTinyBetaShape)
         return beta_i_tiny_shape(x, detail::ONE - x, a, b);  // the hoisted prefix cancels
-
     // log_beta_prefix is the caller's hoisted beta_prefactor_constant(a, b), in the direct or the
     // Stirling form as the shapes select (#166).
-    double bt = std::exp(log_beta_prefactor(x, a, b, log_beta_prefix));
-    if (bt == detail::ZERO_DOUBLE)  // as in the overload above
-        return x < (a + detail::ONE) / (a + b + detail::TWO) ? detail::ZERO_DOUBLE : detail::ONE;
+    return beta_i_regular(x, detail::ONE - x, a, b, log_beta_prefix);
+}
 
-    if (x < (a + detail::ONE) / (a + b + detail::TWO))
-        return bt * beta_continued_fraction(x, detail::ONE - x, a, b);
-    if (b < kTailIntegralShape) {  // as in the overload above
-        const double i = beta_i_tail_integral(x, detail::ONE - x, a, b);
-        if (i <= detail::HALF)
-            return i;
-    }
-    return detail::ONE - bt * beta_continued_fraction(detail::ONE - x, x, b, a);
+double beta_i_pair(double x, double y, double a, double b, double log_beta_prefix) noexcept {
+    if (std::isnan(x) || std::isnan(y) || std::isnan(a) || std::isnan(b))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (a <= detail::ZERO_DOUBLE || b <= detail::ZERO_DOUBLE || x <= detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
+    if (y <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+    if (a == b && (x == y || x == detail::HALF))
+        return detail::HALF;  // by symmetry; see the overload above
+    if (std::min(a, b) < kTinyBetaShape)
+        return beta_i_tiny_shape(x, y, a, b);
+    return beta_i_regular(x, y, a, b, log_beta_prefix);
 }
 
 // Helper function for beta incomplete function continued fraction
@@ -1227,39 +1345,72 @@ static double beta_continued_fraction_unscaled(double x, double y, double a, dou
     else
         lambda = std::fma(s, y, -b) + e * y;
 
-    double f = (detail::ONE + lambda) / (a + detail::ONE);  // B₀ = 1 + d₁
-    if (std::abs(f) < detail::ZERO)
-        f = detail::ZERO;
+    // Past a shape of 1e100 the products of two shape-sized factors below — (a + m)·(a + b + m),
+    // (a + m)·λ, (a + 2m)(a + 2m + 1) — overflow, to inf/inf = NaN (F(2, 1e308).cdf(1.5) =
+    // I_y(1, 5e307) at y = 3e-308). There each is divided down before it is multiplied up, and
+    // the fraction is carried in the equivalent form with every Bₘ multiplied by w = max(a, 1)
+    // and every Aₘ by w² (f then holds w/h): at large a the Bₘ are of order (m + λ)/a and the Aₘ
+    // of order 1/a², which left the normal range from a ~ 1e154 (I_{1−9e-170}(1e168, 21) was
+    // 1e16·ε off). Below it the unscaled forms keep their bits.
+    const bool scaled = std::max(a, b) > 1e100;
+    const double w = std::max(a, detail::ONE);
+
+    // Lentz's guard against a zero denominator: only has to stay clear of 0. The usual 1e-30
+    // replaced B₀ = (1 + λ)/(a + 1), legitimately of order 1/a near x = 1, from a ~ 1e30
+    // (I_{1−3.6e-40}(1e40, 21) was 5e-12 for 3e-3).
+    constexpr double kLentzTiny = std::numeric_limits<double>::min();
+    const double ap1 = a + detail::ONE;
+    double f = scaled ? (detail::ONE + lambda) * (w / ap1)
+                      : (detail::ONE + lambda) / ap1;  // B₀ = 1 + d₁ (times w when scaled)
+    if (std::abs(f) < kLentzTiny)
+        f = kLentzTiny;
     double c = f;
     double d = detail::ZERO_DOUBLE;
-    double d_odd = -(s * x) / (a + detail::ONE);  // d₂ₘ₋₁, starting at d₁
+    // d₂ₘ₋₁, starting at d₁ (times w when scaled)
+    double d_odd = scaled ? -(s * x) * (w / ap1) : -(s * x) / ap1;
 
     for (int m = 1; m <= max_iterations; ++m) {
         const double md = static_cast<double>(m);
         const double apm = a + md;
         const double a2m = a + detail::TWO * md;
         const double a2m1 = a2m + detail::ONE;
-        const double d_even = md * (b - md) * x / ((a2m - detail::ONE) * a2m);  // d₂ₘ
+        double d_even;  // d₂ₘ (times w when scaled)
+        double bm;
+        if (!scaled) {
+            d_even = md * (b - md) * x / ((a2m - detail::ONE) * a2m);
+            const double num =
+                apm * lambda + (a + detail::TWO * md + a * md * (3.0 - x) + md * md * (4.0 - x));
+            bm = num / (a2m * a2m1) + d_even;
+        } else {
+            const double w_over = w / a2m1;
+            d_even = md * x * ((b - md) / (a2m - detail::ONE)) * (w / a2m);
+            bm = (apm / a2m) * (lambda * w_over) +
+                 ((a + detail::TWO * md) / a2m + (a / a2m) * (md * (3.0 - x)) +
+                  (md / a2m) * (md * (4.0 - x))) *
+                     w_over +
+                 d_even;
+        }
         const double am = -d_odd * d_even;
-        const double num =
-            apm * lambda + (a + detail::TWO * md + a * md * (3.0 - x) + md * md * (4.0 - x));
-        const double bm = num / (a2m * a2m1) + d_even;
 
         d = bm + am * d;
-        if (std::abs(d) < detail::ZERO)
-            d = detail::ZERO;
+        if (std::abs(d) < kLentzTiny)
+            d = kLentzTiny;
         c = bm + am / c;
-        if (std::abs(c) < detail::ZERO)
-            c = detail::ZERO;
+        if (std::abs(c) < kLentzTiny)
+            c = kLentzTiny;
         d = detail::ONE / d;
         const double delta = c * d;
         f *= delta;
 
-        d_odd = -apm * (s + md) * x / (a2m * a2m1);  // d₂ₘ₊₁, the next step's d₂ₘ₋₁
+        // d₂ₘ₊₁, the next step's d₂ₘ₋₁
+        d_odd = scaled ? -(apm / a2m) * ((s + md) * (w / a2m1)) * x
+                       : -apm * (s + md) * x / (a2m * a2m1);
         if (std::abs(delta - detail::ONE) < tolerance)
             break;
     }
 
+    if (scaled)
+        return w / f;
     return detail::ONE / f;
 }
 
@@ -1291,42 +1442,55 @@ double lbeta(double a, double b) noexcept {
 
 double digamma(double x) noexcept {
     // Digamma ψ(x) = d/dx lnΓ(x)
-    // Recurrence ψ(x+1) = ψ(x) + 1/x shifts x > 6 for the asymptotic series.
+    // Recurrence ψ(x+1) = ψ(x) + 1/x shifts x ≥ 10 for the asymptotic series
+    // ψ(x) ≈ ln x − 1/(2x) − Σ B_2k/(2k·x^2k), carried through B₁₄; the first omitted
+    // term is 4.4e-17 at x = 10 (stopping at B₆ from x = 6 left 2.5e-9).
     if (x <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
     }
 
     double result = detail::ZERO_DOUBLE;
-    while (x < 6.0) {
+    while (x < 10.0) {
         result -= detail::ONE / x;
         x += detail::ONE;
     }
 
-    // Asymptotic expansion: ψ(x) ≈ ln(x) − 1/(2x) − 1/(12x²) + 1/(120x⁴) − 1/(252x⁶)
-    const double inv_x = detail::ONE / x;
-    const double inv_x2 = inv_x * inv_x;
-    result += std::log(x) - detail::HALF * inv_x -
-              inv_x2 * (detail::ONE / 12.0 - inv_x2 * (detail::ONE / 120.0 - inv_x2 / 252.0));
+    const double r = detail::ONE / x;
+    const double r2 = r * r;
+    // B_2k/(2k): 1/12, −1/120, 1/252, −1/240, 1/132, −691/32760, 1/12
+    const double series =
+        r2 *
+        (1.0 / 12.0 -
+         r2 * (1.0 / 120.0 -
+               r2 * (1.0 / 252.0 - r2 * (1.0 / 240.0 - r2 * (1.0 / 132.0 - r2 * (691.0 / 32760.0 -
+                                                                                 r2 / 12.0))))));
+    result += std::log(x) - detail::HALF * r - series;
     return result;
 }
 
 double trigamma(double x) noexcept {
     // Trigamma ψ'(x) = d²/dx² lnΓ(x)  (A&S §6.4.12)
-    // Recurrence ψ'(x) = ψ'(x+1) + 1/x² shifts x ≥ 6 for the asymptotic series.
+    // Recurrence ψ'(x) = ψ'(x+1) + 1/x² shifts x ≥ 10 for the asymptotic series
+    // ψ'(x) ≈ 1/x + 1/(2x²) + Σ B_2k/x^(2k+1), carried through B₁₄; the first omitted
+    // term is 7.1e-17 at x = 10 (stopping at B₈ from x = 6 left 2.1e-10).
     if (x <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
     }
     double result = detail::ZERO_DOUBLE;
-    while (x < 6.0) {
+    while (x < 10.0) {
         result += detail::ONE / (x * x);
         x += detail::ONE;
     }
     const double r = detail::ONE / x;
     const double r2 = r * r;
-    // Asymptotic series: 1/x + 1/(2x²) + 1/(6x³) - 1/(30x⁵) + 1/(42x⁷) - 1/(30x⁹)
-    result += r * (detail::ONE + detail::HALF * r +
-                   r2 * (detail::ONE / 6.0 -
-                         r2 * (detail::ONE / 30.0 - r2 * (detail::ONE / 42.0 - r2 / 30.0))));
+    // B_2k: 1/6, −1/30, 1/42, −1/30, 5/66, −691/2730, 7/6
+    result +=
+        r * (detail::ONE + detail::HALF * r +
+             r2 * (1.0 / 6.0 -
+                   r2 * (1.0 / 30.0 -
+                         r2 * (1.0 / 42.0 -
+                               r2 * (1.0 / 30.0 - r2 * (5.0 / 66.0 - r2 * (691.0 / 2730.0 -
+                                                                           r2 * 7.0 / 6.0)))))));
     return result;
 }
 
@@ -1340,8 +1504,10 @@ double trigamma(double x) noexcept {
 // over I. Before this the linear-CDF Newton stopped at |I − p| < 1e-8 and clamped its start to
 // [1e-8, 1 − 1e-8]: Beta(1, 1).Q(1e-100) = 1e-8 and Beta(2, 3).Q(1 − 1.7e-6) was 1.4e-5 off.
 double inverse_beta_i(double p, double a, double b) noexcept {
-    if (std::isnan(p) || std::isnan(a) || std::isnan(b) || a <= detail::ZERO_DOUBLE ||
-        b <= detail::ZERO_DOUBLE)
+    // An infinite shape is NaN, as in beta_i; it reached the solver and returned 4.9e-324 for
+    // inverse_beta_i(0.5, inf, 2).
+    if (std::isnan(p) || !(a > detail::ZERO_DOUBLE && b > detail::ZERO_DOUBLE) || std::isinf(a) ||
+        std::isinf(b))
         return std::numeric_limits<double>::quiet_NaN();
     if (p <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
@@ -1437,15 +1603,15 @@ double inverse_beta_i(double p, double a, double b) noexcept {
         if (tiny) {
             const double lpo = log_beta_prefactor_over_a_logs(log_x, log_omx, a, b);
             const double log_i =
-                x < (a + detail::ONE) / (a + b + detail::TWO)
+                below_branch_point(x, omx, a, b)
                     ? lpo + std::log(beta_continued_fraction_unscaled(x, omx, a, b))
                     : std::log(beta_i_tiny_shape(x, omx, a, b));
             slope = std::exp(lpo + std::log(a) - log_i);  // the full prefactor is a·exp(lpo)
             return log_i - log_target;
         }
-        const double bt_log = log_beta_prefactor_logs(x, a, b, log_x, log_omx, pc);
+        const double bt_log = log_beta_prefactor_logs(x, omx, a, b, log_x, log_omx, pc);
         double log_i;
-        if (x < (a + detail::ONE) / (a + b + detail::TWO)) {
+        if (below_branch_point(x, omx, a, b)) {
             log_i = bt_log + std::log(beta_continued_fraction(x, omx, a, b));
         } else {
             // The small side directly where it is I (see kTailIntegralShape), else log1p(−c).
@@ -1972,6 +2138,17 @@ TTails t_tails(double abs_t, double df, double lbeta_a_half) noexcept {
         log_x = std::log(df) - detail::TWO * std::log(abs_t) + log_y;
     }
     TTails r{};
+    if (a < std::numeric_limits<double>::min()) {
+        // ν/2 subnormal or 0 (ν = 4.9e-324 halves to 0): lbeta(a, ½) and the continued
+        // fraction's 1/a are infinite there, and the tail came out NaN. I_x(a, ½) = x^a + O(a)
+        // as a → 0 (a·B(a, ½) = 1 + O(a), and ∫₀ˣ t^(a−1)((1 − t)^(−½) − 1) dt stays finite), so
+        // the tail is ½·x^a to an absolute 1e-308, from log x, which holds where x underflows.
+        const double a_log_x = a == detail::ZERO_DOUBLE ? detail::ZERO_DOUBLE : a * log_x;
+        r.log_t_pdf = a_log_x + detail::HALF * log_y - lbeta_a_half;
+        r.tail = detail::HALF * std::exp(a_log_x);
+        r.central = -std::expm1(a_log_x);
+        return r;
+    }
     if (a >= kStirlingPrefactorShape && u < detail::ONE) {
         // ½·log y − lbeta(a, ½) holds −½·log ν against +½·log a inside lbeta's Stirling form;
         // their difference is K(a) = −½·log 2π + a·log1pmx(1/2a) − c(a) + c(a + ½), free of

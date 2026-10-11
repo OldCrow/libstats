@@ -223,41 +223,60 @@ double WeibullDistribution::getVariance() const {
     return v;
 }
 
+// Skewness and kurtosis are scale-free, so they are formed from g_n = Γ(1 + n/k) alone (DH3):
+// λ³·num/var^{3/2} and λ⁴·m4/var² overflowed or underflowed in λ^n and var (Weibull(2, 1e200)
+// gave NaN, Weibull(0.05, 1e-100) a kurtosis of −3, λ⁴ = 0). Where the largest g_n overflows
+// (k below 3/171 for the skewness, 4/171 for the kurtosis: Weibull(0.02, 1) gave NaN for a
+// finite 2.4e33), each is formed in log space as the ratio of its leading term,
+// e^{L_n − (n/2)·L2} with L_n = lgamma(1 + n/k), times the remaining terms over it, each
+// e^{(sum of L) − L_n} ≤ 1 by the log-convexity of Γ.
 double WeibullDistribution::getSkewness() const {
-    double k, sc, var;
-    withCacheSnapshot([&] {
-        k = shape_;
-        sc = scale_;
-        var = variance_;
-    });
-    const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / k));
-    const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / k));
-    const double g3 = std::exp(detail::lgamma(detail::ONE + detail::THREE / k));
+    double k;
+    withCacheSnapshot([&] { k = shape_; });
+    const double l1 = detail::lgamma(detail::ONE + detail::ONE / k);
+    const double l2 = detail::lgamma(detail::ONE + detail::TWO / k);
+    const double l3 = detail::lgamma(detail::ONE + detail::THREE / k);
+    const double g3 = std::exp(l3);
+    if (!std::isfinite(g3)) {
+        const double num = detail::ONE - detail::THREE * std::exp(l1 + l2 - l3) +
+                           detail::TWO * std::exp(detail::THREE * l1 - l3);
+        const double v = -std::expm1(detail::TWO * l1 - l2);
+        return std::exp(l3 - 1.5 * l2) * num / (v * std::sqrt(v));
+    }
+    const double g1 = std::exp(l1);
+    const double g2 = std::exp(l2);
     const double var_raw = g2 - g1 * g1;
     if (var_raw <= detail::ZERO)
         return detail::ZERO_DOUBLE;
     const double num = g3 - detail::THREE * g1 * g2 + detail::TWO * g1 * g1 * g1;
-    return sc * sc * sc * num / (var * std::sqrt(var));
+    return num / (var_raw * std::sqrt(var_raw));
 }
 
 double WeibullDistribution::getKurtosis() const {
-    double k, sc, var;
-    withCacheSnapshot([&] {
-        k = shape_;
-        sc = scale_;
-        var = variance_;
-    });
-    const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / k));
-    const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / k));
-    const double g3 = std::exp(detail::lgamma(detail::ONE + detail::THREE / k));
-    const double g4 = std::exp(detail::lgamma(detail::ONE + detail::FOUR / k));
+    double k;
+    withCacheSnapshot([&] { k = shape_; });
+    const double l1 = detail::lgamma(detail::ONE + detail::ONE / k);
+    const double l2 = detail::lgamma(detail::ONE + detail::TWO / k);
+    const double l3 = detail::lgamma(detail::ONE + detail::THREE / k);
+    const double l4 = detail::lgamma(detail::ONE + detail::FOUR / k);
+    const double g4 = std::exp(l4);
+    if (!std::isfinite(g4)) {
+        const double m4 = detail::ONE - detail::FOUR * std::exp(l3 + l1 - l4) +
+                          detail::SIX * std::exp(l2 + detail::TWO * l1 - l4) -
+                          detail::THREE * std::exp(detail::FOUR * l1 - l4);
+        const double v = -std::expm1(detail::TWO * l1 - l2);
+        return std::exp(l4 - detail::TWO * l2) * m4 / (v * v) - detail::THREE;
+    }
+    const double g1 = std::exp(l1);
+    const double g2 = std::exp(l2);
+    const double g3 = std::exp(l3);
     const double var_raw = g2 - g1 * g1;
     if (var_raw <= detail::ZERO)
         return detail::ZERO_DOUBLE;
     // Raw fourth central moment (λ-normalised) / normalised-variance² − 3
     const double m4 = (g4 - detail::FOUR * g3 * g1 + detail::SIX * g2 * g1 * g1 -
                        detail::THREE * g1 * g1 * g1 * g1);
-    return sc * sc * sc * sc * m4 / (var * var) - detail::THREE;
+    return m4 / (var_raw * var_raw) - detail::THREE;
 }
 
 //==============================================================================
@@ -1025,13 +1044,28 @@ void WeibullDistribution::updateCacheUnsafe() const noexcept {
     // logNormConst = log(k) − k·log(λ) = logShape_ − shape_·logScale_
     logNormConst_ = logShape_ - shape_ * logScale_;
 
-    // Mean: λ·Γ(1 + 1/k)
-    const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / shape_));
-    mean_ = scale_ * g1;
+    // Mean: λ·Γ(1 + 1/k). Γ overflows from 1/k = 171 while λ·Γ need not (DH3: Weibull(0.003,
+    // 1e-100) gave +inf), so there the product is taken in log space.
+    const double l1 = detail::lgamma(detail::ONE + detail::ONE / shape_);
+    const double g1 = std::exp(l1);
+    mean_ = std::isfinite(g1) ? scale_ * g1 : std::exp(logScale_ + l1);
 
-    // Variance: λ²·[Γ(1 + 2/k) − Γ(1 + 1/k)²]
-    const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / shape_));
-    variance_ = scale_ * scale_ * (g2 - g1 * g1);
+    // Variance: λ²·[Γ(1 + 2/k) − Γ(1 + 1/k)²]. Where Γ(1 + 2/k) overflows (k < 0.0117) the
+    // difference was inf − inf = NaN (DH3); it is then λ²·Γ(1 + 2/k)·(1 − Γ(1 + 1/k)²/Γ(1 + 2/k)),
+    // in log space, the ratio e^{2·L1 − L2} ≤ 1. λ² over- or underflows where the variance need
+    // not (λ = 1e-170), so the scale enters as λ·(λ·v) there.
+    const double l2 = detail::lgamma(detail::ONE + detail::TWO / shape_);
+    const double g2 = std::exp(l2);
+    if (std::isfinite(g2)) {
+        const double v = g2 - g1 * g1;
+        const double scale_sq = scale_ * scale_;
+        variance_ = (std::isfinite(scale_sq) && scale_sq >= std::numeric_limits<double>::min())
+                        ? scale_sq * v
+                        : scale_ * (scale_ * v);
+    } else {
+        variance_ =
+            std::exp(detail::TWO * logScale_ + l2 + std::log(-std::expm1(detail::TWO * l1 - l2)));
+    }
 
     isExponential_ = (std::fabs(shape_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
 

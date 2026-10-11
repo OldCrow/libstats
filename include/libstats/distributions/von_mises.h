@@ -264,8 +264,11 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getQuantile(double p) const override;
 
     /**
-     * @brief Sample via the Best (1979) rejection sampler for Von Mises.
-     * Falls back to uniform sampling when κ < 1e-9.
+     * @brief Sample via the Best (1979) rejection sampler for Von Mises: the
+     * textbook form for κ < 1e4, a half-angle form (full relative precision
+     * near the mean) for 1e4 ≤ κ < 1e15, and θ = μ + z/√κ, z ~ N(0, 1), from
+     * κ = 1e15, where the two laws differ by < 4.4e-17 in CDF. Uniform on the
+     * circle when κ < 1e-300.
      */
     [[nodiscard]] double sample(std::mt19937& rng) const override;
 

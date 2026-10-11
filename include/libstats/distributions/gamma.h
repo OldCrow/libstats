@@ -52,7 +52,7 @@ namespace stats {
  *
  * @par Performance Features:
  * - Atomic cache validity flags for lock-free fast path access
- * - Extensive caching of computed values (log(Γ(α)), log(β), digamma(α), etc.)
+ * - Extensive caching of computed values (log(Γ(α)), log(β), etc.)
  * - Optimized PDF/CDF computation with precomputed gamma functions
  * - Fast parameter validation with IEEE 754 compliance
  * - Special algorithms for integer α, α < 1, and large α cases
@@ -890,7 +890,6 @@ class GammaDistribution : public DistributionBase {
         variance_ = mean_ * scale_;
 
         // Advanced functions
-        digammaAlpha_ = detail::digamma(alpha_);
         sqrtAlpha_ = std::sqrt(alpha_);
 
         // Optimization flags
@@ -971,9 +970,6 @@ class GammaDistribution : public DistributionBase {
 
     /** @brief Cached value of α/β² (variance) for efficiency */
     mutable double variance_{detail::ONE};
-
-    /** @brief Cached value of digamma(α) for efficiency in various calculations */
-    mutable double digammaAlpha_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of √α for efficiency in normal approximation */
     mutable double sqrtAlpha_{detail::ONE};

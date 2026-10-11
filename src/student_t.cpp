@@ -395,17 +395,27 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
     //
     // Exact derivative (replaces 3-point finite differences which cost 3n digamma evals/step):
     //   S'(nu) = n/2 * [psi'((nu+1)/2) - psi'(nu/2)] + n/nu^2
-    //            - (1/nu^2) * sum(xi^2 * (xi^2 - nu) / (nu + xi^2)^2)   [data term]
+    //            + sum(ri^2/nu - ri*(2 - ri)/nu^2),  ri = xi^2/(nu + xi^2)   [data term]
+    // (Until 2026-10 the data term was −(1/ν²)·Σ ri(2ri − 1), which is not the derivative: at
+    // xi = ν = 1 it gives 0 where the derivative is −1/2. Newton with it converged only linearly,
+    // ~0.17% a step near a root past 1e4, and ran out its iterations short of the root.)
     // = 2 trigamma calls + 1 additional data pass.
     // Beta already uses the same exact-derivative pattern; StudentT converges in fewer steps.
 
-    // Solved as a bracketed Newton in u = log ν on [log NU_MIN, log NU_MAX]: S > 0 raises the
-    // lower end, S < 0 lowers the upper, a Newton step (g'(u) = ν·S'(ν)) is taken only where it
-    // is a descent step that stays inside the bracket, a bisection otherwise. The plain step in
-    // ν this replaced was capped upward but not downward, so from the ν = 5 start on data with
-    // ν ≤ 2 the first step overshot to the 0.1 floor and stopped there (F1).
+    // Solved as a safeguarded Newton in u = log ν on [log NU_MIN, log NU_MAX]: S > 0 raises the
+    // lower end, S < 0 lowers the upper. The Newton step is taken on h(u) = ν²·S(ν), which has
+    // S's zero and, unlike S (~1/ν² at large ν), keeps its scale up to the Gaussian limit. A step
+    // is taken only where it is a descent step inside the bracket; it bisects instead after two
+    // steps in a row that did not halve the step before them, and after eight iterations without
+    // halving the bracket (relative to its width at its last halving). The iteration after a
+    // bisection always halves it, and the bracket starts ln(1e9) ≈ 20.7 wide, so tol is reached
+    // within 9·⌈log2(20.7/tol)⌉ + 1 = 280 iterations whatever the data; max_iter is past that
+    // bound, and reaching it throws rather than return an unconverged ν. In practice 3-12
+    // iterations (ν from 0.5 to 1e5, n from 1e3 to 1e5, 10 seeds each). (A plain step in ν
+    // before the bracket was capped upward but not downward, so from the ν = 5 start on data
+    // with ν ≤ 2 the first step overshot to the 0.1 floor and stopped there, F1.)
     constexpr double NU_MIN = 0.1;
-    const int max_iter = 100;
+    const int max_iter = 300;
     const double tol = 1e-8;
     // S and S' at ν. The data term −log(1 + xi²/ν) + ((ν+1)/ν)·r is formed as r/ν − (log(1 + xi²/ν)
     // − r), and the digamma part through tScoreDigammaPart, so that S keeps its relative accuracy
@@ -416,11 +426,11 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
         s = n * dig.d;
         ds = n * dig.dd;
         // r = xi²/(ν + xi²), formed as 1/(1 + ν/xi²) so that xi² = 0 gives 0 and an overflowed
-        // xi² gives 1; then (xi² − ν)/(ν + xi²) = 2r − 1. The log term is overflow-safe (#159).
+        // xi² gives 1. The log term is overflow-safe (#159).
         for (double xi : values) {
             const double r = detail::ONE / (detail::ONE + nu / (xi * xi));
             s += r * inv_nu - log1pMinusRatio(xi, inv_nu, r);
-            ds -= r * (detail::TWO * r - detail::ONE) * inv_nu * inv_nu;
+            ds += r * (r - (detail::TWO - r) * inv_nu) * inv_nu;
         }
     };
 
@@ -435,30 +445,54 @@ void StudentTDistribution::fit(const std::vector<double>& values) {
 
     double nu = nu_est;
     double lo = std::log(NU_MIN), hi = std::log(NU_MAX);
+    double halved_width = hi - lo;  // the bracket width at its last halving
+    int since_halving = 0;          // iterations since then
+    int slow = 0;                   // of those, in a row, whose step did not halve the last
+    double prev_step = hi - lo;
+    bool converged = false;
 
-    for (int iter = 0; iter < max_iter; ++iter) {
+    for (int iter = 0; iter < max_iter && !converged; ++iter) {
         score(nu, s, ds);
 
-        // S falls as ~1/ν² at large ν, so an unscaled |S| < tol·n is met anywhere past ν ~ 1e4;
-        // test ν²·S there (the score in θ = 1/ν).
-        if (std::abs(s) * std::max(detail::ONE, nu * nu) < tol * n)
+        // Converged in u, not on the size of S: the test |ν²·S| < tol·n this replaced allows
+        // |Δu| up to tol·n/|h'(u)|, and h'/n is small where ν is large (2.6e-4 at a root at
+        // ν = 27470, n = 1e4: |Δu| up to 3.8e-5).
+        if (s == detail::ZERO_DOUBLE) {
+            converged = true;
             break;
+        }
 
         const double u = std::log(nu);
         if (s > detail::ZERO_DOUBLE)
             lo = u;
         else
             hi = u;
-        if (hi - lo < tol)
+        const double width = hi - lo;
+        if (width < tol) {
+            converged = true;
             break;
-        // g(u) = S(eᵘ), g'(u) = ν·S'(ν); Newton where S is falling, inside the bracket.
-        double next = u - s / (nu * ds);
-        if (!(ds < detail::ZERO_DOUBLE) || !(next > lo && next < hi))
+        }
+        // h'(u) = ν²·(2S + ν·S'); Newton where h is falling, inside the bracket.
+        const double dh = detail::TWO * s + nu * ds;
+        double next = u - s / dh;
+        if (width <= detail::HALF * halved_width) {
+            halved_width = width;
+            since_halving = 0;
+            slow = 0;
+        } else {
+            ++since_halving;
+            slow = (std::abs(next - u) <= detail::HALF * prev_step) ? 0 : slow + 1;
+        }
+        if (slow >= 2 || since_halving >= 8 || !(dh < detail::ZERO_DOUBLE) ||
+            !(next > lo && next < hi))
             next = detail::HALF * (lo + hi);
         const double step = next - u;
         nu = std::exp(next);
-        if (std::abs(step) < tol)
-            break;
+        prev_step = std::abs(step);
+        converged = std::abs(step) < tol;
+    }
+    if (!converged) {
+        throw std::runtime_error("StudentTDistribution::fit: the nu root search did not converge");
     }
 
     setNu(std::clamp(nu, NU_MIN, NU_MAX));

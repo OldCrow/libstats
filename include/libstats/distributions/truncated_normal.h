@@ -98,9 +98,16 @@ namespace stats {
  * moment terms and lose (max(1, m²)/c2)^(k/2) digits, m and c2 the
  * standardised mean and variance — everything for a narrow window
  * (width ≲ 1e-4σ) and 1% of the kurtosis at (36σ, 37σ). They are used
- * where c2 ≥ 0.05·max(1, m²); elsewhere the moments are integrated in
- * central form by segmented Gauss–Legendre quadrature (a far-tail window
- * cut at α + 50/α), accurate to ~1e-13 relative throughout.
+ * where c2 ≥ 0.05·max(1, m²) for the mean, variance and entropy, and
+ * where c2 ≥ 0.35·max(1, m²) for the skewness and kurtosis; elsewhere the
+ * moments are integrated in central form by segmented Gauss–Legendre
+ * quadrature (a far-tail window cut at α + 50/α). Mean and variance hold
+ * ~1e-13 relative throughout; skewness and kurtosis ~1e-14 absolute (both
+ * cross 0, where no relative bound holds). Where the moments are
+ * integrated, log Z (density and entropy) comes from the same integral:
+ * the erfc difference Q(α) − Q(β) loses 1/(|α|·width) of its arguments'
+ * rounding on a narrow window, 1e-9 at (37σ, 37σ + 1e-6σ). The CDF keeps
+ * the erfc difference, whose errors cancel at the upper bound.
  *
  * @par MLE (fit):
  * SCOPE DECISION (standard formulation): the truncation bounds a, b are
@@ -415,15 +422,15 @@ class TruncatedNormalDistribution : public DistributionBase {
     // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
 
-    /** @brief SIMD PDF pipeline: shift, square, scale, +logC, exp; fixup
+    /** @brief SIMD PDF pipeline: standardise, square, scale, +logC, exp; fixup
      *  outside [a,b] → 0 (see class-level Batch SIMD notes). */
     void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                       double mu, double a, double b, double neg_half_inv_sigma2,
+                                       double mu, double a, double b, double sigma,
                                        double log_pdf_norm) const noexcept;
 
-    /** @brief SIMD LogPDF pipeline: shift, square, scale, +logC; fixup −∞. */
+    /** @brief SIMD LogPDF pipeline: standardise, square, scale, +logC; fixup −∞. */
     void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                          double mu, double a, double b, double neg_half_inv_sigma2,
+                                          double mu, double a, double b, double sigma,
                                           double log_pdf_norm) const noexcept;
 
     /** @brief SIMD CDF: vector_erf chain for straddling windows with
@@ -529,8 +536,6 @@ class TruncatedNormalDistribution : public DistributionBase {
     mutable double halfInvZ_{detail::HALF};
     /** @brief log σ. */
     mutable double logSigma_{detail::ZERO_DOUBLE};
-    /** @brief −1/(2σ²). */
-    mutable double negHalfInvSigmaSquared_{-detail::HALF};
     /** @brief 1/(σ√2). */
     mutable double invSigmaSqrt2_{detail::ZERO_DOUBLE};
     /** @brief −log σ − log Z − ½log(2π) — LogPDF additive constant. */

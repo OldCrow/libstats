@@ -1138,6 +1138,143 @@ constexpr double kBestFisherMinKappa = 1e-300;
     return {rho, r};
 }
 
+/// From this κ up the Best–Fisher sampler takes its angle and acceptance variable in half-angle
+/// form. The textbook form returns acos(f) with f = (1 + r·z)/(r + z) and c = κ(r − f); near
+/// the mean f is within 1/κ of 1, where doubles are 1.1e-16 apart, so the draws sit on a lattice
+/// of relative spacing ~1.1e-16·κ near θ = σ = 1/√κ, and c is lost the same way (r − 1 ~ 1/(2κ)).
+/// At κ = 1e9 that is 59 repeated values in 20000 draws, at 1e14 a KS √n·D of 7, and from
+/// κ ≈ 6.5e15 r rounds to 1, c = 0 and every draw is rejected (a hang). Below 1e4 the lattice is
+/// finer than 1.1e-12·σ, invisible to any feasible sample, and the textbook form is kept so that
+/// streams for ordinary κ do not change.
+constexpr double kHalfAngleMinKappa = 1e4;
+
+/// From this κ up the sampler draws θ = z/√κ, z ~ N(0, 1). The von Mises CDF of θ√κ differs from
+/// Φ by 0.04354/κ at most, to leading order (sup over θ by mpmath: κ times it is 0.043767,
+/// 0.043558, 0.043537, 0.043535 at κ = 1e2, 1e3, 1e4, 1e5; the O(1/κ) term of
+/// exp(κ(cos θ − 1)) = exp(−κθ²/2 + κθ⁴/24 − ...)), which is 4.4e-17 here: below half an ulp of a
+/// probability near 1/2, so the normal law is the von Mises law to double resolution. It also keeps
+/// the half-angle constants (√(1 + 4κ²), δ² ~ 1/κ) away from overflow and subnormals up to κ =
+/// DBL_MAX.
+constexpr double kNormalSamplerMinKappa = 1e15;
+
+/// One von Mises draw per call, for both sample() overloads. Four regimes by κ: uniform below
+/// kBestFisherMinKappa, the textbook Best–Fisher sampler below kHalfAngleMinKappa, Best–Fisher in
+/// half-angle form below kNormalSamplerMinKappa, a normal draw above. `wrap` is
+/// VonMisesDistribution::wrapAngle (private), passed in by the sample() overloads.
+///
+/// Half-angle form. With δ = 1 − ρ, z = cos(π u1) and T = tan(π u1 / 2):
+///   (1 − f)/(1 + f) = (r − 1)(1 − z) / ((r + 1)(1 + z)) and (r ∓ 1) = (1 ∓ ρ)² / (2ρ), so
+///   θ = acos f = 2 atan(k·T) with k = (1 − ρ)/(1 + ρ) = δ / (2 − δ);
+///   c = κ(r − f) = κ(r² − 1)/(r + z) = κ(r − 1)(r + 1) / ((r − 1) + 2 cos²(π u1 / 2)).
+/// Every operation is a product, a quotient or a sum of positives, so θ keeps full relative
+/// precision near the mean and c is accurate to a few ulps at any κ.
+/// δ = (τ + √(2τ) − 2κ)/(τ + √(2τ)) with τ − 2κ = 1 + (√(1 + 4κ²) − 2κ) = 1 + 1/(√(1 + 4κ²) + 2κ),
+/// again without cancellation.
+class VonMisesSampler {
+   public:
+    using Wrap = double (*)(double) noexcept;
+
+    VonMisesSampler(double mu, double kappa, Wrap wrap) noexcept
+        : mu_(mu), kappa_(kappa), wrap_(wrap) {
+        if (kappa < kBestFisherMinKappa) {
+            regime_ = Regime::kUniform;
+        } else if (kappa < kHalfAngleMinKappa) {
+            regime_ = Regime::kTextbook;
+            r_ = bestFisherConstants(kappa).second;
+        } else if (kappa < kNormalSamplerMinKappa) {
+            regime_ = Regime::kHalfAngle;
+            const double h = std::sqrt(detail::ONE + 4.0 * kappa * kappa);
+            const double tau = detail::ONE + h;
+            const double s2t = std::sqrt(detail::TWO * tau);
+            const double delta =
+                (detail::ONE + detail::ONE / (h + detail::TWO * kappa) + s2t) / (tau + s2t);
+            const double rho = detail::ONE - delta;
+            const double two_minus_delta = detail::TWO - delta;
+            k_ = delta / two_minus_delta;
+            rm1_ = delta * delta / (detail::TWO * rho);
+            c_num_ = kappa * rm1_ * (two_minus_delta * two_minus_delta / (detail::TWO * rho));
+        } else {
+            regime_ = Regime::kNormal;
+            sigma_ = detail::ONE / std::sqrt(kappa);
+        }
+    }
+
+    double operator()(std::mt19937& rng) const {
+        switch (regime_) {
+            case Regime::kUniform: {
+                std::uniform_real_distribution<double> u(-detail::PI, detail::PI);
+                return u(rng);
+            }
+            case Regime::kTextbook:
+                return textbook(rng);
+            case Regime::kHalfAngle:
+                return halfAngle(rng);
+            case Regime::kNormal:
+                break;
+        }
+        // Box–Muller, the cosine branch (as GaussianDistribution::sample).
+        std::uniform_real_distribution<double> u(std::numeric_limits<double>::min(), detail::ONE);
+        const double u1 = u(rng);
+        const double u2 = u(rng);
+        const double z = std::sqrt(-detail::TWO * std::log(u1)) * std::cos(detail::TWO_PI * u2);
+        return wrap_(mu_ + sigma_ * z);
+    }
+
+   private:
+    enum class Regime { kUniform, kTextbook, kHalfAngle, kNormal };
+
+    // Best–Fisher acceptance of the envelope draw with variable c.
+    [[nodiscard]] static bool accepts(double c, double u2) noexcept {
+        return (c * (detail::TWO - c) > u2) ||
+               (c > detail::ZERO_DOUBLE &&
+                std::log(c / u2) + detail::ONE - c >= detail::ZERO_DOUBLE);
+    }
+
+    // Best (1979) rejection sampler. Reference: D.J. Best and N.I. Fisher (1979). Efficient
+    // simulation of the von Mises distribution. Applied Statistics 28(2), 152–157.
+    double textbook(std::mt19937& rng) const {
+        std::uniform_real_distribution<double> u01(detail::ZERO_DOUBLE, detail::ONE);
+        for (;;) {
+            const double u1 = u01(rng);
+            const double z = std::cos(detail::PI * u1);
+            const double f = (detail::ONE + r_ * z) / (r_ + z);
+            const double c = kappa_ * (r_ - f);
+            const double u2 = u01(rng);
+            if (accepts(c, u2)) {
+                const double u3 = u01(rng);
+                const double angle = (u3 > detail::HALF) ? std::acos(f) : -std::acos(f);
+                return wrap_(mu_ + angle);
+            }
+        }
+    }
+
+    // The same sampler, the same three uniforms per trial, in half-angle form.
+    double halfAngle(std::mt19937& rng) const {
+        std::uniform_real_distribution<double> u01(detail::ZERO_DOUBLE, detail::ONE);
+        for (;;) {
+            const double half = detail::HALF * detail::PI * u01(rng);
+            const double ch = std::cos(half);
+            const double c = c_num_ / (rm1_ + detail::TWO * ch * ch);
+            const double u2 = u01(rng);
+            if (accepts(c, u2)) {
+                const double u3 = u01(rng);
+                const double theta = detail::TWO * std::atan(k_ * std::tan(half));
+                return wrap_(mu_ + ((u3 > detail::HALF) ? theta : -theta));
+            }
+        }
+    }
+
+    double mu_;
+    double kappa_;
+    Wrap wrap_;
+    Regime regime_ = Regime::kUniform;
+    double r_ = detail::ZERO_DOUBLE;      // textbook: r = (1 + ρ²)/(2ρ)
+    double k_ = detail::ZERO_DOUBLE;      // half-angle: (1 − ρ)/(1 + ρ)
+    double rm1_ = detail::ZERO_DOUBLE;    // half-angle: r − 1
+    double c_num_ = detail::ZERO_DOUBLE;  // half-angle: κ(r − 1)(r + 1)
+    double sigma_ = detail::ZERO_DOUBLE;  // normal: 1/√κ
+};
+
 }  // namespace
 
 double VonMisesDistribution::sample(std::mt19937& rng) const {
@@ -1146,39 +1283,7 @@ double VonMisesDistribution::sample(std::mt19937& rng) const {
         kappa = kappa_;
         mu = mu_;
     });
-
-    if (kappa < kBestFisherMinKappa) {
-        std::uniform_real_distribution<double> u(-detail::PI, detail::PI);
-        return u(rng);
-    }
-
-    // Best (1979) rejection sampler for the Von Mises distribution.
-    // Reference: D.J. Best and N.I. Fisher (1979). Efficient simulation of
-    //            the von Mises distribution. Applied Statistics 28(2), 152–157.
-    const auto [rho, r] = bestFisherConstants(kappa);
-
-    std::uniform_real_distribution<double> u01(detail::ZERO_DOUBLE, detail::ONE);
-
-    for (;;) {
-        const double u1 = u01(rng);
-        const double z = std::cos(detail::PI * u1);
-        const double f = (detail::ONE + r * z) / (r + z);
-        const double c = kappa * (r - f);
-        const double u2 = u01(rng);
-
-        bool accept = false;
-        if (c * (detail::TWO - c) > u2) {
-            accept = true;
-        } else if (c > detail::ZERO_DOUBLE) {
-            accept = (std::log(c / u2) + detail::ONE - c >= detail::ZERO_DOUBLE);
-        }
-
-        if (accept) {
-            const double u3 = u01(rng);
-            const double angle = (u3 > detail::HALF) ? std::acos(f) : -std::acos(f);
-            return wrapAngle(mu + angle);
-        }
-    }
+    return VonMisesSampler(mu, kappa, &wrapAngle)(rng);
 }
 
 std::vector<double> VonMisesDistribution::sample(std::mt19937& rng, size_t n) const {
@@ -1187,39 +1292,11 @@ std::vector<double> VonMisesDistribution::sample(std::mt19937& rng, size_t n) co
         kappa = kappa_;
         mu = mu_;
     });
-
+    const VonMisesSampler draw(mu, kappa, &wrapAngle);
     std::vector<double> samples;
     samples.reserve(n);
-
-    if (kappa < kBestFisherMinKappa) {
-        std::uniform_real_distribution<double> u(-detail::PI, detail::PI);
-        for (size_t i = 0; i < n; ++i)
-            samples.push_back(u(rng));
-        return samples;
-    }
-
-    // Best (1979) rejection sampler — precompute constants outside the loop.
-    const auto [rho, r] = bestFisherConstants(kappa);
-    std::uniform_real_distribution<double> u01(detail::ZERO_DOUBLE, detail::ONE);
-
-    for (size_t i = 0; i < n; ++i) {
-        for (;;) {
-            const double u1 = u01(rng);
-            const double z = std::cos(detail::PI * u1);
-            const double f = (detail::ONE + r * z) / (r + z);
-            const double c = kappa * (r - f);
-            const double u2 = u01(rng);
-            bool accept = (c * (detail::TWO - c) > u2) ||
-                          (c > detail::ZERO_DOUBLE &&
-                           std::log(c / u2) + detail::ONE - c >= detail::ZERO_DOUBLE);
-            if (accept) {
-                const double u3 = u01(rng);
-                const double angle = (u3 > detail::HALF) ? std::acos(f) : -std::acos(f);
-                samples.push_back(wrapAngle(mu + angle));
-                break;
-            }
-        }
-    }
+    for (size_t i = 0; i < n; ++i)
+        samples.push_back(draw(rng));
     return samples;
 }
 
