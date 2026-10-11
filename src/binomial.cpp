@@ -39,6 +39,21 @@ double binomialCdf(int k, int n, double p) noexcept {
     return detail::beta_i_pair(detail::ONE - p, p, a, b, detail::beta_prefactor_constant(a, b));
 }
 
+// P(X > k) for 0 ≤ k < n, the complement of binomialCdf formed directly: I_p(k + 1, n − k), the
+// same pair with the roles swapped, so it is small where the upper tail is and keeps relative
+// precision there instead of the ε absolute error of 1 − binomialCdf.
+double binomialSf(int k, int n, double p) noexcept {
+    if (k < 0)
+        return detail::ONE;
+    if (k >= n || p == detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
+    if (p == detail::ONE)
+        return detail::ONE;
+    const double a = static_cast<double>(k + 1);
+    const double b = static_cast<double>(n - k);
+    return detail::beta_i_pair(p, detail::ONE - p, a, b, detail::beta_prefactor_constant(a, b));
+}
+
 // PARALLEL and WORK_STEALING take one snapshot and run the lock-free batch kernels over slices
 // of this many elements, as Beta does. Calling the scalar methods per element took
 // withCacheSnapshot's shared_lock on every element from every thread (#175).
@@ -323,6 +338,25 @@ double BinomialDistribution::getCumulativeProbability(double x) const {
     return result;
 }
 
+double BinomialDistribution::getSurvival(double x) const {
+    int sn;
+    double sp;
+    withCacheSnapshot([&] {
+        sn = n_;
+        sp = p_;
+    });
+    if (!std::isfinite(x))
+        return std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
+                             : ((x < 0) ? detail::ONE : detail::ZERO_DOUBLE);
+    // #167: range-check the floored double before the int cast, as the CDF does.
+    const double floored = std::floor(x);
+    if (floored < detail::ZERO_DOUBLE)
+        return detail::ONE;
+    if (floored >= static_cast<double>(sn))
+        return detail::ZERO_DOUBLE;
+    return binomialSf(static_cast<int>(floored), sn, sp);
+}
+
 double BinomialDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
@@ -338,15 +372,18 @@ double BinomialDistribution::getQuantile(double p) const {
     if (p == detail::ONE)
         return static_cast<double>(n);
 
-    // Smallest k with CDF(k) >= p, searched outward from the normal
-    // approximation: two or three CDF evaluations instead of a scan from 0.
-    // The CDF reads the same (n, p) copy as the guess, not the live members.
+    // Smallest k with CDF(k) >= p (p <= 1/2) or S(k) <= 1 - p (p > 1/2), searched outward from
+    // the normal approximation: two or three evaluations instead of a scan from 0. Both read
+    // the same (n, p) copy as the guess, not the live members.
     const double mean = static_cast<double>(n) * sp;
     const double stddev = std::sqrt(mean * (detail::ONE - sp));
     const double skewness = (detail::ONE - detail::TWO * sp) / stddev;
     const std::int64_t k = detail::discrete_quantile_search(
         [n, sp](std::int64_t i) {
             return i >= n ? detail::ONE : binomialCdf(static_cast<int>(i), n, sp);
+        },
+        [n, sp](std::int64_t i) {
+            return i >= n ? detail::ZERO_DOUBLE : binomialSf(static_cast<int>(i), n, sp);
         },
         p, 0, n, detail::discrete_quantile_guess(p, mean, stddev, skewness));
     return static_cast<double>(k);

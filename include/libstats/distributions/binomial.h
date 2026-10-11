@@ -14,7 +14,7 @@ namespace stats {
  * - PMF:    P(X = k) = C(n,k)·p^k·(1−p)^(n−k)  for k ∈ {0,…,n}
  * - LogPMF: lgamma(n+1) − lgamma(k+1) − lgamma(n−k+1) + k·log(p) + (n−k)·log(1−p)
  * - CDF:    I_{1−p}(n−k, k+1)  via the regularized incomplete beta (existing detail::beta_i)
- * - Quantile: smallest k ∈ {0,…,n} such that CDF(k) ≥ p
+ * - Quantile: smallest k ∈ {0,…,n} such that CDF(k) ≥ p (S(k) ≤ 1 − p for p > ½)
  * - Parameters: n > 0 (integer trials), p ∈ [0,1] (success probability)
  * - Support: k ∈ {0, 1, …, n}
  *
@@ -195,7 +195,15 @@ class BinomialDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
-     * @brief Smallest k ∈ {0,…,n} such that CDF(k) ≥ p.
+     * @brief Survival S(x) = P(X > x) = I_p(k+1, n−k), k = ⌊x⌋, formed as the complement itself
+     *        (AR A11): relative precision deep in the upper tail, where 1 − CDF cancels.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
+     * @brief Smallest k ∈ {0,…,n} such that CDF(k) ≥ p, decided as: for p ≤ ½ the smallest k
+     *        with getCumulativeProbability(k) ≥ p; for p > ½ the smallest k with
+     *        getSurvival(k) ≤ 1 − p (1 − p is exact there; F(k) near 1 is not).
      * @throws std::invalid_argument if p not in [0,1]
      */
     [[nodiscard]] double getQuantile(double p) const override;

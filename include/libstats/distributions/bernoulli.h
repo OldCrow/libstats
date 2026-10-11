@@ -20,7 +20,7 @@ namespace stats {
  * - CDF:    0 for x<0, 1-p for 0<=x<1, 1 for x>=1
  * - Quantile: right-continuous discrete inverse Q(q) = min{k : F(k) >= q}
  *             (#104 contract): Q(q) = 0 for q <= 1-p, else 1; never NaN for
- *             q in (0,1).
+ *             q in (0,1). For q > 1/2 decided as S(0) = p <= 1-q, 1-q exact.
  * - Parameters: p in [0, 1] (success probability)
  * - Support: x in {0, 1}
  *
@@ -197,10 +197,14 @@ class BernoulliDistribution : public DistributionBase {
         return binomial_.getCumulativeProbability(x);
     }
 
+    /** @brief Survival P(X > x), formed directly — delegates to BinomialDistribution(n=1). */
+    [[nodiscard]] double getSurvival(double x) const override { return binomial_.getSurvival(x); }
+
     /**
      * @brief Quantile: right-continuous discrete inverse Q(q) = min{k : F(k) >= q}
      * (#104 contract) — delegates to BinomialDistribution(n=1), whose own
-     * getQuantile already implements exactly this search over {0,...,n}.
+     * getQuantile already implements exactly this search over {0,...,n}
+     * (on the survival side, S(k) <= 1 - q, for q > 1/2).
      * @throws std::invalid_argument if q not in [0, 1]
      */
     [[nodiscard]] double getQuantile(double q) const override { return binomial_.getQuantile(q); }

@@ -197,8 +197,12 @@ class GeometricDistribution : public DistributionBase {
         return negbinom_.getCumulativeProbability(x);
     }
 
+    /** @brief Survival P(X > x) = (1−p)^(⌊x⌋+1), formed directly — delegates. */
+    [[nodiscard]] double getSurvival(double x) const override { return negbinom_.getSurvival(x); }
+
     /**
-     * @brief Quantile (smallest k ≥ 0 s.t. CDF(k) ≥ prob) — delegates.
+     * @brief Quantile (smallest k ≥ 0 s.t. CDF(k) ≥ prob; for prob > ½ decided as the smallest
+     *        k with getSurvival(k) ≤ 1 − prob) — delegates.
      * @throws std::invalid_argument if prob not in [0, 1]
      */
     [[nodiscard]] double getQuantile(double prob) const override {

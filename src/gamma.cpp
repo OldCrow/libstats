@@ -260,6 +260,49 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
                                          : detail::log_gamma_prefactor_constant(alpha);
 }
 
+// x is exact, but the argument every path takes, y = fl(βx), is rounded, and at a large shape
+// the result amplifies that rounding: d log f / d log y = α − y, ~3e9 at α = 1e16 thirty standard
+// deviations out, so half an ulp of y moved the log density 1.5e-7 and the CDF 1.5e-7 relative
+// at a non-dyadic rate (Gamma(1e16, 3)). The product's rounding e = βx − y is exact as
+// fma(β, x, −y) for a normal y and is carried to first order in the log, where the second-order
+// term is α·(e/y)²/2 ≤ α·ε²/8: 6e-17 at α = 1e16. Applied from STIRLING_PREFACTOR_SHAPE, as
+// the Stirling log density is; below it the amplification is at most ~α·ε. A dyadic rate
+// (ChiSquared's ½) gives e = 0 and leaves every result bit for bit.
+// InverseGamma's reciprocalArgumentCorrection is coupled to this: it corrects the rounding of
+// β·fl(1/x) only up to the product this delegate now carries itself.
+
+// log f at βx = y + e given the log density `log_value` taken at y: + (e/y)·(α − y), the
+// y-derivative of log P(α, y) − log x. (e/y)·(α − y) is formed in that order so that α/y, which
+// overflows at a huge shape and a small y, never is.
+[[nodiscard]] inline double withRateProductRounding(double log_value, double alpha, double beta,
+                                                    double x, double y) noexcept {
+    if (!(y >= std::numeric_limits<double>::min()) || !(y <= std::numeric_limits<double>::max()))
+        return log_value;
+    const double e = std::fma(beta, x, -y);
+    if (e == detail::ZERO_DOUBLE || !std::isfinite(log_value))
+        return log_value;
+    return std::fma(e / y, alpha - y, log_value);
+}
+
+// P(α, y) for y = fl(βx) ≥ DBL_MIN, corrected to βx as withRateProductRounding corrects the
+// density: dP/dy = exp(log_gamma_prefactor(α, y))/y, so log P moves by
+// (e/y)·exp(lgp)/P. Applied to the log, not as P + e·dP/dy: the linear form's second-order
+// term is ((α − y)·e/y)²/2 relative in the lower tail, 1e-14 at the case above, while the log
+// form's is e²/2 times log P's curvature, ~α/y², below 1e-16 there. The ratio is formed in
+// the log, so an exp(lgp) below DBL_MIN keeps it.
+[[nodiscard]] inline double gammaPAtRateProduct(double alpha, double beta, double x,
+                                                double y) noexcept {
+    const double p = detail::gamma_p(alpha, y);
+    if (alpha < kStirlingDensityShape || !(p >= std::numeric_limits<double>::min()) ||
+        !(y <= std::numeric_limits<double>::max()))
+        return p;
+    const double e = std::fma(beta, x, -y);
+    if (e == detail::ZERO_DOUBLE)
+        return p;
+    const double change = (e / y) * std::exp(detail::log_gamma_prefactor(alpha, y) - std::log(p));
+    return p * std::exp(change);
+}
+
 // F(x) = P(α, βx) for x > 0 finite. Once βx is below DBL_MIN (a subnormal x at a rate below
 // 1, or a product that underflowed to 0) the argument is taken in log space: the mass there is
 // not small for small shapes (#216: Gamma(0.005, 0.5).cdf(5e-324) = 0.024, which βx = 0 gave
@@ -268,7 +311,7 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
     const double y = beta * x;
     if (y < std::numeric_limits<double>::min())
         return detail::gamma_p_from_log_x(alpha, std::log(beta) + std::log(x));
-    return detail::gamma_p(alpha, y);
+    return gammaPAtRateProduct(alpha, beta, x, y);
 }
 
 // Entropy at shapes from kEntropyStirlingShape: the direct form α + lgamma(α) + (1 − α)ψ(α)
@@ -315,7 +358,8 @@ constexpr double kEntropyStirlingShape = 100.0;
     const double y = beta * x;
     if (!std::isfinite(y))
         return alpha * log1pmxOverflowedRate(x, alpha, beta) + density_constant - std::log(x);
-    return detail::log_gamma_prefactor(alpha, y, density_constant) - std::log(x);
+    return withRateProductRounding(
+        detail::log_gamma_prefactor(alpha, y, density_constant) - std::log(x), alpha, beta, x, y);
 }
 
 // gammaLogDensity's Stirling branch (α ≥ 20) over a batch: α·log1pmx(t) + C − log x with
@@ -324,6 +368,7 @@ constexpr double kEntropyStirlingShape = 100.0;
 // log(βx/α) − t as the scalar path does (log1p(t) from the ratio, not from the rounded t, which
 // is −1 exactly at x ≪ α), not vector_log1p: log1p(t) − t still cancels up to threefold there and
 // α multiplies it, so its few ulp left 1e-12 in the log at large α.
+// The product's rounding is then carried as gammaLogDensity carries it (withRateProductRounding).
 // Inputs ≤ 0 and non-finite inputs come out meaningless here; the caller's fixup pass overwrites
 // them.
 void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, double alpha,
@@ -358,7 +403,8 @@ void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, do
             ob[i] = std::log(xp / alpha) - t;  // log1p(t) as the scalar path forms it
         }
         for (std::size_t i = 0; i < n; ++i)
-            ob[i] = alpha * ob[i] + density_constant - log_x[i];
+            ob[i] = withRateProductRounding(alpha * ob[i] + density_constant - log_x[i], alpha,
+                                            beta, xb[i], beta * xb[i]);
     }
 }
 }  // namespace
@@ -1307,7 +1353,7 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
         } else if (scaled_values[i] < std::numeric_limits<double>::min()) {
             results[i] = gammaCdfCore(alpha, beta, values[i]);  // log-space argument (#216)
         } else {
-            results[i] = detail::gamma_p(alpha, scaled_values[i]);
+            results[i] = gammaPAtRateProduct(alpha, beta, values[i], scaled_values[i]);
         }
     }
 }

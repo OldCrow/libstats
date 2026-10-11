@@ -225,6 +225,19 @@ namespace {
         return std::atan(-detail::ONE / z) * detail::INV_PI;
     return detail::HALF + std::atan(z) * detail::INV_PI;
 }
+
+// Cauchy density on z = (x − x₀)/γ with c = 1/(πγ): c/(1 + z²), and (c/|z|)/|z| once z² nears
+// overflow. Every intermediate stays a normal double down to a subnormal density, which is
+// rounded once. The Student-t(1) delegate formed exp(ln c' − log1p(z²)) and then scaled by
+// 1/γ: a density below DBL_MIN·γ passed through a subnormal intermediate and lost its low bits
+// (Cauchy(0, 1e-6) at x = −3.18e153: 3.141763e-314 for 3.141593e-314, 5.4e-5 relative), and
+// the exponential carried |ln f|·ε relative error everywhere.
+[[nodiscard]] inline double cauchy_pdf_standardized(double z, double c) noexcept {
+    const double az = std::fabs(z);
+    if (az > 1e150)
+        return (c / az) / az;
+    return c / (detail::ONE + z * z);
+}
 }  // namespace
 
 double CauchyDistribution::getProbability(double x) const {
@@ -236,8 +249,7 @@ double CauchyDistribution::getProbability(double x) const {
         x0 = x0_;
         ig = inv_gamma_;
     });
-    const double z = (x - x0) * ig;
-    return student_t_.getProbability(z) * ig;
+    return cauchy_pdf_standardized((x - x0) * ig, ig * detail::INV_PI);
 }
 
 double CauchyDistribution::getLogProbability(double x) const {
@@ -452,6 +464,15 @@ namespace {
 // PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
 constexpr std::size_t kBatchSlice = 1024;
 
+// Closed-form density over [vals, vals + count); the VECTORIZED kernel and the scalar method's
+// expression, so every strategy is bit-identical to getProbability.
+void cauchyPdfBatch(const double* vals, double* res, std::size_t count, double x0,
+                    double ig) noexcept {
+    const double c = ig * detail::INV_PI;
+    for (std::size_t i = 0; i < count; ++i)
+        res[i] = cauchy_pdf_standardized((vals[i] - x0) * ig, c);
+}
+
 // Standardized closed-form CDF over [vals, vals + count); the VECTORIZED kernel.
 void cauchyCdfBatch(const double* vals, double* res, std::size_t count, double x0,
                     double ig) noexcept {
@@ -462,39 +483,61 @@ void cauchyCdfBatch(const double* vals, double* res, std::size_t count, double x
 
 //==============================================================================
 // 13. SMART BATCH OPERATIONS
-// PDF/LogPDF: transform z[i] = (x[i] − x₀)/γ, delegate to StudentT(1)'s
-// auto-dispatch batch, then scale output (PDF: ×1/γ; LogPDF: −logγ).
-// CDF: closed-form arctan via autoDispatch, no delegation (#48).
+// LogPDF: transform z[i] = (x[i] − x₀)/γ, delegate to StudentT(1)'s
+// auto-dispatch batch, then shift the output by −logγ.
+// PDF and CDF: closed forms via autoDispatch, no delegation (#48; the PDF so
+// that a subnormal density is rounded once).
 //==============================================================================
 
 void CauchyDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                         const detail::PerformanceHint& hint) const {
-    const std::size_t n = values.size();
-    // Size check before the empty return, and the overlap assert on the caller's spans: the
-    // delegate below sees the scratch buffer z, never values (AR D5).
-    if (n != results.size())
-        throw std::invalid_argument("Input and output spans must have the same size");
-    LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), n, "CauchyDistribution batch");
-    if (n == 0)
-        return;
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::OperationType::PDF,
+        [](const CauchyDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const CauchyDistribution& dist, const double* vals, double* res, std::size_t count) {
+            double x0, ig;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+            });
+            cauchyPdfBatch(vals, res, count, x0, ig);
+        },
+        [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
+            const std::size_t count = vals.size();
+            if (count == 0)
+                return;
 
-    double x0, ig;
-    withCacheSnapshot([&] {
-        x0 = x0_;
-        ig = inv_gamma_;
-    });
+            double x0, ig;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+            });
 
-    // Transform inputs: z[i] = (x[i] - x0) / gamma
-    std::vector<double, arch::simd::aligned_allocator<double>> z(n);
-    using VectorOps = arch::simd::VectorOps;
-    VectorOps::scalar_add(values.data(), -x0, z.data(), n);
-    VectorOps::scalar_multiply(z.data(), ig, z.data(), n);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    cauchyPdfBatch(vals.data() + start, res.data() + start, len, x0, ig);
+                });
+        },
+        [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
+            const std::size_t count = vals.size();
+            if (count == 0)
+                return;
 
-    // Delegate to StudentT(1) — inherits its full SIMD/parallel dispatch
-    student_t_.getProbability(std::span<const double>(z.data(), n), results, hint);
+            double x0, ig;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+            });
 
-    // Scale output: PDF_Cauchy(x) = PDF_StudentT(1)(z) / gamma = PDF_StudentT(1)(z) * inv_gamma
-    VectorOps::scalar_multiply(results.data(), ig, results.data(), n);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                cauchyPdfBatch(vals.data() + start, res.data() + start, len, x0, ig);
+            });
+        });
 }
 
 void CauchyDistribution::getLogProbability(std::span<const double> values,
@@ -527,7 +570,7 @@ void CauchyDistribution::getLogProbability(std::span<const double> values,
     VectorOps::scalar_add(results.data(), -lg, results.data(), n);
 }
 
-// Batch CDF is the one batch path that does NOT delegate to StudentT(1):
+// Batch CDF does not delegate to StudentT(1) either:
 // the closed form (#48) is one atan per element, so delegation would trade
 // it for the regularized incomplete-beta iteration. No vector_atan SIMD
 // primitive exists yet, so the VECTORIZED strategy runs the same scalar

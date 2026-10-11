@@ -2,8 +2,8 @@
 
 #include "libstats/common/distribution_common.h"
 
-// Cauchy delegates PDF/LogPDF to StudentTDistribution(ν=1); CDF and Quantile are
-// closed-form (arctan / tan, #48) and do not delegate.
+// Cauchy delegates LogPDF to StudentTDistribution(ν=1); PDF, CDF and Quantile are
+// closed-form (rational, arctan / tan, #48) and do not delegate.
 #include "student_t.h"
 
 namespace stats {
@@ -34,15 +34,14 @@ namespace stats {
  * If Z ~ StudentT(1), then x₀ + γZ ~ Cauchy(x₀, γ).
  *
  * @par Delegation Design Pattern:
- * CauchyDistribution delegates PDF and LogPDF computation to a private
+ * CauchyDistribution delegates LogPDF computation to a private
  * `StudentTDistribution student_t_{1.0}` member, which is fixed at ν=1 and
  * never needs to be updated when x₀ or γ change.  The location-scale transform
- * is applied to inputs before delegation (z = (x − x₀)/γ) and outputs are
- * scaled accordingly (PDF: ÷γ; LogPDF: −log γ).  This pattern automatically
- * inherits future improvements to StudentT (including SIMD batch
- * vectorisation).  CDF and Quantile do NOT delegate: both have trivial
- * closed forms (arctan / tan) where the StudentT route would substitute an
- * iterative regularized incomplete-beta evaluation (#48).
+ * is applied to inputs before delegation (z = (x − x₀)/γ) and the output is
+ * shifted by −log γ.  PDF, CDF and Quantile do NOT delegate: each has a
+ * closed form (rational, arctan, tan) where the StudentT route would substitute
+ * an exp-of-log density, rounded through a subnormal intermediate below
+ * DBL_MIN·γ, or an iterative regularized incomplete-beta evaluation (#48).
  *
  * @par Thread Safety:
  * - All methods are fully thread-safe using reader-writer locks.
@@ -54,9 +53,10 @@ namespace stats {
  *   lock-free atomic parameter reads.
  *
  * @par Batch Operations:
- * The three batch span overloads allocate a temporary aligned buffer z of size n,
- * transform the inputs (z[i] = (x[i] − x₀)/γ), then call StudentT's batch method
- * on z.  StudentT's own auto-dispatch handles SIMD/parallel routing internally.
+ * The batch log-PDF allocates a temporary aligned buffer z of size n,
+ * transforms the inputs (z[i] = (x[i] − x₀)/γ), then calls StudentT's batch method
+ * on z; StudentT's own auto-dispatch handles SIMD/parallel routing internally.
+ * The batch PDF and CDF run their closed forms through autoDispatch.
  *
  * @par MLE:
  * - Seed: x₀⁽⁰⁾ = median(data), γ⁽⁰⁾ = IQR/2
@@ -208,12 +208,13 @@ class CauchyDistribution : public DistributionBase {
     [[nodiscard]] VoidResult validateCurrentParameters() const noexcept;
 
     //==========================================================================
-    // 5. CORE PROBABILITY METHODS — PDF/LogPDF delegate to StudentT(ν=1) via
-    // z=(x−x₀)/γ; CDF (#48) and Quantile use their closed forms directly.
+    // 5. CORE PROBABILITY METHODS — LogPDF delegates to StudentT(ν=1) via
+    // z=(x−x₀)/γ; PDF, CDF (#48) and Quantile use their closed forms directly.
     //==========================================================================
 
     /**
-     * @brief PDF: 1/(πγ(1+((x−x₀)/γ)²)) = student_t_(1).PDF((x−x₀)/γ) / γ.
+     * @brief PDF: 1/(πγ(1+z²)), z = (x−x₀)/γ, as (1/(πγ))/(1+z²), or (1/(πγ))/|z|/|z|
+     * once z² nears overflow, so that a subnormal density is rounded once.
      * Returns NaN for NaN input.
      */
     [[nodiscard]] double getProbability(double x) const override;
@@ -301,9 +302,9 @@ class CauchyDistribution : public DistributionBase {
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
-    // PDF/LogPDF transform inputs z=(x−x₀)/γ, delegate to StudentT(1)'s
-    // auto-dispatch batch, then scale output (PDF: ×1/γ; LogPDF: −logγ).
-    // CDF uses the closed-form arctan directly via autoDispatch (#48).
+    // LogPDF transforms inputs z=(x−x₀)/γ, delegates to StudentT(1)'s
+    // auto-dispatch batch, then shifts the output by −logγ. PDF and CDF use
+    // their closed forms directly via autoDispatch (#48).
     //==========================================================================
     // For all three overloads below: values and results must have the same
     // size (a mismatch throws std::invalid_argument) and must not overlap (#112).
@@ -312,8 +313,8 @@ class CauchyDistribution : public DistributionBase {
     // core/distribution_interface.h.
 
     /**
-     * @brief Batch PDF — delegates to StudentT(1) batch after input transform.
-     * PDF_Cauchy(x) = PDF_StudentT(1)((x−x₀)/γ) / γ.
+     * @brief Batch PDF — the scalar closed form per element via autoDispatch;
+     * every strategy is bit-identical to getProbability(x).
      */
     void getProbability(std::span<const double> values, std::span<double> results,
                         const detail::PerformanceHint& hint = {}) const;

@@ -29,9 +29,15 @@ namespace stats {
 // Private helper: angle wrapping
 //==============================================================================
 
-// Upper bound of the validated CDF range; above it the CDF uses the
-// wrapped-normal approximation and I0e the Hankel series.
+// Above this kappa I0e comes from the Hankel series.
 constexpr double kCdfExactKappaMax = 1000.0;
+// Above this kappa the CDF and the quantile take the normal limit in w = 2 sqrt(kappa) sin(t/2)
+// (vonmises_cdf_normal_limit), exact to below 2e-18 relative there. The central and tail masses
+// hold the accuracy law against mpmath to kappa = 1e25 and fail past it (F = 0 for
+// F = 1e-300 at kappa = 1e50); the normal limit is off by (w^2 - 1)/(8 kappa), 2e-12 at
+// kappa = 1e14. Up to v2.4.1 the CDF switched to a wrapped normal in t at kappa > 1000
+// (~0.04/kappa absolute, 0 below F ~ 1e-20) while the quantile stayed exact.
+constexpr double kNormalLimitKappaMin = 1e20;
 // PARALLEL and WORK_STEALING CDF take one snapshot and run the lock-free batch kernel over
 // slices of this many elements. Calling the scalar CDF per element took withCacheSnapshot's
 // shared_lock on every element from every thread (#175).
@@ -157,7 +163,8 @@ namespace {
 // N^2/(2k) >= 50 here), and not from log_bessel_i0(k) - k, which cancels
 // ~log2(k) bits and is only 1.6e-7 accurate on the Tier 2 Bessel path. Above
 // kappa = 1000 it comes from the Hankel series log_bessel_i0 uses there,
-// without its leading k.
+// without its leading k. Above kappa = 1e20 the CDF and the quantile take the
+// normal limit instead (kNormalLimitKappaMin).
 //==============================================================================
 
 // pi - PI: the double PI is below pi by this much (to ~1e-32).
@@ -494,8 +501,15 @@ template <typename F>
 // up to 1.2 ulp of the result, all of it an error in the tail mass.
 [[nodiscard]] double inv_scaled_normaliser(double kappa) noexcept {
     constexpr double kTwoPiLo = 2.0 * kPiLo;
-    if (kappa > kCdfExactKappaMax)
-        return std::exp(-log_scaled_normaliser_hankel(kappa));
+    if (kappa > kCdfExactKappaMax) {
+        // sqrt(kappa / (2 pi)) / (1 + s), s the Hankel series: exp(-ln(...)) carried the
+        // rounding of a log of size ln(kappa)/2, 4e-14 relative at kappa = 1e300.
+        const double t = detail::ONE / kappa;
+        const double s =
+            t * (0.125 + t * (0.0703125 + t * (0.0732421875 +
+                                               t * (0.112152099609375 + t * 0.22710800170898438))));
+        return std::sqrt(kappa / detail::TWO_PI) / (detail::ONE + s);
+    }
     const int half = static_cast<int>(std::ceil(detail::HALF * std::sqrt(100.0 * kappa))) + 8;
     const double n = 2.0 * static_cast<double>(half);
     double sum = std::exp(-detail::TWO * kappa);
@@ -813,6 +827,19 @@ struct HalleyStep {
     return lower ? G : detail::ONE - G;
 }
 
+// F(t) for mu = 0 above kNormalLimitKappaMin: Phi(w), w = 2 sqrt(kappa) sin(t/2), from the
+// small side. With that substitution G(t) = int_{-2 sqrt(kappa)}^{w} phi(v) (1 - v^2/(4
+// kappa))^-1/2 dv / (sqrt(2 pi kappa) I0e(kappa)) = Phi(w) - w phi(w)/(8 kappa) + O(kappa^-2):
+// relative to Phi(w) the first correction is at most (w^2 - 1)/(8 kappa), w^2 < 1500 wherever
+// Phi(w) is representable -- below 2e-18 from kappa = 1e20. erfc's argument carries the rounding of
+// t times w^2, the CDF's own condition number.
+[[nodiscard]] double vonmises_cdf_normal_limit(double t, double kappa) noexcept {
+    // w/sqrt(2) = sqrt(2 kappa) sin(t/2); sqrt(2) sqrt(kappa), as 2 kappa overflows.
+    const double v = detail::SQRT_2 * std::sqrt(kappa) * std::sin(detail::HALF * t);
+    return t <= detail::ZERO_DOUBLE ? detail::HALF * std::erfc(-v)
+                                    : detail::ONE - detail::HALF * std::erfc(v);
+}
+
 }  // anonymous namespace
 
 //==============================================================================
@@ -1096,6 +1123,11 @@ double VonMisesDistribution::getQuantile(double p) const {
     double t = -detail::PI;
     if (m >= detail::HALF)
         t = detail::ZERO_DOUBLE;
+    else if (kappa > kNormalLimitKappaMin && m > detail::ZERO_DOUBLE)
+        // The inverse of the CDF's normal limit, w = 2 sqrt(kappa) sin(t/2) = -Q^-1(m): the
+        // central and tail solves overflow 2 kappa from kappa = 9e307 (p <= 0.1 gave -pi).
+        t = -detail::TWO *
+            std::asin(detail::inv_survival_normal(m) / (detail::TWO * std::sqrt(kappa)));
     else if (m >= detail::HALF - kCentralHalfWidth)
         t = -vonmises_central_quantile(detail::HALF - m, kappa, log_scaled_norm, inv_norm);
     else if (m > detail::ZERO_DOUBLE)
@@ -1641,7 +1673,7 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
 // LogPDF batch:  z[i] = x[i] − μ  |  c[i] = vector_cos(z)  |  r[i] = κ·c[i] − ln Z
 // PDF batch:     same as LogPDF then r[i] = vector_exp(r)
 // CDF batch:     per element, the scalar CDF's central or tail mass on the
-//                snapshot (κ = 0 or κ > 1000: the scalar CDF itself)
+//                snapshot (κ = 0 or κ > 1e20: the scalar CDF itself)
 //
 // PDF/LogPDF use VectorOps::vector_cos — AVX/AVX2/SSE2/NEON/AVX-512. Non-finite
 // inputs receive an exact sentinel value via a scalar fixup pass after the
@@ -1714,18 +1746,12 @@ void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             const double t = wrapAngle(x - cached_mu);
             results[i] = std::clamp(((t + detail::PI) + kPiLo) / detail::TWO_PI,
                                     detail::ZERO_DOUBLE, detail::ONE);
-        } else if (cached_kappa > kCdfExactKappaMax) {
-            // kappa > 1000: unvalidated range -- the pre-#51 wrapped-normal approximation.
-            // VM(mu, kappa) ~ N(mu, 1/kappa) on the circle; approximation error is ~0.043/kappa
-            // absolute (measured against a quadrature oracle at kappa = 1e3, 2e3, 1e4 --
-            // O(1/kappa), not O(1/kappa^2)). The standardised argument is the WRAPPED
-            // DIFFERENCE: wrapping x alone and subtracting mu afterwards leaves a 2*pi offset
-            // for every x on the far side of the +-pi cut from mu (#106).
-            const double z = wrapAngle(x - cached_mu) * std::sqrt(cached_kappa);
-            results[i] = std::clamp(detail::HALF * (detail::ONE + std::erf(z * detail::INV_SQRT_2)),
-                                    detail::ZERO_DOUBLE, detail::ONE);
+        } else if (cached_kappa > kNormalLimitKappaMin) {
+            // kappa > 1e20: the normal limit in w = 2 sqrt(kappa) sin(t/2), exact to double
+            // there. The wrapped difference is standardised, not wrapAngle(x) - mu (#106).
+            results[i] = vonmises_cdf_normal_limit(wrapAngle(x - cached_mu), cached_kappa);
         } else {
-            // 0 < kappa <= 1000: the central mass near the median, the tail mass beyond.
+            // The central mass near the median, the tail mass beyond.
             results[i] = vonmises_cdf(wrapAngle(x - cached_mu), cached_kappa,
                                       cached_log_scaled_norm, cached_inv_norm, cached_half_j);
         }

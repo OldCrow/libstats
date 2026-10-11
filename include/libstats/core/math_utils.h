@@ -557,32 +557,32 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
 }
 
 /**
- * @brief Smallest integer k in [lo, hi] with cdf(k) >= p, for a non-decreasing
- *        cdf; hi when no k in the range qualifies.
+ * @brief Smallest integer k in [lo, hi] with qualifies(k), for a predicate that is false up
+ *        to some count and true from it on; hi when no k in the range qualifies.
  *
  * Gallops outward from `guess` in doubling steps until the answer is
- * bracketed, then bisects. A guess within one of the answer costs two cdf
+ * bracketed, then bisects. A guess within one of the answer costs two
  * evaluations; a guess off by d costs O(log d). The result does not depend on
  * the guess.
  */
-template <typename Cdf>
-[[nodiscard]] std::int64_t discrete_quantile_search(Cdf&& cdf, double p, std::int64_t lo,
-                                                    std::int64_t hi, double guess) {
+template <typename Pred>
+[[nodiscard]] std::int64_t discrete_first_true(Pred&& qualifies, std::int64_t lo, std::int64_t hi,
+                                               double guess) {
     std::int64_t g = lo;
     if (guess >= static_cast<double>(hi))
         g = hi;
     else if (guess > static_cast<double>(lo))
         g = static_cast<std::int64_t>(guess);
 
-    // Invariants once bracketed: cdf(below) < p (or below == lo - 1) and
-    // cdf(above) >= p (or above == hi, unchecked: hi is the answer of last resort).
+    // Invariants once bracketed: !qualifies(below) (or below == lo - 1) and
+    // qualifies(above) (or above == hi, unchecked: hi is the answer of last resort).
     std::int64_t below, above;
-    if (cdf(g) >= p) {
+    if (qualifies(g)) {
         above = g;
         below = lo - 1;
         for (std::int64_t step = 1; above > lo; step *= 2) {
             const std::int64_t c = (above - lo > step) ? above - step : lo;
-            if (cdf(c) >= p) {
+            if (qualifies(c)) {
                 above = c;
             } else {
                 below = c;
@@ -594,7 +594,7 @@ template <typename Cdf>
         above = hi;
         for (std::int64_t step = 1; below < hi; step *= 2) {
             const std::int64_t c = (hi - below > step) ? below + step : hi;
-            if (c == hi || cdf(c) >= p) {
+            if (c == hi || qualifies(c)) {
                 above = c;
                 break;
             }
@@ -603,12 +603,43 @@ template <typename Cdf>
     }
     while (above - below > 1) {
         const std::int64_t mid = below + (above - below) / 2;
-        if (cdf(mid) >= p)
+        if (qualifies(mid))
             above = mid;
         else
             below = mid;
     }
     return above;
+}
+
+/**
+ * @brief Smallest integer k in [lo, hi] with cdf(k) >= p, for a non-decreasing
+ *        cdf; hi when no k in the range qualifies. See discrete_first_true.
+ */
+template <typename Cdf>
+[[nodiscard]] std::int64_t discrete_quantile_search(Cdf&& cdf, double p, std::int64_t lo,
+                                                    std::int64_t hi, double guess) {
+    return discrete_first_true([&](std::int64_t k) { return cdf(k) >= p; }, lo, hi, guess);
+}
+
+/**
+ * @brief The count quantile, decided on the side of the distribution p lies in
+ * @param cdf F(k) = P(X ≤ k), non-decreasing in k
+ * @param sf  S(k) = P(X > k), non-increasing in k, formed as the complement itself
+ * @return for p ≤ ½ the smallest k in [lo, hi] with cdf(k) ≥ p; for p > ½ the smallest k with
+ *         sf(k) ≤ 1 − p; hi when no k in the range qualifies.
+ *
+ * For p > ½, 1 − p is exact (Sterbenz) and S(k) carries relative precision, where F(k) is a
+ * double next to 1 that resolves the tail only to ε/(1 − p) relative: at p = 1 − 1e-15 the
+ * CDF-side test accepted counts with S(k) up to 7% above 1 − p. For p ≤ ½ the result is the
+ * cdf search's, unchanged.
+ */
+template <typename Cdf, typename Sf>
+[[nodiscard]] std::int64_t discrete_quantile_search(Cdf&& cdf, Sf&& sf, double p, std::int64_t lo,
+                                                    std::int64_t hi, double guess) {
+    if (p <= 0.5)
+        return discrete_quantile_search(cdf, p, lo, hi, guess);
+    const double tail = 1.0 - p;  // exact for p in [½, 1]
+    return discrete_first_true([&](std::int64_t k) { return sf(k) <= tail; }, lo, hi, guess);
 }
 
 // REMOVED in v2.4.0: f_cdf / inverse_f_cdf. They were forward-looking stubs

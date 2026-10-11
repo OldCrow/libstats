@@ -30,6 +30,50 @@ constexpr double kLogXHi = 709.0;
 /// representable log-x, so the bracket collapses onto adjacent doubles.
 constexpr int kBisectIterations = 80;
 
+// x is exact, but the argument the incomplete gamma and the density take, β/x, is rounded, and
+// at a large shape the result amplifies that rounding: d log f / d log(β/x) = α − β/x, ~3e9 at
+// α = 1e16 thirty standard deviations out, so half an ulp of β/x moved the density 1.6e-7 and
+// the CDF 7.4e-8 relative (Gamma(1e16, 1) is clean at the mirrored points: there βx is x).
+// Each rounding is recovered exactly with an fma and carried to first order in the log, where
+// the second-order term is α·(δ/y)²/2 for a relative rounding δ/y ≤ ε/2: 6e-17 at α = 1e16.
+
+// log f(x) − (what the delegate returns at inv_x = fl(1/x), minus 2·log x). The delegate takes
+// y = fl(β·inv_x); with e = 1 − inv_x·x (log(1/x) − log inv_x to first order), exact by fma.
+// Below α = STIRLING_PREFACTOR_SHAPE it evaluates (α − 1)·log inv_x − y, which takes y only
+// linearly and uncorrected, so the argument's whole error d = β/x − y counts, exact up to the
+// final division. From there it evaluates log P(α, βx') − log inv_x at x' = inv_x with its own
+// product's rounding β·inv_x − y already carried (gamma.cpp, withRateProductRounding), so only
+// d = β/x − β·inv_x = β·e/x remains, against the y-derivative (α − y)/y. Coupled to that
+// delegate: the β = 3 rows of the H4 guard in test_contract_gates fail if the two disagree.
+[[nodiscard]] double reciprocalArgumentCorrection(double x, double inv_x, double alpha,
+                                                  double beta) noexcept {
+    const double y = beta * inv_x;
+    if (!(y >= std::numeric_limits<double>::min()) || !std::isfinite(y))
+        return detail::ZERO_DOUBLE;  // the delegate's own edge handling stands
+    const double e = std::fma(-inv_x, x, detail::ONE);
+    if (alpha < detail::STIRLING_PREFACTOR_SHAPE)
+        return (alpha - detail::ONE) * e - std::fma(-y, x, beta) / x;
+    const double d = beta * e / x;
+    return (alpha - y) * (d / y) - e;
+}
+
+// Q(α, t) or P(α, t) at t = fl(β/x), corrected to t + δ, δ = β/x − t = r/x with the exact
+// residual r = β − t·x. dP/dt = −dQ/dt = t^(α−1)·e^(−t)/Γ(α) = exp(log_gamma_prefactor(α, t))/t,
+// so log Q moves by −(δ/t)·exp(lgp)/Q and log P by +(δ/t)·exp(lgp)/P, with δ/t = r/(t·x) =
+// r/(β − r), r/β to relative ε. Applied to the log, not as Q − δ·dQ/dt: the linear form's
+// second-order term is ((α − t)·δ/t)²/2 relative, 5e-14 at the case above, while the log form's
+// is δ²/2 times log Q's curvature, ~α/t² + 1/(t − α)² (log P's alike), below 1e-16 there. The
+// ratio is formed in the log, so an exp(lgp) below DBL_MIN keeps it.
+[[nodiscard]] double correctedIncompleteGamma(double value, bool upper, double alpha, double beta,
+                                              double x, double t) noexcept {
+    const double r = std::fma(-t, x, beta);
+    if (r == detail::ZERO_DOUBLE || !(value >= std::numeric_limits<double>::min()))
+        return value;
+    const double rel = r / beta;
+    const double change = rel * std::exp(detail::log_gamma_prefactor(alpha, t) - std::log(value));
+    return value * std::exp(upper ? -change : change);
+}
+
 }  // namespace
 
 //==============================================================================
@@ -373,7 +417,7 @@ double InverseGammaDistribution::cdfImpl(double x, double alpha, double beta) no
         return detail::ZERO_DOUBLE;              // x subnormal-tiny: Q(alpha, +inf) = 0
     if (t < std::numeric_limits<double>::min())  // β/x below DBL_MIN: log space (#216)
         return detail::gamma_q_from_log_x(alpha, std::log(beta) - std::log(x));
-    return detail::gamma_q(alpha, t);
+    return correctedIncompleteGamma(detail::gamma_q(alpha, t), true, alpha, beta, x, t);
 }
 
 // Survival 1 - CDF(x) = P(alpha, beta/x), the LOWER regularized incomplete
@@ -393,7 +437,7 @@ double InverseGammaDistribution::sfImpl(double x, double alpha, double beta) noe
         return detail::ONE;
     if (t < std::numeric_limits<double>::min())  // β/x below DBL_MIN: log space (#216)
         return detail::gamma_p_from_log_x(alpha, std::log(beta) - std::log(x));
-    return detail::gamma_p(alpha, t);
+    return correctedIncompleteGamma(detail::gamma_p(alpha, t), false, alpha, beta, x, t);
 }
 
 double InverseGammaDistribution::getLogProbability(double x) const {
@@ -403,7 +447,17 @@ double InverseGammaDistribution::getLogProbability(double x) const {
         return edge;
     // Jacobian of Y = 1/X is 1/x^2, i.e. -2 ln x in log space. Exact in log
     // space -- no cancellation, and no intermediate density to overflow.
-    return gamma_.getLogProbability(inv_x) - detail::TWO * std::log(x);
+    // The delegate is evaluated inside this object's snapshot: every setter updates it under
+    // our unique lock (ours, then the delegate's), so under our lock it holds (alpha_, beta_),
+    // and the correction and the delegate's value come from one state.
+    double a, b, delegate_logpdf;
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+        delegate_logpdf = gamma_.getLogProbability(inv_x);
+    });
+    return delegate_logpdf + reciprocalArgumentCorrection(x, inv_x, a, b) -
+           detail::TWO * std::log(x);
 }
 
 double InverseGammaDistribution::getProbability(double x) const {
@@ -588,7 +642,15 @@ void InverseGammaDistribution::getLogProbability(std::span<const double> values,
         scratch[i] = reciprocalIsUsable(values[i], inv_x, edge) ? inv_x : detail::ONE;
     }
 
-    gamma_.getLogProbability(std::span<const double>(scratch), results, hint);
+    // The delegate batch runs inside this object's snapshot, as in the scalar path, so (a, b) and
+    // every delegate value come from one state; a setter waits for the batch. Its worker threads
+    // take only the delegate's lock, in the setters' order (ours, then the delegate's).
+    double a, b;
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+        gamma_.getLogProbability(std::span<const double>(scratch), results, hint);
+    });
 
     // Re-reading `values` after `results` has been written is exactly what the
     // documented non-overlap contract permits (#112) -- the same shape as the
@@ -597,7 +659,8 @@ void InverseGammaDistribution::getLogProbability(std::span<const double> values,
         double inv_x = detail::ZERO_DOUBLE;
         double edge = detail::ZERO_DOUBLE;
         if (reciprocalIsUsable(values[i], inv_x, edge))
-            results[i] -= detail::TWO * std::log(values[i]);
+            results[i] = results[i] + reciprocalArgumentCorrection(values[i], inv_x, a, b) -
+                         detail::TWO * std::log(values[i]);
         else
             results[i] = edge;
     }

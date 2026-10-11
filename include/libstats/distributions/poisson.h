@@ -430,13 +430,22 @@ class PoissonDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = P(X > x) = P(k+1, λ), the regularized lower incomplete gamma,
+     *        formed as the complement itself (AR A11): relative precision deep in the upper
+     *        tail, where 1 − getCumulativeProbability(x) cancels. x maps to a count as in
+     *        getCumulativeProbability.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      *
-     * For Poisson distribution: F^(-1)(p) = min{k : F(k) ≥ p}
-     * Uses bracketing search with efficient CDF computation.
+     * For p ≤ ½ the smallest k with getCumulativeProbability(k) ≥ p; for p > ½ the smallest k
+     * with getSurvival(k) ≤ 1 − p, decided on the survival side because 1 − p is exact there
+     * and F(k) near 1 is not. Bracketing search from a normal-approximation guess.
      *
      * @param p Probability value in [0,1]
-     * @return k such that P(X ≤ k) ≥ p (smallest integer satisfying this)
+     * @return the smallest count k with P(X ≤ k) ≥ p, under the rule above
      * @throws std::invalid_argument if p not in [0,1]
      */
     [[nodiscard]] double getQuantile(double p) const override;
@@ -781,6 +790,9 @@ class PoissonDistribution : public DistributionBase {
     /** @brief Compute CDF using regularized incomplete gamma function */
     [[nodiscard]] static double computeCDF(int k, double lambda) noexcept;
 
+    /** @brief Survival P(X > k) = P(k+1, λ), the complement formed directly */
+    [[nodiscard]] static double computeSurvival(int k, double lambda) noexcept;
+
     /** @brief Fast factorial computation with caching */
     [[nodiscard]] static double factorial(int n) noexcept;
 
@@ -803,8 +815,11 @@ class PoissonDistribution : public DistributionBase {
     // 20. PRIVATE UTILITY METHODS
     //==========================================================================
 
-    /** @brief Round double to nearest non-negative integer */
+    /** @brief Round double to nearest non-negative integer (PMF, log-PMF) */
     static int roundToNonNegativeInt(double x) noexcept;
+
+    /** @brief Largest count ≤ x (CDF and survival: F is a right-continuous step function) */
+    static int floorToNonNegativeInt(double x) noexcept;
 
     /** @brief Check if rounded value is a valid count (non-negative integer) */
     static bool isValidCount(double x) noexcept;

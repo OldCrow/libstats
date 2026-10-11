@@ -140,24 +140,27 @@ inline constexpr int TEN_INT = 10;
 // DERIVED EXPRESSIONS
 // =============================================================================
 
-/// Precomputed reciprocals to avoid repeated division
+/// Precomputed reciprocals to avoid repeated division. A derived expression is itself rounded
+/// twice (the operand, then the quotient), so six of these were 1 ulp off as `1.0 / X` or
+/// `PI / k` (INV_SQRT_2 low by 1 ulp put ~z²·ulp into every erfc(z·INV_SQRT_2)); those are
+/// written as correctly rounded literals (40-digit mpmath values). A test checks every one.
 inline constexpr double ONE_THIRD = 1.0 / 3.0;
 inline constexpr double ONE_SIXTH = 1.0 / 6.0;
 inline constexpr double ONE_TWELFTH = 1.0 / 12.0;
 
 inline constexpr double E_INV = 1.0 / E;
-inline constexpr double PHI_INV = 1.0 / PHI;
+inline constexpr double PHI_INV = 0.6180339887498948482045868343656381177;
 inline constexpr double PI_INV = 1.0 / PI;
 inline constexpr double INV_LN2 = 1.0 / LN2;
-inline constexpr double INV_SQRT_2PI = 1.0 / SQRT_2PI;
-inline constexpr double INV_SQRT_2 = 1.0 / SQRT_2;
-inline constexpr double INV_SQRT_3 = 1.0 / SQRT_3;
+inline constexpr double INV_SQRT_2PI = 0.3989422804014326779399460599343818685;
+inline constexpr double INV_SQRT_2 = 0.7071067811865475244008443621048490393;
+inline constexpr double INV_SQRT_3 = 0.5773502691896257645091487805019574556;
 
 inline constexpr double TWO_PI = 2.0 * PI;
 inline constexpr double PI_OVER_2 = PI / 2.0;
-inline constexpr double PI_OVER_3 = PI / 3.0;
+inline constexpr double PI_OVER_3 = 1.047197551196597746154214461093167628;
 inline constexpr double PI_OVER_4 = PI / 4.0;
-inline constexpr double PI_OVER_6 = PI / 6.0;
+inline constexpr double PI_OVER_6 = 0.523598775598298873077107230546583814;
 inline constexpr double THREE_PI_OVER_2 = 3.0 * PI / 2.0;
 inline constexpr double FOUR_PI = 4.0 * PI;
 inline constexpr double NEG_HALF_LN_2PI = -0.5 * LN_2PI;

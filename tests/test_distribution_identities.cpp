@@ -4,9 +4,13 @@
  *
  * Every check compares the library with itself, so no reference values are needed:
  *   range     CDF in [0, 1] and monotone on a grid between the 1e-12 quantiles.
- *   qf        Q(F(x)) = x within the conditioning of the CDF (continuous); Q(F(k)) = k (discrete).
+ *   qf        Q(F(x)) = x within the conditioning of the CDF (continuous); Q(F(k)) = k (discrete,
+ *             F(k) <= 1/2 or Discrete; above 1/2 the count families decide on S, so Q(F(k)) is
+ *             checked against the fq rule instead).
  *   fq        F(Q(p)) = p within the rounding of Q(p) (continuous); discrete:
- *             Q(p) = min{k : F(k) >= p} on the library's own CDF (Decided #116/#170).
+ *             Q(p) = min{k : F(k) >= p} on the library's own CDF (Decided #116/#170); for
+ *             p > 1/2 the count families (all but Discrete) take min{k : S(k) <= 1 - p} on the
+ *             library's own getSurvival, 1 - p being exact there.
  *   qmono     Q non-decreasing in p, down to the subnormal p; qnan: Q(p) is never NaN.
  *   deriv     pdf against a Richardson central difference of the CDF; pmf against F(k) - F(k-1).
  *   logpdf    logpdf against log(pdf).
@@ -75,10 +79,11 @@ constexpr double kDerivRelVonMises = 2e-6;
 constexpr double kVonMisesApproxKappa = 1000.0;
 constexpr double kVonMisesApproxAbs = 0.1;
 // Scalar against vectorised batch: the SIMD kernels are documented few-ulp; 1e-11 relative leaves
-// a wide margin and still catches a wrong branch. Below kBatchAbsFloor values are compared
-// absolutely (a kernel may flush a result near the underflow threshold earlier than libm).
+// a wide margin and still catches a wrong branch. Below kBatchAbsFloor = DBL_MIN values are
+// compared absolutely (a kernel may flush a subnormal result earlier than libm). It was 1e-290
+// until 2026-10-11, which let a batch 0 pass against a scalar 1e-300; nothing needed it.
 constexpr double kBatchRel = 1e-11;
-constexpr double kBatchAbsFloor = 1e-290;
+constexpr double kBatchAbsFloor = 2.2250738585072014e-308;
 
 // ---------------------------------------------------------------------------------------------
 // Deterministic generator: mt19937_64's output sequence is fixed by the standard; the
@@ -225,8 +230,9 @@ struct Inst {
     P par;
     std::string name;
     bool discrete = false;
-    bool circular = false;    // von Mises: CDF at wrap(x - mu); grid on (mu - pi, mu + pi)
-    double approxAbsF = 0.0;  // documented absolute CDF approximation (von Mises kappa > 1000)
+    bool survivalUpper = false;  // discrete quantile decides p > 1/2 on getSurvival(k) <= 1 - p
+    bool circular = false;       // von Mises: CDF at wrap(x - mu); grid on (mu - pi, mu + pi)
+    double approxAbsF = 0.0;     // documented absolute CDF approximation (von Mises kappa > 1000)
     double derivRel = kDerivRel;
 };
 
@@ -236,6 +242,7 @@ void checkInstance(const D& d, const Inst& in, Report& r, Rng& rng) {
     const auto f = [&](double x) { return d.getProbability(x); };
     const auto lf = [&](double x) { return d.getLogProbability(x); };
     const auto Q = [&](double p) { return d.getQuantile(p); };
+    const auto S = [&](double x) { return d.getSurvival(x); };
     const auto W = [&](const std::string& check, double v) {
         return Where{in.family, in.par, check, v};
     };
@@ -298,6 +305,17 @@ void checkInstance(const D& d, const Inst& in, Report& r, Rng& rng) {
         if (!(Fx > 0.0 && Fx < 1.0))
             continue;
         const double q = Q(Fx);
+        if (in.discrete && in.survivalUpper && Fx > 0.5) {
+            // Q(F(k)) is decided on S(k) <= 1 - F(k), where F(k) is a double next to 1 that
+            // need not equal 1 - S(k): k + 1 at a tie S rounds above, and a run of counts whose
+            // F(k) rounds to one double maps to the first. Check the rule, not k.
+            const double t = 1.0 - Fx;
+            if (!(S(q) <= t) || (q - 1 >= lo && !(S(q - 1) > t)))
+                r.add(W("qf", x), in.name, 1.0,
+                      "k=" + fmt(x) + " F(k)=" + fmt(Fx) + " Q(F(k))=" + fmt(q) +
+                          " S(Q)=" + fmt(S(q)) + " S(Q-1)=" + fmt(S(q - 1)));
+            continue;
+        }
         if (in.discrete) {
             const double Fprev = F(x - 1);
             if (Fprev < Fx && q != x)
@@ -366,6 +384,16 @@ void checkInstance(const D& d, const Inst& in, Report& r, Rng& rng) {
             continue;
         }
         const double Fq = F(q);
+        if (in.discrete && in.survivalUpper && p > 0.5) {
+            const double t = 1.0 - p;  // exact
+            if (!(S(q) <= t))
+                r.add(W("fq", p), in.name, (S(q) - t) / t,
+                      "p=" + fmt(p) + " Q=" + fmt(q) + " S(Q)=" + fmt(S(q)) + " > 1-p");
+            else if (q - 1 >= lo && !(S(q - 1) > t))
+                r.add(W("fq", p), in.name, 1.0,
+                      "p=" + fmt(p) + " Q=" + fmt(q) + " not minimal: S(Q-1)=" + fmt(S(q - 1)));
+            continue;
+        }
         if (in.discrete) {
             if (!(Fq >= p))
                 r.add(W("fq", p), in.name, (p - Fq) / p,
@@ -558,6 +586,7 @@ void runFamily(const std::string& family, Make make, std::vector<P> instances, R
         in.family = family;
         in.par = par;
         in.discrete = discrete;
+        in.survivalUpper = discrete && family != "discrete";
         std::ostringstream tag;
         tag << family << "(" << std::setprecision(10) << par[0] << "," << par[1];
         if (family == "truncated_normal")

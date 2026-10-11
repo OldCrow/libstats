@@ -16,16 +16,16 @@ namespace stats {
  * - PDF:    f(x; μ, κ) = exp(κ·cos(x−μ)) / (2π·I₀(κ))
  * - LogPDF: κ·cos(x−μ) − logNormaliser_
  *           where logNormaliser_ = log(2π) + log I₀(κ)
- * - CDF:    for 0 < κ ≤ 1000, at t = wrap(x−μ), with w = κ(1 − cos θ) as the
+ * - CDF:    for 0 < κ ≤ 1e20, at t = wrap(x−μ), with w = κ(1 − cos θ) as the
  *           integration variable: where F is within 1/4 of the median,
  *           F = 1/2 ∓ C(|t|)/(2π·I₀(κ)e^−κ), C the central mass by a short
  *           Gauss–Legendre rule; beyond, the tail mass G(t) = g(t)·J(t), J by
  *           a Watson-lemma series where κ(1 + cos t) ≥ 45 (and, within a quarter
  *           turn of μ, κ(1 − cos t) ≥ 45) and by Gauss–Legendre otherwise —
  *           relative to the accuracy law in both tails. κ = 0 uses
- *           the exact linear form (t+π)/(2π). κ > 1000 (unvalidated range)
- *           falls back to the wrapped-normal approximation, ≈ 0.04/κ absolute
- *           error.
+ *           the exact linear form (t+π)/(2π). κ > 1e20 takes the normal limit
+ *           Φ(2√κ·sin(t/2)), whose first correction, (w² − 1)/(8κ) relative,
+ *           is below 2e-18 there; the quantile inverts the same limit.
  * - Quantile: on the small side of the probability scale (the CDF below the
  *           median, the survival above it): Halley on the central mass within
  *           1/4 of the median, on the logarithm of the tail mass beyond,
@@ -244,11 +244,11 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
-     * @brief CDF for 0 < κ ≤ 1000: the central mass within 1/4 of the median,
+     * @brief CDF for 0 < κ ≤ 1e20: the central mass within 1/4 of the median,
      * the tail mass beyond, so both tails are accurate relative to the accuracy
      * law; at most one short Gauss–Legendre rule (≤ 36 nodes) per call, none
-     * where the tail's series applies. Exact linear form at κ = 0; wrapped-normal
-     * approximation for κ > 1000 (unvalidated range).
+     * where the tail's series applies. Exact linear form at κ = 0; the normal limit
+     * Φ(2√κ·sin(t/2)) for κ > 1e20, exact to double there.
      * @note x−μ is wrapped to [−π, π] first.
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
@@ -401,7 +401,7 @@ class VonMisesDistribution : public DistributionBase {
      *
      * `cached_mu`/`cached_kappa`/`cached_log_scaled_norm`/`cached_inv_norm`/
      * `cached_half_j`/`cached_uniform` are a snapshot taken by the caller under the cache lock
-     * (see the CDF autoDispatch lambda in .cpp). For κ = 0 or κ > 1000 this is
+     * (see the CDF autoDispatch lambda in .cpp). For κ = 0 or κ > 1e20 this is
      * the per-element scalar getCumulativeProbability() loop. Unsafe: no
      * parameter validation.
      */

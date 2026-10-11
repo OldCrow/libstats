@@ -50,6 +50,23 @@ inline double cdfAtCount(double k, double r, double p) noexcept {
     return detail::beta_i(p, r, k + detail::ONE);
 }
 
+// Survival at a count k >= 0, P(X > k) = I_{1-p}(k + 1, r), formed as the complement itself so
+// it keeps relative precision in the upper tail where 1 - cdfAtCount cancels; getSurvival and
+// getQuantile's upper-half search share it. At r = 1 it is the closed form (1 - p)^(k+1): pow
+// on 1 - p where that is exact (every p >= 1/2, and dyadic p), within an ulp, so a dyadic tail
+// such as Geometric(1/2)'s 2^-(k+1) is exact and the quantile's tie at p = 1 - 2^-(k+1) resolves
+// to k; otherwise exp((k + 1)·log1p(-p)), which keeps the relative precision 1 - p has lost.
+inline double sfAtCount(double k, double r, double p) noexcept {
+    if (r == detail::ONE) {
+        const double q = detail::ONE - p;
+        if (detail::ONE - q == p)
+            return std::pow(q, k + detail::ONE);
+        return std::exp((k + detail::ONE) * std::log1p(-p));
+    }
+    const double a = k + detail::ONE;
+    return detail::beta_i_pair(detail::ONE - p, p, a, r, detail::beta_prefactor_constant(a, r));
+}
+
 // X ~ Poisson(lambda) as a count in double, for the gamma-Poisson sampler.
 // std::poisson_distribution<int> is UB once the rate nears INT_MAX (#125),
 // which Geometric(1e-9) reaches on ~12% of draws. Below 2^30 the int path is
@@ -362,6 +379,19 @@ double NegativeBinomialDistribution::getCumulativeProbability(double x) const {
     return result;
 }
 
+double NegativeBinomialDistribution::getSurvival(double x) const {
+    double sp, sr;
+    withCacheSnapshot([&] {
+        sp = p_;
+        sr = r_;
+    });
+    if (!std::isfinite(x))
+        return std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
+                             : ((x < 0) ? detail::ONE : detail::ZERO_DOUBLE);
+    const double k = flooredCount(x);
+    return (k < 0) ? detail::ONE : sfAtCount(k, sr, sp);
+}
+
 double NegativeBinomialDistribution::getQuantile(double prob) const {
     if (std::isnan(prob))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
@@ -390,12 +420,14 @@ double NegativeBinomialDistribution::getQuantile(double prob) const {
     // getCumulativeProbability computes (which also carries its count in
     // double, #125), so the public CDF agrees with this search everywhere.
     const auto cdf_at = [&](std::int64_t k) { return cdfAtCount(static_cast<double>(k), r, p); };
+    const auto sf_at = [&](std::int64_t k) { return sfAtCount(static_cast<double>(k), r, p); };
 
-    // Smallest k with CDF(k) >= prob, searched outward from the normal
-    // approximation: two or three CDF evaluations near the centre.
+    // Smallest k with CDF(k) >= prob (prob <= 1/2) or S(k) <= 1 - prob (prob > 1/2), searched
+    // outward from the normal approximation: two or three evaluations near the centre.
     const double skewness = (detail::TWO - p) / std::sqrt(r * (detail::ONE - p));
     return static_cast<double>(detail::discrete_quantile_search(
-        cdf_at, prob, 0, max_k, detail::discrete_quantile_guess(prob, mean, stddev, skewness)));
+        cdf_at, sf_at, prob, 0, max_k,
+        detail::discrete_quantile_guess(prob, mean, stddev, skewness)));
 }
 
 double NegativeBinomialDistribution::sample(std::mt19937& rng) const {

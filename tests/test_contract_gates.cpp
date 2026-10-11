@@ -372,7 +372,10 @@ TEST(ContractGates, F13_GeometricCdfClosedForm) {
     EXPECT_LT(relErr(g.getCumulativeProbability(1e11), 0.0951625819649905), 4e-16);
     const double k = 6700641196083.0;
     EXPECT_LE(g.getCumulativeProbability(k), g.getCumulativeProbability(k + 111032.0));
-    EXPECT_EQ(g.getQuantile(g.getCumulativeProbability(k)), k);
+    // The double F(k) = 0.99876987710024256462 lies above the exact F(k) = 0.99876987710024256243
+    // (mpmath), and below F(k + 1), so its exact quantile is k + 1; the survival-side search
+    // (p > ½) returns it, where the CDF-side search returned k on F's rounding.
+    EXPECT_EQ(g.getQuantile(g.getCumulativeProbability(k)), k + 1.0);
     // NegativeBinomial(1, p) is the same distribution and takes the same path.
     const NegativeBinomialDistribution nb(1.0, 1e-12);
     EXPECT_EQ(nb.getCumulativeProbability(k), g.getCumulativeProbability(k));
@@ -1175,11 +1178,19 @@ TEST(ContractGates, DH2_M1_VonMisesEntropy) {
 // 1e12, -64 for 19.84 at 1e16, 0 at 1e20; ChiSquared(1e17) gave 0 for 21.34. Alpha >= 100
 // now takes the Stirling form 1/2 log(2 pi e alpha) - 1/(3 alpha) - ... - log beta.
 // ChiSquared and Erlang delegate. References: mpmath, dps 50.
+// From the switch on the tolerance is a few ulps of h (2026-10-11): the former flat 2e-12 is
+// ~550 ulps at h = 3.7, and a sign flip of the alpha^-5 coefficient -- 9.5e-13 at alpha = 100 --
+// passed it.
 //==============================================================================
 
 TEST(ContractGates, DH2_M2_GammaEntropyLargeShape) {
     struct Row {
         double alpha, h;
+    };
+    // 4 ulps of the expected value: the reference is rounded once (1/2 ulp), the - log beta
+    // shift adds a rounding, and the Stirling form a few more.
+    const auto fewUlps = [](double h) {
+        return 4.0 * std::numeric_limits<double>::epsilon() * std::fabs(h);
     };
     for (const Row& r :
          {Row{20.0, 2.8999283345986621}, Row{50.0, 3.3682499483781684},
@@ -1188,15 +1199,17 @@ TEST(ContractGates, DH2_M2_GammaEntropyLargeShape) {
           Row{1e10, 12.931863998141568}, Row{1e12, 15.234449091168614},
           Row{1e16, 19.839619277157038}, Row{1e20, 24.44478946314513}}) {
         // Below the switch the direct form is unchanged and carries ~alpha log alpha eps.
-        const double tol = r.alpha < 100.0 ? 1e-11 : 2e-12;
+        const double hb = r.h - std::log(4.0);
+        const double tol = r.alpha < 100.0 ? 1e-11 : fewUlps(r.h);
+        const double tolb = r.alpha < 100.0 ? 1e-11 : fewUlps(hb);
         EXPECT_NEAR(GammaDistribution(r.alpha, 1.0).getEntropy(), r.h, tol) << r.alpha;
         // - log beta is additive: beta = 4 shifts by -log 4.
-        EXPECT_NEAR(GammaDistribution(r.alpha, 4.0).getEntropy(), r.h - std::log(4.0), tol)
-            << r.alpha;
+        EXPECT_NEAR(GammaDistribution(r.alpha, 4.0).getEntropy(), hb, tolb) << r.alpha;
     }
-    EXPECT_NEAR(ChiSquaredDistribution(1e17).getEntropy(), 21.337485413934034, 2e-12);
+    EXPECT_NEAR(ChiSquaredDistribution(1e17).getEntropy(), 21.337485413934034,
+                fewUlps(21.337485413934034));
     EXPECT_NEAR(ErlangDistribution(1000000, 2.0).getEntropy(), 8.3266934788533931 - std::log(2.0),
-                2e-12);
+                fewUlps(8.3266934788533931 - std::log(2.0)));
     // The series' own tail: 1e300 is 1/2 log(2 pi e alpha) to double.
     EXPECT_NEAR(GammaDistribution(1e300, 1.0).getEntropy(),
                 0.5 * std::log(2.0 * kPi * std::exp(1.0)) + 0.5 * std::log(1e300), 1e-12);
@@ -1573,5 +1586,369 @@ TEST(ContractGates, DH3_D1_DigammaTrigammaSeries) {
             << "digamma(" << r.x << ")";
         EXPECT_NEAR(detail::trigamma(r.x), r.psi1, 16.0 * kEps * r.psi1)
             << "trigamma(" << r.x << ")";
+    }
+}
+
+//==============================================================================
+// Hunt-3 continuation, 2026-10-11. References: mpmath, dps 60 (von Mises by log-concave tail
+// quadrature of e^{−2κ sin²(s/2)}; the truncated normal and Cauchy in closed form). Each gate
+// failed on the unfixed code as noted.
+//==============================================================================
+
+// von Mises above κ = 1000 took a wrapped normal in t, 0.5·(1 + erf(z/√2)): 0 for every
+// F ≲ 1e-20 (κ = 1e8 at F = 1e-20 read 0, at μ = 0, 2.5, −3, scalar and batch) and ~0.04/κ
+// absolute centrally (κ = 1000 + ulp: 2e-5), while the quantile solved the exact law, so
+// cdf(quantile(p)) missed p by 7e-2 at p = 1e-10 and returned 0 at 1e-20. The exact masses now
+// run to κ = 1e20 and the normal limit in w = 2√κ·sin(t/2) beyond; both sides agree. At
+// κ ≥ 9e307 the quantile overflowed 2κ and returned −π for every p ≤ 0.1.
+TEST(ContractGates, H3_VonMisesCdfAboveKappa1000) {
+    struct Row {
+        double mu, kappa, x, want;
+    };
+    const double k1 = std::nextafter(1000.0, 2000.0);
+    const Row rows[] = {
+        {0.0, 1e8, -0.0009262340432470076, 9.9999999999999305692e-21},
+        {2.5, 1e8, 2.499073765956753, 9.9999999998109139939e-21},
+        {-3.0, 1e8, -3.000926234043247, 9.9999999998109139939e-21},
+        {0.0, k1, -0.03162277660168379, 0.15869560139334777757},
+        {0.0, k1, -0.09486832980505137, 0.0013565622038255720177},
+        {0.0, k1, -0.5, 1.7917438606926490745e-55},
+    };
+    for (const auto& r : rows) {
+        const VonMisesDistribution d(r.mu, r.kappa);
+        EXPECT_LT(relErr(d.getCumulativeProbability(r.x), r.want), 1e-13)
+            << "mu " << r.mu << " kappa " << r.kappa << " x " << r.x;
+        expectAllStrategies(d, r.x, r.want, 1e-13, kCdfBatch, "von Mises CDF");
+    }
+    // Round trips, with the condition number w² ≤ 1400 of the deepest p: 1e-12.
+    for (double kappa : {k1, 1e4, 1e8, 1e16, 1e19, 1e21, 1e100, 1.7e308}) {
+        const VonMisesDistribution d(0.0, kappa);
+        for (double p : {1e-300, 1e-20, 1e-10, 0.1, 0.3}) {
+            const double q = d.getQuantile(p);
+            EXPECT_LT(q, 0.0) << kappa << " " << p;
+            EXPECT_LT(relErr(d.getCumulativeProbability(q), p), 1e-12) << kappa << " " << p;
+            if (p >= 0.1) {  // 1 - p exact enough to mirror
+                const double qu = d.getQuantile(1.0 - p);
+                EXPECT_NEAR(qu, -q, 1e-14 * std::fabs(q)) << kappa << " " << p;
+            }
+        }
+    }
+}
+
+// TruncatedNormal on a left-half-infinite window formed F = Φ(ξ)/Φ(β) from ½·erfc(−ξ/√2),
+// subnormal from ξ = −37.5: TN(2, 1, −∞, −28).cdf(−37.296) = 0 for 1e-140, at −36.107 off by
+// 4.5e-8. And the erfc argument u·INV_SQRT_2 (one ulp below 1/√2, then rounded) put a constant
+// 1.18e-13 relative error into Z = Q(α) at α = 30 and 9.8e-14 at α = 37, read straight through
+// near the bound: TN(0, 0.5, 15, ∞) and TN(0, 1e-3, 0.037, ∞) there; 1.7e-13 at (2, 1, −∞, −28)
+// in the bulk. The arguments are now carried to two doubles and the deep left tail is a ratio
+// of scaled tails.
+TEST(ContractGates, H3_TruncatedNormalHalfInfiniteWindows) {
+    constexpr double kInf = std::numeric_limits<double>::infinity();
+    struct Row {
+        double mean, sd, a, b, x, want, tol;
+    };
+    const Row rows[] = {
+        {2.0, 1.0, -kInf, -28.0, -37.296118031184605, 1.0000000000002739413e-140, 1e-12},
+        {2.0, 1.0, -kInf, -28.0, -36.10699230682169, 1.0000000000000115448e-120, 1e-12},
+        {2.0, 1.0, -kInf, -28.0, -28.01, 0.74053488116785746286, 2e-15},
+        {0.0, 0.5, 15.0, kInf, 15.0000000000005, 2.998257985503900142e-11, 2e-14},
+        {0.0, 1e-3, 0.037, kInf, 0.037000000000001, 3.6997392834801391916e-11, 2e-14},
+    };
+    for (const auto& r : rows) {
+        const TruncatedNormalDistribution d(r.mean, r.sd, r.a, r.b);
+        EXPECT_LT(relErr(d.getCumulativeProbability(r.x), r.want), r.tol)
+            << r.mean << " " << r.sd << " " << r.a << " " << r.b << " x " << r.x;
+        expectAllStrategies(d, r.x, r.want, r.tol, kCdfBatch, "truncated normal CDF");
+    }
+}
+
+// TruncatedNormal inherited S = 1 − F, so the upper tail was capped by F's ulp: 0 for S below
+// ~1e-17 (TN(0, 1, 30, ∞).S(38) = 5.9e-119, TN(0, 1, 30, 40).S(39.9) = 4e-151, TN(0, 1, −2, 2)
+// one ulp below b = 1.3e-17), a few bits above it (TN(0, 1, −∞, 1) one ulp below b: 1.1e-16
+// for 3.2e-17; TN(0, 1, −2, 2).S(1.9999999999) 1.3e-6 off). S is now the CDF kernel on the
+// reflected window (TN(0, 1, 37, 37 + 1e-6) one ulp below b: 5.6e-5 off). Two CDF defects
+// the reflection exposed are fixed with it: a same-tail window inside the near-bound band took
+// Z from an erfc difference good to Q(α)/Z of its terms (F 6e-11 off mid-window at (0, 1e-6)),
+// and the band scale φ(α)/Z underflowed past |α| = 38.5 though Z did not
+// (TN(0, 1, −40, −30).F(−39.999) = 0 for 3e-154; S(39.999) on (30, 40) likewise). Expected
+// values: mpmath, dps 80, regime-split erfc pieces.
+TEST(ContractGates, A11_TruncatedNormalSurvivalUpperTail) {
+    constexpr double kInf = std::numeric_limits<double>::infinity();
+    constexpr double kEps = std::numeric_limits<double>::epsilon();
+    struct Row {
+        double mean, sd, a, b, x, want;
+    };
+    const Row rows[] = {
+        // Right-half-infinite, deep in the tail.
+        {0.0, 1.0, 30.0, kInf, 38.0, 5.88057181019683653519e-119},
+        {0.0, 0.5, 15.0, kInf, 19.0, 5.88057181019683653519e-119},
+        // Right-side window: bulk, past erfc underflow, and the band at b where φ(β) underflows.
+        {0.0, 1.0, 30.0, 40.0, 35.0, 2.29259484692683400263e-71},
+        {0.0, 1.0, 30.0, 40.0, 39.9, 3.98333273030939322093e-151},
+        {0.0, 1.0, 30.0, 40.0, 39.999, 3.04262601322290708215e-154},
+        {0.0, 1.0, 37.0, 38.0, 37.999, 1.95322809323307731838e-18},
+        // Narrow windows.
+        {0.0, 1.0, 0.0, 1e-6, 9.999999999999997e-07, 2.11758236813504508271e-16},
+        {0.0, 1.0, 37.0, 37.000001, 37.00000099999999, 7.105295925943542207e-9},
+        {0.0, 1.0, 37.0, 37.000001, 37.0000005, 4.99995374999949309008e-1},
+        // Central window, one ulp and 1e-10 below b.
+        {0.0, 1.0, -2.0, 2.0, 1.9999999999999998, 1.25598807160274718619e-17},
+        {0.0, 1.0, -2.0, 2.0, 1.9999999999, 5.65646787983577780651e-12},
+        // Left-half-infinite, one ulp below b.
+        {0.0, 1.0, -kInf, 1.0, 0.9999999999999999, 3.19300109618201740862e-17},
+        // S near 1 (1 − F was already right here; the complement must stay so).
+        {0.0, 1.0, -3.0, 3.0, -2.9999999999, 9.99999999999555615374e-1},
+        {0.0, 1.0, 30.0, kInf, 30.0000000001, 9.99999996996727139051e-1},
+        {0.0, 1.0, -kInf, -30.0, -30.1, 9.50625464334053235438e-1},
+    };
+    for (const auto& r : rows) {
+        const TruncatedNormalDistribution d(r.mean, r.sd, r.a, r.b);
+        const DistributionBase& db = d;
+        const double s = db.getSurvival(r.x);
+        // |ln S|·ε-class: four times the law.
+        const double tol = 4.0 * kEps * (1.0 + std::fabs(std::log(r.want)));
+        EXPECT_LT(relErr(s, r.want), tol)
+            << r.mean << " " << r.sd << " " << r.a << " " << r.b << " x " << r.x << " S " << s;
+        EXPECT_LE(std::fabs((s + d.getCumulativeProbability(r.x)) - 1.0), 4.0 * kEps) << r.x;
+    }
+
+    // The lower band of a left-tail window, where φ(α) underflows: the CDF, every strategy.
+    const TruncatedNormalDistribution left(0.0, 1.0, -40.0, -30.0);
+    EXPECT_LT(relErr(left.getCumulativeProbability(-39.999), 3.04262601322290708215e-154), 1e-13);
+    expectAllStrategies(left, -39.999, 3.04262601322290708215e-154, 1e-13, kCdfBatch,
+                        "truncated normal CDF");
+
+    // A finite hazard deep in the tail: h(x) > ξ (Mills ratio) at TN(0, 1, 30, ∞), x = 38.
+    const TruncatedNormalDistribution rh(0.0, 1.0, 30.0, kInf);
+    const DistributionBase& rhb = rh;
+    EXPECT_TRUE(std::isfinite(rhb.getHazard(38.0)));
+    EXPECT_GT(rhb.getHazard(38.0), 38.0);
+
+    // Edges: 1 at and below a, 0 at and above b, ±∞, NaN.
+    const TruncatedNormalDistribution c(0.0, 1.0, -2.0, 2.0);
+    const DistributionBase& cb = c;
+    EXPECT_EQ(cb.getSurvival(-2.0), 1.0);
+    EXPECT_EQ(cb.getSurvival(-3.0), 1.0);
+    EXPECT_EQ(cb.getSurvival(2.0), 0.0);
+    EXPECT_EQ(cb.getSurvival(3.0), 0.0);
+    EXPECT_EQ(cb.getSurvival(-kInf), 1.0);
+    EXPECT_EQ(cb.getSurvival(kInf), 0.0);
+    EXPECT_TRUE(std::isnan(cb.getSurvival(kNaN)));
+    EXPECT_EQ(rhb.getSurvival(kInf), 0.0);
+    EXPECT_EQ(rhb.getSurvival(30.0), 1.0);
+
+    // Monotone, bit-stepped across the switches of the deep-tail windows: the band edge at b
+    // (and its sliver), the scaled-ratio switch where Q(ξ) leaves the normal range
+    // (ξ = 37.629), and x = μ + σ·37.629 on the half-infinite window.
+    struct Mono {
+        double mean, sd, a, b, x;
+    };
+    const Mono mono[] = {
+        {0.0, 1.0, 30.0, 40.0, 39.99375},
+        {0.0, 1.0, 30.0, 40.0, 37.629223185902724},
+        {0.0, 1.0, 37.0, 38.0, 37.99342105263158},
+        {0.0, 1.0, 37.0, 38.0, 37.629223185902724},
+        {0.0, 1.0, 30.0, kInf, 37.629223185902724},
+        {0.0, 0.5, 15.0, kInf, 18.814611592951362},
+        {0.0, 1.0, 0.0, 1e-6, 1e-6},
+    };
+    for (const auto& m : mono) {
+        const TruncatedNormalDistribution d(m.mean, m.sd, m.a, m.b);
+        double x = m.x;
+        for (int i = 0; i < 2000; ++i)
+            x = std::nextafter(x, -kInf);
+        double prev = d.getSurvival(x);
+        for (int i = 0; i < 4000; ++i) {
+            x = std::nextafter(x, kInf);
+            const double s = d.getSurvival(x);
+            ASSERT_LE(s, prev) << m.a << " " << m.b << " x " << x;
+            prev = s;
+        }
+    }
+}
+
+// Cauchy's density was Student-t(1)'s exp(ln c − log1p(z²)) times 1/γ: below DBL_MIN·γ the
+// product went through a subnormal and kept its few bits (Cauchy(0, 1e-6) at ∓3.18e153:
+// 3.141763e-314 for 3.141593e-314, 5.4e-5), and the exponential carried |ln f|·ε elsewhere
+// (3.7e-14 at x = 1e94). It is now c/(1 + z²), c = 1/(πγ), rounded once.
+TEST(ContractGates, H3_CauchyDensityIntoSubnormals) {
+    const CauchyDistribution d(0.0, 1e-6);
+    for (double sgn : {-1.0, 1.0}) {
+        const double x = sgn * 3.1830988618379068e+153;
+        // Half an ulp of 3.1e-314 is 7.9e-11 of it.
+        EXPECT_LT(relErr(d.getProbability(x), 3.1415926535897930054e-314), 1e-10) << x;
+        expectAllStrategies(d, x, 3.1415926535897930054e-314, 1e-10, kPdfBatch, "Cauchy PDF");
+        EXPECT_LT(relErr(d.getProbability(sgn * 1e94), 3.1830988618379064426e-195), 1e-15);
+        expectAllStrategies(d, sgn * 1e94, 3.1830988618379064426e-195, 1e-15, kPdfBatch,
+                            "Cauchy PDF");
+    }
+}
+
+// DH3: six derived constants were 1 ulp off because `1.0 / X` and `PI / k` round twice
+// (INV_SQRT_2 low by 1 ulp put ~z²·ulp into every erfc(z·INV_SQRT_2): 1.4e-13 at z = 30).
+// Every derived constant must equal the correctly rounded value (mpmath, dps 50).
+TEST(ContractGates, DH3_C1_DerivedConstantsCorrectlyRounded) {
+    struct Row {
+        const char* name;
+        double value, expected;
+    };
+    const Row rows[] = {
+        {"ONE_THIRD", detail::ONE_THIRD, 0x1.5555555555555p-2},
+        {"ONE_SIXTH", detail::ONE_SIXTH, 0x1.5555555555555p-3},
+        {"ONE_TWELFTH", detail::ONE_TWELFTH, 0x1.5555555555555p-4},
+        {"E_INV", detail::E_INV, 0x1.78b56362cef38p-2},
+        {"PHI_INV", detail::PHI_INV, 0x1.3c6ef372fe950p-1},
+        {"PI_INV", detail::PI_INV, 0x1.45f306dc9c883p-2},
+        {"INV_LN2", detail::INV_LN2, 0x1.71547652b82fep+0},
+        {"INV_SQRT_2PI", detail::INV_SQRT_2PI, 0x1.9884533d43651p-2},
+        {"INV_SQRT_2", detail::INV_SQRT_2, 0x1.6a09e667f3bcdp-1},
+        {"INV_SQRT_3", detail::INV_SQRT_3, 0x1.279a74590331cp-1},
+        {"TWO_PI", detail::TWO_PI, 0x1.921fb54442d18p+2},
+        {"PI_OVER_2", detail::PI_OVER_2, 0x1.921fb54442d18p+0},
+        {"PI_OVER_3", detail::PI_OVER_3, 0x1.0c152382d7366p+0},
+        {"PI_OVER_4", detail::PI_OVER_4, 0x1.921fb54442d18p-1},
+        {"PI_OVER_6", detail::PI_OVER_6, 0x1.0c152382d7366p-1},
+        {"THREE_PI_OVER_2", detail::THREE_PI_OVER_2, 0x1.2d97c7f3321d2p+2},
+        {"FOUR_PI", detail::FOUR_PI, 0x1.921fb54442d18p+3},
+        {"NEG_HALF_LN_2PI", detail::NEG_HALF_LN_2PI, -0x1.d67f1c864beb5p-1},
+    };
+    for (const auto& r : rows)
+        EXPECT_EQ(r.value, r.expected) << r.name;
+}
+
+// DH3: Poisson's CDF and survival rounded x to the nearest count, so Poisson(3).cdf(2.6)
+// returned F(3) = 0.647 where a right-continuous step function gives F(2) = 0.423, as
+// Binomial, NegativeBinomial and Geometric do. They floor now; the PMF's documented rounding
+// is unchanged.
+TEST(ContractGates, DH3_P1_PoissonCdfFloorsNonIntegerX) {
+    const auto d = PoissonDistribution::create(3.0).unwrap();
+    for (double x : {2.0, 2.4, 2.5, 2.6, 2.999999999999999}) {
+        EXPECT_EQ(d.getCumulativeProbability(x), d.getCumulativeProbability(2.0)) << x;
+        EXPECT_EQ(d.getSurvival(x), d.getSurvival(2.0)) << x;
+    }
+    EXPECT_NE(d.getCumulativeProbability(3.0), d.getCumulativeProbability(2.0));
+    EXPECT_EQ(d.getCumulativeProbability(0.7), d.getCumulativeProbability(0.0));
+
+    const std::vector<double> in = {2.0, 2.5, 2.6, 2.999999999999999, 3.0, 0.7};
+    std::vector<double> out(in.size());
+    using PS = detail::PerformanceHint::PreferredStrategy;
+    for (PS s : {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL}) {
+        d.getCumulativeProbability(std::span<const double>(in), std::span<double>(out),
+                                   detail::PerformanceHint{s, std::nullopt});
+        for (size_t i = 0; i < in.size(); ++i)
+            EXPECT_EQ(out[i], d.getCumulativeProbability(in[i]))
+                << "x = " << in[i] << ", strategy " << static_cast<int>(s);
+    }
+}
+
+// InverseGamma at a huge shape took β/x rounded, and the shape amplifies that rounding:
+// d log f / d log(β/x) = α − β/x, ~3e9 at α = 1e16 thirty standard deviations out. Half an ulp of
+// β/x moved the density 1.6e-7, the CDF 7.4e-8 and the survival function 1.5e-7 relative, though
+// x is exact (Gamma(1e16, 1) at the mirrored points is clean: there βx is x). The roundings are
+// now carried to first order. β = 3 also takes the delegate's β·(1/x) rounding, so it guards the
+// log-density correction's coupling to that product (the last row). References: mpmath at 50
+// digits (the last row 60); the 1e-12 leaves room for the incomplete gamma's own error at this
+// shape (1.5e-13 at an exact argument).
+TEST(ContractGates, H4_InverseGammaReciprocalRoundingAtHugeShape) {
+    enum class Op { Pdf, LogPdf, Cdf, Sf };
+    struct Row {
+        double beta, x;
+        Op op;
+        double want, tol;
+    };
+    const Row rows[] = {
+        {1.0, 9.999996688805569e-17, Op::Pdf, 3.3142420801521426481e-215, 1e-12},
+        {1.0, 9.999999073766057e-17, Op::LogPdf, 11.447632596656798001, 1e-14},
+        {1.0, 1.0000003e-16, Op::LogPdf, -395.65671674644297681, 1e-14},
+        {1.0, 9.999999073766057e-17, Op::Cdf, 1.0000007525316864383e-20, 1e-12},
+        {1.0, 1.0000003e-16, Op::Sf, 4.9075979729434451753e-198, 1e-12},
+        {3.0, 2.9999997221298169e-16, Op::LogPdf, 10.3490202699329653, 1e-14},
+        {3.0, 2.9999997221298169e-16, Op::Cdf, 1.0000007140421337226e-20, 1e-12},
+        // The delegate's product β·fl(1/x) rounds here (by 1e-16 relative; at the β = 3 row
+        // above it is exact), so this row fails if the correction and Gamma's own product
+        // correction (H5) both carry that rounding, or neither does.
+        {3.0, 3.000000900000288e-16, Op::LogPdf, -396.75561709247441498, 1e-14},
+    };
+    for (const auto& r : rows) {
+        const InverseGammaDistribution d(1e16, r.beta);
+        switch (r.op) {
+            case Op::Pdf:
+                EXPECT_LT(relErr(d.getProbability(r.x), r.want), r.tol) << r.beta << " " << r.x;
+                expectAllStrategies(d, r.x, r.want, r.tol, kPdfBatch, "inverse gamma pdf");
+                break;
+            case Op::LogPdf:
+                EXPECT_LT(relErr(d.getLogProbability(r.x), r.want), r.tol) << r.beta << " " << r.x;
+                expectAllStrategies(d, r.x, r.want, r.tol, kLogPdfBatch, "inverse gamma logpdf");
+                break;
+            case Op::Cdf:
+                EXPECT_LT(relErr(d.getCumulativeProbability(r.x), r.want), r.tol)
+                    << r.beta << " " << r.x;
+                expectAllStrategies(d, r.x, r.want, r.tol, kCdfBatch, "inverse gamma cdf");
+                break;
+            case Op::Sf:
+                EXPECT_LT(relErr(d.getSurvivalProbability(r.x), r.want), r.tol)
+                    << r.beta << " " << r.x;
+                break;
+        }
+    }
+}
+
+// Gamma at a huge shape took βx rounded, and the shape amplifies that rounding: d log f / d log(βx)
+// = α − βx, ~3e9 at α = 1e16 thirty standard deviations out, so at a non-dyadic rate half an ulp
+// of βx moved the log density 1.5e-7 absolute and the CDF 1.5e-7 relative, though x is exact.
+// The product's rounding is now carried to first order (fma residual). Erlang delegates to Gamma;
+// at k = 2e9 the amplification is ~1e6. Each batch strategy must equal the scalar path bit for bit
+// (the PDF's vector exp aside). References: mpmath at 60 digits, the CDF by quadrature.
+TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
+    using PS = detail::PerformanceHint::PreferredStrategy;
+    enum class Op { Pdf, LogPdf, Cdf };
+    struct Row {
+        double alpha, beta, x;
+        Op op;
+        double want, tol;
+    };
+    const Row rows[] = {
+        {1e16, 3.0, 3333334333333333.5, Op::LogPdf, -468.24091743850908859, 1e-14},
+        {1e16, 3.0, 3333334333333333.5, Op::Pdf, 4.4213343173073725796e-204, 1e-11},
+        {1e16, 3.0, 3333332333333333.5, Op::Cdf, 4.9062730810522310327e-198, 1e-12},
+        {2e9, 3.0, 667113880.2621666, Op::LogPdf, -460.3280584265334858, 1e-14},
+        {2e9, 3.0, 666219453.0711666, Op::Cdf, 4.0118712405962559055e-198, 1e-12},
+    };
+    for (const auto& r : rows) {
+        const GammaDistribution g(r.alpha, r.beta);
+        // Erlang's k is an int: from the rows below INT_MAX only, Gamma(1e16, 3) otherwise.
+        const ErlangDistribution e(r.alpha < 2147483647.0 ? static_cast<int>(r.alpha) : 1, r.beta);
+        std::vector<double> in(69, r.x), out(69, -1.0);
+        switch (r.op) {
+            case Op::Pdf:
+                EXPECT_LT(relErr(g.getProbability(r.x), r.want), r.tol) << r.alpha << " " << r.x;
+                expectAllStrategies(g, r.x, r.want, r.tol, kPdfBatch, "gamma pdf");
+                break;
+            case Op::LogPdf:
+                EXPECT_LT(relErr(g.getLogProbability(r.x), r.want), r.tol) << r.alpha << " " << r.x;
+                if (r.alpha < 2147483647.0)
+                    EXPECT_LT(relErr(e.getLogProbability(r.x), r.want), r.tol) << r.x;
+                for (PS s : {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL,
+                             PS::MAXIMIZE_THROUGHPUT}) {
+                    g.getLogProbability(std::span<const double>(in), std::span<double>(out),
+                                        detail::PerformanceHint{s, std::nullopt});
+                    EXPECT_EQ(out[0], g.getLogProbability(r.x)) << static_cast<int>(s);
+                    EXPECT_EQ(out[68], g.getLogProbability(r.x)) << static_cast<int>(s);
+                }
+                break;
+            case Op::Cdf:
+                EXPECT_LT(relErr(g.getCumulativeProbability(r.x), r.want), r.tol)
+                    << r.alpha << " " << r.x;
+                if (r.alpha < 2147483647.0)
+                    EXPECT_LT(relErr(e.getCumulativeProbability(r.x), r.want), r.tol) << r.x;
+                for (PS s : {PS::FORCE_SCALAR, PS::FORCE_VECTORIZED, PS::FORCE_PARALLEL,
+                             PS::MAXIMIZE_THROUGHPUT}) {
+                    g.getCumulativeProbability(std::span<const double>(in), std::span<double>(out),
+                                               detail::PerformanceHint{s, std::nullopt});
+                    EXPECT_EQ(out[0], g.getCumulativeProbability(r.x)) << static_cast<int>(s);
+                    EXPECT_EQ(out[68], g.getCumulativeProbability(r.x)) << static_cast<int>(s);
+                }
+                break;
+        }
     }
 }

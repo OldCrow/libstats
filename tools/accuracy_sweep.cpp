@@ -28,9 +28,8 @@
 
 // Use tool_utils.h for the consolidated (LIBSTATS_FULL_INTERFACE) libstats.h include,
 // which pulls in all 27 distribution headers.
-#include "tool_utils.h"
-
 #include "libstats/platform/simd_policy.h"
+#include "tool_utils.h"
 
 #include <algorithm>
 #include <array>
@@ -44,6 +43,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <numbers>
 #include <span>
 #include <sstream>
 #include <string>
@@ -469,6 +469,322 @@ void sweepDiscrete(const std::string& distName, Factory factory,
 // range (see the @param Doxygen comments checked against directly).
 //==============================================================================
 
+//==============================================================================
+// Switch-band instances (v2.5.0 oracle hardening, 2026-10-11). The three
+// instances per distribution above sit at typical / small / stressed
+// parameters and never reach most of the kernels' internal switches; a grid
+// that never visits a band cannot see a defect in it (the unswept-band probe
+// found the von Mises tail collapse above kappa = 1000 that way). Each
+// instance below sits on one side of a switch, its neighbour on the other.
+// Rows are APPENDED after every pre-existing row (same CSV contract), on a
+// thinner x grid than the base instances plus points at the switch itself,
+// so the oracle's runtime stays bounded.
+//==============================================================================
+
+// 23 probabilities: 11 tail decades either side of the median, plus 0.5.
+const std::vector<double>& bandPGrid() {
+    static const std::vector<double> grid = [] {
+        const std::vector<double> lower = {1e-300, 1e-240, 1e-180, 1e-120, 1e-60, 1e-20,
+                                           1e-10,  1e-6,   1e-3,   0.1,    0.3};
+        std::vector<double> full(lower);
+        full.push_back(0.5);
+        for (auto it = lower.rbegin(); it != lower.rend(); ++it) {
+            full.push_back(1.0 - *it);
+        }
+        return full;
+    }();
+    return grid;
+}
+
+// x = Q(p) over bandPGrid(), the boundary epsilons where the support is
+// bounded, and `extra` (non-finite values dropped); sorted, unique.
+template <typename Dist>
+std::vector<double> buildBandXGrid(Dist& dist, bool boundedBothSides,
+                                   const std::vector<double>& extra) {
+    std::vector<double> xs;
+    for (double p : bandPGrid()) {
+        try {
+            const double x = dist.getQuantile(p);
+            if (std::isfinite(x)) {
+                xs.push_back(x);
+            }
+        } catch (...) {
+        }
+    }
+    if (boundedBothSides) {
+        const double lo = dist.getSupportLowerBound();
+        const double hi = dist.getSupportUpperBound();
+        for (double eps : boundaryEpsilons()) {
+            if (std::isfinite(lo)) {
+                xs.push_back(lo + eps);
+            }
+            if (std::isfinite(hi)) {
+                xs.push_back(hi - eps);
+            }
+        }
+    }
+    for (double e : extra) {
+        if (std::isfinite(e)) {
+            xs.push_back(e);
+        }
+    }
+    std::sort(xs.begin(), xs.end());
+    xs.erase(std::unique(xs.begin(), xs.end()), xs.end());
+    return xs;
+}
+
+template <typename Dist>
+void emitBandInstance(Dist& dist, const std::string& name, double p1, double p2, bool hasP2,
+                      bool boundedBothSides, const std::vector<double>& extra, Sink& sink) {
+    std::vector<double> xs = buildBandXGrid(dist, boundedBothSides, extra);
+    emitPdfLogpdfCdfRows(dist, name, p1, p2, hasP2, xs, /*includeSpecials=*/false, sink);
+    emitQuantileRows(dist, name, p1, p2, hasP2, sink);
+}
+
+// x and its k nearest doubles on each side.
+std::vector<double> neighbours(double x, int k) {
+    std::vector<double> v{x};
+    double lo = x;
+    double hi = x;
+    for (int i = 0; i < k; ++i) {
+        lo = std::nextafter(lo, -std::numeric_limits<double>::infinity());
+        hi = std::nextafter(hi, std::numeric_limits<double>::infinity());
+        v.push_back(lo);
+        v.push_back(hi);
+    }
+    return v;
+}
+
+void append(std::vector<double>& v, const std::vector<double>& w) {
+    v.insert(v.end(), w.begin(), w.end());
+}
+
+// lambda with sign(lambda - 1) * sqrt(2 (lambda - 1 - log lambda)) = eta: Temme's
+// uniform variable, so x = a * lambdaOfEta(eta) puts a gamma point at a chosen
+// eta (the library's Temme band is |eta| <= 0.6 from a = 1e4). Bisection.
+double lambdaOfEta(double eta) {
+    const double target = 0.5 * eta * eta;
+    double lo = eta < 0.0 ? 1e-300 : 1.0;
+    double hi = eta < 0.0 ? 1.0 : 1e6;
+    for (int i = 0; i < 400; ++i) {
+        const double mid =
+            eta < 0.0 ? std::exp(0.5 * (std::log(lo) + std::log(hi))) : 0.5 * (lo + hi);
+        const double f = mid - 1.0 - std::log(mid);
+        const bool moveLo = eta < 0.0 ? (f > target) : (f < target);
+        (moveLo ? lo : hi) = mid;
+    }
+    return 0.5 * (lo + hi);
+}
+
+// x wrapped to (-pi, pi], as VonMisesDistribution wraps.
+double wrapToPi(double x) {
+    constexpr double pi = std::numbers::pi;
+    double t = std::fmod(x, 2.0 * pi);
+    if (t <= -pi) {
+        t += 2.0 * pi;
+    }
+    if (t > pi) {
+        t -= 2.0 * pi;
+    }
+    return t;
+}
+
+void sweepSwitchBands(Sink& sink) {
+    using stats::BetaDistribution;
+    using stats::BinomialDistribution;
+    using stats::ChiSquaredDistribution;
+    using stats::ErlangDistribution;
+    using stats::FDistribution;
+    using stats::GammaDistribution;
+    using stats::InverseGammaDistribution;
+    using stats::NegativeBinomialDistribution;
+    using stats::PoissonDistribution;
+    using stats::StudentTDistribution;
+    using stats::TruncatedNormalDistribution;
+    using stats::VonMisesDistribution;
+    const double inf = std::numeric_limits<double>::infinity();
+    const auto below = [](double x) { return std::nextafter(x, 0.0); };
+    const auto above = [&](double x) { return std::nextafter(x, inf); };
+
+    // gamma(a, 1): the Stirling prefactor from a = 20, the Temme expansion
+    // from a = 1e4 (|eta| <= 0.6), Wilson-Hilferty quantiles from a = 1e16; the
+    // series / continued-fraction switch at x = a + 1 and the eta = +-0.6 Temme
+    // edges get their own points.
+    for (double a : {19.9, 20.0, 20.1, 100.0, 1e3, 9999.0, 1e4, 10001.0, 1e5, 1e8, below(1e16),
+                     1e16, above(1e16)}) {
+        GammaDistribution d(a, 1.0);
+        std::vector<double> extra;
+        append(extra, neighbours(a + 1.0, 1));
+        extra.push_back(a - 1.0);  // the mode
+        for (double eta : {-3.0, -1.0, -0.6, -0.2, 0.2, 0.6, 1.0, 3.0}) {
+            const double x = a * lambdaOfEta(eta);
+            if (std::fabs(eta) == 0.6) {
+                append(extra, neighbours(x, 1));
+            } else {
+                extra.push_back(x);
+            }
+        }
+        emitBandInstance(d, "gamma", a, 1.0, true, false, extra, sink);
+    }
+    // chi_squared(k) = gamma(k/2, 1/2), erlang(k, 1) and inverse_gamma(a, 1)
+    // ride the same kernels: both sides of a = 20, 1e4 and 1e16.
+    for (double k : {39.8, 40.0, 40.2, 19998.0, 2e4, 20002.0, below(2e16), 2e16}) {
+        ChiSquaredDistribution d(k);
+        emitBandInstance(d, "chi_squared", k, 0.0, false, false, {}, sink);
+    }
+    for (int k : {19, 20, 9999, 10000}) {
+        ErlangDistribution d(k, 1.0);
+        emitBandInstance(d, "erlang", static_cast<double>(k), 1.0, true, false, {}, sink);
+    }
+    for (double a : {19.9, 20.0, 9999.0, 1e4, below(1e16), 1e16}) {
+        InverseGammaDistribution d(a, 1.0);
+        emitBandInstance(d, "inverse_gamma", a, 1.0, true, false, {}, sink);
+    }
+
+    // beta: the tail-integral path (a >= 1, b < 1) against b = 1, the tiny-shape
+    // path below 1e-3, a huge shape against a small one in both orders. Points
+    // on the continued fraction's branch point x_b = (a + 1)/(a + b + 2) and its
+    // mirror, and at 1 - 2^-k / 2^-10k where 1 - x and x are exact.
+    for (auto [a, b] : std::vector<std::pair<double, double>>{{10.0, 0.1},
+                                                              {1e3, 0.5},
+                                                              {2.0, below(1e-3)},
+                                                              {2.0, 1e-3},
+                                                              {0.5, below(1e-3)},
+                                                              {0.5, 1e-3},
+                                                              {3.0, below(1.0)},
+                                                              {3.0, 1.0},
+                                                              {0.5, 1e3}}) {
+        BetaDistribution d(a, b);
+        std::vector<double> extra;
+        append(extra, neighbours((a + 1.0) / (a + b + 2.0), 1));
+        append(extra, neighbours(1.0 - (b + 1.0) / (a + b + 2.0), 1));
+        for (int k : {1, 3, 8, 20, 40, 53}) {
+            extra.push_back(1.0 - std::ldexp(1.0, -k));
+            extra.push_back(std::ldexp(1.0, -10 * k));
+        }
+        emitBandInstance(d, "beta", a, b, true, true, extra, sink);
+    }
+    // fisher_f(d1, d2) is beta(d1/2, d2/2) in y = d1 x / (d1 x + d2).
+    for (auto [d1, d2] : std::vector<std::pair<double, double>>{
+             {2.0, 0.2}, {20.0, 1.0}, {2.0, below(2e-3)}, {2.0, 2e-3}}) {
+        FDistribution d(d1, d2);
+        emitBandInstance(d, "fisher_f", d1, d2, true, false, {}, sink);
+    }
+
+    // von_mises(mu, kappa): kappa above the exact-CDF range, mu != 0 (the
+    // shift-and-wrap path), points at fixed offsets from mu and at the antimode.
+    for (double kappa : {1e3, 1e4, 1e8}) {
+        for (double mu : {0.0, 2.5, -3.0}) {
+            VonMisesDistribution d(mu, kappa);
+            std::vector<double> extra;
+            for (double t :
+                 {-3.0, -2.0, -1.0, -0.1, -0.01, -1e-3, 1e-3, 0.01, 0.1, 1.0, 2.0, 3.0}) {
+                extra.push_back(wrapToPi(mu + t));
+            }
+            append(extra, neighbours(wrapToPi(mu + std::numbers::pi), 1));
+            emitBandInstance(d, "von_mises", mu, kappa, true, false, extra, sink);
+        }
+    }
+
+    // student_t(nu): the batch switch at (nu + 1)/2 = 16, the Stirling / BGRAT
+    // switch at nu = 40, huge nu up to where x = nu/(nu + t^2) rounds to 1
+    // (~4e17). Points at u = t^2/nu = 1 and on the (a + 1) u = 1.5
+    // tail/central switch, both signs.
+    for (double nu : {20.0, 30.9, 31.0, 39.9, 40.0, 100.0, 1e3, 1e5, 1e7, 1e11, 1e17, below(4e17),
+                      4e17, 1e18}) {
+        StudentTDistribution d(nu);
+        std::vector<double> extra;
+        const double s1 = std::sqrt(nu);
+        const double s2 = std::sqrt(1.5 / (0.5 * nu + 1.0) * nu);
+        for (double s : {s1, -s1, s2, -s2}) {
+            append(extra, neighbours(s, 1));
+        }
+        for (double t : {-1e3, -100.0, -38.0, 10.0, 38.0}) {
+            extra.push_back(t);
+        }
+        emitBandInstance(d, "student_t", nu, 0.0, false, false, extra, sink);
+    }
+
+    // truncated_normal: half-infinite windows, both sides, in the tail and
+    // straddling the mean. The (mean, sd) pairs are the oracle's window keys
+    // (see sweepContinuous4): distinct from each other and from the three base
+    // instances, and listed in _TN_WINDOWS in tools/accuracy_vs_mpmath.py.
+    // Points just inside the finite bound.
+    for (const auto& w : std::vector<std::array<double, 4>>{{0.0, 1.5, 7.5, inf},
+                                                            {0.0, 0.5, 15.0, inf},
+                                                            {4.0, 1.0, 2.0, inf},
+                                                            {1.0, 1.0, -inf, -4.0},
+                                                            {2.0, 1.0, -inf, -28.0},
+                                                            {3.0, 1.0, -inf, 5.0},
+                                                            {0.0, 0.25, -inf, 0.0}}) {
+        TruncatedNormalDistribution d(w[0], w[1], w[2], w[3]);
+        std::vector<double> extra;
+        for (double e : {1e-12, 1e-6, 1e-3, 0.1}) {
+            extra.push_back(std::isfinite(w[2]) ? w[2] + e * w[1] : w[3] - e * w[1]);
+        }
+        emitBandInstance(d, "truncated_normal", w[0], w[1], true, true, extra, sink);
+    }
+
+    // poisson(lambda): CDF Q(k + 1, lambda) through the gamma bands, k near
+    // lambda (and near a = 1e4).
+    for (double lam : {20.0, 1e3, 9999.0, 1e4}) {
+        PoissonDistribution d(lam);
+        std::vector<double> extra;
+        for (double k : {-5.0, -1.0, 0.0, 1.0, 5.0}) {
+            extra.push_back(std::floor(lam) + k);
+        }
+        emitBandInstance(d, "poisson", lam, 0.0, false, false, extra, sink);
+    }
+    // binomial(n, p): CDF I_{1-p}(n - k, k + 1), both shapes large at n = 1e4.
+    for (auto [n, p] : std::vector<std::pair<double, double>>{
+             {40.0, 0.5}, {1000.0, 0.3}, {10000.0, 0.5}, {1000000.0, 1e-5}}) {
+        BinomialDistribution d(static_cast<int>(n), p);
+        emitBandInstance(d, "binomial", n, p, true, false, {}, sink);
+    }
+    // negative_binomial(r, p): CDF I_p(r, k + 1), r across the tiny-shape
+    // switch (1e-3), a = 1 and the Stirling prefactor (20).
+    for (auto [r, p] : std::vector<std::pair<double, double>>{{below(1e-3), 0.5},
+                                                              {1e-3, 0.5},
+                                                              {0.5, 0.3},
+                                                              {below(1.0), 0.3},
+                                                              {1.0, 0.3},
+                                                              {below(20.0), 0.5},
+                                                              {20.0, 0.5},
+                                                              {1e4, 0.5}}) {
+        NegativeBinomialDistribution d(r, p);
+        emitBandInstance(d, "negative_binomial", r, p, true, false, {}, sink);
+    }
+
+    // gamma, erlang and inverse_gamma at a non-dyadic rate: the product beta*x
+    // (beta/x for inverse_gamma) rounds, and a large shape amplifies that
+    // rounding by ~(alpha - beta*x); at rate 1 it never shows. Points 30
+    // standard deviations either side of the mean as well.
+    for (auto [a, b] : std::vector<std::pair<double, double>>{{1e4, 0.3}, {1e16, 3.0}}) {
+        GammaDistribution d(a, b);
+        std::vector<double> extra;
+        for (double z : {-30.0, 30.0}) {
+            extra.push_back((a + z * std::sqrt(a)) / b);
+        }
+        emitBandInstance(d, "gamma", a, b, true, false, extra, sink);
+    }
+    for (auto [k, lam] : std::vector<std::pair<int, double>>{{10000, 0.3}, {2000000000, 3.0}}) {
+        ErlangDistribution d(k, lam);
+        std::vector<double> extra;
+        for (double z : {-30.0, 30.0}) {
+            extra.push_back((k + z * std::sqrt(static_cast<double>(k))) / lam);
+        }
+        emitBandInstance(d, "erlang", static_cast<double>(k), lam, true, false, extra, sink);
+    }
+    for (double a : {1e4, 1e16}) {
+        InverseGammaDistribution d(a, 3.0);
+        std::vector<double> extra;
+        for (double z : {-30.0, 30.0}) {
+            extra.push_back(3.0 / (a + z * std::sqrt(a)));
+        }
+        emitBandInstance(d, "inverse_gamma", a, 3.0, true, false, extra, sink);
+    }
+}
+
 void sweepAll(Sink& sink) {
     using stats::BernoulliDistribution;
     using stats::BetaDistribution;
@@ -696,6 +1012,9 @@ void sweepAll(Sink& sink) {
     sweepDiscrete<BernoulliDistribution>(
         "bernoulli", [](double a, double) { return BernoulliDistribution(a); },
         {{{0.5, 0.0}, {1e-6, 0.0}, {1.0 - 1e-6, 0.0}}}, false, sink);
+
+    // Switch-band instances, appended after every row above.
+    sweepSwitchBands(sink);
 }
 
 //==============================================================================

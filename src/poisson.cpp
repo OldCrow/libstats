@@ -300,11 +300,26 @@ double PoissonDistribution::getCumulativeProbability(double x) const {
     if (x < detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
-    int k = roundToNonNegativeInt(x);
+    int k = floorToNonNegativeInt(x);
     if (!isValidCount(x))
         return detail::ONE;
 
     return getCumulativeProbabilityExact(k);
+}
+
+double PoissonDistribution::getSurvival(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (x < detail::ZERO_DOUBLE)
+        return detail::ONE;
+
+    const int k = floorToNonNegativeInt(x);
+    if (!isValidCount(x))
+        return detail::ZERO_DOUBLE;
+
+    double lambda;
+    withCacheSnapshot([&] { lambda = lambda_; });
+    return computeSurvival(k, lambda);
 }
 
 double PoissonDistribution::getQuantile(double p) const {
@@ -327,13 +342,16 @@ double PoissonDistribution::getQuantile(double p) const {
         local_lambda = lambda_;
     }
 
-    // Smallest k with CDF(k) >= p, searched outward from the normal
-    // approximation: two or three CDF evaluations. The count is capped at
-    // INT_MAX. The CDF reads the same λ copy as the guess, not the live member.
+    // Smallest k with CDF(k) >= p (p <= 1/2) or S(k) <= 1 - p (p > 1/2), searched outward from
+    // the normal approximation: two or three evaluations. The count is capped at INT_MAX. Both
+    // read the same λ copy as the guess, not the live member.
     const double stddev = std::sqrt(local_lambda);
     const std::int64_t k = detail::discrete_quantile_search(
         [local_lambda](std::int64_t i) {
             return i < 0 ? detail::ZERO_DOUBLE : computeCDF(static_cast<int>(i), local_lambda);
+        },
+        [local_lambda](std::int64_t i) {
+            return i < 0 ? detail::ONE : computeSurvival(static_cast<int>(i), local_lambda);
         },
         p, 0, static_cast<std::int64_t>(std::numeric_limits<int>::max()),
         detail::discrete_quantile_guess(p, local_lambda, stddev, detail::ONE / stddev));
@@ -945,7 +963,7 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             continue;
         }
 
-        int k = roundToNonNegativeInt(values[i]);
+        int k = floorToNonNegativeInt(values[i]);
         if (!isValidCount(values[i])) {
             results[i] = detail::ONE;
             continue;
@@ -1023,6 +1041,12 @@ double PoissonDistribution::computeCDF(int k, double lambda) noexcept {
     return detail::gamma_q(k + 1, lambda);
 }
 
+double PoissonDistribution::computeSurvival(int k, double lambda) noexcept {
+    // P(X > k) = P(k+1, λ), the regularized lower incomplete gamma: small and formed directly
+    // in the upper tail, so it keeps relative precision where 1 - Q(k+1, λ) would cancel.
+    return detail::gamma_p(static_cast<double>(k) + detail::ONE, lambda);
+}
+
 double PoissonDistribution::factorial(int n) noexcept {
     if (n < 0)
         return detail::ZERO_DOUBLE;
@@ -1068,6 +1092,14 @@ inline int PoissonDistribution::roundToNonNegativeInt(double x) noexcept {
     if (!isValidCount(x))
         return 0;
     return static_cast<int>(std::round(x));
+}
+
+int PoissonDistribution::floorToNonNegativeInt(double x) noexcept {
+    // F(x) = F(⌊x⌋): Poisson(3).cdf(2.6) is F(2), as for Binomial, NegativeBinomial and
+    // Geometric. Rounding it (as the PMF does) returned F(3) from x = 2.5. Same guard as above.
+    if (!isValidCount(x))
+        return 0;
+    return static_cast<int>(std::floor(x));
 }
 
 inline bool PoissonDistribution::isValidCount(double x) noexcept {

@@ -19,6 +19,8 @@ namespace stats {
  * - LogPDF: −log σ − log Z − ½ξ² − ½log(2π)  (exact log space), else −∞
  * - CDF:    F(x) = (Φ(ξ) − Φ(α))/Z, clamped to [0,1]; exactly 0 at x ≤ a
  *           and exactly 1 at x ≥ b
+ * - Survival: S(x) = (Φ(β) − Φ(ξ))/Z, the CDF on the reflected window
+ *           TN(−μ, σ, −b, −a) at −x; exactly 1 at x ≤ a and 0 at x ≥ b
  * - Quantile: μ + σ·Φ⁻¹(Φ(α) + p·Z), computed regime-split (see below)
  * - Parameters: μ finite, σ > 0, a < b (a may be −∞, b may be +∞)
  * - Support:  x ∈ [a, b]
@@ -41,6 +43,9 @@ namespace stats {
  *     subtraction is an addition of magnitudes (this branch is mandatory:
  *     the Φ-difference form cancels for narrow windows around μ, e.g.
  *     a = −10⁻⁹, b = 10⁻⁹).
+ *   - a same-tail window narrow enough to lie in the near-bound band
+ *     (w·max(1, |α|) ≤ ¼, w = (b − a)/σ): Z = φ(α)·Σ Tₙ(w, α), the band's
+ *     Hermite series, where the erfc difference loses Q(α)/Z of its terms.
  *   ±∞ bounds collapse correctly through erfc(−∞) = 2, erfc(+∞) = 0,
  *   erf(±∞) = ±1 (verified by test, not assumed).
  * α, β, Z, log Z and the erf/erfc tail pieces are cached at construction and
@@ -322,6 +327,15 @@ class TruncatedNormalDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = (Φ(β) − Φ(ξ))/Z, formed as the complement itself (AR A11): the CDF
+     * kernel evaluated on the reflected window, S(x) = F_{−μ,σ,−b,−a}(−x), so the upper tail
+     * keeps the CDF's lower-tail regimes (erfc difference, scaled-tail ratio past erfc
+     * underflow, Hermite band at b). Exactly 1 for x ≤ a, 0 for x ≥ b; NaN propagates.
+     * Batch survival has no span API; it goes through this scalar method.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile via the survival-domain regime split (class notes).
      * @throws std::invalid_argument if p not in [0, 1]
      * Q(0) = a, Q(1) = b; never NaN for p ∈ (0,1) (#104).
@@ -530,6 +544,10 @@ class TruncatedNormalDistribution : public DistributionBase {
     mutable double qBeta_{detail::ZERO_DOUBLE};
     /** @brief erf(α/√2) — the batch CDF chain's affine offset. */
     mutable double erfAlpha_{-detail::ONE};
+    /** @brief Φ(β) = ½erfc(−β/√2) — the reflected window's Q(α′), for getSurvival. */
+    mutable double phiBeta_{detail::ONE};
+    /** @brief erf(−β/√2) — the reflected window's erf(α′/√2), for getSurvival. */
+    mutable double erfNegBeta_{-detail::ONE};
     /** @brief 1/Z. */
     mutable double invZ_{detail::ONE};
     /** @brief 0.5/Z — the batch CDF chain's affine scale. */

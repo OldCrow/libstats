@@ -307,16 +307,97 @@ inline double truncnorm_hermite_sum(double d, double alpha) noexcept {
     return sum;
 }
 
-// φ(α)/Z: the factor that turns S(d, α) into the CDF. The same expression in
-// the CDF and the quantile keeps F(Q(p)) a round trip at the ulp level. φ(α)
-// stays representable for every accepted window (the factory rejects windows
-// whose Z — of the same exp scale — underflows).
-inline double truncnorm_band_scale(double alpha, double inv_z) noexcept {
-    return detail::INV_SQRT_2PI * std::exp(-detail::HALF * alpha * alpha) * inv_z;
+// Normal tail pieces with the erfc argument u/√2 carried to two doubles. An error of δ relative
+// in u/√2 moves erfc by u²·δ relative: a constant error in every Z, and so in every F, of a
+// window far out. detail::INV_SQRT_2 (1.0/SQRT_2) is one ulp below the double nearest 1/√2, so
+// ½·erfc(u·INV_SQRT_2) read 1.4e-13 high at u = 30 (TN(0, 0.5, 15, ∞) and TN(0, 1e-3, 0.037, ∞)
+// 1.18e-13 off near the bound); rounded correctly it is still 3.4e-14 at u = 30 and 8.8e-14 at
+// u = 37, while std::erfc itself is within half an ulp there.
+constexpr double kInvSqrt2Hi = 0x1.6a09e667f3bcdp-1;    // 1/√2, correctly rounded
+constexpr double kInvSqrt2Lo = -4.833646656726457e-17;  // 1/√2 − kInvSqrt2Hi
+constexpr double kTwoOverSqrtPi = 1.1283791670955126;   // 2/√π
+
+struct SplitArg {
+    double hi, lo;
+};
+
+// u/√2 = hi + lo to ~2^-104 relative: the residual of the product spelled as an fma.
+inline SplitArg div_sqrt2(double u) noexcept {
+    const double hi = u * kInvSqrt2Hi;
+    return {hi, std::fma(u, kInvSqrt2Hi, -hi) + u * kInvSqrt2Lo};
 }
 
-inline double truncnorm_cdf_near_lower(double d, double alpha, double inv_z) noexcept {
-    return clamp01(truncnorm_band_scale(alpha, inv_z) * truncnorm_hermite_sum(d, alpha));
+// Q(u) = ½·erfc(u/√2), from erfc(hi + lo) = erfc(hi) − lo·(2/√π)·e^{−hi²} (the next term is
+// O(lo²·hi), below 1e-28 relative). Exact 0 and 1 at ±∞.
+inline double normal_q(double u) noexcept {
+    if (!std::isfinite(u))
+        return detail::HALF * std::erfc(u * detail::INV_SQRT_2);
+    const SplitArg z = div_sqrt2(u);
+    return detail::HALF * (std::erfc(z.hi) - z.lo * kTwoOverSqrtPi * std::exp(-z.hi * z.hi));
+}
+
+// erfcx(z) = e^{z²}·erfc(z) for z = hi + lo ≥ 0. Below 26 from erfc and e^{hi²}, hi² split
+// exactly (hi² = P + P_lo) so that e^{hi²} = e^P·(1 + P_lo) carries no rounding of its
+// exponent, and the low part through erfcx'(z) = 2z·erfcx(z) − 2/√π. From 26, where erfc nears
+// underflow, the asymptotic series (1/(z√π))·Σ_k (−1)^k·(2k − 1)!!/(2z²)^k, whose eighth term
+// is below 2e-18 there; its log-derivative is −(1/z)(1 + O(z⁻²)), so the low part enters as
+// the factor 1 − lo/hi (2z·erfcx − 2/√π cancels to nothing there, and is ∞·0 once z² overflows).
+inline double erfcx_split(SplitArg z) noexcept {
+    if (z.hi < 26.0) {
+        const double p = z.hi * z.hi;
+        const double p_lo = std::fma(z.hi, z.hi, -p);
+        const double e = std::erfc(z.hi) * std::exp(p) * (detail::ONE + p_lo);
+        return e + z.lo * (detail::TWO * z.hi * e - kTwoOverSqrtPi);
+    }
+    const double r = detail::HALF / (z.hi * z.hi);
+    double term = detail::ONE;
+    double sum = detail::ONE;
+    for (int k = 1; k < 10; ++k) {
+        term *= -r * static_cast<double>(2 * k - 1);
+        sum += term;
+        if (std::fabs(term) < std::numeric_limits<double>::epsilon() * sum)
+            break;
+    }
+    return sum / (z.hi * detail::SQRT_PI) * (detail::ONE - z.lo / z.hi);
+}
+
+// Q(u)/Q(v) for u ≥ v ≥ 0, with w = u − v formed by the caller from the inputs:
+// e^{−w(u + v)/2}·erfcx(u/√2)/erfcx(v/√2), one exponential of the result's own log, so that a
+// ratio of two subnormal or underflowed tails stays a normal double where it is one.
+inline double normal_q_ratio(double u, double v, double w) noexcept {
+    const double rx = erfcx_split(div_sqrt2(u)) / erfcx_split(div_sqrt2(v));
+    return std::exp(std::log(rx) - detail::HALF * w * (u + v));
+}
+
+// φ(α)/Z: the factor that turns S(d, α) into the CDF. The same expression in
+// the CDF and the quantile keeps F(Q(p)) a round trip at the ulp level. φ(α)
+// stays representable at the bound the mass sits against (the factory rejects
+// windows whose Z — of the same exp scale — underflows); at the other bound it
+// need not, and truncnorm_lower_band_scale takes over.
+// α² is split exactly (α² = P + P_lo): e^{−α²/2} rounded from one product carried
+// α²/2·ε relative, 5e-14 at α = 30.
+inline double truncnorm_band_scale(double alpha, double inv_z) noexcept {
+    const double p = alpha * alpha;
+    const double p_lo = std::fma(alpha, alpha, -p);
+    return detail::INV_SQRT_2PI *
+           (std::exp(-detail::HALF * p) * (detail::ONE - detail::HALF * p_lo)) * inv_z;
+}
+
+// φ(α)/Z for the CDF's band, given the window's other bound β and width w = (b − a)/σ. Where
+// e^{−α²/2} nears underflow (|α| > 37, with |β| < |α|) the factory's guarantee does not reach
+// it: the lower band of a left-tail window and, through the reflection, the upper band of a
+// right-tail one (TN(0, 1, 30, 40).S(39.999) = 3e-154 read 0, φ(40) = 1.5e-348). There it is
+// φ(β)/Z·e^{w(β + α)/2}, the other bound's scale times the density ratio, whose exponent is
+// the result's own log and carries a few ε of it.
+inline double truncnorm_lower_band_scale(double alpha, double beta, double w,
+                                         double inv_z) noexcept {
+    if (std::fabs(alpha) > 37.0 && std::fabs(beta) < std::fabs(alpha))
+        return std::exp(detail::HALF * w * (beta + alpha)) * truncnorm_band_scale(beta, inv_z);
+    return truncnorm_band_scale(alpha, inv_z);
+}
+
+inline double truncnorm_cdf_near_lower(double d, double alpha, double scale) noexcept {
+    return clamp01(scale * truncnorm_hermite_sum(d, alpha));
 }
 
 // d with S(d, α) = t, for a target inside the band: Newton on S, whose
@@ -355,24 +436,38 @@ inline double truncnorm_cdf_scalar(double x, double mu, double sigma, double a, 
     if (x >= b)
         return detail::ONE;  // exact, also covers x = +∞
     double floor = detail::ZERO_DOUBLE;
-    {
-        const double d = (x - a) / sigma;
-        if (truncnorm_near_lower_band(d, alpha))
-            return truncnorm_cdf_near_lower(d, alpha, inv_z);
-        if (truncnorm_near_lower_band_or_sliver(d, alpha)) {
-            const double d_edge = 0.25 / std::max(detail::ONE, std::fabs(alpha));
-            floor = truncnorm_cdf_near_lower(d_edge, alpha, inv_z);
-        }
+    const double d_lower = (x - a) / sigma;
+    if (truncnorm_near_lower_band_or_sliver(d_lower, alpha)) {
+        const double scale =
+            truncnorm_lower_band_scale(alpha, (b - mu) / sigma, (b - a) / sigma, inv_z);
+        if (truncnorm_near_lower_band(d_lower, alpha))
+            return truncnorm_cdf_near_lower(d_lower, alpha, scale);
+        const double d_edge = 0.25 / std::max(detail::ONE, std::fabs(alpha));
+        floor = truncnorm_cdf_near_lower(d_edge, alpha, scale);
     }
     const double xi = (x - mu) / sigma;
     double f;
     if (alpha >= detail::ZERO_DOUBLE) {
         // Whole window in the right tail (ξ ≥ α ≥ 0): survival difference
         // Q(α) − Q(ξ) — small same-scale erfc quantities, well-conditioned.
-        f = clamp01((q_alpha - detail::HALF * std::erfc(xi * detail::INV_SQRT_2)) * inv_z);
+        f = clamp01((q_alpha - normal_q(xi)) * inv_z);
     } else if (xi <= detail::ZERO_DOUBLE) {
         // Left half (α ≤ ξ ≤ 0): reflected erfc difference Φ(ξ) − Φ(α).
-        f = clamp01((detail::HALF * std::erfc(-xi * detail::INV_SQRT_2) - phi_alpha) * inv_z);
+        const double phi_xi = normal_q(-xi);
+        const double beta = (b - mu) / sigma;
+        if (phi_xi < std::numeric_limits<double>::min() && beta <= detail::ZERO_DOUBLE) {
+            // Φ(ξ) subnormal or underflowed in a left-tail window: Z is a normal double and F
+            // need not be tiny (TN(2, 1, −∞, −28) at x = −37.3: F = 1e-140, read 0; at −36.1,
+            // 4.5e-8 off). F = R(ξ, β)·(1 − R(α, ξ))·Φ(β)/Z with R(s, t) = Φ(s)/Φ(t), each
+            // ratio formed from scaled tails (normal_q_ratio); R(α, ξ) = 0 for α = −∞, and is
+            // below e^{−1/4} outside the near-lower band, so 1 − R keeps its bits.
+            const double r_xi = normal_q_ratio(-xi, -beta, (b - x) / sigma);
+            const double r_alpha =
+                std::isinf(alpha) ? detail::ZERO_DOUBLE : normal_q_ratio(-alpha, -xi, d_lower);
+            f = clamp01(r_xi * (detail::ONE - r_alpha) * (normal_q(-beta) * inv_z));
+        } else {
+            f = clamp01((phi_xi - phi_alpha) * inv_z);
+        }
     } else {
         // Straddling lane (α < 0 < ξ): erf difference — both arguments benign,
         // and the expression matches the batch vector_erf chain term-for-term.
@@ -402,8 +497,9 @@ inline double truncnorm_quantile_core(double p, double mu, double sigma, double 
     // Floors from the band inversions at their edges, for a target within 2^-40 of an edge
     // (see truncnorm_near_lower_band_or_sliver).
     double x_floor = a, x_ceil = b;
+    const double w = (b - a) / sigma;
     if (std::isfinite(alpha)) {
-        const double scale = truncnorm_band_scale(alpha, inv_z);
+        const double scale = truncnorm_lower_band_scale(alpha, beta, w, inv_z);
         const double d_max = 0.25 / std::max(detail::ONE, std::fabs(alpha));
         if (p <= scale * 1.3 * d_max) {
             const double p_edge = scale * truncnorm_hermite_sum(d_max, alpha);
@@ -419,7 +515,7 @@ inline double truncnorm_quantile_core(double p, double mu, double sigma, double 
     }
     if (std::isfinite(beta)) {
         const double q = detail::ONE - p;
-        const double scale = truncnorm_band_scale(beta, inv_z);
+        const double scale = truncnorm_lower_band_scale(-beta, -alpha, w, inv_z);
         const double d_max = 0.25 / std::max(detail::ONE, std::fabs(beta));
         if (q <= scale * 1.3 * d_max) {
             const double q_edge = scale * truncnorm_hermite_sum(d_max, -beta);
@@ -499,6 +595,8 @@ TruncatedNormalDistribution::TruncatedNormalDistribution(const TruncatedNormalDi
     qAlpha_ = other.qAlpha_;
     qBeta_ = other.qBeta_;
     erfAlpha_ = other.erfAlpha_;
+    phiBeta_ = other.phiBeta_;
+    erfNegBeta_ = other.erfNegBeta_;
     invZ_ = other.invZ_;
     halfInvZ_ = other.halfInvZ_;
     logSigma_ = other.logSigma_;
@@ -547,6 +645,8 @@ TruncatedNormalDistribution::TruncatedNormalDistribution(
     qAlpha_ = other.qAlpha_;
     qBeta_ = other.qBeta_;
     erfAlpha_ = other.erfAlpha_;
+    phiBeta_ = other.phiBeta_;
+    erfNegBeta_ = other.erfNegBeta_;
     invZ_ = other.invZ_;
     halfInvZ_ = other.halfInvZ_;
     logSigma_ = other.logSigma_;
@@ -890,6 +990,29 @@ double TruncatedNormalDistribution::getCumulativeProbability(double x) const {
         hiz = halfInvZ_;
     });
     return truncnorm_cdf_scalar(x, mu, sigma, a, b, al, qa, pa, ea, iz, hiz);
+}
+
+// S(x) by reflection: X ↦ −X maps TN(μ, σ, a, b) to TN(−μ, σ, −b, −a) with S(x) = F′(−x), and
+// every input of the CDF kernel reflects exactly (negation is exact, and α′ = −β, ξ′ = −ξ,
+// (x′ − a′)/σ = (b − x)/σ round as their originals; Z′ is the same erfc difference with its
+// terms swapped). The upper tail so inherits the lower tail's regimes and their accuracy, and
+// monotonicity and S + F = 1 to rounding follow from the CDF's.
+double TruncatedNormalDistribution::getSurvival(double x) const {
+    double mu, sigma, a, b, be, qb, pb, enb, iz, hiz;
+    withCacheSnapshot([&] {
+        mu = mean_;
+        sigma = standardDeviation_;
+        a = lowerBound_;
+        b = upperBound_;
+        be = beta_;
+        qb = qBeta_;
+        pb = phiBeta_;
+        enb = erfNegBeta_;
+        iz = invZ_;
+        hiz = halfInvZ_;
+    });
+    // Q(α′) = Q(−β) = Φ(β), Φ(α′) = Φ(−β) = Q(β), erf(α′/√2) = erf(−β/√2).
+    return truncnorm_cdf_scalar(-x, -mu, sigma, -b, -a, -be, pb, qb, enb, iz, hiz);
 }
 
 double TruncatedNormalDistribution::getQuantile(double p) const {
@@ -1652,8 +1775,8 @@ void TruncatedNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
         } else {
             const double xi = (x - mu) / sigma;
             if (xi <= detail::ZERO_DOUBLE) {
-                results[i] = clamp01(
-                    (detail::HALF * std::erfc(-xi * detail::INV_SQRT_2) - phi_alpha) * inv_z);
+                results[i] = truncnorm_cdf_scalar(x, mu, sigma, a, b, alpha, q_alpha, phi_alpha,
+                                                  erf_alpha, inv_z, half_inv_z);
             } else {
                 results[i] = clamp01(results[i]);
             }
@@ -1676,20 +1799,30 @@ TruncatedNormalDistribution::computeNormalization(double mean, double sigma, dou
     // Tail pieces — each full relative precision on its own small side.
     // erfc(−∞) = 2 and erfc(+∞) = 0 make every formula below collapse
     // correctly for infinite bounds (verified by test, not assumed).
-    n.q_alpha = detail::HALF * std::erfc(n.alpha * detail::INV_SQRT_2);
-    n.q_beta = detail::HALF * std::erfc(n.beta * detail::INV_SQRT_2);
-    n.phi_alpha = detail::HALF * std::erfc(-n.alpha * detail::INV_SQRT_2);
+    n.q_alpha = normal_q(n.alpha);
+    n.q_beta = normal_q(n.beta);
+    n.phi_alpha = normal_q(-n.alpha);
     n.erf_alpha = std::erf(n.alpha * detail::INV_SQRT_2);
 
     // Regime-split Z (see header): never the cancelling Φ(β) − Φ(α) form.
     if (n.alpha >= detail::ZERO_DOUBLE) {
         n.z = n.q_alpha - n.q_beta;  // right tail: small − smaller
     } else if (n.beta <= detail::ZERO_DOUBLE) {
-        const double phi_beta = detail::HALF * std::erfc(-n.beta * detail::INV_SQRT_2);
+        const double phi_beta = normal_q(-n.beta);
         n.z = phi_beta - n.phi_alpha;  // left tail: reflection
     } else {
         // Straddling: erf difference — opposite signs, adds magnitudes.
         n.z = detail::HALF * (std::erf(n.beta * detail::INV_SQRT_2) - n.erf_alpha);
+    }
+    // A same-tail window inside the near-lower band is Z = φ(α)·S(w, α), w = (b − a)/σ, by the
+    // band's own series: the erfc difference above loses Q(α)/Z of its terms' rounding there
+    // (6e-11 relative at (0, 1e-6)), and the CDF and survival read that error straight through
+    // in the band, where nothing cancels it. The whole window then sits in the band, so every
+    // F inside it is a ratio of two series.
+    if (n.alpha >= detail::ZERO_DOUBLE || n.beta <= detail::ZERO_DOUBLE) {
+        const double w = (b - a) / sigma;
+        if (truncnorm_near_lower_band(w, n.alpha))
+            n.z = truncnorm_band_scale(n.alpha, detail::ONE) * truncnorm_hermite_sum(w, n.alpha);
     }
 
     // Z must be a normal double: a subnormal Z (≈ 3e-316 for the window (−40, −38)) has lost
@@ -1710,12 +1843,16 @@ void TruncatedNormalDistribution::updateCacheUnsafe() const noexcept {
     qAlpha_ = nc.q_alpha;
     qBeta_ = nc.q_beta;
     erfAlpha_ = nc.erf_alpha;
+    // The reflected window's pieces, spelled as computeNormalization spells α's.
+    phiBeta_ = normal_q(-nc.beta);
+    erfNegBeta_ = std::erf(-nc.beta * detail::INV_SQRT_2);
     invZ_ = detail::ONE / z_;
     halfInvZ_ = detail::HALF / z_;
 
     // Standardised mean and variance; the closed forms where they hold, quadrature where
     // they cancel (M3). Where the quadrature ran, its log Z replaces the erfc difference's
-    // for the density (DH3); z_ and the CDF keep the erfc pieces, whose errors cancel at b.
+    // for the density (DH3); z_ and the CDF keep the erfc pieces, whose errors cancel at b
+    // (or the band series, for a same-tail window inside the band — computeNormalization).
     const TruncMoments mo = truncnorm_moments(alpha_, beta_, z_);
     logZ_ = mo.quad ? mo.log_z : nc.log_z;
 
