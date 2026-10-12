@@ -2054,12 +2054,19 @@ TEST(ContractGates, A11_GammaFamilySurvivalUpperTail) {
         {1e16, 3.0, 3333334333333333.5},
         {0.005, 0.5, 2.0 * std::numeric_limits<double>::min()},
     };
+    // The step scales with log y's own rounding: near βx = DBL_MIN, log x ≈ −708 carries ~1e-13,
+    // and a step moves F by α·h·F while either path's noise is ~α·|ln βx|·ε·F, so a fixed 1e-13
+    // equalled the noise at α = 0.005 there and MSVC's libm stepped F down 4 ulp across the
+    // log-space seam (CI on 47bea80). h = max(1e-13, 1000·|ln βx|·ε) keeps the step ~1000x the
+    // noise on every row (1.6e-10 at the DBL_MIN row; 1e-13 in the bulk).
     for (const auto& m : mono) {
         const GammaDistribution d(m.alpha, m.beta);
-        double prev = d.getSurvival(m.x * (1.0 - 200e-13));
-        double prev_f = d.getCumulativeProbability(m.x * (1.0 - 200e-13));
+        const double h = std::max(1e-13, 1000.0 * std::numeric_limits<double>::epsilon() *
+                                             std::abs(std::log(m.beta * m.x)));
+        double prev = d.getSurvival(m.x * (1.0 - 200.0 * h));
+        double prev_f = d.getCumulativeProbability(m.x * (1.0 - 200.0 * h));
         for (int k = -199; k <= 200; ++k) {
-            const double x = m.x * (1.0 + k * 1e-13);
+            const double x = m.x * (1.0 + k * h);
             const double s = d.getSurvival(x);
             const double f = d.getCumulativeProbability(x);
             ASSERT_LE(s, prev) << m.alpha << " " << m.beta << " x " << x;
