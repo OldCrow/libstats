@@ -301,6 +301,21 @@ double LogisticDistribution::getCumulativeProbability(double x) const {
     return logisticCdfKernel((x - m) * is);
 }
 
+double LogisticDistribution::getSurvival(double x) const {
+    // S(z) = F(−z) by symmetry, through the same sign-branched kernel.
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x))
+        return (x > detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::ONE;
+
+    double m, is;
+    withCacheSnapshot([&] {
+        m = mu_;
+        is = inv_s_;
+    });
+    return logisticCdfKernel(-((x - m) * is));
+}
+
 double LogisticDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)

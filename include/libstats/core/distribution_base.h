@@ -146,11 +146,10 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * and other positive-support distributions.
      *
      * The default forms 1 - F(x), which cancels to 0 in the upper tail where
-     * S(x) is still representable. Exponential, Weibull, Rayleigh, Pareto,
-     * Gaussian, FisherF, InverseGamma, TruncatedNormal, Gamma, ChiSquared and
-     * Erlang override it with the complement formed directly (AR A11), as do
-     * Poisson, Binomial, NegativeBinomial,
-     * Geometric and Bernoulli, whose quantiles decide p > ½ on it. Virtual since v2.5.0: an ABI
+     * S(x) is still representable. Every distribution in the library overrides
+     * it with the complement formed directly (AR A11); Poisson, Binomial,
+     * NegativeBinomial, Geometric and Bernoulli also decide their quantiles'
+     * p > ½ on it. The default remains for user-derived classes. Virtual since v2.5.0: an ABI
      * change for code built against an earlier v2.x header that derives from DistributionBase.
      *
      * @param x Evaluation point.

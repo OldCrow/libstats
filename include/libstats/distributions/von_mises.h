@@ -256,6 +256,13 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(μ + t) = F(μ − t) by symmetry, with t = x − μ wrapped to (−M_PI, M_PI] and
+     * the CDF kernel evaluated at −t directly (not re-wrapped, which would fold −M_PI to
+     * M_PI). S(M_PI) is the mass on (M_PI, π), not 0: the double M_PI lies below π.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile in (−π, π]: bracketed Halley on the smaller of p and
      * 1 − p, on the central mass within 1/4 of the median and on the log of
      * the tail mass beyond. A few CDF evaluations per query. NaN propagates;

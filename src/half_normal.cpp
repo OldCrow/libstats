@@ -248,6 +248,16 @@ double HalfNormalDistribution::getCumulativeProbability(double x) const {
     return std::erf(x * inv);
 }
 
+double HalfNormalDistribution::getSurvival(double x) const {
+    if (x < detail::ZERO_DOUBLE)
+        return detail::ONE;
+
+    double inv;
+    withCacheSnapshot([&] { inv = invSigmaSqrt2_; });
+    // erfc directly: 1 − erf cancels from x ≈ 6σ. erfc(+inf) = 0, erfc(NaN) = NaN.
+    return std::erfc(x * inv);
+}
+
 double HalfNormalDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)

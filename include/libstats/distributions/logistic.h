@@ -240,6 +240,12 @@ class LogisticDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = F at −z, through the same sign-branched sigmoid: e^(−z)/(1 + e^(−z))
+     * in the upper tail, never 1 − F.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile (inverse CDF): μ + s·(log p − log1p(−p)).
      * The split logarithm is required — log(p/(1−p)) loses the p→1 tail.
      * @throws std::invalid_argument if p not in [0, 1]

@@ -456,6 +456,8 @@ create_libstats_gtest(test_concurrency_gates test_concurrency_gates.cpp)
 # von Mises, Geometric closed-form CDF, scale ranges, quantile ties, signgam (#173). Correctness,
 # not timing: deliberately NOT in the "timing" label block below.
 create_libstats_gtest(test_contract_gates test_contract_gates.cpp)
+# getSurvival complement-native overrides: deep-tail S against mpmath, not 1 - F. Correctness.
+create_libstats_gtest(test_survival_tails test_survival_tails.cpp)
 # AR D19: no `inline` member definitions in src/*.cpp (Poisson's overrides, the #189 class).
 add_test(NAME check_inline_member_definitions
          COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -P

@@ -849,6 +849,24 @@ struct HalleyStep {
                                     : detail::ONE - detail::HALF * std::erfc(v);
 }
 
+// F(t) for mu = 0 at a t already in [-PI, PI]: the kappa = 0 linear form, the normal limit, or
+// vonmises_cdf. The CDF passes wrapAngle(x - mu); getSurvival passes its negation unwrapped.
+[[nodiscard]] double vonmises_cdf_wrapped(double t, double kappa, double log_scaled_norm,
+                                          double inv_norm, double half_j, bool uniform) noexcept {
+    if (uniform) {
+        // kappa = 0 (uniform circular distribution): exact linear CDF.
+        return std::clamp(((t + detail::PI) + kPiLo) / detail::TWO_PI, detail::ZERO_DOUBLE,
+                          detail::ONE);
+    }
+    if (kappa > kNormalLimitKappaMin) {
+        // kappa > 1e20: the normal limit in w = 2 sqrt(kappa) sin(t/2), exact to double
+        // there. The wrapped difference is standardised, not wrapAngle(x) - mu (#106).
+        return vonmises_cdf_normal_limit(t, kappa);
+    }
+    // The central mass near the median, the tail mass beyond.
+    return vonmises_cdf(t, kappa, log_scaled_norm, inv_norm, half_j);
+}
+
 }  // anonymous namespace
 
 //==============================================================================
@@ -1103,6 +1121,29 @@ double VonMisesDistribution::getCumulativeProbability(double x) const {
     getCumulativeProbabilityBatchUnsafeImpl(&x, &result, 1, mu, kappa, log_scaled_norm, inv_norm,
                                             half_j, uniform);
     return result;
+}
+
+double VonMisesDistribution::getSurvival(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (std::isinf(x))
+        return x > 0.0 ? detail::ZERO_DOUBLE : detail::ONE;
+
+    double mu, kappa, log_scaled_norm, inv_norm, half_j;
+    bool uniform;
+    withCacheSnapshot([&] {
+        mu = mu_;
+        kappa = kappa_;
+        log_scaled_norm = logScaledNormaliser_;
+        inv_norm = invScaledNormaliser_;
+        half_j = tailHalfJ_;
+        uniform = isUniform_;
+    });
+    // S(μ + t) = F(μ − t) by symmetry about μ. The kernel takes −t in [−M_PI, M_PI) directly:
+    // re-wrapping would fold −M_PI to M_PI (#51) and read 1 there, where the true mass on
+    // (M_PI, π) is small but not 0.
+    return vonmises_cdf_wrapped(-wrapAngle(x - mu), kappa, log_scaled_norm, inv_norm, half_j,
+                                uniform);
 }
 
 double VonMisesDistribution::getQuantile(double p) const {
@@ -1753,20 +1794,9 @@ void VonMisesDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             results[i] = x > 0.0 ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
         }
-        if (cached_uniform) {
-            // kappa = 0 (uniform circular distribution): exact linear CDF.
-            const double t = wrapAngle(x - cached_mu);
-            results[i] = std::clamp(((t + detail::PI) + kPiLo) / detail::TWO_PI,
-                                    detail::ZERO_DOUBLE, detail::ONE);
-        } else if (cached_kappa > kNormalLimitKappaMin) {
-            // kappa > 1e20: the normal limit in w = 2 sqrt(kappa) sin(t/2), exact to double
-            // there. The wrapped difference is standardised, not wrapAngle(x) - mu (#106).
-            results[i] = vonmises_cdf_normal_limit(wrapAngle(x - cached_mu), cached_kappa);
-        } else {
-            // The central mass near the median, the tail mass beyond.
-            results[i] = vonmises_cdf(wrapAngle(x - cached_mu), cached_kappa,
-                                      cached_log_scaled_norm, cached_inv_norm, cached_half_j);
-        }
+        results[i] =
+            vonmises_cdf_wrapped(wrapAngle(x - cached_mu), cached_kappa, cached_log_scaled_norm,
+                                 cached_inv_norm, cached_half_j, cached_uniform);
     }
 }
 

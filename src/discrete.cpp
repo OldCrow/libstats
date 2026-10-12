@@ -450,6 +450,30 @@ double DiscreteDistribution::getCumulativeProbability(double x) const {
     return static_cast<double>(numerator) / static_cast<double>(range);
 }
 
+double DiscreteDistribution::getSurvival(double x) const {
+    // NaN and ±inf before any member reads, as in the CDF (R5-D4).
+    if (!std::isfinite(x)) {
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        return (x > 0 ? detail::ZERO_DOUBLE : detail::ONE);
+    }
+
+    int a, b, range;
+    withCacheSnapshot([&] {
+        a = a_;
+        b = b_;
+        range = range_;
+    });
+    if (x < static_cast<double>(a))
+        return detail::ONE;
+    if (x >= static_cast<double>(b))
+        return detail::ZERO_DOUBLE;
+    // S(k) = (b − ⌊k⌋)/(b − a + 1): the integer numerator is exact, so one rounding, where
+    // 1 − F carries F's rounding into a small difference.
+    const int k = static_cast<int>(std::floor(x));
+    return static_cast<double>(b - k) / static_cast<double>(range);
+}
+
 double DiscreteDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)

@@ -208,6 +208,11 @@ class LaplaceDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = 0.5·exp(−(x−μ)/b) for x ≥ μ; 1 − 0.5·exp((x−μ)/b) below.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile (inverse CDF): μ + b·sign(p−0.5)·log(1−2|p−0.5|).
      * Closed form — no iterative solver required.
      * @throws std::invalid_argument if p not in [0, 1]

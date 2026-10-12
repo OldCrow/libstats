@@ -293,6 +293,21 @@ double GumbelDistribution::getCumulativeProbability(double x) const {
     return gumbelCdfKernel((x - m) * ib);
 }
 
+double GumbelDistribution::getSurvival(double x) const {
+    // S = 1 − exp(−e^(−z)) = −expm1(−e^(−z)): exact in the upper tail, where 1 − F rounds to 0.
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x))
+        return (x > detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::ONE;
+
+    double m, ib;
+    withCacheSnapshot([&] {
+        m = mu_;
+        ib = inv_beta_;
+    });
+    return -std::expm1(-std::exp(-(x - m) * ib));
+}
+
 double GumbelDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)

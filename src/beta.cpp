@@ -435,6 +435,24 @@ double BetaDistribution::getCumulativeProbability(double x) const {
     return detail::beta_i(x, a, b);
 }
 
+double BetaDistribution::getSurvival(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+    if (x >= detail::ONE)
+        return detail::ZERO_DOUBLE;
+    double a, b;
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+    });
+    // S(x) = I_{1−x}(β, α). beta_i_pair takes x itself as the complement of 1 − x, so the
+    // reflection adds no rounding to the small side wherever x is, and the small side is
+    // returned directly rather than as 1 − I_x(α, β).
+    return detail::beta_i_pair(detail::ONE - x, x, b, a, detail::beta_prefactor_constant(b, a));
+}
+
 double BetaDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)

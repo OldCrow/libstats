@@ -248,6 +248,11 @@ class GumbelDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = −expm1(−e^(−z)), exact in the upper tail where 1 − F rounds to 0.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile (inverse CDF): μ − β·log(−log p), with −log p computed as
      * −log1p(p − 1) for p ≥ 1/2 to preserve the upper tail.
      * @throws std::invalid_argument if p not in [0, 1]

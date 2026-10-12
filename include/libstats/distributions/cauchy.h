@@ -233,6 +233,12 @@ class CauchyDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = F(x₀ − (x − x₀)) by symmetry: atan(γ/(x − x₀))/π past x₀, with no
+     * 0.5 − atan subtraction, so the upper tail keeps full relative precision.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile (inverse CDF): x₀ + γ·tan(π(p−0.5)).
      * Closed form — no iterative solver.
      * @throws std::invalid_argument if p not in [0, 1]

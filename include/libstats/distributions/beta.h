@@ -210,6 +210,12 @@ class BetaDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = I_{1−x}(β, α) through detail::beta_i_pair, with x itself as the
+     * complement argument, so the upper tail never forms 1 − I_x(α, β).
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile via detail::inverse_beta_i(p, α, β).
      * @throws std::invalid_argument if p not in [0, 1]
      */

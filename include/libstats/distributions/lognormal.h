@@ -224,6 +224,11 @@ class LogNormalDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = Φ(−(log x − μ)/σ) = ½erfc((log x − μ)/(σ√2)); 1 for x ≤ 0.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile: exp(μ + σ·Φ⁻¹(p)).
      * @throws std::invalid_argument if p not in [0, 1]
      */

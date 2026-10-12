@@ -269,6 +269,23 @@ double LaplaceDistribution::getCumulativeProbability(double x) const {
                                       : detail::ONE - detail::HALF * std::exp(-d / bv);
 }
 
+double LaplaceDistribution::getSurvival(double x) const {
+    // The CDF's branches mirrored: the exponential is the small side at and above μ.
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x))
+        return (x > 0) ? detail::ZERO_DOUBLE : detail::ONE;
+
+    double m, bv;
+    withCacheSnapshot([&] {
+        m = mu_;
+        bv = b_;
+    });
+    const double d = x - m;
+    return (d >= detail::ZERO_DOUBLE) ? detail::HALF * std::exp(-d / bv)
+                                      : detail::ONE - detail::HALF * std::exp(d / bv);
+}
+
 double LaplaceDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)

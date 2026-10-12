@@ -472,6 +472,12 @@ class UniformDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = (b − x)/(b − a) on [a, b], 1 below, 0 above. b − x is exact near b
+     * (Sterbenz), so the upper end keeps full relative precision.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      *
      * For uniform distribution: F^(-1)(p) = a + p(b-a)

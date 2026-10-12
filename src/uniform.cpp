@@ -57,6 +57,15 @@ namespace {
     return (detail::HALF * x - detail::HALF * a) / (detail::HALF * b - detail::HALF * a);
 }
 
+// S(x) on [a, b], the CDF's quotient mirrored: b − x is exact near b (Sterbenz), so the upper end
+// keeps full relative precision where 1 − (x − a)/(b − a) carries the quotient's rounding.
+[[nodiscard]] inline double uniformSurvivalInterior(double x, double a, double b) noexcept {
+    const double width = b - a;
+    if (std::isfinite(width))
+        return (b - x) / width;
+    return (detail::HALF * b - detail::HALF * x) / (detail::HALF * b - detail::HALF * a);
+}
+
 // PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
 constexpr std::size_t kBatchSlice = 1024;
 }  // namespace
@@ -335,6 +344,19 @@ double UniformDistribution::getCumulativeProbability(double x) const {
     if (is_unit)
         return x;
     return uniformCdfInterior(x, lo, hi);
+}
+
+double UniformDistribution::getSurvival(double x) const {
+    double lo, hi;
+    withCacheSnapshot([&] {
+        lo = a_;
+        hi = b_;
+    });
+    if (x < lo)
+        return detail::ONE;
+    if (x > hi)
+        return detail::ZERO_DOUBLE;
+    return uniformSurvivalInterior(x, lo, hi);  // NaN falls through to NaN
 }
 
 double UniformDistribution::getQuantile(double p) const {

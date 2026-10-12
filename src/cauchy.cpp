@@ -280,6 +280,20 @@ double CauchyDistribution::getCumulativeProbability(double x) const {
     return cauchy_cdf_standardized((x - x0) * ig);
 }
 
+double CauchyDistribution::getSurvival(double x) const {
+    // S(z) = F(−z) by symmetry: atan(1/z)/π past x₀, never 0.5 − atan(z)/π, which cancels to 0
+    // once atan(z) rounds to π/2.
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+
+    double x0, ig;
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        ig = inv_gamma_;
+    });
+    return cauchy_cdf_standardized(-((x - x0) * ig));
+}
+
 double CauchyDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)

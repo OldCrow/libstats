@@ -533,6 +533,12 @@ class DiscreteDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(k) = (b − ⌊k⌋)/(b − a + 1) on [a, b), 1 below a, 0 from b; an exact integer
+     * numerator, rounded once.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      *
      * For discrete uniform distribution: F^(-1)(p) = a + ⌊p(b-a+1)⌋

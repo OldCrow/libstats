@@ -221,6 +221,12 @@ class StudentTDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(t) = F(−t) by symmetry, through detail::t_cdf, so the upper tail keeps the
+     * lower tail's relative precision.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile via detail::inverse_t_cdf(p, ν) (Newton-Raphson).
      * @throws std::invalid_argument if p not in [0, 1]
      */

@@ -292,6 +292,14 @@ double StudentTDistribution::getCumulativeProbability(double x) const {
     return detail::t_cdf(x, cached_nu);
 }
 
+double StudentTDistribution::getSurvival(double x) const {
+    // S(t) = F(−t) by symmetry: t_cdf's lower-tail kernel keeps the upper tail's relative
+    // precision, which 1 − F loses once F rounds to 1.
+    double nu;
+    withCacheSnapshot([&] { nu = nu_; });
+    return detail::t_cdf(-x, nu);
+}
+
 double StudentTDistribution::getQuantile(double p) const {
     if (std::isnan(p))
         return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
