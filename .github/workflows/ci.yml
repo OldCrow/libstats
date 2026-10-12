@@ -326,7 +326,7 @@ jobs:
     - name: Test
       env:
         LIBSTATS_STRESS_SCALE: "0.1"
-        TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1:suppressions=${{ github.workspace }}/tests/tsan.supp
       run: ctest --test-dir build-tsan --output-on-failure -LE "timing|benchmark" --parallel 2
 
   fma-contraction:

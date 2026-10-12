@@ -1,0 +1,7 @@
+# ThreadSanitizer suppressions for the CI thread-sanitizer job (.github/workflows/ci.yml).
+#
+# libstdc++'s std::cyl_bessel_i calls ::lgamma, which writes glibc's global signgam; von Mises's
+# log_bessel_i0 reaches it from every cache update (#267). libstats never reads signgam. Scoped to
+# the libstdc++ series frame, so a direct std::lgamma call in libstats (#173) still reports.
+# Remove with the Bessel tier in v3.0.0.
+race:std::__detail::__cyl_bessel_ij_series
