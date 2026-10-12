@@ -2185,3 +2185,46 @@ TEST(ContractGates, M1_VonMisesDensityAtLargeKappa) {
         }
     }
 }
+
+// M1 2026-10-12 seam hunt, finding 3: beyond |t| = sqrt(nu) the Student-t tails formed
+// log x = log nu - 2 log|t| + log y, a cancellation whose rounding a = nu/2 then multiplied: 2-7x
+// the |ln F| eps conditioning law (315 ulp at nu = 100, 1759 at nu = 1000) and non-monotone by
+// 113 ulp across neighbouring t near -10 at nu = 100. References: mpmath at 50 digits.
+TEST(ContractGates, M1_StudentTTailBeyondSqrtNu) {
+    struct Ref {
+        double nu, t, F;
+    };
+    const Ref refs[] = {{100, -10.0, 4.9508444922970695877e-17},
+                        {100, -10.000000000000004, 4.9508444922969807965e-17},
+                        {100, -12.5, 1.8679624980065483927e-22},
+                        {100, -20.0, 4.9971339306684779667e-37},
+                        {100, -40.0, 1.2310538010700354086e-63},
+                        {1000, -31.625, 5.2553720797866332845e-153},
+                        {1000, -40.0, 5.2394260775866804698e-210},
+                        {30, -6.0, 6.971384383602371351e-7},
+                        {30, -10.0, 2.2876257041148065963e-11}};
+    const double eps = std::numeric_limits<double>::epsilon();
+    for (const auto& r : refs) {
+        const auto d = StudentTDistribution::create(r.nu).unwrap();
+        const double bound = 1.5 * std::fabs(std::log(r.F)) * eps + 4.0 * eps;
+        EXPECT_LT(relErr(d.getCumulativeProbability(r.t), r.F), bound)
+            << "nu " << r.nu << " t " << r.t;
+    }
+    // Monotone to within the conditioning law's noise: F moves 70-300 ulp per step in t here, so
+    // a step down is evaluation noise of that size. Before the fix the worst step down was 117 ulp
+    // (nu = 100 from t = -10.001), 86 (nu = 100 from -20) and 556 (nu = 1000 from -31.6); after,
+    // 5, 3 and 0.
+    for (const auto [nu, t0] : {std::pair{100.0, -10.001}, {100.0, -20.0}, {1000.0, -31.6259}}) {
+        const auto d = StudentTDistribution::create(nu).unwrap();
+        double t = t0, prev = d.getCumulativeProbability(t), worst = 0.0;
+        for (int i = 0; i < 2000; ++i) {
+            t = std::nextafter(t, 0.0);
+            const double f = d.getCumulativeProbability(t);
+            if (f < prev)
+                worst = std::max(worst, (prev - f) / (std::nextafter(prev, 1.0) - prev));
+            prev = f;
+        }
+        EXPECT_LE(worst, 8.0) << "Student-t(" << nu << ") CDF steps down by " << worst
+                              << " ulp across 2000 doubles above t = " << t0;
+    }
+}

@@ -2135,7 +2135,14 @@ TTails t_tails(double abs_t, double df, double lbeta_a_half) noexcept {
         x = inv_u / (detail::ONE + inv_u);
         y = detail::ONE / (detail::ONE + inv_u);
         log_y = -std::log1p(inv_u);
-        log_x = std::log(df) - detail::TWO * std::log(abs_t) + log_y;
+        // log x = log(1/u) + log y. inv_u carries about 1 ulp, so its log is good to ~2e-16
+        // absolute; log nu - 2 log|t| cancelled to an error of order |log nu|·eps, which a = nu/2
+        // then multiplied (2-7x the conditioning law beyond |t| = sqrt(nu), and non-monotone by
+        // 113 ulp at nu = 100: M1 seam hunt). The difference of logs stays only where inv_u has
+        // lost its relative precision (subnormal or 0).
+        log_x = inv_u >= std::numeric_limits<double>::min()
+                    ? std::log(inv_u) + log_y
+                    : std::log(df) - detail::TWO * std::log(abs_t) + log_y;
     }
     TTails r{};
     if (a < std::numeric_limits<double>::min()) {
