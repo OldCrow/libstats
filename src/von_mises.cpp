@@ -486,6 +486,15 @@ template <typename F>
 }
 
 // ln(2 pi I0(kappa) e^-kappa) above kappa = 1000, by the Hankel series.
+// log f(t) = kappa (cos t - 1) - log(2 pi I0(kappa) e^-kappa), with cos t - 1 = -2 sin^2(t / 2).
+// kappa cos t - log(2 pi I0(kappa)) subtracted two numbers near kappa: relative error 4e-7 at
+// kappa = 1e10, 78% at 1e16, and a density of exactly 1 from 1e20 (M1 seam hunt). The half angle
+// also keeps cos t - 1 exact near the mode, where kappa scales its rounding.
+[[nodiscard]] double logDensityScaled(double t, double kappa, double log_scaled_norm) noexcept {
+    const double s = std::sin(t * detail::HALF);
+    return -detail::TWO * kappa * (s * s) - log_scaled_norm;
+}
+
 [[nodiscard]] double log_scaled_normaliser_hankel(double kappa) noexcept {
     const double t = detail::ONE / kappa;
     const double s =
@@ -1055,13 +1064,13 @@ double VonMisesDistribution::getProbability(double x) const {
     if (!std::isfinite(x))
         return detail::ZERO_DOUBLE;  // ±inf → PDF is 0
 
-    double k, mu, lnorm;
+    double k, mu, lsnorm;
     withCacheSnapshot([&] {
         k = kappa_;
         mu = mu_;
-        lnorm = logNormaliser_;
+        lsnorm = logScaledNormaliser_;
     });
-    return std::exp(k * std::cos(x - mu) - lnorm);
+    return std::exp(logDensityScaled(x - mu, k, lsnorm));
 }
 
 double VonMisesDistribution::getLogProbability(double x) const {
@@ -1070,13 +1079,13 @@ double VonMisesDistribution::getLogProbability(double x) const {
     if (!std::isfinite(x))
         return detail::NEGATIVE_INFINITY;  // ±inf → log PDF is -∞
 
-    double k, mu, lnorm;
+    double k, mu, lsnorm;
     withCacheSnapshot([&] {
         k = kappa_;
         mu = mu_;
-        lnorm = logNormaliser_;
+        lsnorm = logScaledNormaliser_;
     });
-    return k * std::cos(x - mu) - lnorm;
+    return logDensityScaled(x - mu, k, lsnorm);
 }
 
 double VonMisesDistribution::getCumulativeProbability(double x) const {
@@ -1443,7 +1452,7 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
             d.withCacheSnapshot([&] {
                 k = d.kappa_;
                 mu = d.mu_;
-                lnorm = d.logNormaliser_;
+                lnorm = d.logScaledNormaliser_;
             });
             d.getProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
         },
@@ -1457,7 +1466,7 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
             d.withCacheSnapshot([&] {
                 k = d.kappa_;
                 mu = d.mu_;
-                lnorm = d.logNormaliser_;
+                lnorm = d.logScaledNormaliser_;
             });
             ParallelUtils::parallelForSlices(
                 count, kBatchSlice, [&](std::size_t start, std::size_t len) {
@@ -1476,7 +1485,7 @@ void VonMisesDistribution::getProbability(std::span<const double> values, std::s
             d.withCacheSnapshot([&] {
                 k = d.kappa_;
                 mu = d.mu_;
-                lnorm = d.logNormaliser_;
+                lnorm = d.logScaledNormaliser_;
             });
             pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
                 d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k, mu,
@@ -1496,7 +1505,7 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
             d.withCacheSnapshot([&] {
                 k = d.kappa_;
                 mu = d.mu_;
-                lnorm = d.logNormaliser_;
+                lnorm = d.logScaledNormaliser_;
             });
             d.getLogProbabilityBatchUnsafeImpl(vals, res, count, k, mu, lnorm);
         },
@@ -1510,7 +1519,7 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
             d.withCacheSnapshot([&] {
                 k = d.kappa_;
                 mu = d.mu_;
-                lnorm = d.logNormaliser_;
+                lnorm = d.logScaledNormaliser_;
             });
             ParallelUtils::parallelForSlices(
                 count, kBatchSlice, [&](std::size_t start, std::size_t len) {
@@ -1529,7 +1538,7 @@ void VonMisesDistribution::getLogProbability(std::span<const double> values,
             d.withCacheSnapshot([&] {
                 k = d.kappa_;
                 mu = d.mu_;
-                lnorm = d.logNormaliser_;
+                lnorm = d.logScaledNormaliser_;
             });
             pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
                 d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k,
@@ -1686,14 +1695,18 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
 void VonMisesDistribution::getLogProbabilityBatchUnsafeImpl(
     const double* values, double* results, std::size_t count, double cached_kappa, double cached_mu,
     double cached_log_normaliser) const noexcept {
-    // Step 1: z[i] = values[i] - mu  (scalar_add with -mu)
+    // log f = -2 kappa sin^2(t / 2) - log(2 pi I0(kappa) e^-kappa), t = x - mu: the form of
+    // logDensityScaled, element-wise. kappa cos t - log(2 pi I0(kappa)) cancelled (M1 seam hunt).
+    // Step 1: s[i] = (values[i] - mu) / 2  (the halving is exact)
     arch::simd::VectorOps::scalar_add(values, -cached_mu, results, count);
+    arch::simd::VectorOps::scalar_multiply(results, detail::HALF, results, count);
 
-    // Step 2: results[i] = cos(z[i])  (vectorised)
-    arch::simd::VectorOps::vector_cos(results, results, count);
+    // Step 2: results[i] = sin(s[i])^2  (vectorised)
+    arch::simd::VectorOps::vector_sin(results, results, count);
+    arch::simd::VectorOps::vector_multiply(results, results, results, count);
 
-    // Step 3: results[i] = kappa * results[i] - log_normaliser
-    arch::simd::VectorOps::scalar_multiply(results, cached_kappa, results, count);
+    // Step 3: results[i] = -2 kappa * results[i] - log_scaled_normaliser
+    arch::simd::VectorOps::scalar_multiply(results, -detail::TWO * cached_kappa, results, count);
     arch::simd::VectorOps::scalar_add(results, -cached_log_normaliser, results, count);
 
     // Fixup: NaN propagates; ±inf must produce -∞ regardless of the SIMD result

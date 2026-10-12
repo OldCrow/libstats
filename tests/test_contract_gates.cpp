@@ -2147,3 +2147,41 @@ TEST(ContractGates, M1_DiscreteQuantileMonotoneAcrossHalf) {
     EXPECT_EQ(poisson, 0) << "Poisson quantile steps down across p = 1/2";
     EXPECT_EQ(geom, 0) << "Geometric quantile steps down across p = 1/2";
 }
+
+// M1 2026-10-12 seam hunt, finding 1: the von Mises density formed exp(kappa*cos(x - mu) -
+// logNormaliser_), with logNormaliser_ = log(2 pi I0(kappa)) close to kappa, so the subtraction
+// cancelled: relative error 4e-7 at kappa = 1e10, 1e-3 at 1e13, 78% at 1e16, and from 1e20 the
+// density read exactly 1 (log density 0). The reference at the mode is the Hankel series
+// sqrt(kappa / (2 pi)) / (1 + 1/(8k) + 9/(128k^2) + 225/(3072k^3)), exact to double here; a point
+// off the mode multiplies it by exp(-2 kappa sin^2(t / 2)). Scalar and batch, pdf and logpdf.
+TEST(ContractGates, M1_VonMisesDensityAtLargeKappa) {
+    for (double k : {1e6, 1e8, 1e10, 1e13, 1e16, 1e20, 1e100, 1e300}) {
+        const auto d = VonMisesDistribution::create(0.5, k).unwrap();
+        const double mode =
+            std::sqrt(k / (2.0 * kPi)) /
+            (1.0 + 1.0 / (8.0 * k) + 9.0 / (128.0 * k * k) + 225.0 / (3072.0 * k * k * k));
+        for (double z : {0.0, 0.5, 2.0}) {  // standard deviations from the mode
+            const double t = z / std::sqrt(k);
+            const double x = 0.5 + t;
+            const double s = std::sin((x - 0.5) / 2.0);
+            const double logWant = std::log(mode) - 2.0 * k * s * s;
+            const double want = std::exp(logWant);
+            const char* where = z == 0.0 ? "mode" : "off mode";
+            EXPECT_LT(relErr(d.getProbability(x), want), 1e-13)
+                << "pdf kappa " << k << " " << where;
+            EXPECT_LT(std::fabs(d.getLogProbability(x) - logWant),
+                      1e-13 * std::fabs(logWant) + 1e-15)
+                << "logpdf kappa " << k << " " << where;
+            std::vector<double> xs(64, x), r(64);
+            d.getProbability(
+                std::span<const double>(xs), std::span<double>(r),
+                {detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED, std::nullopt});
+            EXPECT_LT(relErr(r[0], want), 1e-13) << "batch pdf kappa " << k << " " << where;
+            d.getLogProbability(
+                std::span<const double>(xs), std::span<double>(r),
+                {detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED, std::nullopt});
+            EXPECT_LT(std::fabs(r[0] - logWant), 1e-13 * std::fabs(logWant) + 1e-15)
+                << "batch logpdf kappa " << k << " " << where;
+        }
+    }
+}
