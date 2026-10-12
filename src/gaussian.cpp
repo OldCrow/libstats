@@ -1237,6 +1237,10 @@ void GaussianDistribution::validateParameters(double mean, double stdDev) {
     if (stdDev > detail::MAX_STANDARD_DEVIATION) {
         throw std::invalid_argument("Standard deviation is too large for numerical stability");
     }
+    if (stdDev < detail::MIN_SQUARABLE_SCALE) {  // validateGaussianParameters' lower bound
+        throw std::invalid_argument(
+            "Standard deviation is below the range where σ² is a normal double");
+    }
 }
 
 //==========================================================================

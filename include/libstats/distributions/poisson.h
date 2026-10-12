@@ -24,6 +24,11 @@ namespace stats {
  * - CDF: F(k) = Σ(i=0 to k) (λ^i * e^(-λ)) / i! = Q(k+1, λ) (regularized gamma function)
  * - Parameter: λ > 0 (rate parameter, mean number of events)
  * - Support: k ∈ {0, 1, 2, 3, ...} (non-negative integers)
+ * - Non-integer arguments: the PMF and log-PMF round x to the nearest integer (halves away from
+ *   zero) and give 0 (−∞) when that is negative: x in (−½, ½) is the count 0, so
+ *   pmf(−1e-300) = pmf(0), and x ≤ −½ has mass 0. The CDF and survival floor x instead:
+ *   F(x) = F(⌊x⌋), S(x) = S(⌊x⌋), so F(−1e-300) = 0 and S(−1e-300) = 1. At a non-integer x,
+ *   pmf(x) is therefore not F(x) − F(x − 1).
  * - Mean: λ
  * - Variance: λ
  * - Mode: ⌊λ⌋ (floor of λ, or λ-1 if λ is integer)
@@ -400,9 +405,8 @@ class PoissonDistribution : public DistributionBase {
      * For Poisson distribution: P(X = k) = (λ^k * e^(-λ)) / k! for k = 0, 1, 2, ...
      * Uses different algorithms based on λ size for optimal performance and accuracy.
      *
-     * @param x The value at which to evaluate the PMF (will be rounded to nearest non-negative
-     * integer)
-     * @return Probability mass for the given value, 0 for negative values
+     * @param x The value at which to evaluate the PMF, rounded to the nearest integer first
+     * @return Probability mass at that count; 0 where it is negative (x ≤ −½), and for ±∞
      */
     [[nodiscard]] double getProbability(double x) const override;
 
@@ -412,9 +416,8 @@ class PoissonDistribution : public DistributionBase {
      * For Poisson distribution: log(P(X = k)) = k*log(λ) - λ - log(k!) for k = 0, 1, 2, ...
      * Uses log-space computation to avoid overflow for large k or λ.
      *
-     * @param x The value at which to evaluate the log-PMF (will be rounded to nearest non-negative
-     * integer)
-     * @return Natural logarithm of the probability mass, or -∞ for negative values
+     * @param x The value at which to evaluate the log-PMF, rounded to the nearest integer first
+     * @return Natural logarithm of the probability mass, or -∞ where the count is negative
      */
     [[nodiscard]] double getLogProbability(double x) const override;
 
@@ -424,7 +427,7 @@ class PoissonDistribution : public DistributionBase {
      * For Poisson distribution: F(k) = Q(k+1, λ) where Q is the regularized gamma function
      * Uses efficient algorithms for different λ ranges.
      *
-     * @param x The value at which to evaluate the CDF
+     * @param x The value at which to evaluate the CDF, floored to a count (0 for x < 0)
      * @return Cumulative probability P(X ≤ x)
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
@@ -443,6 +446,8 @@ class PoissonDistribution : public DistributionBase {
      * For p ≤ ½ the smallest k with getCumulativeProbability(k) ≥ p; for p > ½ the smallest k
      * with getSurvival(k) ≤ 1 − p, decided on the survival side because 1 − p is exact there
      * and F(k) near 1 is not. Bracketing search from a normal-approximation guess.
+     * Q(0) = 0; Q(1) = +∞, the smallest k with S(k) = 0 on the unbounded support. The search
+     * range ends at INT_MAX, past every quantile the λ ≤ 1e6 limit allows.
      *
      * @param p Probability value in [0,1]
      * @return the smallest count k with P(X ≤ k) ≥ p, under the rule above
@@ -815,7 +820,7 @@ class PoissonDistribution : public DistributionBase {
     // 20. PRIVATE UTILITY METHODS
     //==========================================================================
 
-    /** @brief Round double to nearest non-negative integer (PMF, log-PMF) */
+    /** @brief Nearest integer to x (PMF, log-PMF), or −1 when that is not a valid count */
     static int roundToNonNegativeInt(double x) noexcept;
 
     /** @brief Largest count ≤ x (CDF and survival: F is a right-continuous step function) */

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -268,6 +269,31 @@ double stirling_error(double m) noexcept {
 // t = (x − M)/M: no cancellation below |t| = ¼, where log1pmx sums its series, and about 3 bits
 // in log1pmx's direct difference from there to ½; farther out the direct form loses a few bits
 // at most.
+//
+// log(x/m) of two positive doubles: the quotient logged as one where it is a normal double, the
+// difference of the two logs where it is not. A quotient that underflows below DBL_MIN or overflows
+// carries no precision (NegativeBinomial(1e-300, ½) at k = 1e300 logged 0, and its −∞ met a +∞
+// downstream as NaN); the difference of two finite logs is exact to a few ulp of their size.
+double log_ratio(double x, double m) noexcept {
+    const double q = x / m;
+    if (q >= std::numeric_limits<double>::min() && q <= std::numeric_limits<double>::max())
+        return std::log(q);
+    return std::log(x) - std::log(m);
+}
+
+// log(n/(a·b)), as one quotient where the product and the quotient are normal doubles (the
+// original form, bit-identical there), from log_ratio(n, a) − log b where either is not: a count
+// of 1e-300 beside one of 1e300 overflows n/(a·b).
+double log_ratio3(double n, double a, double b) noexcept {
+    const double prod = a * b;
+    const double q = n / prod;
+    constexpr double kMin = std::numeric_limits<double>::min();
+    constexpr double kMax = std::numeric_limits<double>::max();
+    if (prod >= kMin && prod <= kMax && q >= kMin && q <= kMax)
+        return std::log(q);
+    return log_ratio(n, a) - std::log(b);
+}
+
 double deviance(double x, double m) noexcept {
     if (x == detail::ZERO_DOUBLE)
         return m;
@@ -276,7 +302,7 @@ double deviance(double x, double m) noexcept {
         const double t = d / m;
         return m * ((detail::ONE + t) * log1pmx(t) + t * t);
     }
-    return x * std::log(x / m) + m - x;
+    return x * log_ratio(x, m) + m - x;
 }
 
 // Error-free transforms for the binomial means, every fusion spelled out (AGENTS.md
@@ -332,7 +358,7 @@ double binomial_log_pmf(double xa, double xb, double pa) noexcept {
     const DoubleDouble rest = two_sum(n.hi, -ma.hi);
     const DoubleDouble mb = two_sum(rest.hi, rest.lo + (n.lo - ma.lo));
     return stirling_error(n.hi) - stirling_error(xa) - stirling_error(xb) +
-           detail::HALF * (std::log(n.hi / (xa * xb)) - detail::LN_2PI) - deviance(xa, ma.hi) -
+           detail::HALF * (log_ratio3(n.hi, xa, xb) - detail::LN_2PI) - deviance(xa, ma.hi) -
            deviance(xb, mb.hi) + ma.lo * (xa / ma.hi - detail::ONE) +
            mb.lo * (xb / mb.hi - detail::ONE);
 }

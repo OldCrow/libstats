@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -1908,6 +1909,14 @@ TEST(ContractGates, H4_InverseGammaReciprocalRoundingAtHugeShape) {
 // at k = 2e9 the amplification is ~1e6. Each batch strategy must agree with the scalar path to
 // 2 ulp: not bit for bit, which held per row by luck where FP contraction is on (math_utils.cpp
 // contracts, gamma.cpp does not) and the batch takes log x from the vector log (M1 2026-10-12).
+// 2 ulp is these rows' tripwire, not a general bound (Fix7C, Kaby Lake, 1.5e6 random points,
+// α 20 to 1e22, rates 1e-3 to 1e3): the log density R = α·log1pmx + C − log x differs between
+// the paths through log x and, where math_utils.cpp contracts, the series and α·L + C. Without
+// contraction |batch − scalar| ≤ 2·max(ulp(R), ulp(log x)), so ≤ 2 ulp of R where |R| ≥ |log x|
+// (asserted for these rows); with -mfma -ffp-contract=on up to 24·max(...), 13 ulp of R where
+// |R| ≥ |log x|. Near a zero of R the ulp distance is unbounded (65536 ulp at R = 4.4e-5,
+// Gamma(15795, 512) at 31.08). These rows are 0 ulp in both x86 builds, at most 1 and 3 ulp
+// within 1e-12 relative of x; M1 put them at 1-2 (d93e0f8).
 // References: mpmath at 60 digits, the CDF by quadrature.
 TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
     using PS = detail::PerformanceHint::PreferredStrategy;
@@ -1936,6 +1945,8 @@ TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
                 break;
             case Op::LogPdf:
                 EXPECT_LT(relErr(g.getLogProbability(r.x), r.want), r.tol) << r.alpha << " " << r.x;
+                // The 2-ulp batch bound below holds only here (see above).
+                ASSERT_GE(std::fabs(r.want), std::fabs(std::log(r.x))) << r.x;
                 if (r.alpha < 2147483647.0) {
                     EXPECT_LT(relErr(e.getLogProbability(r.x), r.want), r.tol) << r.x;
                 }
@@ -2303,4 +2314,426 @@ TEST(ContractGates, M1_GammaRateCorrectionAtSubnormalResult) {
     EXPECT_LT(relErr(ig.getCumulativeProbability(2.999998871846067e-16), 8.8577847157225207e-310),
               2e-12)
         << ig.getCumulativeProbability(2.999998871846067e-16);
+}
+
+// Fix7 (discrete contracts, 2026-10-12). References: mpmath at 80 digits; a quantile past 2^53 is
+// the exact integer quantile rounded up to the next double.
+namespace {
+const stats::detail::PerformanceHint kFix7Vectorized{
+    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED, std::nullopt};
+const stats::detail::PerformanceHint kFix7Parallel{
+    stats::detail::PerformanceHint::PreferredStrategy::FORCE_PARALLEL, std::nullopt};
+
+// The documented rule, checked on the distribution's own F and S at the returned count and at
+// the representable count just below it.
+void expectQuantileRule(const NegativeBinomialDistribution& d, double prob, double k) {
+    ASSERT_TRUE(std::isfinite(k)) << prob;
+    const double below = std::nextafter(k, 0.0);
+    if (prob <= 0.5) {
+        EXPECT_GE(d.getCumulativeProbability(k), prob) << k;
+        EXPECT_LT(d.getCumulativeProbability(below), prob) << below;
+    } else {
+        EXPECT_LE(d.getSurvival(k), 1.0 - prob) << k;
+        EXPECT_GT(d.getSurvival(below), 1.0 - prob) << below;
+    }
+}
+}  // namespace
+
+// Geometric and NegativeBinomial quantiles stopped at 2^53 = 9007199254740992 on both sides of ½
+// (a search cap): Geometric(1e-20).Q(½) returned 2^53 for 6.93e19, Geometric(1e-300).Q(0.3) 2^53
+// for 3.6e299. The search now runs on past 2^53 over representable counts, ending at +∞.
+TEST(ContractGates, Fix7_NegBinomQuantilePast2to53) {
+    struct Case {
+        double r, p, prob, want;
+    };
+    const Case cases[] = {
+        {1.0, 1e-20, 0.5, 6.931471805599454e+19},
+        {1.0, 1e-300, 0.3, 3.566749439387324e+299},
+        {1.0, 1e-16, 0.9, 2.302585092994046e+16},
+        {1.0, 1e-300, 0.9999, 9.210340371976293e+300},
+        {1.0, 1e-300, 1.0 - 0x1p-53, 3.6736800569677104e+301},
+        {3.0, 1e-20, 0.5, 2.6740603137235606e+20},
+        {3.0, 1e-20, 0.1, 1.1020653282493212e+20},
+        {0.5, 1e-20, 0.9, 1.3527717270477077e+20},
+        {20.0, 1e-18, 0.5, 1.9667672423305667e+19},
+    };
+    for (const Case& c : cases) {
+        const NegativeBinomialDistribution d(c.r, c.p);
+        const double k = d.getQuantile(c.prob);
+        // The search is exact on the library's F and S (expectQuantileRule); its distance from the
+        // true quantile is their error there. At r = 1 that is a few ulp; I_p(r, k+1) at
+        // b = k + 1 ~ 1e20 is off ~7e-15 absolute in F, which moves the count ~6e-15 relative.
+        if (c.r == 1.0)
+            EXPECT_LE(ulpsApart(k, c.want), 4.0)
+                << "Geometric(" << c.p << ").Q(" << c.prob << ") = " << k;
+        else
+            EXPECT_LT(relErr(k, c.want), 1e-13)
+                << "NB(" << c.r << ", " << c.p << ").Q(" << c.prob << ") = " << k;
+        expectQuantileRule(d, c.prob, k);
+        if (c.r == 1.0) {
+            const GeometricDistribution g(c.p);
+            EXPECT_EQ(g.getQuantile(c.prob), k);
+        }
+    }
+    // Past DBL_MAX no finite count qualifies: 1.4e323 at p = denorm_min.
+    EXPECT_EQ(GeometricDistribution(5e-324).getQuantile(0.5),
+              std::numeric_limits<double>::infinity());
+}
+
+// Q(1) was special-cased against the rule (the smallest k with S(k) ≤ 0): Geometric(1).Q(1) and
+// NegativeBinomial(2, 1).Q(1) returned +∞, Bernoulli(0).Q(1) 1 and Binomial(10, 0).Q(1) 10, though
+// each puts all its mass at 0. Q(1) is now the support's upper end in every discrete.
+TEST(ContractGates, Fix7_QuantileAtOneIsSupportUpperEnd) {
+    const double inf = std::numeric_limits<double>::infinity();
+    EXPECT_EQ(GeometricDistribution(1.0).getQuantile(1.0), 0.0);
+    EXPECT_EQ(NegativeBinomialDistribution(2.0, 1.0).getQuantile(1.0), 0.0);
+    EXPECT_EQ(BernoulliDistribution(0.0).getQuantile(1.0), 0.0);
+    EXPECT_EQ(BinomialDistribution(10, 0.0).getQuantile(1.0), 0.0);
+    EXPECT_EQ(BernoulliDistribution(1.0).getQuantile(1.0), 1.0);
+    EXPECT_EQ(BernoulliDistribution(0.3).getQuantile(1.0), 1.0);
+    EXPECT_EQ(BinomialDistribution(10, 1.0).getQuantile(1.0), 10.0);
+    EXPECT_EQ(BinomialDistribution(10, 0.3).getQuantile(1.0), 10.0);
+    EXPECT_EQ(DiscreteDistribution(-2, 3).getQuantile(1.0), 3.0);
+    EXPECT_EQ(GeometricDistribution(0.5).getQuantile(1.0), inf);
+    EXPECT_EQ(NegativeBinomialDistribution(2.0, 0.5).getQuantile(1.0), inf);
+    EXPECT_EQ(PoissonDistribution(1.0).getQuantile(1.0), inf);
+    // The degenerate ones agree with their own quantiles just below 1, and S is 0 there.
+    EXPECT_EQ(GeometricDistribution(1.0).getQuantile(1.0 - 0x1p-53), 0.0);
+    EXPECT_EQ(NegativeBinomialDistribution(2.0, 1.0).getQuantile(0.7), 0.0);
+    EXPECT_EQ(BinomialDistribution(10, 0.0).getQuantile(0.7), 0.0);
+    EXPECT_EQ(NegativeBinomialDistribution(2.0, 1.0).getSurvival(0.0), 0.0);
+    EXPECT_EQ(BinomialDistribution(10, 0.0).getSurvival(0.0), 0.0);
+}
+
+// NegativeBinomial(1e-300, ½).getProbability(1e300) was NaN: log1p(k/r) overflowed to +∞ and
+// binomial_log_pmf's deviance logged the underflowed quotient r/(n·p) = 0, another +∞.
+TEST(ContractGates, Fix7_NegBinomPmfAtExtremeCounts) {
+    struct Case {
+        double r, k, logpmf;
+    };
+    const Case cases[] = {
+        {1e-300, 1e300, -6.931471805599454e+299}, {1e-300, 1.0, -691.4686750787737},
+        {1e-300, 10.0, -700.0095847968072},       {1e-300, 1e10, -6931472519.400832},
+        {5e-324, 1.0, -745.1332191019412},        {5e-324, 25.0, -764.9876272602481},
+        {5e-324, 1e300, -6.931471805599454e+299},
+    };
+    for (const Case& c : cases) {
+        const NegativeBinomialDistribution d(c.r, 0.5);
+        const double lp = d.getLogProbability(c.k);
+        EXPECT_LT(relErr(lp, c.logpmf), 1e-13)
+            << "NB(" << c.r << ", ½).logpmf(" << c.k << ") = " << lp;
+        const double pmf = d.getProbability(c.k);
+        const double want = std::exp(c.logpmf);
+        if (want < std::numeric_limits<double>::min())  // subnormal or 0: within one step
+            EXPECT_LE(std::fabs(pmf - want), std::numeric_limits<double>::denorm_min())
+                << "pmf(" << c.k << ") = " << pmf;
+        else
+            EXPECT_LT(relErr(pmf, want), 1e-10) << "pmf(" << c.k << ") = " << pmf;
+        std::vector<double> xs(16, c.k), out(16);
+        d.getLogProbability(std::span<const double>(xs), std::span<double>(out), kFix7Vectorized);
+        EXPECT_EQ(out[0], lp) << "batch logpmf(" << c.k << ")";
+        d.getProbability(std::span<const double>(xs), std::span<double>(out), kFix7Vectorized);
+        EXPECT_EQ(out[0], d.getProbability(c.k)) << "batch pmf(" << c.k << ")";
+    }
+    const NegativeBinomialDistribution d(1e-300, 0.5);
+    EXPECT_EQ(d.getCumulativeProbability(1e300), 1.0);
+    EXPECT_EQ(d.getSurvival(1e300), 0.0);
+    EXPECT_EQ(d.getCumulativeProbability(0.0), 1.0);  // p^r = 1 − 6.9e-301
+    EXPECT_LT(relErr(d.getSurvival(0.0), 6.931471805599453e-301), 1e-13) << d.getSurvival(0.0);
+}
+
+// The pmf rounds x to the nearest integer and the CDF floors it, in every discrete: x in (−½, 0)
+// is the count 0 for the pmf and below the support for the CDF. Poisson.pmf(−1e-300) returned 0
+// where Binomial, NegativeBinomial, Geometric and Bernoulli returned pmf(0), and Discrete returned
+// 0 at every non-integer, against its header's rounding.
+namespace {
+template <class D>
+void checkPmfRoundsCdfFloors(const D& d, const char* name) {
+    const double pmf0 = d.getProbability(0.0);
+    const double lpmf0 = d.getLogProbability(0.0);
+    ASSERT_GT(pmf0, 0.0) << name;
+    for (double x : {-1e-300, -0.4, -0.0, 0.4}) {
+        EXPECT_EQ(d.getProbability(x), pmf0) << name << ".pmf(" << x << ")";
+        EXPECT_EQ(d.getLogProbability(x), lpmf0) << name << ".logpmf(" << x << ")";
+        if (x < 0.0) {
+            EXPECT_EQ(d.getCumulativeProbability(x), 0.0) << name << ".cdf(" << x << ")";
+            EXPECT_EQ(d.getSurvival(x), 1.0) << name << ".sf(" << x << ")";
+        }
+    }
+    EXPECT_EQ(d.getProbability(-0.5), 0.0) << name;  // rounds to −1
+    EXPECT_EQ(d.getLogProbability(-0.5), -std::numeric_limits<double>::infinity()) << name;
+    const std::vector<double> xs = {-1e-300, -0.4, -0.5, 0.0, 0.4, -1e-300, -0.4, -0.5,
+                                    -1e-300, -0.4, -0.5, 0.0, 0.4, -1e-300, -0.4, -0.5};
+    std::vector<double> out(xs.size());
+    for (const auto& hint : {kFix7Vectorized, kFix7Parallel}) {
+        d.getProbability(std::span<const double>(xs), std::span<double>(out), hint);
+        for (std::size_t j = 0; j < xs.size(); ++j)
+            EXPECT_EQ(out[j], d.getProbability(xs[j])) << name << " batch pmf " << xs[j];
+        d.getLogProbability(std::span<const double>(xs), std::span<double>(out), hint);
+        for (std::size_t j = 0; j < xs.size(); ++j)
+            EXPECT_EQ(out[j], d.getLogProbability(xs[j])) << name << " batch logpmf " << xs[j];
+    }
+}
+}  // namespace
+
+TEST(ContractGates, Fix7_DiscretePmfRoundsCdfFloors) {
+    checkPmfRoundsCdfFloors(PoissonDistribution(2.0), "Poisson");
+    checkPmfRoundsCdfFloors(BinomialDistribution(5, 0.3), "Binomial");
+    checkPmfRoundsCdfFloors(NegativeBinomialDistribution(2.0, 0.3), "NegativeBinomial");
+    checkPmfRoundsCdfFloors(GeometricDistribution(0.3), "Geometric");
+    checkPmfRoundsCdfFloors(BernoulliDistribution(0.3), "Bernoulli");
+    const DiscreteDistribution discrete(0, 3);
+    checkPmfRoundsCdfFloors(discrete, "Discrete");
+    // Discrete rounds at every non-integer, not only beside 0.
+    EXPECT_EQ(discrete.getProbability(2.4), discrete.getProbability(2.0));
+    EXPECT_EQ(discrete.getProbability(3.4), discrete.getProbability(3.0));
+    EXPECT_EQ(discrete.getProbability(3.5), 0.0);
+}
+
+// getHazard on a discrete distribution mixed two counts: the pmf rounds x to nearest while S
+// floors it, so Geometric(0.3).getHazard(0.5) read pmf(1)/S(0) = 0.3 and
+// getHazard(0.49999999999999994) read pmf(0)/S(0) = 0.4286. Decision (b): both are evaluated at
+// floor(x), so h is a step function constant on [k, k+1). Two-sided: the expected value is
+// pmf(k)/S(k) from the integer k, where the two roundings agree, and each non-integer x must give
+// that value bit for bit.
+TEST(ContractGates, DiscreteHazardFloorsBothFactors) {
+    const auto bits = [](double v) { return std::bit_cast<std::uint64_t>(v); };
+    const auto atK = [](const DistributionBase& d, double k) {
+        const double s = d.getSurvival(k);
+        return s <= 0.0 ? std::numeric_limits<double>::infinity() : d.getProbability(k) / s;
+    };
+    const auto check = [&](const DistributionBase& d, const char* name, double lo, double hi) {
+        ASSERT_TRUE(d.isDiscrete()) << name;
+        for (double k = lo; k <= hi; k += 1.0) {
+            const double want = atK(d, k);
+            EXPECT_EQ(bits(d.getHazard(k)), bits(want)) << name << " h(" << k << ")";
+            for (double x : {k + 0.25, k + 0.5, k + 0.75, std::nextafter(k + 1.0, k)}) {
+                if (std::floor(x) != k)
+                    continue;
+                EXPECT_EQ(bits(d.getHazard(x)), bits(want))
+                    << name << " h(" << x << ") = " << d.getHazard(x) << ", h(" << k
+                    << ") = " << want;
+            }
+        }
+        // Edges: -0 is 0, a negative non-integer floors below the support, NaN propagates.
+        EXPECT_EQ(bits(d.getHazard(-0.0)), bits(d.getHazard(0.0))) << name;
+        EXPECT_EQ(bits(d.getHazard(-0.5)), bits(atK(d, -1.0))) << name << " h(-0.5)";
+        EXPECT_TRUE(std::isnan(d.getHazard(std::numeric_limits<double>::quiet_NaN()))) << name;
+        EXPECT_EQ(bits(d.getHazard(std::numeric_limits<double>::infinity())),
+                  bits(atK(d, std::numeric_limits<double>::infinity())))
+            << name << " h(+inf)";
+        EXPECT_EQ(bits(d.getHazard(-std::numeric_limits<double>::infinity())),
+                  bits(atK(d, -std::numeric_limits<double>::infinity())))
+            << name << " h(-inf)";
+    };
+
+    const GeometricDistribution geo(0.3);
+    EXPECT_EQ(bits(geo.getHazard(0.5)), bits(geo.getHazard(0.49999999999999994)));
+    EXPECT_LT(relErr(geo.getHazard(0.5), 0.3 / 0.7), 1e-15);
+    check(geo, "Geometric(0.3)", 0.0, 12.0);
+    check(PoissonDistribution(3.5), "Poisson(3.5)", 0.0, 15.0);
+    check(BinomialDistribution(10, 0.4), "Binomial(10, 0.4)", 0.0, 10.0);
+    check(NegativeBinomialDistribution(4.0, 0.35), "NegativeBinomial(4, 0.35)", 0.0, 20.0);
+    check(BernoulliDistribution(0.3), "Bernoulli(0.3)", 0.0, 1.0);
+    check(DiscreteDistribution(-3, 5), "Discrete(-3, 5)", -3.0, 5.0);
+
+    // A continuous distribution is not floored: Exponential's hazard is the rate everywhere.
+    const ExponentialDistribution e(2.0);
+    EXPECT_LT(relErr(e.getHazard(0.5), 2.0), 1e-15);
+    EXPECT_FALSE(e.isDiscrete());
+}
+
+//==============================================================================
+// Fix7C contract round, 2026-10-12. References: mpmath at 50-100 digits, the incomplete gamma
+// by quadrature (tools/accuracy_vs_mpmath.py's _gamma_pq_quad). Each gate failed on the unfixed
+// code, as noted per block.
+//==============================================================================
+
+// The rate-product correction (H5) and InverseGamma's reciprocal one (H4) carried the rounding
+// of βx (β/x, 1/x) to first order. The second-order term, ~α·ε²/8, is 6e-17 at α = 1e16 but
+// 6e-13 at 1e20, and in the CDF the dropped e²·(log P)''/2 grows as fast. Unfixed, every row
+// erred 400 to 1.7e5 ulp (Gamma(1e20, 3).getSurvival(3.3333333333333336e19) read
+// 0.49999967317329264); fixed, at most 11 ulp, the incomplete gamma's own error. 1e-14 is
+// ~45 ulp: below every unfixed error, above every fixed one.
+TEST(ContractGates, Fix7C_GammaRateProductSecondOrderAtShape1e20) {
+    enum class Op { LogPdf, Cdf, Sf };
+    struct Row {
+        double alpha, beta, x;
+        Op op;
+        double want;
+    };
+    const Row gamma_rows[] = {
+        {1e20, 3.0, 3.3333333333333336e19, Op::Sf, 0.49999967317318581917},
+        {1e20, 1.1, 9.090909091363635e19, Op::Cdf, 0.69146229490901825994},
+        {1e21, 3.0, 3.333333333544152e20, Op::Sf, 0.022750082210499277675},
+        {1e22, 0.7, 1.4285714285285717e22, Op::Cdf, 0.0013499393868224739604},
+        {1e21, 3.0, 3.333333333333333e20, Op::LogPdf, -23.997469720976190151},
+        {1e22, 0.7, 1.4285714285285717e22, Op::LogPdf, -31.104021506400150461},
+    };
+    for (const auto& r : gamma_rows) {
+        const GammaDistribution g(r.alpha, r.beta);
+        switch (r.op) {
+            case Op::LogPdf:
+                EXPECT_LT(relErr(g.getLogProbability(r.x), r.want), 1e-14) << r.alpha;
+                expectAllStrategies(g, r.x, r.want, 1e-14, kLogPdfBatch, "gamma logpdf");
+                break;
+            case Op::Cdf:
+                EXPECT_LT(relErr(g.getCumulativeProbability(r.x), r.want), 1e-14) << r.alpha;
+                expectAllStrategies(g, r.x, r.want, 1e-14, kCdfBatch, "gamma cdf");
+                break;
+            case Op::Sf:
+                EXPECT_LT(relErr(g.getSurvival(r.x), r.want), 1e-14) << r.alpha;
+                break;
+        }
+    }
+    const Row inverse_rows[] = {
+        {1e20, 3.0, 2.9999999994e-20, Op::Cdf, 0.022750183213910206584},
+        {1e20, 0.7, 7.0000000007e-21, Op::Sf, 0.15865528440297507974},
+        {1e22, 1.1, 1.1000000000330002e-22, Op::Sf, 0.0013498721513122873492},
+        {1e21, 3.0, 2.9999999998102635e-21, Op::LogPdf, 68.51388216192416757},
+    };
+    for (const auto& r : inverse_rows) {
+        const InverseGammaDistribution d(r.alpha, r.beta);
+        switch (r.op) {
+            case Op::LogPdf:
+                EXPECT_LT(relErr(d.getLogProbability(r.x), r.want), 1e-14) << r.alpha;
+                expectAllStrategies(d, r.x, r.want, 1e-14, kLogPdfBatch, "inverse gamma logpdf");
+                break;
+            case Op::Cdf:
+                EXPECT_LT(relErr(d.getCumulativeProbability(r.x), r.want), 1e-14) << r.alpha;
+                expectAllStrategies(d, r.x, r.want, 1e-14, kCdfBatch, "inverse gamma cdf");
+                break;
+            case Op::Sf:
+                EXPECT_LT(relErr(d.getSurvivalProbability(r.x), r.want), 1e-14) << r.alpha;
+                break;
+        }
+    }
+}
+
+// InverseGamma's density where 1/x overflows (x < 5.6e-309) was taken as its x → 0 limit, 0,
+// which it is not for a small β: InverseGamma(1e10, 1e-300) at 1.0003e-310 is 1.35e119 (unfixed
+// pdf 0, logpdf −inf, every strategy). It is now taken from β/x. Where β/x overflows as well the
+// density is 0, before and after.
+TEST(ContractGates, Fix7C_InverseGammaDensityPastReciprocalOverflow) {
+    const InverseGammaDistribution big(1e10, 1e-300);
+    const double x = 1.00030009002705e-310;
+    EXPECT_LT(relErr(big.getLogProbability(x), 274.30504534320583559), 1e-15);
+    EXPECT_LT(relErr(big.getProbability(x), 1.3463796870432781828e119), 1e-13);
+    expectAllStrategies(big, x, 274.30504534320583559, 1e-15, kLogPdfBatch, "IG logpdf");
+    expectAllStrategies(big, x, 1.3463796870432781828e119, 1e-13, kPdfBatch, "IG pdf");
+    // Below STIRLING_PREFACTOR_SHAPE, the direct form.
+    const InverseGammaDistribution low(3.0, 1e-300);
+    EXPECT_LT(relErr(low.getLogProbability(3e-310), -3333332555.5420083177), 1e-15);
+    expectAllStrategies(low, 3e-310, -3333332555.5420083177, 1e-15, kLogPdfBatch, "IG logpdf");
+    // β/x overflows: the density is 0.
+    const InverseGammaDistribution unit(2.0, 1.0);
+    EXPECT_EQ(unit.getLogProbability(1e-310), -std::numeric_limits<double>::infinity());
+    EXPECT_EQ(unit.getProbability(1e-310), 0.0);
+}
+
+// Gamma's and InverseGamma's Stirling log density (α ≥ 20) took log(βx/α) from the product or
+// the ratio, subnormal or 0 where βx/α < DBL_MIN (#264): Gamma(1e16, 1).logpdf(DBL_MIN) = −inf
+// for −7.44e18, Gamma(1e16, 3).logpdf(2.97e-308) 1.4e-4 relative off, Gamma(1e14, 1) at DBL_MIN
+// 1.1e-6, InverseGamma(1e16, 1) at 4.494e307 −inf, InverseGamma(1e16, 3) at 1e308 6.7e-4 off,
+// every strategy. log(βx) is now log β + log x there, the CDF's #216 form.
+TEST(ContractGates, Fix7C_GammaLogDensityAtSubnormalRateProduct) {
+    const double dbl_min = std::numeric_limits<double>::min();
+    struct Row {
+        double alpha, beta, x, want;
+    };
+    const Row gamma_rows[] = {
+        {1e16, 3.0, 2.9667651446762683e-308, -7428514856590488740.4},
+        {1e16, 1.0, dbl_min, -7442377800201687645.8},
+        {1e14, 1.0, dbl_min, -73963260983417350.984},
+        {1e18, 0.5, 1e-310, -7.5494105768260693199e20},
+        {1e20, 3.0, 1e-300, -7.3472861746942650916e22},
+        {25.0, 3.0, 5e-324, -17893.881148294559872},
+    };
+    for (const auto& r : gamma_rows) {
+        const GammaDistribution g(r.alpha, r.beta);
+        EXPECT_LT(relErr(g.getLogProbability(r.x), r.want), 1e-14) << r.alpha << " " << r.x;
+        expectAllStrategies(g, r.x, r.want, 1e-14, kLogPdfBatch, "gamma logpdf");
+    }
+    const Row inverse_rows[] = {
+        {1e16, 1.0, 4.494e307, -7442377282108399624.9},
+        {1e16, 3.0, 1e308, -7439389578414027611.1},
+        {1e14, 1.0, std::numeric_limits<double>::max(), -74101890419530758.214},
+        {1e20, 1.0, 4.494e307, -7.5344806858281607615e22},
+    };
+    for (const auto& r : inverse_rows) {
+        const InverseGammaDistribution d(r.alpha, r.beta);
+        EXPECT_LT(relErr(d.getLogProbability(r.x), r.want), 1e-14) << r.alpha << " " << r.x;
+        expectAllStrategies(d, r.x, r.want, 1e-14, kLogPdfBatch, "inverse gamma logpdf");
+    }
+}
+
+// Cauchy accepted a subnormal γ, whose cached 1/γ is inf below 5.6e-309: Cauchy(0, 5e-324).pdf(0)
+// was NaN. γ < DBL_MIN is now rejected, as HalfNormal and Rayleigh reject a σ whose square is
+// not normal. Past z's overflow, |x − x₀| > DBL_MAX·γ, the density read 0 and the log density
+// −inf (Cauchy(0, 1e-300) at 1e10: 3.18e-321 and −737.97); where x − x₀ overflowed, z did too
+// though it is 2 at Cauchy(−1e308, 1e308) at 1e308 (density 0 for 6.4e-310, CDF 1 for 0.85).
+TEST(ContractGates, Fix7C_CauchySubnormalScaleAndOverflowedZ) {
+    const double dbl_min = std::numeric_limits<double>::min();
+    for (double g : {5e-324, 1e-310, dbl_min / 2.0}) {
+        EXPECT_THROW(CauchyDistribution(0.0, g), std::invalid_argument) << g;
+        CauchyDistribution c;
+        EXPECT_TRUE(c.trySetGamma(g).isError()) << g;
+        EXPECT_THROW(c.setGamma(g), std::invalid_argument) << g;
+    }
+    const CauchyDistribution edge(0.0, dbl_min);
+    EXPECT_LT(relErr(edge.getProbability(1.0), 7.0826300665195522111e-309), 1e-13);
+
+    const CauchyDistribution narrow(0.0, 1e-300);
+    // 644.27 subnormal ulps: the nearest is 644.
+    EXPECT_EQ(narrow.getProbability(1e10), 644 * std::numeric_limits<double>::denorm_min());
+    expectAllStrategies(narrow, 1e10, 644 * std::numeric_limits<double>::denorm_min(), 0.0,
+                        kPdfBatch, "cauchy pdf");
+    EXPECT_LT(relErr(narrow.getLogProbability(1e10), -737.97195964394401903), 1e-15);
+    expectAllStrategies(narrow, 1e10, -737.97195964394401903, 1e-15, kLogPdfBatch, "cauchy logpdf");
+    const CauchyDistribution shifted(5.0, 1e-300);
+    EXPECT_LT(relErr(shifted.getLogProbability(-1e300), -2073.4713135804905159), 1e-15);
+    expectAllStrategies(shifted, -1e300, -2073.4713135804905159, 1e-15, kLogPdfBatch,
+                        "cauchy logpdf");
+
+    const CauchyDistribution wide(-1e308, 1e308);
+    EXPECT_LT(relErr(wide.getProbability(1e308), 6.3661977236758133609e-310), 1e-13);
+    expectAllStrategies(wide, 1e308, 6.3661977236758133609e-310, 1e-13, kPdfBatch, "cauchy pdf");
+    EXPECT_LT(relErr(wide.getLogProbability(1e308), -711.95037644044957124), 1e-15);
+    expectAllStrategies(wide, 1e308, -711.95037644044957124, 1e-15, kLogPdfBatch, "cauchy logpdf");
+    EXPECT_LT(relErr(wide.getCumulativeProbability(1e308), 0.85241638234956672582), 1e-15);
+    expectAllStrategies(wide, 1e308, 0.85241638234956672582, 1e-15, kCdfBatch, "cauchy cdf");
+    EXPECT_LT(relErr(wide.getSurvival(1e308), 0.14758361765043327418), 1e-15);
+}
+
+// Gaussian and LogNormal accepted σ below √DBL_MIN, where their cached −1/(2σ²) is −inf: the
+// density at the mean was 0·inf = NaN, and elsewhere the batch NaN where the scalar path read 0
+// (Gaussian(0, 1e-160)). They now reject it, as HalfNormal and Rayleigh do (MIN_SQUARABLE_SCALE),
+// through every constructor and setter; at the bound the density is finite on every path.
+TEST(ContractGates, Fix7C_GaussianLogNormalSigmaLowerBound) {
+    const double tiny = 1e-160;
+    EXPECT_THROW(GaussianDistribution(0.0, tiny), std::invalid_argument);
+    EXPECT_TRUE(GaussianDistribution::create(0.0, tiny).isError());
+    EXPECT_THROW(LogNormalDistribution(0.0, tiny), std::invalid_argument);
+    EXPECT_TRUE(LogNormalDistribution::create(0.0, tiny).isError());
+    GaussianDistribution n;
+    EXPECT_TRUE(n.trySetStandardDeviation(tiny).isError());
+    EXPECT_TRUE(n.trySetParameters(0.0, tiny).isError());
+    EXPECT_THROW(n.setStandardDeviation(tiny), std::invalid_argument);
+    EXPECT_THROW(n.setParameters(0.0, tiny), std::invalid_argument);
+    LogNormalDistribution ln;
+    EXPECT_TRUE(ln.trySetSigma(tiny).isError());
+    EXPECT_TRUE(ln.trySetParameters(0.0, tiny).isError());
+    EXPECT_THROW(ln.setSigma(tiny), std::invalid_argument);
+    EXPECT_THROW(ln.setParameters(0.0, tiny), std::invalid_argument);
+
+    const double s = detail::MIN_SQUARABLE_SCALE;
+    const GaussianDistribution at_bound(0.0, s);
+    // log φ(0)/σ = −½·log(2π) − log σ.
+    const double want_log = -0.5 * std::log(2.0 * kPi) - std::log(s);
+    EXPECT_LT(relErr(at_bound.getLogProbability(0.0), want_log), 1e-15);
+    expectAllStrategies(at_bound, 0.0, want_log, 1e-15, kLogPdfBatch, "gaussian logpdf");
+    expectAllStrategies(at_bound, 0.0, std::exp(want_log), 1e-13, kPdfBatch, "gaussian pdf");
+    const LogNormalDistribution ln_bound(0.0, s);
+    EXPECT_LT(relErr(ln_bound.getLogProbability(1.0), want_log), 1e-15);
+    expectAllStrategies(ln_bound, 1.0, want_log, 1e-15, kLogPdfBatch, "lognormal logpdf");
 }

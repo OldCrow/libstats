@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard library includes
+#include <cmath>       // for std::floor, std::log
 #include <cstddef>     // for size_t
 #include <functional>  // for std::function
 #include <limits>      // for std::numeric_limits
@@ -165,14 +166,24 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * Instantaneous failure rate (or hazard rate) at x. Returns +inf when
      * the survival function is zero (x past the support upper bound).
      *
+     * For a discrete distribution both factors are evaluated at floor(x): the
+     * pmf rounds x to nearest and S floors it, so h(x) = pmf(k) / S(k) with
+     * k = floor(x), a step function constant on [k, k + 1). NaN propagates.
+     *
+     * f and S see one parameter state under a concurrent setter
+     * (readConsistent): each is a separate locking call.
+     *
      * @param x Evaluation point.
      * @return h(x) ≥ 0, or +inf if S(x) = 0.
      */
     [[nodiscard]] double getHazard(double x) const {
-        const double s = getSurvival(x);
-        if (s <= 0.0)
-            return std::numeric_limits<double>::infinity();
-        return getProbability(x) / s;
+        const double at = isDiscrete() ? std::floor(x) : x;
+        return readConsistent([this, at] {
+            const double s = getSurvival(at);
+            if (s <= 0.0)
+                return std::numeric_limits<double>::infinity();
+            return getProbability(at) / s;
+        });
     }
 
     // getEntropy() promoted to DistributionInterface in v2.0.0 (Step 3A).

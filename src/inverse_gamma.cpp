@@ -34,17 +34,22 @@ constexpr int kBisectIterations = 80;
 // at a large shape the result amplifies that rounding: d log f / d log(β/x) = α − β/x, ~3e9 at
 // α = 1e16 thirty standard deviations out, so half an ulp of β/x moved the density 1.6e-7 and
 // the CDF 7.4e-8 relative (Gamma(1e16, 1) is clean at the mirrored points: there βx is x).
-// Each rounding is recovered exactly with an fma and carried to first order in the log, where
-// the second-order term is α·(δ/y)²/2 for a relative rounding δ/y ≤ ε/2: 6e-17 at α = 1e16.
+// Each rounding is recovered exactly with an fma and carried to second order: the first-order
+// carry left α·(δ/y)²/2 for a relative rounding δ/y ≤ ε/2, 6e-17 at α = 1e16 but 6e-13 at 1e20,
+// and its CDF erred 1100 ulp at InverseGamma(1e20, 3), 1.7e5 at 1e22 (Fix7C).
 
 // log f(x) − (what the delegate returns at inv_x = fl(1/x), minus 2·log x). The delegate takes
 // y = fl(β·inv_x); with e = 1 − inv_x·x (log(1/x) − log inv_x to first order), exact by fma.
 // Below α = STIRLING_PREFACTOR_SHAPE it evaluates (α − 1)·log inv_x − y, which takes y only
 // linearly and uncorrected, so the argument's whole error d = β/x − y counts, exact up to the
-// final division. From there it evaluates log P(α, βx') − log inv_x at x' = inv_x with its own
-// product's rounding β·inv_x − y already carried (gamma.cpp, withRateProductRounding), so only
-// d = β/x − β·inv_x = β·e/x remains, against the y-derivative (α − y)/y. Coupled to that
-// delegate: the β = 3 rows of the H4 guard in test_contract_gates fail if the two disagree.
+// final division. From there it evaluates log P(α, Y) − log inv_x at Y = β·inv_x, exact, with
+// its own product's rounding e_p = Y − y already carried (gamma.cpp, withRateProductRounding),
+// so what remains is log P(α, β/x) − log P(α, Y) + log(inv_x·x) = −(α − 1)·log1p(−e) − d with
+// d = β/x − Y = Y·e/(1 − e). Expanded about y, so that the terms of size α·e cancel exactly:
+// e·((α − y − 1) + e·((α − 1)/2 − y) − e_p), whose next term is ~α·e³ (4e-29 at α = 1e20). The
+// first-order (α − y)·(d/y) − e it replaces missed ~α·e²/2, 6e-13 at α = 1e20 (Fix7C). Coupled
+// to that delegate: the β = 3 rows of the H4 guard in test_contract_gates fail if the two
+// disagree.
 [[nodiscard]] double reciprocalArgumentCorrection(double x, double inv_x, double alpha,
                                                   double beta) noexcept {
     const double y = beta * inv_x;
@@ -53,17 +58,17 @@ constexpr int kBisectIterations = 80;
     const double e = std::fma(-inv_x, x, detail::ONE);
     if (alpha < detail::STIRLING_PREFACTOR_SHAPE)
         return (alpha - detail::ONE) * e - std::fma(-y, x, beta) / x;
-    const double d = beta * e / x;
-    return (alpha - y) * (d / y) - e;
+    const double e_p = std::fma(beta, inv_x, -y);
+    return e * (((alpha - y) - detail::ONE) + e * (detail::HALF * (alpha - detail::ONE) - y) - e_p);
 }
 
 // Q(α, t) or P(α, t) at t = fl(β/x), corrected to t + δ, δ = β/x − t = r/x with the exact
-// residual r = β − t·x. dP/dt = −dQ/dt = t^(α−1)·e^(−t)/Γ(α) = exp(log_gamma_prefactor(α, t))/t,
-// so log Q moves by −(δ/t)·exp(lgp)/Q and log P by +(δ/t)·exp(lgp)/P, with δ/t = r/(t·x) =
-// r/(β − r), r/β to relative ε. Applied to the log, not as Q − δ·dQ/dt: the linear form's
-// second-order term is ((α − t)·δ/t)²/2 relative, 5e-14 at the case above, while the log form's
-// is δ²/2 times log Q's curvature, ~α/t² + 1/(t − α)² (log P's alike), below 1e-16 there. The
-// ratio is formed in the log, so an exp(lgp) below DBL_MIN keeps it.
+// residual r = β − t·x, so δ/t = r/(t·x) = r/(β − r). P gains and Q loses the density's integral
+// over [t, t + δ], f(t)·δ·(expm1(u)/u − b·δ²/3) with u = δ·(α − 1 − t)/t and b = (α − 1)/(2t²),
+// t·f(t) = exp(log_gamma_prefactor(α, t)): gamma.cpp's rateProductIncrement, which derives it.
+// Carried in the log to first order until Fix7C, which left 1100 ulp at InverseGamma(1e20, 3)
+// and 1.7e5 at 1e22. The ratio is formed in the log, so an exp(lgp) below DBL_MIN
+// keeps it.
 [[nodiscard]] double correctedIncompleteGamma(double value, bool upper, double alpha, double beta,
                                               double x, double t) noexcept {
     const double r = std::fma(-t, x, beta);
@@ -71,9 +76,31 @@ constexpr int kBisectIterations = 80;
     // correction there left it 1.8e-7 off at InverseGamma(1e16, 3) (M1 survival sweep).
     if (r == detail::ZERO_DOUBLE || !(value > detail::ZERO_DOUBLE))
         return value;
-    const double rel = r / beta;
-    const double change = rel * std::exp(detail::log_gamma_prefactor(alpha, t) - std::log(value));
-    return value * std::exp(upper ? -change : change);
+    const double rel = r / (beta - r);
+    const double ratio = std::exp(detail::log_gamma_prefactor(alpha, t) - std::log(value));
+    if (ratio == detail::ZERO_DOUBLE)
+        return value;  // and u may overflow (t ≫ α): see rateProductIncrement
+    const double u = rel * ((alpha - t) - detail::ONE);
+    const double phi = u == detail::ZERO_DOUBLE ? detail::ONE : std::expm1(u) / u;
+    const double increment = rel * ratio * (phi - (alpha - detail::ONE) * rel * rel / 6.0);
+    // Clamped as gamma.cpp's callers clamp (the expansion fails from α ~ 1e32).
+    return std::clamp(std::fma(upper ? -value : value, increment, value), detail::ZERO_DOUBLE,
+                      detail::ONE);
+}
+
+// log f(x) where 1/x overflows (0 < x < 1/DBL_MAX, ~5.6e-309), from t = β/x, which is finite
+// there for β < 1: log f = log_gamma_prefactor(α, t) − log x, with t's rounding δ = r/x carried
+// as α·log1p(δ/t) − δ to second order. Read as −inf, the reciprocal path's limit, until Fix7C,
+// though the density need not be small there: InverseGamma(1e10, 1e-300).pdf(1.0003e-310) =
+// 1.35e119. Where t overflows too, −t dominates the log density for any α below ~t/709.
+[[nodiscard]] double logDensityPastReciprocalRange(double x, double alpha, double beta) noexcept {
+    const double t = beta / x;
+    if (!(t <= std::numeric_limits<double>::max()))
+        return detail::NEGATIVE_INFINITY;
+    const double r = std::fma(-t, x, beta);
+    const double rel = r / (beta - r);
+    const double log_value = detail::log_gamma_prefactor(alpha, t) - std::log(x);
+    return std::fma(rel, alpha - t, log_value - detail::HALF * alpha * rel * rel);
 }
 
 }  // namespace
@@ -375,10 +402,10 @@ double InverseGammaDistribution::getEntropy() const {
 //   x  = NaN                -> NaN                    (propagate)
 //   x <= 0 (incl. -inf)     -> -inf   (outside the support)
 //   x  = +inf               -> -inf   (density ~ x^(-alpha-1) -> 0)
-//   x < ~5.6e-309           -> -inf   1/x overflows; the true density there is
-//                                     already 0 (exp(-beta/x) underflows long
-//                                     before), so -inf is the correct limit and
-//                                     +inf must never reach the delegate.
+//   x < ~5.6e-309           -> -inf   1/x overflows, so +inf must never reach the
+//                                     delegate. -inf is not the density there for a
+//                                     small beta: callers take a positive finite x
+//                                     to logDensityPastReciprocalRange instead.
 bool InverseGammaDistribution::reciprocalIsUsable(double x, double& inv_x,
                                                   double& edge_logpdf) noexcept {
     if (std::isnan(x)) {
@@ -445,8 +472,16 @@ double InverseGammaDistribution::sfImpl(double x, double alpha, double beta) noe
 double InverseGammaDistribution::getLogProbability(double x) const {
     double inv_x = detail::ZERO_DOUBLE;
     double edge = detail::ZERO_DOUBLE;
-    if (!reciprocalIsUsable(x, inv_x, edge))
-        return edge;
+    if (!reciprocalIsUsable(x, inv_x, edge)) {
+        if (!(x > detail::ZERO_DOUBLE) || x == kInf)
+            return edge;
+        double a, b;
+        withCacheSnapshot([&] {
+            a = alpha_;
+            b = beta_;
+        });
+        return logDensityPastReciprocalRange(x, a, b);
+    }
     // Jacobian of Y = 1/X is 1/x^2, i.e. -2 ln x in log space. Exact in log
     // space -- no cancellation, and no intermediate density to overflow.
     // The delegate is evaluated inside this object's snapshot: every setter updates it under
@@ -663,6 +698,8 @@ void InverseGammaDistribution::getLogProbability(std::span<const double> values,
         if (reciprocalIsUsable(values[i], inv_x, edge))
             results[i] = results[i] + reciprocalArgumentCorrection(values[i], inv_x, a, b) -
                          detail::TWO * std::log(values[i]);
+        else if (values[i] > detail::ZERO_DOUBLE && values[i] != kInf)
+            results[i] = logDensityPastReciprocalRange(values[i], a, b);
         else
             results[i] = edge;
     }

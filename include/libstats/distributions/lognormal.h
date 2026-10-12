@@ -70,8 +70,8 @@ class LogNormalDistribution : public DistributionBase {
     /**
      * @brief Construct a Log-Normal distribution.
      * @param mu    Location parameter μ — log-mean (any finite real, default 0)
-     * @param sigma Scale parameter σ — log-stddev (must be positive, default 1)
-     * @throws std::invalid_argument if sigma <= 0 or either parameter is non-finite
+     * @param sigma σ, log-stddev (at least MIN_SQUARABLE_SCALE = √DBL_MIN, default 1)
+     * @throws std::invalid_argument if sigma < MIN_SQUARABLE_SCALE or a parameter is not finite
      *
      * Default (0, 1) is the standard log-normal distribution.
      * Implementation in .cpp.
@@ -100,7 +100,7 @@ class LogNormalDistribution : public DistributionBase {
     /**
      * @brief Safely create a Log-Normal distribution without throwing exceptions.
      * @param mu    Location parameter μ (any finite real)
-     * @param sigma Scale parameter σ (must be positive)
+     * @param sigma Scale parameter σ (must be at least MIN_SQUARABLE_SCALE)
      * @return Result containing a valid LogNormalDistribution or error info
      */
     [[nodiscard]] static Result<LogNormalDistribution> create(double mu = detail::ZERO_DOUBLE,
@@ -149,13 +149,13 @@ class LogNormalDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter σ.
-     * @throws std::invalid_argument if sigma <= 0
+     * @throws std::invalid_argument if sigma is below MIN_SQUARABLE_SCALE
      */
     void setSigma(double sigma);
 
     /**
      * @brief Set both parameters simultaneously.
-     * @throws std::invalid_argument if sigma <= 0 or mu is non-finite
+     * @throws std::invalid_argument if sigma is below MIN_SQUARABLE_SCALE or mu is non-finite
      */
     void setParameters(double mu, double sigma);
 
@@ -380,12 +380,9 @@ class LogNormalDistribution : public DistributionBase {
     void updateCacheUnsafe() const noexcept override;
 
     static void validateParameters(double mu, double sigma) {
-        if (std::isnan(mu) || std::isinf(mu)) {
-            throw std::invalid_argument("Mu (log-mean) must be a finite real number");
-        }
-        if (std::isnan(sigma) || std::isinf(sigma) || sigma <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Sigma (log-stddev) must be a positive finite number");
-        }
+        auto v = validateLogNormalParameters(mu, sigma);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================

@@ -271,11 +271,10 @@ VoidResult PoissonDistribution::validateCurrentParameters() const noexcept {
 double PoissonDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-    if (x < detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
 
-    int k = roundToNonNegativeInt(x);
-    if (!isValidCount(x))
+    // Rounded before the support test, as its siblings: x in (−½, 0) is the count 0.
+    const int k = roundToNonNegativeInt(x);
+    if (k < 0)
         return detail::ZERO_DOUBLE;
 
     return getProbabilityExact(k);
@@ -284,11 +283,9 @@ double PoissonDistribution::getProbability(double x) const {
 double PoissonDistribution::getLogProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-    if (x < detail::ZERO_DOUBLE)
-        return detail::NEGATIVE_INFINITY;
 
-    int k = roundToNonNegativeInt(x);
-    if (!isValidCount(x))
+    const int k = roundToNonNegativeInt(x);  // rounded first, as getProbability
+    if (k < 0)
         return detail::NEGATIVE_INFINITY;
 
     return getLogProbabilityExact(k);
@@ -331,6 +328,8 @@ double PoissonDistribution::getQuantile(double p) const {
 
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
+    // Q(1) is the smallest k with S(k) = 0, the support's upper end: λ > 0 leaves S(k) > 0 at
+    // every count, so +∞.
     if (p == detail::ONE)
         return std::numeric_limits<double>::infinity();
 
@@ -900,13 +899,8 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             results[i] = values[i];
             continue;
         }
-        if (values[i] < detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
-            continue;
-        }
-
-        int k = roundToNonNegativeInt(values[i]);
-        if (!isValidCount(values[i])) {
+        const int k = roundToNonNegativeInt(values[i]);
+        if (k < 0) {
             results[i] = detail::ZERO_DOUBLE;
             continue;
         }
@@ -933,13 +927,8 @@ void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(
             results[i] = values[i];
             continue;
         }
-        if (values[i] < detail::ZERO_DOUBLE) {
-            results[i] = detail::NEGATIVE_INFINITY;
-            continue;
-        }
-
-        int k = roundToNonNegativeInt(values[i]);
-        if (!isValidCount(values[i])) {
+        const int k = roundToNonNegativeInt(values[i]);
+        if (k < 0) {
             results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
@@ -1085,13 +1074,14 @@ double PoissonDistribution::logFactorial(int n) noexcept {
 
 // Static utility methods moved from header for better compile times
 int PoissonDistribution::roundToNonNegativeInt(double x) noexcept {
-    // EDGE-1: guard NaN and +inf before casting — static_cast<int>(NaN) is UB.
-    // #167: also guard finite x above the int range (1e10, 1e300): the cast is UB
-    // there too. isValidCount bounds x so round(x) fits in int; callers still test
-    // isValidCount(x) themselves to pick the out-of-support result.
-    if (!isValidCount(x))
-        return 0;
-    return static_cast<int>(std::round(x));
+    // The count nearest x, or −1 when that is not a count: negative, ±∞, NaN, or past the int
+    // range. The rounding comes first, so x in (−½, 0) rounds to −0 and is the count 0, as in
+    // Binomial, NegativeBinomial, Geometric and Bernoulli; testing x < 0 first gave pmf 0 there.
+    // EDGE-1/#167: isValidCount on the rounded value keeps the int cast defined (NaN, ±∞, 1e300).
+    const double rounded = std::round(x);
+    if (!isValidCount(rounded))
+        return -1;
+    return static_cast<int>(rounded);
 }
 
 int PoissonDistribution::floorToNonNegativeInt(double x) noexcept {

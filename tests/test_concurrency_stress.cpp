@@ -314,6 +314,17 @@ std::vector<Reader<D>> makeReaders(const Row<D>& row, const D& fixedA, const D& 
                       return b;
                   },
                   false});
+    // getHazard is f(x)/S(x): two scalar calls that must see one parameter state (unfixed, a
+    // setter between them returned e.g. Geometric h(300) = 2.07e43 where the states give 0.43 or
+    // 0.0101). Each element is checked against the states' own hazards.
+    rs.push_back({"scalar hazard",
+                  [probes](const D& d) {
+                      Bits b;
+                      for (double x : probes)
+                          b.push_back(guarded([&] { return d.getHazard(x); }));
+                      return b;
+                  },
+                  false});
     rs.push_back({"quantile",
                   [](const D& d) {
                       Bits b;

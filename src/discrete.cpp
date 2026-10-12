@@ -378,11 +378,11 @@ VoidResult DiscreteDistribution::trySetParameters(int a, int b) noexcept {
 double DiscreteDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-    // Note: floor(±inf)==±inf so the next check would NOT catch ±inf; guard first.
     if (!std::isfinite(x))
         return detail::ZERO_DOUBLE;  // ±inf → PMF is 0
-    if (std::floor(x) != x)
-        return detail::ZERO_DOUBLE;  // non-integer finite
+    // The pmf rounds x to the nearest integer, as the header states and every sibling does
+    // (Discrete(0, 3).pmf(-1e-300) is pmf(0)); it returned 0 at every non-integer.
+    x = std::round(x);
 
     int a, b;
     bool is_binary;
@@ -406,8 +406,7 @@ double DiscreteDistribution::getLogProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::NEGATIVE_INFINITY;  // ±inf → log PMF is -∞
-    if (std::floor(x) != x)
-        return detail::NEGATIVE_INFINITY;  // non-integer finite
+    x = std::round(x);                     // nearest integer, as getProbability
 
     int a, b;
     bool is_binary;
@@ -1152,13 +1151,13 @@ DiscreteDistribution::DiscreteDistribution(int a, int b, bool /*bypassValidation
 void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                          std::size_t count, int a, int b,
                                                          double probability) const noexcept {
-    // SIMD deferred: integer floor-check and range-test are not amenable to
+    // SIMD deferred: the rounding and range-test are not amenable to
     // vectorization without vector_floor + vector_blend primitives (deferred).
     for (std::size_t i = 0; i < count; ++i) {
         if (std::isnan(values[i])) {
             results[i] = values[i];
-        } else if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
-            const int k = static_cast<int>(values[i]);
+        } else if (const double k = std::round(values[i]); isValidIntegerValue(k)) {
+            // Rounded to the nearest integer, as the scalar method.
             results[i] = (k >= a && k <= b) ? probability : detail::ZERO_DOUBLE;
         } else {
             results[i] = detail::ZERO_DOUBLE;
@@ -1169,13 +1168,13 @@ void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
 void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                             std::size_t count, int a, int b,
                                                             double log_probability) const noexcept {
-    // SIMD deferred: integer floor-check and range-test are not amenable to
+    // SIMD deferred: the rounding and range-test are not amenable to
     // vectorization without vector_floor + vector_blend primitives (deferred).
     for (std::size_t i = 0; i < count; ++i) {
         if (std::isnan(values[i])) {
             results[i] = values[i];
-        } else if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
-            const int k = static_cast<int>(values[i]);
+        } else if (const double k = std::round(values[i]); isValidIntegerValue(k)) {
+            // Rounded to the nearest integer, as the scalar method.
             results[i] = (k >= a && k <= b) ? log_probability : detail::NEGATIVE_INFINITY;
         } else {
             results[i] = detail::NEGATIVE_INFINITY;

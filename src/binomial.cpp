@@ -369,8 +369,10 @@ double BinomialDistribution::getQuantile(double p) const {
     const int n = n_;
     const double sp = p_;
     lock.unlock();
+    // Q(1) is the smallest k with S(k) = 0, the support's upper end: n, or 0 when p = 0 puts all
+    // the mass there (Binomial(10, 0).Q(1) returned 10).
     if (p == detail::ONE)
-        return static_cast<double>(n);
+        return (sp > detail::ZERO_DOUBLE) ? static_cast<double>(n) : detail::ZERO_DOUBLE;
 
     // Smallest k with CDF(k) >= p (p <= 1/2) or S(k) <= 1 - p (p > 1/2), searched outward from
     // the normal approximation: two or three evaluations instead of a scan from 0. Both read

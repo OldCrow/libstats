@@ -196,6 +196,13 @@ inline VoidResult validateGaussianParameters(double mean, double stdDev) noexcep
         return VoidResult::makeError(ValidationError::InvalidStdDev,
                                      "Standard deviation must be a positive finite number");
     }
+    // −1/(2σ²) is cached: below √DBL_MIN it is −inf and the density at the mean 0·inf = NaN, the
+    // batch NaN where the scalar path read 0 (Fix7C). HalfNormal's and Rayleigh's lower bound.
+    if (stdDev < detail::MIN_SQUARABLE_SCALE) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Standard deviation is below the range where σ² is a normal "
+                                     "double (MIN_SQUARABLE_SCALE)");
+    }
 
     return VoidResult::ok({});
 }
@@ -319,6 +326,12 @@ inline VoidResult validateLogNormalParameters(double mu, double sigma) noexcept 
     if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidStdDev,
                                      "Sigma (log-stddev) must be a positive finite number");
+    }
+    // −1/(2σ²) is cached, as Gaussian's: the same lower bound (Fix7C).
+    if (sigma < detail::MIN_SQUARABLE_SCALE) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Sigma (log-stddev) is below the range where σ² is a normal "
+                                     "double (MIN_SQUARABLE_SCALE)");
     }
     return VoidResult::ok({});
 }
@@ -572,7 +585,7 @@ inline VoidResult validateLaplaceParameters(double mu, double b) noexcept {
 /**
  * @brief Validate Cauchy distribution parameters without throwing exceptions
  * @param x0    Location parameter (must be finite)
- * @param gamma Scale parameter (must be positive and finite)
+ * @param gamma Scale parameter (must be finite and at least DBL_MIN)
  * @return VoidResult indicating success or failure
  */
 inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
@@ -583,6 +596,12 @@ inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
     if (std::isnan(gamma) || std::isinf(gamma) || gamma <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter gamma must be a positive finite number");
+    }
+    // 1/γ is cached and must stay finite and exact to a rounding: a subnormal γ gave 1/γ = inf
+    // below 5.6e-309 and a NaN density everywhere (Cauchy(0, 5e-324).pdf(0)).
+    if (gamma < std::numeric_limits<double>::min()) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter gamma must be a normal double (>= DBL_MIN)");
     }
     return VoidResult::ok({});
 }

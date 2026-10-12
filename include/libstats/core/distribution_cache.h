@@ -2,12 +2,49 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
+#include <thread>
 
 namespace stats {
+
+/**
+ * @brief The atomic cache-validity flag, plus a write generation.
+ *
+ * Every store advances generation(). Each write to a distribution's
+ * parameters stores to this flag inside the unique-lock section on
+ * cache_mutex_ that performs the write: setters, trySet*, fit, reset and the
+ * assignments store false, and a copy assignment that rebuilds its cache
+ * stores true. ThreadSafeCacheManager::readConsistent relies on that.
+ * A store outside such a section (a reader rebuilding the cache) only costs a
+ * reader one retry.
+ *
+ * The interface is the subset of std::atomic<bool> the distributions use, so
+ * the flag replaced that type without touching them.
+ */
+class CacheValidFlag {
+   public:
+    [[nodiscard]] bool load(std::memory_order order = std::memory_order_seq_cst) const noexcept {
+        return valid_.load(order);
+    }
+
+    void store(bool valid, std::memory_order order = std::memory_order_seq_cst) noexcept {
+        generation_.fetch_add(1, std::memory_order_relaxed);
+        valid_.store(valid, order);
+    }
+
+    /// Stores so far. Read it under cache_mutex_, which orders it against the writes.
+    [[nodiscard]] std::uint64_t generation() const noexcept {
+        return generation_.load(std::memory_order_relaxed);
+    }
+
+   private:
+    std::atomic<bool> valid_{false};
+    std::atomic<std::uint64_t> generation_{0};
+};
 
 // =============================================================================
 // THREAD-SAFE CACHE MANAGEMENT INTERFACE
@@ -55,7 +92,7 @@ class ThreadSafeCacheManager {
      * @brief Atomic cache validity flag for lock-free fast paths
      * @see Class-level documentation for the dual-flag pattern rationale.
      */
-    mutable std::atomic<bool> cacheValidAtomic_{false};
+    mutable CacheValidFlag cacheValidAtomic_;
 
    public:
     /**
@@ -125,6 +162,54 @@ class ThreadSafeCacheManager {
             updateCacheUnsafe();
         }
         std::forward<SnapshotFn>(snapFn)();
+    }
+
+    /**
+     * @brief Evaluate @p fn, a run of locking scalar calls on this object, so
+     *        that all of them see one parameter state.
+     *
+     * Seqlock-style: read the generation under a shared lock, call @p fn,
+     * read it again under a shared lock, and retry if it moved. Neither read
+     * is held across @p fn, so the scalar calls inside it lock as usual (a
+     * second shared lock in one thread would be undefined behaviour).
+     *
+     * Why an equal generation proves one state: a parameter write and its
+     * store to cacheValidAtomic_ share one unique-lock section W on
+     * cache_mutex_. Mutex order puts W before the first generation read, after
+     * the second, or between them. Before: every scalar call starts after W's
+     * unlock, so it sees W, whether it locks this mutex or only a delegate's
+     * (Bernoulli, Geometric, ChiSquared, Erlang forward to a delegate that W
+     * writes while holding this mutex, and whose own lock orders the read).
+     * After: every scalar call ended before W's lock. Between: W's store
+     * happens-before the second read, and the first read happens-before it,
+     * so by coherence the second read sees a larger count and @p fn reruns.
+     * Relaxed loads suffice; the mutex supplies the ordering.
+     *
+     * Each retry needs a parameter write to commit during the previous
+     * attempt, so @p fn returns once writes pause for one evaluation. No
+     * bounded fallback exists here without locking recursively, so the loop
+     * yields rather than returning a value from no single state.
+     *
+     * @warning Never call this while holding cache_mutex_.
+     */
+    template <typename Fn>
+    auto readConsistent(Fn&& fn) const -> decltype(fn()) {
+        for (unsigned attempt = 0;; ++attempt) {
+            const std::uint64_t before = lockedGeneration();
+            auto result = fn();
+            if (lockedGeneration() == before)
+                return result;
+            if (attempt >= kSpinAttempts)
+                std::this_thread::yield();
+        }
+    }
+
+   private:
+    static constexpr unsigned kSpinAttempts = 4;
+
+    [[nodiscard]] std::uint64_t lockedGeneration() const {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        return cacheValidAtomic_.generation();
     }
 };
 

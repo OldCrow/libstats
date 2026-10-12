@@ -19,9 +19,18 @@ namespace stats {
  * - PMF:    P(X = k) = p·(1−p)^k  for k ∈ {0, 1, 2, …}
  * - LogPMF: log(p) + k·log(1−p)
  * - CDF:    1 − (1−p)^(k+1)
- * - Quantile: ⌈log(1−q)/log(1−p)⌉ − 1  (closed form)
+ * - Quantile: ⌈log(1−q)/log(1−p)⌉ − 1 in exact arithmetic; computed as the NegativeBinomial(1, p)
+ *   search on the library's own F and S (the closed form is its starting guess), so it agrees with
+ *   getCumulativeProbability and getSurvival at every q. See getQuantile.
  * - Parameters: p ∈ (0, 1] (success probability)
- * - Support: k ∈ {0, 1, 2, …}
+ * - Support: k ∈ {0, 1, 2, …} ({0} at p = 1)
+ *
+ * @par Non-integer arguments:
+ * The PMF and log-PMF round x to the nearest integer (halves away from zero) and give 0 (−∞) when
+ * that is not a count: x in (−½, ½) is the count 0, so pmf(−1e-300) = pmf(0), and x ≤ −½ has
+ * mass 0. The CDF and survival floor x instead: F(x) = F(⌊x⌋), S(x) = S(⌊x⌋), so
+ * F(−1e-300) = 0 and S(−1e-300) = 1. At a non-integer x, pmf(x) is therefore not
+ * F(x) − F(x − 1).
  *
  * @par Moments:
  * - Mean:     (1−p)/p
@@ -182,17 +191,17 @@ class GeometricDistribution : public DistributionBase {
     // 5. CORE PROBABILITY METHODS — delegated to negbinom_
     //==========================================================================
 
-    /** @brief PMF at k — delegates to NegativeBinomialDistribution(r=1). */
+    /** @brief PMF at x rounded to the nearest integer — delegates to NegativeBinomial(r=1). */
     [[nodiscard]] double getProbability(double x) const override {
         return negbinom_.getProbability(x);
     }
 
-    /** @brief Log-PMF at k — delegates to NegativeBinomialDistribution(r=1). */
+    /** @brief Log-PMF at x rounded to the nearest integer — delegates to NegativeBinomial(r=1). */
     [[nodiscard]] double getLogProbability(double x) const override {
         return negbinom_.getLogProbability(x);
     }
 
-    /** @brief CDF at k — delegates to NegativeBinomialDistribution(r=1). */
+    /** @brief CDF at ⌊x⌋ — delegates to NegativeBinomialDistribution(r=1). */
     [[nodiscard]] double getCumulativeProbability(double x) const override {
         return negbinom_.getCumulativeProbability(x);
     }
@@ -203,6 +212,10 @@ class GeometricDistribution : public DistributionBase {
     /**
      * @brief Quantile (smallest k ≥ 0 s.t. CDF(k) ≥ prob; for prob > ½ decided as the smallest
      *        k with getSurvival(k) ≤ 1 − prob) — delegates.
+     *
+     * Q(0) = 0; Q(1) = +∞, except 0 at p = 1. Past 2^53 the result is the smallest double k
+     * meeting the same test, the true quantile rounded up to the next representable count, and
+     * +∞ when none is finite; NegativeBinomialDistribution::getQuantile states it in full.
      * @throws std::invalid_argument if prob not in [0, 1]
      */
     [[nodiscard]] double getQuantile(double prob) const override {

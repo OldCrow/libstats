@@ -12,6 +12,7 @@ using stats::detail::validatePositiveParameter;
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
@@ -67,6 +68,27 @@ inline double sfAtCount(double k, double r, double p) noexcept {
     return detail::beta_i_pair(detail::ONE - p, p, a, r, detail::beta_prefactor_constant(a, r));
 }
 
+// Search indices for the quantile, so it can return counts past 2^53. Every double from 2^53 up is
+// an integer, and non-negative doubles are ordered as their bit patterns, so index i is the count
+// i up to 2^53 and the (i − 2^53)-th double above 2^53 beyond it, ending at +∞. Consecutive
+// indices are consecutive representable counts.
+constexpr std::int64_t kExactCounts = std::int64_t{1} << 53;
+constexpr double kExactCountsDouble = 9007199254740992.0;  // 2^53
+constexpr std::int64_t kExactCountsBits = std::bit_cast<std::int64_t>(kExactCountsDouble);
+
+double countAtIndex(std::int64_t i) noexcept {
+    if (i <= kExactCounts)
+        return static_cast<double>(i);
+    return std::bit_cast<double>(kExactCountsBits + (i - kExactCounts));
+}
+
+// The index of a count k ≥ 0 that is an integer or ≥ 2^53 (+∞ included).
+std::int64_t indexOfCount(double k) noexcept {
+    if (k <= kExactCountsDouble)
+        return static_cast<std::int64_t>(k);
+    return kExactCounts + (std::bit_cast<std::int64_t>(k) - kExactCountsBits);
+}
+
 // X ~ Poisson(lambda) as a count in double, for the gamma-Poisson sampler.
 // std::poisson_distribution<int> is UB once the rate nears INT_MAX (#125),
 // which Geometric(1e-9) reaches on ~12% of draws. Below 2^30 the int path is
@@ -91,9 +113,15 @@ inline double poissonCount(double lambda, std::poisson_distribution<int>& poisso
 namespace {
 // log of Γ(k + r)/(Γ(k + 1)·Γ(r))·p^r·(1 − p)^k, written as r/(k + r) times the binomial pmf of
 // r successes and k failures, so detail::binomial_log_pmf forms it without the lgamma
-// cancellation at large counts (#172).
+// cancellation at large counts (#172). Where k/r overflows (k = 1e300 at r = 1e-300), r/k is
+// below 1/DBL_MAX and log1p(k/r) is log k − log r to an ulp or two; log1p(+∞) = +∞ there gave
+// NaN against binomial_log_pmf's infinite deviance term.
 [[nodiscard]] inline double nbLogPmf(double k, double r, double p) noexcept {
-    return detail::binomial_log_pmf(r, k, p) - std::log1p(k / r);
+    const double ratio = k / r;
+    const double log_ratio = (ratio <= std::numeric_limits<double>::max())
+                                 ? std::log1p(ratio)
+                                 : std::log(k) - std::log(r);
+    return detail::binomial_log_pmf(r, k, p) - log_ratio;
 }
 
 // PARALLEL and WORK_STEALING take one snapshot and run the lock-free batch kernels over slices
@@ -399,35 +427,56 @@ double NegativeBinomialDistribution::getQuantile(double prob) const {
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (prob == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
-    if (prob == detail::ONE)
-        return std::numeric_limits<double>::infinity();
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double r = r_, p = p_;
     lock.unlock();
-    const double mean = r * (detail::ONE - p) / p;
-    const double stddev = std::sqrt(r * (detail::ONE - p) / (p * p));
+    // p = 1 puts all the mass at 0, so S(0) = 0 and every quantile is 0, Q(1) included: the
+    // smallest k with S(k) ≤ 1 − prob. Otherwise the support is unbounded and S(k) > 0 for every
+    // count, so Q(1) is +∞.
+    if (p >= detail::ONE)
+        return detail::ZERO_DOUBLE;
+    if (prob == detail::ONE)
+        return std::numeric_limits<double>::infinity();
 
-    // The search range is every count a double carries exactly: 2^53. No
-    // tighter bound is estimated, because any moment-based one is wrong
-    // somewhere -- mean + 10 sigma + 100 fell short of the quantile for prob
-    // within ~1e-6 of 1 at small r, and its unguarded cast to int collapsed
-    // the search past INT_MAX (#116). The search gallops from its starting
-    // guess, so the width of the range costs nothing.
-    constexpr std::int64_t max_k = std::int64_t{1} << 53;
+    // The search runs over search indices, not counts: index i ≤ 2^53 is the count i, and above
+    // that each index is the next double, all of which are integers (countAtIndex). The range
+    // ends at +∞, the answer of last resort, so a quantile past 2^53 is the smallest
+    // representable count that qualifies instead of 2^53 itself: Geometric(1e-20).Q(½) returned
+    // 2^53 for 6.93e19. No moment-based upper bound is used: any is wrong somewhere (#116).
+    // Galloping from the guess makes the width of the range cost nothing.
+    const std::int64_t hi = indexOfCount(std::numeric_limits<double>::infinity());
 
-    // CDF at an integer count carried in double: the same I_p(r, k+1) that
-    // getCumulativeProbability computes (which also carries its count in
-    // double, #125), so the public CDF agrees with this search everywhere.
-    const auto cdf_at = [&](std::int64_t k) { return cdfAtCount(static_cast<double>(k), r, p); };
-    const auto sf_at = [&](std::int64_t k) { return sfAtCount(static_cast<double>(k), r, p); };
+    // The same I_p(r, k+1) and survival that getCumulativeProbability and getSurvival compute
+    // (both carry the count in double, #125), so the public CDF agrees with this search
+    // everywhere. +∞ is only ever the unchecked last resort; it is answered here without a call.
+    const auto cdf_at = [&](std::int64_t i) {
+        const double k = countAtIndex(i);
+        return std::isinf(k) ? detail::ONE : cdfAtCount(k, r, p);
+    };
+    const auto sf_at = [&](std::int64_t i) {
+        const double k = countAtIndex(i);
+        return std::isinf(k) ? detail::ZERO_DOUBLE : sfAtCount(k, r, p);
+    };
 
-    // Smallest k with CDF(k) >= prob (prob <= 1/2) or S(k) <= 1 - prob (prob > 1/2), searched
-    // outward from the normal approximation: two or three evaluations near the centre.
-    const double skewness = (detail::TWO - p) / std::sqrt(r * (detail::ONE - p));
-    return static_cast<double>(detail::discrete_quantile_search(
-        cdf_at, sf_at, prob, 0, max_k,
-        detail::discrete_quantile_guess(prob, mean, stddev, skewness)));
+    // The guess: at r = 1 the closed form ⌈log(1 − prob)/log(1 − p)⌉ − 1 with both logs by
+    // log1p, usually the answer itself; otherwise the Cornish-Fisher normal approximation. Either
+    // is only a start: the search decides on the library's own F and S.
+    double guess;
+    if (r == detail::ONE) {
+        guess = std::ceil(std::log1p(-prob) / std::log1p(-p)) - detail::ONE;
+    } else {
+        const double mean = r * (detail::ONE - p) / p;
+        const double stddev = std::sqrt(r * (detail::ONE - p) / (p * p));
+        const double skewness = (detail::TWO - p) / std::sqrt(r * (detail::ONE - p));
+        guess = detail::discrete_quantile_guess(prob, mean, stddev, skewness);
+    }
+    const double guess_index = (guess > detail::ZERO_DOUBLE)
+                                   ? static_cast<double>(indexOfCount(std::ceil(guess)))
+                                   : detail::ZERO_DOUBLE;
+
+    // Smallest count with CDF(k) >= prob (prob <= 1/2) or S(k) <= 1 - prob (prob > 1/2).
+    return countAtIndex(detail::discrete_quantile_search(cdf_at, sf_at, prob, 0, hi, guess_index));
 }
 
 double NegativeBinomialDistribution::sample(std::mt19937& rng) const {

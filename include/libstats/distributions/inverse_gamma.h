@@ -82,7 +82,8 @@ namespace stats {
  * reciprocal maps the interesting edges onto each other (x -> 0+ gives
  * 1/x -> +inf, x -> +inf gives 1/x -> 0+), and for x below ~5.6e-309 the
  * reciprocal overflows outright, so none of those cases may be handed to the
- * delegate.
+ * delegate. There the log density is taken from beta/x directly, finite for a
+ * small beta (InverseGamma(1e10, 1e-300).pdf(1.0003e-310) = 1.35e119).
  *
  * @par +/-inf and NaN handling (#103):
  * pdf(+/-inf) = 0, logpdf(+/-inf) = -inf, cdf(-inf) = 0, cdf(+inf) = 1, NaN
@@ -301,7 +302,8 @@ class InverseGammaDistribution : public DistributionBase {
 
     /**
      * @brief Log-PDF at x = delegate.logpdf(1/x) - 2 ln x. Guards +/-inf, the
-     * reciprocal's own overflow at x < ~5.6e-309, and NaN (#103).
+     * reciprocal's own overflow at x < ~5.6e-309 (taken from beta/x there), and
+     * NaN (#103).
      */
     [[nodiscard]] double getLogProbability(double x) const override;
 
@@ -454,8 +456,9 @@ class InverseGammaDistribution : public DistributionBase {
      *
      * Returns true when x is an ordinary interior point whose reciprocal is a
      * finite positive double, so the Gamma delegate may be called with it. When
-     * it returns false, @p edge_logpdf holds the correct log-density for x and
-     * the delegate must be bypassed entirely.
+     * it returns false the delegate must be bypassed entirely, and @p edge_logpdf
+     * holds the log-density for x, except for a positive finite x whose
+     * reciprocal overflows: -inf there, and the caller computes it from beta/x.
      */
     [[nodiscard]] static bool reciprocalIsUsable(double x, double& inv_x,
                                                  double& edge_logpdf) noexcept;

@@ -21,8 +21,16 @@ namespace stats {
  * - Quantile: right-continuous discrete inverse Q(q) = min{k : F(k) >= q}
  *             (#104 contract): Q(q) = 0 for q <= 1-p, else 1; never NaN for
  *             q in (0,1). For q > 1/2 decided as S(0) = p <= 1-q, 1-q exact.
+ *             Q(1) is the smallest k with S(k) = 0: 1, or 0 at p = 0.
  * - Parameters: p in [0, 1] (success probability)
  * - Support: x in {0, 1}
+ *
+ * @par Non-integer arguments:
+ * The PMF and log-PMF round x to the nearest integer (halves away from zero) and give 0 (-inf)
+ * when that is not 0 or 1: x in (-1/2, 1/2) is the outcome 0, so pmf(-1e-300) = pmf(0) = 1-p,
+ * and x <= -1/2 has mass 0. The CDF and survival floor x instead: F(x) = F(floor(x)), so
+ * F(-1e-300) = 0 and S(-1e-300) = 1. At a non-integer x, pmf(x) is therefore not
+ * F(x) - F(x - 1).
  *
  * @par Moments:
  * - Mean:     p
@@ -182,17 +190,17 @@ class BernoulliDistribution : public DistributionBase {
     // 5. CORE PROBABILITY METHODS — delegated to binomial_
     //==========================================================================
 
-    /** @brief PMF at x — delegates to BinomialDistribution(n=1). */
+    /** @brief PMF at x rounded to the nearest integer — delegates to Binomial(n=1). */
     [[nodiscard]] double getProbability(double x) const override {
         return binomial_.getProbability(x);
     }
 
-    /** @brief Log-PMF at x — delegates to BinomialDistribution(n=1). */
+    /** @brief Log-PMF at x rounded to the nearest integer — delegates to Binomial(n=1). */
     [[nodiscard]] double getLogProbability(double x) const override {
         return binomial_.getLogProbability(x);
     }
 
-    /** @brief CDF at x — delegates to BinomialDistribution(n=1). */
+    /** @brief CDF at floor(x) — delegates to BinomialDistribution(n=1). */
     [[nodiscard]] double getCumulativeProbability(double x) const override {
         return binomial_.getCumulativeProbability(x);
     }

@@ -242,26 +242,38 @@ bool DistributionBase::isApproximatelyEqual(const DistributionInterface& other,
         return false;
     }
 
+    // Each side's four properties come from one parameter state (readConsistent); the two
+    // objects are read separately. A non-DistributionBase `other` is read call by call.
+    struct Props {
+        double mean, var, lo, hi;
+    };
+    const auto read = [](const DistributionInterface& d) {
+        return Props{d.getMean(), d.getVariance(), d.getSupportLowerBound(),
+                     d.getSupportUpperBound()};
+    };
+    const Props mine = readConsistent([&] { return read(*this); });
+    const auto* otherBase = dynamic_cast<const DistributionBase*>(&other);
+    const Props theirs =
+        otherBase ? otherBase->readConsistent([&] { return read(other); }) : read(other);
+
     // LP-7: guard against NaN mean/variance — NaN comparisons always return false,
     // which would cause NaN distributions to be treated as approximately equal.
-    const double myMean = getMean();
-    const double otherMean = other.getMean();
-    if (std::isnan(myMean) || std::isnan(otherMean) || std::abs(myMean - otherMean) > tolerance) {
+    if (std::isnan(mine.mean) || std::isnan(theirs.mean) ||
+        std::abs(mine.mean - theirs.mean) > tolerance) {
         return false;
     }
 
-    const double myVar = getVariance();
-    const double otherVar = other.getVariance();
-    if (std::isnan(myVar) || std::isnan(otherVar) || std::abs(myVar - otherVar) > tolerance) {
+    if (std::isnan(mine.var) || std::isnan(theirs.var) ||
+        std::abs(mine.var - theirs.var) > tolerance) {
         return false;
     }
 
     // Compare support bounds
-    if (std::abs(getSupportLowerBound() - other.getSupportLowerBound()) > tolerance) {
+    if (std::abs(mine.lo - theirs.lo) > tolerance) {
         return false;
     }
 
-    if (std::abs(getSupportUpperBound() - other.getSupportUpperBound()) > tolerance) {
+    if (std::abs(mine.hi - theirs.hi) > tolerance) {
         return false;
     }
 

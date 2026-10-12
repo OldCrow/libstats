@@ -82,8 +82,9 @@ class CauchyDistribution : public DistributionBase {
     /**
      * @brief Construct a Cauchy distribution.
      * @param x0    Location parameter (must be finite, default 0)
-     * @param gamma Scale parameter (must be positive and finite, default 1)
-     * @throws std::invalid_argument if x0 is not finite or gamma ≤ 0
+     * @param gamma Scale parameter (must be finite and at least DBL_MIN, default 1)
+     * @throws std::invalid_argument if x0 is not finite or gamma is not in
+     * [DBL_MIN, DBL_MAX]
      */
     explicit CauchyDistribution(double x0 = detail::ZERO_DOUBLE, double gamma = detail::ONE);
 
@@ -109,7 +110,7 @@ class CauchyDistribution : public DistributionBase {
     /**
      * @brief Safely create a Cauchy distribution without throwing exceptions.
      * @param x0    Location parameter (must be finite)
-     * @param gamma Scale parameter (must be positive and finite)
+     * @param gamma Scale parameter (must be finite and at least DBL_MIN)
      * @return Result containing a valid CauchyDistribution or error info
      */
     [[nodiscard]] static Result<CauchyDistribution> create(double x0 = detail::ZERO_DOUBLE,
@@ -150,7 +151,7 @@ class CauchyDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter γ.
-     * @throws std::invalid_argument if gamma ≤ 0
+     * @throws std::invalid_argument if gamma is not in [DBL_MIN, DBL_MAX]
      */
     void setGamma(double gamma);
 

@@ -396,8 +396,11 @@ void test_specific_distribution(const string& dist_name, TestStats& stats) {
             auto r1 = dist.trySetMean(numeric_limits<double>::max());
             stats.record(r1.isOk(), "Gaussian accepts max double as mean");
 
+            // σ below √DBL_MIN is rejected: −1/(2σ²) is cached (Fix7C, HalfNormal's bound).
             auto r2 = dist.trySetStandardDeviation(numeric_limits<double>::min());
-            stats.record(r2.isOk(), "Gaussian accepts min positive double as std dev");
+            stats.record(r2.isError(), "Gaussian rejects a std dev whose square is subnormal");
+            auto r2b = dist.trySetStandardDeviation(detail::MIN_SQUARABLE_SCALE);
+            stats.record(r2b.isOk(), "Gaussian accepts MIN_SQUARABLE_SCALE as std dev");
 
             auto r3 = dist.trySetParameters(0.0, numeric_limits<double>::epsilon());
             stats.record(r3.isOk(), "Gaussian accepts epsilon as std dev");
