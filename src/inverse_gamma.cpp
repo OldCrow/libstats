@@ -67,7 +67,9 @@ constexpr int kBisectIterations = 80;
 [[nodiscard]] double correctedIncompleteGamma(double value, bool upper, double alpha, double beta,
                                               double x, double t) noexcept {
     const double r = std::fma(-t, x, beta);
-    if (r == detail::ZERO_DOUBLE || !(value >= std::numeric_limits<double>::min()))
+    // value > 0, not >= DBL_MIN: a subnormal P or Q keeps ~47 bits near 1e-309, and skipping the
+    // correction there left it 1.8e-7 off at InverseGamma(1e16, 3) (M1 survival sweep).
+    if (r == detail::ZERO_DOUBLE || !(value > detail::ZERO_DOUBLE))
         return value;
     const double rel = r / beta;
     const double change = rel * std::exp(detail::log_gamma_prefactor(alpha, t) - std::log(value));

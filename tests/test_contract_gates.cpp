@@ -2273,3 +2273,24 @@ TEST(ContractGates, M1_FisherFLogDensityAtLargeDf) {
             << "batch F(" << r.d1 << ", " << r.d2 << ").logpdf(" << r.x << ")";
     }
 }
+
+// M1 2026-10-12 survival sweep: the rate-product correction (H5) was skipped whenever P or Q was
+// below DBL_MIN, so at a subnormal result Gamma(1e16, 3) returned P or Q at fl(3x), the rate-1
+// value, 1.9e-7 relative off (3.4e7 subnormal ulps): getSurvival(3333334586838174.5) read
+// 8.8577831194515863e-310 for 8.8577847861190941e-310. A subnormal P or Q still carries ~47 bits,
+// ample for a 1.9e-7 correction. Reference: mpmath at 60 digits.
+TEST(ContractGates, M1_GammaRateCorrectionAtSubnormalResult) {
+    const GammaDistribution g(1e16, 3.0);
+    const double x = 3333334586838174.5;
+    const double want = 8.8577847861190941e-310;
+    EXPECT_LT(relErr(g.getSurvival(x), want), 2e-12) << g.getSurvival(x);
+    // The uncorrected value is the rate-1 one at the rounded product: the two must differ here.
+    const GammaDistribution g1(1e16, 1.0);
+    EXPECT_NE(g.getSurvival(x), g1.getSurvival(3.0 * x));
+    // InverseGamma's CDF is Q(alpha, beta/x) with the same guard in its correction
+    // (correctedIncompleteGamma): the mirror case, x = fl(1/3333334586838174.5).
+    const InverseGammaDistribution ig(1e16, 3.0);
+    EXPECT_LT(relErr(ig.getCumulativeProbability(2.999998871846067e-16), 8.8577847157225207e-310),
+              2e-12)
+        << ig.getCumulativeProbability(2.999998871846067e-16);
+}

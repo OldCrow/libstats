@@ -293,7 +293,9 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
 [[nodiscard]] inline double gammaPAtRateProduct(double alpha, double beta, double x,
                                                 double y) noexcept {
     const double p = detail::gamma_p(alpha, y);
-    if (alpha < kStirlingDensityShape || !(p >= std::numeric_limits<double>::min()) ||
+    // p > 0, not p >= DBL_MIN: a subnormal p still carries ~47 bits at 1e-309, and skipping the
+    // correction there left P at fl(βx), 1.9e-7 off at Gamma(1e16, 3) (M1 survival sweep).
+    if (alpha < kStirlingDensityShape || !(p > detail::ZERO_DOUBLE) ||
         !(y <= std::numeric_limits<double>::max()))
         return p;
     const double e = std::fma(beta, x, -y);
@@ -322,7 +324,7 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
 [[nodiscard]] inline double gammaQAtRateProduct(double alpha, double beta, double x,
                                                 double y) noexcept {
     const double q = detail::gamma_q(alpha, y);
-    if (alpha < kStirlingDensityShape || !(q >= std::numeric_limits<double>::min()) ||
+    if (alpha < kStirlingDensityShape || !(q > detail::ZERO_DOUBLE) ||
         !(y <= std::numeric_limits<double>::max()))
         return q;
     const double e = std::fma(beta, x, -y);
