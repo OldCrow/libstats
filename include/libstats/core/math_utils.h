@@ -626,12 +626,18 @@ template <typename Cdf>
  * @param cdf F(k) = P(X ≤ k), non-decreasing in k
  * @param sf  S(k) = P(X > k), non-increasing in k, formed as the complement itself
  * @return for p ≤ ½ the smallest k in [lo, hi] with cdf(k) ≥ p; for p > ½ the smallest k with
- *         sf(k) ≤ 1 − p; hi when no k in the range qualifies.
+ *         sf(k) ≤ 1 − p, raised to the median count Q(½) if below it; hi when no k in the range
+ *         qualifies.
  *
  * For p > ½, 1 − p is exact (Sterbenz) and S(k) carries relative precision, where F(k) is a
  * double next to 1 that resolves the tail only to ε/(1 − p) relative: at p = 1 − 1e-15 the
  * CDF-side test accepted counts with S(k) up to 7% above 1 − p. For p ≤ ½ the result is the
  * cdf search's, unchanged.
+ *
+ * The two rules disagree where F(k) + S(k) misses 1: with F(k) a few ulp below ½ and S(k) a few
+ * ulp below ½ too, Q(½) = k + 1 by the CDF but the survival side gives k just above ½, so the
+ * quantile stepped down across the seam. A survival-side count k with F(k) < ½ lies below the
+ * median count, which is then the answer: Q stays non-decreasing in p (M1 seam probe).
  */
 template <typename Cdf, typename Sf>
 [[nodiscard]] std::int64_t discrete_quantile_search(Cdf&& cdf, Sf&& sf, double p, std::int64_t lo,
@@ -639,7 +645,11 @@ template <typename Cdf, typename Sf>
     if (p <= 0.5)
         return discrete_quantile_search(cdf, p, lo, hi, guess);
     const double tail = 1.0 - p;  // exact for p in [½, 1]
-    return discrete_first_true([&](std::int64_t k) { return sf(k) <= tail; }, lo, hi, guess);
+    const std::int64_t k =
+        discrete_first_true([&](std::int64_t c) { return sf(c) <= tail; }, lo, hi, guess);
+    if (k >= hi || cdf(k) >= 0.5)
+        return k;
+    return discrete_quantile_search(cdf, 0.5, k + 1, hi, static_cast<double>(k + 1));
 }
 
 // REMOVED in v2.4.0: f_cdf / inverse_f_cdf. They were forward-looking stubs

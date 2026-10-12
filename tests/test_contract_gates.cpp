@@ -2076,3 +2076,74 @@ TEST(ContractGates, A11_GammaFamilySurvivalUpperTail) {
         }
     }
 }
+
+// M1 2026-10-12 seam probe: a discrete quantile decided its count on the CDF side for p <= 1/2
+// and on the survival side above (08d48aa). Where F(k) + S(k) misses 1 by more than an ulp of
+// 1/2, the two rules disagree at the seam: Q(1/2) = k + 1 but Q(1/2 + ulp) = k. Random parameters
+// almost never put F(k) within that gap of 1/2, so each case here bisects a parameter until F(k)
+// sits on 1/2 to the last bit, then checks Q(p) non-decreasing through 1/2 at 41 neighbouring
+// parameter values. Before the fix: Binomial 27 and NegativeBinomial 1,620 steps down.
+namespace {
+
+template <typename Make>
+int seamStepsDown(int k, double lo, double hi, bool cdfFallsWithParam, Make make) {
+    for (int it = 0; it < 200; ++it) {
+        const double mid = 0.5 * (lo + hi);
+        if (mid == lo || mid == hi)
+            break;
+        auto r = make(mid);
+        if (r.isError())
+            return 0;
+        const bool above = r.unwrap().getCumulativeProbability(static_cast<double>(k)) >= 0.5;
+        if (above == cdfFallsWithParam)
+            lo = mid;
+        else
+            hi = mid;
+    }
+    int down = 0;
+    double x = lo;
+    for (int i = 0; i < 20; ++i)
+        x = std::nextafter(x, -1.0);
+    for (int i = 0; i < 41; ++i, x = std::nextafter(x, 2.0)) {
+        auto r = make(x);
+        if (r.isError())
+            continue;
+        const auto d = r.unwrap();
+        double p = std::nextafter(0.5, 0.0);
+        double prev = d.getQuantile(p);
+        for (int s = 0; s < 3; ++s) {
+            p = std::nextafter(p, 1.0);
+            const double q = d.getQuantile(p);
+            down += q < prev;
+            prev = q;
+        }
+        const double q = d.getQuantile(0.5 + 1e-12);
+        down += q < prev;
+    }
+    return down;
+}
+
+}  // namespace
+
+TEST(ContractGates, M1_DiscreteQuantileMonotoneAcrossHalf) {
+    int binom = 0, negbin = 0, poisson = 0, geom = 0;
+    for (int n : {10, 31, 100, 1001})
+        for (int k = 0; k < n; k += (n > 100 ? n / 37 : 1))
+            binom += seamStepsDown(k, 1e-12, 1 - 1e-12, true,
+                                   [n](double q) { return BinomialDistribution::create(n, q); });
+    for (double r : {0.5, 2.5, 10.0, 100.0})
+        for (int k = 0; k <= 120; ++k)
+            negbin += seamStepsDown(k, 1e-9, 1 - 1e-9, false, [r](double q) {
+                return NegativeBinomialDistribution::create(r, q);
+            });
+    for (int k = 0; k <= 400; ++k)
+        poisson += seamStepsDown(k, 1e-6, 1000.0, true,
+                                 [](double l) { return PoissonDistribution::create(l); });
+    for (int k = 0; k <= 400; ++k)
+        geom += seamStepsDown(k, 1e-9, 1 - 1e-9, false,
+                              [](double q) { return GeometricDistribution::create(q); });
+    EXPECT_EQ(binom, 0) << "Binomial quantile steps down across p = 1/2";
+    EXPECT_EQ(negbin, 0) << "NegativeBinomial quantile steps down across p = 1/2";
+    EXPECT_EQ(poisson, 0) << "Poisson quantile steps down across p = 1/2";
+    EXPECT_EQ(geom, 0) << "Geometric quantile steps down across p = 1/2";
+}
