@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)  # IN_LIST (CMP0057) in script mode
+cmake_minimum_required(VERSION 3.25) # IN_LIST (CMP0057) in script mode
 # AR D19 / #189 class: an `inline` member-function definition in a .cpp file is ill-formed (no
 # diagnostic required) once any other translation unit calls it directly; Poisson's four virtual
 # overrides linked only because the vtable forced their emission. Fails on any such definition in
@@ -11,9 +11,17 @@ cmake_minimum_required(VERSION 3.25)  # IN_LIST (CMP0057) in script mode
 set(_allowed "")
 file(GLOB _sources "${SOURCE_DIR}/src/*.cpp")
 set(_bad "")
+# Matched over the whole file, not line by line: `inline` may sit on its own line above the
+# qualified name, follow an attribute such as [[nodiscard]], or be indented. The excluded characters
+# keep a match inside one declaration; a line comment never starts a match.
+set(_pattern "(^|\n)[ \t]*(\\[\\[[^]\n]*\\]\\][ \t]*)*inline[ \t\n]+[^(;={}]*")
+string(APPEND _pattern "[A-Za-z_][A-Za-z_0-9]*::[A-Za-z_~][A-Za-z_0-9]*\\(")
 foreach(_file IN LISTS _sources)
-    file(STRINGS "${_file}" _lines REGEX "^inline [^(=]*[A-Za-z_]::[A-Za-z_~]+\\(")
+    file(READ "${_file}" _text)
+    string(REGEX MATCHALL "${_pattern}" _lines "${_text}")
     foreach(_line IN LISTS _lines)
+        string(REGEX REPLACE "[ \t\n]+" " " _line "${_line}")
+        string(STRIP "${_line}" _line)
         string(REGEX MATCH "[A-Za-z_][A-Za-z_0-9]*::[A-Za-z_~][A-Za-z_0-9]*\\(" _name "${_line}")
         string(REGEX REPLACE "\\($" "" _name "${_name}")
         if(NOT _name IN_LIST _allowed)

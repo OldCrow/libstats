@@ -320,6 +320,22 @@ Status by machine (each machine edits only its own line):
   `tests/test_concurrency_stress.cpp` and
   `docs/bench-evidence/2026-10-06-m1-concurrency/`, both uncommitted;
   results under R9.
+  **2026-10-12 review and seam hunt** [DERIVED, M; uncommitted, awaiting
+  the user; `docs/bench-evidence/2026-10-12-m1-seam-hunt/summary.txt`]:
+  at `a033bbb`, inside the sandbox (correctness and sweeps only): Release
+  0 warnings, 118/118; the first NEON run of fix-5's 18,732-row sweep and
+  the first oracle run of a contracted build, 0 contract violations with
+  contraction on and off. A constructed-parameter probe at every method
+  switch found four defects, fixed with guards that fail on `HEAD`'s
+  library: discrete quantiles non-monotone across p = ½ (Binomial,
+  NegativeBinomial); von Mises pdf/logpdf from κ ~ 1e10 (exactly 1 from
+  1e20); Student-t CDF beyond |t| = √ν; Fisher-F logpdf at large df.
+  After: 131/131, stress 109 + 27 skipped, oracle 0. Open for the user:
+  the −π fold (#51's convention), the shape-20 Stirling switch (10–988
+  ulp below 20), a #214-mechanism case at shape 0.004, H5's luck-based
+  bit equality. Test hardening: adaptive cross-wait budget (K verifies),
+  stronger inline check, per-name timing-split check. These move the
+  freeze head; K's final hunt runs on code without them.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);

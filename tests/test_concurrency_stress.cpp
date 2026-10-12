@@ -26,6 +26,7 @@
 #include "libstats/libstats.h"
 #include "libstats/platform/work_stealing_pool.h"
 
+#include <algorithm>
 #include <atomic>
 #include <bit>
 #include <chrono>
@@ -791,7 +792,11 @@ void differential(const Row<D>& row) {
 // return while it is still blocked. A lambda that calls the pool's global waitForAll() after its
 // latched loop waits for that task instead. Reachable only where MAXIMIZE_THROUGHPUT resolves to
 // WORK_STEALING (SMT machines after #190); elsewhere the test skips, saying so.
-constexpr int kCrossWaitSeconds = 1;  // a batch of row.xs takes milliseconds, even under TSan
+// The budget is 20 times the batch's own unloaded time, and at least 1 s: a fixed 1 s could pass
+// for a slow batch on a sanitizer build of a loaded runner (milliseconds in Release, far more
+// under ASan Debug), while the defect waits until the blocked task is released, however long.
+constexpr double kCrossWaitFloorSeconds = 1.0;
+constexpr double kCrossWaitFactor = 20.0;
 
 // The lambdas that still call pool.waitForAll(), and the delegates that reach them (ChiSquared and
 // Erlang through Gamma, Bernoulli through Binomial, Geometric through NegativeBinomial).
@@ -812,6 +817,12 @@ void crossWaiting(const Row<D>& row, KnownIssues& known) {
         GTEST_SKIP() << "MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine";
     const D d = row.makeA();
     for (int op = 0; op < 3; ++op) {
+        const auto t0 = std::chrono::steady_clock::now();
+        (void)batchBits(d, row.xs, op, {Pref::MAXIMIZE_THROUGHPUT, std::nullopt});
+        const double alone =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        const auto budget = std::chrono::duration<double>(
+            std::clamp(kCrossWaitFactor * alone, kCrossWaitFloorSeconds, 30.0));  // < watchdog
         bool returned = false;
         runWithWatchdog(row.name + " " + kOpNames[op] + " beside a blocked pool task", 60, [&] {
             std::promise<void> release;
@@ -827,8 +838,7 @@ void crossWaiting(const Row<D>& row, KnownIssues& known) {
             auto batch = std::async(std::launch::async, [&] {
                 return batchBits(d, row.xs, op, {Pref::MAXIMIZE_THROUGHPUT, std::nullopt});
             });
-            returned = batch.wait_for(std::chrono::seconds(kCrossWaitSeconds)) ==
-                       std::future_status::ready;
+            returned = batch.wait_for(budget) == std::future_status::ready;
             release.set_value();
             (void)batch.get();
             while (!finished.load())  // the pool is idle again before the next op

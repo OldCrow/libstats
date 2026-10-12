@@ -670,6 +670,14 @@ if(GTEST_FOUND)
                        ${CMAKE_BINARY_DIR}
                        FAIL_REGULAR_EXPRESSION
                        "Running 0 tests")
+        # One misspelled name among several still selected some tests; check every name. A
+        # correctness test, so CI's run executes it.
+        list(LENGTH ARGN _names)
+        add_test(
+            NAME ${TEST_NAME}_timing_split_names
+            COMMAND
+                ${CMAKE_COMMAND} -DBINARY=$<TARGET_FILE:${TEST_NAME}> -DFILTER=${timing_filter}
+                -DEXPECTED=${_names} -P ${CMAKE_CURRENT_SOURCE_DIR}/check_gtest_filter_count.cmake)
     endfunction()
 
     libstats_split_timing_cases(test_math_comprehensive MathUtilsTest.ErfPerformance
