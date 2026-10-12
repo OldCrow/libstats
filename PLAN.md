@@ -336,8 +336,8 @@ Status by machine (each machine edits only its own line):
   bit equality. Test hardening: adaptive cross-wait budget (K verifies),
   stronger inline check, per-name timing-split check. These move the
   freeze head; K's final hunt runs on code without them.
-  **2026-10-12/13 follow-up** [DERIVED, M; uncommitted, awaiting the
-  user's YubiKey; decided by the user 2026-10-12]: committed and pushed
+  **2026-10-12/13 follow-up** [DERIVED, M; decided by the user
+  2026-10-12; committed `8be51a3`..`5213b42`]: committed and pushed
   the four fixes above (`35cb02f`..`5b20fc2`). Then: #180 fixed (16
   global `waitForAll()` calls removed; the cross-wait check lists no
   known rows, so K's stress run is its verification); H5's batch-vs-scalar
@@ -356,16 +356,24 @@ Status by machine (each machine edits only its own line):
   oracle 190 self-checks, 0 contract violations, 0 zero collapses.
   Left as noted: Weibull survival at k = 100 (1.2e-10, the input's
   conditioning), the deepest-subnormal erfc floor in Gaussian,
-  HalfNormal and `normal_cdf` (no sweep row reaches it). The new freeze
-  head after these commits: every machine repeats R1, R2's sweep compare
-  (with survival rows now) and R8; K runs R9 under TSan and the
-  cross-wait test for #180.
+  HalfNormal and `normal_cdf` (no sweep row reaches it). First CI run
+  with the TSan leg failed three jobs, fixed in `ce03863` and `2f506ae`
+  (tests and CI only, no library code): GCC `-Wrange-loop-construct` in
+  the Student-t guard (Strict); the guard's monotone check on the UCRT,
+  whose `log` jitters one ulp (277 ulp at ν = 1000), now bounded there
+  by ν·ulp(log x)/ε (MSVC); and libstdc++'s `std::cyl_bessel_i` writing
+  `signgam` from von Mises' `log_bessel_i0`, suppressed in
+  `tests/tsan.supp` and filed as #267 (v3.0.0 removes it). CI at
+  `2f506ae`: 12/12 green, TSan 132/132 with no reports. Freeze head
+  `2f506ae`: every machine repeats R1, R2's sweep compare (with survival
+  rows now) and R8; K runs R9 under TSan and the cross-wait test for
+  #180. Runs started at `5213b42` stand: the library code is the same.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `6e188b4` (Status: it moves when a
+- Validate at the freeze head `2f506ae` (Status: it moves when a
   defect is fixed; validate at the latest); confirm it with `git log -1`
   before R1. Library code changes only by the user's decision: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
@@ -386,7 +394,7 @@ Status by machine (each machine edits only its own line):
   tuning changes. The sandbox also blocks the SSH agent for `git fetch`.
 
 ### Cold start (K, M)
-1. `git fetch`; `dev/v2.4.2` must be at the freeze head `ee11e62` or
+1. `git fetch`; `dev/v2.4.2` must be at the freeze head `2f506ae` or
    later. Work in a
    worktree beside the main checkout: `git worktree add
    ../libstats-v2.4.2 dev/v2.4.2`, or `git pull` in it if it exists.
