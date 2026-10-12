@@ -276,6 +276,59 @@ jobs:
   # Linux, so the defect class fails here too, with a readable log. Correctness
   # run only; tools and examples off for time.
   # ---------------------------------------------------------------------------
+  # ThreadSanitizer over the correctness suite. The concurrency fixes (#175, #176, #183, #184,
+  # #186, #190, #191, the ee11e62 audit) were each shown with TSan or the stress test on the Macs;
+  # without this leg only the stress test's value checks guarded them in CI. Any report fails the
+  # job (halt_on_error). The stress test runs at a tenth of its rounds (LIBSTATS_STRESS_SCALE),
+  # as R9 ran it locally. Linux takes PARALLEL, not WORK_STEALING, so the work-stealing lambdas
+  # are checked on SMT Macs (R9), not here.
+  thread-sanitizer:
+    name: ThreadSanitizer (Linux, clang-17)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Install clang-17
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-17
+    # Ubuntu 24.04's kernels map with 32 bits of ASLR entropy, more than TSan before LLVM 18
+    # supports ("FATAL: ThreadSanitizer: unexpected memory mapping"); 28 is the old default.
+    - name: Lower ASLR entropy for TSan
+      run: sudo sysctl vm.mmap_rnd_bits=28
+    - name: Configure (-fsanitize=thread)
+      env:
+        CC: clang-17
+        CXX: clang++-17
+      run: |
+        cmake -B build-tsan \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DLIBSTATS_BUILD_TOOLS=OFF \
+          -DLIBSTATS_BUILD_EXAMPLES=OFF \
+          -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
+
+    # Instrumented builds need more memory per job: mem/3, as the Sanitizers job.
+    - name: Build
+      shell: bash
+      run: |
+        MEM_GB=$(awk '/MemAvailable/{printf "%d", $2/1048576}' /proc/meminfo 2>/dev/null || echo 4)
+        CPU=$(nproc 2>/dev/null || echo 2)
+        MEM_JOBS=$(( MEM_GB / 3 ))
+        JOBS=$(( MEM_JOBS < CPU ? MEM_JOBS : CPU ))
+        JOBS=$(( JOBS < 1 ? 1 : JOBS ))
+        echo "Parallel build jobs: ${JOBS}"
+        cmake --build build-tsan --parallel "${JOBS}"
+
+    - name: Test
+      env:
+        LIBSTATS_STRESS_SCALE: "0.1"
+        TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+      run: ctest --test-dir build-tsan --output-on-failure -LE "timing|benchmark" --parallel 2
+
   fma-contraction:
     name: FMA contraction (Linux, clang-17)
     runs-on: ubuntu-latest
