@@ -32,7 +32,9 @@ namespace stats {
  *           bracketed. The left end of the support maps to the smallest double
  *           above −π + μ, wrapped.
  * - Parameters: μ ∈ ℝ (wrapped to (−π, π]), κ ≥ 0
- * - Support: x ∈ (−π, π]
+ * - Support: x ∈ (−π, π]. In doubles the interval is (−M_PI, M_PI]: the double −M_PI is the
+ *   same point of the circle as M_PI and wraps to it (#51), so getCumulativeProbability(−M_PI) is
+ * 1, as at M_PI, and a probability mass that starts at the lower edge starts just above −M_PI.
  *
  * @par Moments (circular):
  * - Circular mean: μ
@@ -249,7 +251,7 @@ class VonMisesDistribution : public DistributionBase {
      * law; at most one short Gauss–Legendre rule (≤ 36 nodes) per call, none
      * where the tail's series applies. Exact linear form at κ = 0; the normal limit
      * Φ(2√κ·sin(t/2)) for κ > 1e20, exact to double there.
-     * @note x−μ is wrapped to [−π, π] first.
+     * @note x−μ is wrapped to (−M_PI, M_PI] first: −M_PI wraps to M_PI, so F is 1 there (#51).
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 

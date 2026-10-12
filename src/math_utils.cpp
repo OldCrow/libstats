@@ -41,8 +41,12 @@ static int expansion_iteration_cap(double shape) noexcept {
     return static_cast<int>(std::min(1e6, 1000.0 + 20.0 * std::sqrt(std::fabs(shape))));
 }
 
-// The prefactors below switch to Stirling's form at this shape; under it the direct form is the
-// more accurate of the two and keeps its pre-v2.4.2 bits.
+// The prefactors below switch to Stirling's form at this shape; under it the direct form keeps its
+// pre-v2.4.2 bits. It is not the more accurate of the two there: it loses about
+// min(a, b)·ln(max(a, b))·ε, 10-50 ulp in Gamma at shapes 8-19 and up to ~1e3 ulp in Beta with one
+// huge shape, against 2-8 ulp just above 20, so values jump by up to ~200 ulp across the switch
+// (M1 seam hunt, 2026-10-12). Within the accuracy contract; moving the switch is deferred to the
+// corvus kernels (#266).
 constexpr double kStirlingPrefactorShape = detail::STIRLING_PREFACTOR_SHAPE;
 
 // Stirling remainder c(z) = lgamma(z) − [(z − ½)·log(z) − z + ½·log(2π)], truncated after its
