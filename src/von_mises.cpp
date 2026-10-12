@@ -1612,7 +1612,6 @@ void VonMisesDistribution::getCumulativeProbability(std::span<const double> valu
                                                           len, mu, kappa, log_scaled_norm, inv_norm,
                                                           half_j, uniform);
             });
-            pool.waitForAll();
         });
 }
 

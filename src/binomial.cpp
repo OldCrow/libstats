@@ -625,7 +625,6 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
                 d.getProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n, sp, lp,
                                           l1mp);
             });
-            pool.waitForAll();
         });
 }
 
@@ -685,7 +684,6 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
                 d.getLogProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n, sp,
                                              lp, l1mp);
             });
-            pool.waitForAll();
         });
 }
 
@@ -739,7 +737,6 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
                 d.getCumulativeProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n,
                                                     sp);
             });
-            pool.waitForAll();
         });
 }
 

@@ -599,7 +599,6 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
                                                           len, mu, iss2);
             });
-            pool.waitForAll();
         });
 }
 

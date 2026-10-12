@@ -746,7 +746,6 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
-            pool.waitForAll();
         });
 }
 
@@ -800,7 +799,6 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
-            pool.waitForAll();
         });
 }
 

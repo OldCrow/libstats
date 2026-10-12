@@ -798,14 +798,9 @@ void differential(const Row<D>& row) {
 constexpr double kCrossWaitFloorSeconds = 1.0;
 constexpr double kCrossWaitFactor = 20.0;
 
-// The lambdas that still call pool.waitForAll(), and the delegates that reach them (ChiSquared and
-// Erlang through Gamma, Bernoulli through Binomial, Geometric through NegativeBinomial).
-int knownCrossWaitIssue(const std::string& row) {
-    for (const char* r :
-         {"Beta", "Binomial", "FisherF", "NegativeBinomial", "Gamma", "LogNormal", "InverseGamma",
-          "VonMises", "ChiSquared", "Erlang", "Bernoulli", "Geometric"})
-        if (row == r)
-            return 180;
+// No lambda calls pool.waitForAll() since #180's fix: each waits on parallelForSlices' own latch.
+// A row listed here would print "[ known ]" instead of failing.
+int knownCrossWaitIssue(const std::string& /*row*/) {
     return 0;
 }
 

@@ -960,7 +960,6 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
             });
-            pool.waitForAll();
         });
 }
 
@@ -1035,7 +1034,6 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
             });
-            pool.waitForAll();
         });
 }
 

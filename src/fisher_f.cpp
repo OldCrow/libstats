@@ -917,7 +917,6 @@ void FDistribution::getProbability(std::span<const double> values, std::span<dou
             pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 pdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
-            pool.waitForAll();
         });
 }
 
@@ -975,7 +974,6 @@ void FDistribution::getLogProbability(std::span<const double> values, std::span<
             pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 logPdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
-            pool.waitForAll();
         });
 }
 
@@ -1036,7 +1034,6 @@ void FDistribution::getCumulativeProbability(std::span<const double> values,
             pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, pfx);
             });
-            pool.waitForAll();
         });
 }
 

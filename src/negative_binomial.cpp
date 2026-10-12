@@ -670,7 +670,6 @@ void NegativeBinomialDistribution::getProbability(std::span<const double> values
                 d.getProbabilityBatchImpl(vals.data() + start, res.data() + start, len, r, sp, lp,
                                           l1mp);
             });
-            pool.waitForAll();
         });
 }
 
@@ -728,7 +727,6 @@ void NegativeBinomialDistribution::getLogProbability(std::span<const double> val
                 d.getLogProbabilityBatchImpl(vals.data() + start, res.data() + start, len, r, sp,
                                              lp, l1mp);
             });
-            pool.waitForAll();
         });
 }
 
@@ -782,7 +780,6 @@ void NegativeBinomialDistribution::getCumulativeProbability(
                 d.getCumulativeProbabilityBatchImpl(vals.data() + start, res.data() + start, len, r,
                                                     sp);
             });
-            pool.waitForAll();
         });
 }
 

@@ -736,7 +736,6 @@ void InverseGammaDistribution::getCumulativeProbability(std::span<const double> 
             pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b);
             });
-            pool.waitForAll();
         });
 }
 
