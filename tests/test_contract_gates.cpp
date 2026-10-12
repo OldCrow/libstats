@@ -38,6 +38,13 @@ constexpr double kPi = std::numbers::pi;
 double relErr(double got, double want) {
     return std::fabs(got - want) / std::fabs(want);
 }
+// Distance in ulps between two finite doubles of the same sign.
+double ulpsApart(double a, double b) {
+    if (a == b)
+        return 0.0;
+    const double hi = std::max(std::fabs(a), std::fabs(b));
+    return std::fabs(a - b) / (std::nextafter(hi, std::numeric_limits<double>::infinity()) - hi);
+}
 
 std::uint64_t bitsOf(double v) {
     std::uint64_t u;
@@ -1898,8 +1905,10 @@ TEST(ContractGates, H4_InverseGammaReciprocalRoundingAtHugeShape) {
 // = α − βx, ~3e9 at α = 1e16 thirty standard deviations out, so at a non-dyadic rate half an ulp
 // of βx moved the log density 1.5e-7 absolute and the CDF 1.5e-7 relative, though x is exact.
 // The product's rounding is now carried to first order (fma residual). Erlang delegates to Gamma;
-// at k = 2e9 the amplification is ~1e6. Each batch strategy must equal the scalar path bit for bit
-// (the PDF's vector exp aside). References: mpmath at 60 digits, the CDF by quadrature.
+// at k = 2e9 the amplification is ~1e6. Each batch strategy must agree with the scalar path to
+// 2 ulp: not bit for bit, which held per row by luck where FP contraction is on (math_utils.cpp
+// contracts, gamma.cpp does not) and the batch takes log x from the vector log (M1 2026-10-12).
+// References: mpmath at 60 digits, the CDF by quadrature.
 TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
     using PS = detail::PerformanceHint::PreferredStrategy;
     enum class Op { Pdf, LogPdf, Cdf };
@@ -1934,8 +1943,10 @@ TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
                              PS::MAXIMIZE_THROUGHPUT}) {
                     g.getLogProbability(std::span<const double>(in), std::span<double>(out),
                                         detail::PerformanceHint{s, std::nullopt});
-                    EXPECT_EQ(out[0], g.getLogProbability(r.x)) << static_cast<int>(s);
-                    EXPECT_EQ(out[68], g.getLogProbability(r.x)) << static_cast<int>(s);
+                    EXPECT_LE(ulpsApart(out[0], g.getLogProbability(r.x)), 2.0)
+                        << static_cast<int>(s);
+                    EXPECT_LE(ulpsApart(out[68], g.getLogProbability(r.x)), 2.0)
+                        << static_cast<int>(s);
                 }
                 break;
             case Op::Cdf:
@@ -1948,8 +1959,10 @@ TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
                              PS::MAXIMIZE_THROUGHPUT}) {
                     g.getCumulativeProbability(std::span<const double>(in), std::span<double>(out),
                                                detail::PerformanceHint{s, std::nullopt});
-                    EXPECT_EQ(out[0], g.getCumulativeProbability(r.x)) << static_cast<int>(s);
-                    EXPECT_EQ(out[68], g.getCumulativeProbability(r.x)) << static_cast<int>(s);
+                    EXPECT_LE(ulpsApart(out[0], g.getCumulativeProbability(r.x)), 2.0)
+                        << static_cast<int>(s);
+                    EXPECT_LE(ulpsApart(out[68], g.getCumulativeProbability(r.x)), 2.0)
+                        << static_cast<int>(s);
                 }
                 break;
         }
