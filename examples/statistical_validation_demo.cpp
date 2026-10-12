@@ -14,10 +14,10 @@
 #include "libstats/libstats.h"
 
 // stats::analysis namespace (v2.0.0 — extracted from distribution static methods)
+#include "libstats/stats/analysis/bootstrap.h"
+#include "libstats/stats/analysis/cross_validation.h"
 #include "libstats/stats/analysis/goodness_of_fit.h"
 #include "libstats/stats/analysis/information_criteria.h"
-#include "libstats/stats/analysis/cross_validation.h"
-#include "libstats/stats/analysis/bootstrap.h"
 
 #include <algorithm>
 #include <cmath>
@@ -105,7 +105,8 @@ int main() {
         std::cout << "   Repeats process 5 times with different validation folds" << std::endl;
         std::cout << "   Outputs: fold log-likelihoods (distributional fit quality per fold)\n"
                   << std::endl;
-        auto cv_results = stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(data, 5, 42);
+        auto cv_results =
+            stats::analysis::kFoldCrossValidation<stats::GaussianDistribution>(data, 5, 42);
         std::cout << "   Results per fold (Log-Likelihood):" << std::endl;
         double total_loglik = 0.0;
         for (size_t i = 0; i < cv_results.size(); ++i) {
@@ -140,7 +141,8 @@ int main() {
         std::cout << "   Fits distribution to each bootstrap sample" << std::endl;
         std::cout << "   Creates confidence intervals from parameter distributions\n" << std::endl;
         auto [mean_ci, std_ci] =
-            stats::analysis::bootstrapMeanVarianceCI<stats::GaussianDistribution>(data, 0.95, 1000, 456);
+            stats::analysis::bootstrapMeanVarianceCI<stats::GaussianDistribution>(data, 0.95, 1000,
+                                                                                  456);
         std::cout << "   95% CI for mean: [" << mean_ci.first << ", " << mean_ci.second << "]"
                   << std::endl;
         std::cout << "   95% CI for std dev: [" << std_ci.first << ", " << std_ci.second << "]"
@@ -159,8 +161,7 @@ int main() {
 
         stats::Gaussian fitted_dist;
         fitted_dist.fit(data);
-        auto [aic, bic, aicc, loglik] =
-            stats::analysis::informationCriteria(data, fitted_dist);
+        auto [aic, bic, aicc, loglik] = stats::analysis::informationCriteria(data, fitted_dist);
         std::cout << "   Fitted parameters: μ=" << fitted_dist.getMean()
                   << ", σ=" << fitted_dist.getStandardDeviation() << std::endl;
         std::cout << "   AIC:  " << aic << " (Akaike Information Criterion - general purpose)"

@@ -80,8 +80,7 @@ namespace stats {
 class ErlangDistribution : public DistributionBase {
    public:
     // Dispatch metadata
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::ERLANG;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::ERLANG;
     static constexpr bool kIsDiscrete = false;
 
    public:
@@ -122,8 +121,7 @@ class ErlangDistribution : public DistributionBase {
      * @param lambda Rate parameter (must be positive and finite)
      * @return Result containing either a valid ErlangDistribution or error info
      */
-    [[nodiscard]] static Result<ErlangDistribution> create(int k = 1,
-                                                           double lambda = detail::ONE) {
+    [[nodiscard]] static Result<ErlangDistribution> create(int k = 1, double lambda = detail::ONE) {
         auto v = validateErlangParameters(k, lambda);
         if (v.isError())
             return Result<ErlangDistribution>::makeError(v.errorCode(), v.message());

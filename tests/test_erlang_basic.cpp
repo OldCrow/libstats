@@ -35,8 +35,7 @@ int main() {
         BasicTestFormatter::printProperty("Default mean (should be 1)", default_erl.getMean());
 
         auto erl_k2 = stats::ErlangDistribution::create(2, 3.0).unwrap();
-        BasicTestFormatter::printPropertyInt("k=2, lambda=3 distribution created",
-                                             erl_k2.getK());
+        BasicTestFormatter::printPropertyInt("k=2, lambda=3 distribution created", erl_k2.getK());
 
         auto copy_erl = erl_k2;
         BasicTestFormatter::printPropertyInt("Copy k", copy_erl.getK());
@@ -117,9 +116,9 @@ int main() {
                                           erl_exp.getCumulativeProbability(0.0));
 
         // ±inf contract (#103): PDF(+inf) = 0
-        BasicTestFormatter::printProperty("PDF(+inf) should be 0",
-                                          erl_exp.getProbability(
-                                              std::numeric_limits<double>::infinity()));
+        BasicTestFormatter::printProperty(
+            "PDF(+inf) should be 0",
+            erl_exp.getProbability(std::numeric_limits<double>::infinity()));
 
         const double q50 = erl_exp.getQuantile(0.5);
         BasicTestFormatter::printProperty("Quantile(0.50)", q50);
@@ -223,8 +222,7 @@ int main() {
         cout << "create(-1, 1.0) isError(): " << (err_neg_k.isError() ? "YES" : "NO") << endl;
 
         auto err_zero_lambda = ErlangDistribution::create(1, 0.0);
-        cout << "create(1, 0.0)  isError(): " << (err_zero_lambda.isError() ? "YES" : "NO")
-             << endl;
+        cout << "create(1, 0.0)  isError(): " << (err_zero_lambda.isError() ? "YES" : "NO") << endl;
 
         auto err_nan = ErlangDistribution::create(1, std::numeric_limits<double>::quiet_NaN());
         cout << "create(1, NaN)  isError(): " << (err_nan.isError() ? "YES" : "NO") << endl;

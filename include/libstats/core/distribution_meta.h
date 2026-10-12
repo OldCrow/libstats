@@ -88,7 +88,8 @@ inline constexpr DistributionMeta kDistributionMeta[] = {
     {DistributionType::GEOMETRIC, "GEOMETRIC", "Geometric", true,
      true},  // delegates to NegativeBinomial(r=1)
     {DistributionType::LAPLACE, "LAPLACE", "Laplace", false, false},
-    {DistributionType::CAUCHY, "CAUCHY", "Cauchy", false, true},  // PDF/LogPDF only; CDF/Quantile closed-form (#48)
+    {DistributionType::CAUCHY, "CAUCHY", "Cauchy", false,
+     true},  // PDF/LogPDF only; CDF/Quantile closed-form (#48)
     // v2.4.0 additions — scaffolded 2026-09-03 (#54–#57) -----------------------
     {DistributionType::LOGISTIC, "LOGISTIC", "Logistic", false, false},
     {DistributionType::GUMBEL, "GUMBEL", "Gumbel", false, false},

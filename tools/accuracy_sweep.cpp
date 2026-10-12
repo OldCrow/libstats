@@ -88,7 +88,7 @@ struct Row {
     std::string toCsvLine() const {
         std::string line;
         line.reserve(dist.size() + method.size() + p1.size() + p2.size() + x.size() +
-                    scalar.size() + batch.size() + 8);
+                     scalar.size() + batch.size() + 8);
         line += dist;
         line += ',';
         line += method;
@@ -107,7 +107,7 @@ struct Row {
 };
 
 Row makeRow(const std::string& dist, const std::string& method, double p1, double p2, bool hasP2,
-           double x, double scalar, double batch, bool hasBatch) {
+            double x, double scalar, double batch, bool hasBatch) {
     Row r;
     r.dist = dist;
     r.method = method;
@@ -127,13 +127,20 @@ Row makeRow(const std::string& dist, const std::string& method, double p1, doubl
 // the 6063-row grid) is only meaningful if every pre-v2.4.0 row keeps its
 // byte-for-byte identity and its CSV line number, which the appendix table of
 // docs/ACCURACY_CHARACTERIZATION.md indexes by.
-constexpr std::array<const char*, 27> kDistNames = {
-    "gaussian",      "lognormal",         "exponential",   "uniform",      "poisson",
-    "gamma",         "discrete",          "student_t",     "cauchy",       "von_mises",
-    "binomial",      "negative_binomial", "geometric",     "beta",         "chi_squared",
-    "laplace",       "pareto",            "rayleigh",      "weibull",      "logistic",
-    "gumbel",        "erlang",            "fisher_f",      "inverse_gamma", "half_normal",
-    "truncated_normal", "bernoulli"};
+constexpr std::array<const char*, 27> kDistNames = {"gaussian",    "lognormal",
+                                                    "exponential", "uniform",
+                                                    "poisson",     "gamma",
+                                                    "discrete",    "student_t",
+                                                    "cauchy",      "von_mises",
+                                                    "binomial",    "negative_binomial",
+                                                    "geometric",   "beta",
+                                                    "chi_squared", "laplace",
+                                                    "pareto",      "rayleigh",
+                                                    "weibull",     "logistic",
+                                                    "gumbel",      "erlang",
+                                                    "fisher_f",    "inverse_gamma",
+                                                    "half_normal", "truncated_normal",
+                                                    "bernoulli"};
 
 class Sink {
    public:
@@ -149,19 +156,11 @@ class Sink {
         rows_.push_back(std::move(row));
     }
 
-    void addSkip(const std::string& dist) {
-        bump(skips_, dist);
-    }
+    void addSkip(const std::string& dist) { bump(skips_, dist); }
 
-    const std::vector<Row>& rows() const {
-        return rows_;
-    }
-    const std::vector<std::pair<std::string, int>>& counts() const {
-        return counts_;
-    }
-    const std::vector<std::pair<std::string, int>>& skips() const {
-        return skips_;
-    }
+    const std::vector<Row>& rows() const { return rows_; }
+    const std::vector<std::pair<std::string, int>>& counts() const { return counts_; }
+    const std::vector<std::pair<std::string, int>>& skips() const { return skips_; }
 
    private:
     static void bump(std::vector<std::pair<std::string, int>>& v, const std::string& dist) {
@@ -225,9 +224,9 @@ const std::vector<double>& xConstructionPGrid() {
 
 // Probability grid for method=quantile rows (the contract's fixed 15-point list).
 const std::vector<double>& quantilePGrid() {
-    static const std::vector<double> grid = {1e-300, 1e-15, 1e-10, 1e-6,       1e-3,      0.01,
-                                             0.1,    0.25,  0.5,   0.75,       0.9,       0.99,
-                                             1.0 - 1e-6, 1.0 - 1e-10, 1.0 - 1e-15};
+    static const std::vector<double> grid = {1e-300, 1e-15, 1e-10,      1e-6,        1e-3,
+                                             0.01,   0.1,   0.25,       0.5,         0.75,
+                                             0.9,    0.99,  1.0 - 1e-6, 1.0 - 1e-10, 1.0 - 1e-15};
     return grid;
 }
 
@@ -243,9 +242,9 @@ const std::array<double, 3>& boundaryEpsilons() {
 // tail (mean +/- 16000*sd) that cdf reaches 1-1e-12 for every discrete instance
 // used below; landmarks are clamped to the distribution's own support bounds.
 const std::array<double, 23>& discreteTMultipliers() {
-    static const std::array<double, 23> t = {0.5,  1,   1.5, 2,   3,    4,    5,     6,
-                                             8,    10,  15,  20,  30,   50,   75,    100,
-                                             150,  250, 400, 650, 1000, 4000, 16000};
+    static const std::array<double, 23> t = {0.5, 1,   1.5, 2,   3,    4,    5,    6,
+                                             8,   10,  15,  20,  30,   50,   75,   100,
+                                             150, 250, 400, 650, 1000, 4000, 16000};
     return t;
 }
 
@@ -349,8 +348,8 @@ std::vector<double> buildDiscreteKGrid(Dist& dist) {
 //==============================================================================
 
 template <typename Dist>
-void emitPdfLogpdfCdfRows(Dist& dist, const std::string& distName, double p1, double p2,
-                          bool hasP2, std::vector<double> xs, bool includeSpecials, Sink& sink) {
+void emitPdfLogpdfCdfRows(Dist& dist, const std::string& distName, double p1, double p2, bool hasP2,
+                          std::vector<double> xs, bool includeSpecials, Sink& sink) {
     if (includeSpecials) {
         // At the FRONT, not the back: the batch kernels process floor(n/W)*W lanes in
         // the vector body and hand the remainder to scalar libm. With 43 finite x the
@@ -373,11 +372,11 @@ void emitPdfLogpdfCdfRows(Dist& dist, const std::string& distName, double p1, do
     };
     const std::array<Method, 3> methods = {
         Method{"pdf", static_cast<ScalarFn>(&Dist::getProbability),
-              static_cast<BatchFn>(&Dist::getProbability)},
+               static_cast<BatchFn>(&Dist::getProbability)},
         Method{"logpdf", static_cast<ScalarFn>(&Dist::getLogProbability),
-              static_cast<BatchFn>(&Dist::getLogProbability)},
+               static_cast<BatchFn>(&Dist::getLogProbability)},
         Method{"cdf", static_cast<ScalarFn>(&Dist::getCumulativeProbability),
-              static_cast<BatchFn>(&Dist::getCumulativeProbability)},
+               static_cast<BatchFn>(&Dist::getCumulativeProbability)},
     };
 
     stats::detail::PerformanceHint hint;
@@ -436,8 +435,8 @@ void sweepContinuous(const std::string& distName, Factory factory,
 // on an unknown key, so the two tables cannot drift apart silently.
 template <typename Dist, typename Factory>
 void sweepContinuous4(const std::string& distName, Factory factory,
-                      const std::array<std::array<double, 4>, 3>& instances,
-                      bool boundedBothSides, Sink& sink) {
+                      const std::array<std::array<double, 4>, 3>& instances, bool boundedBothSides,
+                      Sink& sink) {
     for (const auto& inst : instances) {
         Dist dist = factory(inst[0], inst[1], inst[2], inst[3]);
         std::vector<double> xs = buildContinuousXGrid(dist, boundedBothSides);
@@ -901,14 +900,12 @@ void sweepAll(Sink& sink) {
 
     // binomial(n, p): n positive int, p in [0,1]; p1 stores double bits of the int n used
     sweepDiscrete<BinomialDistribution>(
-        "binomial",
-        [](double a, double b) { return BinomialDistribution(static_cast<int>(a), b); },
+        "binomial", [](double a, double b) { return BinomialDistribution(static_cast<int>(a), b); },
         {{{20.0, 0.5}, {1.0, 0.5}, {1000000.0, 0.3}}}, true, sink);
 
     // negative_binomial(r, p): r > 0 (real-valued), p in (0,1]
     sweepDiscrete<NegativeBinomialDistribution>(
-        "negative_binomial",
-        [](double a, double b) { return NegativeBinomialDistribution(a, b); },
+        "negative_binomial", [](double a, double b) { return NegativeBinomialDistribution(a, b); },
         {{{5.0, 0.5}, {0.01, 0.9}, {10000.0, 0.01}}}, true, sink);
 
     // geometric(p): p in (0,1]
@@ -941,8 +938,7 @@ void sweepAll(Sink& sink) {
     // is the large-shape regime where the oracle's lower-gamma series stops
     // converging and the upper-gamma continued fraction takes over.
     sweepContinuous<ErlangDistribution>(
-        "erlang",
-        [](double a, double b) { return ErlangDistribution(static_cast<int>(a), b); },
+        "erlang", [](double a, double b) { return ErlangDistribution(static_cast<int>(a), b); },
         {{{2.0, 1.0}, {1.0, 1e-3}, {10000.0, 1e-3}}}, true, false, sink);
 
     // fisher_f(d1, d2): both > 0, real-valued. CDF is I_y(d1/2, d2/2) at
@@ -960,8 +956,7 @@ void sweepAll(Sink& sink) {
     // instance ladder, since the CDF is Q(alpha, beta/x) -- the same incomplete
     // gamma read from the opposite tail.
     sweepContinuous<InverseGammaDistribution>(
-        "inverse_gamma",
-        [](double a, double b) { return InverseGammaDistribution(a, b); },
+        "inverse_gamma", [](double a, double b) { return InverseGammaDistribution(a, b); },
         {{{3.0, 2.0}, {0.01, 0.01}, {1e4, 1e-3}}}, true, false, sink);
 
     // half_normal(sigma): sigma > 0. Rayleigh's single-scale ladder; CDF is
@@ -1079,8 +1074,8 @@ int main(int argc, char** argv) {
 
     out << "# libstats accuracy_sweep v1\n";
     out << "# commit=" << getGitCommitShort()
-       << "  isa=" << stats::arch::simd::SIMDPolicy::getLevelString()
-       << "  date=" << getDateStamp() << "\n";
+        << "  isa=" << stats::arch::simd::SIMDPolicy::getLevelString()
+        << "  date=" << getDateStamp() << "\n";
     out << "dist,method,p1_bits,p2_bits,x_bits,scalar_bits,batch_bits\n";
     for (const auto& row : sink.rows()) {
         out << row.toCsvLine() << "\n";

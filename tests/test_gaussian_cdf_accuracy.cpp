@@ -329,8 +329,8 @@ TEST(GaussianCdfGates, Specials) {
             batch_max = std::max(batch_max, be);
             EXPECT_EQ(scalar_out[i], refs[i]) << "scalar: F(x=" << xs[i] << ") must equal "
                                               << refs[i] << " exactly, got " << scalar_out[i];
-            EXPECT_EQ(batch_out[i], refs[i]) << "batch: F(x=" << xs[i] << ") must equal "
-                                             << refs[i] << " exactly, got " << batch_out[i];
+            EXPECT_EQ(batch_out[i], refs[i]) << "batch: F(x=" << xs[i] << ") must equal " << refs[i]
+                                             << " exactly, got " << batch_out[i];
         }
     }
     std::cout << std::setprecision(17) << "gausscdf scalar specials max_abs=" << scalar_max << "\n";

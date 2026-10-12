@@ -100,8 +100,8 @@ void runBodyGate(const char* tier, LogFn log_fn) {
     std::vector<double> in(n), out(n);
     for (std::size_t i = 0; i < kSpecialsN; ++i)
         in[i] = kSpecials[i];
-    const double benign[] = {0.5, 1.0, 2.718281828459045, 10.0, 1e-10, 1e10, 3.5,
-                             0.125, 7.0, 42.0, 0.9999999999999999};
+    const double benign[] = {0.5, 1.0,  2.718281828459045, 10.0, 1e-10, 1e10, 3.5, 0.125,
+                             7.0, 42.0, 0.9999999999999999};
     for (std::size_t i = kSpecialsN; i < n; ++i)
         in[i] = benign[i - kSpecialsN];
 

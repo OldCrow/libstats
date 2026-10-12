@@ -86,8 +86,7 @@ namespace stats {
 class GumbelDistribution : public DistributionBase {
    public:
     // Dispatch metadata — must agree with kDistributionMeta[GUMBEL].
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::GUMBEL;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::GUMBEL;
     static constexpr bool kIsDiscrete = false;
 
     /// Skewness of every Gumbel distribution: 12·√6·ζ(3)/π³ (parameter-free).

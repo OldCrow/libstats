@@ -13,15 +13,15 @@
 // Distribution includes
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/binomial.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
-#include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/laplace.h"
-#include "libstats/distributions/cauchy.h"
+#include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -65,43 +65,43 @@ using namespace stats;
 template <typename Dist>
 auto createTestDistribution() {
     if constexpr (std::is_same_v<Dist, UniformDistribution>)
-        return UniformDistribution::create(0.0, 1.0);           // standard uniform
+        return UniformDistribution::create(0.0, 1.0);  // standard uniform
     else if constexpr (std::is_same_v<Dist, GaussianDistribution>)
-        return GaussianDistribution::create(0.0, 1.0);          // standard normal
+        return GaussianDistribution::create(0.0, 1.0);  // standard normal
     else if constexpr (std::is_same_v<Dist, ExponentialDistribution>)
-        return ExponentialDistribution::create(1.0);             // unit rate
+        return ExponentialDistribution::create(1.0);  // unit rate
     else if constexpr (std::is_same_v<Dist, DiscreteDistribution>)
-        return DiscreteDistribution::create(0, 9);              // range [0, 9]
+        return DiscreteDistribution::create(0, 9);  // range [0, 9]
     else if constexpr (std::is_same_v<Dist, PoissonDistribution>)
-        return PoissonDistribution::create(3.0);                // λ=3
+        return PoissonDistribution::create(3.0);  // λ=3
     else if constexpr (std::is_same_v<Dist, GammaDistribution>)
-        return GammaDistribution::create(2.0, 1.0);             // α=2, β=1
+        return GammaDistribution::create(2.0, 1.0);  // α=2, β=1
     else if constexpr (std::is_same_v<Dist, LogNormalDistribution>)
-        return LogNormalDistribution::create(0.0, 1.0);         // μ=0, σ=1
+        return LogNormalDistribution::create(0.0, 1.0);  // μ=0, σ=1
     else if constexpr (std::is_same_v<Dist, ParetoDistribution>)
-        return ParetoDistribution::create(1.0, 2.0);            // xm=1, α=2
+        return ParetoDistribution::create(1.0, 2.0);  // xm=1, α=2
     else if constexpr (std::is_same_v<Dist, WeibullDistribution>)
-        return WeibullDistribution::create(2.0, 1.0);           // k=2, λ=1
+        return WeibullDistribution::create(2.0, 1.0);  // k=2, λ=1
     else if constexpr (std::is_same_v<Dist, RayleighDistribution>)
-        return RayleighDistribution::create(1.0);               // σ=1
+        return RayleighDistribution::create(1.0);  // σ=1
     else if constexpr (std::is_same_v<Dist, VonMisesDistribution>)
-        return VonMisesDistribution::create(0.0, 1.0);          // μ=0, κ=1
+        return VonMisesDistribution::create(0.0, 1.0);  // μ=0, κ=1
     else if constexpr (std::is_same_v<Dist, BinomialDistribution>)
-        return BinomialDistribution::create(10, 0.5);           // n=10, p=0.5
+        return BinomialDistribution::create(10, 0.5);  // n=10, p=0.5
     else if constexpr (std::is_same_v<Dist, NegativeBinomialDistribution>)
         return NegativeBinomialDistribution::create(5.0, 0.4);  // r=5, p=0.4
     else if constexpr (std::is_same_v<Dist, GeometricDistribution>)
-        return GeometricDistribution::create(0.4);              // p=0.4
+        return GeometricDistribution::create(0.4);  // p=0.4
     else if constexpr (std::is_same_v<Dist, LaplaceDistribution>)
-        return LaplaceDistribution::create(0.0, 1.0);           // standard
+        return LaplaceDistribution::create(0.0, 1.0);  // standard
     else if constexpr (std::is_same_v<Dist, CauchyDistribution>)
-        return CauchyDistribution::create(0.0, 1.0);            // standard Cauchy
+        return CauchyDistribution::create(0.0, 1.0);  // standard Cauchy
     else if constexpr (std::is_same_v<Dist, BetaDistribution>)
-        return BetaDistribution::create(2.0, 3.0);              // α=2, β=3
+        return BetaDistribution::create(2.0, 3.0);  // α=2, β=3
     else if constexpr (std::is_same_v<Dist, ChiSquaredDistribution>)
-        return ChiSquaredDistribution::create(4.0);             // k=4
+        return ChiSquaredDistribution::create(4.0);  // k=4
     else if constexpr (std::is_same_v<Dist, StudentTDistribution>)
-        return StudentTDistribution::create(5.0);               // ν=5
+        return StudentTDistribution::create(5.0);  // ν=5
     else
         return Dist::create();
 }

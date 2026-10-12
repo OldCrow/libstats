@@ -184,7 +184,9 @@ class LogisticDistribution : public DistributionBase {
     [[nodiscard]] double getSkewness() const noexcept override { return detail::ZERO_DOUBLE; }
 
     /** @brief Excess kurtosis = 6/5 = 1.2. */
-    [[nodiscard]] double getKurtosis() const noexcept override { return detail::SIX / detail::FIVE; }
+    [[nodiscard]] double getKurtosis() const noexcept override {
+        return detail::SIX / detail::FIVE;
+    }
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }

@@ -45,7 +45,7 @@ TEST_F(SystemCapabilitiesIntegrationTest, ReasonableSystemValues) {
     EXPECT_LE(capabilities.physical_cores(), capabilities.logical_cores());
 
     // Cache sizes (in bytes)
-    EXPECT_GE(capabilities.l1_cache_size(), 1024u);         // At least 1KB
+    EXPECT_GE(capabilities.l1_cache_size(), 1024u);          // At least 1KB
     EXPECT_LE(capabilities.l1_cache_size(), 1024u * 1024u);  // At most 1MB (generous)
 
     if (capabilities.l2_cache_size() > 0) {

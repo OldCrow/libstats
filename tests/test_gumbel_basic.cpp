@@ -184,8 +184,8 @@ int main() {
         for (double sv : samples)
             smean += sv;
         smean /= 500.0;
-        cout << "Sample mean (n=500, expect ~" << (3.0 + 2.0 * 0.5772156649015329)
-             << "): " << smean << "\n";
+        cout << "Sample mean (n=500, expect ~" << (3.0 + 2.0 * 0.5772156649015329) << "): " << smean
+             << "\n";
 
         BasicTestFormatter::printTestSuccess("Sampling tests passed");
         BasicTestFormatter::printNewline();
@@ -246,8 +246,7 @@ int main() {
         BasicTestFormatter::printSummaryHeader();
         BasicTestFormatter::printSummaryItem(
             "Max-stable (gumbel_r) only; gumbel_l deferred per issue #54 kickoff");
-        BasicTestFormatter::printSummaryItem(
-            "LogPDF exact in log space: -log(beta) - z - e^-z");
+        BasicTestFormatter::printSummaryItem("LogPDF exact in log space: -log(beta) - z - e^-z");
         BasicTestFormatter::printSummaryItem(
             "CDF exp(-exp(-z)) reaches exactly 0 and 1 at the extremes");
         BasicTestFormatter::printSummaryItem(

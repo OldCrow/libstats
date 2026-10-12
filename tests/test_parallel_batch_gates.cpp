@@ -71,8 +71,8 @@ std::vector<double> reals(double lo, double hi) {
 void expectParallelWins(const std::string& what, const BatchFn& fn, const std::vector<double>& xs) {
     const double vec = minSeconds(fn, xs, Strategy::FORCE_VECTORIZED);
     const double par = minSeconds(fn, xs, Strategy::FORCE_PARALLEL);
-    std::cout << "  " << what << ": PARALLEL/VECTORIZED " << par / vec << " (" << par * 1e3
-              << " / " << vec * 1e3 << " ms)\n";
+    std::cout << "  " << what << ": PARALLEL/VECTORIZED " << par / vec << " (" << par * 1e3 << " / "
+              << vec * 1e3 << " ms)\n";
     EXPECT_LT(par, kMaxRatio * vec) << what << ": PARALLEL " << par * 1e3 << " ms, VECTORIZED "
                                     << vec * 1e3 << " ms (ratio " << par / vec << ")";
 }

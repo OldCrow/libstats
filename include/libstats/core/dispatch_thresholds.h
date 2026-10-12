@@ -257,50 +257,50 @@ constexpr ArchTable kNeon = {{
 // PDF were 2–3× too high; several 64-valued rows were resolution noise.
 // SSE2 delegates to kAvx; both updated together.
 constexpr ArchTable kAvx = {{
-    /* UNIFORM(0)            */ {NEVER, NEVER, 25000},     // CDF: parallel sustains from 25k
-                                                           // (all 3 runs) — differs from
-                                                           // kAvx2=NEVER; weaker SIMD leaves
-                                                           // room for the fork
+    /* UNIFORM(0)            */ {NEVER, NEVER, 25000},  // CDF: parallel sustains from 25k
+                                                        // (all 3 runs) — differs from
+                                                        // kAvx2=NEVER; weaker SIMD leaves
+                                                        // room for the fork
     /* GAUSSIAN(1)           */ {50000, 150000, 4096},
     /* EXPONENTIAL(2)        */ {25000, 100000, 25000},
     /* DISCRETE(3)           */ {50000, 50000, 50000},
-    /* POISSON(4)            */ {4096, 8192, 4096},        // CDF {64,2048,4096}: conservative
-                                                           // 4096 (64 is resolution noise)
-    /* GAMMA(5)              */ {6144, 25000, 4096},       // CDF {64,64,4096}: conservative
-                                                           // 4096 (64s are resolution noise)
-    /* STUDENT_T(6)          */ {25000, 50000, NEVER},     // CDF only sustains ≥750k and not in
-                                                           // every run — not a usable threshold
-    /* BETA(7)               */ {NEVER, NEVER, 4096},      // PDF/LogPDF: parallel loses on AVX
-                                                           // too — NEVER on all four measured
-                                                           // tiers now
+    /* POISSON(4)            */ {4096, 8192, 4096},     // CDF {64,2048,4096}: conservative
+                                                        // 4096 (64 is resolution noise)
+    /* GAMMA(5)              */ {6144, 25000, 4096},    // CDF {64,64,4096}: conservative
+                                                        // 4096 (64s are resolution noise)
+    /* STUDENT_T(6)          */ {25000, 50000, NEVER},  // CDF only sustains ≥750k and not in
+                                                        // every run — not a usable threshold
+    /* BETA(7)               */ {NEVER, NEVER, 4096},   // PDF/LogPDF: parallel loses on AVX
+                                                        // too — NEVER on all four measured
+                                                        // tiers now
     /* CHI_SQUARED(8)        */ {8192, 25000, 4096},
-    /* LOG_NORMAL(9)         */ {25000, 25000, 256},       // CDF {256,64,128}: conservative 256
+    /* LOG_NORMAL(9)         */ {25000, 25000, 256},  // CDF {256,64,128}: conservative 256
     /* PARETO(10)            */ {25000, 50000, 50000},
     /* WEIBULL(11)           */ {25000, 25000, 25000},
     /* RAYLEIGH(12)          */ {25000, 25000, 50000},
-    /* VON_MISES(13)         */ {25000, 50000, NEVER},     // CDF NEVER: memory-bound batch CDF
-                                                           // (#111/#144), matches kNeon/kAvx2
-    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},     // CDF: measured NEVER (June's held
-                                                           // 128 came from kAvx512)
-    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},     // CDF: measured NEVER (was held 256)
+    /* VON_MISES(13)         */ {25000, 50000, NEVER},  // CDF NEVER: memory-bound batch CDF
+                                                        // (#111/#144), matches kNeon/kAvx2
+    /* BINOMIAL(14)          */ {NEVER, NEVER, NEVER},  // CDF: measured NEVER (June's held
+                                                        // 128 came from kAvx512)
+    /* NEGATIVE_BINOMIAL(15) */ {NEVER, NEVER, NEVER},  // CDF: measured NEVER (was held 256)
     /* GEOMETRIC(16)         */ {NEVER, NEVER, NEVER},
     /* LAPLACE(17)           */ {25000, 50000, 10000},
     /* CAUCHY(18)            */ {50000, 50000, 6144},
     // v2.4.0 rows measured in the same capped-build runs:
     /* LOGISTIC(19)          */ {25000, 50000, 25000},
     /* GUMBEL(20)            */ {25000, 25000, 25000},
-    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},     // ← BINOMIAL(14) (pure pass-through:
-                                                           // documentation mirror, measured NEVER)
-    /* ERLANG(22)            */ {6144, 25000, 4096},       // ← GAMMA(5) (pure pass-through:
-                                                           // documentation mirror)
-    /* FISHER_F(23)          */ {4096, 6144, 4096},        // own kernels; measured (June's
-                                                           // ← BETA {128,128,256} inference was
-                                                           // wrong-direction)
-    /* INVERSE_GAMMA(24)     */ {6144, 25000, 2048},       // pdf/log_pdf ← GAMMA(5) (pass-through
-                                                           // mirror); cdf is a live row, measured
-    /* HALF_NORMAL(25)       */ {25000, 100000, 10000},    // CDF 10000: parallel WINS on AVX
-                                                           // (slow vector_erf) — the kNeon NEVER
-                                                           // economics inverts here, see kNeon note
+    /* BERNOULLI(21)         */ {NEVER, NEVER, NEVER},   // ← BINOMIAL(14) (pure pass-through:
+                                                         // documentation mirror, measured NEVER)
+    /* ERLANG(22)            */ {6144, 25000, 4096},     // ← GAMMA(5) (pure pass-through:
+                                                         // documentation mirror)
+    /* FISHER_F(23)          */ {4096, 6144, 4096},      // own kernels; measured (June's
+                                                         // ← BETA {128,128,256} inference was
+                                                         // wrong-direction)
+    /* INVERSE_GAMMA(24)     */ {6144, 25000, 2048},     // pdf/log_pdf ← GAMMA(5) (pass-through
+                                                         // mirror); cdf is a live row, measured
+    /* HALF_NORMAL(25)       */ {25000, 100000, 10000},  // CDF 10000: parallel WINS on AVX
+                                                         // (slow vector_erf) — the kNeon NEVER
+                                                         // economics inverts here, see kNeon note
     /* TRUNCATED_NORMAL(26)  */ {25000, 50000, 4096},
 }};
 

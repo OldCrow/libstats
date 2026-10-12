@@ -251,7 +251,7 @@ BucketResult run_bucket(double mu, double sigma, const LnCdfVector* rows, std::s
 // Groups kLnCdfVectors into contiguous per-(mu,sigma) runs (generator
 // emission order) without assuming a fixed bucket size.
 std::vector<std::pair<std::size_t, std::size_t>> find_buckets(const LnCdfVector* rows,
-                                                                std::size_t n) {
+                                                              std::size_t n) {
     std::vector<std::pair<std::size_t, std::size_t>> buckets;  // (start, count)
     std::size_t start = 0;
     for (std::size_t i = 1; i <= n; ++i) {
@@ -278,15 +278,14 @@ TEST(LogNormalCdfGates, MainSweepPerBucket) {
 
         EXPECT_LE(r.scalar_max_frac, 1.0)
             << "scalar mu=" << mu << " sigma=" << sigma
-            << " over the law_budget(F) relative-error budget (worst x="
-            << r.scalar_frac_worst_x << ")";
+            << " over the law_budget(F) relative-error budget (worst x=" << r.scalar_frac_worst_x
+            << ")";
         EXPECT_LE(r.batch_max_frac, 1.0)
             << "batch mu=" << mu << " sigma=" << sigma
-            << " over the law_budget(F) relative-error budget (worst x="
-            << r.batch_frac_worst_x << ")";
+            << " over the law_budget(F) relative-error budget (worst x=" << r.batch_frac_worst_x
+            << ")";
         EXPECT_LE(r.batch_vs_scalar_max_rel, 1.0)
-            << "batch vs scalar law-normalized relative mismatch mu=" << mu
-            << " sigma=" << sigma;
+            << "batch vs scalar law-normalized relative mismatch mu=" << mu << " sigma=" << sigma;
         EXPECT_LE(r.batch_vs_scalar_max_abs, kBudgetBatchVsScalarAbs)
             << "batch vs scalar absolute mismatch mu=" << mu << " sigma=" << sigma;
     }
@@ -328,12 +327,10 @@ TEST(LogNormalCdfGates, Specials) {
             const double be = std::fabs(batch_out[i] - refs[i]);
             scalar_max = std::max(scalar_max, se);
             batch_max = std::max(batch_max, be);
-            EXPECT_EQ(scalar_out[i], refs[i])
-                << "scalar: F(x=" << xs[i] << ") must equal " << refs[i] << " exactly, got "
-                << scalar_out[i];
-            EXPECT_EQ(batch_out[i], refs[i])
-                << "batch: F(x=" << xs[i] << ") must equal " << refs[i] << " exactly, got "
-                << batch_out[i];
+            EXPECT_EQ(scalar_out[i], refs[i]) << "scalar: F(x=" << xs[i] << ") must equal "
+                                              << refs[i] << " exactly, got " << scalar_out[i];
+            EXPECT_EQ(batch_out[i], refs[i]) << "batch: F(x=" << xs[i] << ") must equal " << refs[i]
+                                             << " exactly, got " << batch_out[i];
         }
     }
     std::cout << std::setprecision(17) << "lncdf scalar specials max_abs=" << scalar_max << "\n";

@@ -151,8 +151,8 @@ namespace {
 constexpr double kBudgetTight = 1.0;  // avx2 / avx512 / neon
 // [[maybe_unused]]: on a NEON-only (no x86 tier) build this constant has no
 // reader, which trips -Wunused-const-variable under GCC/Clang -Wall.
-[[maybe_unused]] constexpr double kBudgetLoose = 2.0;    // sse2 / avx (no guaranteed FMA)
-constexpr double kBudgetSpecials = 4.0;                  // libm fixup path, every tier
+[[maybe_unused]] constexpr double kBudgetLoose = 2.0;  // sse2 / avx (no guaranteed FMA)
+constexpr double kBudgetSpecials = 4.0;                // libm fixup path, every tier
 
 struct GateResult {
     double cos_max = 0.0, cos_mean = 0.0;
@@ -373,7 +373,8 @@ TEST(TrigUlpGates, Avx512) {
     if (!stats::arch::supports_avx512()) {
         GTEST_SKIP() << "AVX-512 not supported on this CPU";
     }
-    run_main_gate("avx512", VectorOps::vector_cos_avx512, VectorOps::vector_sin_avx512, kBudgetTight);
+    run_main_gate("avx512", VectorOps::vector_cos_avx512, VectorOps::vector_sin_avx512,
+                  kBudgetTight);
 }
 #endif
 
@@ -396,7 +397,8 @@ TEST(TrigUlpSpecialsGates, Sse2) {
     if (!stats::arch::supports_sse2()) {
         GTEST_SKIP() << "SSE2 not supported on this CPU";
     }
-    run_specials_gate("sse2", VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2, kBudgetSpecials);
+    run_specials_gate("sse2", VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2,
+                      kBudgetSpecials);
 }
 #endif
 
@@ -414,7 +416,8 @@ TEST(TrigUlpSpecialsGates, Avx2) {
     if (!stats::arch::supports_avx2()) {
         GTEST_SKIP() << "AVX2 not supported on this CPU";
     }
-    run_specials_gate("avx2", VectorOps::vector_cos_avx2, VectorOps::vector_sin_avx2, kBudgetSpecials);
+    run_specials_gate("avx2", VectorOps::vector_cos_avx2, VectorOps::vector_sin_avx2,
+                      kBudgetSpecials);
 }
 #endif
 
@@ -423,7 +426,8 @@ TEST(TrigUlpSpecialsGates, Avx512) {
     if (!stats::arch::supports_avx512()) {
         GTEST_SKIP() << "AVX-512 not supported on this CPU";
     }
-    run_specials_gate("avx512", VectorOps::vector_cos_avx512, VectorOps::vector_sin_avx512, kBudgetSpecials);
+    run_specials_gate("avx512", VectorOps::vector_cos_avx512, VectorOps::vector_sin_avx512,
+                      kBudgetSpecials);
 }
 #endif
 
@@ -432,7 +436,8 @@ TEST(TrigUlpSpecialsGates, Neon) {
     if (!stats::arch::supports_neon()) {
         GTEST_SKIP() << "NEON not supported on this CPU";
     }
-    run_specials_gate("neon", VectorOps::vector_cos_neon, VectorOps::vector_sin_neon, kBudgetSpecials);
+    run_specials_gate("neon", VectorOps::vector_cos_neon, VectorOps::vector_sin_neon,
+                      kBudgetSpecials);
 }
 #endif
 
@@ -457,10 +462,10 @@ TEST(TrigUlpGates, SubSpanNonLaneMultipleTailPath) {
                                   VectorOps::vector_cos_sse2, VectorOps::vector_sin_sse2);
     EXPECT_LE(r.cos_max, kBudgetLoose)
         << "sub-span cos max ULP over budget (worst x=" << r.cos_worst_x << ")";
-#if LIBSTATS_TRIG_GATES_HAVE_SIN
+    #if LIBSTATS_TRIG_GATES_HAVE_SIN
     EXPECT_LE(r.sin_max, kBudgetLoose)
         << "sub-span sin max ULP over budget (worst x=" << r.sin_worst_x << ")";
-#endif
+    #endif
 }
 #endif
 
@@ -505,10 +510,17 @@ TEST(TrigUlpGates, InPlaceAliasingMatchesOutOfPlace) {
     for (std::size_t i = 0; i < 4096; ++i)
         in.push_back(-7.0 + 14.0 * static_cast<double>(i) / 4095.0);
     // Lanes that exercise the register-decided fixup and the specials.
-    const double extras[] = {0.0, -0.0, 1e300, -1e300, 16777216.0, 8388608.0,
+    const double extras[] = {0.0,
+                             -0.0,
+                             1e300,
+                             -1e300,
+                             16777216.0,
+                             8388608.0,
                              std::numeric_limits<double>::infinity(),
                              -std::numeric_limits<double>::infinity(),
-                             std::numeric_limits<double>::quiet_NaN(), 1e9, -1e9};
+                             std::numeric_limits<double>::quiet_NaN(),
+                             1e9,
+                             -1e9};
     in.insert(in.end(), std::begin(extras), std::end(extras));
     const std::size_t n = in.size();  // 4107: not a lane multiple, so the tail runs too
 

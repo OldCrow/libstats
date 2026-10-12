@@ -251,10 +251,10 @@ void VectorOps::vector_exp_avx512(const double* values, double* results,
         // +inf) -> +inf, NaN -> NaN. Underflow/-inf already flush to +0 via
         // exp_min + two-step scaling. Keeps the SIMD body consistent with the
         // scalar remainder loop below (std::exp) and the NEON kernel.
-        result = _mm512_mask_blend_pd(_mm512_cmp_pd_mask(x_orig, exp_max, _CMP_GT_OQ), result,
-                                      pos_inf);
-        result = _mm512_mask_blend_pd(_mm512_cmp_pd_mask(x_orig, x_orig, _CMP_UNORD_Q), result,
-                                      x_orig);
+        result =
+            _mm512_mask_blend_pd(_mm512_cmp_pd_mask(x_orig, exp_max, _CMP_GT_OQ), result, pos_inf);
+        result =
+            _mm512_mask_blend_pd(_mm512_cmp_pd_mask(x_orig, x_orig, _CMP_UNORD_Q), result, x_orig);
         _mm512_storeu_pd(&results[i], result);
     }
 
@@ -597,16 +597,16 @@ void VectorOps::vector_erf_avx512(const double* values, double* results,
         results[i] = std::erf(values[i]);
 }
 
-    // Clean-room quadrant-reduction cos/sin (issue #95), AVX-512 FMA form --
-    // ported structurally from libhmm's cos_pd/sin_pd(__m512d) (issue #74
-    // there), itself ported from this project's own vector_cos_neon. See
-    // docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
-    // the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
-    // self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
-    // No third-party source. _mm512_cvtepi32_epi64 requires AVX-512F;
-    // _mm512_xor_pd requires AVX-512DQ (this TU is compiled with -mavx512f
-    // -mavx512dq / /arch:AVX512).
-    #include "trig_cleanroom_data.inc"
+// Clean-room quadrant-reduction cos/sin (issue #95), AVX-512 FMA form --
+// ported structurally from libhmm's cos_pd/sin_pd(__m512d) (issue #74
+// there), itself ported from this project's own vector_cos_neon. See
+// docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
+// the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
+// self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
+// No third-party source. _mm512_cvtepi32_epi64 requires AVX-512F;
+// _mm512_xor_pd requires AVX-512DQ (this TU is compiled with -mavx512f
+// -mavx512dq / /arch:AVX512).
+#include "trig_cleanroom_data.inc"
 
 // Reduction shared by cos_avx512/sin_avx512: n32 = round-to-nearest-even(x*2/pi)
 // via the cvt round-trip (exact-product lemma holds for |n| <= 5,340,354,

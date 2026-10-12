@@ -193,7 +193,7 @@ BucketResult run_bucket(double kappa, double mu, const VmCdfVector* rows, std::s
 // order) without assuming a fixed bucket size, so this test stays correct
 // even if the generator's per-kappa row count changes.
 std::vector<std::pair<std::size_t, std::size_t>> find_kappa_buckets(const VmCdfVector* rows,
-                                                                     std::size_t n) {
+                                                                    std::size_t n) {
     std::vector<std::pair<std::size_t, std::size_t>> buckets;  // (start, count)
     std::size_t start = 0;
     for (std::size_t i = 1; i <= n; ++i) {
@@ -275,8 +275,8 @@ TEST(VonMisesCdfGates, FallbackBranchWrapsXMinusMu) {
     const double budget = budgetForKappa(2000.0);
     std::cout << std::setprecision(17) << "vmcdf seam kappa=2000 mu=3 x=-3.1 ref=" << ref
               << " scalar=" << scalar << " batch=" << batch << "\n";
-    EXPECT_LE(std::fabs(scalar - ref), budget) << "scalar seam value " << scalar << " vs ref "
-                                               << ref;
+    EXPECT_LE(std::fabs(scalar - ref), budget)
+        << "scalar seam value " << scalar << " vs ref " << ref;
     EXPECT_LE(std::fabs(batch - ref), budget) << "batch seam value " << batch << " vs ref " << ref;
 }
 
@@ -316,12 +316,10 @@ TEST(VonMisesCdfGates, Specials) {
             const double be = std::fabs(batch_out[i] - refs[i]);
             scalar_max = std::max(scalar_max, se);
             batch_max = std::max(batch_max, be);
-            EXPECT_EQ(scalar_out[i], refs[i])
-                << "scalar: F(x=" << xs[i] << ") must equal " << refs[i] << " exactly, got "
-                << scalar_out[i];
-            EXPECT_EQ(batch_out[i], refs[i])
-                << "batch: F(x=" << xs[i] << ") must equal " << refs[i] << " exactly, got "
-                << batch_out[i];
+            EXPECT_EQ(scalar_out[i], refs[i]) << "scalar: F(x=" << xs[i] << ") must equal "
+                                              << refs[i] << " exactly, got " << scalar_out[i];
+            EXPECT_EQ(batch_out[i], refs[i]) << "batch: F(x=" << xs[i] << ") must equal " << refs[i]
+                                             << " exactly, got " << batch_out[i];
         }
     }
     std::cout << std::setprecision(17) << "vmcdf scalar specials max_abs=" << scalar_max << "\n";

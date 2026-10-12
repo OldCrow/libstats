@@ -601,15 +601,15 @@ void VectorOps::vector_erf_avx2(const double* input, double* output, std::size_t
         output[i] = std::erf(input[i]);
 }
 
-    // Clean-room quadrant-reduction cos/sin (issue #95), AVX2 FMA form --
-    // ported structurally from libhmm's cos_pd/sin_pd(__m256d) (issue #74
-    // there), itself ported from this project's own vector_cos_neon. See
-    // docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
-    // the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
-    // self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
-    // No third-party source. _mm256_cvtepi32_epi64 requires AVX2 (this TU is
-    // compiled with -mavx2 -mfma / /arch:AVX2).
-    #include "trig_cleanroom_data.inc"
+// Clean-room quadrant-reduction cos/sin (issue #95), AVX2 FMA form --
+// ported structurally from libhmm's cos_pd/sin_pd(__m256d) (issue #74
+// there), itself ported from this project's own vector_cos_neon. See
+// docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
+// the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
+// self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
+// No third-party source. _mm256_cvtepi32_epi64 requires AVX2 (this TU is
+// compiled with -mavx2 -mfma / /arch:AVX2).
+#include "trig_cleanroom_data.inc"
 
 // Reduction shared by cos_avx2/sin_avx2: n32 = round-to-nearest-even(x*2/pi)
 // via the cvt round-trip (exact-product lemma holds for |n| <= 5,340,354,
@@ -684,7 +684,8 @@ void VectorOps::vector_cos_avx2(const double* input, double* output, std::size_t
         const __m256i bit0 = _mm256_and_si256(n64, one_i);
         const __m256i bit1 = _mm256_and_si256(_mm256_srli_epi64(n64, 1), one_i);
         // all-ones iff bit0 set (0 - 1 = -1 = all-ones; 0 - 0 = 0), for blendv_pd's MSB test.
-        const __m256d swap_mask = _mm256_castsi256_pd(_mm256_sub_epi64(_mm256_setzero_si256(), bit0));
+        const __m256d swap_mask =
+            _mm256_castsi256_pd(_mm256_sub_epi64(_mm256_setzero_si256(), bit0));
         const __m256d cv = _mm256_blendv_pd(c_core, s_core, swap_mask);
         const __m256i sign_bit = _mm256_xor_si256(bit1, bit0);
         const __m256d sign_v = _mm256_castsi256_pd(_mm256_slli_epi64(sign_bit, 63));
@@ -735,7 +736,8 @@ void VectorOps::vector_sin_avx2(const double* input, double* output, std::size_t
 
         const __m256i bit0 = _mm256_and_si256(n64, one_i);
         const __m256i bit1 = _mm256_and_si256(_mm256_srli_epi64(n64, 1), one_i);
-        const __m256d swap_mask = _mm256_castsi256_pd(_mm256_sub_epi64(_mm256_setzero_si256(), bit0));
+        const __m256d swap_mask =
+            _mm256_castsi256_pd(_mm256_sub_epi64(_mm256_setzero_si256(), bit0));
         const __m256d sv = _mm256_blendv_pd(s_core, c_core, swap_mask);
         const __m256d sign_v = _mm256_castsi256_pd(_mm256_slli_epi64(bit1, 63));
         __m256d result = _mm256_xor_pd(sv, sign_v);

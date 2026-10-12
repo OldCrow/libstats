@@ -72,8 +72,7 @@ int main() {
         BasicTestFormatter::printProperty("Initial beta (scale)", ig.getBeta());
         BasicTestFormatter::printProperty("Mean beta/(alpha-1) = 1", ig.getMean());
         BasicTestFormatter::printProperty("Variance (expect 1)", ig.getVariance());
-        BasicTestFormatter::printPropertyInt("Num parameters (should be 2)",
-                                             ig.getNumParameters());
+        BasicTestFormatter::printPropertyInt("Num parameters (should be 2)", ig.getNumParameters());
         cout << "Distribution name: " << ig.getDistributionName() << endl;
         cout << "Is discrete: " << (ig.isDiscrete() ? "YES" : "NO") << endl;
         BasicTestFormatter::printProperty("Support lower", ig.getSupportLowerBound());
@@ -130,8 +129,7 @@ int main() {
         // Out-of-support and support edge
         BasicTestFormatter::printProperty("PDF(-1) should be 0", ref.getProbability(-1.0));
         BasicTestFormatter::printProperty("PDF(0)  should be 0", ref.getProbability(0.0));
-        BasicTestFormatter::printProperty("CDF(0)  should be 0",
-                                          ref.getCumulativeProbability(0.0));
+        BasicTestFormatter::printProperty("CDF(0)  should be 0", ref.getCumulativeProbability(0.0));
 
         // ±inf contract (#103) across the reciprocal transform
         const double inf = std::numeric_limits<double>::infinity();
@@ -217,10 +215,7 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{"InverseGamma",
-                                          {0.2, 0.5, 1.0, 2.0, 5.0},
-                                          0.1,
-                                          5.0,
+        stats::tests::BasicDistConfig cfg{"InverseGamma", {0.2, 0.5, 1.0, 2.0, 5.0}, 0.1, 5.0,
                                           1e-12,  // pdf_tolerance
                                           1e-12};
         auto ig_batch = stats::InverseGammaDistribution::create(3.0, 2.0).unwrap();
@@ -243,8 +238,7 @@ int main() {
         cout << "Stream output: " << oss.str() << endl;
 
         istringstream iss("InverseGammaDistribution(alpha=7,beta=2.5)");
-        InverseGammaDistribution parsed =
-            stats::InverseGammaDistribution::create().unwrap();
+        InverseGammaDistribution parsed = stats::InverseGammaDistribution::create().unwrap();
         iss >> parsed;
         BasicTestFormatter::printProperty("Parsed from stream: alpha (expect 7)",
                                           parsed.getAlpha());
@@ -264,18 +258,17 @@ int main() {
             {"alpha negative",
              [] { return InverseGammaDistribution::create(-1.0, 1.0).isError(); }},
             {"beta = 0", [] { return InverseGammaDistribution::create(1.0, 0.0).isError(); }},
-            {"beta negative",
-             [] { return InverseGammaDistribution::create(1.0, -3.0).isError(); }},
+            {"beta negative", [] { return InverseGammaDistribution::create(1.0, -3.0).isError(); }},
             {"alpha NaN",
              [] {
-                 return InverseGammaDistribution::create(
-                            std::numeric_limits<double>::quiet_NaN(), 1.0)
+                 return InverseGammaDistribution::create(std::numeric_limits<double>::quiet_NaN(),
+                                                         1.0)
                      .isError();
              }},
             {"beta infinite",
              [] {
-                 return InverseGammaDistribution::create(
-                            1.0, std::numeric_limits<double>::infinity())
+                 return InverseGammaDistribution::create(1.0,
+                                                         std::numeric_limits<double>::infinity())
                      .isError();
              }},
             {"quantile(p) out of range",

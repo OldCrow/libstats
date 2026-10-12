@@ -102,9 +102,8 @@ inline constexpr double kTwoPi = 6.283185307179586476925286766559;
     if (ax > 700.0) {
         const double t = 1.0 / ax;
         const double s =
-            t * (0.125 +
-                 t * (0.0703125 +
-                      t * (0.0732421875 + t * (0.112152099609375 + t * 0.22710800170898438))));
+            t * (0.125 + t * (0.0703125 + t * (0.0732421875 +
+                                               t * (0.112152099609375 + t * 0.22710800170898438))));
         return ax - 0.5 * std::log(kTwoPi * ax) + std::log1p(s);
     }
     return std::log(std::cyl_bessel_i(0.0, ax));
@@ -319,16 +318,16 @@ inline constexpr double kBesselRatioAsymptoticCut = 50.0;
     if (x >= kBesselRatioAsymptoticCut) {
         // Horner in t = 1/x. Finite for every x up to +inf (t → 0 → 0).
         const double t = 1.0 / x;
-        return t * (0.5 +
-                    t * (0.125 +
-                         t * (0.125 +
-                              t * (0.1953125 +
-                                   t * (0.40625 +
-                                        t * (1.0478515625 +
-                                             t * (3.21875 +
-                                                  t * (11.466461181640625 +
-                                                       t * (46.478515625 +
-                                                            t * 211.27614974975586)))))))));
+        return t *
+               (0.5 +
+                t * (0.125 +
+                     t * (0.125 +
+                          t * (0.1953125 +
+                               t * (0.40625 +
+                                    t * (1.0478515625 +
+                                         t * (3.21875 + t * (11.466461181640625 +
+                                                             t * (46.478515625 +
+                                                                  t * 211.27614974975586)))))))));
     }
     const double i0 = bessel_i0(x);
     const double i1 = bessel_i1(x);
