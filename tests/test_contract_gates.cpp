@@ -2226,8 +2226,18 @@ TEST(ContractGates, M1_StudentTTailBeyondSqrtNu) {
     // Monotone to within the conditioning law's noise: F moves 70-300 ulp per step in t here, so
     // a step down is evaluation noise of that size. Before the fix the worst step down was 117 ulp
     // (nu = 100 from t = -10.001), 86 (nu = 100 from -20) and 556 (nu = 1000 from -31.6); after,
-    // 5, 3 and 0.
-    for (const auto [nu, t0] : {std::pair{100.0, -10.001}, {100.0, -20.0}, {1000.0, -31.6259}}) {
+    // 5, 3 and 0. Those figures assume a log that is monotone at the ulp level, as glibc's and
+    // Apple's are. The UCRT's (MSVC and clang-cl) jitters by one ulp, which a = nu/2 carries into
+    // F as up to nu * ulp(log x) / eps of F's ulps: 277 at nu = 1000 on the first Windows run,
+    // against a floor of 500. There the bound is that floor, and the check cannot tell the fix
+    // from the cancellation it removed; the conditioning-law check above still holds.
+    for (const auto& [nu, t0] : {std::pair{100.0, -10.001}, {100.0, -20.0}, {1000.0, -31.6259}}) {
+#if defined(_WIN32)
+        const double log_x = std::fabs(std::log(nu / (nu + t0 * t0)));
+        const double tolerance = 8.0 + nu * (std::nextafter(log_x, 1.0e300) - log_x) / eps;
+#else
+        const double tolerance = 8.0;
+#endif
         const auto d = StudentTDistribution::create(nu).unwrap();
         double t = t0, prev = d.getCumulativeProbability(t), worst = 0.0;
         for (int i = 0; i < 2000; ++i) {
@@ -2237,8 +2247,8 @@ TEST(ContractGates, M1_StudentTTailBeyondSqrtNu) {
                 worst = std::max(worst, (prev - f) / (std::nextafter(prev, 1.0) - prev));
             prev = f;
         }
-        EXPECT_LE(worst, 8.0) << "Student-t(" << nu << ") CDF steps down by " << worst
-                              << " ulp across 2000 doubles above t = " << t0;
+        EXPECT_LE(worst, tolerance) << "Student-t(" << nu << ") CDF steps down by " << worst
+                                    << " ulp across 2000 doubles above t = " << t0;
     }
 }
 
