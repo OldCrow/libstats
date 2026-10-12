@@ -15,9 +15,11 @@ the sweep tool emits (commit/isa/date). Columns:
     dist,method,p1_bits,p2_bits,x_bits,scalar_bits,batch_bits
 
   - All *_bits fields are 0x-hex uint64 IEEE-754 double bit patterns.
-  - method in {pdf, logpdf, cdf, quantile}. For quantile, x_bits carries the
-    probability p (not a domain point), and batch_bits may be the literal
-    string "-" (no batch quantile path).
+  - method in {pdf, logpdf, cdf, quantile, survival}. For quantile, x_bits
+    carries the probability p (not a domain point), and batch_bits may be the
+    literal string "-" (no batch quantile path). survival is S(x) = P(X > x)
+    through getSurvival(); it has no batch path either ("-"), and the sweep
+    writes its rows after every other row so earlier line numbers hold.
   - dist is the header basename (see DIST_PARAMS below for the parameter
     mapping used here, read from each include/libstats/distributions/<dist>.h
     Doxygen constructor comment).
@@ -79,7 +81,14 @@ ORACLE SELF-CHECKS run unconditionally before any row is compared (see
 `run_self_checks`) and this script exits non-zero if any fails -- a broken
 oracle must never silently produce a report. They include negative controls:
 a 1-ULP perturbation must score as at least half an ULP, and the large-shape
-paths are anchored against an independent quadrature.
+paths are anchored against an independent quadrature. Each survival reference
+family is checked at a deep upper-tail point where 1 - CDF at dps 50 is shown
+to miss the anchor, so a survival reference built that way fails its check.
+
+Survival rows are scored exactly as cdf rows are (relative/ULP error, law_frac
+below 1e-3, the same contract checks). A survival that returns 0 where the
+reference rounds to a nonzero double is listed as ZERO-COLLAPSE: reported, but
+not a contract violation, since the cdf contract has no such rule.
 
 Usage:
     <python-with-mpmath> tools/accuracy_vs_mpmath.py <sweep.csv> [--out PATH]
@@ -2225,6 +2234,353 @@ class TruncatedNormalRef(Ref):
 
 
 # ---------------------------------------------------------------------------
+# Survival references, S(x) = P(X > x), for method=survival rows (v2.5.0).
+# Attached to the Ref classes below rather than written into them, so the
+# frozen pdf/logpdf/cdf/quantile references above stay byte-identical.
+#
+# Every reference is formed on S's own side, never as 1 - CDF where S is
+# small: at dps 50, 1 - F keeps no digit of an S below ~1e-50, and the swept
+# upper tail runs to 1e-300 and into the subnormal range. Families:
+#   - erfc: Gaussian, LogNormal, HalfNormal, TruncatedNormal (_phi_diff of
+#     (xi, beta), the cdf numerator's mirror).
+#   - upper regularized incomplete gamma Q via _gamma_upper: Gamma,
+#     ChiSquared, Erlang; InverseGamma's S is the LOWER P(alpha, beta/x),
+#     _gamma_cdf's own small side.
+#   - incomplete beta on the complementary side, I_{1-x}(b, a) with 1 - x
+#     formed exactly: Beta, FisherF (yc = d2/(d1 x + d2)); Student-t through
+#     the cdf at -t (0.5 I_x(nu/2, 1/2), or the small-side quadrature).
+#   - direct upper sums for Poisson, Binomial, NegativeBinomial; Geometric
+#     and Bernoulli in closed form; Discrete (uniform) in closed form.
+#   - closed forms: Exponential, Weibull, Rayleigh, Pareto, Laplace,
+#     Logistic, Gumbel (-expm1(-e^-z)), Uniform; Cauchy atan(1/z)/pi; von
+#     Mises by the antimode small-side quadrature (_vm_small_side).
+# Where S is the LARGE side (x left of the centre) 1 - F is cancellation-free
+# and is used; _sf_complement asserts that it is.
+# ---------------------------------------------------------------------------
+
+# 1 - F is only used where S is at least this (it keeps ~30 of dps 50's digits).
+_SF_COMPLEMENT_MIN = mp.mpf("1e-20")
+
+# Terms a direct upper sum may take before it is declared non-convergent.
+_UPPER_SUM_LIMIT = 10_000_000
+
+
+def _sf_complement(F: "mp.mpf") -> "mp.mpf":
+    """1 - F where that is the large side; raises if S is below
+    _SF_COMPLEMENT_MIN (a caller chose the wrong side)."""
+    s = 1 - F
+    if s < _SF_COMPLEMENT_MIN:
+        raise OracleNonConvergence(
+            f"survival: 1 - F = {mp.nstr(s, 6)} is below {mp.nstr(_SF_COMPLEMENT_MIN, 3)}; "
+            "the small side must be formed directly")
+    return s
+
+
+def _upper_sum(log_t0, ratio, sup_ratio, k0: int) -> "mp.mpf":
+    """sum_{j >= k0} t_j with t_{k0} = exp(log_t0) and t_{j+1} = t_j ratio(j),
+    at dps + 20. Stops when the remainder bound t_j / (1 - sup_ratio(j)) is
+    below 2^-(prec + 10) of the partial sum; sup_ratio(j) must bound every
+    ratio from j on and be below 1 there."""
+    with mp.workdps(mp.mp.dps + 20):
+        eps = mp.mpf(2) ** -(mp.mp.prec + 10)
+        t = mp.mpf(1)
+        s = mp.mpf(0)
+        j = k0
+        for _ in range(_UPPER_SUM_LIMIT):
+            s += t
+            t *= ratio(j)
+            j += 1
+            r = sup_ratio(j)
+            if t == 0 or (r < 1 and t / (1 - r) <= eps * s):
+                res = mp.exp(log_t0) * s
+                break
+        else:
+            raise OracleNonConvergence(f"upper sum from k = {k0} passed {_UPPER_SUM_LIMIT} terms")
+    return +res
+
+
+def _poisson_sf(lam: "mp.mpf", k: int) -> "mp.mpf":
+    if k < 0:
+        return mp.mpf(1)
+    if k + 1 <= lam:
+        return _sf_complement(_poisson_cdf(lam, k))
+    k0 = k + 1
+    with mp.workdps(mp.mp.dps + 20):
+        log_t0 = -lam + k0 * mp.log(lam) - mp.loggamma(k0 + 1)
+    return _upper_sum(log_t0, lambda j: lam / (j + 1), lambda j: lam / (j + 1), k0)
+
+
+def _binomial_sf(n: int, p: "mp.mpf", k: int) -> "mp.mpf":
+    if k < 0:
+        return mp.mpf(1)
+    if k >= n or p == 0:
+        return mp.mpf(0)
+    if p == 1:
+        return mp.mpf(1)
+    if k + 1 <= n * p:
+        return _sf_complement(_binomial_cdf(n, p, k))
+    k0 = k + 1
+    with mp.workdps(mp.mp.dps + 20):
+        log_t0 = (mp.loggamma(n + 1) - mp.loggamma(k0 + 1) - mp.loggamma(n - k0 + 1)
+                  + k0 * mp.log(p) + (n - k0) * mp.log1p(-p))
+        odds = p / (1 - p)
+    ratio = lambda j: (n - j) * odds / (j + 1)
+    return _upper_sum(log_t0, ratio, ratio, k0)
+
+
+def _negbinom_sf(r: "mp.mpf", p: "mp.mpf", k: int) -> "mp.mpf":
+    if k < 0:
+        return mp.mpf(1)
+    if p == 1:
+        return mp.mpf(0)
+    q = 1 - p
+    if k + 1 <= r * q / p:
+        return _sf_complement(_negbinom_cdf(r, p, k))
+    k0 = k + 1
+    with mp.workdps(mp.mp.dps + 20):
+        log_t0 = (mp.loggamma(k0 + r) - mp.loggamma(r) - mp.loggamma(k0 + 1)
+                  + r * mp.log(p) + k0 * mp.log1p(-p))
+    ratio = lambda j: (j + r) * q / (j + 1)
+    # (j + r)/(j + 1) decreases to 1 for r > 1 and increases to 1 for r < 1.
+    sup_ratio = ratio if r >= 1 else (lambda j: q)
+    return _upper_sum(log_t0, ratio, sup_ratio, k0)
+
+
+def _betainc_sf(a: "mp.mpf", b: "mp.mpf", x: "mp.mpf", xc: "mp.mpf") -> "mp.mpf":
+    """1 - I_x(a, b) given both x and its exactly formed complement xc: the
+    complement where I_x is at most 1/2, else I_xc(b, a) directly."""
+    F = _betainc_reg(a, b, x)
+    if F <= mp.mpf("0.5"):
+        return _sf_complement(F)
+    return _betainc_reg(b, a, xc)
+
+
+def _sf_gaussian(mean, sigma, x):
+    z = (mp.mpf(x) - mp.mpf(mean)) / mp.mpf(sigma)
+    return mp.erfc(z / SQRT2) / 2
+
+
+def _sf_lognormal(mu, sigma, x):
+    xm = mp.mpf(x)
+    if xm <= 0:
+        return mp.mpf(1)
+    z = (mp.log(xm) - mp.mpf(mu)) / mp.mpf(sigma)
+    return mp.erfc(z / SQRT2) / 2
+
+
+def _sf_exponential(lam, _p2, x):
+    xm = mp.mpf(x)
+    return mp.exp(-mp.mpf(lam) * xm) if xm >= 0 else mp.mpf(1)
+
+
+def _sf_uniform(a, b, x):
+    a, b, xm = mp.mpf(a), mp.mpf(b), mp.mpf(x)
+    if xm < a:
+        return mp.mpf(1)
+    if xm > b:
+        return mp.mpf(0)
+    return (b - xm) / (b - a)
+
+
+def _sf_gamma(alpha, beta, x):
+    xm = mp.mpf(x)
+    if xm <= 0:
+        return mp.mpf(1)
+    return _gamma_upper(mp.mpf(alpha), mp.mpf(beta) * xm)
+
+
+def _sf_discrete(a, b, x):
+    a, b = int(round(a)), int(round(b))
+    xm = mp.mpf(x)
+    if xm < a:
+        return mp.mpf(1)
+    if xm >= b:
+        return mp.mpf(0)
+    return (b - mp.floor(xm)) / mp.mpf(b - a + 1)
+
+
+def _sf_student_t(nu, _p2, x):
+    # S(t) = F(-t) exactly (symmetry), and _student_t_cdf forms F on the
+    # negative axis as 0.5 I_x(nu/2, 1/2) (or the small-side quadrature):
+    # the small side for t > 0.
+    return _student_t_cdf(mp.mpf(nu), -mp.mpf(x))
+
+
+def _sf_cauchy(x0, gamma, x):
+    z = (mp.mpf(x) - mp.mpf(x0)) / mp.mpf(gamma)
+    if z == 0:
+        return mp.mpf("0.5")
+    tail = mp.atan(1 / abs(z)) / mp.pi
+    return tail if z > 0 else 1 - tail
+
+
+def _sf_von_mises(mu, kappa, x):
+    # mu = 0 survival at the library's wrapped t: the antimode-side mass
+    # within pi - t of the antimode, integrated directly (_vm_small_side).
+    t = wrap_to_pi(x, mu)
+    with mp.workdps(80):
+        if t > 0:
+            S = _vm_small_side(kappa, mp.pi - t, exact=False)
+        else:
+            S = 1 - _vm_small_side(kappa, t + mp.pi, exact=False)
+    S = +S
+    return min(max(S, mp.mpf(0)), mp.mpf(1))
+
+
+def _sf_binomial(n, p, x):
+    return _binomial_sf(int(round(n)), mp.mpf(p), int(math.floor(x)))
+
+
+def _sf_negative_binomial(r, p, x):
+    return _negbinom_sf(mp.mpf(r), mp.mpf(p), int(math.floor(x)))
+
+
+def _sf_geometric(p, _p2, x):
+    pm = mp.mpf(p)
+    k = int(math.floor(x))
+    if k < 0:
+        return mp.mpf(1)
+    if pm >= 1:
+        return mp.mpf(0)
+    return mp.exp((k + 1) * mp.log1p(-pm))
+
+
+def _sf_beta(alpha, beta, x):
+    a, b, xm = mp.mpf(alpha), mp.mpf(beta), mp.mpf(x)
+    if xm <= 0:
+        return mp.mpf(1)
+    if xm >= 1:
+        return mp.mpf(0)
+    # 1 - x is exact at dps 50 for a double x >= 2^-100; below that S ~ 1
+    # and _betainc_sf takes the complement of I_x(a, b), which is small.
+    return _betainc_sf(a, b, xm, 1 - xm)
+
+
+def _sf_chi_squared(k, _p2, x):
+    xm = mp.mpf(x)
+    if xm <= 0:
+        return mp.mpf(1)
+    return _gamma_upper(mp.mpf(k) / 2, xm / 2)
+
+
+def _sf_laplace(mu, b, x):
+    m, bb, xm = mp.mpf(mu), mp.mpf(b), mp.mpf(x)
+    if xm >= m:
+        return mp.mpf("0.5") * mp.exp(-(xm - m) / bb)
+    return 1 - mp.mpf("0.5") * mp.exp((xm - m) / bb)
+
+
+def _sf_pareto(scale, alpha, x):
+    xm0, a, xm = mp.mpf(scale), mp.mpf(alpha), mp.mpf(x)
+    if xm < xm0:
+        return mp.mpf(1)
+    return mp.exp(-a * mp.log(xm / xm0))
+
+
+def _sf_rayleigh(sigma, _p2, x):
+    s, xm = mp.mpf(sigma), mp.mpf(x)
+    if xm < 0:
+        return mp.mpf(1)
+    return mp.exp(-xm * xm / (2 * s * s))
+
+
+def _sf_weibull(shape, scale, x):
+    k, lam, xm = mp.mpf(shape), mp.mpf(scale), mp.mpf(x)
+    if xm < 0:
+        return mp.mpf(1)
+    return mp.exp(-((xm / lam) ** k))
+
+
+def _sf_poisson(lam, _p2, x):
+    return _poisson_sf(mp.mpf(lam), int(math.floor(x)))
+
+
+def _sf_logistic(mu, s, x):
+    z = (mp.mpf(x) - mp.mpf(mu)) / mp.mpf(s)
+    if z > 0:
+        e = mp.exp(-z)
+        return e / (1 + e)
+    return 1 / (1 + mp.exp(z))
+
+
+def _sf_gumbel(mu, beta, x):
+    z = (mp.mpf(x) - mp.mpf(mu)) / mp.mpf(beta)
+    return -mp.expm1(-mp.exp(-z))
+
+
+def _sf_bernoulli(p, _p2, x):
+    k = int(math.floor(x))
+    if k < 0:
+        return mp.mpf(1)
+    if k >= 1:
+        return mp.mpf(0)
+    return mp.mpf(p)
+
+
+def _sf_erlang(k, lam, x):
+    xm = mp.mpf(x)
+    if xm <= 0:
+        return mp.mpf(1)
+    return _gamma_upper(mp.mpf(int(round(k))), mp.mpf(lam) * xm)
+
+
+def _sf_fisher_f(d1, d2, x):
+    dd1, dd2, xm = mp.mpf(d1), mp.mpf(d2), mp.mpf(x)
+    if xm <= 0:
+        return mp.mpf(1)
+    a, b = mp.mpf(d1) / 2, mp.mpf(d2) / 2
+    den = dd1 * xm + dd2
+    y, yc = dd1 * xm / den, dd2 / den  # each formed directly, as in FisherFRef.cdf
+    if y > (a + 1) / (a + b + 2):
+        return _betainc_reg(b, a, yc)
+    return _betainc_sf(a, b, y, yc)
+
+
+def _sf_inverse_gamma(alpha, beta, x):
+    a, b, xm = mp.mpf(alpha), mp.mpf(beta), mp.mpf(x)
+    if xm <= 0:
+        return mp.mpf(1)
+    # F = Q(alpha, beta/x), so S = P(alpha, beta/x): _gamma_cdf's small side
+    # (series / leading-term guard / quadrature) for beta/x below the mean.
+    return _gamma_cdf(a, mp.mpf(1), b / xm)
+
+
+def _sf_half_normal(sigma, _p2, x):
+    s, xm = mp.mpf(sigma), mp.mpf(x)
+    if xm <= 0:
+        return mp.mpf(1)
+    return mp.erfc(xm / (s * SQRT2))
+
+
+def _sf_truncated_normal(mean, sd, x):
+    alpha, beta, xi, a, b = TruncatedNormalRef._std(mean, sd, x)
+    if x <= a:
+        return mp.mpf(1)
+    if x >= b:
+        return mp.mpf(0)
+    # The cdf's mirror: upper mass _phi_diff(xi, beta) over Z, both from
+    # erfc-domain tail pieces.
+    return _phi_diff(xi, beta) / _phi_diff(alpha, beta)
+
+
+_SURVIVAL_REFS = {
+    "gaussian": _sf_gaussian, "lognormal": _sf_lognormal, "exponential": _sf_exponential,
+    "uniform": _sf_uniform, "poisson": _sf_poisson, "gamma": _sf_gamma,
+    "discrete": _sf_discrete, "student_t": _sf_student_t, "cauchy": _sf_cauchy,
+    "von_mises": _sf_von_mises, "binomial": _sf_binomial,
+    "negative_binomial": _sf_negative_binomial, "geometric": _sf_geometric, "beta": _sf_beta,
+    "chi_squared": _sf_chi_squared, "laplace": _sf_laplace, "pareto": _sf_pareto,
+    "rayleigh": _sf_rayleigh, "weibull": _sf_weibull, "logistic": _sf_logistic,
+    "gumbel": _sf_gumbel, "erlang": _sf_erlang, "fisher_f": _sf_fisher_f,
+    "inverse_gamma": _sf_inverse_gamma, "half_normal": _sf_half_normal,
+    "truncated_normal": _sf_truncated_normal, "bernoulli": _sf_bernoulli,
+}
+assert set(_SURVIVAL_REFS) == set(REFS) == set(DIST_PARAMS), "survival reference table out of step"
+for _name, _fn in _SURVIVAL_REFS.items():
+    REFS[_name].survival = staticmethod(_fn)
+
+
+# ---------------------------------------------------------------------------
 # Oracle self-checks. Run before any comparison; assertion failure -> the
 # process exits non-zero (see main()). At least two independent known-value
 # checks per distribution: a median/symmetry identity and a closed-form
@@ -2654,6 +3010,7 @@ def run_self_checks() -> list:
     )
 
     _hardening_self_checks(check)
+    _survival_self_checks(check)
     return results
 
 
@@ -2882,6 +3239,108 @@ def _hardening_self_checks(check) -> None:
         check(f"truncated_normal.half_infinite_quantile_brackets_root({_key},p={_p})", _ok)
 
 
+def _survival_self_checks(check) -> None:
+    """Survival references, one deep-tail point or more per reference family.
+    Each is two-sided: the reference must match an anchor formed without it
+    (a closed form, a different special-function identity, or 1 - F at dps
+    450, where the complement still keeps 100+ digits), AND 1 - F at the
+    default dps 50 must miss that anchor -- so a survival reference built as
+    1 - CDF fails the first check at that point."""
+    rtol = mp.mpf("1e-40")
+
+    def sf_check(name, dist, p1, p2, x, anchor=None):
+        ref = REFS[dist]
+        if anchor is None:
+            with mp.workdps(450):
+                hi = 1 - ref.cdf(p1, p2, x)
+            anchor = +hi
+        s = ref.survival(p1, p2, x)
+        naive = 1 - ref.cdf(p1, p2, x)
+        check(f"survival.{name}", anchor > 0 and abs(s - anchor) <= rtol * anchor,
+              f"S = {mp.nstr(s, 10)}, anchor = {mp.nstr(anchor, 10)}")
+        check(f"survival.{name}.one_minus_cdf_misses",
+              abs(naive - anchor) > mp.mpf("1e-3") * anchor,
+              f"1 - F = {mp.nstr(naive, 10)}, anchor = {mp.nstr(anchor, 10)}")
+
+    # --- erfc family (S ~ 5.7e-300, 4.9e-198, 1.1e-299, 1.3e-343) ---
+    sf_check("gaussian.erfc_upper_tail", "gaussian", 0.0, 1.0, 37.0)
+    sf_check("lognormal.erfc_upper_tail", "lognormal", 0.0, 1.0, float(mp.exp(30)))
+    sf_check("half_normal.erfc_upper_tail", "half_normal", 1.0, 0.0, 37.0)
+    sf_check("truncated_normal.phi_diff_upper_mass", "truncated_normal", 0.0, 1.5, 60.0)
+
+    # --- upper incomplete gamma: Q(3, y) = e^-y (1 + y + y^2/2) exactly ---
+    # y = 680 keeps Q (~1.2e-290) in double range: below ~1e-324 _gamma_upper
+    # returns its leading term, correct only to the double it rounds to (0).
+    _y = mp.mpf(680)
+    _q3 = mp.exp(-_y) * (1 + _y + _y * _y / 2)
+    sf_check("gamma.upper_gamma_closed_form", "gamma", 3.0, 1.0, 680.0, _q3)
+    sf_check("erlang.upper_gamma_closed_form", "erlang", 3.0, 2.0, 340.0, _q3)
+    sf_check("chi_squared.upper_gamma_closed_form", "chi_squared", 6.0, 0.0, 1360.0, _q3)
+    # inverse_gamma's S is the LOWER P(3, 2/x) = 1 - e^-y (1 + y + y^2/2), ~1.3e-300.
+    with mp.workdps(450):
+        _yi = mp.mpf(2) / mp.mpf(1e100)
+        _p3 = 1 - mp.exp(-_yi) * (1 + _yi + _yi * _yi / 2)
+    sf_check("inverse_gamma.lower_gamma_closed_form", "inverse_gamma", 3.0, 2.0, 1e100, +_p3)
+
+    # --- incomplete beta, complementary side ---
+    sf_check("beta.complementary_betainc", "beta", 1.0, 50.0, 0.99, (1 - mp.mpf(0.99)) ** 50)
+    sf_check("fisher_f.complementary_betainc", "fisher_f", 2.0, 10.0, 1e30,
+             (1 + 2 * mp.mpf(1e30) / 10) ** -5)
+    _t = mp.mpf(1e30)
+    _r = mp.sqrt(2 + _t * _t)
+    sf_check("student_t.complementary_betainc", "student_t", 2.0, 0.0, 1e30,
+             1 / (_r * (_r + _t)))  # (r - t)/(2r), r = sqrt(2 + t^2)
+
+    # --- direct upper sums against incomplete gamma/beta identities and closed forms ---
+    sf_check("poisson.upper_sum_vs_lower_gamma", "poisson", 4.0, 0.0, 200.0,
+             mp.gammainc(201, 0, 4, regularized=True))
+    sf_check("poisson.upper_sum_vs_lower_gamma_near_mean", "poisson", 50.0, 0.0, 300.0,
+             mp.gammainc(301, 0, 50, regularized=True))
+    sf_check("binomial.upper_sum_closed_form", "binomial", 200.0, 0.3, 199.0, mp.mpf(0.3) ** 200)
+    sf_check("binomial.upper_sum_vs_betainc", "binomial", 1000.0, 0.3, 700.0,
+             mp.betainc(701, 300, 0, mp.mpf(0.3), regularized=True))
+    sf_check("negative_binomial.upper_sum_vs_betainc", "negative_binomial", 5.5, 0.5, 600.0,
+             mp.betainc(601, mp.mpf(5.5), 0, mp.mpf(0.5), regularized=True))
+    sf_check("negative_binomial.upper_sum_vs_betainc_r_below_1", "negative_binomial", 0.01, 0.9,
+             400.0, mp.betainc(401, mp.mpf(0.01), 0, 1 - mp.mpf(0.9), regularized=True))
+    sf_check("geometric.closed_form", "geometric", 0.3, 0.0, 2000.0, (1 - mp.mpf(0.3)) ** 2001)
+    sf_check("bernoulli.closed_form", "bernoulli", 1e-60, 0.0, 0.0, mp.mpf(1e-60))
+
+    # --- closed forms (anchor: 1 - F at dps 450) ---
+    sf_check("exponential.closed_form", "exponential", 1.0, 0.0, 700.0)
+    sf_check("rayleigh.closed_form", "rayleigh", 1.0, 0.0, 37.0)
+    sf_check("weibull.closed_form", "weibull", 1.5, 1.0, 79.0)
+    sf_check("pareto.closed_form", "pareto", 1.0, 2.0, 1e150)
+    sf_check("laplace.closed_form", "laplace", 0.0, 1.0, 700.0)
+    sf_check("logistic.closed_form", "logistic", 0.0, 1.0, 700.0)
+    sf_check("gumbel.expm1_form", "gumbel", 0.0, 1.0, 700.0)
+    _w = 1 / mp.mpf(1e60)
+    sf_check("cauchy.atan_tail", "cauchy", 0.0, 1.0, 1e60, (_w - _w**3 / 3) / mp.pi)
+    # von Mises: S(t) = F(-t) at mu = 0, and F(-2.5) at kappa = 200 (1.7e-158)
+    # is anchored against an independent formulation in _hardening_self_checks.
+    sf_check("von_mises.antimode_small_side", "von_mises", 0.0, 200.0, 2.5,
+             VonMisesRef.cdf(0.0, 200.0, -2.5))
+
+    # Uniform and discrete-uniform S never falls below ~1e-16 at a double x,
+    # so no deep-tail control exists for them; exact values instead.
+    check("survival.uniform.exact", UniformRef.survival(0.0, 1.0, 0.75) == mp.mpf("0.25"))
+    check("survival.discrete.exact",
+          DiscreteRef.survival(0.0, 9.0, 6.5) == mp.mpf(3) / 10
+          and DiscreteRef.survival(0.0, 9.0, 9.0) == 0)
+    # The large side really is 1 - F (no cancellation there), and the guard
+    # refuses a 1 - F that would be the small side.
+    check("survival.complement_guard_refuses_small_side",
+          _raises(OracleNonConvergence, lambda: _sf_complement(1 - mp.mpf("1e-30"))))
+
+
+def _raises(exc_type, fn) -> bool:
+    try:
+        fn()
+    except exc_type:
+        return True
+    return False
+
+
 def _tn_window_raises_on_unknown_key() -> bool:
     """The _TN_WINDOWS guard must actually fire: a sweep instance added on the
     C++ side without a window here has to stop the run, not silently
@@ -3048,6 +3507,11 @@ class GroupResult:
     batch_vs_scalar_max_rel: "mp.mpf" = field(default_factory=lambda: mp.mpf(0))
     n_batch_rows: int = 0
     violations: list = field(default_factory=list)
+    # survival rows returning exactly 0 where the reference rounds to a
+    # nonzero double: (lineno, src, ref). Reported, not a contract violation
+    # (the cdf contract has no such rule); this is what a 1 - CDF survival
+    # looks like in the upper tail.
+    zero_collapses: list = field(default_factory=list)
 
 
 def is_nan(v: float) -> bool:
@@ -3107,7 +3571,7 @@ def compare(rows: list) -> "tuple[dict, list]":
                 g.violations.append((row.lineno, "batch", "NaN input did not produce NaN batch output"))
             continue
 
-        if inf_input and row.method in ("pdf", "logpdf", "cdf"):
+        if inf_input and row.method in ("pdf", "logpdf", "cdf", "survival"):
             # +-inf inputs have universal limits for every distribution on
             # (a subset of) the real line: pdf -> 0, logpdf -> -inf,
             # cdf -> 1 at +inf / 0 at -inf. Evaluating the raw reference
@@ -3134,6 +3598,8 @@ def compare(rows: list) -> "tuple[dict, list]":
                 ref = mp.mpf(0)
             elif row.method == "logpdf":
                 ref = mp.mpf("-inf")
+            elif row.method == "survival":
+                ref = mp.mpf(0) if row.x > 0 else mp.mpf(1)
             else:
                 ref = mp.mpf(1) if row.x > 0 else mp.mpf(0)
         else:
@@ -3207,7 +3673,14 @@ def compare(rows: list) -> "tuple[dict, list]":
                          f"reference is {mp.nstr(ref, 6)}, {src_name} returned exactly 0")
                     )
 
-        is_cdf_tail = row.method == "cdf" and ref < mp.mpf("1e-3")
+        # Survival rows take the cdf rows' contract unchanged, law_frac
+        # included: rel(S) ~ |ln S| 2^-52 is the same achievable law read
+        # from the other tail.
+        is_cdf_tail = row.method in ("cdf", "survival") and ref < mp.mpf("1e-3")
+        if row.method == "survival" and abs(ref) > _HALF_DENORM_MIN:
+            for src_name, v in (("scalar", row.scalar), ("batch", row.batch)):
+                if v is not None and v == 0:
+                    g.zero_collapses.append((row.lineno, src_name, ref))
         if not math.isfinite(row.scalar):
             g.violations.append(
                 (row.lineno, "scalar", f"reference is finite ({mp.nstr(ref, 6)}), scalar_bits decoded to {row.scalar}")
@@ -3263,6 +3736,10 @@ def print_stdout_summary(groups: dict, skipped: list, violations_total: int) -> 
         if g.violations:
             for lineno, src, msg in g.violations:
                 print(f"  VIOLATION line {lineno} ({src}): {msg}")
+        if g.zero_collapses:
+            _ln, _src, _ref = max(g.zero_collapses, key=lambda c: c[2])
+            print(f"  ZERO-COLLAPSE {len(g.zero_collapses)} row(s) return 0 against a reference "
+                  f"that rounds to nonzero (largest ref {mp.nstr(_ref, 4)}, line {_ln})")
 
     if skipped:
         print(f"\n{len(skipped)} row(s) skipped:")
@@ -3308,6 +3785,12 @@ def render_markdown(groups: dict) -> str:
             if g.violations:
                 lines.append(
                     f"| {method} | *(contract)* | {len(g.violations)} violation(s) -- see appendix | | | | | |"
+                )
+            if g.zero_collapses:
+                _ref = max(c[2] for c in g.zero_collapses)
+                lines.append(
+                    f"| {method} | *(zero collapse)* | {len(g.zero_collapses)} row(s) return 0, "
+                    f"largest reference {fmt(_ref)} | | | | | |"
                 )
         lines.append("")
     # Durable appendix: every contract violation, so the checked-in doc

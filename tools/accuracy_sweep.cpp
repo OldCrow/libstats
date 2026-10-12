@@ -21,6 +21,7 @@
  *   # commit=<short sha>  isa=<SIMDPolicy::getLevelString()>  date=YYYY-MM-DD
  *   dist,method,p1_bits,p2_bits,x_bits,scalar_bits,batch_bits
  *   ...
+ *   ...                                    (method=survival rows last, batch "-")
  *   # skipped_quantile <dist> <n>          (only emitted when n > 0)
  *
  * Usage: accuracy_sweep <output.csv>
@@ -148,6 +149,7 @@ class Sink {
         for (const char* name : kDistNames) {
             counts_.emplace_back(name, 0);
             skips_.emplace_back(name, 0);
+            survivalCounts_.emplace_back(name, 0);
         }
     }
 
@@ -158,7 +160,18 @@ class Sink {
 
     void addSkip(const std::string& dist) { bump(skips_, dist); }
 
+    // Survival rows are held apart and written after every other row, so each
+    // pre-survival row keeps its byte identity AND its CSV line number.
+    void addSurvivalRow(Row row) {
+        bump(survivalCounts_, row.dist);
+        survivalRows_.push_back(std::move(row));
+    }
+
     const std::vector<Row>& rows() const { return rows_; }
+    const std::vector<Row>& survivalRows() const { return survivalRows_; }
+    const std::vector<std::pair<std::string, int>>& survivalCounts() const {
+        return survivalCounts_;
+    }
     const std::vector<std::pair<std::string, int>>& counts() const { return counts_; }
     const std::vector<std::pair<std::string, int>>& skips() const { return skips_; }
 
@@ -174,7 +187,9 @@ class Sink {
     }
 
     std::vector<Row> rows_;
+    std::vector<Row> survivalRows_;
     std::vector<std::pair<std::string, int>> counts_;
+    std::vector<std::pair<std::string, int>> survivalCounts_;
     std::vector<std::pair<std::string, int>> skips_;
 };
 
@@ -408,6 +423,136 @@ void emitQuantileRows(Dist& dist, const std::string& distName, double p1, double
     }
 }
 
+//==============================================================================
+// Survival rows (method=survival, S(x) = P(X > x) through getSurvival()).
+// There is no batch survival API, so batch is "-" as on quantile rows. The x
+// points are the instance's own pdf/logpdf/cdf grid plus upperTailPoints():
+// the quantile-built grid stops near S = 1e-16 in the upper tail (1 - 1e-300
+// rounds to 1), which is where a complement-native survival starts to matter.
+//==============================================================================
+
+// Log-density levels L = -d ln 10 at which upperTailPoints() places a point.
+// For a light tail S(x) ~ f(x) * scale, so these reach S ~ 1e-20 ... 1e-300 and
+// on into the subnormal range; the levels past 323 serve heavy tails, where
+// S ~ sqrt(f) (Cauchy) or f^(2/3) (Pareto alpha = 2) and S = 1e-300 sits at
+// f ~ 1e-600 or 1e-450.
+const std::vector<double>& survivalTailLogDensities() {
+    static const std::vector<double> levels = [] {
+        std::vector<double> v;
+        for (int d :
+             {20, 40, 80, 120, 160, 200, 240, 280, 300, 305, 310, 315, 320, 323, 350, 450, 600}) {
+            v.push_back(-d * std::numbers::ln10);
+        }
+        return v;
+    }();
+    return levels;
+}
+
+// Order-preserving map of a double onto int64 (negative doubles reversed), so
+// bisection between any two finite doubles ends on adjacent doubles in <= 64
+// steps whatever their signs and magnitudes.
+std::int64_t orderedBits(double x) {
+    const auto u = static_cast<std::int64_t>(bitsOf(x));
+    return u < 0 ? std::numeric_limits<std::int64_t>::min() - u : u;
+}
+
+double fromOrderedBits(std::int64_t i) {
+    const std::uint64_t u =
+        i < 0 ? static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::min() - i)
+              : static_cast<std::uint64_t>(i);
+    double x = 0.0;
+    std::memcpy(&x, &u, sizeof(x));
+    return x;
+}
+
+// Upper-tail points past the grid: for each level L, the largest x (an integer
+// for discrete) with logpdf(x) > L, found by bisection between the grid's last
+// point above L and the first point beyond it (the next grid point, the finite
+// support bound, or a doubling step out). logpdf is decreasing past the mode
+// for every swept family; where it is not (a U-shaped beta near 1, a uniform,
+// a von Mises antimode above L) the bracket fails and the level is skipped.
+// When the doubling step overflows, DBL_MAX itself is the furthest point
+// (Pareto alpha = 0.01 never reaches S < 1e-3 in double range).
+template <typename Dist>
+std::vector<double> upperTailPoints(Dist& dist, const std::vector<double>& xs) {
+    std::vector<double> out;
+    const bool discrete = dist.isDiscrete();
+    const double hi = dist.getSupportUpperBound();
+    const double dmax = std::numeric_limits<double>::max();
+    auto lp = [&](double x) { return dist.getLogProbability(x); };
+    for (double level : survivalTailLogDensities()) {
+        std::size_t ia = xs.size();
+        for (std::size_t i = xs.size(); i-- > 0;) {
+            if (std::isfinite(xs[i]) && lp(xs[i]) > level) {
+                ia = i;
+                break;
+            }
+        }
+        if (ia == xs.size()) {
+            continue;
+        }
+        double a = xs[ia];
+        double b = 0.0;
+        if (ia + 1 < xs.size() && std::isfinite(xs[ia + 1])) {
+            b = xs[ia + 1];
+        } else if (std::isfinite(hi)) {
+            b = hi;
+            if (!(lp(b) <= level)) {
+                continue;
+            }
+        } else {
+            double step = std::max(std::fabs(a), 1.0);
+            b = a + step;
+            while (std::isfinite(b) && !(lp(b) <= level)) {
+                step *= 2.0;
+                b = a + step;
+            }
+            if (!std::isfinite(b)) {
+                if (!(lp(dmax) <= level)) {
+                    out.push_back(dmax);
+                    continue;
+                }
+                b = dmax;
+            }
+        }
+        if (discrete) {
+            while (b - a > 1.0) {
+                const double mid = std::floor(a + 0.5 * (b - a));
+                (lp(mid) > level ? a : b) = mid;
+            }
+            out.push_back(a);
+            out.push_back(b);
+        } else {
+            std::int64_t ia64 = orderedBits(a);
+            std::int64_t ib64 = orderedBits(b);
+            while (ib64 - ia64 > 1) {
+                const std::int64_t mid = ia64 + (ib64 - ia64) / 2;
+                (lp(fromOrderedBits(mid)) > level ? ia64 : ib64) = mid;
+            }
+            out.push_back(fromOrderedBits(ia64));
+        }
+    }
+    return out;
+}
+
+template <typename Dist>
+void emitSurvivalRows(Dist& dist, const std::string& distName, double p1, double p2, bool hasP2,
+                      std::vector<double> xs, bool includeSpecials, Sink& sink) {
+    const std::vector<double> tail = upperTailPoints(dist, xs);
+    xs.insert(xs.end(), tail.begin(), tail.end());
+    std::sort(xs.begin(), xs.end());
+    xs.erase(std::unique(xs.begin(), xs.end()), xs.end());
+    if (includeSpecials) {
+        xs.insert(xs.begin(), {std::numeric_limits<double>::quiet_NaN(),
+                               std::numeric_limits<double>::infinity(),
+                               -std::numeric_limits<double>::infinity()});
+    }
+    for (double x : xs) {
+        sink.addSurvivalRow(makeRow(distName, "survival", p1, p2, hasP2, x, dist.getSurvival(x),
+                                    0.0, /*hasBatch=*/false));
+    }
+}
+
 // Drives one continuous distribution across its 3 parameter instances.
 template <typename Dist, typename Factory>
 void sweepContinuous(const std::string& distName, Factory factory,
@@ -418,6 +563,7 @@ void sweepContinuous(const std::string& distName, Factory factory,
         std::vector<double> xs = buildContinuousXGrid(dist, boundedBothSides);
         emitPdfLogpdfCdfRows(dist, distName, p1, p2, hasP2, xs, /*includeSpecials=*/true, sink);
         emitQuantileRows(dist, distName, p1, p2, hasP2, sink);
+        emitSurvivalRows(dist, distName, p1, p2, hasP2, xs, /*includeSpecials=*/true, sink);
     }
 }
 
@@ -443,6 +589,8 @@ void sweepContinuous4(const std::string& distName, Factory factory,
         emitPdfLogpdfCdfRows(dist, distName, inst[0], inst[1], /*hasP2=*/true, xs,
                              /*includeSpecials=*/true, sink);
         emitQuantileRows(dist, distName, inst[0], inst[1], /*hasP2=*/true, sink);
+        emitSurvivalRows(dist, distName, inst[0], inst[1], /*hasP2=*/true, xs,
+                         /*includeSpecials=*/true, sink);
     }
 }
 
@@ -459,6 +607,7 @@ void sweepDiscrete(const std::string& distName, Factory factory,
         // binomial, negative_binomial, geometric).
         emitPdfLogpdfCdfRows(dist, distName, p1, p2, hasP2, ks, /*includeSpecials=*/true, sink);
         emitQuantileRows(dist, distName, p1, p2, hasP2, sink);
+        emitSurvivalRows(dist, distName, p1, p2, hasP2, ks, /*includeSpecials=*/true, sink);
     }
 }
 
@@ -538,6 +687,7 @@ void emitBandInstance(Dist& dist, const std::string& name, double p1, double p2,
     std::vector<double> xs = buildBandXGrid(dist, boundedBothSides, extra);
     emitPdfLogpdfCdfRows(dist, name, p1, p2, hasP2, xs, /*includeSpecials=*/false, sink);
     emitQuantileRows(dist, name, p1, p2, hasP2, sink);
+    emitSurvivalRows(dist, name, p1, p2, hasP2, xs, /*includeSpecials=*/false, sink);
 }
 
 // x and its k nearest doubles on each side.
@@ -1080,6 +1230,9 @@ int main(int argc, char** argv) {
     for (const auto& row : sink.rows()) {
         out << row.toCsvLine() << "\n";
     }
+    for (const auto& row : sink.survivalRows()) {
+        out << row.toCsvLine() << "\n";
+    }
     for (const auto& [distName, n] : sink.skips()) {
         if (n > 0) {
             out << "# skipped_quantile " << distName << " " << n << "\n";
@@ -1087,10 +1240,14 @@ int main(int argc, char** argv) {
     }
     out.close();
 
-    std::size_t total = sink.rows().size();
+    std::size_t total = sink.rows().size() + sink.survivalRows().size();
     std::cout << "accuracy_sweep: wrote " << total << " rows to " << outPath << "\n";
     std::cout << "Per-distribution row counts:\n";
     for (const auto& [distName, n] : sink.counts()) {
+        std::cout << "  " << distName << ": " << n << "\n";
+    }
+    std::cout << "Survival row counts (appended after all other rows):\n";
+    for (const auto& [distName, n] : sink.survivalCounts()) {
         std::cout << "  " << distName << ": " << n << "\n";
     }
     bool anySkips = false;
