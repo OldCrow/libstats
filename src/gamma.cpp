@@ -314,6 +314,33 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
     return gammaPAtRateProduct(alpha, beta, x, y);
 }
 
+// Q(α, y) for y = fl(βx) ≥ DBL_MIN, corrected to βx: gammaPAtRateProduct mirrored. dQ/dy =
+// −dP/dy, so log Q moves by −(e/y)·exp(lgp)/Q, again in the log and from
+// STIRLING_PREFACTOR_SHAPE, so that F + S = 1 holds to rounding wherever both are corrected.
+// Below that shape the uncorrected rounding moves log Q by at most ~(y·f/Q)·ε/2 ≤ ~y·ε, within
+// the |ln S|·ε law the far upper tail is held to.
+[[nodiscard]] inline double gammaQAtRateProduct(double alpha, double beta, double x,
+                                                double y) noexcept {
+    const double q = detail::gamma_q(alpha, y);
+    if (alpha < kStirlingDensityShape || !(q >= std::numeric_limits<double>::min()) ||
+        !(y <= std::numeric_limits<double>::max()))
+        return q;
+    const double e = std::fma(beta, x, -y);
+    if (e == detail::ZERO_DOUBLE)
+        return q;
+    const double change = (e / y) * std::exp(detail::log_gamma_prefactor(alpha, y) - std::log(q));
+    return q * std::exp(-change);
+}
+
+// S(x) = Q(α, βx) for x > 0 finite, gammaCdfCore's complement formed directly: Q below DBL_MIN
+// of βx from log x (#216), and Q(α, +inf) = 0 where the product overflows.
+[[nodiscard]] inline double gammaSfCore(double alpha, double beta, double x) noexcept {
+    const double y = beta * x;
+    if (y < std::numeric_limits<double>::min())
+        return detail::gamma_q_from_log_x(alpha, std::log(beta) + std::log(x));
+    return gammaQAtRateProduct(alpha, beta, x, y);
+}
+
 // Entropy at shapes from kEntropyStirlingShape: the direct form α + lgamma(α) + (1 − α)ψ(α)
 // cancels at α·log α (DH2 M2: 7.5e-7 relative at 1e10, −64 for 19.84 at 1e16). From the
 // Stirling series of lgamma and ψ with Bernoulli numbers B_2k,
@@ -503,6 +530,22 @@ double GammaDistribution::getCumulativeProbability(double x) const {
     });
     // Use regularized incomplete gamma function P(α, βx)
     return gammaCdfCore(a, b, x);
+}
+
+double GammaDistribution::getSurvival(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;  // includes −inf
+    if (x == std::numeric_limits<double>::infinity())
+        return detail::ZERO_DOUBLE;
+
+    double a, b;
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+    });
+    return gammaSfCore(a, b, x);
 }
 
 double GammaDistribution::getQuantile(double p) const {

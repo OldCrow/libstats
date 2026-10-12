@@ -76,7 +76,7 @@ namespace stats {
  *     auto& chi2 = result.unwrap();
  *
  *     double test_statistic = 11.07;
- *     double p_value = 1.0 - chi2.getCumulativeProbability(test_statistic);
+ *     double p_value = chi2.getSurvival(test_statistic);
  *     // p_value ≈ 0.05 → reject at 5% significance
  *
  *     // Batch computation: evaluate PDF over a grid
@@ -313,6 +313,9 @@ class ChiSquaredDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override {
         return gamma_.getCumulativeProbability(x);
     }
+
+    /** @brief Survival S(x) — delegates to GammaDistribution's directly formed complement. */
+    [[nodiscard]] double getSurvival(double x) const override { return gamma_.getSurvival(x); }
 
     /**
      * @brief Quantile function (inverse CDF) — delegates to GammaDistribution.

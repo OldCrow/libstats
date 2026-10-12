@@ -244,6 +244,9 @@ class ErlangDistribution : public DistributionBase {
         return gamma_.getCumulativeProbability(x);
     }
 
+    /** @brief Survival S(x) — delegates to GammaDistribution's directly formed complement. */
+    [[nodiscard]] double getSurvival(double x) const override { return gamma_.getSurvival(x); }
+
     /**
      * @brief Quantile function (inverse CDF) — delegates to GammaDistribution.
      * @param p Probability value in [0, 1]

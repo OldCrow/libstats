@@ -1955,3 +1955,117 @@ TEST(ContractGates, H5_GammaRateProductRoundingAtHugeShape) {
         }
     }
 }
+
+// Gamma, ChiSquared and Erlang inherited S = 1 − F, which keeps S only to the ulp of F near 1:
+// below ~1e-16 it is 0 (Gamma(2, 1).getSurvival(45) for 1.3e-18, a hazard of +inf for 45/46),
+// and at a huge shape the upper tail loses relative accuracy (Gamma(1e4, 1) at 10500: 4.3e-7 to
+// ~1e-10 relative). S = Q(α, βx) is now formed directly, with βx's rounding carried as the CDF
+// carries it, mirrored (a non-dyadic rate at α = 1e16 amplifies half an ulp of βx to 1.5e-7
+// relative; the last 1e16 row, S = 1.3e-3, passed as 1 − F and fails without the carry).
+// ChiSquared and Erlang delegate, so they are called through DistributionBase&. References:
+// mpmath at 60 digits, above shape 2e4 by quadrature (tools/accuracy_vs_mpmath.py).
+TEST(ContractGates, A11_GammaFamilySurvivalUpperTail) {
+    constexpr double kInf = std::numeric_limits<double>::infinity();
+    constexpr double kEps = std::numeric_limits<double>::epsilon();
+    enum class Cls { Gamma, ChiSquared, Erlang };
+    struct Row {
+        Cls cls;
+        double alpha, beta, x, want, tol;  // tol 0: the |ln S|·ε law, four times
+    };
+    const Row rows[] = {
+        {Cls::Gamma, 2.0, 1.0, 45.0, 1.3167585470527210765e-18, 0.0},
+        {Cls::Gamma, 0.001, 1.0, 40.0, 1.0412296580236109492e-22, 0.0},
+        {Cls::Gamma, 5.5, 0.7, 90.0, 1.1201010674905907736e-21, 0.0},
+        {Cls::Gamma, 25.0, 3.0, 40.0, 1.22494070437302878e-26, 0.0},
+        {Cls::Gamma, 40.0, 3.0, 30.0, 1.1480803801482780499e-9, 0.0},
+        {Cls::Gamma, 1e4, 1.0, 10500.0, 4.2758724550596472692e-7, 1e-13},
+        {Cls::Gamma, 1e5, 1.0, 102500.0, 2.2204960520410972022e-15, 1e-13},
+        {Cls::Gamma, 1e5, 1.0, 105000.0, 7.2049596948349205796e-55, 1e-12},
+        {Cls::Gamma, 1e16, 1.0, 1.00000009e16, 1.1285911472299371638e-19, 1e-12},
+        {Cls::Gamma, 1e16, 3.0, 3333334333333333.5, 4.9071548126574352892e-198, 1e-12},
+        {Cls::Gamma, 1e16, 3.0, 3333333433333333.5, 0.0013498981276534780595, 1e-12},
+        // S near 1, where 1 − F was already right; the complement must stay so (the second in
+        // the #216 range, βx below DBL_MIN).
+        {Cls::Gamma, 3.0, 0.7, 0.01, 0.9999999431326196149, 0.0},
+        {Cls::Gamma, 0.005, 0.5, 5e-324, 0.9758338051382870999, 0.0},
+        {Cls::Gamma, 25.0, 3.0, 8.0, 0.55400122307499568648, 0.0},
+        // χ²(k) = Gamma(k/2, ½); Erlang(k, λ) = Gamma(k, λ).
+        {Cls::ChiSquared, 5.0, 0.5, 150.0, 3.7274850550625096223e-27, 0.0},
+        {Cls::ChiSquared, 1.5, 0.5, 100.0, 1.5541594313896049214e-21, 0.0},
+        {Cls::Erlang, 3.0, 0.7, 100.0, 1.0022108784225741856e-27, 0.0},
+        {Cls::Erlang, 40.0, 3.0, 30.0, 1.1480803801482780499e-9, 0.0},
+    };
+    for (const auto& r : rows) {
+        const GammaDistribution g(r.alpha, r.beta);
+        const ChiSquaredDistribution c(r.cls == Cls::ChiSquared ? 2.0 * r.alpha : 1.0);
+        const ErlangDistribution e(r.cls == Cls::Erlang ? static_cast<int>(r.alpha) : 1,
+                                   r.cls == Cls::Erlang ? r.beta : 1.0);
+        const DistributionBase* pick = &g;
+        if (r.cls == Cls::ChiSquared)
+            pick = &c;
+        else if (r.cls == Cls::Erlang)
+            pick = &e;
+        const DistributionBase& d = *pick;
+        const double s = d.getSurvival(r.x);
+        const double tol = r.tol > 0.0 ? r.tol : 4.0 * kEps * (1.0 + std::fabs(std::log(r.want)));
+        EXPECT_LT(relErr(s, r.want), tol) << static_cast<int>(r.cls) << " " << r.alpha << " "
+                                          << r.beta << " x " << r.x << " S " << s;
+        EXPECT_LE(std::fabs((s + d.getCumulativeProbability(r.x)) - 1.0), 4.0 * kEps) << r.x;
+    }
+
+    // A finite hazard where S was 0: h = f/S = 45/46 at Gamma(2, 1), x = 45.
+    const GammaDistribution g21(2.0, 1.0);
+    const DistributionBase& g21b = g21;
+    EXPECT_LT(relErr(g21b.getHazard(45.0), 45.0 / 46.0), 1e-14);
+
+    // Edges: 1 at and below 0, 0 at +∞, NaN; 0 where βx overflows (Gamma(2, 1e300) at 1e300).
+    const GammaDistribution g(5.5, 0.7);
+    const DistributionBase& gb = g;
+    EXPECT_EQ(gb.getSurvival(0.0), 1.0);
+    EXPECT_EQ(gb.getSurvival(-0.0), 1.0);
+    EXPECT_EQ(gb.getSurvival(-3.0), 1.0);
+    EXPECT_EQ(gb.getSurvival(-kInf), 1.0);
+    EXPECT_EQ(gb.getSurvival(kInf), 0.0);
+    EXPECT_TRUE(std::isnan(gb.getSurvival(kNaN)));
+    const GammaDistribution wide(2.0, 1e300);
+    EXPECT_EQ(static_cast<const DistributionBase&>(wide).getSurvival(1e300), 0.0);
+
+    // Monotone across the switches, S down and F up, in steps of 1e-13 relative in x: the
+    // series / continued fraction switch at βx = α + 1 (at shapes below and above
+    // STIRLING_PREFACTOR_SHAPE, under kSmallShapeQ, at a non-dyadic rate), Q = DBL_MIN and
+    // P = DBL_MIN where the rate carry stops (α = 25, β = 3), the Temme zone's lower edge
+    // (α = 1e4, η = −0.6), the carry at α = 1e16, and βx = DBL_MIN. Not bit-stepped: one ulp of x
+    // moves ln S by (βx·f/S)·ε, and the incomplete gamma's own rounding is |ln S|·ε-class, the
+    // same order in the tails (~100 ulp of S at Q = DBL_MIN) and larger in the bulk below α = 20
+    // (tens of ulp), so a bit-stepped S, like F, zig-zags at rounding level everywhere; a step of
+    // 1e-13 moves S by ~10x that rounding.
+    struct Mono {
+        double alpha, beta, x;
+    };
+    const Mono mono[] = {
+        {0.3, 1.0, 1.3},
+        {5.5, 0.7, 6.5 / 0.7},
+        {19.5, 1.0, 20.5},
+        {25.0, 3.0, 26.0 / 3.0},
+        {1e3, 1.0, 1001.0},
+        {25.0, 3.0, 271.5011491074834},       // Q = DBL_MIN
+        {25.0, 3.0, 1.6764798954741084e-12},  // P = DBL_MIN
+        {1e4, 1.0, 5135.05541020432},
+        {1e16, 3.0, 3333334333333333.5},
+        {0.005, 0.5, 2.0 * std::numeric_limits<double>::min()},
+    };
+    for (const auto& m : mono) {
+        const GammaDistribution d(m.alpha, m.beta);
+        double prev = d.getSurvival(m.x * (1.0 - 200e-13));
+        double prev_f = d.getCumulativeProbability(m.x * (1.0 - 200e-13));
+        for (int k = -199; k <= 200; ++k) {
+            const double x = m.x * (1.0 + k * 1e-13);
+            const double s = d.getSurvival(x);
+            const double f = d.getCumulativeProbability(x);
+            ASSERT_LE(s, prev) << m.alpha << " " << m.beta << " x " << x;
+            ASSERT_GE(f, prev_f) << m.alpha << " " << m.beta << " x " << x;
+            prev = s;
+            prev_f = f;
+        }
+    }
+}

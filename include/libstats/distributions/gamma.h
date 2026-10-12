@@ -508,6 +508,15 @@ class GammaDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = Q(α, βx), the regularized upper incomplete gamma, formed as the
+     *        complement itself (AR A11): relative precision deep in the upper tail and at huge
+     *        shapes, where 1 − getCumulativeProbability(x) cancels. βx's rounding is carried as
+     *        in the CDF. Exactly 1 for x ≤ 0, 0 at +∞; NaN propagates. Batch survival has no
+     *        span API; it goes through this scalar method.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      *
      * For Gamma distribution: F^(-1)(p) by Newton in log x on the smaller of p and 1 − p,

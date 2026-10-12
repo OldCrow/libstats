@@ -147,8 +147,9 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      *
      * The default forms 1 - F(x), which cancels to 0 in the upper tail where
      * S(x) is still representable. Exponential, Weibull, Rayleigh, Pareto,
-     * Gaussian, FisherF, InverseGamma and TruncatedNormal override it with the complement
-     * formed directly (AR A11), as do Poisson, Binomial, NegativeBinomial,
+     * Gaussian, FisherF, InverseGamma, TruncatedNormal, Gamma, ChiSquared and
+     * Erlang override it with the complement formed directly (AR A11), as do
+     * Poisson, Binomial, NegativeBinomial,
      * Geometric and Bernoulli, whose quantiles decide p > ½ on it. Virtual since v2.5.0: an ABI
      * change for code built against an earlier v2.x header that derives from DistributionBase.
      *
