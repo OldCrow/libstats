@@ -183,6 +183,17 @@ namespace detail {
                                         double shape_constant) noexcept;
 
 /**
+ * @brief log_beta_prefactor from x, its complement and their logs, as the caller holds them
+ *
+ * For a caller that forms 1 − x and both logs more exactly than from x alone: Fisher-F's
+ * y = r/(1 + r) and ȳ = 1/(1 + r), with logs by log1p of the smaller argument. The Stirling
+ * branch reads x − x₀ from the smaller of x and omx. Below STIRLING_PREFACTOR_SHAPE in either
+ * shape it is shape_constant + a·log_x + b·log_omx.
+ */
+[[nodiscard]] double log_beta_prefactor_logs(double x, double omx, double a, double b, double log_x,
+                                             double log_omx, double shape_constant) noexcept;
+
+/**
  * @brief Digamma function ψ(x) = d/dx ln Γ(x)
  * @param x Input value (x > 0)
  * @return ψ(x)

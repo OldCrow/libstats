@@ -338,15 +338,25 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
     const double log_r = (r > detail::ZERO_DOUBLE && std::isfinite(r))
                              ? std::log(r)
                              : std::log(d1) + std::log(x) - std::log(d2);
-    double log_y, log_ybar;
+    double y, ybar, log_y, log_ybar;
     if (r <= detail::ONE) {
+        ybar = detail::ONE / (detail::ONE + r);
+        y = r * ybar;
         log_ybar = -std::log1p(r);
         log_y = log_r + log_ybar;
     } else {
-        log_y = -std::log1p(detail::ONE / r);
+        const double inv_r = detail::ONE / r;
+        y = detail::ONE / (detail::ONE + inv_r);
+        ybar = inv_r * y;
+        log_y = -std::log1p(inv_r);
         log_ybar = log_y - log_r;
     }
-    return log_pdf_const + a * log_y + b * log_ybar - std::log(x);
+    // From both shapes 20, Beta's Stirling form of log[y^a ȳ^b / B(a, b)]: the direct sum held
+    // terms of size (a + b) log 2 against each other, 5 (d1 + d2) eps absolute, 1.25e-5 at
+    // d1 = d2 = 1e10 (M1 seam hunt). log_pdf_const is beta_prefactor_constant(a, b), which is
+    // -log B(a, b) below 20, where this is the direct sum as before.
+    return detail::log_beta_prefactor_logs(y, ybar, a, b, log_y, log_ybar, log_pdf_const) -
+           std::log(x);
 }
 
 // CDF = I_y(a,b) with y = d1 x/(d1 x + d2), evaluated on the small side.
@@ -1105,7 +1115,9 @@ void FDistribution::updateCacheUnsafe() const noexcept {
     // The incomplete beta's hoisted prefactor constant; symmetric in (a, b), so both
     // incomplete-beta branches in cdfImpl/sfImpl reuse this one value.
     logBetaPrefix_ = detail::beta_prefactor_constant(a_, b_);
-    logPdfConst_ = -detail::lbeta(a_, b_);  // logPdfImpl takes −log B(a, b); d1, d2 enter through r
+    // logPdfImpl's shape constant: −log B(a, b) below shape 20, the Stirling form's above (M1 seam
+    // hunt). d1 and d2 enter through r.
+    logPdfConst_ = detail::beta_prefactor_constant(a_, b_);
 
     // Keep the Beta delegate in sync (used by sample()). beta_ owns its own
     // mutex, independent of ours; it is private so no external thread can be

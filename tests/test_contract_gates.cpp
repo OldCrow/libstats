@@ -2228,3 +2228,35 @@ TEST(ContractGates, M1_StudentTTailBeyondSqrtNu) {
                               << " ulp across 2000 doubles above t = " << t0;
     }
 }
+
+// M1 2026-10-12 seam hunt, finding 4: the Fisher-F log density formed -log B(a, b) + a log y +
+// b log(1 - y) - log x, whose terms of size (a + b) log 2 cancel: absolute error about
+// 5 (d1 + d2) eps, 1.25e-5 at d1 = d2 = 1e10 and 1.8e-12 at 1e4. Beta's Stirling form has no large
+// terms. References: mpmath at 60 digits.
+TEST(ContractGates, M1_FisherFLogDensityAtLargeDf) {
+    struct Ref {
+        double d1, d2, x, logf, tol;
+    };
+    const Ref refs[] = {{1e10, 1e10, 1.0, 9.900839751180610368892, 0},
+                        {1e8, 1e8, 1.0, 7.598254655711564684874, 0},
+                        {1e6, 1e6, 1.0, 5.295669315217519000898, 0},
+                        {1e4, 1e4, 1.0, 2.993059472223514983505, 0},
+                        {1e6, 1e4, 0.9, -25.00758834198081014309, 0},
+                        {40.0, 60.0, 1.3, -0.3632757989532677294201, 0},
+                        {5e7, 2e3, 2.0, -191.3004921004792252638, 0},
+                        {100.0, 1e12, 0.5, -7.928805521799903239464, 0},
+                        // steep: d log f / dx ~ 5e5 here, so x's own rounding costs ~1e-10
+                        {1e10, 1e10, 1.0001, -2.598010353182595795506, 1e-9}};
+    for (const auto& r : refs) {
+        const auto d = FDistribution::create(r.d1, r.d2).unwrap();
+        const double tol = r.tol > 0 ? r.tol : 1e-12 + 1e-14 * std::fabs(r.logf);
+        EXPECT_LT(std::fabs(d.getLogProbability(r.x) - r.logf), tol)
+            << "F(" << r.d1 << ", " << r.d2 << ").logpdf(" << r.x << ")";
+        std::vector<double> xs(16, r.x), out(16);
+        d.getLogProbability(
+            std::span<const double>(xs), std::span<double>(out),
+            {detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED, std::nullopt});
+        EXPECT_LT(std::fabs(out[0] - r.logf), tol)
+            << "batch F(" << r.d1 << ", " << r.d2 << ").logpdf(" << r.x << ")";
+    }
+}

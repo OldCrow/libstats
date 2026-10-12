@@ -148,8 +148,8 @@ static bool below_branch_point(double x, double omx, double a, double b) noexcep
 // and where a·log x magnifies the rounding of x (Beta(0.001, 1e6).Q(0.99): a = 1e6 against
 // x = 1 − 2e-11 put 1e-10 into the prefactor and 4e-8 into the root). The Stirling branch reads
 // x − x₀ from the smaller of x and 1 − x.
-static double log_beta_prefactor_logs(double x, double omx, double a, double b, double log_x,
-                                      double log_omx, double shape_constant) noexcept {
+double log_beta_prefactor_logs(double x, double omx, double a, double b, double log_x,
+                               double log_omx, double shape_constant) noexcept {
     if (a < kStirlingPrefactorShape || b < kStirlingPrefactorShape)
         return shape_constant + a * log_x + b * log_omx;
     const double sum = a + b;
