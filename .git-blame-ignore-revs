@@ -1,0 +1,6 @@
+# Formatting-only commits, skipped by `git blame` when configured with
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub's blame view reads this file automatically).
+
+# style: clang-format 20.1.8 over the repository (formatting only), 2026-10-12
+e73f39fb269ed731c1b0896c4183c31d75719d81
