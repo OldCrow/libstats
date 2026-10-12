@@ -25,9 +25,9 @@ it is final: a defect that affects accuracy, a speedup or a contract's
 validity is fixed, the head moves, and every machine repeats R1, R2's
 sweep compare, R8 and R9 there. v2.5.0 releases from the first head that
 passes every machine's gates with no such defect open. **Freeze head:
-`d7e9dbd`** (2026-10-10: hunt-2 fix round `4eb0816`–`d7e9dbd` over
-`f380bde`; CI green, run 38093601954). A targeted hunt on that round's
-library changes runs before the AVX2 block and R8 [user, 2026-10-10].
+`6e188b4`** (2026-10-12: hunt-3 and fix-5 rounds `7d75176`–`6e188b4`
+over `d7e9dbd`; CI green on all 11 jobs, run 38195277171). A final hunt
+on fix-5's new code runs before the AVX2 block and R8 [user, 2026-10-12].
 
 History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
@@ -250,23 +250,39 @@ Status by machine (each machine edits only its own line):
   streams change in the last bits at ordinary κ [user: keep]. A memory
   exhaustion (three agents building at once) restarted K mid-round: cap
   concurrent builds on K.
-  **2026-10-10/11 hunt-3 round** [DERIVED, K; OPEN — uncommitted in the
-  main checkout, message drafted]: targeted hunt on d7e9dbd's changes,
-  then three fix agents plus digamma/trigamma: beta log1p prefactor and
-  beta_i_pair (Binomial, Fisher-F), Fisher-F extremes and small side,
-  beta past the shape-ratio switch (F(50,1e20).Q(0.5) 163.84 → 0.9867),
-  von Mises hang at κ ≥ 6.5e15, Student-t fit derivative, Uniform, TN,
-  Gamma/Weibull contract edges, TN entropy/kurtosis. Verified: 117/117,
-  stress, identities 3/3, 0 warnings, sweep 148 rows (explained), oracle
-  0 violations. Deferred: #248–#253. Open from the corvus-pattern audit
-  and the unswept-band probe (decisions pending): von Mises CDF above
-  κ = 1000 collapses below ~1e-20 (erf form; should be erfc); TN
-  left-half-infinite windows underflow; discrete quantiles one step low
-  at p = 1 − 1e-15 (F-side comparison); Cauchy subnormal pdf 5.4e-5;
-  Gamma series-side 25–58 ε beside its switches; oracle hardening
-  (relerr absolute below 1e-290, per-row budgets, sweep coverage of
-  switch bands, Cauchy reference cancellation, self-check gaps). Probe
-  artifacts: `../libstats-probe4/build-probe/probe/`.
+  **2026-10-10/11 hunt-3 round** [DERIVED, K]: `7d75176` — targeted hunt
+  on d7e9dbd's changes, then three fix agents plus digamma/trigamma: beta
+  log1p prefactor and beta_i_pair (Binomial, Fisher-F), Fisher-F extremes
+  and small side, beta past the shape-ratio switch (F(50,1e20).Q(0.5)
+  163.84 → 0.9867), von Mises hang at κ ≥ 6.5e15, Student-t fit
+  derivative, Uniform, TN, Gamma/Weibull contract edges, TN entropy and
+  kurtosis. Deferred: #248–#253.
+  **2026-10-11/12 fix-5 round** [DERIVED, K]: from a corvus-pattern audit
+  of the oracles (corvus #54/#61: no shared-formula band; checks that
+  could not fail) and a probe of the bands the sweep never visited.
+  `08d48aa`: oracle scores relative error to DBL_MIN and ULP below (was
+  absolute below 1e-290), its own Cauchy/von Mises/Fisher-F reference
+  defects fixed, 131 self-checks with negative controls, sweep 18,732
+  rows with both sides of every kernel switch; von Mises CDF above
+  κ = 1000 (normal limit from 1e20), TN half-infinite windows and
+  complement-native survival, discrete quantiles for p > ½ decided on
+  the survival side [user: rule accepted; Q(F(k)) = k can fail above ½],
+  Poisson CDF floors non-integer x, Cauchy subnormal pdf, six derived
+  constants 1 ulp off (INV_SQRT_2 et al.) made correctly rounded,
+  InverseGamma β/x and Gamma βx rounding at huge shape. `ac72e9a`: that
+  rate correction counted twice under FMA contraction on AArch64; split
+  statement plus -ffp-contract=off for gamma.cpp and inverse_gamma.cpp,
+  and a new `fma-contraction` CI leg (clang-17, -mfma). `47bea80`:
+  complement-native getSurvival for Gamma, ChiSquared, Erlang.
+  `e352c62`: the survival guard's step scaled to log-rounding (MSVC).
+  `f3c8f2a`: inline-definition allowlist emptied. `e73f39f`: clang-format
+  20.1.8 over the repo (673 violations; neutral: sweep byte-identical),
+  listed in `.git-blame-ignore-revs` (`6e188b4`). Deferred: #8 holds
+  #248–#251, #253 and #257–#265; #6 (corvus) holds #247 and #252.
+  Process notes: K's sandbox broke after an OOM restart (intern.c
+  assertion), so builds run unsandboxed; cap agents' compile jobs at 6
+  total; agents must never write outside their worktree (one appended a
+  test to main) and never pkill by pattern (one killed others' builds).
 - **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
   4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
   2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
@@ -309,7 +325,7 @@ Status by machine (each machine edits only its own line):
 - Commit or push only when the user asks. Commits are signed (YubiKey);
   never disable signing; batch a commit and its push.
 - Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `d7e9dbd` (Status: it moves when a
+- Validate at the freeze head `6e188b4` (Status: it moves when a
   defect is fixed; validate at the latest); confirm it with `git log -1`
   before R1. Library code changes only by the user's decision: see Status.
 - New defects or unexpected oracle rows: stop and report with evidence.
@@ -793,7 +809,15 @@ on the macos-15 runner varies 97–372 s on unchanged code (six runs,
 `00d1597`–`d7e9dbd`) while Linux and Windows hold 68–102 s; shared ARM
 VMs and the spin-then-yield barriers, not a regression. Headroom: ctest's
 1,500 s default and the 120 s per-race watchdog. If macOS nears half the
-limit, lower `LIBSTATS_STRESS_SCALE` for that job.
+limit, lower `LIBSTATS_STRESS_SCALE` for that job. Also list the
+`fma-contraction` leg (clang-17, `-mfma -ffp-contract=on`) and why.
+
+ACCURACY_CHARACTERIZATION [2026-10-12; OPEN]: "Reading the tables" needs
+a line on the new scoring (relative to DBL_MIN, ULP distance for
+subnormal references); many max_rel/p99 values move when the blocks are
+regenerated (e.g. Cauchy cdf 2.1e-12 → 2.8e-16 was the oracle's own
+cancellation; Cauchy pdf shows subnormal ULPs), and the sweep now has
+18,732 rows.
 
 ### R7 — release
 PR
