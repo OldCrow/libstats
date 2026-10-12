@@ -336,6 +336,30 @@ Status by machine (each machine edits only its own line):
   bit equality. Test hardening: adaptive cross-wait budget (K verifies),
   stronger inline check, per-name timing-split check. These move the
   freeze head; K's final hunt runs on code without them.
+  **2026-10-12/13 follow-up** [DERIVED, M; uncommitted, awaiting the
+  user's YubiKey; decided by the user 2026-10-12]: committed and pushed
+  the four fixes above (`35cb02f`..`5b20fc2`). Then: #180 fixed (16
+  global `waitForAll()` calls removed; the cross-wait check lists no
+  known rows, so K's stress run is its verification); H5's batch-vs-scalar
+  check relaxed to 2 ulp; the von Mises domain documented in doubles
+  (#51, comment posted); the shape-20 comment corrected and the switch
+  filed as #266 (milestone v3.0.0); #214 extended by comment. The sweep
+  and oracle now cover `getSurvival` (8,153 rows, 59 new two-sided
+  self-checks). Their first run found the 11 distributions on 1 − F
+  returning exact 0 in the upper tail, and the rate-product correction
+  skipped at a subnormal P or Q in Gamma and InverseGamma (1.9e-7). Both
+  fixed with guards that fail first (`test_survival_tails`,
+  `M1_GammaRateCorrectionAtSubnormalResult`). A ThreadSanitizer CI leg
+  (Linux, clang-17) was added after removing a test-side `std::cout`
+  race; rehearsed on M: 131/131 clean. Final on M: Release 0 warnings,
+  correctness 132/132, stress 109 + 27 skipped, sweep 26,885 rows,
+  oracle 190 self-checks, 0 contract violations, 0 zero collapses.
+  Left as noted: Weibull survival at k = 100 (1.2e-10, the input's
+  conditioning), the deepest-subnormal erfc floor in Gaussian,
+  HalfNormal and `normal_cdf` (no sweep row reaches it). The new freeze
+  head after these commits: every machine repeats R1, R2's sweep compare
+  (with survival rows now) and R8; K runs R9 under TSan and the
+  cross-wait test for #180.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);
