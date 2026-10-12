@@ -4,9 +4,11 @@ cmake_minimum_required(VERSION 3.25)  # IN_LIST (CMP0057) in script mode
 # overrides linked only because the vtable forced their emission. Fails on any such definition in
 # src/*.cpp outside the allowlist below.
 #
-# Allowlist: private static helpers whose only callers are in their own .cpp.
-set(_allowed "DiscreteDistribution::roundToInt" "DiscreteDistribution::isValidIntegerValue"
-             "PoissonDistribution::roundToNonNegativeInt" "PoissonDistribution::isValidCount")
+# Allowlist: empty. The four private static helpers once listed here (Discrete's roundToInt and
+# isValidIntegerValue, Poisson's roundToNonNegativeInt and isValidCount) dropped `inline`
+# (2026-10-11): it bought nothing inside one TU and made a later call from another TU ill-formed.
+# Add an entry only for a helper that must stay inline; prefer dropping the keyword.
+set(_allowed "")
 file(GLOB _sources "${SOURCE_DIR}/src/*.cpp")
 set(_bad "")
 foreach(_file IN LISTS _sources)

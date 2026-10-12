@@ -1084,7 +1084,7 @@ double PoissonDistribution::logFactorial(int n) noexcept {
 //==========================================================================
 
 // Static utility methods moved from header for better compile times
-inline int PoissonDistribution::roundToNonNegativeInt(double x) noexcept {
+int PoissonDistribution::roundToNonNegativeInt(double x) noexcept {
     // EDGE-1: guard NaN and +inf before casting — static_cast<int>(NaN) is UB.
     // #167: also guard finite x above the int range (1e10, 1e300): the cast is UB
     // there too. isValidCount bounds x so round(x) fits in int; callers still test
@@ -1102,7 +1102,7 @@ int PoissonDistribution::floorToNonNegativeInt(double x) noexcept {
     return static_cast<int>(std::floor(x));
 }
 
-inline bool PoissonDistribution::isValidCount(double x) noexcept {
+bool PoissonDistribution::isValidCount(double x) noexcept {
     // EDGE-2: `x <= INT_MAX` accepts 2147483647.5, which std::round sends to 2^31 and
     // overflows int. Bound at INT_MAX - 1 = 2147483646 instead: round(x) <= INT_MAX - 1, safe
     // to cast. (INT_MAX itself is exact in double; the half-up rounding is the hazard.)

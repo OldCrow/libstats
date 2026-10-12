@@ -1233,11 +1233,11 @@ void DiscreteDistribution::validateParameters(int a, int b) {
 //==========================================================================
 
 // Static utility methods moved from header for better compile times
-inline int DiscreteDistribution::roundToInt(double x) noexcept {
+int DiscreteDistribution::roundToInt(double x) noexcept {
     return static_cast<int>(std::round(x));
 }
 
-inline bool DiscreteDistribution::isValidIntegerValue(double x) noexcept {
+bool DiscreteDistribution::isValidIntegerValue(double x) noexcept {
     return (x >= static_cast<double>(INT_MIN) && x <= static_cast<double>(INT_MAX));
 }
 
