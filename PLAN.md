@@ -869,7 +869,11 @@ cancellation; Cauchy pdf shows subnormal ULPs), and the sweep now has
 
 ### R7 — release
 PR
-`dev/v2.4.2` → `main` closing #157–#172 and #175–#177 (#173 stays with corvus); CI
+`dev/v2.4.2` → `main` closing every issue labelled `fixed-on-branch` (the
+record of truth: `gh issue list --label fixed-on-branch --state open`; 71 at
+`0ab1b25`, each with a comment naming its fix commit; #173's residual,
+`std::cyl_bessel_i`'s signgam write, is #267 in v3.0.0). #211 (docs) closes
+at R6. The PR body lists them as `Closes #N`; CI
 green, including the sanitizer legs; merge; signed tag `v2.5.0`; GitHub
 release from the CHANGELOG section; close milestone #10. Then coordinate
 the pylibstats pin bump (Cross-Repo below), and tell the corvus session
