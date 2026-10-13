@@ -20,7 +20,8 @@ namespace stats {
  * - Quantile: μ + b·sign(p−0.5)·log(1 − 2|p−0.5|)
  *             equivalently: μ + b·log(2p) for p < 0.5
  *                           μ − b·log(2(1−p)) for p > 0.5
- * - Parameters: μ ∈ ℝ (location), b > 0 (scale)
+ * - Parameters: μ ∈ ℝ (location), b ∈ [DBL_MIN, DBL_MAX] (scale; −1/b and ½/b are cached,
+ *   so a subnormal b is rejected at every entry point)
  * - Support: x ∈ (−∞, +∞)
  *
  * @par Moments:
@@ -63,8 +64,8 @@ class LaplaceDistribution : public DistributionBase {
     /**
      * @brief Construct a Laplace distribution.
      * @param mu Location parameter μ (must be finite, default 0)
-     * @param b  Scale parameter b (must be positive and finite, default 1)
-     * @throws std::invalid_argument if μ is not finite or b ≤ 0
+     * @param b  Scale parameter b (finite and at least DBL_MIN, default 1)
+     * @throws std::invalid_argument if μ is not finite or b is not in [DBL_MIN, DBL_MAX]
      */
     explicit LaplaceDistribution(double mu = detail::ZERO_DOUBLE, double b = detail::ONE);
 
@@ -90,7 +91,7 @@ class LaplaceDistribution : public DistributionBase {
     /**
      * @brief Safely create a Laplace distribution without throwing exceptions.
      * @param mu Location parameter (must be finite)
-     * @param b  Scale parameter (must be positive and finite)
+     * @param b  Scale parameter (finite and at least DBL_MIN)
      * @return Result containing a valid LaplaceDistribution or error info
      */
     [[nodiscard]] static Result<LaplaceDistribution> create(double mu = detail::ZERO_DOUBLE,
@@ -131,7 +132,7 @@ class LaplaceDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter b.
-     * @throws std::invalid_argument if b ≤ 0
+     * @throws std::invalid_argument if b is not in [DBL_MIN, DBL_MAX]
      */
     void setB(double b);
 
@@ -365,11 +366,11 @@ class LaplaceDistribution : public DistributionBase {
 
     void updateCacheUnsafe() const noexcept override;
 
+    // validateLaplaceParameters holds the bounds, so that every entry point agrees (Fix8).
     static void validateParameters(double mu, double b) {
-        if (!std::isfinite(mu))
-            throw std::invalid_argument("Location parameter mu must be a finite number");
-        if (!std::isfinite(b) || b <= detail::ZERO_DOUBLE)
-            throw std::invalid_argument("Scale parameter b must be a positive finite number");
+        auto v = validateLaplaceParameters(mu, b);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -379,7 +380,7 @@ class LaplaceDistribution : public DistributionBase {
     /** @brief Location parameter μ. */
     double mu_{detail::ZERO_DOUBLE};
 
-    /** @brief Scale parameter b — must be positive. */
+    /** @brief Scale parameter b ≥ DBL_MIN: −1/b is cached. */
     double b_{detail::ONE};
 
     /** @brief Atomic copies for lock-free parameter access. */

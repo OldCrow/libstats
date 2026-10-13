@@ -426,14 +426,11 @@ class VonMisesDistribution : public DistributionBase {
 
     void updateCacheUnsafe() const noexcept override;
 
+    // validateVonMisesParameters holds the bounds, so that every entry point agrees (Fix8).
     static void validateParameters(double mu, double kappa) {
-        if (std::isnan(mu) || std::isinf(mu)) {
-            throw std::invalid_argument("Mu (mean direction) must be a finite real number");
-        }
-        if (std::isnan(kappa) || std::isinf(kappa) || kappa < detail::ZERO_DOUBLE) {
-            throw std::invalid_argument(
-                "Kappa (concentration) must be a non-negative finite number");
-        }
+        auto v = validateVonMisesParameters(mu, kappa);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================

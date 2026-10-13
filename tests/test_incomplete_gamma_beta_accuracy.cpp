@@ -284,8 +284,11 @@ TEST(IncompleteGammaBetaAccuracy, BetaAndStudentTEdges) {
     const double nu = std::numeric_limits<double>::denorm_min();
     for (double t : {-1e300, -1.0, 1.0, 1e300})
         EXPECT_EQ(detail::t_cdf(t, nu), 0.5) << "t_cdf(" << t << ", 4.9e-324)";
-    const auto st = StudentTDistribution::create(nu).unwrap();
-    EXPECT_EQ(st.getCumulativeProbability(-1.0), 0.5);
-    EXPECT_EQ(st.getCumulativeProbability(1.0), 0.5);
+    // The distribution rejects a subnormal ν (Fix8_StudentTDensityAtSubnormalNu); at DBL_MIN,
+    // the smallest it accepts, the CDF is ½ to within ν at every finite t.
+    EXPECT_FALSE(StudentTDistribution::create(nu).isOk());
+    const auto st = StudentTDistribution::create(std::numeric_limits<double>::min()).unwrap();
+    EXPECT_NEAR(st.getCumulativeProbability(-1.0), 0.5, 1e-15);
+    EXPECT_NEAR(st.getCumulativeProbability(1.0), 0.5, 1e-15);
     EXPECT_EQ(detail::inverse_t_cdf(0.25, nu), -inf);
 }

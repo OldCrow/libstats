@@ -19,7 +19,8 @@ namespace stats {
  * - LogPDF: −z − 2·log(1 + e^(−z)) − log s
  * - CDF:    F(x; μ, s) = 1 / (1 + e^(−z))
  * - Quantile: μ + s·(log p − log(1 − p))
- * - Parameters: μ ∈ ℝ (location), s > 0 (scale)
+ * - Parameters: μ ∈ ℝ (location), s ∈ [DBL_MIN, DBL_MAX] (scale; 1/s is cached, so a
+ *   subnormal s is rejected at every entry point)
  * - Support: x ∈ (−∞, +∞)
  *
  * @par Stable formulations (this is the point of the implementation):
@@ -93,8 +94,8 @@ class LogisticDistribution : public DistributionBase {
     /**
      * @brief Construct a Logistic distribution.
      * @param mu Location parameter μ (must be finite, default 0)
-     * @param s  Scale parameter s (must be positive and finite, default 1)
-     * @throws std::invalid_argument if μ is not finite or s ≤ 0
+     * @param s  Scale parameter s (finite and at least DBL_MIN, default 1)
+     * @throws std::invalid_argument if μ is not finite or s is not in [DBL_MIN, DBL_MAX]
      */
     explicit LogisticDistribution(double mu = detail::ZERO_DOUBLE, double s = detail::ONE);
 
@@ -120,7 +121,7 @@ class LogisticDistribution : public DistributionBase {
     /**
      * @brief Safely create a Logistic distribution without throwing exceptions.
      * @param mu Location parameter (must be finite)
-     * @param s  Scale parameter (must be positive and finite)
+     * @param s  Scale parameter (finite and at least DBL_MIN)
      * @return Result containing a valid LogisticDistribution or error info
      */
     [[nodiscard]] static Result<LogisticDistribution> create(double mu = detail::ZERO_DOUBLE,
@@ -161,7 +162,7 @@ class LogisticDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter s.
-     * @throws std::invalid_argument if s ≤ 0
+     * @throws std::invalid_argument if s is not in [DBL_MIN, DBL_MAX]
      */
     void setS(double s);
 
@@ -381,11 +382,11 @@ class LogisticDistribution : public DistributionBase {
 
     void updateCacheUnsafe() const noexcept override;
 
+    // validateLogisticParameters holds the bounds, so that every entry point agrees (Fix8).
     static void validateParameters(double mu, double s) {
-        if (!std::isfinite(mu))
-            throw std::invalid_argument("Location parameter mu must be a finite number");
-        if (!std::isfinite(s) || s <= detail::ZERO_DOUBLE)
-            throw std::invalid_argument("Scale parameter s must be a positive finite number");
+        auto v = validateLogisticParameters(mu, s);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -395,7 +396,7 @@ class LogisticDistribution : public DistributionBase {
     /** @brief Location parameter μ. */
     double mu_{detail::ZERO_DOUBLE};
 
-    /** @brief Scale parameter s — must be positive. */
+    /** @brief Scale parameter s ≥ DBL_MIN: 1/s is cached. */
     double s_{detail::ONE};
 
     /** @brief Atomic copies for lock-free parameter access. */

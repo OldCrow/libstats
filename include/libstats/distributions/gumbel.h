@@ -26,7 +26,8 @@ namespace stats {
  * - LogPDF: −log β − z − e^(−z)
  * - CDF:    F(x; μ, β) = exp(−e^(−z))
  * - Quantile: μ − β·log(−log p)
- * - Parameters: μ ∈ ℝ (location), β > 0 (scale)
+ * - Parameters: μ ∈ ℝ (location), β ∈ [DBL_MIN, DBL_MAX] (scale; 1/β is cached, so a
+ *   subnormal β is rejected at every entry point)
  * - Support: x ∈ (−∞, +∞)
  *
  * @par Stable formulations:
@@ -103,8 +104,8 @@ class GumbelDistribution : public DistributionBase {
     /**
      * @brief Construct a Gumbel (max-stable) distribution.
      * @param mu   Location parameter μ (must be finite, default 0)
-     * @param beta Scale parameter β (must be positive and finite, default 1)
-     * @throws std::invalid_argument if μ is not finite or β ≤ 0
+     * @param beta Scale parameter β (finite and at least DBL_MIN, default 1)
+     * @throws std::invalid_argument if μ is not finite or β is not in [DBL_MIN, DBL_MAX]
      */
     explicit GumbelDistribution(double mu = detail::ZERO_DOUBLE, double beta = detail::ONE);
 
@@ -130,7 +131,7 @@ class GumbelDistribution : public DistributionBase {
     /**
      * @brief Safely create a Gumbel distribution without throwing exceptions.
      * @param mu   Location parameter (must be finite)
-     * @param beta Scale parameter (must be positive and finite)
+     * @param beta Scale parameter (finite and at least DBL_MIN)
      * @return Result containing a valid GumbelDistribution or error info
      */
     [[nodiscard]] static Result<GumbelDistribution> create(double mu = detail::ZERO_DOUBLE,
@@ -171,7 +172,7 @@ class GumbelDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter β.
-     * @throws std::invalid_argument if β ≤ 0
+     * @throws std::invalid_argument if β is not in [DBL_MIN, DBL_MAX]
      */
     void setBeta(double beta);
 
@@ -387,11 +388,11 @@ class GumbelDistribution : public DistributionBase {
 
     void updateCacheUnsafe() const noexcept override;
 
+    // validateGumbelParameters holds the bounds, so that every entry point agrees (Fix8).
     static void validateParameters(double mu, double beta) {
-        if (!std::isfinite(mu))
-            throw std::invalid_argument("Location parameter mu must be a finite number");
-        if (!std::isfinite(beta) || beta <= detail::ZERO_DOUBLE)
-            throw std::invalid_argument("Scale parameter beta must be a positive finite number");
+        auto v = validateGumbelParameters(mu, beta);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -401,7 +402,7 @@ class GumbelDistribution : public DistributionBase {
     /** @brief Location parameter μ. */
     double mu_{detail::ZERO_DOUBLE};
 
-    /** @brief Scale parameter β — must be positive. */
+    /** @brief Scale parameter β ≥ DBL_MIN: 1/β is cached. */
     double beta_{detail::ONE};
 
     /** @brief Atomic copies for lock-free parameter access. */

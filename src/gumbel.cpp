@@ -37,7 +37,12 @@ namespace {
 /// LogPDF for a finite z, without the −log β term (added by the caller).
 /// As z → −∞, e^(−z) overflows to +inf and the result collapses to −inf, which
 /// is the correct limit; no intermediate NaN can appear because −z stays finite.
+/// A finite x still gives an infinite z where |x − μ| > DBL_MAX·β or x − μ overflows; at
+/// z = −inf the form is inf − inf = NaN (Gumbel(0, 1e-10) at −1e300), so both infinities
+/// return −inf, as the batch kernel's fixup does (Fix8).
 [[nodiscard]] inline double gumbelLogKernel(double z) noexcept {
+    if (std::isinf(z))
+        return detail::NEGATIVE_INFINITY;
     return -z - std::exp(-z);
 }
 

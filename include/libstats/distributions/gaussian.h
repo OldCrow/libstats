@@ -85,7 +85,8 @@ class GaussianDistribution : public DistributionBase {
      * @brief Constructs a Gaussian distribution with given parameters.
      *
      * @param mean Mean parameter μ (any finite value)
-     * @param standardDeviation Standard deviation σ (at least MIN_SQUARABLE_SCALE = √DBL_MIN)
+     * @param standardDeviation Standard deviation σ (in [√DBL_MIN, 1e10]: MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION)
      * @throws std::invalid_argument if parameters are invalid
      *
      * Implementation in .cpp: Complex validation and cache initialization logic
@@ -144,7 +145,8 @@ class GaussianDistribution : public DistributionBase {
      * See `error_handling.h` for the Result<T> design rationale.
      *
      * @param mean Mean parameter μ (any finite value)
-     * @param standardDeviation Standard deviation σ (at least MIN_SQUARABLE_SCALE = √DBL_MIN)
+     * @param standardDeviation Standard deviation σ (in [√DBL_MIN, 1e10]: MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION)
      * @return Result containing either a valid GaussianDistribution or error info
      *
      * @par Usage Example:
@@ -245,8 +247,9 @@ class GaussianDistribution : public DistributionBase {
      * @brief Sets the standard deviation parameter σ (exception-based API).
      * Thread-safe: validates first, then locks and sets
      *
-     * @param stdDev New standard deviation (at least MIN_SQUARABLE_SCALE = √DBL_MIN)
-     * @throws std::invalid_argument if stdDev is below MIN_SQUARABLE_SCALE or is not finite
+     * @param stdDev New standard deviation (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
+     * @throws std::invalid_argument if stdDev is outside [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      */
     void setStandardDeviation(double stdDev);
 
@@ -346,7 +349,7 @@ class GaussianDistribution : public DistributionBase {
      * @brief Safely set the standard deviation parameter σ without throwing exceptions
      * (Result-based API). Thread-safe: validates first, then locks and sets
      *
-     * @param stdDev New standard deviation (at least MIN_SQUARABLE_SCALE)
+     * @param stdDev New standard deviation (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
      * @return VoidResult indicating success or failure
      */
     [[nodiscard]] VoidResult trySetStandardDeviation(double stdDev) noexcept;
@@ -356,7 +359,8 @@ class GaussianDistribution : public DistributionBase {
      * API). Thread-safe: validates first, then locks and sets both parameters atomically
      *
      * @param mean New mean parameter (any finite value)
-     * @param standardDeviation New standard deviation (at least MIN_SQUARABLE_SCALE)
+     * @param standardDeviation New standard deviation (in [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION])
      * @return VoidResult indicating success or failure
      */
     [[nodiscard]] VoidResult trySetParameters(double mean, double standardDeviation) noexcept;
@@ -701,7 +705,7 @@ class GaussianDistribution : public DistributionBase {
     /**
      * Validates parameters for the Gaussian distribution
      * @param mean Mean parameter (any finite value)
-     * @param stdDev Standard deviation parameter (finite, at least MIN_SQUARABLE_SCALE)
+     * @param stdDev Standard deviation parameter (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
      * @throws std::invalid_argument if parameters are invalid
      */
     static void validateParameters(double mean, double stdDev);
@@ -720,7 +724,7 @@ class GaussianDistribution : public DistributionBase {
     /** @brief Mean parameter μ - can be any finite real number */
     double mean_{detail::ZERO_DOUBLE};
 
-    /** @brief Standard deviation σ ≥ MIN_SQUARABLE_SCALE: −1/(2σ²) is cached */
+    /** @brief σ in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION]: −1/(2σ²) is cached */
     double standardDeviation_{detail::ONE};
 
     /** @brief C++20 atomic copies of parameters for lock-free access */

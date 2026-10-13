@@ -20,7 +20,8 @@ namespace stats {
  * - LogPDF: −(log x − μ)²/(2σ²) − log x − log σ − ½·log(2π)
  * - CDF:    Φ((log x − μ)/σ)  where Φ is the standard normal CDF
  * - Quantile: exp(μ + σ·Φ⁻¹(p))
- * - Parameters: μ ∈ ℝ (log-mean), σ > 0 (log-stddev)
+ * - Parameters: μ ∈ ℝ (log-mean), σ ∈ [√DBL_MIN, 1e10] (log-stddev; −1/(2σ²) is cached:
+ *   MIN_SQUARABLE_SCALE and MAX_STANDARD_DEVIATION, Gaussian's bounds)
  * - Support:  x ∈ (0, ∞)
  *
  * @par Moments:
@@ -70,8 +71,9 @@ class LogNormalDistribution : public DistributionBase {
     /**
      * @brief Construct a Log-Normal distribution.
      * @param mu    Location parameter μ — log-mean (any finite real, default 0)
-     * @param sigma σ, log-stddev (at least MIN_SQUARABLE_SCALE = √DBL_MIN, default 1)
-     * @throws std::invalid_argument if sigma < MIN_SQUARABLE_SCALE or a parameter is not finite
+     * @param sigma σ, log-stddev (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION], default 1)
+     * @throws std::invalid_argument if sigma is outside [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION] or mu is not finite
      *
      * Default (0, 1) is the standard log-normal distribution.
      * Implementation in .cpp.
@@ -100,7 +102,7 @@ class LogNormalDistribution : public DistributionBase {
     /**
      * @brief Safely create a Log-Normal distribution without throwing exceptions.
      * @param mu    Location parameter μ (any finite real)
-     * @param sigma Scale parameter σ (must be at least MIN_SQUARABLE_SCALE)
+     * @param sigma Scale parameter σ (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
      * @return Result containing a valid LogNormalDistribution or error info
      */
     [[nodiscard]] static Result<LogNormalDistribution> create(double mu = detail::ZERO_DOUBLE,
@@ -149,13 +151,15 @@ class LogNormalDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter σ.
-     * @throws std::invalid_argument if sigma is below MIN_SQUARABLE_SCALE
+     * @throws std::invalid_argument if sigma is outside [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      */
     void setSigma(double sigma);
 
     /**
      * @brief Set both parameters simultaneously.
-     * @throws std::invalid_argument if sigma is below MIN_SQUARABLE_SCALE or mu is non-finite
+     * @throws std::invalid_argument if sigma is outside [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION] or mu is non-finite
      */
     void setParameters(double mu, double sigma);
 

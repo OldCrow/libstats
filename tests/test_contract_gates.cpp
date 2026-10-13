@@ -27,6 +27,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 using namespace stats;
@@ -2736,4 +2737,170 @@ TEST(ContractGates, Fix7C_GaussianLogNormalSigmaLowerBound) {
     const LogNormalDistribution ln_bound(0.0, s);
     EXPECT_LT(relErr(ln_bound.getLogProbability(1.0), want_log), 1e-15);
     expectAllStrategies(ln_bound, 1.0, want_log, 1e-15, kLogPdfBatch, "lognormal logpdf");
+}
+
+namespace {
+// Every entry point of a two-parameter (location, scale) class rejects `scale` alike: the
+// constructor, create(), the single and joint setters and their trySet forms.
+template <typename D, typename SetS, typename TrySetS>
+void expectScaleRejected(double loc, double scale, SetS setScale, TrySetS trySetScale,
+                         const char* who) {
+    EXPECT_THROW(D(loc, scale), std::invalid_argument) << who << " " << scale;
+    EXPECT_TRUE(D::create(loc, scale).isError()) << who << " " << scale;
+    D d;
+    EXPECT_TRUE(trySetScale(d, scale).isError()) << who << " " << scale;
+    EXPECT_TRUE(d.trySetParameters(loc, scale).isError()) << who << " " << scale;
+    EXPECT_THROW(setScale(d, scale), std::invalid_argument) << who << " " << scale;
+    EXPECT_THROW(d.setParameters(loc, scale), std::invalid_argument) << who << " " << scale;
+}
+
+template <typename D, typename SetS, typename TrySetS>
+void expectScaleAccepted(double loc, double scale, SetS setScale, TrySetS trySetScale,
+                         const char* who) {
+    EXPECT_NO_THROW(D(loc, scale)) << who << " " << scale;
+    EXPECT_TRUE(D::create(loc, scale).isOk()) << who << " " << scale;
+    D d;
+    EXPECT_TRUE(trySetScale(d, scale).isOk()) << who << " " << scale;
+    EXPECT_TRUE(d.trySetParameters(loc, scale).isOk()) << who << " " << scale;
+    EXPECT_NO_THROW(setScale(d, scale)) << who << " " << scale;
+    EXPECT_NO_THROW(d.setParameters(loc, scale)) << who << " " << scale;
+}
+}  // namespace
+
+// Laplace, Logistic and Gumbel cache 1/b (1/s, 1/β), which is inf below 1/DBL_MAX = 5.6e-309,
+// and accepted a subnormal scale: Laplace(0, 5e-324).pdf(0), Logistic and Gumbel likewise, were
+// NaN (−inf·0). A scale below DBL_MIN is now rejected at every entry point, as Cauchy's γ is
+// (Fix7C); at DBL_MIN the density at the centre is finite on every path. Laplace also cached
+// −log(2b), −inf for b > DBL_MAX/2: Laplace(0, 1e308).pdf(0) read 0 for 5e-309 and the log density
+// −inf.
+TEST(ContractGates, Fix8_ReciprocalScaleBelowDblMin) {
+    const double dbl_min = std::numeric_limits<double>::min();
+    for (double s : {5e-324, 1e-310, dbl_min / 2.0}) {
+        expectScaleRejected<LaplaceDistribution>(
+            0.0, s, [](auto& d, double v) { d.setB(v); },
+            [](auto& d, double v) { return d.trySetB(v); }, "Laplace");
+        expectScaleRejected<LogisticDistribution>(
+            0.0, s, [](auto& d, double v) { d.setS(v); },
+            [](auto& d, double v) { return d.trySetS(v); }, "Logistic");
+        expectScaleRejected<GumbelDistribution>(
+            0.0, s, [](auto& d, double v) { d.setBeta(v); },
+            [](auto& d, double v) { return d.trySetBeta(v); }, "Gumbel");
+    }
+
+    // At DBL_MIN: the density at the centre, 1/(2b), 1/(4s) and 1/(e·β), and the log densities.
+    // Each density is exp of a log near 708, so it carries ~708·ε relative: 2e-13, not 1e-15.
+    expectScaleAccepted<LaplaceDistribution>(
+        0.0, dbl_min, [](auto& d, double v) { d.setB(v); },
+        [](auto& d, double v) { return d.trySetB(v); }, "Laplace");
+    const LaplaceDistribution lap(0.0, dbl_min);
+    EXPECT_LT(relErr(lap.getProbability(0.0), 0.5 / dbl_min), 2e-13);
+    expectAllStrategies(lap, 0.0, 0.5 / dbl_min, 2e-13, kPdfBatch, "laplace pdf");
+    expectAllStrategies(lap, 0.0, -std::log(2.0 * dbl_min), 1e-15, kLogPdfBatch, "laplace logpdf");
+    const LogisticDistribution logi(0.0, dbl_min);
+    EXPECT_LT(relErr(logi.getProbability(0.0), 0.25 / dbl_min), 2e-13);
+    expectAllStrategies(logi, 0.0, 0.25 / dbl_min, 2e-13, kPdfBatch, "logistic pdf");
+    expectAllStrategies(logi, 0.0, -std::log(4.0 * dbl_min), 1e-15, kLogPdfBatch,
+                        "logistic logpdf");
+    const GumbelDistribution gum(0.0, dbl_min);
+    const double gum_log = -1.0 - std::log(dbl_min);
+    EXPECT_LT(relErr(gum.getLogProbability(0.0), gum_log), 1e-15);
+    expectAllStrategies(gum, 0.0, gum_log, 1e-15, kLogPdfBatch, "gumbel logpdf");
+    expectAllStrategies(gum, 0.0, std::exp(gum_log), 2e-13, kPdfBatch, "gumbel pdf");
+
+    // Laplace past 2b's overflow: f(0) = 1/(2b), log f(0) = −log 2 − log b.
+    const LaplaceDistribution wide(0.0, 1e308);
+    EXPECT_LT(relErr(wide.getProbability(0.0), 5e-309), 1e-13);  // subnormal: ~1e-14 relative
+    expectAllStrategies(wide, 0.0, 5e-309, 1e-13, kPdfBatch, "laplace pdf");
+    const double wide_log = -std::log(2.0) - std::log(1e308);
+    EXPECT_LT(relErr(wide.getLogProbability(0.0), wide_log), 1e-15);
+    expectAllStrategies(wide, 0.0, wide_log, 1e-15, kLogPdfBatch, "laplace logpdf");
+}
+
+// Gumbel's scalar log density at an overflowed z = (x − μ)/β = −inf formed −z − e^(−z) =
+// inf − inf = NaN (Gumbel(0, 1e-10) at −1e300; Gumbel(1e300, 1e-10) at 0); the batch kernels
+// already pinned it to −inf. Scalar and batch now agree: density 0, log density −inf.
+TEST(ContractGates, Fix8_GumbelOverflowedStandardizedValue) {
+    const double ninf = -std::numeric_limits<double>::infinity();
+    for (const auto& [mu, beta, x] : {std::tuple{0.0, 1e-10, -1e300}, std::tuple{1e300, 1e-10, 0.0},
+                                      std::tuple{-1.0, 1e-300, -1e300}}) {
+        const GumbelDistribution g(mu, beta);
+        EXPECT_EQ(g.getLogProbability(x), ninf) << mu << " " << beta << " " << x;
+        EXPECT_EQ(g.getProbability(x), 0.0) << mu << " " << beta << " " << x;
+        expectAllStrategies(g, x, ninf, 0.0, kLogPdfBatch, "gumbel logpdf");
+        expectAllStrategies(g, x, 0.0, 0.0, kPdfBatch, "gumbel pdf");
+    }
+}
+
+// validateGaussianParameters, behind create() and every trySet*, lacked the σ ≤ 1e10
+// (MAX_STANDARD_DEVIATION) bound that the throwing validator enforced: trySetParameters(0, 2e10)
+// succeeded where the constructor threw. One validator now serves every entry point. LogNormal
+// had no upper bound at all: above ~1.5e154 its cached −1/(2σ²) is subnormal or 0, so the
+// quadratic term vanished (LogNormal(1e300, 1e300).logpdf(1) lost its −½) and pdf(+inf) was
+// 0·inf = NaN. It now takes Gaussian's bound, as HalfNormal and Rayleigh do.
+TEST(ContractGates, Fix8_GaussianLogNormalSigmaUpperBound) {
+    const double cap = detail::MAX_STANDARD_DEVIATION;
+    for (double s :
+         {std::nextafter(cap, 2.0 * cap), 2e10, 1e154, 1e300, std::numeric_limits<double>::max()}) {
+        expectScaleRejected<GaussianDistribution>(
+            0.0, s, [](auto& d, double v) { d.setStandardDeviation(v); },
+            [](auto& d, double v) { return d.trySetStandardDeviation(v); }, "Gaussian");
+        expectScaleRejected<LogNormalDistribution>(
+            0.0, s, [](auto& d, double v) { d.setSigma(v); },
+            [](auto& d, double v) { return d.trySetSigma(v); }, "LogNormal");
+    }
+    expectScaleAccepted<GaussianDistribution>(
+        0.0, cap, [](auto& d, double v) { d.setStandardDeviation(v); },
+        [](auto& d, double v) { return d.trySetStandardDeviation(v); }, "Gaussian");
+    expectScaleAccepted<LogNormalDistribution>(
+        0.0, cap, [](auto& d, double v) { d.setSigma(v); },
+        [](auto& d, double v) { return d.trySetSigma(v); }, "LogNormal");
+    const LogNormalDistribution ln(0.0, cap);
+    EXPECT_EQ(ln.getProbability(std::numeric_limits<double>::infinity()), 0.0);
+    EXPECT_EQ(ln.getLogProbability(std::numeric_limits<double>::infinity()),
+              -std::numeric_limits<double>::infinity());
+}
+
+// Von Mises at κ past DBL_MAX/2: the density −2κ·sin²(t/2) formed −2κ = −inf, so at the mode it
+// was −inf·0 = NaN on the scalar and batch paths (VonMises(0, 1e308).pdf(0)); and past
+// DBL_MAX/(2π) the cached log normaliser formed log(2πκ) = +inf. The log density at the mode is
+// −log(2π·I₀(κ)·e^(−κ)) = ½·log(κ/(2π)) + O(1/κ), finite on every path; 1 radian away the
+// density is 0 and the log density −2κ·sin²(½), finite.
+TEST(ContractGates, Fix8_VonMisesDensityAtHugeKappa) {
+    for (double k : {5e307, 1e308, std::numeric_limits<double>::max()}) {
+        const VonMisesDistribution vm(0.0, k);
+        const double want = 0.5 * (std::log(k) - std::log(2.0 * kPi));
+        EXPECT_LT(relErr(vm.getLogProbability(0.0), want), 1e-15) << k;
+        expectAllStrategies(vm, 0.0, want, 1e-15, kLogPdfBatch, "von mises logpdf");
+        expectAllStrategies(vm, 0.0, std::exp(want), 1e-12, kPdfBatch, "von mises pdf");
+        EXPECT_EQ(vm.getProbability(1.0), 0.0) << k;
+        expectAllStrategies(vm, 1.0, 0.0, 0.0, kPdfBatch, "von mises pdf");
+        const double far = -2.0 * (k * (std::sin(0.5) * std::sin(0.5)));  // normaliser lost
+        EXPECT_LT(relErr(vm.getLogProbability(1.0), far), 1e-14) << k;
+        expectAllStrategies(vm, 1.0, far, 1e-14, kLogPdfBatch, "von mises logpdf");
+    }
+}
+
+// Student-t below ν = 1/DBL_MAX: 1/ν is inf, so the density at the centre was NaN
+// (StudentT(4.9e-324).pdf(0)) and the log-density at t ≠ 0 −inf where the truth is ~−714.
+// A subnormal ν is rejected at every entry point [user, 2026-10-12, as for the subnormal
+// scales]; at ν = DBL_MIN, the smallest accepted, log f(0) = ½·log ν − log 2 + O(ν).
+TEST(ContractGates, Fix8_StudentTDensityAtSubnormalNu) {
+    for (double nu : {std::numeric_limits<double>::denorm_min(), 1e-310,
+                      std::numeric_limits<double>::min() / 2.0}) {
+        EXPECT_THROW(StudentTDistribution{nu}, std::invalid_argument) << nu;
+        EXPECT_FALSE(StudentTDistribution::create(nu).isOk()) << nu;
+        StudentTDistribution st(5.0);
+        EXPECT_THROW(st.setNu(nu), std::invalid_argument) << nu;
+        EXPECT_FALSE(st.trySetNu(nu).isOk()) << nu;
+        EXPECT_EQ(st.getNu(), 5.0) << nu;
+    }
+    const double nu = std::numeric_limits<double>::min();
+    const StudentTDistribution st(nu);
+    const double want = 0.5 * std::log(nu) - std::log(2.0);
+    EXPECT_LT(relErr(st.getLogProbability(0.0), want), 1e-15);
+    expectAllStrategies(st, 0.0, want, 1e-15, kLogPdfBatch, "student t logpdf");
+    // exp of a log near −355 carries ~355·ε relative.
+    expectAllStrategies(st, 0.0, std::exp(want), 2e-13, kPdfBatch, "student t pdf");
+    EXPECT_TRUE(std::isfinite(st.getLogProbability(1.0)));
+    EXPECT_TRUE(std::isfinite(st.getLogProbability(-1e300)));
 }

@@ -1228,19 +1228,10 @@ void GaussianDistribution::updateCacheUnsafe() const noexcept {
 }
 
 void GaussianDistribution::validateParameters(double mean, double stdDev) {
-    if (!std::isfinite(mean)) {
-        throw std::invalid_argument("Mean must be finite");
-    }
-    if (!std::isfinite(stdDev) || stdDev <= detail::ZERO_DOUBLE) {
-        throw std::invalid_argument("Standard deviation must be positive and finite");
-    }
-    if (stdDev > detail::MAX_STANDARD_DEVIATION) {
-        throw std::invalid_argument("Standard deviation is too large for numerical stability");
-    }
-    if (stdDev < detail::MIN_SQUARABLE_SCALE) {  // validateGaussianParameters' lower bound
-        throw std::invalid_argument(
-            "Standard deviation is below the range where σ² is a normal double");
-    }
+    // validateGaussianParameters holds the bounds, so that every entry point agrees (Fix8).
+    auto v = validateGaussianParameters(mean, stdDev);
+    if (v.isError())
+        throw std::invalid_argument(v.message());
 }
 
 //==========================================================================

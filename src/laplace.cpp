@@ -721,7 +721,10 @@ void LaplaceDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 
 void LaplaceDistribution::updateCacheUnsafe() const noexcept {
     neg_inv_b_ = -detail::ONE / b_;
-    neg_log2b_ = -std::log(detail::TWO * b_);
+    // 2b overflows above DBL_MAX/2, where −log(2b) read −inf and the density 0 (Laplace(0, 1e308)
+    // at 0: 5e-309). There the log is split; below, the form is unchanged.
+    const double two_b = detail::TWO * b_;
+    neg_log2b_ = std::isfinite(two_b) ? -std::log(two_b) : -(detail::LN2 + std::log(b_));
     half_inv_b_ = detail::HALF / b_;
 
     cache_valid_ = true;

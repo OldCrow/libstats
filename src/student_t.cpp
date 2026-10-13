@@ -29,10 +29,15 @@ constexpr std::size_t kBatchSlice = 1024;
 namespace {
 // log(1 + t²/ν) for the Student-t kernel (#159). Past |t| ~ 1e154 t² overflows and the direct form
 // collapses the density to 0 / −inf; there log(1 + t²/ν) = 2·log|t| + log(1/ν) + log1p(ν/t²), and
-// the last term is below double resolution.
+// the last term is below double resolution. Below ν = 1/DBL_MAX, 1/ν is inf and at t = 0 the
+// product is 0·inf: the density at the centre was NaN (StudentT(5e-324).pdf(0), Fix8).
 [[nodiscard]] inline double log1p_t2_over_nu(double t, double inv_nu) noexcept {
     const double u = t * t * inv_nu;
-    return std::isfinite(u) ? std::log1p(u) : 2.0 * std::log(std::fabs(t)) + std::log(inv_nu);
+    if (std::isfinite(u))
+        return std::log1p(u);
+    if (t == 0.0)
+        return 0.0;
+    return 2.0 * std::log(std::fabs(t)) + std::log(inv_nu);
 }
 
 // D(ν) = ψ((ν+1)/2) − ψ(ν/2) − 1/ν, the digamma part of the ν score, and D'(ν). The two digammas
@@ -86,10 +91,11 @@ struct TScoreDigammaPart {
 // 1. CONSTRUCTORS AND DESTRUCTOR
 //==============================================================================
 
+// validateStudentTParameters holds the bound, as for create() and the setters (Fix8).
 static double requireValidNu(double nu) {
-    if (nu <= 0.0 || !std::isfinite(nu)) {
-        throw std::invalid_argument("Degrees of freedom nu must be a positive finite number");
-    }
+    auto v = validateStudentTParameters(nu);
+    if (v.isError())
+        throw std::invalid_argument(v.message());
     return nu;
 }
 
@@ -887,7 +893,11 @@ void StudentTDistribution::updateCacheUnsafe() const noexcept {
     // log normalization constant: lgamma((ν+1)/2) − 0.5·log(ν·π) − lgamma(ν/2)
     // lgamma((ν+1)/2) − lgamma(ν/2) − ½·log(νπ) = −log B(ν/2, ½) − ½·log ν; lbeta forms it without
     // the lgamma difference, which was 2e-10 relative off at ν = 1e6.
-    logNormConst_ = -detail::lbeta(halfNu_, detail::HALF) - detail::HALF * std::log(nu_);
+    // Where ν/2 is below DBL_MIN (ν/2 = 0 at ν = 4.9e-324, and lbeta(0, ½) = inf) the constant is
+    // its limit log(ν/2) − ½·log ν, to a relative O(ν) (Fix8).
+    logNormConst_ = halfNu_ < std::numeric_limits<double>::min()
+                        ? detail::HALF * std::log(nu_) - detail::LN2
+                        : -detail::lbeta(halfNu_, detail::HALF) - detail::HALF * std::log(nu_);
 
     // Moments (conditional on ν)
     if (nu_ > detail::TWO) {

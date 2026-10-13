@@ -490,9 +490,12 @@ template <typename F>
 // kappa cos t - log(2 pi I0(kappa)) subtracted two numbers near kappa: relative error 4e-7 at
 // kappa = 1e10, 78% at 1e16, and a density of exactly 1 from 1e20 (M1 seam hunt). The half angle
 // also keeps cos t - 1 exact near the mode, where kappa scales its rounding.
+// −2·(κ·s²), not (−2κ)·s²: doubling is exact, so the two agree wherever 2κ·s² is a normal
+// double; past κ = DBL_MAX/2, where −2κ is −inf, the mode's s = 0 gave −inf·0 = NaN
+// (VonMises(0, 1e308).pdf(0), Fix8).
 [[nodiscard]] double logDensityScaled(double t, double kappa, double log_scaled_norm) noexcept {
     const double s = std::sin(t * detail::HALF);
-    return -detail::TWO * kappa * (s * s) - log_scaled_norm;
+    return -detail::TWO * (kappa * (s * s)) - log_scaled_norm;
 }
 
 [[nodiscard]] double log_scaled_normaliser_hankel(double kappa) noexcept {
@@ -500,7 +503,12 @@ template <typename F>
     const double s =
         t * (0.125 + t * (0.0703125 +
                           t * (0.0732421875 + t * (0.112152099609375 + t * 0.22710800170898438))));
-    return detail::LN_2PI - detail::HALF * std::log(detail::TWO_PI * kappa) + std::log1p(s);
+    // 2πκ overflows past DBL_MAX/(2π), where the log read +inf and the log density at the mode
+    // +inf (Fix8); there its log is split.
+    const double two_pi_kappa = detail::TWO_PI * kappa;
+    const double log_two_pi_kappa =
+        std::isfinite(two_pi_kappa) ? std::log(two_pi_kappa) : detail::LN_2PI + std::log(kappa);
+    return detail::LN_2PI - detail::HALF * log_two_pi_kappa + std::log1p(s);
 }
 
 // 1 / (2 pi I0(kappa) e^-kappa) to about half an ulp: the trapezoid sum (N = 2*half points
@@ -1745,8 +1753,16 @@ void VonMisesDistribution::getLogProbabilityBatchUnsafeImpl(
     arch::simd::VectorOps::vector_sin(results, results, count);
     arch::simd::VectorOps::vector_multiply(results, results, results, count);
 
-    // Step 3: results[i] = -2 kappa * results[i] - log_scaled_normaliser
-    arch::simd::VectorOps::scalar_multiply(results, -detail::TWO * cached_kappa, results, count);
+    // Step 3: results[i] = -2 kappa * results[i] - log_scaled_normaliser. Past kappa = DBL_MAX/2,
+    // -2 kappa is -inf and the mode's 0 gave NaN; there the factors go one at a time, as in
+    // logDensityScaled (the same value wherever -2 kappa is finite).
+    const double neg_two_kappa = -detail::TWO * cached_kappa;
+    if (std::isfinite(neg_two_kappa)) {
+        arch::simd::VectorOps::scalar_multiply(results, neg_two_kappa, results, count);
+    } else {
+        arch::simd::VectorOps::scalar_multiply(results, cached_kappa, results, count);
+        arch::simd::VectorOps::scalar_multiply(results, -detail::TWO, results, count);
+    }
     arch::simd::VectorOps::scalar_add(results, -cached_log_normaliser, results, count);
 
     // Fixup: NaN propagates; ±inf must produce -∞ regardless of the SIMD result

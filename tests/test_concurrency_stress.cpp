@@ -325,6 +325,12 @@ std::vector<Reader<D>> makeReaders(const Row<D>& row, const D& fixedA, const D& 
                       return b;
                   },
                   false});
+    // getCoefficientOfVariation is σ/|μ| from getVariance() and getMean(): two calls that must see
+    // one parameter state (Fix8; unfixed, a setter between them gave a value of neither state).
+    rs.push_back(
+        {"coefficient of variation",
+         [](const D& d) { return Bits{guarded([&] { return getCoefficientOfVariation(d); })}; },
+         false});
     rs.push_back({"quantile",
                   [](const D& d) {
                       Bits b;
