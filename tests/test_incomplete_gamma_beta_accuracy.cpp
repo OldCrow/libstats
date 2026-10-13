@@ -1,7 +1,7 @@
 // tests/test_incomplete_gamma_beta_accuracy.cpp
 //
 // CDF accuracy of the distributions built on detail::gamma_p / gamma_q /
-// beta_i, at large shape and against mpmath (issue #166). Before v2.4.2 the
+// beta_i, at large shape and against mpmath (issue #166). Before v2.5.0 the
 // series and continued fractions stopped at DEFAULT_TOLERANCE = 1e-8 and at
 // fixed caps of 100 (beta) and 1000 (gamma) iterations, and the gamma
 // prefactor exp(−x + a·log x − lgamma(a)) cancelled terms of size a·log x:
@@ -46,7 +46,7 @@ void expectCdf(const std::string& name, const Dist& d, double x, double want, do
 
 }  // namespace
 
-// The #166 gate row: P(5e4, x/2) at the median, 8.3e-6 relative off before v2.4.2.
+// The #166 gate row: P(5e4, x/2) at the median, 8.3e-6 relative off before v2.5.0.
 TEST(IncompleteGammaBetaAccuracy, ChiSquaredLargeK) {
     const auto d = ChiSquaredDistribution::create(1e5).unwrap();
     expectCdf("ChiSquared(1e5)", d, 99999.33, 0.49999702574336407182, 1e-12);

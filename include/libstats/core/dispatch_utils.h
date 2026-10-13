@@ -20,22 +20,26 @@ namespace detail {  // Performance utilities
  *
  * Every batch operation (e.g. gaussian.getProbability(span, span)) flows through three layers:
  *
- *   Layer 1 — Validate:
- *     Distribution API method (e.g. GaussianDistribution::getProbabilityBatch)
- *     \u2193 checks spans, handles empty, forwards to DispatchUtils::autoDispatch
+ *   Layer 1 — Entry:
+ *     Distribution API method (e.g. GaussianDistribution::getProbability(span, span, hint))
+ *     -> forwards to DispatchUtils::autoDispatch, which checks the span sizes, the
+ *        overlap (debug only) and the empty case
  *
  *   Layer 2 — Select strategy:
  *     DispatchUtils::autoDispatch
- *     \u2193 if hint is AUTO: PerformanceDispatcher::selectStrategy (threshold lookup +
- *                             optional performance history override)
- *       if hint is explicit: DispatchUtils::mapHintToStrategy
- *     \u2193 DispatchUtils::executeStrategy (switches on Strategy enum)
+ *     -> if hint is AUTO: PerformanceDispatcher::selectStrategy (threshold lookup)
+ *        if hint is explicit: DispatchUtils::mapHintToStrategy
+ *     -> DispatchUtils::executeStrategy (switches on the Strategy enum)
  *
  *   Layer 3 — Execute:
- *     Strategy::SCALAR       \u2192 element-by-element scalar_func loop
- *     Strategy::VECTORIZED   \u2192 batch_func \u2192 *BatchUnsafeImpl \u2192 VectorOps (SIMD or
- * scalar) Strategy::PARALLEL     \u2192 parallel_func \u2192 ParallelUtils::parallelFor
- *     Strategy::WORK_STEALING \u2192 work_stealing_func \u2192 WorkStealingPool::parallelFor
+ *     Strategy::SCALAR        -> element-by-element scalar_func loop
+ *     Strategy::VECTORIZED    -> batch_func -> the distribution's batch kernel (VectorOps
+ *                                where the distribution has one, else a scalar loop)
+ *     Strategy::PARALLEL      -> parallel_func -> ParallelUtils::parallelFor or
+ *                                parallelForSlices (batch_func below
+ *                                get_min_elements_for_parallel())
+ *     Strategy::WORK_STEALING -> work_stealing_func -> WorkStealingPool::parallelFor or
+ *                                parallelForSlices
  *
  * The GPU_ACCELERATED strategy slot has been removed. The GpuAcceleratedFunc
  * template parameter and corresponding lambda are no longer accepted by these
@@ -51,8 +55,9 @@ namespace detail {  // Performance utilities
  * and compiles to nothing under NDEBUG.
  *
  * The contract is not a formality. Several kernels re-read `values` after
- * `results` has been written — the Gaussian and von Mises CDF tail fixups, the
- * Gamma PDF pipeline, the LogNormal LogPDF support fixup — so an in-place call
+ * `results` has been written — the Gaussian CDF tail fixups, the von Mises PDF/LogPDF
+ * NaN and ±inf fixups, the Gamma PDF pipeline, the LogNormal LogPDF support fixup, the
+ * InverseGamma and Cauchy LogPDF fixups — so an in-place call
  * reads back computed probabilities instead of the caller's inputs and returns
  * wrong values with no error. In-place safety at the lower `VectorOps` kernel
  * layer does not extend to this layer.
@@ -197,15 +202,19 @@ class DispatchUtils {
                                 WorkStealingFunc&& work_stealing_func) {
         switch (strategy) {
             case Strategy::SCALAR:
-                // Use simple loop for tiny batches (< 8 elements)
+                // Forced (FORCE_SCALAR, or MINIMIZE_LATENCY at or below the SIMD minimum), or
+                // AUTO's choice below SIMDPolicy::getMinThreshold() (8 on AVX-512/AVX2/AVX, 4 on
+                // SSE2/NEON, SIZE_MAX without SIMD). scalar_func takes the distribution's lock
+                // per element, so under a concurrent setter this batch can mix parameter states.
                 for (size_t i = 0; i < count; ++i) {
                     results[i] = scalar_func(dist, values[i]);
                 }
                 break;
 
             case Strategy::VECTORIZED:
-                // Batch path through VectorOps. For Gaussian this uses SIMD intrinsics;
-                // for other distributions it currently uses scalar loops.
+                // The distribution's batch kernel on one parameter snapshot: VectorOps for most
+                // continuous distributions (Uniform SIMDPolicy-gated); delegating and discrete
+                // distributions use scalar loops.
                 batch_func(dist, values.data(), results.data(), count);
                 break;
 

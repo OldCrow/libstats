@@ -2,7 +2,7 @@
 //
 // Gamma quantiles against mpmath (issue #160): GammaDistribution::getQuantile,
 // the Erlang and ChiSquared quantiles that delegate to it, and
-// detail::inverse_chi_squared_cdf and detail::gamma_inverse_cdf. Before v2.4.2
+// detail::inverse_chi_squared_cdf and detail::gamma_inverse_cdf. Before v2.5.0
 // the distribution solved P(α, βx) = p by Newton on the linear CDF from a
 // Wilson-Hilferty seed and was 5e139 relative off at p = 1e-300; the two
 // detail inverses bisected to an absolute 1e-8 in p.

@@ -258,6 +258,9 @@ inline constexpr double STIRLING_PREFACTOR_SHAPE = 20.0;
  */
 [[nodiscard]] double log_gamma_prefactor(double a, double x) noexcept;
 
+/// |t| bound below which log1pmx_series holds its accuracy.
+inline constexpr double LOG1PMX_SERIES_LIMIT = 0.5;
+
 /**
  * @brief log1p(t) − t for |t| < ½, without the cancellation of the direct difference
  *
@@ -267,8 +270,6 @@ inline constexpr double STIRLING_PREFACTOR_SHAPE = 20.0;
  * 1.7 ulp worst case (the direct log1p(t) − t is 7 ulp on [¼, ½)). Branch-free, so batch loops
  * vectorize it; the scalar log1pmx and the Gamma batch density share it.
  */
-inline constexpr double LOG1PMX_SERIES_LIMIT = 0.5;
-
 [[nodiscard]] inline double log1pmx_series(double t) noexcept {
     const double s = t / (2.0 + t);
     const double s2 = s * s;

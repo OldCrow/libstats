@@ -1,6 +1,6 @@
 // tests/test_gamma_density_accuracy.cpp
 //
-// Gamma-family densities at large shape against mpmath. Before v2.4.2 the log density was
+// Gamma-family densities at large shape against mpmath. Before v2.5.0 the log density was
 // α·log β − lgamma(α) + (α − 1)·log x − βx, whose terms of size α·log α cancel to a result of order
 // one: 2e-11 relative at α = 1e4 and 7e-11 for ChiSquared at k = 1e5, in the scalar path and in
 // the SIMD pipeline alike. From α = 20 the density is now log P(α, βx) − log x, with the

@@ -6,7 +6,7 @@ libstats is a modern C++20 statistical distributions library built as a design a
 
 ## Current Status
 
-The library is at **v2.4.1** on `main` (27 distributions).
+The library is at **v2.5.0** on `main` (27 distributions).
 
 Twenty-seven distributions are fully implemented, all sharing a uniform API:
 
@@ -15,9 +15,8 @@ Twenty-seven distributions are fully implemented, all sharing a uniform API:
 - HalfNormal, TruncatedNormal, Erlang, InverseGamma, FisherF
 - Binomial, Negative Binomial, Geometric, Bernoulli
 
-The current per-machine validation matrix lives in AGENTS.md (74 correctness
-targets, 22 timing, 70/70 `simd_verification`); historical matrices are in
-`docs/VALIDATION_HISTORY.md`. Fleet coverage: Kaby Lake (AVX2+FMA natively,
+Per-release validation matrices are in `docs/VALIDATION_HISTORY.md`; the
+current counts are in `PLAN.md`. Fleet coverage: Kaby Lake (AVX2+FMA natively,
 the AVX tier via a `LIBSTATS_MAX_SIMD_TIER=AVX` capped build), Mac Mini M1
 (NEON), Asus TUF A16 (AVX-512).
 

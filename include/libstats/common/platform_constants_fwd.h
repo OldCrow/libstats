@@ -4,10 +4,11 @@
 
 /**
  * @file common/platform_constants_fwd.h
- * @brief Lightweight forward declarations for platform constants - Phase 2 PIMPL optimization
+ * @brief Lightweight forward declarations for platform constants
  *
  * This header provides a minimal interface to platform constants without pulling in
- * heavy STL dependencies. Full implementation is hidden behind the PIMPL pattern.
+ * heavy STL dependencies. The definitions are out-of-line to keep the header light;
+ * this forward header exposes only declarations.
  *
  * Usage:
  *   - Include this header when you only need constant value access

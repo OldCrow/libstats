@@ -14,7 +14,7 @@
 
 /**
  * @file platform_constants_impl.cpp
- * @brief Implementation of platform constants - Phase 2 PIMPL optimization
+ * @brief Out-of-line implementation of platform constants, to keep the header light
  *
  * This file contains all the heavy implementation details that were previously
  * in the header file. By moving them here, we eliminate ~85% of compilation
@@ -481,8 +481,5 @@ stats::arch::CacheThresholds get_cache_thresholds() {
     return thresholds;
 }
 }  // namespace arch
-
-// Note: Bridge functions declared in constants_bridge.h are implemented
-// by the functions above in this file via the forward declaration system.
 
 }  // namespace stats

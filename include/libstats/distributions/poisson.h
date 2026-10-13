@@ -103,12 +103,11 @@ namespace stats {
  * - Probability generating function: e^(λ(z - 1))
  *
  * @par Computational Algorithms:
- * - **Small λ (< 10)**: Direct computation with cached factorials
- * - **Medium λ (10-100)**: Stirling's approximation for factorials
- * - **Large λ (> 100)**: Normal approximation with continuity correction
- * - **CDF**: Regularized incomplete gamma function Q(k+1, λ)
- * - **Quantile**: Inverse regularized gamma function with bracketing
- * - **Sampling**: Knuth's algorithm for small λ, acceptance-rejection for large λ
+ * - **PMF / log-PMF**: `detail::poisson_log_pmf` at every λ, without the lgamma cancellation
+ *   at large counts (#172); no normal approximation
+ * - **CDF**: Regularized incomplete gamma function Q(k+1, λ); survival P(k+1, λ)
+ * - **Quantile**: `detail::discrete_quantile_search` from a normal guess, unbounded (#170)
+ * - **Sampling**: Knuth's algorithm for small λ, std::poisson_distribution for large λ
  *
  * @par Numerical Considerations:
  * - Robust handling of factorial overflow using log-space computation
@@ -550,7 +549,7 @@ class PoissonDistribution : public DistributionBase {
      * @return Tuple of (test_statistic, p_value, has_excess_zeros)
      */
     // excessZerosTest, rateStabilityTest, chiSquareGoodnessOfFit moved to
-    // stats::analysis::poisson (include/stats/analysis/poisson_analysis.h) in v2.0.0.
+    // stats::analysis::poisson (include/libstats/stats/analysis/poisson_analysis.h) in v2.0.0.
 
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS

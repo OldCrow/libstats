@@ -353,6 +353,13 @@ pwsh -ExecutionPolicy Bypass -File scripts\capture_dispatcher_profile.ps1 -Large
 Do **not** invoke with the legacy `powershell` command — it runs Windows
 PowerShell 5.x which lacks the `utf8NoBOM` encoding identifier.
 
+Keep the screen unlocked, or opt each measured process out of Windows power
+throttling. A locked screen runs a process at base clock (~1.5× slower scalar
+and vectorized, 1.3× parallel), which shifts crossovers toward PARALLEL. The
+opt-out is per process and not inherited by children; the helper is
+`docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1`. See
+`docs/VALIDATION_HISTORY.md`, "Zen 4 timing: power throttling".
+
 ---
 
 ## Known issues with historical bundles

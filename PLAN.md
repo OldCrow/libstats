@@ -29,6 +29,31 @@ passes every machine's gates with no such defect open. **Freeze head:
 over `d7e9dbd`; CI green on all 11 jobs, run 38195277171). A final hunt
 on fix-5's new code runs before the AVX2 block and R8 [user, 2026-10-12].
 
+**Fix-9 round [DERIVED, 2026-10-13].** CI at `14249cb` failed on gcc-14
+(`test_contract_gates`) and MSVC (`far` in a Fix8 test, renamed). The
+GCC failure is a GCC 14/16 miscompile: an overflow guard on `c·x`, with
+`c` a compile-time constant, makes GCC treat `x` as ±inf in the fallback
+(#275; AGENTS.md "Overflow-guard rule"). Four guards now test the
+operand. A GCC-vs-AppleClang probe of every other guard (~650k results)
+found no further case. The full suite passes under GCC 16 on K: Homebrew
+gcc-16 and a GCC-built GoogleTest in the scratch worktree
+`libstats-gccrepro`.
+
+The same round:
+- The Bessel log helpers past DBL_MAX/2π, and Tier 1 I₀ at 5e-324
+  (libstdc++ returns NaN there).
+- von Mises kurtosis is now the circular kurtosis (#276).
+- The manual-GTest link fallback (#274).
+- The κ > 1000 von Mises CDF budgets tightened to 4e-15.
+- Dead `detail::` code deleted: `executeWithStrategy`, the generic
+  `validate*Parameter` helpers, `is_delegation_wrapper`.
+
+Filed in #8: #273, TruncatedNormal variance 0 for windows narrower than
+~1e-154σ. Circular kurtosis and #273's deferral ratified [user,
+2026-10-13]. Committed as `8d3c9c7` (fix-9) and the R6a docs commit;
+next: CI, label #274–#276 `fixed-on-branch`, then the AVX2 block and R8
+at the new head.
+
 History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
 rename in `gamma.cpp` and `beta.cpp`), the `log1pmx_series` Horner
@@ -834,6 +859,10 @@ affect.
   waits are 28 s of it).
 
 ### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
+**Split [user, 2026-10-12]:** R6a (version, #211, docs sweep, contracts,
+MIGRATION) now; R6b (generated blocks, VALIDATION_HISTORY matrix and R8
+table, CHANGELOG) after R8. R6a committed 2026-10-13 [DERIVED]. Prose that needs R8 or sweep numbers carries
+`<!-- R6b: confirm -->`; R6b clears every marker.
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
 stale test counts), AGENTS "Current status", PROJECT_CONCEPT. CHANGELOG
 via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs,

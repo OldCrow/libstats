@@ -70,8 +70,8 @@ namespace stats {
  * @par Thread Safety:
  * All methods are fully thread-safe using reader-writer locks. Like
  * ChiSquaredDistribution, ErlangDistribution has no atomic parameter copies
- * of its own; the atomic fast path is provided entirely by `gamma_`'s own
- * atomics.
+ * of its own; it reads `gamma_` under `gamma_`'s lock, and setters update
+ * `gamma_` while holding Erlang's lock (ours, then the delegate's).
  *
  * @author libstats Development Team
  * @version 2.4.0

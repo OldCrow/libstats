@@ -18,7 +18,7 @@
 #include <iterator>
 #include <numeric>
 
-// Dispatch thresholds are now in include/core/dispatch_thresholds.h
+// Dispatch thresholds are in include/libstats/core/dispatch_thresholds.h
 
 // PARALLEL EXECUTION POLICY DETECTION
 // Priority order:

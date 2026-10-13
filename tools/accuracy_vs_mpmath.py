@@ -802,8 +802,8 @@ def _std_normal_quantile(pm: "mp.mpf") -> "mp.mpf":
     1 - p is exact at dps 50 for a lifted double p >= 0.5 (Sterbenz).
 
     GaussianRef.quantile and LogNormalRef.quantile use this form since
-    v2.4.2 (#157): their erfinv(2p - 1) form rounded to -inf for p <~ 1e-50,
-    so libstats' matching -inf (#158) scored as correct. Before v2.4.2 they
+    v2.5.0 (#157): their erfinv(2p - 1) form rounded to -inf for p <~ 1e-50,
+    so libstats' matching -inf (#158) scored as correct. Before v2.5.0 they
     kept the erfinv form to freeze the pre-v2.4.0 baseline.
     """
     if pm == mp.mpf("0.5"):

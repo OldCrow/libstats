@@ -11,8 +11,6 @@
  * This header is used by:
  * - distribution_interface.h
  * - distribution_base.h
- * - distribution_memory.h
- * - distribution_validation.h
  *
  * Individual headers still include their specific dependencies as needed.
  */

@@ -75,7 +75,7 @@ class WorkStealingPool {
      * @param grainSize Minimum work per thread (0 = auto-detect)
      *
      * @par Exception contract (#118)
-     * An exception thrown by @p func is logged and swallowed; it does not reach
+     * An exception thrown by @p func is swallowed silently (not logged); it does not reach
      * the caller and the remaining indices of that chunk are skipped. This is
      * required, not incidental: the per-call completion latch has to be
      * decremented on every path or the caller's condition-variable wait
@@ -337,16 +337,15 @@ void WorkStealingPool::parallelForImpl(std::size_t start, std::size_t end, Func 
         // Capture shared_ptrs by value so the latch outlives the submission scope.
         submit([func, taskStart, taskEnd, pendingTasks, doneMutex, doneCv]() {
             // Execute function for this range. The latch decrement must happen
-            // unconditionally: if func throws, executeTask() catches the exception
-            // and swallows it, but pendingTasks would never reach zero and
+            // unconditionally: if func throws and nothing here catches it, executeTask()
+            // would log and swallow it, but pendingTasks would never reach zero and
             // doneCv->wait() in the caller would deadlock forever (POOL-1).
             try {
                 for (std::size_t i = taskStart; i < taskEnd; ++i) {
                     func(i);
                 }
             } catch (...) {
-                // Exception already logged by executeTask(); swallow here so
-                // the latch decrement below always runs.
+                // Swallow here (no log) so the latch decrement below always runs.
             }
             // Signal per-call completion unconditionally.
             if (pendingTasks->fetch_sub(1u, std::memory_order_acq_rel) == 1u) {

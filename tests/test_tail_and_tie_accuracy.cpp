@@ -1,6 +1,6 @@
 // tests/test_tail_and_tie_accuracy.cpp
 //
-// Defects found by the v2.4.2 full accuracy sweep, against mpmath:
+// Defects found by the v2.5.0 full accuracy sweep, against mpmath:
 //   - Cauchy quantile: tan(π(p − ½)) lost a small p in p − ½ (−1.6e16 at p = 1e-300 for −3.2e299).
 //   - Discrete-uniform quantile: ceil(p·n) of the rounded product (p = 0.1, n = 10 gave 0, not 1).
 //   - NegativeBinomial(5, ½) at p = ½: I_½(5, 5) came out an ulp below ½, so 5, not 4.

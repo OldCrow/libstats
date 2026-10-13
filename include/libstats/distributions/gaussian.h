@@ -414,7 +414,9 @@ class GaussianDistribution : public DistributionBase {
 
     /**
      * @brief Computes the quantile function (inverse CDF)
-     * Uses inverse error function for accurate quantile calculation
+     * Uses detail::inverse_normal_cdf, which solves the tails on the survival side
+     * (inv_survival_normal), so the quantile is finite for every p in (0, 1) and accurate
+     * deep into both tails
      *
      * @param p Probability value in [0,1]
      * @return x such that P(X ≤ x) = p

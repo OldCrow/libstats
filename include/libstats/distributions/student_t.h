@@ -21,7 +21,7 @@ namespace stats {
  * - LogPDF: log_norm_const − (ν+1)/2 · log(1 + x²/ν)
  * - CDF: via regularized incomplete beta function I_{ν/(ν+x²)}(ν/2, 1/2)
  * - Support: x ∈ (−∞, +∞)
- * - Parameter: ν > 0 (degrees of freedom)
+ * - Parameter: ν finite and ≥ DBL_MIN (degrees of freedom)
  *
  * @par Moments:
  * - Mean: 0 for ν > 1; undefined for ν ≤ 1
@@ -86,8 +86,8 @@ class StudentTDistribution : public DistributionBase {
 
     /**
      * @brief Construct a Student's t distribution.
-     * @param nu Degrees of freedom (must be positive, default: 1.0)
-     * @throws std::invalid_argument if nu is not a positive finite number
+     * @param nu Degrees of freedom (finite and at least DBL_MIN, default: 1.0)
+     * @throws std::invalid_argument if nu is not finite or is below DBL_MIN
      *
      * Implementation in .cpp: validates nu and populates the performance cache.
      */
@@ -114,7 +114,7 @@ class StudentTDistribution : public DistributionBase {
 
     /**
      * @brief Safely create a Student's t distribution without throwing exceptions.
-     * @param nu Degrees of freedom (must be positive)
+     * @param nu Degrees of freedom (finite and at least DBL_MIN)
      * @return Result containing either a valid StudentTDistribution or error info
      */
     [[nodiscard]] static Result<StudentTDistribution> create(double nu = detail::ONE) {
@@ -400,7 +400,7 @@ class StudentTDistribution : public DistributionBase {
     // 23. DISTRIBUTION PARAMETERS
     //==========================================================================
 
-    /** @brief Degrees of freedom ν — must be positive. */
+    /** @brief Degrees of freedom ν — finite and at least DBL_MIN. */
     double nu_{detail::ONE};
 
     /** @brief Atomic copy for lock-free access. */

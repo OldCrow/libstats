@@ -19,8 +19,9 @@ libstats is a **design and teaching library**: a demonstration of how to build
 statistical software correctly in modern C++20, with genuine SIMD and parallel
 performance. Zero external dependencies.
 
-**Current status**: v2.4.1 released (tagged on `main`; correctness patch over v2.4.0) — 27 distributions across
-7 families, API additive over v2.1.0. v1.5.3 is the final v1.x release; v2.0.0
+**Current status**: v2.5.0 (correctness and accuracy release over v2.4.1; no
+source API change) — 27 distributions across 7 families, API additive over
+v2.1.0. v1.5.3 is the final v1.x release; v2.0.0
 introduced breaking changes, and `MIGRATION_GUIDE.md` has the old→new call
 mapping.
 
@@ -45,8 +46,9 @@ code paths, thresholds and test results all depend on it:
   thresholds in `include/libstats/core/dispatch_thresholds.h` are
   architecture-specific.
 
-The tier-to-CPU mapping and which `simd_*.cpp` files compile per tier are in
-`docs/SIMD_OPTIMIZATION_REFERENCE.md`.
+The tier-to-CPU mapping is in `docs/SIMD_OPTIMIZATION_REFERENCE.md`. Which
+`simd_*.cpp` files compile per tier, and how `LIBSTATS_MAX_SIMD_TIER` caps them,
+is in `cmake/SIMDDetection.cmake` (`apply_simd_tier_cap`).
 
 ## Build Commands
 
@@ -65,7 +67,9 @@ Build options (`LIBSTATS_VERBOSE_BUILD`, `LIBSTATS_FORCE_TBB`,
 build directory map, and the header tooling are documented in
 `docs/BUILD_SYSTEM_GUIDE.md` and `docs/HEADER_TOOLS_GUIDE.md`.
 
-Windows uses the Visual Studio x64 Release flow — see Platform-Specific Notes.
+Windows has two builds: clang-cl (Ninja) is the performance build, cl.exe
+(Visual Studio x64 Release) the correctness build; both take `/arch:AVX2` or
+`/arch:AVX512` from the detected tier — see Platform-Specific Notes.
 
 ### CMake standard
 
@@ -105,11 +109,12 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
 |---|---|---|---|---|
 | MacBook Pro 14,1 (2017) | macOS Ventura | Intel Kaby Lake | SSE2+AVX+AVX2+FMA | AVX2/FMA validation |
 | Mac Mini M1 | macOS 27 Golden Gate | Apple Silicon M1 | NEON only | ARM/NEON path validation |
-| Asus TUF A16 (2025) | Windows 11 Pro | Ryzen 7 7445 (Zen 4) | +**AVX-512** | Windows/MSVC, only AVX-512 machine |
+| Asus TUF A16 (2025) | Windows 11 Pro | Ryzen 7 7445 (Zen 4) | +**AVX-512** | Windows (clang-cl performance, MSVC correctness), only AVX-512 machine |
 
-macOS requires Ventura 13+. Timing runs on the Zen 4 box carry a
-frequency-scaling artifact that reads like a dispatch-threshold anomaly —
-see `docs/VALIDATION_HISTORY.md`, "Zen 4 frequency scaling".
+macOS requires Ventura 13+. On the Zen 4 box a locked screen puts running
+processes under Windows power throttling, which reads like a dispatch-threshold
+anomaly; opt measured processes out — see `docs/VALIDATION_HISTORY.md`,
+"Zen 4 timing: power throttling".
 
 ### Windows Session Setup
 
@@ -135,10 +140,12 @@ platform detection) → Core Utilities (math, safety, validation) + Platform
 Distribution Framework (base classes, interfaces) → Concrete Distributions →
 Complete Library Interface (`libstats.h`).
 
-Two API surfaces: an **auto-dispatch API** that selects the strategy for you,
-and an **explicit strategy API** for direct SIMD/parallel control. Thread safety
-rests on lock-free atomic parameter reads on the fast path, a `shared_mutex` for
-cache updates, and thread-safe batch operations.
+One batch API: the span overloads, with an optional `detail::PerformanceHint`
+(`AUTO` by default; `FORCE_SCALAR`, `FORCE_VECTORIZED`, `FORCE_PARALLEL`,
+`MINIMIZE_LATENCY`, `MAXIMIZE_THROUGHPUT`). No hint forces `WORK_STEALING`;
+`AUTO` and `MAXIMIZE_THROUGHPUT` reach it only on hyper-threaded macOS. Thread safety
+rests on one `shared_mutex` per distribution; scalar and batch paths read one
+parameter snapshot (`withCacheSnapshot`/`readConsistent`).
 
 Header layout, include styles, namespace hygiene, and the per-distribution and
 analysis header maps are in `docs/HEADER_ARCHITECTURE_GUIDE.md`. The
@@ -157,22 +164,27 @@ distribution roster lives in the code and in that guide, not here.
 - Always rebuild after source changes before running tests
 - Use `initialize_performance_systems()` for optimal batch performance
 - SIMD kernels impose no alignment requirement on caller data: every load/store of a caller buffer is unaligned (`loadu`/`storeu`); aligned ops are used only on internal `alignas` locals
-- Large batch operations (>1000 elements) benefit significantly from parallel execution
+- Parallel execution pays off only above the per-row thresholds in `dispatch_thresholds.h`; many rows are `NEVER`
 
 ### Platform-Specific Conventions
 - **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
 - **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`;
   the Windows Visual Studio generator adds a per-config subdirectory (`build\tools\Release\`)
-- **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
+- **Threading**: batch PARALLEL and WORK_STEALING run on the library's own
+  `std::thread` pools on every platform. The `safe_*` wrappers in
+  `parallel_execution.h` pick a backend at compile time: `std::execution` where
+  the standard library provides it, else GCD (macOS), Windows Thread Pool,
+  OpenMP or pthreads
 
 ## Batch API contracts
 
-These two are deliberately kept in this file rather than a doc: violating either
+These three are deliberately kept in this file rather than a doc: violating any
 produces silently wrong results or a deadlock, not a build error.
 
 - **Input and output spans must not overlap.** Several batch kernels re-read
-  `values` after writing `results` (Gaussian/von Mises CDF tail fixups, Gamma
-  PDF, LogNormal LogPDF — #112), so an in-place call returns wrong values
+  `values` after writing `results` (Gaussian CDF tail fixups, von Mises
+  PDF/LogPDF NaN and ±inf fixups, Gamma PDF, LogNormal LogPDF, InverseGamma
+  and Cauchy LogPDF fixups — #112), so an in-place call returns wrong values
   silently. This is a documented contract, not an implementation guarantee: the
   debug-mode `LIBSTATS_ASSERT_NO_OVERLAP` beside the size check in
   `detail::DispatchUtils::autoDispatch` compiles away under

@@ -163,14 +163,23 @@ Kaby Lake AVX2 (2017 MBP):
 
 All four machines validated at v1.0.0 (Ivy Bridge/Catalina dropped in v2.0.0).
 
-## Zen 4 frequency scaling
+## Zen 4 timing: power throttling
 
 Moved here from AGENTS.md on 2026-09-07: it is needed when interpreting a
-timing run, not in every session.
+timing run, not in every session. Corrected at v2.5.0: the v2.0.3 note blamed
+Precision Boost 2 frequency scaling.
 
-On the Zen 4 box (Asus TUF A16, Ryzen 7 7445), AMD Precision Boost 2 steps
-down from ~4.5–5 GHz to a TDP-limited sustained frequency under load. That is
-a power constraint, not thermal throttling. Unaccounted for, it looks like a
-dispatch-threshold anomaly: measured throughput falls off at larger batch
-sizes for reasons that have nothing to do with the threshold under test.
-First characterized at v2.0.3.
+**Power throttling, not a threshold anomaly.** On the Zen 4 box (Asus TUF
+A16, Ryzen 7 7445), a locked screen puts running processes under Windows power
+throttling (EcoQoS): base clock (~3.2 GHz instead of ~4.7 GHz), 1.5× slower
+scalar and vectorized, 1.3× slower parallel. That looks like a
+dispatch-threshold anomaly: crossovers drift toward PARALLEL. The throttle
+starts within seconds of the lock and stays with the process after unlock.
+Opt each measured process out (`SetProcessInformation`,
+`ProcessPowerThrottling`, `EXECUTION_SPEED`; helper
+`docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1`) and
+launch binaries directly, not through ctest: the opt-out is per process and a
+child does not inherit it. With the screen on, a single-core probe shows no
+drop over 90 s. Whether Precision Boost 2 lowers the all-core sustained clock
+under heavy parallel load has not been measured here. Evidence:
+`docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/README.md`.

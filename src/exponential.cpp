@@ -399,7 +399,7 @@ std::string ExponentialDistribution::toString() const {
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==============================================================================
 
-// Utility methods moved from header for PIMPL optimization - no longer inline
+// Utility methods out-of-line to keep the header light
 double ExponentialDistribution::getLambdaAtomic() const noexcept {
     // Fast path: check if atomic parameters are valid
     if (atomicParamsValid_.load(std::memory_order_acquire)) {

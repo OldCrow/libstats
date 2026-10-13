@@ -267,15 +267,6 @@ jobs:
         echo "Parallel build jobs: ${JOBS}"
         cmake --build build-strict --parallel "${JOBS}"
 
-  # ---------------------------------------------------------------------------
-  # FMA contraction (Linux, clang-17, -mfma -ffp-contract=on). The x86 legs build
-  # the generic sources without FMA, so a contracted a*b + c is only ever seen on
-  # the macos-15 runner (AArch64, where AppleClang contracts by default) — that
-  # is where 08d48aa's Gamma batch double-counted its rate-product rounding.
-  # This leg reproduces AppleClang-AArch64 and clang-cl-with-FMA contraction on
-  # Linux, so the defect class fails here too, with a readable log. Correctness
-  # run only; tools and examples off for time.
-  # ---------------------------------------------------------------------------
   # ThreadSanitizer over the correctness suite. The concurrency fixes (#175, #176, #183, #184,
   # #186, #190, #191, the ee11e62 audit) were each shown with TSan or the stress test on the Macs;
   # without this leg only the stress test's value checks guarded them in CI. Any report fails the
@@ -329,6 +320,15 @@ jobs:
         TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1:suppressions=${{ github.workspace }}/tests/tsan.supp
       run: ctest --test-dir build-tsan --output-on-failure -LE "timing|benchmark" --parallel 2
 
+  # ---------------------------------------------------------------------------
+  # FMA contraction (Linux, clang-17, -mfma -ffp-contract=on). The x86 legs build
+  # the generic sources without FMA, so a contracted a*b + c is only ever seen on
+  # the macos-15 runner (AArch64, where AppleClang contracts by default) — that
+  # is where 08d48aa's Gamma batch double-counted its rate-product rounding.
+  # This leg reproduces AppleClang-AArch64 and clang-cl-with-FMA contraction on
+  # Linux, so the defect class fails here too, with a readable log. Correctness
+  # run only; tools and examples off for time.
+  # ---------------------------------------------------------------------------
   fma-contraction:
     name: FMA contraction (Linux, clang-17)
     runs-on: ubuntu-latest
@@ -373,7 +373,7 @@ jobs:
   # is exercised nowhere else, and CMakePresets.json pins no generator either.
   #
   # This existed because of #94: a literal `$` in the run_tests ctest regex
-  # (the target is run_tests_correctness since v2.4.2)
+  # (the target is run_tests_correctness since v2.5.0)
   # reached build.ninja unescaped (Ninja requires `$$`), and the malformed
   # line invalidated the ENTIRE build.ninja, so nothing built. It went
   # unnoticed for as long as it did precisely because no job ran Ninja.

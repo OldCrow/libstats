@@ -52,17 +52,18 @@ namespace stats {
  *
  * @par Bessel Functions:
  * The implementation requires modified Bessel functions I₀ and I₁.
- * These are provided by include/core/bessel.h via two tiers:
+ * These are provided by include/libstats/core/bessel.h via two tiers:
  *   Tier 1 (LIBSTATS_HAS_CXX17_BESSEL): std::cyl_bessel_i (GCC, MSVC).
  *   Tier 2 (fallback): A&S §9.8.1–9.8.4 polynomial, error < 1.6×10⁻⁷.
  *   AppleClang / macOS libc++ always uses Tier 2.
  *
  * @par Batch operations and SIMD:
- * The VECTORIZED strategy uses `VectorOps::vector_cos` via the 4-step pipeline:
- *   1. scalar_add(−μ)         — shift to zero-centred angle
- *   2. vector_cos(results)    — SIMD cosine across all backends (AVX/AVX2/NEON/AVX-512)
- *   3. scalar_multiply(κ)     — scale by concentration
- *   4. scalar_add(−ln Z)      — subtract log-normaliser
+ * The VECTORIZED strategy evaluates log f = −2κ·sin²(t/2) − log(2π·I₀(κ)e^−κ), t = x − μ,
+ * without the κ·cos t − log I₀(κ) cancellation:
+ *   1. scalar_add(−μ), scalar_multiply(½) — half the zero-centred angle (exact)
+ *   2. vector_sin, vector_multiply         — SIMD sin² across all backends
+ *   3. scalar_multiply(−2κ)                — scale by concentration
+ *   4. scalar_add(−log scaled normaliser)  — subtract the scaled log-normaliser
  * The CDF batch path evaluates the scalar CDF per element on one cache
  * snapshot. The PARALLEL strategy provides multi-core throughput for very
  * large batches.
@@ -394,10 +395,11 @@ class VonMisesDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief SIMD-accelerated batch LogPDF / PDF via `VectorOps::vector_cos`.
+     * @brief SIMD-accelerated batch LogPDF / PDF via `VectorOps::vector_sin`.
      *
-     * Pipeline: scalar_add(−μ) → vector_cos → scalar_multiply(κ) → scalar_add(−ln Z).
-     * logNormaliser_ is cached — avoids one Bessel call per element.
+     * Pipeline: scalar_add(−μ) → scalar_multiply(½) → vector_sin → vector_multiply (square)
+     * → scalar_multiply(−2κ) → scalar_add(−log scaled normaliser); PDF then vector_exp.
+     * The scaled normaliser is cached — no Bessel call per element.
      * κ and μ are loop-invariant scalars.
      * These methods are "Unsafe" because they skip parameter validation;
      * callers must hold the cache lock or guarantee parameter stability.

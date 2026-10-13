@@ -43,7 +43,7 @@ static int expansion_iteration_cap(double shape) noexcept {
 }
 
 // The prefactors below switch to Stirling's form at this shape; under it the direct form keeps its
-// pre-v2.4.2 bits. It is not the more accurate of the two there: it loses about
+// pre-v2.5.0 bits. It is not the more accurate of the two there: it loses about
 // min(a, b)·ln(max(a, b))·ε, 10-50 ulp in Gamma at shapes 8-19 and up to ~1e3 ulp in Beta with one
 // huge shape, against 2-8 ulp just above 20, so values jump by up to ~200 ulp across the switch
 // (M1 seam hunt, 2026-10-12). Within the accuracy contract; moving the switch is deferred to the
@@ -2038,7 +2038,7 @@ double inverse_normal_cdf(double p) noexcept {
 // Not delegated to erf_inv: its extreme-tail branch (|x| ≥ ERF_INV_TAIL_CUTOFF) seeds with a
 // Φ⁻¹-domain formula that is off by ~√2 in the erf domain, and its Halley refinement cannot
 // recover once std::erf saturates to 1 — measured during #57 bring-up: erf_inv(1−1e-14) ≈ 7.59
-// vs the true 5.46. Until v2.4.2 this helper was duplicated in half_normal.cpp and
+// vs the true 5.46. Until v2.5.0 this helper was duplicated in half_normal.cpp and
 // truncated_normal.cpp (#158 promoted it here).
 double inv_survival_normal_log(double log_s) noexcept {
     if (std::isnan(log_s))

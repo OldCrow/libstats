@@ -1,9 +1,9 @@
-// tools/bench/v242_cost_bench.cpp — what the v2.4.2 accuracy fixes cost, v2.4.1 against v2.4.2.
+// tools/bench/v242_cost_bench.cpp — what the v2.5.0 accuracy fixes cost, v2.4.1 against v2.5.0.
 //
 // Standalone, not part of the CMake build: compile this one file against each version and run
 // the two binaries back to back on a quiet machine, then join their CSVs with v242_compare.py.
 // tools/bench/distributions_bench.cpp (dev/v2.5.0-corvus) samples only small shapes; this covers
-// the paths v2.4.2 changed:
+// the paths v2.5.0 changed:
 //   - Gamma at and around α = 20, where the density and the SIMD batch switch to Stirling form
 //     and to the scalar loop; Student-t at ν ≥ 31 and Beta at shapes ≥ 17, the other two scalar
 //     fall-backs; the incomplete gamma/beta 3ε stop and √a caps (#166) through every CDF.
@@ -17,8 +17,9 @@
 // op is pdf/logpdf/cdf for batches at n = 1e3, 1e4, 1e5 under each forced strategy and AUTO;
 // "call_pdf", "call_logpdf", "call_cdf" (n = 1e4 scalar calls) and "quantile" (n = 1e3 calls)
 // carry strategy "call". Each figure is the minimum of 7 timed blocks of at least 1e5 elements.
-// LIBSTATS_BENCH_WARMUP_SECONDS=N spins N seconds first; use it on Zen 4, whose boost drops
-// ~1.5× some 8–15 s into a run (docs/VALIDATION_HISTORY.md, "Zen 4 frequency scaling").
+// LIBSTATS_BENCH_WARMUP_SECONDS=N spins N seconds first. On Zen 4, also opt the process out of
+// Windows power throttling, which runs a locked-screen process ~1.5× slower
+// (docs/VALIDATION_HISTORY.md, "Zen 4 timing: power throttling").
 //
 // Build: a Release libstats_static in each tree; OLD = a worktree at tag v2.4.1, NEW = this
 // branch.

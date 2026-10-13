@@ -449,7 +449,9 @@ void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, do
         // (β·x − α) contracts to fma(β, x, −α) under -ffp-contract=on (AppleClang on AArch64,
         // clang-cl with FMA), which uses the exact product, and withRateProductRounding below
         // then adds the product's rounding a second time (−1.5e-7 at Gamma(1e16, 3), CI 08d48aa).
-        // Contraction is per expression there, so a separate statement keeps y rounded.
+        // Contraction is per expression there, so a separate statement keeps y rounded. GCC's
+        // `fast` contracts across statements, so this file is also built with
+        // -ffp-contract=off (CMakeLists.txt, the FP-contraction rule in AGENTS.md).
         for (std::size_t i = 0; i < n; ++i) {
             const double y = beta * xb[i];
             ob[i] = detail::log1pmx_series((y - alpha) / alpha);

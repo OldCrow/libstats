@@ -195,7 +195,7 @@ inline constexpr double MAX_STANDARD_DEVIATION = 1.0e10;
 inline constexpr double MIN_SQUARABLE_SCALE = 1.4916681462400413e-154;
 
 /// Convergence tolerance of the incomplete gamma and beta series and continued fractions:
-/// 3·DBL_EPSILON, as Numerical Recipes and Boost use. Until v2.4.2 they stopped at
+/// 3·DBL_EPSILON, as Numerical Recipes and Boost use. Until v2.5.0 they stopped at
 /// DEFAULT_TOLERANCE, which left CDF errors of 1e-9 to 8e-6 at large shape (#166);
 /// DEFAULT_TOLERANCE stays for the fitting and root-finding paths.
 inline constexpr double SPECIAL_FUNCTION_TOLERANCE = 3.0 * std::numeric_limits<double>::epsilon();

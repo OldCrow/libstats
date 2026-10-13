@@ -1,6 +1,6 @@
 // tests/test_log_beta_and_pvalues.cpp
 //
-// Two cancellation defects found during the v2.4.2 work.
+// Two cancellation defects found during the v2.5.0 work.
 //
 // (1) detail::lbeta formed lgamma(a) + lgamma(b) − lgamma(a + b) directly, cancelling terms of size
 //     max(a, b)·log(a + b) when one argument is large and the result is not; so did the

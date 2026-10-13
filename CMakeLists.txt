@@ -80,7 +80,7 @@ endif()
 
 project(
     libstats
-    VERSION 2.4.1
+    VERSION 2.5.0
     LANGUAGES CXX)
 
 # GNUInstallDirs gives platform-correct, packager-overridable destinations (e.g. lib64 on some Linux
@@ -369,7 +369,7 @@ set(LIBSTATS_FOUNDATION_SOURCES
     src/cpu_vendor_detection.cpp # Phase 3D: CPU vendor-specific detection
     src/cpu_tier.cpp # CPU tier classification (absorbs vendor-string cascade)
     src/simd_policy.cpp # SIMD policy and feature detection
-    src/platform_constants_impl.cpp # Platform constants PIMPL implementation (Phase 2)
+    src/platform_constants_impl.cpp # Platform constants, out-of-line
 )
 
 # Level 2: Core Utilities (Depends on Level 0-1)

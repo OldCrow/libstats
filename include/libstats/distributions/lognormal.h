@@ -403,7 +403,7 @@ class LogNormalDistribution : public DistributionBase {
     /** @brief Location parameter μ (log-mean) — any finite real. */
     double mu_{detail::ZERO_DOUBLE};
 
-    /** @brief Scale parameter σ (log-stddev) — must be positive. */
+    /** @brief Scale parameter σ (log-stddev) — in [√DBL_MIN, 1e10]. */
     double sigma_{detail::ONE};
 
     /** @brief Atomic copies for lock-free access. */

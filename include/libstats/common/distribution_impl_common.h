@@ -4,9 +4,9 @@
  * @file common/distribution_impl_common.h
  * @brief Heavy platform includes for distribution .cpp implementation files.
  *
- * AQ-7 (v2.0.0): Split the platform-infrastructure includes out of
- * distribution_platform_common.h (which is included by all distribution
- * *headers*) into this file, which is included only in distribution *source*
+ * AQ-7 (v2.0.0): Split the platform-infrastructure includes out of the
+ * common header that every distribution *header* included (since removed)
+ * into this file, which is included only in distribution *source*
  * files that actually use SIMD, parallel, or threading machinery.
  *
  * This reduces the transitive include depth of every distribution header from

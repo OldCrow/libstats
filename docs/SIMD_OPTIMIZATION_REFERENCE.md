@@ -16,6 +16,15 @@ Resolved work from v1.4.0 through v2.0.0:
   with sustained crossovers after the parallelForSlices fork repair (#143);
   kAvx measured for the first time via a `LIBSTATS_MAX_SIMD_TIER=AVX`
   capped build
+- v2.5.0: `vector_log1p` and `vector_expm1` (`src/simd_dispatch.cpp`), built
+  on the dispatched `vector_log`/`vector_exp`, so every tier has them; kept
+  only where they win (Gamma, Beta, Pareto, Weibull batch paths). von Mises
+  batch PDF/LogPDF use `vector_sin`. clang-cl builds the Windows performance
+  path with cl.exe's `/arch:` flags; see "MSVC vectorization limits" below.
+
+Which `simd_*.cpp` files compile for each tier, and how
+`LIBSTATS_MAX_SIMD_TIER` caps them, is in `cmake/SIMDDetection.cmake`
+(`apply_simd_tier_cap`).
 
 ## Active SIMD tiers
 
@@ -104,7 +113,9 @@ Distinct from the trivial-op class above: a kernel can be expensive enough
 to vectorise well and still lose under a REAL fork because it is
 memory-bound — the fork adds coordination without adding usable bandwidth.
 Beta PDF/LogPDF measures 0.65–0.92× at 2M on every tier (AVX-512, AVX2,
-capped AVX, NEON); von Mises batch CDF is the same class (#111/#144).
+capped AVX, NEON); von Mises batch CDF was measured in the same class
+(#111/#144) before the v2.5.0 quadrature CDF (96b157f) replaced its
+full-array Bessel-series sweeps. <!-- R6b: confirm against the R8 rows -->
 Encode NEVER. Corollary: per-tier kernel economics can flip the verdict
 for compute-bound kernels — HalfNormal CDF is NEVER on NEON (2.2 ns/elem
 `vector_erf`, nothing left for 8 cores to win) but 1.3–2.1× parallel on
@@ -162,18 +173,28 @@ The L2 boundary is architecture-specific and must not be assumed to hold on AVX2
 - **Tier 1** (MSVC/GCC/Clang with `LIBSTATS_HAS_CXX17_BESSEL`): delegates to `std::cyl_bessel_i` (C++17 §29.9.3). Achieves <1 ULP against scipy for κ=2.
 - **Tier 2** (AppleClang/macOS, `LIBSTATS_HAS_CXX17_BESSEL` not defined): A&S §9.8.1–9.8.4 polynomial approximation. Documented precision: <1.6×10⁻⁷.
 
-The tier selection is automatic: CMakeLists.txt probes for `std::cyl_bessel_i` and defines `LIBSTATS_HAS_CXX17_BESSEL` only when available. AppleClang does not implement C++17 special functions as of Xcode 16.
+The tier selection is automatic: CMakeLists.txt probes for `std::cyl_bessel_i` and defines `LIBSTATS_HAS_CXX17_BESSEL` only when available. AppleClang's libc++ does not implement the C++17 special functions, so macOS builds take Tier 2.
 
 ### Implication for VonMises accuracy
 
-VonMises PDF and LogPDF accuracy differs between MSVC and AppleClang builds because the normalisation constant `log(2π·I₀(κ))` is computed via different Bessel tiers. This shows up as:
+Up to v2.4.1, VonMises PDF and LogPDF accuracy differed between MSVC and
+AppleClang builds because the normalisation constant `log(2π·I₀(κ))` came from
+different Bessel tiers (~1 ULP on Tier 1, ~2×10⁻⁹–3×10⁻⁹ on Tier 2 at the
+time).
 
-| Platform | VonMises pdf max rel err | VonMises log_pdf max rel err |
-|---|---|---|
-| Zen4 / MSVC (Tier 1) | ~1 ULP (~8×10⁻¹⁶) | ~5×10⁻¹¹ |
-| Kaby Lake / AppleClang (Tier 2) | ~2×10⁻⁹ | ~3×10⁻⁹ |
+From v2.5.0 the density no longer depends on the tier. Scalar and batch
+PDF/LogPDF evaluate log f = −2κ·sin²(t/2) − log(2π·I₀(κ)·e^−κ), t = x − μ,
+without the κ·cos t − log I₀(κ) cancellation. The scaled normaliser
+I₀(κ)·e^−κ comes from a trapezoid rule on its periodic integral up to κ = 1000
+and from the Hankel series above (`src/von_mises.cpp`, `updateCacheUnsafe`).
+The batch kernel is `scalar_add(−μ)`, `scalar_multiply(½)`, `vector_sin`,
+`vector_multiply` (square), `scalar_multiply(−2κ)`,
+`scalar_add(−log scaled normaliser)`. The Bessel helpers in `bessel.h` still
+serve the circular moments. Current per-ISA figures are in the
+generated blocks of `docs/ACCURACY_CHARACTERIZATION.md`.
+<!-- R6b: confirm that the AVX2 and NEON von Mises pdf/logpdf rows match AVX-512 after regeneration -->
 
-The `vector_cos`/`vector_sin` implementations are the clean-room quadrant-reduction kernel of #95 on every tier (shared `trig_cleanroom_data.inc`, max 1 ULP), so AVX2 and AVX-512 remain algorithmically identical. The accuracy difference is entirely in the scalar Bessel normalisation path, not in any SIMD kernel. See issue #47 for the proposed Tier 2 upgrade.
+The `vector_cos`/`vector_sin` implementations are the clean-room quadrant-reduction kernel of #95 on every tier (shared `trig_cleanroom_data.inc`, max 1 ULP), so AVX2 and AVX-512 remain algorithmically identical.
 
 ### Scipy version independence
 
@@ -187,15 +208,45 @@ These distributions have throughput limitations that are inherent to their algor
 
 ### VonMises CDF
 
-The CDF has no closed form. Historically a scalar integration loop (~200–900k elem/s vs scipy's ~30–50M/s Cephes quadrature — the numbers in the tables above date from that era). #51 shipped the current implementation in v2.3.0: a per-instance cached Bessel-series CDF for κ ≤ 1000 with a wrapped-normal fallback above. The batch path remains memory-bound (#111); its dispatch rows are NEVER on the measured Mac tiers (#144).
+The CDF has no closed form. Historically a scalar integration loop (~200–900k elem/s vs scipy's ~30–50M/s Cephes quadrature — the numbers in the tables above date from that era). v2.3.0 (#51) shipped a cached Bessel-series CDF for κ ≤ 1000 with a wrapped-normal fallback above, whose batch path was memory-bound (#111).
+
+From v2.5.0 (96b157f, closing #111) the CDF is a quadrature in w = κ(1 − cos θ): a short Gauss–Legendre rule for the central mass within ¼ of the median, and beyond it the tail mass by a Watson-lemma series or Gauss–Legendre (`include/libstats/distributions/von_mises.h`). It is exact to κ = 1e20; above that it takes the normal limit Φ(2√κ·sin(t/2)). The Bessel series and the wrapped-normal fallback are gone. The batch CDF evaluates per element on one snapshot, at a fixed cost of 6–12 `exp` calls per element. Whether its dispatch rows stay NEVER is decided by the R8 re-measure. <!-- R6b: confirm against the R8 rows -->
 
 ### Cauchy CDF
 
-Cauchy PDF/LogPDF (and sampling) delegate to StudentT(ν=1), but the CDF has been the closed-form arctan since #48 (v2.3.0) — one `std::atan` per element, ~2 ULP. The sub-unity scipy ratios in the tables above predate that change; #109 (closed 2026-09-04) retired the matching stale dispatch rows with measured values.
+Only Cauchy LogPDF (and sampling) delegate to StudentT(ν=1); the PDF is its own kernel, and the CDF has been the closed-form arctan since #48 (v2.3.0) — one `std::atan` per element, ~2 ULP. The sub-unity scipy ratios in the tables above predate that change; #109 (closed 2026-09-04) retired the matching stale dispatch rows with measured values.
 
 ### Binomial CDF and PDF
 
-Binomial PMF uses lgamma log-space evaluation in a scalar loop. There is no SIMD log-gamma primitive (`vector_lgamma` is deferred). Binomial CDF uses PMF summation rather than the regularised incomplete-beta approach used by scipy. Both paths cap throughput at ~5–16M elements/second regardless of batch size or architecture. See issue #52.
+Binomial PMF evaluates `detail::binomial_log_pmf` per element in a scalar loop, without the n·log n cancellation of the lgamma form (#172). There is no SIMD log-gamma primitive (`vector_lgamma` is deferred). Binomial CDF is the regularised incomplete beta, `detail::beta_i_pair` (`src/binomial.cpp`), as in scipy. Both paths are scalar per element; the ~5–16M elements/second ceiling measured for the older PMF-summation CDF (#52) predates both changes.
+
+---
+
+## MSVC vectorization limits
+
+Evidence: `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/README.md`
+(Zen 4, MSVC 19.51 against clang-cl 22.1.3). The Windows benchmark and R3/R8
+captures (`kAvx512`, and Zen 4's R3 and R8) come from clang-cl; cl.exe is the
+correctness build.
+
+- **No loop around an inner loop.** cl.exe does not vectorize a loop whose
+  body contains another loop (C5002, reason 1106). `log1pmx_series`' Horner
+  loop over a coefficient array kept the Beta and Gamma Stirling batch
+  densities scalar under MSVC, 2.9–4.0× slower per element than clang-cl at
+  n = 1e4, until 998d985
+  wrote the Horner out (`include/libstats/core/math_utils.h`). Clang unrolls
+  the inner loop and vectorizes either form.
+- **No select it cannot blend.** `vector_expm1`'s |x| < ½ select gives reason
+  1100 in every form tried, so the Pareto and Weibull batch CDFs stay scalar
+  under MSVC.
+- **No FMA contraction.** MSVC emits no FMAs from `a*b + c`; clang-cl
+  contracts by default (111 FMAs in the Beta batch code, 47 in Gamma), so
+  clang-cl is faster on the polynomial-heavy rows. The FP-contraction rule in
+  `AGENTS.md` covers the accuracy side.
+
+To check a loop, build the TU with `/Qvec-report:2` and read the C5001
+(vectorized) and C5002 (not vectorized, with reason) lines; the reason codes
+are in Microsoft's "Vectorizer and parallelizer messages" page.
 
 ---
 

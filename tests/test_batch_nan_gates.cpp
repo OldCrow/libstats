@@ -66,7 +66,7 @@ void checkBatchNaNWith(const std::string& name, Dist& dist, double benign, Strat
 
 // Every forced strategy, not only FORCE_VECTORIZED: the parallel span lambdas carry their own
 // per-element support checks, and Poisson's and Discrete's sent NaN to the out-of-support branch
-// (0 / −∞) while their scalar and SIMD paths propagated it (found by the v2.4.2 boundary gate).
+// (0 / −∞) while their scalar and SIMD paths propagated it (found by the v2.5.0 boundary gate).
 template <typename Dist>
 void checkBatchNaN(const char* name, Dist& dist, double benign) {
     checkBatchNaNWith(std::string(name) + " [FORCE_SCALAR]", dist, benign, Strategy::FORCE_SCALAR);

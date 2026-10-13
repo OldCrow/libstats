@@ -3,8 +3,11 @@
 // Absolute-error accuracy gate for VonMisesDistribution::getCumulativeProbability
 // (issue #51). Ground truth comes from tests/vonmises_cdf_vectors.inc: F(x;
 // mu, kappa) evaluated by DIRECT QUADRATURE at mpmath dps=40, deliberately
-// independent of the Bessel-series/trapezoidal method the implementation
-// uses (scripts/gen_vonmises_cdf_vectors.py) -- a budget miss here is a
+// independent of the library's method (scripts/gen_vonmises_cdf_vectors.py).
+// From v2.5.0 (96b157f) the library evaluates the CDF by quadrature in
+// w = kappa(1 - cos theta) up to kappa = 1e20 (central mass by Gauss-Legendre,
+// tail mass by a Watson-lemma series or Gauss-Legendre); up to v2.4.1 it was a
+// Bessel series to kappa = 1000 and a wrapped normal above -- a budget miss here is a
 // kernel bug for the orchestrator to fix, not a test-tuning problem; do not
 // loosen a budget below without a matching implementation fix.
 //
@@ -15,8 +18,8 @@
 // pre-fix implementation before being trusted (see PLAN.md / the landing
 // commit for this file's fail-first numbers).
 //
-// Budgets PINNED from measurement on Zen 4, 2026-08-20, against the fixed
-// #51 implementation: scalar max 2.2e-16 at EVERY kappa bucket including
+// Budgets PINNED from measurement on Zen 4, 2026-08-20, against the v2.3.0
+// #51 Bessel-series implementation: scalar max 2.2e-16 at EVERY kappa bucket including
 // 1000 (std::sin per term, smallest-term-first summation); batch max
 // 8.9e-16 (worst at kappa=500/1000, vector_sin per term); specials exact.
 // The pinned values below carry >=4.5x headroom over those measurements to

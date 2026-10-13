@@ -43,8 +43,33 @@ plus a monthly scheduled canary that catches runner-image/toolchain drift.
 Beyond the build matrix and correctness suite it runs: code-quality checks,
 Strict warnings (Linux, `-Werror`), Sanitizers (ASan/UBSan), a Ninja
 generator configure, an export-stability-across-reconfigure job (the #90
-class), coverage, and an install + `consumer_example` + pkg-config
-consumption job.
+class), coverage, an install + `consumer_example` + pkg-config
+consumption job, and two legs added in v2.5.0:
+
+- **`fma-contraction`** (Linux, clang-17, `-mfma -ffp-contract=on`, Release,
+  correctness suite only). The other x86 legs build the generic sources
+  without FMA, so a contracted `a*b + c` was seen only on the macos-15
+  runner (AArch64, where AppleClang contracts by default); that is where
+  08d48aa's Gamma batch counted its rate-product rounding twice. This leg
+  reproduces AppleClang-AArch64 and clang-cl-with-FMA contraction on Linux,
+  so the defect class fails with a readable log. The rule it enforces is
+  the FP-contraction rule in `AGENTS.md`; `src/gamma.cpp` and
+  `src/inverse_gamma.cpp` build with contraction off
+  (`docs/BUILD_SYSTEM_GUIDE.md`).
+- **`thread-sanitizer`** (Linux, clang-17, `-fsanitize=thread`,
+  RelWithDebInfo, correctness suite). Any report fails the job
+  (`halt_on_error`). `LIBSTATS_STRESS_SCALE=0.1` runs the stress test at a
+  tenth of its rounds. `tests/tsan.supp` suppresses one report: libstdc++'s
+  `std::cyl_bessel_i` writes glibc's `signgam` through `::lgamma` (#267),
+  which libstats never reads. Linux selects `PARALLEL`, not
+  `WORK_STEALING`, so the work-stealing lambdas are race-checked only on the
+  SMT Macs, locally.
+
+`test_concurrency_stress` runtime on the macos-15 runner varies 97–372 s on
+unchanged code, against 68–102 s on Linux and Windows: shared ARM VMs and
+the spin-then-yield barriers, not a regression. The headroom is ctest's
+1,500 s default timeout and the stress test's 120 s per-race watchdog. If
+macOS nears half the limit, lower `LIBSTATS_STRESS_SCALE` for that job.
 
 Correctness tests should exclude timing-sensitive labels:
 
@@ -115,6 +140,12 @@ cmake -B build -DLIBSTATS_VERBOSE_BUILD=ON
 Then inspect the GTest discovery messages.
 
 ## Windows notes
+
+CI's Windows legs use cl.exe (Visual Studio generator), the correctness
+build. clang-cl (Ninja) is the local performance build; both take the same
+`/arch:` flag (`docs/BUILD_SYSTEM_GUIDE.md`, "SIMD detection"). A Windows
+timing run outside CI needs the power-throttling opt-out
+(`docs/VALIDATION_HISTORY.md`, "Zen 4 timing: power throttling").
 
 Windows dynamic tests require `stats.dll` beside the test executable. The CMake test helper copies the DLL after building dynamic test targets.
 
@@ -192,7 +223,7 @@ ctest --test-dir build -L timing -j1 --output-on-failure
 
 ### macOS code-signing failure
 
-The shared library is ad-hoc signed after build (`codesign --force -s -`) when `codesign` is available. `--force` lets the step run again on an already-signed dylib: after a reconfigure, Ninja re-runs the symlink step and the signing without relinking, and before v2.4.2 that failed with "is already signed" (#162). On an older tree, clear it with `codesign --remove-signature <dylib>` and rebuild.
+The shared library is ad-hoc signed after build (`codesign --force -s -`) when `codesign` is available. `--force` lets the step run again on an already-signed dylib: after a reconfigure, Ninja re-runs the symlink step and the signing without relinking, and before v2.5.0 that failed with "is already signed" (#162). On an older tree, clear it with `codesign --remove-signature <dylib>` and rebuild.
 
 If signing fails otherwise, verify `codesign` exists and that the build directory is writable:
 

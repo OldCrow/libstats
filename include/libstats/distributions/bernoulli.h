@@ -66,9 +66,10 @@ namespace stats {
  *
  * @par Thread Safety:
  * All methods are fully thread-safe. BernoulliDistribution's `cache_mutex_`
- * and `binomial_`'s own mutex are independent; the two-phase setter pattern
- * (update `p_` under our lock, then call `binomial_.trySetP()` outside it)
- * avoids holding two mutexes simultaneously.
+ * and `binomial_`'s own mutex are independent. Delegate update under the
+ * owner's lock: setters call `binomial_.trySetP()` while holding our lock
+ * (ours, then the delegate's), so concurrent setters reach the delegate in the
+ * order they reach us; never call a delegate setter outside the lock.
  *
  * @author libstats Development Team
  * @version 2.4.0

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Join two v242_cost_bench CSVs (v2.4.1, v2.4.2) and report what moved.
+"""Join two v242_cost_bench CSVs (v2.4.1, v2.5.0) and report what moved.
 
 Usage: v242_compare.py OLD.csv NEW.csv [--threshold 1.25]
 
@@ -8,8 +8,8 @@ Prints three sections:
   2. Every row whose new/old ratio is beyond the threshold either way.
   3. Dispatch: each (case, op, n) where AUTO is slower than the best forced strategy by more
      than the threshold, under either version. A row marked NEW is fine in v2.4.1 and off in
-     v2.4.2, so a dispatch_thresholds.h row may need re-deriving with strategy_profile; one
-     marked OLD was already off and is not a v2.4.2 change.
+     v2.5.0, so a dispatch_thresholds.h row may need re-deriving with strategy_profile; one
+     marked OLD was already off and is not a v2.5.0 change.
 """
 
 import argparse

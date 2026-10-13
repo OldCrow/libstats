@@ -21,7 +21,7 @@ namespace stats {
  * - LogPDF: −log(πγ) − log(1 + ((x−x₀)/γ)²)
  * - CDF:    0.5 + atan((x−x₀)/γ)/π
  * - Quantile: x₀ + γ·tan(π(p − 0.5))
- * - Parameters: x₀ ∈ ℝ (location), γ > 0 (scale)
+ * - Parameters: x₀ ∈ ℝ (location), γ finite and ≥ DBL_MIN (scale; subnormal γ rejected)
  * - Support: x ∈ (−∞, +∞)
  *
  * @par Moments:
@@ -49,8 +49,9 @@ namespace stats {
  *   independent mutexes on distinct objects; acquiring the outer lock and then
  *   calling the `student_t_` batch methods (which acquire the inner lock) has
  *   no lock-ordering conflict because `student_t_` is private and never exposed.
- * - CauchyDistribution has `atomicX0_`/`atomicGamma_`/`atomicParamsValid_` for
- *   lock-free atomic parameter reads.
+ * - CauchyDistribution keeps `atomicX0_`/`atomicGamma_`/`atomicParamsValid_`
+ *   for the atomic getters, which no library path reads; scalar and batch
+ *   methods read the parameters under `withCacheSnapshot`.
  *
  * @par Batch Operations:
  * The batch log-PDF allocates a temporary aligned buffer z of size n,
@@ -394,7 +395,7 @@ class CauchyDistribution : public DistributionBase {
     /** @brief Location parameter x₀. */
     double x0_{detail::ZERO_DOUBLE};
 
-    /** @brief Scale parameter γ — must be positive. */
+    /** @brief Scale parameter γ — finite and at least DBL_MIN. */
     double gamma_{detail::ONE};
 
     /** @brief Atomic copies for lock-free parameter access. */

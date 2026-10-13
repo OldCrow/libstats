@@ -1824,12 +1824,12 @@ std::istream& operator>>(std::istream& is, VonMisesDistribution& d) {
 //==============================================================================
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
 //
-// LogPDF batch:  z[i] = x[i] − μ  |  c[i] = vector_cos(z)  |  r[i] = κ·c[i] − ln Z
+// LogPDF batch:  s[i] = (x[i] − μ)/2  |  r[i] = −2κ·vector_sin(s)² − log scaled normaliser
 // PDF batch:     same as LogPDF then r[i] = vector_exp(r)
 // CDF batch:     per element, the scalar CDF's central or tail mass on the
 //                snapshot (κ = 0 or κ > 1e20: the scalar CDF itself)
 //
-// PDF/LogPDF use VectorOps::vector_cos — AVX/AVX2/SSE2/NEON/AVX-512. Non-finite
+// PDF/LogPDF use VectorOps::vector_sin — AVX/AVX2/SSE2/NEON/AVX-512. Non-finite
 // inputs receive an exact sentinel value via a scalar fixup pass after the
 // SIMD kernel.
 //

@@ -577,7 +577,7 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==========================================================================
 
-// Inline utility methods moved from header for PIMPL optimization
+// Utility methods out-of-line to keep the header light
 // These retain 'inline' hint to allow compiler optimization while reducing header bloat
 
 double UniformDistribution::getRange() const {

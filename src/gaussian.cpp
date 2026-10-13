@@ -342,7 +342,7 @@ double GaussianDistribution::getQuantile(double p) const {
     }
 
     // The shared probit: survival form in the tails, so the quantile is finite for every
-    // p ∈ (0, 1). The erf_inv(2p − 1) form used here before v2.4.2 returned −inf for p < 2^-54
+    // p ∈ (0, 1). The erf_inv(2p − 1) form used here before v2.5.0 returned −inf for p < 2^-54
     // (#158).
     return mean_ + standardDeviation_ * detail::inverse_normal_cdf(p);
 }
@@ -634,7 +634,7 @@ bool GaussianDistribution::isUsingStandardNormalOptimization() const {
     return isStandardNormal_;
 }
 
-// Utility methods moved from header for PIMPL optimization - no longer inline
+// Utility methods out-of-line to keep the header light
 
 double GaussianDistribution::getStandardizedValue(double x) const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);

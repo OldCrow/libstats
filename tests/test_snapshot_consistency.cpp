@@ -1,7 +1,7 @@
 // tests/test_snapshot_consistency.cpp
 //
 // A scalar method racing a setter must return the value of one parameter state or the other,
-// never a mix (v2.4.2 review, H-1). Before the fix:
+// never a mix (v2.5.0 review, H-1). Before the fix:
 //   - Binomial pmf and log-pmf tested p_ == 0 unlocked, then took their snapshot; a setP(0) in
 //     between sent p = 0 to detail::binomial_log_pmf, whose Stirling path returned NaN (#172
 //     turned the old −inf into NaN). The CDF range-checked k against an unlocked n_ and handed

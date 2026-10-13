@@ -68,13 +68,14 @@ class CacheValidFlag {
  *   ground-truth flag for code paths that already hold cache_mutex_.
  *
  * ### Per-parameter atomic fast paths (derived classes)
- * Some derived classes (e.g. GaussianDistribution) expose individual
- * parameter atomics (atomicMean_, atomicStdDev_) for lock-free
- * getMean()/getStdDev() calls.  Each value is individually consistent, but
- * reading two atomics across separate calls does not form an atomic pair:
- * a concurrent setParameters() between the two reads yields a torn snapshot.
- * Callers that need a consistent pair of parameters should use the snapshot
- * pattern (shared_lock, read both under the same lock).
+ * Some derived classes (e.g. GaussianDistribution) keep individual parameter
+ * atomics (atomicMean_, atomicStdDev_) behind get*Atomic() getters, which only
+ * tests call; getMean()/getStdDev() take the shared lock. Each atomic value is
+ * individually consistent, but reading two atomics across separate calls does
+ * not form an atomic pair: a concurrent setParameters() between the two reads
+ * yields a torn snapshot. Callers that need a consistent pair of parameters
+ * should use the snapshot pattern (withCacheSnapshot, or readConsistent for a
+ * value built from several locked calls).
  *
  * v2.0.0 removed the old derived-class cacheValidAtomic_ shadows; this base
  * member is now the single atomic cache-validity flag for all distributions.

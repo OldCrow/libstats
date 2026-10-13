@@ -1,6 +1,7 @@
 # libstats v1 → v2 Migration Guide
 
 This guide covers every breaking change in v2.0.0 and how to update existing code.
+The last section lists the behaviour changes from v2.4.x to v2.5.0.
 
 ## Namespace
 
@@ -399,3 +400,100 @@ Headers are accessed via the `libstats/` prefix in both build and install trees:
 | All `*WithStrategy` batch methods | v2.0.0 | `getProbability(span, span, hint)` |
 | `getBatchProbabilities` / `getBatchLogProbabilities` / etc. | v2.0.0 | Span-based overloads |
 | Alternate LLVM compiler path (macOS) | v2.0.0 | System AppleClang |
+
+---
+
+## v2.4 → v2.5.0: behaviour changes
+
+v2.5.0 has no source API change: code that compiled against v2.4.1 compiles
+unchanged. It is not a binary drop-in, and some results change.
+
+### ABI and object layout
+
+- `DistributionBase::getSurvival` is now `virtual`. A class built against an
+  earlier v2.x header that derives from `DistributionBase` must be rebuilt.
+- Object layouts change (the cache-validity flag type, and private members
+  removed and added). Rebuild everything that includes libstats headers.
+
+### Results that change
+
+- **Survival.** All 27 distributions override `getSurvival` with the
+  complement formed directly, so upper-tail values that `1 − F` rounded to 0
+  are now nonzero. The `1 − F` default remains for user-derived classes.
+- **Hazard.** `getHazard` reads f and S from one parameter state. For
+  discrete distributions it evaluates both at `floor(x)`, so it is a step
+  function.
+- **Discrete quantiles** (Poisson, Binomial, NegativeBinomial, Geometric,
+  Bernoulli). For p > ½ the count is the smallest k with S(k) ≤ 1 − p
+  (for p ≤ ½, the smallest k with F(k) ≥ p, as before), and quantiles are
+  non-decreasing across p = ½. Q(1) is the support's upper end:
+  Geometric(1).Q(1) was +∞ and is 0; Binomial(10, 0).Q(1) was 10 and is 0.
+  Poisson and NegativeBinomial searches are unbounded, and past 2^53 the
+  result is the smallest double count that meets the rule
+  (Geometric(1e-20).Q(½) = 6.93e19; it was capped at 9.0e15). Discrete's
+  quantile is the smallest k whose library CDF reaches p, ties included.
+- **Discrete pmf at non-integers.** Every discrete class rounds x to the
+  nearest integer (halves away from zero); CDF and survival floor it.
+  Poisson returned 0 on (−½, 0), and Discrete returned 0 at every
+  non-integer (Discrete(0, 3).pmf(2.4) is now ¼).
+- **`getQuantile(NaN)`** returns NaN in all 27 classes; four threw and
+  seven returned a finite value.
+- **von Mises.** The CDF is exact (quadrature) up to κ = 1e20; up to v2.4.1
+  it took a wrapped normal above κ = 1000. `getKurtosis()` returns the
+  standardized circular kurtosis (ρ₂ − ρ₁⁴)/(1 − ρ₁)², ρₚ = Iₚ(κ)/I₀(κ)
+  (Mardia and Jupp 2000), the circular counterpart of excess kurtosis: 0 for
+  the wrapped normal, about 2/κ for large κ. It returned 0 before (#276).
+- **Accuracy.** Quantiles, deep tails and large-parameter densities and
+  CDFs change in their trailing digits or more where v2.4.1 was wrong
+  (Gamma family, Beta, Student-t, FisherF, TruncatedNormal, discrete
+  log-pmfs at large counts, the normal quantile in its tails). See
+  `CHANGELOG.md` and `docs/ACCURACY_CHARACTERIZATION.md`.
+- **Gaussian sampling.** `sample(rng)` no longer returns a thread-local
+  Box–Muller spare left by a previous call, so identically seeded
+  generators give identical draws. Each call returns the old
+  first-of-pair draw.
+- **Student-t `fit`** searches ν up to 1e8 and returns exactly 1e8, the
+  Gaussian limit, if the likelihood still rises there; it clamped at 1000.
+- **Stream output.** `operator<<` writes `max_digits10` digits in all 27
+  classes, and `operator>>` reads that output back exactly (Poisson's
+  reader failed on its own output; TruncatedNormal's misread a bound).
+- **Thread counts.** `SystemCapabilities` reads physical cores from the CPU
+  detector instead of assuming logical / 2, so `MAXIMIZE_THROUGHPUT` picks
+  `PARALLEL`, not `WORK_STEALING`, on Macs without SMT (M1).
+
+### Parameters now rejected
+
+Constructors, setters, `trySet*`, `create` and `fit` share one validator per
+distribution, so all five accept the same range:
+
+- a subnormal scale for Cauchy, Laplace, Logistic and Gumbel;
+- Student-t ν < DBL_MIN;
+- Gaussian and LogNormal σ outside [√DBL_MIN, 1e10] (Gaussian's `create`
+  and `trySet*` accepted σ > 1e10 before; LogNormal had no upper bound);
+- for ChiSquared, Erlang, FisherF, InverseGamma, Bernoulli and Geometric,
+  any parameter whose derived value their delegate rejects;
+- `fit` on degenerate data for Binomial (non-finite, negative or
+  out-of-range values) and Gamma (one point, or zero variance) throws.
+
+### Batch and concurrency
+
+- One batch call evaluates on one parameter snapshot under `VECTORIZED`,
+  `PARALLEL` and `WORK_STEALING`. `SCALAR` (forced, or AUTO's choice for
+  small counts) still calls the locking scalar method per element.
+- `WORK_STEALING` still swallows a throwing kernel's exceptions, silently;
+  `PARALLEL` rethrows the first. Each `WORK_STEALING` call waits
+  on its own latch only.
+- Move assignment locks both objects; setters validate under the lock.
+
+### Build
+
+- clang-cl is supported on Windows and takes cl.exe's `/arch:` flags.
+- The `run_tests` target is `run_tests_correctness` (the Visual Studio
+  generator reserves `RUN_TESTS`).
+
+### Removed internal names
+
+These were in `stats::detail` and had no in-tree caller:
+`DispatchUtils::executeWithStrategy`, the generic
+`validateParameter`/`validatePositiveParameter`/`validateNonNegativeParameter`
+helpers, and `DistributionMeta::is_delegation_wrapper`.

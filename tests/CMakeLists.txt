@@ -847,7 +847,7 @@ add_custom_target(
 # label or test name equals. Both filters were therefore inert and this target
 # ran the entire suite (72 tests) rather than the 41 it describes. Verified by
 # comparing `ctest -N` counts for the escaped and plain forms.
-# Named run_tests until v2.4.2: the Visual Studio generator adds its own RUN_TESTS target, and the
+# Named run_tests until v2.5.0: the Visual Studio generator adds its own RUN_TESTS target, and the
 # .slnx solution a fresh VS 2026 configure emits compares project names case-insensitively, so
 # MSBuild rejected the whole solution ("Project name 'run_tests' already exists").
 add_custom_target(

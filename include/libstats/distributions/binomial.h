@@ -12,7 +12,8 @@ namespace stats {
  *
  * @par Mathematical Definition:
  * - PMF:    P(X = k) = C(n,k)·p^k·(1−p)^(n−k)  for k ∈ {0,…,n}
- * - LogPMF: lgamma(n+1) − lgamma(k+1) − lgamma(n−k+1) + k·log(p) + (n−k)·log(1−p)
+ * - LogPMF: log C(n,k) + k·log(p) + (n−k)·log(1−p), evaluated by detail::binomial_log_pmf
+ *   without the n·log n cancellation of the lgamma form (#172)
  * - CDF:    I_{1−p}(n−k, k+1)  via the regularized incomplete beta (existing detail::beta_i)
  * - Quantile: smallest k ∈ {0,…,n} such that CDF(k) ≥ p (S(k) ≤ 1 − p for p > ½); Q(1) is the
  *   support's upper end, n (0 at p = 0)

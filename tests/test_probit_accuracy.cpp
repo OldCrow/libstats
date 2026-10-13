@@ -2,7 +2,7 @@
 //
 // The probit — detail::inverse_normal_cdf and the Gaussian and LogNormal
 // quantiles built on it — against mpmath references (issue #158). Before
-// v2.4.2 all three formed √2·erf_inv(2p − 1): 2p − 1 rounds to −1 for
+// v2.5.0 all three formed √2·erf_inv(2p − 1): 2p − 1 rounds to −1 for
 // p < 2^-54, so the quantile was −inf at p = 1e-300 (LogNormal: exactly 0), and
 // it lost precision progressively above that (0.44 relative at p = 1e-15).
 //
@@ -90,7 +90,7 @@ TEST(ProbitAccuracy, GaussianQuantile) {
 
 TEST(ProbitAccuracy, LogNormalQuantile) {
     // exp(μ + σz): the relative error of exp is |σ·Δz|, so the budget scales with |z|. Exactly 0
-    // is the pre-v2.4.2 failure at p = 1e-300, where the true quantile is exp(−37.05) ≈ 8.2e-17.
+    // is the pre-v2.5.0 failure at p = 1e-300, where the true quantile is exp(−37.05) ≈ 8.2e-17.
     const auto d = LogNormalDistribution::create(0.0, 1.0).unwrap();
     for (const auto& r : kRows) {
         const double q = d.getQuantile(r.p);

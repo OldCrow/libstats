@@ -53,9 +53,10 @@ namespace stats {
  *
  * @par Thread Safety:
  * All methods are fully thread-safe. GeometricDistribution's `cache_mutex_` and
- * `negbinom_`'s own mutex are independent; the two-phase setter pattern (update
- * `p_` under our lock, then call `negbinom_.trySetP()` outside it) avoids
- * holding two mutexes simultaneously.
+ * `negbinom_`'s own mutex are independent. Delegate update under the owner's
+ * lock: setters call `negbinom_.trySetP()` while holding our lock (ours, then
+ * the delegate's), so concurrent setters reach the delegate in the order they
+ * reach us; never call a delegate setter outside the lock.
  *
  * @author libstats Development Team
  * @version 2.0.0

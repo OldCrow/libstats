@@ -6,7 +6,7 @@
 
 /**
  * @file common/cpu_detection_fwd.h
- * @brief Lightweight forward declarations for CPU detection - Phase 2 PIMPL optimization
+ * @brief Lightweight forward declarations for CPU detection (definitions out-of-line)
  *
  * This header provides a minimal interface to CPU detection capabilities without
  * pulling in heavy system-specific dependencies and complex detection logic.

@@ -7,8 +7,18 @@ This guide describes the v2.x public header layout.
 Single-header include:
 
 ```cpp
+#define LIBSTATS_FULL_INTERFACE
 #include "libstats.h"
 ```
+
+Without `LIBSTATS_FULL_INTERFACE`, `libstats.h` includes only forward
+declarations, the essential constants and `platform/simd.h`: enough to hold a
+pointer or reference to a distribution, not to construct one or call a member
+(the compiler reports an incomplete type). Define the macro before the include
+in every translation unit that uses distribution objects. The default mode is
+not free either: `platform/simd.h` pulls in `<thread>`, `<mutex>` and OS
+headers. For a minimal include in your own headers, use
+`libstats/common/forward_declarations.h`.
 
 Focused include:
 
@@ -139,12 +149,12 @@ identically with no shim, symlink, or copy step involved.
 11. **Pareto** - Pareto(xₘ, α) — log-only pipeline, power-law tail
 12. **Weibull** - W(k, λ) — log+exp pipeline, reliability engineering
 13. **Rayleigh** - R(σ) — x² pipeline, signal processing
-14. **Von Mises** - VM(μ, κ) — circular distribution, SIMD via vector_cos
-15. **Binomial** - B(n, p) — discrete, PMF via lgamma
+14. **Von Mises** - VM(μ, κ) — circular distribution, SIMD via vector_sin (−2κ·sin²(t/2)); CDF by quadrature
+15. **Binomial** - B(n, p) — discrete, PMF via `detail::binomial_log_pmf`, CDF via incomplete beta
 16. **Negative Binomial** - NB(r, p) — discrete, real-valued r, Newton–Raphson MLE
 17. **Geometric** - Geo(p) — discrete, delegate over NegBinomial(r=1); MLE: p̂=1/(1+x̄)
 18. **Laplace** - Laplace(μ, b) — standalone, fabs+vector_exp SIMD; MLE: median/MAD
-19. **Cauchy** - Cauchy(x₀, γ) — PDF/LogPDF delegate to StudentT(ν=1), CDF/Quantile closed-form (#48); moments NaN; Fisher-scoring MLE
+19. **Cauchy** - Cauchy(x₀, γ) — only LogPDF (and sampling) delegate to StudentT(ν=1); PDF, CDF and Quantile closed-form (#48); moments NaN; Fisher-scoring MLE
 20. **Logistic** - Logistic(μ, s) — vector_exp pipeline, log1p/expm1 tail stability (#54)
 21. **Gumbel** - Gumbel(μ, β) — max-stable (`gumbel_r`) only; double-exp pipeline (#54)
 22. **Bernoulli** - Bern(p) — delegation wrapper over Binomial(n=1); p ∈ [0,1] inclusive (#55)

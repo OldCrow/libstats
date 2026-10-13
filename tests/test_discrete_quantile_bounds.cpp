@@ -298,7 +298,7 @@ TEST(DiscreteCountNarrowing, SampleBeyondIntMax) {
 // The defining property over the whole p range: k = quantile(p) is the
 // smallest count with CDF(k) >= p, decided for p > ½ as the smallest count with
 // S(k) <= 1 - p through the public getSurvival. Binomial, Poisson and NegativeBinomial (so
-// Geometric) share detail::discrete_quantile_search since v2.4.2. The search
+// Geometric) share detail::discrete_quantile_search since v2.5.0. The search
 // starts from a normal approximation
 // that is far off in the tails, so the grid reaches both: it includes p below
 // PMF(0), where the answer is 0, and p within 1e-12 of 1. The Poisson search
