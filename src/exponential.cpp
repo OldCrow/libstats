@@ -1,11 +1,7 @@
 #include "libstats/distributions/exponential.h"
 
+#include "libstats/common/cpu_detection_fwd.h"         // CPU feature queries (lightweight)
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
-#include "libstats/common/cpu_detection_fwd.h"  // CPU feature queries (lightweight)
 #include "libstats/core/log_space_ops.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"

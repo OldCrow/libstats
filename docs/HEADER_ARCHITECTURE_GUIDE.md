@@ -93,13 +93,11 @@ The concepts namespace avoids name collisions with concrete distribution classes
 
 ## Namespace hygiene
 
-Validation helper functions moved to `stats::detail` in v2.0.0:
-
-- `stats::detail::validateParameter`
-- `stats::detail::validatePositiveParameter`
-- `stats::detail::validateNonNegativeParameter`
-
-Do not expose these helpers as part of the public API.
+Parameter validation lives in `stats::detail` (`libstats/core/error_handling.h`): one
+non-throwing `validate*Parameters` per distribution, which its constructors, setters,
+`trySet*`, `create` and `fit` share. The generic `validateParameter`,
+`validatePositiveParameter` and `validateNonNegativeParameter` helpers, moved there in
+v2.0.0, had no caller and were removed in v2.5.0. Do not expose validators as public API.
 
 ## Batch APIs
 

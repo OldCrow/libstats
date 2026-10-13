@@ -58,8 +58,8 @@ does not extend to the distribution layer.
 #112 was resolved by documenting the contract rather than by making the tail
 fixups aliasing-safe. Debug builds carry an assert
 (`LIBSTATS_ASSERT_NO_OVERLAP`) beside the size check in
-`detail::DispatchUtils::autoDispatch` and `executeWithStrategy` — the single
-point every batch span overload funnels through — so an aliased call trips
+`detail::DispatchUtils::autoDispatch` — the single point every batch span
+overload funnels through — so an aliased call trips
 immediately in a Debug build. Under `NDEBUG` the assert compiles to nothing and
 nothing checks it: Release builds of an aliased call are silently wrong, as
 before.

@@ -34,34 +34,6 @@
 namespace stats::detail {
 
 /**
- * @brief Common validation helper for distribution parameters.
- * @note Moved to `stats::detail` in v2.0.0; previously at global scope.
- */
-template <typename T>
-inline void validateParameter(T value, const std::string& name, T min_val, T max_val) {
-    if (value < min_val || value > max_val || !std::isfinite(value)) {
-        throw std::invalid_argument("Parameter " + name + " must be finite and in range [" +
-                                    std::to_string(min_val) + ", " + std::to_string(max_val) + "]");
-    }
-}
-
-/** @brief Common validation helper for positive parameters. */
-template <typename T>
-inline void validatePositiveParameter(T value, const std::string& name) {
-    if (value <= T(0) || !std::isfinite(value)) {
-        throw std::invalid_argument("Parameter " + name + " must be positive and finite");
-    }
-}
-
-/** @brief Common validation helper for non-negative parameters. */
-template <typename T>
-inline void validateNonNegativeParameter(T value, const std::string& name) {
-    if (value < T(0) || !std::isfinite(value)) {
-        throw std::invalid_argument("Parameter " + name + " must be non-negative and finite");
-    }
-}
-
-/**
  * @brief std::stod for the stream readers, except that a subnormal reads back (#208).
  *
  * std::stod throws out_of_range whenever strtod sets ERANGE, which libc++ and glibc do for

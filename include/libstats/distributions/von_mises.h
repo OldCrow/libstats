@@ -41,8 +41,10 @@ namespace stats {
  * - Circular variance: 1 − I₁(κ)/I₀(κ)  ∈ [0, 1]
  *   (0 = fully concentrated at μ, 1 = uniform)
  * - getVariance() returns the circular variance by convention.
- * - getSkewness() returns 0 (symmetric distribution).
- * - getKurtosis() returns 0 (not meaningfully defined for circular data).
+ * - getSkewness() returns 0, the circular skewness (symmetric about μ).
+ * - getKurtosis() returns the standardized circular kurtosis (ρ₂ − ρ₁⁴)/(1 − ρ₁)², ρₚ = Iₚ(κ)/I₀(κ)
+ *   (Mardia and Jupp 2000, §3.4.2): the circular counterpart of excess kurtosis, 0 for the
+ *   wrapped normal, ~2/κ as κ → ∞ and κ²/8 as κ → 0.
  *
  * @par Special Cases:
  * - κ = 0: uniform distribution on (−π, π]; PDF = 1/(2π) everywhere.
@@ -199,9 +201,12 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getSkewness() const noexcept override { return detail::ZERO_DOUBLE; }
 
     /**
-     * @brief Kurtosis = 0 (not meaningfully defined for circular distributions).
+     * @brief Standardized circular kurtosis (ρ₂ − ρ₁⁴)/(1 − ρ₁)², to ~1.4 ulp for every κ.
+     *
+     * The circular counterpart of excess kurtosis, consistent with getVariance()'s circular
+     * variance: 0 for the wrapped normal, ~2/κ as κ → ∞. It returned 0 before v2.5.0.
      */
-    [[nodiscard]] double getKurtosis() const noexcept override { return detail::ZERO_DOUBLE; }
+    [[nodiscard]] double getKurtosis() const noexcept override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }

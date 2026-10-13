@@ -1,11 +1,7 @@
 #include "libstats/distributions/von_mises.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/bessel.h"
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
@@ -15,6 +11,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <iterator>
 #include <limits>
 #include <numeric>
 #include <random>
@@ -64,6 +61,101 @@ double VonMisesDistribution::wrapAngle(double x) noexcept {
 //==============================================================================
 
 namespace {
+
+// Double-double arithmetic for circular_kurtosis. Every product's error term is an explicit fma
+// (AGENTS.md, FP-contraction rule); the sums take no product.
+struct DoubleDouble {
+    double hi, lo;
+};
+
+[[nodiscard]] DoubleDouble dd_fast_two_sum(double a, double b) noexcept {
+    const double s = a + b;
+    return {s, b - (s - a)};
+}
+
+[[nodiscard]] DoubleDouble dd_add(DoubleDouble a, DoubleDouble b) noexcept {
+    const double s = a.hi + b.hi;
+    const double bb = s - a.hi;
+    const double e = (a.hi - (s - bb)) + (b.hi - bb);
+    return dd_fast_two_sum(s, e + a.lo + b.lo);
+}
+
+[[nodiscard]] DoubleDouble dd_sub(DoubleDouble a, DoubleDouble b) noexcept {
+    return dd_add(a, {-b.hi, -b.lo});
+}
+
+[[nodiscard]] DoubleDouble dd_mul(DoubleDouble a, DoubleDouble b) noexcept {
+    const double p = a.hi * b.hi;
+    const double e = std::fma(a.hi, b.hi, -p);
+    return dd_fast_two_sum(p, e + (a.hi * b.lo + a.lo * b.hi));
+}
+
+[[nodiscard]] DoubleDouble dd_div(DoubleDouble a, DoubleDouble b) noexcept {
+    const double q1 = a.hi / b.hi;
+    DoubleDouble r = dd_sub(a, dd_mul(b, {q1, 0.0}));
+    const double q2 = r.hi / b.hi;
+    r = dd_sub(r, dd_mul(b, {q2, 0.0}));
+    const double q3 = r.hi / b.hi;
+    return dd_add(dd_fast_two_sum(q1, q2), {q3, 0.0});
+}
+
+// Standardized circular kurtosis (rho2 - rho1^4)/(1 - rho1)^2, rho_p = I_p(kappa)/I_0(kappa).
+// It is O(1/kappa) while its terms are O(1), so in double the difference lost up to 1e-11 for
+// kappa in [5, 25]; no rearrangement in rho1 avoids that. Measured against mpmath (dps 60, the
+// exact series past 1e4) over kappa in [1e-25, DBL_MAX]: at most 1.4 ulp.
+//   kappa < 1e-20: kappa^2/8, whose next term is relatively kappa.
+//   kappa < 50: rho1 = I1/I0 and I2/I1 by the backward ratio recurrence
+//     h_n = 1/(2n/kappa + h_{n+1}), from depth 2 kappa + 30, in double-double. It needs no
+//     Bessel tier: Tier 2's I0 and I1 are good to 1.6e-7 only.
+//   kappa >= 50: the asymptotic series in t = 1/kappa, 17 terms (2e-17 at 50). Its coefficients
+//     come from the Riccati equation A' = 1 - A/kappa - A^2 for A = rho1 (exact rationals:
+//     2, 1, 21/8, 125/16, 3455/128, ...).
+[[nodiscard]] double circular_kurtosis(double kappa) noexcept {
+    if (kappa < 1e-20)
+        return 0.125 * kappa * kappa;
+    if (kappa >= 50.0) {
+        static constexpr double kCoef[] = {
+            2.0,
+            1.0,
+            2.625,
+            7.8125,
+            26.9921875,
+            105.76171875,
+            462.7138671875,
+            2235.85205078125,
+            11833.16830444336,
+            68131.43388366699,
+            424314.8302497864,
+            2844097.4091854095,
+            20425823.068127394,
+            156550249.29850376,
+            1275835374.0903919,
+            11019847013.047457,
+            100577001831.55171,
+        };
+        const double t = detail::ONE / kappa;
+        double s = detail::ZERO_DOUBLE;
+        for (std::size_t i = std::size(kCoef); i-- > 0;)
+            s = std::fma(s, t, kCoef[i]);
+        return s * t;
+    }
+    const DoubleDouble x{kappa, 0.0};
+    const DoubleDouble one{1.0, 0.0};
+    DoubleDouble h{0.0, 0.0};
+    DoubleDouble rho1{0.0, 0.0};
+    DoubleDouble i2_over_i1{0.0, 0.0};
+    for (int n = static_cast<int>(2.0 * kappa) + 30; n >= 1; --n) {
+        h = dd_div(one, dd_add(dd_div({2.0 * n, 0.0}, x), h));
+        if (n == 2)
+            i2_over_i1 = h;
+        else if (n == 1)
+            rho1 = h;
+    }
+    // rho2 - rho1^4 = rho1 (I2/I1 - rho1^3)
+    const DoubleDouble num = dd_mul(rho1, dd_sub(i2_over_i1, dd_mul(dd_mul(rho1, rho1), rho1)));
+    const DoubleDouble c = dd_sub(one, rho1);
+    return dd_div(num, dd_mul(c, c)).hi;
+}
 
 [[nodiscard]] double kappa_from_r_bar(double R_bar) noexcept {
     if (R_bar <= 0.0)
@@ -504,10 +596,11 @@ template <typename F>
         t * (0.125 + t * (0.0703125 +
                           t * (0.0732421875 + t * (0.112152099609375 + t * 0.22710800170898438))));
     // 2πκ overflows past DBL_MAX/(2π), where the log read +inf and the log density at the mode
-    // +inf (Fix8); there its log is split.
-    const double two_pi_kappa = detail::TWO_PI * kappa;
-    const double log_two_pi_kappa =
-        std::isfinite(two_pi_kappa) ? std::log(two_pi_kappa) : detail::LN_2PI + std::log(kappa);
+    // +inf (Fix8); there its log is split. The operand is tested, not the product: GCC 14 and 16
+    // take an overflowed 2πκ to mean κ = +inf and fold the split's log κ to +inf (AGENTS.md).
+    const double log_two_pi_kappa = kappa < std::numeric_limits<double>::max() / detail::TWO_PI
+                                        ? std::log(detail::TWO_PI * kappa)
+                                        : detail::LN_2PI + std::log(kappa);
     return detail::LN_2PI - detail::HALF * log_two_pi_kappa + std::log1p(s);
 }
 
@@ -1023,6 +1116,10 @@ void VonMisesDistribution::setParameters(double mu, double kappa) {
 double VonMisesDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return mu_;
+}
+
+double VonMisesDistribution::getKurtosis() const noexcept {
+    return circular_kurtosis(getKappa());
 }
 
 double VonMisesDistribution::getVariance() const {
@@ -1755,10 +1852,11 @@ void VonMisesDistribution::getLogProbabilityBatchUnsafeImpl(
 
     // Step 3: results[i] = -2 kappa * results[i] - log_scaled_normaliser. Past kappa = DBL_MAX/2,
     // -2 kappa is -inf and the mode's 0 gave NaN; there the factors go one at a time, as in
-    // logDensityScaled (the same value wherever -2 kappa is finite).
-    const double neg_two_kappa = -detail::TWO * cached_kappa;
-    if (std::isfinite(neg_two_kappa)) {
-        arch::simd::VectorOps::scalar_multiply(results, neg_two_kappa, results, count);
+    // logDensityScaled (the same value wherever -2 kappa is finite). Kappa is tested, not the
+    // product (GCC; see log_scaled_normaliser_hankel).
+    if (cached_kappa < std::numeric_limits<double>::max() / detail::TWO) {
+        arch::simd::VectorOps::scalar_multiply(results, -detail::TWO * cached_kappa, results,
+                                               count);
     } else {
         arch::simd::VectorOps::scalar_multiply(results, cached_kappa, results, count);
         arch::simd::VectorOps::scalar_multiply(results, -detail::TWO, results, count);

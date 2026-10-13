@@ -175,7 +175,7 @@ produces silently wrong results or a deadlock, not a build error.
   PDF, LogNormal LogPDF — #112), so an in-place call returns wrong values
   silently. This is a documented contract, not an implementation guarantee: the
   debug-mode `LIBSTATS_ASSERT_NO_OVERLAP` beside the size check in
-  `detail::DispatchUtils::autoDispatch`/`executeWithStrategy` compiles away under
+  `detail::DispatchUtils::autoDispatch` compiles away under
   `NDEBUG`, so Release builds do not detect aliasing. Span sizes must match;
   every overload throws otherwise.
 - **Exception behaviour differs by strategy.** `ParallelUtils::parallelFor`,
@@ -233,6 +233,20 @@ contraction on Linux. The three compensated sequences in
 `src/simd_neon.cpp` are safe today (#84, audited 2026-08-16) because every
 fusion is an explicit `vfmaq_f64`/`vfmsq_f64` and the one remaining
 multiply-then-add is exact by construction.
+
+### Overflow-guard rule
+
+**Test an overflow guard's operand, not the overflowed result, when the
+fallback reuses that operand.** Write `x < DBL_MAX / c ? log(c * x) : log(c) + log(x)`,
+never `p = c * x; isfinite(p) ? log(p) : log(c) + log(x)`. GCC 14 and 16 (-O1
+and up, no fast-math) take an overflowed `c * x`, with `c` a compile-time
+constant, to mean `x = ±inf` (and `1 / x` to mean `x = 0`), and fold the
+fallback's `log(x)` to `+inf`: von Mises at κ > 2.9e307 and InverseGamma past
+the reciprocal range read `+inf` on CI's gcc-14 leg only (fixed 2026-10-13).
+The comparison is strict because `fl(DBL_MAX / c)` may round up. A guard whose
+fallback returns a constant is unaffected, and a GCC-against-AppleClang probe
+of every other product, quotient and sum guard (about 650k results) found no
+other case.
 
 ## Testing
 

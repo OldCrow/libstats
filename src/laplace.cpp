@@ -1,9 +1,6 @@
 #include "libstats/distributions/laplace.h"
 
 #include "libstats/common/distribution_impl_common.h"
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -722,9 +719,11 @@ void LaplaceDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 void LaplaceDistribution::updateCacheUnsafe() const noexcept {
     neg_inv_b_ = -detail::ONE / b_;
     // 2b overflows above DBL_MAX/2, where −log(2b) read −inf and the density 0 (Laplace(0, 1e308)
-    // at 0: 5e-309). There the log is split; below, the form is unchanged.
-    const double two_b = detail::TWO * b_;
-    neg_log2b_ = std::isfinite(two_b) ? -std::log(two_b) : -(detail::LN2 + std::log(b_));
+    // at 0: 5e-309). There the log is split; below, the form is unchanged. b is tested, not 2b:
+    // GCC takes an overflowed 2b to mean b = +inf and folds the split's log b (AGENTS.md).
+    neg_log2b_ = b_ < std::numeric_limits<double>::max() / detail::TWO
+                     ? -std::log(detail::TWO * b_)
+                     : -(detail::LN2 + std::log(b_));
     half_inv_b_ = detail::HALF / b_;
 
     cache_valid_ = true;

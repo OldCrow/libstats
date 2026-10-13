@@ -156,52 +156,6 @@ class DispatchUtils {
         batch_unsafe_func(dist, values, results, count);
     }
 
-    /**
-     * @brief Executes a batch operation with explicit strategy selection
-     *
-     * @tparam Distribution The distribution type
-     * @tparam ScalarFunc Function type for scalar operations
-     * @tparam BatchFunc Function type for SIMD batch operations
-     * @tparam ParallelFunc Function type for parallel operations
-     * @tparam WorkStealingFunc Function type for work-stealing operations
-     *
-     * @param dist Reference to the distribution instance
-     * @param values Input values span
-     * @param results Output results span
-     * @param strategy Explicit strategy to use
-     * @param scalar_func Function to call for scalar operations
-     * @param batch_func Function to call for SIMD batch operations
-     * @param parallel_func Function to call for parallel operations
-     * @param work_stealing_func Function to call for work-stealing operations
-     *
-     * @pre `values` and `results` have the same size and do not overlap (#112).
-     *      The size mismatch throws; the overlap is a debug-mode assert.
-     */
-    template <typename Distribution, typename ScalarFunc, typename BatchFunc, typename ParallelFunc,
-              typename WorkStealingFunc>
-    static void executeWithStrategy(const Distribution& dist, std::span<const double> values,
-                                    std::span<double> results, Strategy strategy,
-                                    ScalarFunc&& scalar_func, BatchFunc&& batch_func,
-                                    ParallelFunc&& parallel_func,
-                                    WorkStealingFunc&& work_stealing_func) {
-        // Validate input
-        if (values.size() != results.size()) {
-            throw std::invalid_argument("Input and output spans must have the same size");
-        }
-        LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), values.size(),
-                                   "batch explicit-strategy dispatch");
-
-        const size_t count = values.size();
-        if (count == 0)
-            return;
-
-        // Execute using provided strategy
-        executeStrategy(strategy, dist, values, results, count,
-                        std::forward<ScalarFunc>(scalar_func), std::forward<BatchFunc>(batch_func),
-                        std::forward<ParallelFunc>(parallel_func),
-                        std::forward<WorkStealingFunc>(work_stealing_func));
-    }
-
    private:
     /**
      * @brief Maps performance hints to strategies

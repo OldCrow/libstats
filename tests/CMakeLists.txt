@@ -165,10 +165,14 @@ function(create_libstats_gtest TEST_NAME SOURCE_FILE)
             # Fallback to manual linking - be more careful about duplicates
             if(GTEST_MAIN_LIBRARIES)
                 target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_MAIN_LIBRARIES})
-                # Only add gtest if it's not already included in main libraries
-                if(GTEST_LIBRARIES AND NOT "${GTEST_MAIN_LIBRARIES}" MATCHES "gtest")
-                    target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_LIBRARIES})
-                endif()
+                # Add each gtest library the main list does not already hold. Matching the
+                # list's text against "gtest" was always true (the path holds gtest_main), so
+                # libgtest.a was never linked on this path.
+                foreach(_libstats_gtest_lib IN LISTS GTEST_LIBRARIES)
+                    if(NOT _libstats_gtest_lib IN_LIST GTEST_MAIN_LIBRARIES)
+                        target_link_libraries(${TEST_NAME} PRIVATE ${_libstats_gtest_lib})
+                    endif()
+                endforeach()
             elseif(GTEST_LIBRARIES)
                 target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_LIBRARIES})
             endif()

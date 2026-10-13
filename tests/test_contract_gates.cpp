@@ -4,6 +4,7 @@
 // each TEST names the defect and the failure it caught. Correctness only: no timing assertion,
 // so this binary carries no "timing" label and runs in CI's -LE "timing|benchmark" pass.
 #define LIBSTATS_FULL_INTERFACE
+#include "libstats/core/bessel.h"
 #include "libstats/libstats.h"
 
 #include <algorithm>
@@ -2874,9 +2875,9 @@ TEST(ContractGates, Fix8_VonMisesDensityAtHugeKappa) {
         expectAllStrategies(vm, 0.0, std::exp(want), 1e-12, kPdfBatch, "von mises pdf");
         EXPECT_EQ(vm.getProbability(1.0), 0.0) << k;
         expectAllStrategies(vm, 1.0, 0.0, 0.0, kPdfBatch, "von mises pdf");
-        const double far = -2.0 * (k * (std::sin(0.5) * std::sin(0.5)));  // normaliser lost
-        EXPECT_LT(relErr(vm.getLogProbability(1.0), far), 1e-14) << k;
-        expectAllStrategies(vm, 1.0, far, 1e-14, kLogPdfBatch, "von mises logpdf");
+        const double off_mode = -2.0 * (k * (std::sin(0.5) * std::sin(0.5)));  // normaliser lost
+        EXPECT_LT(relErr(vm.getLogProbability(1.0), off_mode), 1e-14) << k;
+        expectAllStrategies(vm, 1.0, off_mode, 1e-14, kLogPdfBatch, "von mises logpdf");
     }
 }
 
@@ -2903,4 +2904,47 @@ TEST(ContractGates, Fix8_StudentTDensityAtSubnormalNu) {
     expectAllStrategies(st, 0.0, std::exp(want), 2e-13, kPdfBatch, "student t pdf");
     EXPECT_TRUE(std::isfinite(st.getLogProbability(1.0)));
     EXPECT_TRUE(std::isfinite(st.getLogProbability(-1e300)));
+}
+
+//==============================================================================
+// Fix-9 round, 2026-10-13. References: mpmath, dps 60 (the exact asymptotic series past 1e4).
+//==============================================================================
+
+// GCC 14 and 16 take an overflowed c·x, c a compile-time constant, to mean x = ±inf (or 1/x
+// to mean x = 0), and fold the overflow branch's later use of x: InverseGamma's density past
+// the reciprocal range read +inf under GCC only (Fix7C's gate, red on the gcc-14 leg), as did
+// von Mises at huge κ (Fix8's). The guards now test the operand. Here, the Tier 1 and Tier 2
+// log I₀ helpers past DBL_MAX/(2π), where log(2πx) overflowed on every compiler: −inf for
+// log_bessel_i0, +inf for log_bessel_i0_scaled (unfixed).
+TEST(ContractGates, Fix9_LogBesselI0PastTwoPiOverflow) {
+    const double x = 1e308;  // log I₀(x) = x − ½log(2πx) + log1p(1/(8x) + …)
+    const double half_log = 0.5 * (std::log(2.0 * std::numbers::pi) + std::log(x));
+    EXPECT_LT(relErr(detail::log_bessel_i0_scaled(x), -half_log), 1e-15);
+    EXPECT_EQ(detail::log_bessel_i0(x), x);  // the log term is below half an ulp of x
+    // libstdc++'s std::cyl_bessel_i(0, 5e-324) is NaN; I₀ rounds to 1 below 1e-8 on both tiers.
+    EXPECT_EQ(detail::bessel_i0(5e-324), 1.0);
+    EXPECT_EQ(detail::log_bessel_i0(5e-324), 0.0);
+    EXPECT_LT(
+        relErr(VonMisesDistribution(0.0, 5e-324).getEntropy(), std::log(2.0 * std::numbers::pi)),
+        1e-15);
+}
+
+// von Mises kurtosis is the standardized circular kurtosis (ρ₂ − ρ₁⁴)/(1 − ρ₁)², consistent
+// with getVariance's circular variance; it returned 0. Each side of the series cut (50) and
+// the double-double range's worst region (κ ≈ 18) are covered; 1.4 ulp is the measured worst.
+TEST(ContractGates, Fix9_VonMisesCircularKurtosis) {
+    struct Row {
+        double kappa, want;
+    };
+    for (const Row& r :
+         {Row{1e-3, 1.2512501038019629525e-7}, Row{0.5, 0.046258418387635030437},
+          Row{2.0, 0.71342096079031405217}, Row{5.0, 0.49526672052046029474},
+          Row{18.2323, 0.1132247502605098954}, Row{49.999999, 0.040422344617487899711},
+          Row{50.0, 0.040422343800118340096}, Row{1000.0, 0.0020010026328395984142},
+          Row{1e300, 2e-300}}) {
+        EXPECT_LT(relErr(VonMisesDistribution(0.0, r.kappa).getKurtosis(), r.want), 1e-15)
+            << r.kappa;
+    }
+    EXPECT_EQ(VonMisesDistribution(0.0, 0.0).getKurtosis(), 0.0);
+    EXPECT_EQ(VonMisesDistribution(0.0, 1e-30).getKurtosis(), 0.125 * 1e-30 * 1e-30);
 }

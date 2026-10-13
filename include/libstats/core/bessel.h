@@ -34,6 +34,7 @@
 #include "libstats_config.h"
 
 #include <cmath>
+#include <limits>
 
 namespace stats {
 namespace detail {
@@ -57,8 +58,14 @@ namespace detail {
 // Latent while every in-library caller passes a concentration κ ≥ 0, but these
 // are helpers in an INSTALLED header and a consumer may pass anything. It
 // stopped being latent the moment #97 let consumers reach Tier 1 at all.
+//
+// Below 1e-8, I₀(x) = 1 + x²/4 + … rounds to 1. It is returned directly: libstdc++'s
+// std::cyl_bessel_i(0, x) is NaN at x = 5e-324 (GCC 16; 1 from 1e-320 up).
+inline constexpr double kBesselI0IsOneBelow = 1e-8;
+
 [[nodiscard]] inline double bessel_i0(double x) noexcept {
-    return std::cyl_bessel_i(0.0, std::fabs(x));
+    const double ax = std::fabs(x);
+    return ax < kBesselI0IsOneBelow ? 1.0 : std::cyl_bessel_i(0.0, ax);
 }
 
 [[nodiscard]] inline double bessel_i1(double x) noexcept {
@@ -104,9 +111,15 @@ inline constexpr double kTwoPi = 6.283185307179586476925286766559;
         const double s =
             t * (0.125 + t * (0.0703125 + t * (0.0732421875 +
                                                t * (0.112152099609375 + t * 0.22710800170898438))));
-        return ax - 0.5 * std::log(kTwoPi * ax) + std::log1p(s);
+        // 2πx overflows past DBL_MAX/(2π); there log(2πx) is split. x is tested, not 2πx (GCC
+        // folds the split's log x to +inf when it sees the product overflow; AGENTS.md).
+        constexpr double kLn2Pi = 1.8378770664093454835606594728112;
+        const double log_two_pi_x = ax < std::numeric_limits<double>::max() / kTwoPi
+                                        ? std::log(kTwoPi * ax)
+                                        : kLn2Pi + std::log(ax);
+        return ax - 0.5 * log_two_pi_x + std::log1p(s);
     }
-    return std::log(std::cyl_bessel_i(0.0, ax));
+    return std::log(bessel_i0(ax));
 }
 
 #else
@@ -308,7 +321,12 @@ inline constexpr double kBesselRatioAsymptoticCut = 50.0;
                                                             t * (24.380529699556064 +
                                                                  t * 110.01714026924674)))))))));
         constexpr double two_pi = 6.283185307179586476925286766559;  // kTwoPi is Tier 1 only
-        return -0.5 * std::log(two_pi * x) + std::log1p(s);
+        constexpr double ln_two_pi = 1.8378770664093454835606594728112;
+        // Split past DBL_MAX/(2π), where 2πx overflows; x is tested, not 2πx (see above).
+        const double log_two_pi_x = x < std::numeric_limits<double>::max() / two_pi
+                                        ? std::log(two_pi * x)
+                                        : ln_two_pi + std::log(x);
+        return -0.5 * log_two_pi_x + std::log1p(s);
     }
     return log_bessel_i0(x) - x;
 }

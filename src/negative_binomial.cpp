@@ -1,11 +1,7 @@
 #include "libstats/distributions/negative_binomial.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"

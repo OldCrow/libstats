@@ -416,11 +416,14 @@ bool InverseGammaDistribution::reciprocalIsUsable(double x, double& inv_x,
         edge_logpdf = detail::NEGATIVE_INFINITY;
         return false;
     }
-    inv_x = detail::ONE / x;
-    if (!std::isfinite(inv_x)) {
+    // 1/x overflows exactly when x <= 2^-1024. x is tested, not 1/x: GCC 14 and 16 take an
+    // overflowed 1/x to mean x = 0, and the callers' logDensityPastReciprocalRange(x) read +inf
+    // (AGENTS.md).
+    if (x <= 0x1p-1024) {
         edge_logpdf = detail::NEGATIVE_INFINITY;
         return false;
     }
+    inv_x = detail::ONE / x;
     edge_logpdf = detail::ZERO_DOUBLE;  // unused
     return true;
 }

@@ -1,13 +1,9 @@
 #include "libstats/distributions/gaussian.h"
 
+#include "libstats/common/cpu_detection_fwd.h"         // CPU feature queries (lightweight)
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
-#include "libstats/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
-#include "libstats/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
-#include "libstats/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
+#include "libstats/common/platform_constants_fwd.h"    // Parallel thresholds (lightweight)
+#include "libstats/common/simd_policy_fwd.h"           // SIMD policy decisions (lightweight)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/parallel_batch_fit.h"

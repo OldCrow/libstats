@@ -1,9 +1,6 @@
 #include "libstats/distributions/gumbel.h"
 
 #include "libstats/common/distribution_impl_common.h"
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
