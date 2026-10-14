@@ -104,8 +104,14 @@ anything unexplained.
      `2026-10-13T*` bundles.
   5. R3: costs against v2.4.1 on clang-cl, and the timing tests.
   6. R9: the stress test (no TSan on Windows).
-- **K (AVX2, AppleClang 15):** R2 and R8 done (above); R1 (Release), R3
-  and R9 under TSan follow.
+- **K (AVX2, AppleClang 15): done at `d1adc95`** [DERIVED, 2026-10-14].
+  - R1: Release 0 warnings, 132/132.
+  - R9: TSan build 0 warnings. The seven concurrency binaries and the whole
+    suite pass with 0 reports; stress 136/136 with no #180 skips.
+  - R3: timing 14/14. 49 NEW AUTO gaps, all the R8 rows that now go
+    PARALLEL from 1e4; costs stable against 2026-10-04, apart from Gamma(20)
+    logpdf +13% and Student-t(1000) cdf +8% (accuracy fixes).
+  - Evidence: `docs/bench-evidence/2026-10-14-kabylake-{r9-tsan,v242-cost}/`.
 - Note on `794f515`'s message: the discrete and CDF rows' NEVER → 1–4k
   also reflect #191's slice fix (2026-10-07/08). K's captures from that
   night were never committed, so the comparison base was `6f86996`.
@@ -694,6 +700,17 @@ machine whose table changed. Inputs: "Trends from the v2.5.0 captures".
   table value by more than one grid step. About 30 rows.
 - **kAvx2 and kAvx are K's**: Z's capped AVX2/AVX captures (Zen 4 cache
   and clock) confirm the direction of a K move, never supply the value.
+  The same two rules apply, with K's fork threshold [user, 2026-10-14]:
+  - **Fork threshold 4096 on every K tree.** `get_min_elements_for_parallel()`
+    reads the CPU's runtime features, and K's CPU has AVX2 under the AVX
+    and SSE2 caps too.
+  - **A candidate at 4096 or 6144 is not a measured crossover.** Encode
+    4096 ("parallel once it forks") where the table says NEVER or a
+    lower value, as Z's rule reads.
+  - **The 2× spread rule as for Z.** Skip a row whose three runs spread
+    more than 2×, unless its maximum still clears the table value by more
+    than one grid step.
+  - **Inputs:** K's `2026-10-13T*_sha-d1adc95` bundles, derived by script.
 - **No kSse2 table in v2.5.0**: Z's 26 and K's 18 SSE2-vs-AVX rows are
   its evidence, filed as a v3 input with both bundles; delegation to kAvx
   stays.

@@ -1,0 +1,25 @@
+Running main() from googletest/src/gtest_main.cc
+[==========] Running 8 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 8 tests from SnapshotConsistency
+[ RUN      ] SnapshotConsistency.BinomialPmfUnderSetP
+[       OK ] SnapshotConsistency.BinomialPmfUnderSetP (815 ms)
+[ RUN      ] SnapshotConsistency.BinomialCdfUnderSetN
+[       OK ] SnapshotConsistency.BinomialCdfUnderSetN (318 ms)
+[ RUN      ] SnapshotConsistency.PoissonPmfUnderSetLambda
+[       OK ] SnapshotConsistency.PoissonPmfUnderSetLambda (401 ms)
+[ RUN      ] SnapshotConsistency.GammaQuantileUnderSetParameters
+[       OK ] SnapshotConsistency.GammaQuantileUnderSetParameters (1359 ms)
+[ RUN      ] SnapshotConsistency.BinomialBatchesUnderSetP
+[       OK ] SnapshotConsistency.BinomialBatchesUnderSetP (3481 ms)
+[ RUN      ] SnapshotConsistency.NegativeBinomialBatchesUnderSetP
+[       OK ] SnapshotConsistency.NegativeBinomialBatchesUnderSetP (3355 ms)
+[ RUN      ] SnapshotConsistency.VonMisesCdfBatchUnderSetKappa
+[       OK ] SnapshotConsistency.VonMisesCdfBatchUnderSetKappa (2727 ms)
+[ RUN      ] SnapshotConsistency.BetaBoundaryBatchUnderSetAlpha
+[       OK ] SnapshotConsistency.BetaBoundaryBatchUnderSetAlpha (457 ms)
+[----------] 8 tests from SnapshotConsistency (12917 ms total)
+
+[----------] Global test environment tear-down
+[==========] 8 tests from 1 test suite ran. (12917 ms total)
+[  PASSED  ] 8 tests.

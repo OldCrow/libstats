@@ -1,0 +1,269 @@
+Test project /Users/wolfman/Development/libstats/build-tsan
+        Start   1: test_constants
+        Start   2: test_cpu_detection
+  1/132 Test   #1: test_constants .................................   Passed    1.06 sec
+        Start   3: test_simd_comprehensive
+  2/132 Test   #2: test_cpu_detection .............................   Passed    1.27 sec
+        Start   4: test_platform_optimizations
+  3/132 Test   #3: test_simd_comprehensive ........................   Passed    1.29 sec
+        Start   5: test_simd_policy
+  4/132 Test   #4: test_platform_optimizations ....................   Passed    1.83 sec
+        Start   6: test_simd_dispatch_gates
+  5/132 Test   #5: test_simd_policy ...............................   Passed    0.81 sec
+        Start   7: test_simd_neon_exp_accuracy
+  6/132 Test   #6: test_simd_dispatch_gates .......................   Passed    0.80 sec
+        Start   8: test_simd_neon_log_accuracy
+  7/132 Test   #7: test_simd_neon_exp_accuracy ....................   Passed    1.19 sec
+        Start   9: test_simd_neon_cos_accuracy
+  8/132 Test   #8: test_simd_neon_log_accuracy ....................   Passed    0.86 sec
+        Start  11: test_numerical_safety
+  9/132 Test   #9: test_simd_neon_cos_accuracy ....................   Passed    0.89 sec
+        Start  12: test_error_handling_comprehensive
+ 10/132 Test  #11: test_numerical_safety ..........................   Passed    1.33 sec
+        Start  13: test_math_comprehensive
+ 11/132 Test  #12: test_error_handling_comprehensive ..............   Passed    1.19 sec
+        Start  14: test_statistical_utilities
+ 12/132 Test  #13: test_math_comprehensive ........................   Passed    0.79 sec
+        Start  15: test_discrete_analysis
+ 13/132 Test  #14: test_statistical_utilities .....................   Passed    0.82 sec
+        Start  16: test_goodness_of_fit
+ 14/132 Test  #15: test_discrete_analysis .........................   Passed    0.82 sec
+        Start  17: test_thread_pool
+ 15/132 Test  #16: test_goodness_of_fit ...........................   Passed    0.88 sec
+        Start  18: test_work_stealing_pool
+ 16/132 Test  #17: test_thread_pool ...............................   Passed    0.90 sec
+        Start  19: test_parallel_execution_integration
+ 17/132 Test  #18: test_work_stealing_pool ........................   Passed    0.91 sec
+        Start  20: test_parallel_execution_comprehensive
+ 18/132 Test  #19: test_parallel_execution_integration ............   Passed    0.84 sec
+        Start  21: test_benchmark_basic
+ 19/132 Test  #21: test_benchmark_basic ...........................   Passed    0.93 sec
+        Start  23: test_performance_dispatcher
+ 20/132 Test  #23: test_performance_dispatcher ....................   Passed    0.79 sec
+        Start  24: test_system_capabilities
+ 21/132 Test  #20: test_parallel_execution_comprehensive ..........   Passed    2.87 sec
+        Start  25: test_performance_initialization
+ 22/132 Test  #24: test_system_capabilities .......................   Passed    0.80 sec
+        Start  26: test_gaussian_basic
+ 23/132 Test  #25: test_performance_initialization ................   Passed    0.87 sec
+        Start  27: test_gaussian_enhanced
+ 24/132 Test  #26: test_gaussian_basic ............................   Passed    1.35 sec
+        Start  28: test_gaussian_analysis
+ 25/132 Test  #27: test_gaussian_enhanced .........................   Passed    1.35 sec
+        Start  29: test_poisson_analysis
+ 26/132 Test  #28: test_gaussian_analysis .........................   Passed    1.01 sec
+        Start  30: test_distribution_analysis
+ 27/132 Test  #29: test_poisson_analysis ..........................   Passed    0.86 sec
+        Start  31: test_batch_math_regressions
+ 28/132 Test  #30: test_distribution_analysis .....................   Passed    1.06 sec
+        Start  32: test_exponential_basic
+ 29/132 Test  #31: test_batch_math_regressions ....................   Passed    0.85 sec
+        Start  33: test_exponential_enhanced
+ 30/132 Test  #32: test_exponential_basic .........................   Passed    0.88 sec
+        Start  34: test_discrete_basic
+ 31/132 Test  #33: test_exponential_enhanced ......................   Passed    1.22 sec
+        Start  35: test_discrete_enhanced
+ 32/132 Test  #34: test_discrete_basic ............................   Passed    0.97 sec
+        Start  36: test_atomic_parameters
+ 33/132 Test  #35: test_discrete_enhanced .........................   Passed    1.21 sec
+        Start  37: test_uniform_basic
+ 34/132 Test  #37: test_uniform_basic .............................   Passed    0.86 sec
+        Start  38: test_uniform_enhanced
+ 35/132 Test  #36: test_atomic_parameters .........................   Passed    2.53 sec
+        Start  39: test_poisson_basic
+ 36/132 Test  #38: test_uniform_enhanced ..........................   Passed    1.26 sec
+        Start  40: test_poisson_enhanced
+ 37/132 Test  #39: test_poisson_basic .............................   Passed    0.94 sec
+        Start  41: test_gamma_basic
+ 38/132 Test  #40: test_poisson_enhanced ..........................   Passed    1.30 sec
+        Start  42: test_gamma_enhanced
+ 39/132 Test  #41: test_gamma_basic ...............................   Passed    1.08 sec
+        Start  43: test_chi_squared_basic
+ 40/132 Test  #42: test_gamma_enhanced ............................   Passed    1.11 sec
+        Start  44: test_chi_squared_enhanced
+ 41/132 Test  #43: test_chi_squared_basic .........................   Passed    1.18 sec
+        Start  45: test_student_t_basic
+ 42/132 Test  #44: test_chi_squared_enhanced ......................   Passed    0.81 sec
+        Start  46: test_student_t_enhanced
+ 43/132 Test  #45: test_student_t_basic ...........................   Passed    1.09 sec
+        Start  47: test_beta_basic
+ 44/132 Test  #47: test_beta_basic ................................   Passed    1.01 sec
+        Start  48: test_beta_enhanced
+ 45/132 Test  #48: test_beta_enhanced .............................   Passed    1.13 sec
+        Start  49: test_lognormal_basic
+ 46/132 Test  #46: test_student_t_enhanced ........................   Passed    2.71 sec
+        Start  50: test_lognormal_enhanced
+ 47/132 Test  #49: test_lognormal_basic ...........................   Passed    0.84 sec
+        Start  51: test_pareto_basic
+ 48/132 Test  #50: test_lognormal_enhanced ........................   Passed    1.12 sec
+        Start  52: test_pareto_enhanced
+ 49/132 Test  #51: test_pareto_basic ..............................   Passed    0.91 sec
+        Start  53: test_weibull_basic
+ 50/132 Test  #52: test_pareto_enhanced ...........................   Passed    0.93 sec
+        Start  54: test_weibull_enhanced
+ 51/132 Test  #53: test_weibull_basic .............................   Passed    0.84 sec
+        Start  55: test_rayleigh_basic
+ 52/132 Test  #54: test_weibull_enhanced ..........................   Passed    0.86 sec
+        Start  56: test_rayleigh_enhanced
+ 53/132 Test  #55: test_rayleigh_basic ............................   Passed    0.86 sec
+        Start  57: test_von_mises_basic
+ 54/132 Test  #56: test_rayleigh_enhanced .........................   Passed    0.91 sec
+        Start  58: test_von_mises_enhanced
+ 55/132 Test  #57: test_von_mises_basic ...........................   Passed    0.87 sec
+        Start  59: test_bessel_tier
+ 56/132 Test  #58: test_von_mises_enhanced ........................   Passed    0.84 sec
+        Start  60: test_trig_ulp_gates
+ 57/132 Test  #59: test_bessel_tier ...............................   Passed    0.88 sec
+        Start  61: test_log_special_gates
+ 58/132 Test  #60: test_trig_ulp_gates ............................   Passed    0.87 sec
+        Start  62: test_batch_nan_gates
+ 59/132 Test  #61: test_log_special_gates .........................   Passed    0.88 sec
+        Start  63: test_copy_move_cache
+ 60/132 Test  #62: test_batch_nan_gates ...........................   Passed    0.90 sec
+        Start  64: test_support_boundary_gates
+ 61/132 Test  #63: test_copy_move_cache ...........................   Passed    0.99 sec
+        Start  65: test_probit_accuracy
+ 62/132 Test  #64: test_support_boundary_gates ....................   Passed    0.89 sec
+        Start  66: test_incomplete_gamma_beta_accuracy
+ 63/132 Test  #65: test_probit_accuracy ...........................   Passed    0.83 sec
+        Start  67: test_gamma_quantile_accuracy
+ 64/132 Test  #66: test_incomplete_gamma_beta_accuracy ............   Passed    0.91 sec
+        Start  68: test_beta_quantile_accuracy
+ 65/132 Test  #67: test_gamma_quantile_accuracy ...................   Passed    0.92 sec
+        Start  69: test_student_t_tails
+ 66/132 Test  #68: test_beta_quantile_accuracy ....................   Passed    0.94 sec
+        Start  70: test_log_beta_and_pvalues
+ 67/132 Test  #69: test_student_t_tails ...........................   Passed    0.87 sec
+        Start  71: test_tail_and_tie_accuracy
+ 68/132 Test  #70: test_log_beta_and_pvalues ......................   Passed    0.86 sec
+        Start  72: test_gamma_density_accuracy
+ 69/132 Test  #71: test_tail_and_tie_accuracy .....................   Passed    0.93 sec
+        Start  73: test_vector_log1p
+ 70/132 Test  #72: test_gamma_density_accuracy ....................   Passed    0.86 sec
+        Start  74: test_vector_expm1
+ 71/132 Test  #73: test_vector_log1p ..............................   Passed    0.85 sec
+        Start  75: test_log1p_density_batches
+ 72/132 Test  #74: test_vector_expm1 ..............................   Passed    0.84 sec
+        Start  76: test_discrete_pmf_accuracy
+ 73/132 Test  #75: test_log1p_density_batches .....................   Passed    0.85 sec
+        Start  77: test_snapshot_consistency
+ 74/132 Test  #76: test_discrete_pmf_accuracy .....................   Passed    0.87 sec
+        Start  80: test_contract_gates
+ 75/132 Test  #80: test_contract_gates ............................   Passed    4.35 sec
+        Start  81: test_survival_tails
+ 76/132 Test  #81: test_survival_tails ............................   Passed    0.98 sec
+        Start  82: check_inline_member_definitions
+ 77/132 Test  #82: check_inline_member_definitions ................   Passed    0.27 sec
+        Start  84: test_distribution_identities
+ 78/132 Test  #84: test_distribution_identities ...................   Passed    3.48 sec
+        Start  85: test_io_fit_fuzz
+ 79/132 Test  #85: test_io_fit_fuzz ...............................   Passed    3.49 sec
+        Start  86: test_vonmises_cdf_accuracy
+ 80/132 Test  #86: test_vonmises_cdf_accuracy .....................   Passed    1.11 sec
+        Start  87: test_von_mises_tails
+ 81/132 Test  #87: test_von_mises_tails ...........................   Passed    1.34 sec
+        Start  88: test_lognormal_cdf_accuracy
+ 82/132 Test  #77: test_snapshot_consistency ......................   Passed   15.78 sec
+        Start  89: test_gaussian_cdf_accuracy
+ 83/132 Test  #88: test_lognormal_cdf_accuracy ....................   Passed    0.95 sec
+        Start  90: test_parallel_exception_propagation
+ 84/132 Test  #89: test_gaussian_cdf_accuracy .....................   Passed    1.02 sec
+        Start  91: test_binomial_basic
+ 85/132 Test  #91: test_binomial_basic ............................   Passed    0.99 sec
+        Start  92: test_binomial_enhanced
+ 86/132 Test  #90: test_parallel_exception_propagation ............   Passed    1.70 sec
+        Start  93: test_negative_binomial_basic
+ 87/132 Test  #92: test_binomial_enhanced .........................   Passed    0.88 sec
+        Start  94: test_negative_binomial_enhanced
+ 88/132 Test  #93: test_negative_binomial_basic ...................   Passed    1.01 sec
+        Start  95: test_geometric_basic
+ 89/132 Test  #94: test_negative_binomial_enhanced ................   Passed    0.89 sec
+        Start  96: test_geometric_enhanced
+ 90/132 Test  #95: test_geometric_basic ...........................   Passed    0.91 sec
+        Start  97: test_discrete_quantile_bounds
+ 91/132 Test  #96: test_geometric_enhanced ........................   Passed    0.93 sec
+        Start  98: test_laplace_basic
+ 92/132 Test  #97: test_discrete_quantile_bounds ..................   Passed    0.90 sec
+        Start  99: test_laplace_enhanced
+ 93/132 Test  #98: test_laplace_basic .............................   Passed    0.91 sec
+        Start 100: test_cauchy_basic
+ 94/132 Test  #99: test_laplace_enhanced ..........................   Passed    0.96 sec
+        Start 101: test_cauchy_enhanced
+ 95/132 Test #100: test_cauchy_basic ..............................   Passed    0.90 sec
+        Start 102: test_half_normal_basic
+ 96/132 Test #101: test_cauchy_enhanced ...........................   Passed    0.89 sec
+        Start 103: test_half_normal_enhanced
+ 97/132 Test #102: test_half_normal_basic .........................   Passed    0.87 sec
+        Start 104: test_truncated_normal_basic
+ 98/132 Test #103: test_half_normal_enhanced ......................   Passed    0.87 sec
+        Start 105: test_truncated_normal_enhanced
+ 99/132 Test #104: test_truncated_normal_basic ....................   Passed    0.86 sec
+        Start 106: test_bernoulli_basic
+100/132 Test #105: test_truncated_normal_enhanced .................   Passed    1.17 sec
+        Start 107: test_bernoulli_enhanced
+101/132 Test #106: test_bernoulli_basic ...........................   Passed    0.91 sec
+        Start 108: test_erlang_basic
+102/132 Test #107: test_bernoulli_enhanced ........................   Passed    0.87 sec
+        Start 109: test_erlang_enhanced
+103/132 Test #108: test_erlang_basic ..............................   Passed    1.24 sec
+        Start 110: test_fisher_f_basic
+104/132 Test #109: test_erlang_enhanced ...........................   Passed    0.96 sec
+        Start 111: test_fisher_f_enhanced
+105/132 Test #110: test_fisher_f_basic ............................   Passed    0.87 sec
+        Start 112: test_inverse_gamma_basic
+106/132 Test #111: test_fisher_f_enhanced .........................   Passed    1.29 sec
+        Start 113: test_inverse_gamma_enhanced
+107/132 Test #112: test_inverse_gamma_basic .......................   Passed    0.94 sec
+        Start 114: test_logistic_basic
+108/132 Test #113: test_inverse_gamma_enhanced ....................   Passed    0.86 sec
+        Start 115: test_logistic_enhanced
+109/132 Test #114: test_logistic_basic ............................   Passed    1.27 sec
+        Start 116: test_gumbel_basic
+110/132 Test #115: test_logistic_enhanced .........................   Passed    0.91 sec
+        Start 117: test_gumbel_enhanced
+111/132 Test #116: test_gumbel_basic ..............................   Passed    0.91 sec
+        Start 118: test_integration_workflow
+112/132 Test #117: test_gumbel_enhanced ...........................   Passed    0.87 sec
+        Start 119: test_copy_move_fix
+113/132 Test #118: test_integration_workflow ......................   Passed    1.12 sec
+        Start 120: test_dynamic_linking
+114/132 Test #119: test_copy_move_fix .............................   Passed    0.91 sec
+        Start 121: test_gaussian_basic_dynamic
+115/132 Test #120: test_dynamic_linking ...........................   Passed    1.71 sec
+        Start 122: test_exponential_basic_dynamic
+116/132 Test #121: test_gaussian_basic_dynamic ....................   Passed    1.50 sec
+        Start 124: test_math_comprehensive_timing_split_names
+117/132 Test #124: test_math_comprehensive_timing_split_names .....   Passed    0.53 sec
+        Start 126: test_gaussian_enhanced_timing_split_names
+118/132 Test #122: test_exponential_basic_dynamic .................   Passed    0.89 sec
+        Start 128: test_gamma_enhanced_timing_split_names
+119/132 Test #126: test_gaussian_enhanced_timing_split_names ......   Passed    0.51 sec
+        Start 130: test_discrete_enhanced_timing_split_names
+120/132 Test #128: test_gamma_enhanced_timing_split_names .........   Passed    0.54 sec
+        Start 132: test_exponential_enhanced_timing_split_names
+121/132 Test #130: test_discrete_enhanced_timing_split_names ......   Passed    0.55 sec
+        Start 134: test_poisson_enhanced_timing_split_names
+122/132 Test #132: test_exponential_enhanced_timing_split_names ...   Passed    0.55 sec
+        Start 136: test_uniform_enhanced_timing_split_names
+123/132 Test #134: test_poisson_enhanced_timing_split_names .......   Passed    0.54 sec
+        Start 138: test_cauchy_enhanced_timing_split_names
+124/132 Test #136: test_uniform_enhanced_timing_split_names .......   Passed    0.57 sec
+        Start 140: test_laplace_enhanced_timing_split_names
+125/132 Test #138: test_cauchy_enhanced_timing_split_names ........   Passed    0.60 sec
+        Start 142: test_lognormal_enhanced_timing_split_names
+126/132 Test #140: test_laplace_enhanced_timing_split_names .......   Passed    0.59 sec
+        Start 144: test_pareto_enhanced_timing_split_names
+127/132 Test #142: test_lognormal_enhanced_timing_split_names .....   Passed    0.57 sec
+        Start 146: test_rayleigh_enhanced_timing_split_names
+128/132 Test #144: test_pareto_enhanced_timing_split_names ........   Passed    0.60 sec
+        Start 148: test_weibull_enhanced_timing_split_names
+129/132 Test #146: test_rayleigh_enhanced_timing_split_names ......   Passed    0.60 sec
+130/132 Test #148: test_weibull_enhanced_timing_split_names .......   Passed    0.60 sec
+        Start  79: test_concurrency_gates
+131/132 Test  #79: test_concurrency_gates .........................   Passed    5.64 sec
+        Start  83: test_concurrency_stress
+132/132 Test  #83: test_concurrency_stress ........................   Passed   92.63 sec
+
+100% tests passed out of 132
+
+Total Test time (real) = 174.18 sec
