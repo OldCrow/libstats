@@ -1065,6 +1065,19 @@ series left to swap). `beta.cpp`, `simd_dispatch.cpp`, `pareto.cpp`
 also changed here since this note was first written. `vector_log1p` and
 `vector_expm1` point at corvus once corvus #45 lands.
 
+Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
+- `bessel.h`: the Tier 1 I₀ guard below 1e-8 and the log(2πx) split. If
+  corvus replaces the Bessel helpers, its versions need both edges.
+- `laplace.cpp` and `inverse_gamma.cpp`: operand-tested overflow guards
+  (AGENTS.md, "Overflow-guard rule"). Keep the operand form in any merged
+  guard.
+- Deleted code: `dispatch_utils.h` (`executeWithStrategy`),
+  `distribution_common.h` (the generic `validate*Parameter` helpers) and
+  `distribution_meta.h` (`is_delegation_wrapper`). The corvus branch still
+  defines all three, but nothing calls them there or in pylibstats,
+  libhmm or corvus (checked 2026-10-14). The merge takes the deletions,
+  along with the `using` lines in each `src/*.cpp`.
+
 ## Decided [DERIVED]
 - **Windows performance build is clang-cl [user, 2026-10-05]**, with
   cl.exe's `/arch:` flags (`/arch:AVX2` = AVX2 + FMA, F16C, BMI1/2,
