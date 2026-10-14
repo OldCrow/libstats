@@ -66,8 +66,9 @@ at the new head.
 - Both are staged, not committed. Commit messages are in the session's
   `scratchpad/commit-msgs/14-r2-avx2.txt` and `15-r8-k.txt`.
 
-Next: Z and M rerun R1, R2 and R8 at `d1adc95`. Then the table rows
-[user's decision], then R6b.
+Next: Z and M rerun R1, R2 and R8 at `d1adc95`. Z done 2026-10-14 (its
+status line; #277 filed). Then the table rows under the 2026-10-14 rules
+(R8), then R6b.
 
 **At `d1adc95`, per machine [OPEN, 2026-10-13].** Code head `d1adc95`;
 the branch tip may be later with docs and data only. `git fetch`, a clean
@@ -245,6 +246,8 @@ Status by machine (each machine edits only its own line):
   `0xbca4552040000000`), exact 0 at `3339fc1`, and K's AVX2 block does not
   show it (its worst p is 0.001, 4.3e-15). Scored against DBL_MIN, so a
   1.4e-16 absolute miss of an exact 0; within the contract (0 violations).
+  Filed as #277 in milestone #8 [user, 2026-10-14]: deferred, freeze head
+  unmoved; R6b adds the oracle scoring note (R6).
   **Overnight 2026-10-13/14 done** [DERIVED, Z; 22:17–00:20, detached
   through WMI, screen locked; evidence
   `docs/bench-evidence/2026-10-13-zen4-clangcl-d1adc95/`, uncommitted]:
@@ -272,8 +275,9 @@ Status by machine (each machine edits only its own line):
   PDF, Gamma LogPDF, Geometric PDF/LogPDF, InverseGamma CDF, Poisson
   LogPDF, Uniform PDF/LogPDF). Nothing committed: the AVX-512 block, the
   four bundles, the evidence directory and this file await the user.
-  Next on Z: nothing until the user decides the table rows [R8] and
-  reviews the TruncatedNormal median row above.
+  Committed and pushed 2026-10-14 (`85e1350`, `4b3cc3d`, `575ab2a`).
+  Next on Z: the kAvx512 row update under the 2026-10-14 rules (R8), then
+  one R1; nothing else until then.
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
@@ -680,6 +684,25 @@ After Z and M [user's decision]: update only the rows v2.4.2 moved in
 each table, decide on a kSse2 table of its own, then R1 again on every
 machine whose table changed. Inputs: "Trends from the v2.5.0 captures".
 
+**Decided [user, 2026-10-14], from Z's `d1adc95` assessment
+(`2026-10-14T02-41-05Z` bundle, `cross_tier_assessment.txt`):**
+- **kAvx512 is updated from Z's captures alone**, rows that moved for a
+  code reason, with two rules: a candidate at Z's fork threshold (6144 or
+  8192) is not a measured crossover — encode 8192 where the table says
+  NEVER or a lower value, read as "parallel once it forks"; skip a row
+  whose three runs spread more than 2× unless its max still clears the
+  table value by more than one grid step. About 30 rows.
+- **kAvx2 and kAvx are K's**: Z's capped AVX2/AVX captures (Zen 4 cache
+  and clock) confirm the direction of a K move, never supply the value.
+- **No kSse2 table in v2.5.0**: Z's 26 and K's 18 SSE2-vs-AVX rows are
+  its evidence, filed as a v3 input with both bundles; delegation to kAvx
+  stays.
+- The 8 out-of-tier-order rows are spread-list or 256-floor artifacts:
+  the clamping rule, not table entries.
+- Rows are derived by script from the bundles, not by hand; per-row
+  override comments stay unless the comment itself is stale; one R1 per
+  machine whose table changed, after.
+
 Captures complete on K, M and Z at the freeze code (2026-10-06). Decided
 [user, 2026-10-06]: change only the rows that moved for a code reason,
 not a full re-derivation. But the rows under the two parallel-path
@@ -997,7 +1020,10 @@ a line on the new scoring (relative to DBL_MIN, ULP distance for
 subnormal references); many max_rel/p99 values move when the blocks are
 regenerated (e.g. Cauchy cdf 2.1e-12 → 2.8e-16 was the oracle's own
 cancellation; Cauchy pdf shows subnormal ULPs), and the sweep now has
-18,732 rows.
+18,732 rows. Also [user, 2026-10-14, #277]: a quantile whose reference
+is exactly 0 inside a scale-1 window joins the decided near-zero-crossing
+class and is scored on max_abs against the window width, so the AVX-512
+block's TruncatedNormal quantile row stops reading 6.3e291.
 
 ### R7 — release
 PR
