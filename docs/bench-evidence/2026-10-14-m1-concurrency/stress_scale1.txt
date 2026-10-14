@@ -1,0 +1,579 @@
+Running main() from /private/tmp/googletest-20260810-2300-tbptpn/googletest-1.18.0/googletest/src/gtest_main.cc
+[==========] Running 136 tests from 28 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from ConcurrencyStressMachine
+[ RUN      ] ConcurrencyStressMachine.CoreTopology
+[       OK ] ConcurrencyStressMachine.CoreTopology (0 ms)
+[----------] 1 test from ConcurrencyStressMachine (0 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Gaussian
+[ RUN      ] ConcurrencyStress_Gaussian.Readers
+[ reach    ] Gaussian: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Gaussian.Readers (2497 ms)
+[ RUN      ] ConcurrencyStress_Gaussian.Writers
+[       OK ] ConcurrencyStress_Gaussian.Writers (4562 ms)
+[ RUN      ] ConcurrencyStress_Gaussian.SeededSample
+[       OK ] ConcurrencyStress_Gaussian.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Gaussian.StrategyDifferential
+[ kernel   ] Gaussian           pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gaussian           logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gaussian           cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Gaussian.StrategyDifferential (48 ms)
+[ RUN      ] ConcurrencyStress_Gaussian.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Gaussian.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Gaussian (7108 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Exponential
+[ RUN      ] ConcurrencyStress_Exponential.Readers
+[ reach    ] Exponential: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Exponential.Readers (2411 ms)
+[ RUN      ] ConcurrencyStress_Exponential.Writers
+[       OK ] ConcurrencyStress_Exponential.Writers (2656 ms)
+[ RUN      ] ConcurrencyStress_Exponential.SeededSample
+[       OK ] ConcurrencyStress_Exponential.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Exponential.StrategyDifferential
+[ kernel   ] Exponential        pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Exponential        logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Exponential        cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Exponential.StrategyDifferential (46 ms)
+[ RUN      ] ConcurrencyStress_Exponential.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Exponential.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Exponential (5115 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Uniform
+[ RUN      ] ConcurrencyStress_Uniform.Readers
+[ reach    ] Uniform: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Uniform.Readers (2322 ms)
+[ RUN      ] ConcurrencyStress_Uniform.Writers
+[       OK ] ConcurrencyStress_Uniform.Writers (5269 ms)
+[ RUN      ] ConcurrencyStress_Uniform.SeededSample
+[       OK ] ConcurrencyStress_Uniform.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Uniform.StrategyDifferential
+[ kernel   ] Uniform            pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Uniform            logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Uniform            cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Uniform.StrategyDifferential (46 ms)
+[ RUN      ] ConcurrencyStress_Uniform.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Uniform.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Uniform (7639 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Discrete
+[ RUN      ] ConcurrencyStress_Discrete.Readers
+[ reach    ] Discrete: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Discrete.Readers (2351 ms)
+[ RUN      ] ConcurrencyStress_Discrete.Writers
+[       OK ] ConcurrencyStress_Discrete.Writers (5624 ms)
+[ RUN      ] ConcurrencyStress_Discrete.SeededSample
+[       OK ] ConcurrencyStress_Discrete.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Discrete.StrategyDifferential
+[ kernel   ] Discrete           pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Discrete           logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Discrete           cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Discrete.StrategyDifferential (45 ms)
+[ RUN      ] ConcurrencyStress_Discrete.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Discrete.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Discrete (8022 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Poisson
+[ RUN      ] ConcurrencyStress_Poisson.Readers
+[ reach    ] Poisson: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Poisson.Readers (2651 ms)
+[ RUN      ] ConcurrencyStress_Poisson.Writers
+[       OK ] ConcurrencyStress_Poisson.Writers (3002 ms)
+[ RUN      ] ConcurrencyStress_Poisson.SeededSample
+[       OK ] ConcurrencyStress_Poisson.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Poisson.StrategyDifferential
+[ kernel   ] Poisson            pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Poisson            logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Poisson            cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Poisson.StrategyDifferential (54 ms)
+[ RUN      ] ConcurrencyStress_Poisson.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Poisson.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Poisson (5709 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Gamma
+[ RUN      ] ConcurrencyStress_Gamma.Readers
+[ reach    ] Gamma: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Gamma.Readers (2781 ms)
+[ RUN      ] ConcurrencyStress_Gamma.Writers
+[       OK ] ConcurrencyStress_Gamma.Writers (5269 ms)
+[ RUN      ] ConcurrencyStress_Gamma.SeededSample
+[       OK ] ConcurrencyStress_Gamma.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Gamma.StrategyDifferential
+[ kernel   ] Gamma              pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gamma              logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Gamma              cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Gamma.StrategyDifferential (56 ms)
+[ RUN      ] ConcurrencyStress_Gamma.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Gamma.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Gamma (8107 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Bernoulli
+[ RUN      ] ConcurrencyStress_Bernoulli.Readers
+[ reach    ] Bernoulli: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Bernoulli.Readers (2461 ms)
+[ RUN      ] ConcurrencyStress_Bernoulli.Writers
+[       OK ] ConcurrencyStress_Bernoulli.Writers (2756 ms)
+[ RUN      ] ConcurrencyStress_Bernoulli.SeededSample
+[       OK ] ConcurrencyStress_Bernoulli.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Bernoulli.StrategyDifferential
+[ kernel   ] Bernoulli          pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Bernoulli          logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Bernoulli          cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Bernoulli.StrategyDifferential (48 ms)
+[ RUN      ] ConcurrencyStress_Bernoulli.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Bernoulli.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Bernoulli (5266 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Beta
+[ RUN      ] ConcurrencyStress_Beta.Readers
+[ reach    ] Beta: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Beta.Readers (2843 ms)
+[ RUN      ] ConcurrencyStress_Beta.Writers
+[       OK ] ConcurrencyStress_Beta.Writers (5693 ms)
+[ RUN      ] ConcurrencyStress_Beta.SeededSample
+[       OK ] ConcurrencyStress_Beta.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Beta.StrategyDifferential
+[ kernel   ] Beta               pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Beta               logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Beta               cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Beta.StrategyDifferential (54 ms)
+[ RUN      ] ConcurrencyStress_Beta.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Beta.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Beta (8591 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Binomial
+[ RUN      ] ConcurrencyStress_Binomial.Readers
+[ reach    ] Binomial: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Binomial.Readers (2877 ms)
+[ RUN      ] ConcurrencyStress_Binomial.Writers
+[       OK ] ConcurrencyStress_Binomial.Writers (4221 ms)
+[ RUN      ] ConcurrencyStress_Binomial.SeededSample
+[       OK ] ConcurrencyStress_Binomial.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Binomial.StrategyDifferential
+[ kernel   ] Binomial           pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Binomial           logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Binomial           cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Binomial.StrategyDifferential (60 ms)
+[ RUN      ] ConcurrencyStress_Binomial.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Binomial.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Binomial (7159 ms total)
+
+[----------] 5 tests from ConcurrencyStress_StudentT
+[ RUN      ] ConcurrencyStress_StudentT.Readers
+[ reach    ] StudentT: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_StudentT.Readers (2880 ms)
+[ RUN      ] ConcurrencyStress_StudentT.Writers
+[       OK ] ConcurrencyStress_StudentT.Writers (2290 ms)
+[ RUN      ] ConcurrencyStress_StudentT.SeededSample
+[       OK ] ConcurrencyStress_StudentT.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_StudentT.StrategyDifferential
+[ kernel   ] StudentT           pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] StudentT           logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] StudentT           cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_StudentT.StrategyDifferential (58 ms)
+[ RUN      ] ConcurrencyStress_StudentT.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_StudentT.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_StudentT (5230 ms total)
+
+[----------] 5 tests from ConcurrencyStress_ChiSquared
+[ RUN      ] ConcurrencyStress_ChiSquared.Readers
+[ reach    ] ChiSquared: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_ChiSquared.Readers (2903 ms)
+[ RUN      ] ConcurrencyStress_ChiSquared.Writers
+[       OK ] ConcurrencyStress_ChiSquared.Writers (2338 ms)
+[ RUN      ] ConcurrencyStress_ChiSquared.SeededSample
+[       OK ] ConcurrencyStress_ChiSquared.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_ChiSquared.StrategyDifferential
+[ kernel   ] ChiSquared         pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] ChiSquared         logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] ChiSquared         cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_ChiSquared.StrategyDifferential (65 ms)
+[ RUN      ] ConcurrencyStress_ChiSquared.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_ChiSquared.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_ChiSquared (5307 ms total)
+
+[----------] 5 tests from ConcurrencyStress_VonMises
+[ RUN      ] ConcurrencyStress_VonMises.Readers
+[ reach    ] VonMises: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_VonMises.Readers (3364 ms)
+[ RUN      ] ConcurrencyStress_VonMises.Writers
+[       OK ] ConcurrencyStress_VonMises.Writers (5880 ms)
+[ RUN      ] ConcurrencyStress_VonMises.SeededSample
+[       OK ] ConcurrencyStress_VonMises.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_VonMises.StrategyDifferential
+[ kernel   ] VonMises           pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] VonMises           logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] VonMises           cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_VonMises.StrategyDifferential (73 ms)
+[ RUN      ] ConcurrencyStress_VonMises.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_VonMises.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_VonMises (9318 ms total)
+
+[----------] 5 tests from ConcurrencyStress_LogNormal
+[ RUN      ] ConcurrencyStress_LogNormal.Readers
+[ reach    ] LogNormal: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_LogNormal.Readers (2658 ms)
+[ RUN      ] ConcurrencyStress_LogNormal.Writers
+[       OK ] ConcurrencyStress_LogNormal.Writers (3679 ms)
+[ RUN      ] ConcurrencyStress_LogNormal.SeededSample
+[       OK ] ConcurrencyStress_LogNormal.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_LogNormal.StrategyDifferential
+[ kernel   ] LogNormal          pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] LogNormal          logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] LogNormal          cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_LogNormal.StrategyDifferential (49 ms)
+[ RUN      ] ConcurrencyStress_LogNormal.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_LogNormal.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_LogNormal (6387 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Pareto
+[ RUN      ] ConcurrencyStress_Pareto.Readers
+[ reach    ] Pareto: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Pareto.Readers (2758 ms)
+[ RUN      ] ConcurrencyStress_Pareto.Writers
+[       OK ] ConcurrencyStress_Pareto.Writers (4095 ms)
+[ RUN      ] ConcurrencyStress_Pareto.SeededSample
+[       OK ] ConcurrencyStress_Pareto.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Pareto.StrategyDifferential
+[ kernel   ] Pareto             pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Pareto             logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Pareto             cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Pareto.StrategyDifferential (52 ms)
+[ RUN      ] ConcurrencyStress_Pareto.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Pareto.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Pareto (6907 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Rayleigh
+[ RUN      ] ConcurrencyStress_Rayleigh.Readers
+[ reach    ] Rayleigh: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Rayleigh.Readers (2652 ms)
+[ RUN      ] ConcurrencyStress_Rayleigh.Writers
+[       OK ] ConcurrencyStress_Rayleigh.Writers (1696 ms)
+[ RUN      ] ConcurrencyStress_Rayleigh.SeededSample
+[       OK ] ConcurrencyStress_Rayleigh.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Rayleigh.StrategyDifferential
+[ kernel   ] Rayleigh           pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Rayleigh           logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Rayleigh           cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Rayleigh.StrategyDifferential (45 ms)
+[ RUN      ] ConcurrencyStress_Rayleigh.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Rayleigh.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Rayleigh (4394 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Weibull
+[ RUN      ] ConcurrencyStress_Weibull.Readers
+[ reach    ] Weibull: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Weibull.Readers (3177 ms)
+[ RUN      ] ConcurrencyStress_Weibull.Writers
+[       OK ] ConcurrencyStress_Weibull.Writers (4891 ms)
+[ RUN      ] ConcurrencyStress_Weibull.SeededSample
+[       OK ] ConcurrencyStress_Weibull.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Weibull.StrategyDifferential
+[ kernel   ] Weibull            pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Weibull            logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Weibull            cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Weibull.StrategyDifferential (52 ms)
+[ RUN      ] ConcurrencyStress_Weibull.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Weibull.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Weibull (8121 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Cauchy
+[ RUN      ] ConcurrencyStress_Cauchy.Readers
+[ reach    ] Cauchy: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Cauchy.Readers (2987 ms)
+[ RUN      ] ConcurrencyStress_Cauchy.Writers
+[       OK ] ConcurrencyStress_Cauchy.Writers (4464 ms)
+[ RUN      ] ConcurrencyStress_Cauchy.SeededSample
+[       OK ] ConcurrencyStress_Cauchy.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Cauchy.StrategyDifferential
+[ kernel   ] Cauchy             pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Cauchy             logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Cauchy             cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Cauchy.StrategyDifferential (55 ms)
+[ RUN      ] ConcurrencyStress_Cauchy.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Cauchy.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Cauchy (7508 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Laplace
+[ RUN      ] ConcurrencyStress_Laplace.Readers
+[ reach    ] Laplace: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Laplace.Readers (2654 ms)
+[ RUN      ] ConcurrencyStress_Laplace.Writers
+[       OK ] ConcurrencyStress_Laplace.Writers (3923 ms)
+[ RUN      ] ConcurrencyStress_Laplace.SeededSample
+[       OK ] ConcurrencyStress_Laplace.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Laplace.StrategyDifferential
+[ kernel   ] Laplace            pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Laplace            logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Laplace            cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Laplace.StrategyDifferential (46 ms)
+[ RUN      ] ConcurrencyStress_Laplace.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Laplace.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Laplace (6625 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Logistic
+[ RUN      ] ConcurrencyStress_Logistic.Readers
+[ reach    ] Logistic: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Logistic.Readers (2549 ms)
+[ RUN      ] ConcurrencyStress_Logistic.Writers
+[       OK ] ConcurrencyStress_Logistic.Writers (4247 ms)
+[ RUN      ] ConcurrencyStress_Logistic.SeededSample
+[       OK ] ConcurrencyStress_Logistic.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Logistic.StrategyDifferential
+[ kernel   ] Logistic           pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Logistic           logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Logistic           cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Logistic.StrategyDifferential (50 ms)
+[ RUN      ] ConcurrencyStress_Logistic.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Logistic.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Logistic (6848 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Gumbel
+[ RUN      ] ConcurrencyStress_Gumbel.Readers
+[ reach    ] Gumbel: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Gumbel.Readers (2641 ms)
+[ RUN      ] ConcurrencyStress_Gumbel.Writers
+[       OK ] ConcurrencyStress_Gumbel.Writers (3963 ms)
+[ RUN      ] ConcurrencyStress_Gumbel.SeededSample
+[       OK ] ConcurrencyStress_Gumbel.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Gumbel.StrategyDifferential
+[ kernel   ] Gumbel             pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gumbel             logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Gumbel             cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_Gumbel.StrategyDifferential (50 ms)
+[ RUN      ] ConcurrencyStress_Gumbel.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Gumbel.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Gumbel (6656 ms total)
+
+[----------] 5 tests from ConcurrencyStress_HalfNormal
+[ RUN      ] ConcurrencyStress_HalfNormal.Readers
+[ reach    ] HalfNormal: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_HalfNormal.Readers (2329 ms)
+[ RUN      ] ConcurrencyStress_HalfNormal.Writers
+[       OK ] ConcurrencyStress_HalfNormal.Writers (1874 ms)
+[ RUN      ] ConcurrencyStress_HalfNormal.SeededSample
+[       OK ] ConcurrencyStress_HalfNormal.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_HalfNormal.StrategyDifferential
+[ kernel   ] HalfNormal         pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] HalfNormal         logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] HalfNormal         cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_HalfNormal.StrategyDifferential (41 ms)
+[ RUN      ] ConcurrencyStress_HalfNormal.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_HalfNormal.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_HalfNormal (4245 ms total)
+
+[----------] 5 tests from ConcurrencyStress_InverseGamma
+[ RUN      ] ConcurrencyStress_InverseGamma.Readers
+[ reach    ] InverseGamma: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_InverseGamma.Readers (3473 ms)
+[ RUN      ] ConcurrencyStress_InverseGamma.Writers
+[       OK ] ConcurrencyStress_InverseGamma.Writers (5712 ms)
+[ RUN      ] ConcurrencyStress_InverseGamma.SeededSample
+[       OK ] ConcurrencyStress_InverseGamma.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_InverseGamma.StrategyDifferential
+[ kernel   ] InverseGamma       pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] InverseGamma       logpdf n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] InverseGamma       cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_InverseGamma.StrategyDifferential (83 ms)
+[ RUN      ] ConcurrencyStress_InverseGamma.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_InverseGamma.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_InverseGamma (9270 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Erlang
+[ RUN      ] ConcurrencyStress_Erlang.Readers
+[ reach    ] Erlang: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Erlang.Readers (2700 ms)
+[ RUN      ] ConcurrencyStress_Erlang.Writers
+[       OK ] ConcurrencyStress_Erlang.Writers (4246 ms)
+[ RUN      ] ConcurrencyStress_Erlang.SeededSample
+[       OK ] ConcurrencyStress_Erlang.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Erlang.StrategyDifferential
+[ kernel   ] Erlang             pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] Erlang             logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Erlang             cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Erlang.StrategyDifferential (56 ms)
+[ RUN      ] ConcurrencyStress_Erlang.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Erlang.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Erlang (7004 ms total)
+
+[----------] 5 tests from ConcurrencyStress_FisherF
+[ RUN      ] ConcurrencyStress_FisherF.Readers
+[ reach    ] FisherF: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_FisherF.Readers (2884 ms)
+[ RUN      ] ConcurrencyStress_FisherF.Writers
+[       OK ] ConcurrencyStress_FisherF.Writers (4600 ms)
+[ RUN      ] ConcurrencyStress_FisherF.SeededSample
+[       OK ] ConcurrencyStress_FisherF.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_FisherF.StrategyDifferential
+[ kernel   ] FisherF            pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] FisherF            logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] FisherF            cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_FisherF.StrategyDifferential (64 ms)
+[ RUN      ] ConcurrencyStress_FisherF.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_FisherF.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_FisherF (7550 ms total)
+
+[----------] 5 tests from ConcurrencyStress_Geometric
+[ RUN      ] ConcurrencyStress_Geometric.Readers
+[ reach    ] Geometric: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_Geometric.Readers (2826 ms)
+[ RUN      ] ConcurrencyStress_Geometric.Writers
+[       OK ] ConcurrencyStress_Geometric.Writers (2802 ms)
+[ RUN      ] ConcurrencyStress_Geometric.SeededSample
+[       OK ] ConcurrencyStress_Geometric.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_Geometric.StrategyDifferential
+[ kernel   ] Geometric          pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Geometric          logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] Geometric          cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_Geometric.StrategyDifferential (56 ms)
+[ RUN      ] ConcurrencyStress_Geometric.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_Geometric.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_Geometric (5685 ms total)
+
+[----------] 5 tests from ConcurrencyStress_NegativeBinomial
+[ RUN      ] ConcurrencyStress_NegativeBinomial.Readers
+[ reach    ] NegativeBinomial: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_NegativeBinomial.Readers (3342 ms)
+[ RUN      ] ConcurrencyStress_NegativeBinomial.Writers
+[       OK ] ConcurrencyStress_NegativeBinomial.Writers (5672 ms)
+[ RUN      ] ConcurrencyStress_NegativeBinomial.SeededSample
+[       OK ] ConcurrencyStress_NegativeBinomial.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_NegativeBinomial.StrategyDifferential
+[ kernel   ] NegativeBinomial   pdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] NegativeBinomial   logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] NegativeBinomial   cdf    n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[       OK ] ConcurrencyStress_NegativeBinomial.StrategyDifferential (68 ms)
+[ RUN      ] ConcurrencyStress_NegativeBinomial.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_NegativeBinomial.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_NegativeBinomial (9084 ms total)
+
+[----------] 5 tests from ConcurrencyStress_TruncatedNormal
+[ RUN      ] ConcurrencyStress_TruncatedNormal.Readers
+[ reach    ] TruncatedNormal: logical 8 physical 8, fork 1536, batch n 3109, MAX_THROUGHPUT -> PARALLEL, scale 1
+[       OK ] ConcurrencyStress_TruncatedNormal.Readers (3024 ms)
+[ RUN      ] ConcurrencyStress_TruncatedNormal.Writers
+[       OK ] ConcurrencyStress_TruncatedNormal.Writers (18864 ms)
+[ RUN      ] ConcurrencyStress_TruncatedNormal.SeededSample
+[       OK ] ConcurrencyStress_TruncatedNormal.SeededSample (0 ms)
+[ RUN      ] ConcurrencyStress_TruncatedNormal.StrategyDifferential
+[ kernel   ] TruncatedNormal    pdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[ kernel   ] TruncatedNormal    logpdf n >= fork: PARALLEL =, MAX_THROUGHPUT =, AUTO =
+[ kernel   ] TruncatedNormal    cdf    n >= fork: PARALLEL batch, MAX_THROUGHPUT batch, AUTO batch
+[       OK ] ConcurrencyStress_TruncatedNormal.StrategyDifferential (57 ms)
+[ RUN      ] ConcurrencyStress_TruncatedNormal.WorkStealingCrossWaiting
+/Users/wolfman/Development/libstats-v2.4.2/tests/test_concurrency_stress.cpp:829: Skipped
+MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine
+
+[  SKIPPED ] ConcurrencyStress_TruncatedNormal.WorkStealingCrossWaiting (0 ms)
+[----------] 5 tests from ConcurrencyStress_TruncatedNormal (21947 ms total)
+
+[----------] Global test environment tear-down
+[==========] 136 tests from 28 test suites ran. (200816 ms total)
+[  PASSED  ] 109 tests.
+[  SKIPPED ] 27 tests, listed below:
+[  SKIPPED ] ConcurrencyStress_Gaussian.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Exponential.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Uniform.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Discrete.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Poisson.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Gamma.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Bernoulli.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Beta.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Binomial.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_StudentT.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_ChiSquared.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_VonMises.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_LogNormal.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Pareto.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Rayleigh.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Weibull.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Cauchy.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Laplace.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Logistic.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Gumbel.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_HalfNormal.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_InverseGamma.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Erlang.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_FisherF.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_Geometric.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_NegativeBinomial.WorkStealingCrossWaiting
+[  SKIPPED ] ConcurrencyStress_TruncatedNormal.WorkStealingCrossWaiting

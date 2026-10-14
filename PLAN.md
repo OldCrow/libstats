@@ -506,6 +506,42 @@ Status by machine (each machine edits only its own line):
   `2f506ae`: every machine repeats R1, R2's sweep compare (with survival
   rows now) and R8; K runs R9 under TSan and the cross-wait test for
   #180. Runs started at `5213b42` stand: the library code is the same.
+  **At `d1adc95`, 2026-10-13** [DERIVED, M; CMake now 4.4.4]: R1 done
+  (fresh `build-release`, 0 warnings; correctness 132/132 outside the
+  sandbox, 82 s). Inside and outside the sandbox `hw.l2cachesize` read
+  4 MB on macOS 27, so the cache-size concern did not reproduce here. R2
+  done: sweep 26,882 rows, 313 changed against the 5213b42 sweep, all in
+  Gamma/Erlang/InverseGamma (1 ulp CDF and survival at large shape,
+  0ab1b25) and von Mises κ ≥ 100 (1–2 ulp logpdf from the log I₀
+  rewrite, 8d3c9c7); oracle 190 self-checks, 0 contract violations;
+  against K's AVX2 block 11 cells worse on NEON, the largest 2.6x.
+  Committed `ea3e4f3`. Steps 3–6 ran overnight 2026-10-13/14 from one
+  detached script under `caffeinate -is` (M's AC sleep is 1 min;
+  `docs/bench-evidence/2026-10-13-m1-v242-cost/overnight_m_20261013.sh`,
+  the 2026-10-05 ambient gate, Backblaze paused by the user). Gates
+  (23:33, quiet): all 8 PARALLEL/VECTORIZED ratios 0.21–0.26. R8 done:
+  NEON bundle `2026-10-14T04-39-37Z_darwin-arm64_dev-v2.4.2_sha-d1adc95`
+  (three `--large` runs at 00:39, 00:46, 01:51; 7 min each, was 16;
+  `mediaanalysisd` during runs 2–3, so run-to-run spread 28 rows > 2×,
+  was 9). Against kNeon 48 of 81 rows would change, 33 moved since the
+  2026-10-05 bundle: the discrete rows and the von Mises and Student-t
+  CDFs NEVER → 1–6k, the continuous CDFs (Exponential, Rayleigh,
+  Weibull, Pareto, Cauchy, Laplace, TruncatedNormal) 25–50k → 4–8k,
+  Beta PDF/LogPDF NEVER → 8192/10k, as on K's tiers. R3 done
+  (`2026-10-13-m1-v242-cost/`): bench pair at 05:26 after the gate
+  relaxed to 20% at the 3 h mark; per call von Mises quantile 6.4–9.5×,
+  Student-t quantile at ν = 1e6 7×, Gamma(20) logpdf 5.7× forced
+  VECTORIZED, Beta large-shape logpdf scalar 3.3–3.5×; parallel
+  discrete and von Mises CDF batches 0.03–0.06×; 46 NEW AUTO-vs-best
+  gaps, all favouring PARALLEL at n = 1e4–1e5, 10 in both versions (R8
+  input). Timing suite 14/14 at 05:45. R9 done
+  (`2026-10-14-m1-concurrency/summary.txt`): fresh `build-tsan`, stress
+  at scale 1 109 passed + 27 `WorkStealingCrossWaiting` skips (K only),
+  the six targeted tests and the whole correctness ctest `-j2` 132/132,
+  **zero ThreadSanitizer reports**; the report path verified with a
+  two-line race under the same `TSAN_OPTIONS`; #183's positive control
+  no longer exists (fixed in `b0ac2ad`). M's steps 1–6 at `d1adc95` are
+  complete; bundle and evidence staged uncommitted, awaiting the user.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);

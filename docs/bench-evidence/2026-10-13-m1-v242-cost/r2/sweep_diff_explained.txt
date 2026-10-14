@@ -1,0 +1,53 @@
+R2 on M (NEON, AppleClang 21) at code head d1adc95 (branch tip df78931), 2026-10-13.
+Sweep: 26,882 data rows (26,885 lines with the 3-line banner), identical row count to the base.
+Base: M's final sweep of 2026-10-12 (banner commit=5b20fc2, run on the dirty tree that became
+5213b42; library code equal to 5213b42). Compared past the banner lines, keyed on
+(dist, method, p1, p2, x).
+
+Library commits between the base and d1adc95: 0ab1b25 (fix-7), 0d8ba77 (fix-8), 8d3c9c7 (fix-9).
+Every changed row is in a distribution those commits touch; nothing else moved.
+
+313 rows differ in value, 22 rows differ in key (x moved by 1 ulp):
+
+1. Gamma cdf (15) and survival (17), Erlang cdf (10) and survival (14): all exactly 1 ulp,
+   only at alpha = 10,000 (rate 0.001 and 0.3), 2e9 and 1e16. Cause: 0ab1b25 made the
+   rate-product correction second order (was first order; 81,000 eps at alpha = 1e20).
+   Erlang delegates to Gamma. Scalar and batch CDF moved together (SB); survival is scalar only.
+
+2. InverseGamma cdf (61) and survival (48): all exactly 1 ulp, across shapes 0.01 .. 1e16.
+   Same second-order correction (0ab1b25) plus 8d3c9c7's reciprocalIsUsable guard (tests the
+   operand, not c*x). InverseGamma quantile at (19.9, 1), p = 0.99: 5 ulp, the Newton inverse
+   following the 1-ulp CDF change.
+
+3. InverseGamma(3, 2) key shifts (22 rows): the sweep builds its x grid from the distribution's
+   own getQuantile(p) (tools/accuracy_sweep.cpp:14, :279). Two probe points moved by 1 ulp
+   (0.46698766623066396 -> ...407, 0.5974821317826404 -> ...403) after the CDF change above, so
+   the pdf/logpdf/cdf/survival rows at those x carry new keys; the old keys have no counterpart.
+   Not a value change.
+
+4. von Mises logpdf (66) and pdf (58): only at kappa >= 100 (100, 1000, 1e4, 1e8), scalar only.
+   logpdf moves 1-2 ulp; pdf = exp(logpdf) amplifies that to 1-744 ulp, the largest at values
+   ~1e-238 (744 ulp at 8.9e-238 is a relative change of 8e-14, i.e. 1.5 ulp of a logpdf near
+   -548). Cause: 8d3c9c7 rewrote log_bessel_i0 / log_bessel_i0_scaled (double-double ratio
+   recurrence below kappa = 50, 17-term asymptotic series above), which is the pdf normaliser
+   log I0(kappa); 0d8ba77 split the -2*kappa products where they overflow. Batch pdf/logpdf did
+   not move (B unchanged): only the scalar path's bits changed. The oracle decides whether the new values are closer; see oracle.log.
+
+Verdict: every difference is explained by fix-7/8/9; magnitudes are 1-2 ulp at the source.
+
+Oracle (accuracy_vs_mpmath.py, cleanroom venv: Python 3.14.8, mpmath 1.3.0; mp.dps=50): 190 self-checks
+passed, 0 contract violations (v2.4.1: 32), 3 betainc fallbacks (continued fraction). It rewrote only the
+NEON block of docs/ACCURACY_CHARACTERIZATION.md (lines 1243-1600; every hunk inside; git diff --stat
+shows that one file). Banner commit=df78931: the tree was at the branch tip, docs and data only over
+code head d1adc95.
+
+Block comparisons (compare_blocks.py):
+- neon_old_vs_new.txt: against the previous NEON block (2c5230a, 2026-10-04, 189 rows on the 18,732-row
+  grid): 216 rows now (27 survival rows added); 127 cells moved > 2x, 59 "worse". The grid grew between
+  the two, so the large max_abs movers (gamma/student_t logpdf, chi_squared/gamma quantile, beta/
+  inverse_gamma pdf) are new extreme probe points, in the decided categories of R2 step 4 (logpdf
+  near its zero crossing, quantiles with huge max_abs and small max_rel), not regressions. The
+  accuracy fixes show as von Mises pdf/logpdf 1e5-1e8x better, Cauchy CDF 7e3x, Geometric CDF 2e5x.
+- avx2_vs_neon.txt: against K's AVX2 block at the same head d1adc95 (same grid): 25 of 648 cells differ
+  > 2x, 11 worse on NEON, the largest 2.6x (fisher_f quantile 2.5e-13 -> 6.6e-13; uniform cdf 5e-17 ->
+  1.3e-16). No row far worse than its x86 counterpart: no stop-and-report.

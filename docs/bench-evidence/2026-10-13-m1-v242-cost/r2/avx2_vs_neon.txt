@@ -1,0 +1,27 @@
+old rows 216 new rows 216; only-old [] only-new []
+  binomial          survival scalar  max_abs    1.156e-14 ->   4.273e-15  better 2.7x
+  cauchy            logpdf   batch   p99_rel    3.376e-16 ->   7.911e-16  WORSE 2.3x
+  exponential       logpdf   scalar  max_abs    3.941e-15 ->   1.264e-15  better 3.1x
+  fisher_f          quantile scalar  max_abs   2.708e+285 ->  7.037e+285  WORSE 2.6x
+  fisher_f          quantile scalar  max_rel    2.527e-13 ->   6.567e-13  WORSE 2.6x
+  fisher_f          quantile scalar  p99_rel    2.527e-13 ->   6.567e-13  WORSE 2.6x
+  laplace           cdf      scalar  max_rel    4.306e-14 ->   9.707e-14  WORSE 2.3x
+  laplace           logpdf   scalar  max_rel       0.9175 ->     0.01422  better 64.5x
+  laplace           logpdf   scalar  p99_rel      1.17e-5 ->    4.582e-7  better 25.5x
+  lognormal         logpdf   scalar  max_rel    1.895e-15 ->     8.3e-16  better 2.3x
+  negative_binomial logpdf   batch   max_rel    4.756e-15 ->   1.264e-15  better 3.8x
+  negative_binomial logpdf   batch   p99_rel    2.792e-15 ->   1.052e-15  better 2.7x
+  negative_binomial logpdf   scalar  max_rel    4.756e-15 ->   1.264e-15  better 3.8x
+  negative_binomial logpdf   scalar  p99_rel    2.792e-15 ->   1.052e-15  better 2.7x
+  negative_binomial pdf      batch   max_abs    7.969e-16 ->   3.192e-16  better 2.5x
+  negative_binomial pdf      scalar  max_abs    7.969e-16 ->   3.192e-16  better 2.5x
+  rayleigh          logpdf   batch   max_rel    1.194e-15 ->   5.635e-16  better 2.1x
+  uniform           cdf      batch   max_abs    5.025e-17 ->   1.292e-16  WORSE 2.6x
+  uniform           cdf      batch   max_rel    7.682e-17 ->   1.709e-16  WORSE 2.2x
+  uniform           cdf      batch   p99_rel    7.141e-17 ->   1.657e-16  WORSE 2.3x
+  uniform           cdf      scalar  max_abs    5.025e-17 ->   1.292e-16  WORSE 2.6x
+  uniform           cdf      scalar  max_rel    7.682e-17 ->   1.709e-16  WORSE 2.2x
+  uniform           cdf      scalar  p99_rel    7.141e-17 ->   1.657e-16  WORSE 2.3x
+  uniform           quantile scalar  max_rel    1.908e-16 ->   6.285e-17  better 3.0x
+  uniform           quantile scalar  p99_rel    1.908e-16 ->   6.285e-17  better 3.0x
+25 cells moved > 2x (11 worse)
