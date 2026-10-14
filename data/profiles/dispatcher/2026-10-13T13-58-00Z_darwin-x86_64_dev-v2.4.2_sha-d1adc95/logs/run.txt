@@ -1,0 +1,18 @@
+2026-10-13T12:52:16Z load=4.11 R8 start sha=d1adc95 dirty=0
+2026-10-13T13:10:17Z load=2.50 oracle finished
+2026-10-13T13:10:17Z load=2.50 parallel_batch_gates waiting for load < 2.0
+2026-10-13T13:11:47Z load=1.67 parallel_batch_gates start (build/, Dev)
+2026-10-13T13:11:55Z load=1.93 parallel_batch_gates end exit=0
+2026-10-13T13:11:55Z load=1.93 tier AVX2 build=build-release start
+2026-10-13T13:54:30Z load=2.53 tier AVX build=build-cap-avx start
+2026-10-13T13:54:30Z load=2.53 system_inspector: System: 8 logical cores, AVX SIMD, 8192 KB L3 cache
+2026-10-13T13:54:30Z load=2.53 AVX run1 waiting for load < 2.0
+2026-10-13T13:58:00Z load=1.83 AVX run1 start
+2026-10-13T14:11:08Z load=3.12 AVX run1 end exit=0 rows=    7777
+2026-10-13T14:11:08Z load=3.12 AVX run2 waiting for load < 2.0
+2026-10-13T14:12:39Z load=1.98 AVX run2 start
+2026-10-13T14:25:47Z load=2.92 AVX run2 end exit=0 rows=    7777
+2026-10-13T14:25:47Z load=2.92 AVX run3 waiting for load < 2.0
+2026-10-13T14:26:47Z load=1.88 AVX run3 start
+2026-10-13T14:39:55Z load=4.41 AVX run3 end exit=0 rows=    7777
+2026-10-13T15:31:36Z load=4.47 R8 DONE sha=d1adc95

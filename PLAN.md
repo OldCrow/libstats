@@ -54,6 +54,21 @@ Filed in #8: #273, TruncatedNormal variance 0 for windows narrower than
 next: CI, label #274–#276 `fixed-on-branch`, then the AVX2 block and R8
 at the new head.
 
+**K at `d1adc95` [DERIVED, 2026-10-13]:**
+- CI was green 12/12 (run 38397309137), and #274–#276 are labelled.
+- R2: the AVX2 sweep's bits are identical to 14249cb (26,885 rows), with
+  190 self-checks and 0 contract violations. The block is regenerated.
+- R8: the AVX2, AVX and SSE2 bundles are under `2026-10-13T*_sha-d1adc95`,
+  with `cross_tier_assessment.txt` in the AVX2 bundle. 33–35 of 81 rows per
+  tier moved against `6f86996`. The discrete rows and the von Mises and
+  Student-t CDFs went from NEVER to 1–4k (#175/#176 measured before);
+  continuous rows cross sooner (ee11e62).
+- Both are staged, not committed. Commit messages are in the session's
+  `scratchpad/commit-msgs/14-r2-avx2.txt` and `15-r8-k.txt`.
+
+Next: Z and M rerun R1, R2 and R8 at `d1adc95`. Then the table rows
+[user's decision], then R6b.
+
 History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
 rename in `gamma.cpp` and `beta.cpp`), the `log1pmx_series` Horner
@@ -899,8 +914,8 @@ cancellation; Cauchy pdf shows subnormal ULPs), and the sweep now has
 ### R7 — release
 PR
 `dev/v2.4.2` → `main` closing every issue labelled `fixed-on-branch` (the
-record of truth: `gh issue list --label fixed-on-branch --state open`; 71 at
-`0ab1b25`, each with a comment naming its fix commit; #173's residual,
+record of truth: `gh issue list --label fixed-on-branch --state open`; 74 at
+`8d3c9c7`, each with a comment naming its fix commit; #173's residual,
 `std::cyl_bessel_i`'s signgam write, is #267 in v3.0.0). #211 (docs) closes
 at R6. The PR body lists them as `Closes #N`; CI
 green, including the sanitizer legs; merge; signed tag `v2.5.0`; GitHub
