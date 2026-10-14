@@ -226,6 +226,54 @@ Status by machine (each machine edits only its own line):
   bit-identical to `ee11e62`'s under both; correctness 90/91, the stress
   test failing only its strategy differential (#191's slice tail, R9;
   K fixes it [user]). R8 and the stress rerun wait for K's head.
+  **At `d1adc95` (branch tip `df78931`), 2026-10-13 evening** [DERIVED, Z]:
+  VS 2026 18.11 (MSVC 14.51, bundled clang-cl 22.1.3), fresh configures
+  of all five trees. R1: MSVC and clang-cl 0 warnings, correctness
+  132/132 each, Release CRT confirmed, tiers confirmed per tree
+  (AVX-512; capped AVX2, AVX, SSE2). R9: stress 109 passed + 27 skipped
+  (`WorkStealingCrossWaiting`, unreachable on Windows) under both, no
+  known-issue skips. R2: both sweeps 26,883 rows (plus the two banner
+  lines); against Z's `3339fc1` sweeps 1,074 (clang-cl) and 1,016 (MSVC)
+  rows changed across 27 distributions, 1,515 removed and 18,188 added
+  (the fix-5 grid and the survival rows); the eight fix rounds since.
+  Oracle (Python 3.14.7, mpmath 1.4.1, on Z) on both: 190 self-checks, 0
+  contract violations, 0 fallbacks. AVX-512 block regenerated from the
+  clang-cl sweep [user, 2026-10-13: clang-cl, header line updated];
+  uncommitted, awaiting the user. **Reported, not fixed:** the
+  TruncatedNormal quantile row reads max_rel 6.3e291 at p = 0.5 on both
+  compilers: `TruncatedNormal(0, 1)` Q(0.5) = −1.41e-16 (bits
+  `0xbca4552040000000`), exact 0 at `3339fc1`, and K's AVX2 block does not
+  show it (its worst p is 0.001, 4.3e-15). Scored against DBL_MIN, so a
+  1.4e-16 absolute miss of an exact 0; within the contract (0 violations).
+  **Overnight 2026-10-13/14 done** [DERIVED, Z; 22:17–00:20, detached
+  through WMI, screen locked; evidence
+  `docs/bench-evidence/2026-10-13-zen4-clangcl-d1adc95/`, uncommitted]:
+  clock 127.1–128.2 ms per pass before every phase (boost throughout),
+  phases started at 3.0–6.8% CPU. Speed gate alone: PARALLEL/VECTORIZED
+  0.237–0.265 at 1M, all eight under 0.75. R3 against v2.4.1 on clang-cl:
+  von Mises quantile 15.8–22.8× (18 → 293–416 ns), Student-t quantile at
+  ν ≥ 1e3 10.6–11.5×, Gamma(20) logpdf forced VECTORIZED 4.6–8.2×, Beta
+  large shapes forced SCALAR 5×; 45 NEW and 16 BOTH AUTO-vs-best gaps,
+  nearly all AUTO on VECTORIZED where PARALLEL wins 2–4× at n = 1e4–1e5
+  (Binomial, NegativeBinomial, Student-t, Gamma α ≥ 10, Beta(1000,1000)).
+  Timing 14/14. R8 on clang-cl, three `--large` runs per tier, 7,777 rows
+  each: bundles `2026-10-14T02-41-05Z` (AVX-512), `03-05-23Z` (AVX2),
+  `03-29-48Z` (AVX), `03-54-51Z` (SSE2), `_windows-x86_64_dev-v2.4.2_sha-df78931`;
+  `cross_tier_assessment.{py,txt}` in the AVX-512 bundle. Against the
+  tables, candidates differ by more than one grid step on 61 (kAvx512),
+  59 (kAvx2), 47 (AVX vs kAvx) and 60 (SSE2 vs kAvx) of 81 rows; against
+  Z's `8271f6e` captures (code `ee11e62`) 55/41/39/46 rows moved; against
+  K's `d1adc95` captures 40 (AVX2), 40 (AVX), 44 (SSE2) of 81 differ, Z
+  mostly later. Many Z candidates sit at 6144–8192, Z's fork threshold
+  (8192): PARALLEL wins as soon as it forks, so those rows read "the fork
+  threshold", not a measured crossover. Run-to-run spread > 2× on
+  26/28/24/15 rows per tier (AVX-512/AVX2/AVX/SSE2; K: 25–32). SSE2
+  differs from AVX on 26 rows; 8 rows out of tier order by > 2× (FisherF
+  PDF, Gamma LogPDF, Geometric PDF/LogPDF, InverseGamma CDF, Poisson
+  LogPDF, Uniform PDF/LogPDF). Nothing committed: the AVX-512 block, the
+  four bundles, the evidence directory and this file await the user.
+  Next on Z: nothing until the user decides the table rows [R8] and
+  reviews the TruncatedNormal median row above.
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
