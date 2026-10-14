@@ -1,0 +1,54 @@
+2026-10-13 23:29:05 load=10.24 batch start sha=ea3e4f3 dirty=0 build=/Users/wolfman/Development/libstats-v2.4.2/build-release tsan=/Users/wolfman/Development/libstats-v2.4.2/build-tsan gate=15% (relaxed 20% after 3 h) deadline=2026-10-14 12:00:00 l2cachesize=4194304
+2026-10-13 23:29:05 load=10.24 tier: Defined kernel symbols (nm -U) in build-release/libstats.a:   vector_*_neon: 10 system_inspector: System: 8 logical cores, NEON SIMD, 0 KB L3 cache
+2026-10-13 23:29:05 load=10.24 gates: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-13 23:33:38 load=3.16 gates: gate passed (<15%) ambient=8.86% top: 41.0%storeuid 10.0%UserNotificationCenter 9.8%Bartender
+2026-10-13 23:33:38 load=3.16 gates test_parallel_batch_gates: start
+2026-10-13 23:34:38 load=3.34 gates test_parallel_batch_gates: end exit=0
+2026-10-13 23:34:38 load=3.34 gates ratios:  Bernoulli(0.3) pmf: PARALLEL/VECTORIZED 0.260937 (2.51908 / 9.654 ms); Binomial(100, 0.3) pmf: PARALLEL/VECTORIZED 0.210002 (10.3067 / 49.079 ms); Binomial(100, 0.3) cdf: PARALLEL/VECTORIZED 0.214127 (25.2414 / 117.881 ms); Geometric(0.3) pmf: PARALLEL/VECTORIZED 0.211187 (9.82788 / 46.5363 ms); NegativeBinomial(5, 0.3) logpmf: PARALLEL/VECTORIZED 0.215261 (9.62054 / 44.6925 ms); NegativeBinomial(5, 0.3) cdf: PARALLEL/VECTORIZED 0.225348 (18.131 / 80.4577 ms); VonMises(0, 2) cdf: PARALLEL/VECTORIZED 0.218154 (24.8547 / 113.932 ms); StudentT(5) cdf: PARALLEL/VECTORIZED 0.219477 (15.7195 / 71.6222 ms);
+2026-10-13 23:34:38 load=3.34 R8 run1: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-14 00:39:37 load=2.25 R8 run1: gate passed (<15%) ambient=7.50% top: 15.0%locationd 5.9%com.apple.DriverKit-AppleBCMWLAN 5.4%airportd
+2026-10-14 00:39:37 load=2.25 R8 run1: start
+2026-10-14 00:46:38 load=6.00 R8 run1: end exit=0
+2026-10-14 00:46:38 load=6.00 R8 run1 rows=7777
+2026-10-14 00:46:38 load=6.00 R8 run2: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-14 00:46:59 load=4.81 R8 run2: gate passed (<15%) ambient=8.48% top: 8.1%backupd 4.7%diskimagesiod 4.0%com.apple.DriverKit-AppleBCMWLAN
+2026-10-14 00:46:59 load=4.81 R8 run2: start
+2026-10-14 00:53:59 load=5.58 R8 run2: end exit=0
+2026-10-14 00:53:59 load=5.58 R8 run2 rows=7777
+2026-10-14 00:53:59 load=5.58 R8 run3: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-14 01:51:45 load=1.87 R8 run3: gate passed (<15%) ambient=7.23% top: 84.7%mediaanalysisd 3.4%com.apple.DriverKit-AppleBCMWLAN 2.4%diskimagesiod
+2026-10-14 01:51:45 load=1.87 R8 run3: start
+2026-10-14 01:58:45 load=6.12 R8 run3: end exit=0
+2026-10-14 01:58:45 load=6.12 R8 run3 rows=7777
+2026-10-14 01:58:45 load=6.12 R3 bench: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-14 04:59:40 load=3.42 R3 bench: waited 3 h, gate RELAXED to 20%
+2026-10-14 05:26:13 load=2.41 R3 bench: gate passed (<20%) ambient=12.21% top: 7.1%Application 6.4%bzfilelist 4.4%trustd
+2026-10-14 05:26:13 load=2.41 R3 bench_v241: start
+2026-10-14 05:28:13 load=4.85 R3 bench_v241: end exit=0
+2026-10-14 05:28:13 load=4.85 R3 bench_v242: start
+2026-10-14 05:29:13 load=3.71 R3 bench_v242: end exit=0
+2026-10-14 05:29:14 load=3.71 R3 compare exit=0
+2026-10-14 05:29:14 load=3.71 R3 timing: waiting for ambient < 15% over two consecutive 10s windows
+2026-10-14 05:45:52 load=2.21 R3 timing: gate passed (<15%) ambient=14.38% top: 40.1%WindowServer 20.7%Claude 15.2%Claude
+2026-10-14 05:45:52 load=2.21 R3 timing ctest: start
+2026-10-14 05:46:52 load=1.97 R3 timing ctest: end exit=0
+2026-10-14 05:46:52 load=1.97 R3 timing: 100% tests passed out of 14
+2026-10-14 05:46:52 load=1.97 R9 TSan start TSAN_OPTIONS=log_path=/Users/wolfman/Development/libstats-m-20261013/r9/tsan_report suppressions=/Users/wolfman/Development/libstats-v2.4.2/tests/tsan.supp halt_on_error=0 second_deadlock_stack=1
+2026-10-14 05:46:52 load=1.97 R9 stress scale=1: start
+2026-10-14 05:50:52 load=5.65 R9 stress scale=1: end exit=0
+2026-10-14 05:50:52 load=5.65 R9 test_concurrency_gates: start
+2026-10-14 05:51:52 load=3.95 R9 test_concurrency_gates: end exit=0
+2026-10-14 05:51:52 load=3.95 R9 test_snapshot_consistency: start
+2026-10-14 05:52:52 load=2.97 R9 test_snapshot_consistency: end exit=0
+2026-10-14 05:52:52 load=2.97 R9 test_thread_pool: start
+2026-10-14 05:53:53 load=4.62 R9 test_thread_pool: end exit=0
+2026-10-14 05:53:53 load=4.62 R9 test_work_stealing_pool: start
+2026-10-14 05:54:53 load=3.84 R9 test_work_stealing_pool: end exit=0
+2026-10-14 05:54:53 load=3.84 R9 test_parallel_execution_integration: start
+2026-10-14 05:55:53 load=2.93 R9 test_parallel_execution_integration: end exit=0
+2026-10-14 05:55:53 load=2.93 R9 test_parallel_exception_propagation: start
+2026-10-14 05:56:53 load=2.83 R9 test_parallel_exception_propagation: end exit=0
+2026-10-14 05:56:53 load=2.83 R9 ctest correctness -j2 (scale 0.1): start
+2026-10-14 05:57:53 load=3.82 R9 ctest correctness -j2 (scale 0.1): end exit=0
+2026-10-14 05:57:53 load=3.82 R9 ctest: 100% tests passed out of 132 tsan_report_files=0
+2026-10-14 05:57:53 load=3.82 DONE

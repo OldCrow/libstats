@@ -1,0 +1,7 @@
+01:51:45 load=1.87 top: 90.9%mediaanalysisd 3.4%com.apple.DriverKit-AppleBCMWLAN 2.2%diskimagesiod
+01:52:45 load=5.60 top: 237.0%strategy_profile 80.8%bztransmit 1.4%com.apple.DriverKit-AppleBCMWLAN
+01:53:45 load=5.98 top: 231.2%strategy_profile 80.0%bztransmit 6.8%mediaanalysisd
+01:54:45 load=6.61 top: 260.1%strategy_profile 160.6%mediaanalysisd 9.7%Bartender
+01:55:45 load=5.24 top: 267.6%strategy_profile 72.9%bztransmit 54.4%mediaanalysisd
+01:56:45 load=6.89 top: 212.5%strategy_profile 170.2%mediaanalysisd 14.9%locationd
+01:57:45 load=6.96 top: 346.3%strategy_profile 108.2%mediaanalysisd 70.7%bztransmit

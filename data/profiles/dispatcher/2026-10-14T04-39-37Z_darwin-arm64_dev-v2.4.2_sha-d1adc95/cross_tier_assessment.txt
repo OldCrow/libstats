@@ -1,0 +1,91 @@
+== NEON: candidate vs current kNeon (rows > 1 grid step apart)
+  Bernoulli       PDF    table  NEVER -> cand   1024   runs 512/1024/1024  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Bernoulli       LogPDF table  NEVER -> cand   6144   runs 4096/6144/6144  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Bernoulli       CDF    table  NEVER -> cand   6144   runs 2048/512/6144  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Beta            PDF    table  NEVER -> cand   8192   runs 8192/10k/8192  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Beta            LogPDF table  NEVER -> cand    10k   runs 8192/10k/10k  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Binomial        PDF    table  NEVER -> cand   2048   runs 2048/256/2048  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Binomial        LogPDF table  NEVER -> cand   2048   runs 512/2048/2048  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Binomial        CDF    table  NEVER -> cand   2048   runs 1024/256/2048  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Cauchy          PDF    table    25k -> cand   100k   runs 100k/75k/100k  Oct05 runs 50k/50k/50k  MOVED since Oct05
+  Cauchy          CDF    table    25k -> cand   8192   runs 8192/6144/8192  Oct05 runs 25k/25k/25k  MOVED since Oct05
+  ChiSquared      PDF    table    512 -> cand    25k   runs 10k/25k/10k  Oct05 runs 10k/25k/25k  same as Oct05
+  ChiSquared      LogPDF table    128 -> cand    50k   runs 50k/50k/25k  Oct05 runs 75k/50k/75k  same as Oct05
+  ChiSquared      CDF    table     64 -> cand   2048   runs 512/2048/128  Oct05 runs 2048/2048/1024  same as Oct05
+  Discrete        PDF    table    50k -> cand   200k   runs 150k/200k/200k  Oct05 runs 100k/150k/100k  MOVED since Oct05
+  Discrete        LogPDF table    50k -> cand   200k   runs 200k/200k/200k  Oct05 runs 100k/150k/100k  MOVED since Oct05
+  Discrete        CDF    table  1000k -> cand    75k   runs 75k/75k/75k  Oct05 runs 100k/100k/75k  same as Oct05
+  Erlang          CDF    table   4096 -> cand   1024   runs 2048/1024/1024  Oct05 runs 2048/2048/64  same as Oct05
+  Exponential     PDF    table    25k -> cand    75k   runs 75k/75k/75k  Oct05 runs 75k/75k/75k  same as Oct05
+  Exponential     LogPDF table     64 -> cand   200k   runs 200k/150k/200k  Oct05 runs 200k/200k/200k  same as Oct05
+  Exponential     CDF    table    25k -> cand   8192   runs 8192/8192/8192  Oct05 runs 25k/25k/25k  MOVED since Oct05
+  FisherF         PDF    table   8192 -> cand   2048   runs 2048/128/256  Oct05 runs 2048/2048/4096  same as Oct05
+  FisherF         LogPDF table    10k -> cand    256   runs 256/128/256  Oct05 runs 6144/4096/4096  MOVED since Oct05
+  Gamma           LogPDF table    75k -> cand    25k   runs 25k/50k/25k  Oct05 runs 75k/75k/75k  MOVED since Oct05
+  Gaussian        LogPDF table     64 -> cand   200k   runs 200k/200k/200k  Oct05 runs 250k/300k/300k  MOVED since Oct05
+  Gaussian        CDF    table  NEVER -> cand    10k   runs 10k/10k/8192  Oct05 runs 25k/25k/25k  same as Oct05
+  Geometric       PDF    table  NEVER -> cand   2048   runs 1024/2048/2048  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Geometric       LogPDF table  NEVER -> cand   2048   runs 128/256/2048  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Geometric       CDF    table  NEVER -> cand   4096   runs 512/4096/4096  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Gumbel          PDF    table    75k -> cand    25k   runs 25k/25k/25k  Oct05 runs 50k/50k/50k  same as Oct05
+  HalfNormal      CDF    table  NEVER -> cand    75k   runs 75k/75k/75k  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  InverseGamma    LogPDF table    75k -> cand    25k   runs 25k/50k/25k  Oct05 runs 75k/25k/75k  MOVED since Oct05
+  Laplace         LogPDF table     64 -> cand   100k   runs 100k/100k/100k  Oct05 runs 150k/150k/150k  same as Oct05
+  Laplace         CDF    table    256 -> cand   6144   runs 8192/6144/6144  Oct05 runs 25k/25k/25k  MOVED since Oct05
+  NegBinomial     PDF    table  NEVER -> cand   2048   runs 1024/2048/512  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  NegBinomial     LogPDF table  NEVER -> cand   2048   runs 1024/2048/2048  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  NegBinomial     CDF    table  NEVER -> cand   2048   runs 1024/2048/128  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Pareto          CDF    table    50k -> cand   8192   runs 6144/10k/8192  Oct05 runs 25k/25k/25k  MOVED since Oct05
+  Poisson         LogPDF table    256 -> cand   1024   runs 1024/1024/2048  Oct05 runs 6144/10k/25k  MOVED since Oct05
+  Poisson         CDF    table    256 -> cand   2048   runs 2048/512/1024  Oct05 runs 2048/2048/2048  same as Oct05
+  Rayleigh        CDF    table    25k -> cand   8192   runs 10k/8192/8192  Oct05 runs 25k/25k/25k  MOVED since Oct05
+  StudentT        CDF    table     64 -> cand   2048   runs 2048/2048/2048  Oct05 runs 1000k/NEVER/NEVER  MOVED since Oct05
+  TruncatedNormal CDF    table    25k -> cand   4096   runs 4096/4096/4096  Oct05 runs 25k/25k/10k  MOVED since Oct05
+  Uniform         LogPDF table  NEVER -> cand   500k   runs 500k/500k/500k  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Uniform         CDF    table     64 -> cand    25k   runs 25k/25k/25k  Oct05 runs 50k/50k/50k  same as Oct05
+  VonMises        PDF    table   100k -> cand    25k   runs 8192/25k/25k  Oct05 runs 50k/50k/50k  same as Oct05
+  VonMises        LogPDF table   500k -> cand    25k   runs 25k/25k/25k  Oct05 runs 50k/50k/50k  same as Oct05
+  VonMises        CDF    table  NEVER -> cand   2048   runs 2048/2048/2048  Oct05 runs NEVER/NEVER/NEVER  MOVED since Oct05
+  Weibull         CDF    table    50k -> cand   8192   runs 8192/8192/8192  Oct05 runs 50k/25k/50k  MOVED since Oct05
+  48 of 81 rows would change; 33 of them moved since the 2026-10-05 capture
+
+== NEON: candidates moved > 1 grid step since 2026-10-05 (2c5230a -> d1adc95), any table agreement
+  Bernoulli       PDF    Oct05  NEVER -> now   1024   table  NEVER
+  Bernoulli       LogPDF Oct05  NEVER -> now   6144   table  NEVER
+  Bernoulli       CDF    Oct05  NEVER -> now   6144   table  NEVER
+  Beta            PDF    Oct05  NEVER -> now   8192   table  NEVER
+  Beta            LogPDF Oct05  NEVER -> now    10k   table  NEVER
+  Binomial        PDF    Oct05  NEVER -> now   2048   table  NEVER
+  Binomial        LogPDF Oct05  NEVER -> now   2048   table  NEVER
+  Binomial        CDF    Oct05  NEVER -> now   2048   table  NEVER
+  Cauchy          PDF    Oct05    50k -> now   100k   table    25k
+  Cauchy          CDF    Oct05    25k -> now   8192   table    25k
+  Discrete        PDF    Oct05   100k -> now   200k   table    50k
+  Discrete        LogPDF Oct05   100k -> now   200k   table    50k
+  Exponential     CDF    Oct05    25k -> now   8192   table    25k
+  FisherF         LogPDF Oct05   4096 -> now    256   table    10k
+  Gamma           LogPDF Oct05    75k -> now    25k   table    75k
+  Gaussian        LogPDF Oct05   300k -> now   200k   table     64
+  Geometric       PDF    Oct05  NEVER -> now   2048   table  NEVER
+  Geometric       LogPDF Oct05  NEVER -> now   2048   table  NEVER
+  Geometric       CDF    Oct05  NEVER -> now   4096   table  NEVER
+  HalfNormal      CDF    Oct05  NEVER -> now    75k   table  NEVER
+  InverseGamma    LogPDF Oct05    75k -> now    25k   table    75k
+  Laplace         CDF    Oct05    25k -> now   6144   table    256
+  NegBinomial     PDF    Oct05  NEVER -> now   2048   table  NEVER
+  NegBinomial     LogPDF Oct05  NEVER -> now   2048   table  NEVER
+  NegBinomial     CDF    Oct05  NEVER -> now   2048   table  NEVER
+  Pareto          PDF    Oct05   150k -> now    50k   table    75k
+  Pareto          CDF    Oct05    25k -> now   8192   table    50k
+  Poisson         PDF    Oct05    25k -> now   4096   table   4096
+  Poisson         LogPDF Oct05    25k -> now   1024   table    256
+  Rayleigh        CDF    Oct05    25k -> now   8192   table    25k
+  StudentT        CDF    Oct05  NEVER -> now   2048   table     64
+  TruncatedNormal CDF    Oct05    25k -> now   4096   table    25k
+  Uniform         LogPDF Oct05  NEVER -> now   500k   table  NEVER
+  VonMises        CDF    Oct05  NEVER -> now   2048   table  NEVER
+  Weibull         CDF    Oct05    50k -> now   8192   table    50k
+  35 of 81
+
+== run-to-run: rows whose three new runs span > 2x (candidate takes the max)
+  NEON: 28  Bernoulli.CDF, Binomial.PDF, Binomial.LogPDF, Binomial.CDF, Cauchy.LogPDF, ChiSquared.PDF, ChiSquared.CDF, FisherF.PDF, Gamma.CDF, Geometric.LogPDF, Geometric.CDF, Gumbel.LogPDF, InverseGamma.CDF, Laplace.PDF, LogNormal.PDF, Logistic.PDF, Logistic.LogPDF, NegBinomial.PDF, NegBinomial.CDF, Poisson.PDF, Poisson.CDF, Rayleigh.PDF, Rayleigh.LogPDF, StudentT.PDF, StudentT.LogPDF, Uniform.PDF, VonMises.PDF, Weibull.LogPDF
