@@ -1,0 +1,21 @@
+2026-10-13 22:40:20 batch start tier=AVX-512 build=C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl sha=df78931 runs=1 2 3
+2026-10-13 22:40:20 system_inspector: System: 12 logical cores, AVX-512 SIMD, 16384 KB L3 cache
+2026-10-13 22:40:30 run1 cpu=5.3% ac=True quiet
+2026-10-13 22:40:30 clock[avx512_run1] start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:40 clock[avx512_run1] rc=0 ms/pass=127.5/128 (boost ~128, base ~190)
+2026-10-13 22:41:05 run1 (after 25s discarded opted-out strategy_profile warm-up) utc=2026-10-14T02-41-05Z
+2026-10-13 22:41:05 run1 profile start (set=True ok=True control=1 state=0)
+2026-10-13 22:48:25 run1 end exit=0 rows=7777 cpu=5.8%
+2026-10-13 22:48:35 run2 cpu=4.8% ac=True quiet
+2026-10-13 22:48:35 clock[avx512_run2] start (set=True ok=True control=1 state=0)
+2026-10-13 22:48:45 clock[avx512_run2] rc=0 ms/pass=127.7/127.1 (boost ~128, base ~190)
+2026-10-13 22:49:11 run2 (after 25s discarded opted-out strategy_profile warm-up) utc=2026-10-14T02-49-11Z
+2026-10-13 22:49:11 run2 profile start (set=True ok=True control=1 state=0)
+2026-10-13 22:56:30 run2 end exit=0 rows=7777 cpu=6.5%
+2026-10-13 22:56:40 run3 cpu=5% ac=True quiet
+2026-10-13 22:56:40 clock[avx512_run3] start (set=True ok=True control=1 state=0)
+2026-10-13 22:56:51 clock[avx512_run3] rc=0 ms/pass=127.6/127.3 (boost ~128, base ~190)
+2026-10-13 22:57:16 run3 (after 25s discarded opted-out strategy_profile warm-up) utc=2026-10-14T02-57-16Z
+2026-10-13 22:57:16 run3 profile start (set=True ok=True control=1 state=0)
+2026-10-13 23:04:36 run3 end exit=0 rows=7777 cpu=5.7%
+2026-10-13 23:04:36 batch DONE

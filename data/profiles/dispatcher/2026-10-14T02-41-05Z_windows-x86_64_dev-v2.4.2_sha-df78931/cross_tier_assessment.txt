@@ -1,0 +1,601 @@
+
+== AVX-512: candidate vs current kAvx512 (rows > 1 grid step apart)
+  Bernoulli       PDF    table  NEVER -> cand   6144   runs 6144/8192/6144  8271f6e   4096
+  Bernoulli       LogPDF table  NEVER -> cand   4096   runs 6144/4096/4096  8271f6e   6144
+  Bernoulli       CDF    table    128 -> cand   8192   runs 512/8192/8192  8271f6e    50k
+  Beta            PDF    table  NEVER -> cand    25k   runs 25k/10k/8192  8271f6e   8192
+  Beta            LogPDF table  NEVER -> cand    25k   runs 25k/25k/25k  8271f6e    50k
+  Binomial        PDF    table  NEVER -> cand   8192   runs 1024/6144/8192  8271f6e   4096
+  Binomial        LogPDF table  NEVER -> cand   8192   runs 8192/8192/8192  8271f6e   6144
+  Binomial        CDF    table    128 -> cand   6144   runs 8192/6144/6144  8271f6e   8192
+  Cauchy          PDF    table  2000k -> cand    25k   runs 10k/25k/25k  8271f6e   150k
+  Cauchy          LogPDF table   750k -> cand    75k   runs 75k/100k/50k  8271f6e   150k
+  Cauchy          CDF    table  NEVER -> cand    25k   runs 25k/10k/25k  8271f6e    25k
+  ChiSquared      PDF    table   1024 -> cand    25k   runs 25k/25k/25k  8271f6e    75k
+  ChiSquared      LogPDF table   2048 -> cand    25k   runs 25k/25k/50k  8271f6e   100k
+  ChiSquared      CDF    table    128 -> cand   8192   runs 512/512/8192  8271f6e   1024
+  Discrete        CDF    table  NEVER -> cand   200k   runs 150k/200k/200k  8271f6e  NEVER
+  Exponential     PDF    table   250k -> cand    50k   runs 50k/50k/50k  8271f6e   200k
+  Exponential     LogPDF table   400k -> cand   100k   runs 100k/100k/150k  8271f6e   500k
+  Exponential     CDF    table   250k -> cand    25k   runs 25k/25k/25k  8271f6e    50k
+  FisherF         PDF    table   8192 -> cand   1024   runs 2048/1024/1024  8271f6e   1024
+  FisherF         CDF    table   4096 -> cand   8192   runs 1024/2048/8192  8271f6e   4096
+  Gamma           LogPDF table    75k -> cand    25k   runs 25k/25k/50k  8271f6e   100k
+  Gaussian        PDF    table  1000k -> cand    50k   runs 50k/50k/50k  8271f6e   250k
+  Gaussian        LogPDF table   400k -> cand   150k   runs 150k/150k/200k  8271f6e   750k
+  Gaussian        CDF    table    25k -> cand   8192   runs 6144/8192/8192  8271f6e    10k
+  Geometric       PDF    table  NEVER -> cand   8192   runs 256/6144/8192  8271f6e   8192
+  Geometric       LogPDF table  NEVER -> cand   8192   runs 512/8192/256  8271f6e    512
+  Geometric       CDF    table    512 -> cand   8192   runs 8192/8192/8192  8271f6e   8192
+  HalfNormal      PDF    table   150k -> cand    50k   runs 50k/50k/50k  8271f6e   200k
+  HalfNormal      LogPDF table   400k -> cand   100k   runs 75k/100k/100k  8271f6e   400k
+  HalfNormal      CDF    table    50k -> cand   8192   runs 8192/8192/4096  8271f6e    50k
+  InverseGamma    PDF    table    25k -> cand   200k   runs 150k/200k/250k  8271f6e   250k
+  InverseGamma    LogPDF table    75k -> cand   200k   runs 200k/200k/250k  8271f6e   400k
+  InverseGamma    CDF    table   2048 -> cand   8192   runs 256/6144/8192  8271f6e   1024
+  LogNormal       PDF    table   150k -> cand    25k   runs 25k/10k/25k  8271f6e   150k
+  LogNormal       LogPDF table   100k -> cand    50k   runs 50k/50k/25k  8271f6e   150k
+  Logistic        PDF    table    75k -> cand    25k   runs 8192/8192/25k  8271f6e   150k
+  NegBinomial     PDF    table  NEVER -> cand   6144   runs 6144/2048/1024  8271f6e   8192
+  NegBinomial     LogPDF table  NEVER -> cand   8192   runs 8192/8192/8192  8271f6e   6144
+  NegBinomial     CDF    table    512 -> cand   6144   runs 4096/8192/6144  8271f6e   6144
+  Pareto          PDF    table  2000k -> cand    25k   runs 25k/25k/25k  8271f6e  1500k
+  Pareto          LogPDF table  1500k -> cand    50k   runs 50k/50k/50k  8271f6e  1000k
+  Pareto          CDF    table  2000k -> cand    25k   runs 25k/6144/8192  8271f6e    25k
+  Poisson         PDF    table    512 -> cand   8192   runs 8192/8192/8192  8271f6e   8192
+  Poisson         LogPDF table    25k -> cand   2048   runs 512/512/2048  8271f6e   6144
+  Poisson         CDF    table    256 -> cand   8192   runs 8192/1024/1024  8271f6e    512
+  Rayleigh        PDF    table   150k -> cand    25k   runs 25k/25k/25k  8271f6e   100k
+  Rayleigh        LogPDF table   150k -> cand    25k   runs 25k/25k/25k  8271f6e   100k
+  Rayleigh        CDF    table   300k -> cand    25k   runs 25k/25k/25k  8271f6e    50k
+  StudentT        PDF    table  2000k -> cand    25k   runs 10k/10k/25k  8271f6e  1500k
+  StudentT        LogPDF table  2000k -> cand    25k   runs 25k/25k/25k  8271f6e   100k
+  StudentT        CDF    table  NEVER -> cand   6144   runs 6144/4096/2048  8271f6e   6144
+  TruncatedNormal PDF    table    75k -> cand    25k   runs 25k/25k/25k  8271f6e   200k
+  TruncatedNormal CDF    table    25k -> cand   6144   runs 1024/4096/6144  8271f6e    25k
+  Uniform         PDF    table  NEVER -> cand   300k   runs 400k/300k/250k  8271f6e  NEVER
+  Uniform         LogPDF table  NEVER -> cand   300k   runs 250k/300k/300k  8271f6e  NEVER
+  Uniform         CDF    table  NEVER -> cand   100k   runs 150k/100k/100k  8271f6e  NEVER
+  VonMises        LogPDF table    75k -> cand    25k   runs 25k/25k/25k  8271f6e  1500k
+  VonMises        CDF    table    25k -> cand   8192   runs 8192/8192/512  8271f6e   8192
+  Weibull         PDF    table   150k -> cand   6144   runs 6144/8192/6144  8271f6e    50k
+  Weibull         LogPDF table   150k -> cand    25k   runs 25k/25k/10k  8271f6e   100k
+  Weibull         CDF    table  2000k -> cand   8192   runs 8192/8192/8192  8271f6e   100k
+  61 of 81 rows would change
+
+== AVX2: candidate vs current kAvx2 (rows > 1 grid step apart)
+  Bernoulli       PDF    table  NEVER -> cand   8192   runs 6144/8192/2048  8271f6e   6144
+  Bernoulli       LogPDF table  NEVER -> cand   6144   runs 2048/6144/6144  8271f6e   6144
+  Bernoulli       CDF    table  NEVER -> cand   8192   runs 8192/4096/8192  8271f6e    25k
+  Beta            PDF    table  NEVER -> cand   8192   runs 8192/8192/8192  8271f6e   8192
+  Beta            LogPDF table  NEVER -> cand   6144   runs 8192/6144/6144  8271f6e   8192
+  Beta            CDF    table   4096 -> cand   8192   runs 4096/8192/8192  8271f6e   6144
+  Binomial        PDF    table  NEVER -> cand   8192   runs 8192/8192/6144  8271f6e   8192
+  Binomial        LogPDF table  NEVER -> cand   6144   runs 6144/6144/6144  8271f6e   6144
+  Binomial        CDF    table  NEVER -> cand   6144   runs 2048/4096/6144  8271f6e   8192
+  Cauchy          CDF    table   8192 -> cand    25k   runs 10k/10k/25k  8271f6e    25k
+  ChiSquared      PDF    table   2048 -> cand    25k   runs 25k/8192/8192  8271f6e    10k
+  ChiSquared      LogPDF table    128 -> cand    25k   runs 10k/25k/25k  8271f6e   100k
+  ChiSquared      CDF    table     64 -> cand   1024   runs 512/256/1024  8271f6e   8192
+  Discrete        PDF    table    50k -> cand   150k   runs 150k/150k/150k  8271f6e  1000k
+  Discrete        LogPDF table    50k -> cand   100k   runs 100k/100k/100k  8271f6e  NEVER
+  Discrete        CDF    table   1024 -> cand   150k   runs 150k/100k/150k  8271f6e  NEVER
+  Erlang          CDF    table   4096 -> cand   8192   runs 512/8192/1024  8271f6e   8192
+  Exponential     PDF    table   120k -> cand    25k   runs 25k/25k/25k  8271f6e    75k
+  Exponential     LogPDF table    25k -> cand    75k   runs 75k/75k/75k  8271f6e   250k
+  Exponential     CDF    table   100k -> cand    25k   runs 25k/25k/25k  8271f6e    50k
+  FisherF         PDF    table   1024 -> cand   6144   runs 1024/6144/512  8271f6e   1024
+  FisherF         CDF    table    512 -> cand   4096   runs 2048/512/4096  8271f6e   1024
+  Gamma           PDF    table    25k -> cand   8192   runs 8192/8192/10k  8271f6e   8192
+  Gamma           CDF    table   4096 -> cand   8192   runs 256/8192/8192  8271f6e   8192
+  Gaussian        PDF    table   130k -> cand    25k   runs 25k/25k/50k  8271f6e    75k
+  Gaussian        LogPDF table    20k -> cand   150k   runs 150k/150k/200k  8271f6e   750k
+  Geometric       PDF    table  NEVER -> cand    256   runs 256/512/256  8271f6e   8192
+  Geometric       LogPDF table  NEVER -> cand    256   runs 256/512/256  8271f6e   4096
+  Geometric       CDF    table  NEVER -> cand   8192   runs 8192/8192/6144  8271f6e   8192
+  Gumbel          CDF    table   100k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  HalfNormal      PDF    table    75k -> cand    25k   runs 25k/25k/25k  8271f6e    75k
+  HalfNormal      CDF    table    50k -> cand   8192   runs 8192/6144/8192  8271f6e    25k
+  InverseGamma    PDF    table    25k -> cand   150k   runs 250k/150k/150k  8271f6e   150k
+  InverseGamma    LogPDF table    25k -> cand   150k   runs 150k/75k/150k  8271f6e   200k
+  InverseGamma    CDF    table   2048 -> cand   8192   runs 8192/256/6144  8271f6e   8192
+  Laplace         PDF    table     64 -> cand    25k   runs 25k/25k/25k  8271f6e    50k
+  Laplace         CDF    table    256 -> cand    25k   runs 25k/25k/10k  8271f6e    25k
+  LogNormal       LogPDF table    50k -> cand    10k   runs 10k/8192/10k  8271f6e    75k
+  Logistic        PDF    table   100k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  Logistic        LogPDF table   100k -> cand   6144   runs 6144/8192/6144  8271f6e    50k
+  NegBinomial     PDF    table  NEVER -> cand   6144   runs 8192/6144/4096  8271f6e   6144
+  NegBinomial     LogPDF table  NEVER -> cand   6144   runs 8192/6144/6144  8271f6e   8192
+  NegBinomial     CDF    table  NEVER -> cand   6144   runs 4096/6144/8192  8271f6e   8192
+  Pareto          CDF    table    75k -> cand   6144   runs 4096/8192/6144  8271f6e    25k
+  Poisson         PDF    table    128 -> cand   8192   runs 8192/4096/8192  8271f6e   8192
+  Poisson         LogPDF table    128 -> cand   1024   runs 512/1024/1024  8271f6e   8192
+  Poisson         CDF    table    256 -> cand   8192   runs 6144/8192/512  8271f6e   8192
+  Rayleigh        PDF    table    25k -> cand   8192   runs 8192/8192/6144  8271f6e    50k
+  Rayleigh        LogPDF table     64 -> cand   8192   runs 8192/6144/8192  8271f6e    50k
+  StudentT        PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  StudentT        CDF    table     64 -> cand   4096   runs 2048/4096/4096  8271f6e   4096
+  TruncatedNormal CDF    table   4096 -> cand   8192   runs 1024/8192/4096  8271f6e   4096
+  Uniform         LogPDF table  NEVER -> cand   300k   runs 300k/300k/300k  8271f6e  NEVER
+  Uniform         CDF    table  NEVER -> cand    75k   runs 75k/50k/75k  8271f6e  1500k
+  VonMises        PDF    table   200k -> cand    25k   runs 8192/25k/8192  8271f6e    50k
+  VonMises        LogPDF table   400k -> cand    25k   runs 25k/25k/25k  8271f6e    75k
+  VonMises        CDF    table  NEVER -> cand   6144   runs 6144/6144/512  8271f6e   8192
+  Weibull         PDF    table    50k -> cand   8192   runs 8192/8192/6144  8271f6e    25k
+  Weibull         CDF    table    50k -> cand   8192   runs 8192/8192/6144  8271f6e    25k
+  59 of 81 rows would change
+
+== AVX: candidate vs current kAvx (rows > 1 grid step apart)
+  Bernoulli       PDF    table  NEVER -> cand   4096   runs 2048/4096/4096  8271f6e   8192
+  Bernoulli       LogPDF table  NEVER -> cand   4096   runs 4096/4096/4096  8271f6e   6144
+  Bernoulli       CDF    table  NEVER -> cand   4096   runs 4096/8192/4096  8271f6e    50k
+  Beta            PDF    table  NEVER -> cand   8192   runs 8192/8192/2048  8271f6e   8192
+  Beta            LogPDF table  NEVER -> cand   8192   runs 8192/8192/8192  8271f6e   6144
+  Beta            CDF    table   4096 -> cand   8192   runs 4096/8192/1024  8271f6e   8192
+  Binomial        PDF    table  NEVER -> cand   8192   runs 6144/8192/8192  8271f6e   8192
+  Binomial        LogPDF table  NEVER -> cand   8192   runs 4096/2048/8192  8271f6e   8192
+  Binomial        CDF    table  NEVER -> cand   8192   runs 2048/8192/6144  8271f6e   8192
+  Cauchy          CDF    table   6144 -> cand    25k   runs 25k/25k/25k  8271f6e    25k
+  ChiSquared      CDF    table   4096 -> cand   1024   runs 1024/256/1024  8271f6e   1024
+  Discrete        PDF    table    50k -> cand   100k   runs 100k/100k/100k  8271f6e   750k
+  Erlang          CDF    table   4096 -> cand   1024   runs 1024/1024/1024  8271f6e   2048
+  FisherF         PDF    table   4096 -> cand   8192   runs 2048/8192/2048  8271f6e   1024
+  Gamma           LogPDF table    25k -> cand   6144   runs 6144/10k/6144  8271f6e   100k
+  Gamma           CDF    table   4096 -> cand   8192   runs 8192/512/512  8271f6e   8192
+  Geometric       PDF    table  NEVER -> cand   8192   runs 256/8192/4096  8271f6e   2048
+  Geometric       LogPDF table  NEVER -> cand   8192   runs 512/256/8192  8271f6e   8192
+  Geometric       CDF    table  NEVER -> cand   8192   runs 6144/8192/8192  8271f6e   8192
+  Gumbel          PDF    table    25k -> cand   8192   runs 8192/8192/6144  8271f6e    25k
+  Gumbel          CDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  InverseGamma    PDF    table   6144 -> cand   150k   runs 100k/200k/150k  8271f6e   200k
+  InverseGamma    LogPDF table    25k -> cand   100k   runs 100k/75k/150k  8271f6e   150k
+  InverseGamma    CDF    table   2048 -> cand    512   runs 512/512/256  8271f6e   8192
+  LogNormal       PDF    table    25k -> cand   8192   runs 6144/8192/8192  8271f6e    25k
+  LogNormal       LogPDF table    25k -> cand   8192   runs 8192/10k/8192  8271f6e    50k
+  LogNormal       CDF    table    256 -> cand   8192   runs 8192/4096/8192  8271f6e   6144
+  Logistic        PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  Logistic        LogPDF table    50k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  NegBinomial     PDF    table  NEVER -> cand   8192   runs 6144/8192/8192  8271f6e   6144
+  NegBinomial     LogPDF table  NEVER -> cand   8192   runs 4096/8192/8192  8271f6e   8192
+  NegBinomial     CDF    table  NEVER -> cand   6144   runs 8192/4096/6144  8271f6e   6144
+  Pareto          PDF    table    25k -> cand   8192   runs 8192/6144/8192  8271f6e    50k
+  Pareto          CDF    table    50k -> cand   8192   runs 8192/6144/8192  8271f6e    25k
+  Poisson         PDF    table   4096 -> cand   8192   runs 8192/6144/8192  8271f6e    25k
+  Poisson         CDF    table   4096 -> cand   8192   runs 256/512/8192  8271f6e   6144
+  Rayleigh        PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  Rayleigh        LogPDF table    25k -> cand   8192   runs 4096/8192/8192  8271f6e    50k
+  StudentT        PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  StudentT        CDF    table  NEVER -> cand   6144   runs 6144/6144/4096  8271f6e   8192
+  Uniform         CDF    table    25k -> cand    75k   runs 75k/75k/75k  8271f6e  1500k
+  VonMises        PDF    table    25k -> cand   8192   runs 8192/8192/6144  8271f6e    25k
+  VonMises        LogPDF table    50k -> cand   6144   runs 8192/6144/4096  8271f6e    50k
+  VonMises        CDF    table  NEVER -> cand   4096   runs 4096/1024/1024  8271f6e   8192
+  Weibull         PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  Weibull         LogPDF table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  Weibull         CDF    table    25k -> cand   8192   runs 8192/8192/6144  8271f6e    25k
+  47 of 81 rows would change
+
+== SSE2: candidate vs current kAvx (rows > 1 grid step apart)
+  Bernoulli       PDF    table  NEVER -> cand   8192   runs 6144/8192/8192  8271f6e   2048
+  Bernoulli       LogPDF table  NEVER -> cand   6144   runs 6144/6144/4096  8271f6e   8192
+  Bernoulli       CDF    table  NEVER -> cand   8192   runs 8192/6144/8192  8271f6e    25k
+  Beta            PDF    table  NEVER -> cand   8192   runs 6144/8192/8192  8271f6e   8192
+  Beta            LogPDF table  NEVER -> cand   6144   runs 6144/6144/8192  8271f6e   8192
+  Binomial        PDF    table  NEVER -> cand   6144   runs 4096/8192/6144  8271f6e   8192
+  Binomial        LogPDF table  NEVER -> cand   6144   runs 4096/8192/6144  8271f6e   8192
+  Binomial        CDF    table  NEVER -> cand   4096   runs 4096/4096/2048  8271f6e   8192
+  Cauchy          CDF    table   6144 -> cand    25k   runs 25k/25k/25k  8271f6e    25k
+  ChiSquared      LogPDF table    25k -> cand   8192   runs 8192/8192/8192  8271f6e   8192
+  ChiSquared      CDF    table   4096 -> cand   1024   runs 1024/1024/1024  8271f6e   6144
+  Erlang          LogPDF table    25k -> cand   8192   runs 8192/8192/8192  8271f6e   8192
+  Erlang          CDF    table   4096 -> cand   1024   runs 1024/1024/1024  8271f6e   4096
+  Exponential     PDF    table    25k -> cand   8192   runs 8192/8192/6144  8271f6e    50k
+  Exponential     CDF    table    25k -> cand   4096   runs 4096/8192/4096  8271f6e    25k
+  Gamma           CDF    table   4096 -> cand   8192   runs 1024/8192/1024  8271f6e   1024
+  Gaussian        PDF    table    50k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  Gaussian        CDF    table   4096 -> cand   8192   runs 8192/8192/8192  8271f6e   6144
+  Geometric       PDF    table  NEVER -> cand   8192   runs 1024/8192/6144  8271f6e   6144
+  Geometric       LogPDF table  NEVER -> cand    512   runs 512/128/512  8271f6e    256
+  Geometric       CDF    table  NEVER -> cand   8192   runs 8192/4096/8192  8271f6e   8192
+  Gumbel          PDF    table    25k -> cand   8192   runs 6144/8192/8192  8271f6e    25k
+  Gumbel          LogPDF table    25k -> cand   6144   runs 8192/6144/6144  8271f6e    25k
+  Gumbel          CDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  HalfNormal      PDF    table    25k -> cand   8192   runs 6144/8192/2048  8271f6e    25k
+  InverseGamma    PDF    table   6144 -> cand    50k   runs 50k/50k/75k  8271f6e   100k
+  InverseGamma    LogPDF table    25k -> cand    75k   runs 50k/75k/75k  8271f6e   100k
+  InverseGamma    CDF    table   2048 -> cand   6144   runs 6144/6144/8192  8271f6e   8192
+  Laplace         PDF    table    25k -> cand   8192   runs 8192/6144/8192  8271f6e    25k
+  LogNormal       PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  LogNormal       LogPDF table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  LogNormal       CDF    table    256 -> cand   6144   runs 6144/6144/2048  8271f6e   8192
+  Logistic        PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e   6144
+  Logistic        LogPDF table    50k -> cand   6144   runs 6144/6144/6144  8271f6e    25k
+  Logistic        CDF    table    25k -> cand   8192   runs 6144/8192/8192  8271f6e    25k
+  NegBinomial     PDF    table  NEVER -> cand   8192   runs 6144/2048/8192  8271f6e   6144
+  NegBinomial     LogPDF table  NEVER -> cand   8192   runs 4096/8192/1024  8271f6e   4096
+  NegBinomial     CDF    table  NEVER -> cand   4096   runs 2048/4096/4096  8271f6e   8192
+  Pareto          PDF    table    25k -> cand   8192   runs 6144/8192/8192  8271f6e    25k
+  Pareto          LogPDF table    50k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  Pareto          CDF    table    50k -> cand   8192   runs 8192/8192/4096  8271f6e   4096
+  Poisson         PDF    table   4096 -> cand   8192   runs 6144/8192/8192  8271f6e    25k
+  Poisson         LogPDF table   8192 -> cand   2048   runs 1024/2048/2048  8271f6e   6144
+  Poisson         CDF    table   4096 -> cand   8192   runs 256/8192/6144  8271f6e   8192
+  Rayleigh        PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  Rayleigh        LogPDF table    25k -> cand   8192   runs 6144/8192/8192  8271f6e    25k
+  Rayleigh        CDF    table    50k -> cand   6144   runs 8192/4096/6144  8271f6e    25k
+  StudentT        PDF    table    25k -> cand   8192   runs 8192/6144/8192  8271f6e    25k
+  StudentT        LogPDF table    50k -> cand   8192   runs 8192/8192/8192  8271f6e    50k
+  StudentT        CDF    table  NEVER -> cand   8192   runs 8192/8192/8192  8271f6e   6144
+  TruncatedNormal PDF    table    25k -> cand   8192   runs 8192/6144/8192  8271f6e    50k
+  TruncatedNormal CDF    table   4096 -> cand   8192   runs 4096/8192/2048  8271f6e   6144
+  Uniform         PDF    table  NEVER -> cand   100k   runs 100k/100k/100k  8271f6e  NEVER
+  Uniform         LogPDF table  NEVER -> cand    75k   runs 75k/75k/75k  8271f6e  NEVER
+  VonMises        PDF    table    25k -> cand   8192   runs 8192/8192/8192  8271f6e    25k
+  VonMises        LogPDF table    50k -> cand   8192   runs 6144/8192/8192  8271f6e    25k
+  VonMises        CDF    table  NEVER -> cand   6144   runs 1024/6144/1024  8271f6e   8192
+  Weibull         PDF    table    25k -> cand   8192   runs 6144/8192/8192  8271f6e   8192
+  Weibull         LogPDF table    25k -> cand   6144   runs 4096/8192/6144  8271f6e   8192
+  Weibull         CDF    table    25k -> cand   6144   runs 6144/6144/8192  8271f6e   8192
+  60 of 81 rows would change
+
+== since Z's last capture: candidate vs the same tier at 8271f6e (code ee11e62; rows > 1 grid step apart)
+  AVX-512: 55 of 81
+    Bernoulli       CDF    8271f6e    50k ->   8192   runs 512/8192/8192
+    Beta            PDF    8271f6e   8192 ->    25k   runs 25k/10k/8192
+    Binomial        PDF    8271f6e   4096 ->   8192   runs 1024/6144/8192
+    Cauchy          PDF    8271f6e   150k ->    25k   runs 10k/25k/25k
+    Cauchy          LogPDF 8271f6e   150k ->    75k   runs 75k/100k/50k
+    ChiSquared      PDF    8271f6e    75k ->    25k   runs 25k/25k/25k
+    ChiSquared      LogPDF 8271f6e   100k ->    25k   runs 25k/25k/50k
+    ChiSquared      CDF    8271f6e   1024 ->   8192   runs 512/512/8192
+    Discrete        PDF    8271f6e  NEVER ->   100k   runs 100k/100k/150k
+    Discrete        LogPDF 8271f6e  NEVER ->   150k   runs 150k/150k/150k
+    Discrete        CDF    8271f6e  NEVER ->   200k   runs 150k/200k/200k
+    Erlang          LogPDF 8271f6e   100k ->    50k   runs 50k/50k/25k
+    Exponential     PDF    8271f6e   200k ->    50k   runs 50k/50k/50k
+    Exponential     LogPDF 8271f6e   500k ->   100k   runs 100k/100k/150k
+    FisherF         LogPDF 8271f6e   2048 ->   6144   runs 4096/6144/6144
+    FisherF         CDF    8271f6e   4096 ->   8192   runs 1024/2048/8192
+    Gamma           PDF    8271f6e    75k ->    25k   runs 10k/10k/25k
+    Gamma           LogPDF 8271f6e   100k ->    25k   runs 25k/25k/50k
+    Gaussian        PDF    8271f6e   250k ->    50k   runs 50k/50k/50k
+    Gaussian        LogPDF 8271f6e   750k ->   150k   runs 150k/150k/200k
+    Geometric       LogPDF 8271f6e    512 ->   8192   runs 512/8192/256
+    Gumbel          PDF    8271f6e   100k ->    25k   runs 25k/25k/25k
+    Gumbel          LogPDF 8271f6e   100k ->    25k   runs 25k/50k/25k
+    Gumbel          CDF    8271f6e   100k ->    25k   runs 25k/25k/25k
+    HalfNormal      PDF    8271f6e   200k ->    50k   runs 50k/50k/50k
+    HalfNormal      LogPDF 8271f6e   400k ->   100k   runs 75k/100k/100k
+    HalfNormal      CDF    8271f6e    50k ->   8192   runs 8192/8192/4096
+    InverseGamma    LogPDF 8271f6e   400k ->   200k   runs 200k/200k/250k
+    InverseGamma    CDF    8271f6e   1024 ->   8192   runs 256/6144/8192
+    Laplace         PDF    8271f6e   100k ->    50k   runs 50k/25k/50k
+    Laplace         LogPDF 8271f6e   150k ->    75k   runs 75k/75k/75k
+    LogNormal       PDF    8271f6e   150k ->    25k   runs 25k/10k/25k
+    LogNormal       LogPDF 8271f6e   150k ->    50k   runs 50k/50k/25k
+    Logistic        PDF    8271f6e   150k ->    25k   runs 8192/8192/25k
+    Logistic        LogPDF 8271f6e   150k ->    25k   runs 25k/25k/25k
+    Logistic        CDF    8271f6e   100k ->    25k   runs 25k/25k/25k
+    Pareto          PDF    8271f6e  1500k ->    25k   runs 25k/25k/25k
+    Pareto          LogPDF 8271f6e  1000k ->    50k   runs 50k/50k/50k
+    Poisson         LogPDF 8271f6e   6144 ->   2048   runs 512/512/2048
+    Poisson         CDF    8271f6e    512 ->   8192   runs 8192/1024/1024
+    Rayleigh        PDF    8271f6e   100k ->    25k   runs 25k/25k/25k
+    Rayleigh        LogPDF 8271f6e   100k ->    25k   runs 25k/25k/25k
+    StudentT        PDF    8271f6e  1500k ->    25k   runs 10k/10k/25k
+    StudentT        LogPDF 8271f6e   100k ->    25k   runs 25k/25k/25k
+    TruncatedNormal PDF    8271f6e   200k ->    25k   runs 25k/25k/25k
+    TruncatedNormal LogPDF 8271f6e  1500k ->    50k   runs 50k/50k/50k
+    TruncatedNormal CDF    8271f6e    25k ->   6144   runs 1024/4096/6144
+    Uniform         PDF    8271f6e  NEVER ->   300k   runs 400k/300k/250k
+    Uniform         LogPDF 8271f6e  NEVER ->   300k   runs 250k/300k/300k
+    Uniform         CDF    8271f6e  NEVER ->   100k   runs 150k/100k/100k
+    VonMises        PDF    8271f6e  1000k ->    25k   runs 10k/25k/25k
+    VonMises        LogPDF 8271f6e  1500k ->    25k   runs 25k/25k/25k
+    Weibull         PDF    8271f6e    50k ->   6144   runs 6144/8192/6144
+    Weibull         LogPDF 8271f6e   100k ->    25k   runs 25k/25k/10k
+    Weibull         CDF    8271f6e   100k ->   8192   runs 8192/8192/8192
+  AVX2: 41 of 81
+    Bernoulli       CDF    8271f6e    25k ->   8192   runs 8192/4096/8192
+    Cauchy          LogPDF 8271f6e   150k ->    75k   runs 25k/75k/50k
+    ChiSquared      LogPDF 8271f6e   100k ->    25k   runs 10k/25k/25k
+    ChiSquared      CDF    8271f6e   8192 ->   1024   runs 512/256/1024
+    Discrete        PDF    8271f6e  1000k ->   150k   runs 150k/150k/150k
+    Discrete        LogPDF 8271f6e  NEVER ->   100k   runs 100k/100k/100k
+    Discrete        CDF    8271f6e  NEVER ->   150k   runs 150k/100k/150k
+    Erlang          PDF    8271f6e   8192 ->    25k   runs 8192/8192/25k
+    Erlang          LogPDF 8271f6e    75k ->    25k   runs 25k/8192/25k
+    Exponential     PDF    8271f6e    75k ->    25k   runs 25k/25k/25k
+    Exponential     LogPDF 8271f6e   250k ->    75k   runs 75k/75k/75k
+    FisherF         PDF    8271f6e   1024 ->   6144   runs 1024/6144/512
+    FisherF         CDF    8271f6e   1024 ->   4096   runs 2048/512/4096
+    Gamma           LogPDF 8271f6e    75k ->    25k   runs 25k/10k/25k
+    Gaussian        PDF    8271f6e    75k ->    25k   runs 25k/25k/50k
+    Gaussian        LogPDF 8271f6e   750k ->   150k   runs 150k/150k/200k
+    Geometric       PDF    8271f6e   8192 ->    256   runs 256/512/256
+    Geometric       LogPDF 8271f6e   4096 ->    256   runs 256/512/256
+    Gumbel          CDF    8271f6e    50k ->   8192   runs 8192/8192/8192
+    HalfNormal      PDF    8271f6e    75k ->    25k   runs 25k/25k/25k
+    HalfNormal      LogPDF 8271f6e   250k ->    75k   runs 75k/75k/75k
+    HalfNormal      CDF    8271f6e    25k ->   8192   runs 8192/6144/8192
+    Laplace         LogPDF 8271f6e   150k ->    50k   runs 50k/50k/50k
+    LogNormal       LogPDF 8271f6e    75k ->    10k   runs 10k/8192/10k
+    Logistic        PDF    8271f6e    50k ->   8192   runs 8192/8192/8192
+    Logistic        LogPDF 8271f6e    50k ->   6144   runs 6144/8192/6144
+    Pareto          LogPDF 8271f6e    75k ->    25k   runs 25k/25k/25k
+    Pareto          CDF    8271f6e    25k ->   6144   runs 4096/8192/6144
+    Poisson         LogPDF 8271f6e   8192 ->   1024   runs 512/1024/1024
+    Rayleigh        PDF    8271f6e    50k ->   8192   runs 8192/8192/6144
+    Rayleigh        LogPDF 8271f6e    50k ->   8192   runs 8192/6144/8192
+    StudentT        PDF    8271f6e    50k ->   8192   runs 8192/8192/8192
+    TruncatedNormal PDF    8271f6e    75k ->    25k   runs 25k/25k/10k
+    TruncatedNormal LogPDF 8271f6e   300k ->    50k   runs 50k/25k/50k
+    TruncatedNormal CDF    8271f6e   4096 ->   8192   runs 1024/8192/4096
+    Uniform         LogPDF 8271f6e  NEVER ->   300k   runs 300k/300k/300k
+    Uniform         CDF    8271f6e  1500k ->    75k   runs 75k/50k/75k
+    VonMises        LogPDF 8271f6e    75k ->    25k   runs 25k/25k/25k
+    Weibull         PDF    8271f6e    25k ->   8192   runs 8192/8192/6144
+    Weibull         LogPDF 8271f6e    25k ->   8192   runs 8192/8192/4096
+    Weibull         CDF    8271f6e    25k ->   8192   runs 8192/8192/6144
+  AVX: 39 of 81
+    Bernoulli       PDF    8271f6e   8192 ->   4096   runs 2048/4096/4096
+    Bernoulli       CDF    8271f6e    50k ->   4096   runs 4096/8192/4096
+    Discrete        PDF    8271f6e   750k ->   100k   runs 100k/100k/100k
+    Discrete        LogPDF 8271f6e  NEVER ->    75k   runs 150k/75k/75k
+    Discrete        CDF    8271f6e   150k ->    50k   runs 50k/50k/50k
+    Erlang          LogPDF 8271f6e    75k ->    25k   runs 25k/25k/25k
+    Exponential     LogPDF 8271f6e   250k ->    75k   runs 75k/75k/75k
+    FisherF         PDF    8271f6e   1024 ->   8192   runs 2048/8192/2048
+    FisherF         CDF    8271f6e   6144 ->   2048   runs 2048/512/1024
+    Gamma           LogPDF 8271f6e   100k ->   6144   runs 6144/10k/6144
+    Gaussian        PDF    8271f6e    75k ->    25k   runs 25k/25k/25k
+    Gaussian        LogPDF 8271f6e   750k ->   150k   runs 150k/150k/200k
+    Geometric       PDF    8271f6e   2048 ->   8192   runs 256/8192/4096
+    Gumbel          PDF    8271f6e    25k ->   8192   runs 8192/8192/6144
+    Gumbel          CDF    8271f6e    50k ->   8192   runs 8192/8192/8192
+    HalfNormal      PDF    8271f6e    75k ->    25k   runs 25k/10k/25k
+    HalfNormal      LogPDF 8271f6e   250k ->    75k   runs 50k/75k/75k
+    HalfNormal      CDF    8271f6e    25k ->   8192   runs 8192/8192/8192
+    InverseGamma    CDF    8271f6e   8192 ->    512   runs 512/512/256
+    Laplace         LogPDF 8271f6e   100k ->    50k   runs 50k/50k/50k
+    LogNormal       PDF    8271f6e    25k ->   8192   runs 6144/8192/8192
+    LogNormal       LogPDF 8271f6e    50k ->   8192   runs 8192/10k/8192
+    Logistic        PDF    8271f6e    25k ->   8192   runs 8192/8192/8192
+    Logistic        LogPDF 8271f6e    25k ->   8192   runs 8192/8192/8192
+    Pareto          PDF    8271f6e    50k ->   8192   runs 8192/6144/8192
+    Pareto          CDF    8271f6e    25k ->   8192   runs 8192/6144/8192
+    Poisson         PDF    8271f6e    25k ->   8192   runs 8192/6144/8192
+    Rayleigh        PDF    8271f6e    25k ->   8192   runs 8192/8192/8192
+    Rayleigh        LogPDF 8271f6e    50k ->   8192   runs 4096/8192/8192
+    StudentT        PDF    8271f6e    50k ->   8192   runs 8192/8192/8192
+    TruncatedNormal PDF    8271f6e    50k ->    10k   runs 10k/8192/10k
+    TruncatedNormal LogPDF 8271f6e   500k ->    50k   runs 50k/50k/50k
+    Uniform         CDF    8271f6e  1500k ->    75k   runs 75k/75k/75k
+    VonMises        PDF    8271f6e    25k ->   8192   runs 8192/8192/6144
+    VonMises        LogPDF 8271f6e    50k ->   6144   runs 8192/6144/4096
+    VonMises        CDF    8271f6e   8192 ->   4096   runs 4096/1024/1024
+    Weibull         PDF    8271f6e    25k ->   8192   runs 8192/8192/8192
+    Weibull         LogPDF 8271f6e    50k ->   8192   runs 8192/8192/8192
+    Weibull         CDF    8271f6e    25k ->   8192   runs 8192/8192/6144
+  SSE2: 46 of 81
+    Bernoulli       PDF    8271f6e   2048 ->   8192   runs 6144/8192/8192
+    Bernoulli       CDF    8271f6e    25k ->   8192   runs 8192/6144/8192
+    Binomial        CDF    8271f6e   8192 ->   4096   runs 4096/4096/2048
+    ChiSquared      CDF    8271f6e   6144 ->   1024   runs 1024/1024/1024
+    Discrete        PDF    8271f6e    75k ->    25k   runs 25k/25k/25k
+    Discrete        LogPDF 8271f6e    75k ->    25k   runs 25k/25k/25k
+    Discrete        CDF    8271f6e    75k ->    25k   runs 25k/25k/25k
+    Erlang          CDF    8271f6e   4096 ->   1024   runs 1024/1024/1024
+    Exponential     PDF    8271f6e    50k ->   8192   runs 8192/8192/6144
+    Exponential     LogPDF 8271f6e   250k ->    75k   runs 75k/75k/100k
+    Exponential     CDF    8271f6e    25k ->   4096   runs 4096/8192/4096
+    FisherF         PDF    8271f6e   2048 ->   6144   runs 6144/1024/4096
+    Gamma           LogPDF 8271f6e   8192 ->    25k   runs 25k/8192/8192
+    Gamma           CDF    8271f6e   1024 ->   8192   runs 1024/8192/1024
+    Gaussian        PDF    8271f6e    50k ->   8192   runs 8192/8192/8192
+    Gaussian        LogPDF 8271f6e   300k ->   100k   runs 100k/100k/150k
+    Gumbel          PDF    8271f6e    25k ->   8192   runs 6144/8192/8192
+    Gumbel          LogPDF 8271f6e    25k ->   6144   runs 8192/6144/6144
+    Gumbel          CDF    8271f6e    25k ->   8192   runs 8192/8192/8192
+    HalfNormal      PDF    8271f6e    25k ->   8192   runs 6144/8192/2048
+    HalfNormal      LogPDF 8271f6e   300k ->    75k   runs 75k/75k/50k
+    InverseGamma    PDF    8271f6e   100k ->    50k   runs 50k/50k/75k
+    Laplace         PDF    8271f6e    25k ->   8192   runs 8192/6144/8192
+    Laplace         LogPDF 8271f6e   150k ->    50k   runs 50k/50k/50k
+    LogNormal       PDF    8271f6e    25k ->   8192   runs 8192/8192/8192
+    LogNormal       LogPDF 8271f6e    25k ->   8192   runs 8192/8192/8192
+    Logistic        LogPDF 8271f6e    25k ->   6144   runs 6144/6144/6144
+    Logistic        CDF    8271f6e    25k ->   8192   runs 6144/8192/8192
+    NegBinomial     LogPDF 8271f6e   4096 ->   8192   runs 4096/8192/1024
+    NegBinomial     CDF    8271f6e   8192 ->   4096   runs 2048/4096/4096
+    Pareto          PDF    8271f6e    25k ->   8192   runs 6144/8192/8192
+    Pareto          LogPDF 8271f6e    50k ->   8192   runs 8192/8192/8192
+    Pareto          CDF    8271f6e   4096 ->   8192   runs 8192/8192/4096
+    Poisson         PDF    8271f6e    25k ->   8192   runs 6144/8192/8192
+    Poisson         LogPDF 8271f6e   6144 ->   2048   runs 1024/2048/2048
+    Rayleigh        PDF    8271f6e    25k ->   8192   runs 8192/8192/8192
+    Rayleigh        LogPDF 8271f6e    25k ->   8192   runs 6144/8192/8192
+    Rayleigh        CDF    8271f6e    25k ->   6144   runs 8192/4096/6144
+    StudentT        PDF    8271f6e    25k ->   8192   runs 8192/6144/8192
+    StudentT        LogPDF 8271f6e    50k ->   8192   runs 8192/8192/8192
+    TruncatedNormal PDF    8271f6e    50k ->   8192   runs 8192/6144/8192
+    TruncatedNormal LogPDF 8271f6e   100k ->    25k   runs 25k/25k/25k
+    Uniform         PDF    8271f6e  NEVER ->   100k   runs 100k/100k/100k
+    Uniform         LogPDF 8271f6e  NEVER ->    75k   runs 75k/75k/75k
+    VonMises        PDF    8271f6e    25k ->   8192   runs 8192/8192/8192
+    VonMises        LogPDF 8271f6e    25k ->   8192   runs 6144/8192/8192
+
+== Z vs K at d1adc95, same tier (rows > 1 grid step apart; K = Kaby Lake 4C/8T AppleClang 15)
+  AVX2: 40 of 81
+    Bernoulli       PDF    Z   8192  K   4096
+    Bernoulli       LogPDF Z   6144  K   1024
+    Bernoulli       CDF    Z   8192  K   4096
+    Beta            CDF    Z   8192  K   2048
+    Binomial        PDF    Z   8192  K   4096
+    Binomial        CDF    Z   6144  K   2048
+    Cauchy          LogPDF Z    75k  K    25k
+    Cauchy          CDF    Z    25k  K   6144
+    ChiSquared      CDF    Z   1024  K   4096
+    Discrete        PDF    Z   150k  K    50k
+    Discrete        LogPDF Z   100k  K    50k
+    Discrete        CDF    Z   150k  K    50k
+    Erlang          CDF    Z   8192  K   4096
+    Exponential     CDF    Z    25k  K   8192
+    Gamma           PDF    Z   8192  K    25k
+    Gamma           CDF    Z   8192  K   4096
+    Gaussian        CDF    Z   8192  K   2048
+    Geometric       PDF    Z    256  K   4096
+    Geometric       LogPDF Z    256  K   2048
+    Geometric       CDF    Z   8192  K   4096
+    Gumbel          CDF    Z   8192  K    25k
+    InverseGamma    PDF    Z   150k  K    50k
+    InverseGamma    LogPDF Z   150k  K    25k
+    InverseGamma    CDF    Z   8192  K   4096
+    Laplace         CDF    Z    25k  K   8192
+    LogNormal       CDF    Z   6144  K   2048
+    Logistic        LogPDF Z   6144  K    25k
+    NegBinomial     PDF    Z   6144  K   2048
+    NegBinomial     CDF    Z   6144  K   2048
+    Poisson         PDF    Z   8192  K   4096
+    Poisson         LogPDF Z   1024  K   4096
+    Poisson         CDF    Z   8192  K   2048
+    Rayleigh        PDF    Z   8192  K    25k
+    Rayleigh        LogPDF Z   8192  K    25k
+    Rayleigh        CDF    Z    25k  K   6144
+    TruncatedNormal CDF    Z   8192  K   4096
+    Uniform         LogPDF Z   300k  K   200k
+    Uniform         CDF    Z    75k  K    25k
+    Weibull         LogPDF Z   8192  K    25k
+    Weibull         CDF    Z   8192  K   2048
+  AVX: 40 of 81
+    Bernoulli       LogPDF Z   4096  K   1024
+    Beta            LogPDF Z   8192  K    25k
+    Beta            CDF    Z   8192  K   4096
+    Binomial        PDF    Z   8192  K   2048
+    Binomial        LogPDF Z   8192  K   4096
+    Binomial        CDF    Z   8192  K   2048
+    Cauchy          LogPDF Z    75k  K    25k
+    Cauchy          CDF    Z    25k  K   6144
+    ChiSquared      PDF    Z   6144  K    25k
+    Discrete        PDF    Z   100k  K    50k
+    Erlang          CDF    Z   1024  K   4096
+    Exponential     CDF    Z    25k  K   6144
+    FisherF         PDF    Z   8192  K   4096
+    FisherF         LogPDF Z   6144  K    512
+    Gamma           LogPDF Z   6144  K    25k
+    Gamma           CDF    Z   8192  K   4096
+    Geometric       PDF    Z   8192  K   1024
+    Geometric       LogPDF Z   8192  K   4096
+    Geometric       CDF    Z   8192  K   4096
+    Gumbel          CDF    Z   8192  K    25k
+    HalfNormal      CDF    Z   8192  K   4096
+    InverseGamma    LogPDF Z   100k  K    25k
+    InverseGamma    CDF    Z    512  K   4096
+    Laplace         CDF    Z    25k  K   6144
+    LogNormal       LogPDF Z   8192  K    25k
+    LogNormal       CDF    Z   8192  K   4096
+    NegBinomial     PDF    Z   8192  K   2048
+    NegBinomial     LogPDF Z   8192  K   4096
+    Pareto          PDF    Z   8192  K    25k
+    Poisson         PDF    Z   8192  K   4096
+    Poisson         LogPDF Z   8192  K   4096
+    Poisson         CDF    Z   8192  K   4096
+    Rayleigh        LogPDF Z   8192  K    25k
+    Rayleigh        CDF    Z    25k  K   6144
+    StudentT        PDF    Z   8192  K    25k
+    Uniform         LogPDF Z  NEVER  K   200k
+    Uniform         CDF    Z    75k  K    25k
+    VonMises        LogPDF Z   6144  K    25k
+    Weibull         LogPDF Z   8192  K    25k
+    Weibull         CDF    Z   8192  K   4096
+  SSE2: 44 of 81
+    Bernoulli       PDF    Z   8192  K   2048
+    Bernoulli       LogPDF Z   6144  K    256
+    Bernoulli       CDF    Z   8192  K   4096
+    Beta            CDF    Z   6144  K   2048
+    Cauchy          CDF    Z    25k  K   6144
+    ChiSquared      LogPDF Z   8192  K    25k
+    ChiSquared      CDF    Z   1024  K   4096
+    Discrete        PDF    Z    25k  K    75k
+    Erlang          PDF    Z   8192  K   4096
+    Erlang          CDF    Z   1024  K   4096
+    Exponential     PDF    Z   8192  K    25k
+    FisherF         LogPDF Z   6144  K   1024
+    Gamma           CDF    Z   8192  K   4096
+    Gaussian        PDF    Z   8192  K    25k
+    Gaussian        CDF    Z   8192  K   4096
+    Geometric       PDF    Z   8192  K   4096
+    Geometric       LogPDF Z    512  K   4096
+    Geometric       CDF    Z   8192  K   2048
+    Gumbel          PDF    Z   8192  K   4096
+    Gumbel          CDF    Z   8192  K   2048
+    HalfNormal      PDF    Z   8192  K    25k
+    HalfNormal      CDF    Z   8192  K   4096
+    InverseGamma    LogPDF Z    75k  K    25k
+    Laplace         CDF    Z    25k  K   6144
+    LogNormal       LogPDF Z   8192  K    25k
+    LogNormal       CDF    Z   6144  K   2048
+    Logistic        PDF    Z   8192  K   4096
+    NegBinomial     PDF    Z   8192  K   4096
+    NegBinomial     LogPDF Z   8192  K   4096
+    Pareto          LogPDF Z   8192  K    25k
+    Pareto          CDF    Z   8192  K   2048
+    Poisson         PDF    Z   8192  K   4096
+    Poisson         CDF    Z   8192  K   2048
+    Rayleigh        LogPDF Z   8192  K    25k
+    Rayleigh        CDF    Z   6144  K    512
+    StudentT        PDF    Z   8192  K   4096
+    StudentT        LogPDF Z   8192  K    25k
+    StudentT        CDF    Z   8192  K   4096
+    TruncatedNormal CDF    Z   8192  K   4096
+    Uniform         PDF    Z   100k  K   250k
+    Uniform         LogPDF Z    75k  K   150k
+    VonMises        PDF    Z   8192  K   4096
+    VonMises        CDF    Z   6144  K   2048
+    Weibull         PDF    Z   8192  K   4096
+
+== run-to-run: rows whose three new runs span > 2x (candidate takes the max)
+  AVX-512: 26  Bernoulli.CDF, Beta.PDF, Binomial.PDF, Cauchy.PDF, Cauchy.CDF, ChiSquared.CDF, Erlang.CDF, FisherF.CDF, Gamma.PDF, Gamma.CDF, Geometric.PDF, Geometric.LogPDF, InverseGamma.CDF, LogNormal.PDF, LogNormal.CDF, Logistic.PDF, NegBinomial.PDF, Pareto.CDF, Poisson.LogPDF, Poisson.CDF, StudentT.PDF, StudentT.CDF, TruncatedNormal.CDF, VonMises.PDF, VonMises.CDF, Weibull.LogPDF
+  AVX2: 28  Bernoulli.PDF, Bernoulli.LogPDF, Binomial.CDF, Cauchy.LogPDF, Cauchy.CDF, ChiSquared.PDF, ChiSquared.LogPDF, ChiSquared.CDF, Erlang.PDF, Erlang.LogPDF, Erlang.CDF, FisherF.PDF, FisherF.CDF, Gamma.LogPDF, Gamma.CDF, Gumbel.PDF, InverseGamma.CDF, Laplace.CDF, LogNormal.PDF, Logistic.CDF, Pareto.PDF, Poisson.CDF, StudentT.LogPDF, TruncatedNormal.PDF, TruncatedNormal.CDF, Uniform.PDF, VonMises.PDF, VonMises.CDF
+  AVX: 24  Beta.PDF, Beta.CDF, Binomial.LogPDF, Binomial.CDF, Cauchy.LogPDF, ChiSquared.LogPDF, ChiSquared.CDF, FisherF.PDF, FisherF.CDF, Gamma.CDF, Geometric.PDF, Geometric.LogPDF, Gumbel.LogPDF, HalfNormal.PDF, Laplace.PDF, Laplace.CDF, Logistic.CDF, Poisson.LogPDF, Poisson.CDF, Rayleigh.CDF, StudentT.LogPDF, Uniform.PDF, Uniform.LogPDF, VonMises.CDF
+  SSE2: 15  Beta.CDF, Cauchy.LogPDF, FisherF.PDF, FisherF.CDF, Gamma.LogPDF, Gamma.CDF, Geometric.PDF, Geometric.LogPDF, HalfNormal.PDF, LogNormal.CDF, NegBinomial.PDF, NegBinomial.LogPDF, Poisson.CDF, TruncatedNormal.CDF, VonMises.CDF
+
+== SSE2 vs AVX candidates (SSE2 delegates to kAvx today): rows > 1 grid step apart
+  Bernoulli       PDF    AVX   4096  SSE2   8192
+  Bernoulli       CDF    AVX   4096  SSE2   8192
+  Binomial        CDF    AVX   8192  SSE2   4096
+  Cauchy          LogPDF AVX    75k  SSE2    25k
+  ChiSquared      LogPDF AVX    25k  SSE2   8192
+  Discrete        PDF    AVX   100k  SSE2    25k
+  Discrete        LogPDF AVX    75k  SSE2    25k
+  Erlang          LogPDF AVX    25k  SSE2   8192
+  Exponential     PDF    AVX    25k  SSE2   8192
+  Exponential     CDF    AVX    25k  SSE2   4096
+  Gamma           LogPDF AVX   6144  SSE2    25k
+  Gaussian        PDF    AVX    25k  SSE2   8192
+  Geometric       LogPDF AVX   8192  SSE2    512
+  Gumbel          LogPDF AVX    25k  SSE2   6144
+  HalfNormal      PDF    AVX    25k  SSE2   8192
+  InverseGamma    PDF    AVX   150k  SSE2    50k
+  InverseGamma    CDF    AVX    512  SSE2   6144
+  Laplace         PDF    AVX    25k  SSE2   8192
+  Logistic        CDF    AVX    25k  SSE2   8192
+  Pareto          LogPDF AVX    25k  SSE2   8192
+  Poisson         LogPDF AVX   8192  SSE2   2048
+  Rayleigh        CDF    AVX    25k  SSE2   6144
+  StudentT        LogPDF AVX    25k  SSE2   8192
+  TruncatedNormal CDF    AVX   4096  SSE2   8192
+  Uniform         PDF    AVX  NEVER  SSE2   100k
+  Uniform         LogPDF AVX  NEVER  SSE2    75k
+  26 of 81
+
+== tier ordering of candidates (expect SSE2 <= AVX <= AVX2 <= AVX-512: slower VECTORIZED -> parallel sooner)
+  FisherF         PDF    SSE2 6144  AVX 8192  AVX2 6144  AVX-512 1024
+  Gamma           LogPDF SSE2 25k  AVX 6144  AVX2 25k  AVX-512 25k
+  Geometric       PDF    SSE2 8192  AVX 8192  AVX2 256  AVX-512 8192
+  Geometric       LogPDF SSE2 512  AVX 8192  AVX2 256  AVX-512 8192
+  InverseGamma    CDF    SSE2 6144  AVX 512  AVX2 8192  AVX-512 8192
+  Poisson         LogPDF SSE2 2048  AVX 8192  AVX2 1024  AVX-512 2048
+  Uniform         PDF    SSE2 100k  AVX NEVER  AVX2 NEVER  AVX-512 300k
+  Uniform         LogPDF SSE2 75k  AVX NEVER  AVX2 300k  AVX-512 300k
+  8 rows out of order by > 2x

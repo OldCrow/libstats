@@ -1,0 +1,8 @@
+Defined kernel symbols (dumpbin /symbols) in build-clangcl-avx2\stats_static.lib:
+  vector_*_avx512: 0
+  vector_*_avx2: 10
+  vector_*_avx: 10
+  vector_*_sse2: 10
+configure: SIMD: capped at AVX2 via LIBSTATS_MAX_SIMD_TIER; disabled: AVX512
+configure: Applied Clang-cl x64 SIMD flags: /arch:AVX2
+system_inspector: System: 12 logical cores, AVX2 SIMD, 16384 KB L3 cache

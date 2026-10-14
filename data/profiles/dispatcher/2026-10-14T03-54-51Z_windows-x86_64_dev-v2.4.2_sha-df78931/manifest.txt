@@ -1,0 +1,42 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-10-14T03-54-51Z_windows-x86_64_dev-v2.4.2_sha-df78931
+Captured at (UTC): 2026-10-14T03-54-51Z (run 1; runs 2-3 04:03Z and 04:12Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- logs/configure.txt
+- logs/run.txt
+- logs/system_inspector.txt
+- logs/tier.txt
+
+Capture notes:
+- Native SSE2 on Zen 4 (Asus TUF A16, Ryzen 7 7445HS, 6C/12T), Windows 11, clang-cl
+  22.1.3 (VS 2026 18.11 bundled), Ninja, Release, LIBSTATS_MAX_SIMD_TIER=SSE2, build-clangcl-sse2/ (no /arch, tests off); code at the
+  freeze head d1adc95 (fix-9 round 8d3c9c7, R6a docs d1adc95), captured at the branch tip
+  df78931 (K's AVX2 block and R8 bundles, PLAN.md). Z's performance build [user, 2026-10-05].
+  One of four tier bundles captured the same night: this one, the AVX-512 2026-10-14T02-41-05Z, the AVX2 2026-10-14T03-05-23Z, the AVX 2026-10-14T03-29-48Z.
+  Supersedes Z's 2026-10-07 8271f6e bundles (code ee11e62, before #191 and every fix
+  round since) and the 2026-10-06 69c7be4 bundles.
+- Three `strategy_profile --large -o <csv>` runs from a detached script, screen locked,
+  Turbo power scheme, AC. Every process opted out of Windows power throttling
+  (docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1); a 10-s clock
+  probe before each run read 127.1-127.7 ms per pass (boost ~128, base
+  clock ~190). Each run started at CPU < 8% (3.4-6.8%) after a 25-s
+  discarded strategy_profile pass (logs/run.txt).
+- The `--large` grid and the SUSTAINED V->P rule are the 2026-09-04 bundles'.
+  analyze_crossovers.py is a copy of scripts/analyze_crossovers.py at d1adc95;
+  sustained_crossovers.txt is its `--table kAvx` output.
+- logs/tier.txt: vector_* kernels in the static library (dumpbin), the configure cap
+  and global /arch flag, and system_inspector's tier.
+- Before these runs, the same night: test_parallel_batch_gates alone (exit 0), the
+  R3 cost benches against v2.4.1, and the 14 timing tests (14/14 passed);
+  docs/bench-evidence/2026-10-13-zen4-clangcl-d1adc95/.
+- R1 at d1adc95 on Z: MSVC and clang-cl 0 warnings, correctness 132/132 each; the clang-cl
+  sweep through the oracle 0 contract violations, AVX-512 block regenerated (PLAN.md).
