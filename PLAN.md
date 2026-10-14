@@ -69,6 +69,46 @@ at the new head.
 Next: Z and M rerun R1, R2 and R8 at `d1adc95`. Then the table rows
 [user's decision], then R6b.
 
+**At `d1adc95`, per machine [OPEN, 2026-10-13].** Code head `d1adc95`;
+the branch tip may be later with docs and data only. `git fetch`, a clean
+tree, then the runbook's sections, with these specifics. Run any chain
+longer than 1.5 h detached in a new session, unsandboxed: the
+`os.setsid()` launcher, as `scratchpad/r8/run_r8_k.sh` did on K. Gate
+each quiet step on the 1-min load (K and M below 2.0). Stop and report
+anything unexplained.
+- **M (NEON, AppleClang 21):**
+  1. R1: a fresh `build-release` with tests on. 0 warnings; correctness
+     132/132, stress included.
+  2. R2: sweep (26,885 rows). Diff the result bits against M's last sweep
+     at `5213b42`. Expect changes only in rows that fix-7/8/9 touch
+     (`0ab1b25`, `0d8ba77`, `8d3c9c7`); explain every one. Then
+     `accuracy_vs_mpmath.py` (a Python with mpmath): 0 contract
+     violations, NEON block only.
+  3. Quiet `test_parallel_batch_gates`: every ratio below 0.75.
+  4. R8 NEON: three `--large` runs, bundled like K's `2026-10-13T*`
+     bundles. Compare with kNeon and with M's `2026-10-05T04-36-25Z`
+     bundle.
+  5. R3: costs against v2.4.1, and `ctest -j1 -L timing`.
+  6. R9: the stress test under TSan (M is the only weakly ordered CPU).
+- **Z (Zen 4; clang-cl performance, MSVC correctness):**
+  1. R1: both compilers Release, 0 warnings, correctness 132/132.
+  2. R2: sweep under both. Diff against Z's last sweep (`3339fc1`).
+     Regenerate the AVX-512 block, which is at `c09efd0`, from the
+     clang-cl sweep. If Z has no mpmath, run the oracle on K or M from
+     the CSV.
+  3. The speed gate.
+  4. R8 on clang-cl: AVX-512, AVX2, AVX and SSE2, three runs each. Opt
+     every process out of power throttling, with ~20 s of warm-up load
+     before each run. Compare with kAvx512/kAvx2/kAvx and with K's
+     `2026-10-13T*` bundles.
+  5. R3: costs against v2.4.1 on clang-cl, and the timing tests.
+  6. R9: the stress test (no TSan on Windows).
+- **K (AVX2, AppleClang 15):** R2 and R8 done (above); R1 (Release), R3
+  and R9 under TSan follow.
+- Note on `794f515`'s message: the discrete and CDF rows' NEVER → 1–4k
+  also reflect #191's slice fix (2026-10-07/08). K's captures from that
+  night were never committed, so the comparison base was `6f86996`.
+
 History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
 by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
 rename in `gamma.cpp` and `beta.cpp`), the `log1pmx_series` Horner
