@@ -1,0 +1,31 @@
+2026-10-15 09:07:46 avx512 cpu=26.1% waiting
+2026-10-15 09:08:24 avx512 cpu=14.3% waiting
+2026-10-15 09:09:00 avx512 cpu=14.8% waiting
+2026-10-15 09:09:36 avx512 cpu=32.7% waiting
+2026-10-15 09:10:12 avx512 cpu=32% waiting
+2026-10-15 09:10:48 avx512 cpu=27.2% waiting
+2026-10-15 09:11:24 avx512 cpu=21.7% waiting
+2026-10-15 09:12:00 avx512 cpu=11.8% waiting
+2026-10-15 09:12:36 avx512 cpu=13.3% waiting
+2026-10-15 09:13:12 avx512 cpu=14.1% waiting
+2026-10-15 09:13:48 avx512 cpu=14.7% waiting
+2026-10-15 09:14:24 avx512 cpu=14.2% waiting
+2026-10-15 09:15:00 avx512 cpu=11.9% waiting
+2026-10-15 09:15:36 avx512 cpu=20.3% waiting
+2026-10-15 09:16:12 avx512 cpu=10.3% waiting
+2026-10-15 09:16:48 avx512 cpu=12.6% waiting
+2026-10-15 09:17:24 avx512 cpu=12.9% waiting
+2026-10-15 09:18:00 avx512 cpu=11.5% NOT quiet after 10 min, starting anyway (indicative)
+2026-10-15 09:18:01 clock[avx512] start (set=True ok=True control=1 state=0)
+2026-10-15 09:19:38 clock[avx512] end exit=0 rows=18 90s cpu=12.1%
+2026-10-15 09:19:38 clock[avx512] ms/pass=127.8/127.5/127.4/127.6/127.4/127.8/127.2/127.2/127.7/129.1/127.9/127.5/127.4/127.4/127.7/127.6/127.5/127.4 (boost ~128, base ~190)
+2026-10-15 09:19:59 avx512 warm-up 20s discarded
+2026-10-15 09:19:59 avx512 old pass 1 start (set=True ok=True control=1 state=0)
+2026-10-15 09:20:56 avx512 old pass 1 end exit=0 rows=2431 51s cpu=18.1%
+2026-10-15 09:20:56 avx512 new pass 1 start (set=True ok=True control=1 state=0)
+2026-10-15 09:21:49 avx512 new pass 1 end exit=0 rows=2431 46s cpu=14.6%
+2026-10-15 09:21:49 avx512 old pass 2 start (set=True ok=True control=1 state=0)
+2026-10-15 09:22:45 avx512 old pass 2 end exit=0 rows=2431 50s cpu=11.6%
+2026-10-15 09:22:45 avx512 new pass 2 start (set=True ok=True control=1 state=0)
+2026-10-15 09:23:36 avx512 new pass 2 end exit=0 rows=2431 45s cpu=13.8%
+2026-10-15 09:23:36 avx512 DONE

@@ -282,8 +282,44 @@ Status by machine (each machine edits only its own line):
   LogPDF, Uniform PDF/LogPDF). Nothing committed: the AVX-512 block, the
   four bundles, the evidence directory and this file await the user.
   Committed and pushed 2026-10-14 (`85e1350`, `4b3cc3d`, `575ab2a`).
-  Next on Z: the kAvx512 row update under the 2026-10-14 rules (R8), then
-  one R1; nothing else until then.
+  **Table A/B on kAvx512, 2026-10-15** [DERIVED, Z; uncommitted, awaiting
+  the user's review; `docs/bench-evidence/2026-10-15-zen4-threshold-rows/`]:
+  at `122aa51` (M's rows `580b7f7`/`bb9ac0b`), the procedure under "Table
+  A/B on K and Z", clang-cl, ABAB, five rounds; rounds 1, 2, 4, 5 quiet
+  (2.7–8.8% CPU, boost), round 3 indicative. Round 1 (the `580b7f7`
+  kAvx512 against `10a7ff7`, one pair per tier): AUTO gaps 207 → 103, no
+  table-caused regression (the "slower" rows are single-pass outliers on
+  unchanged rows, trivial-kernel Uniform at 1–4k, InverseGamma where every
+  strategy shifted). The 103 remaining sat on the sixteen `KEEP override`
+  rows and their delegates: the same gap under both tables. Capped tiers
+  for K's direction: kAvx2 196 → 46, AVX-tree kAvx 164 → 31, SSE2-tree
+  kAvx 198 → 64, no regression beyond the forced-strategy shift. Decided
+  [user, 2026-10-15: every change with conclusive evidence]: round 2,
+  fourteen overrides dropped (`DROP_OVERRIDE`, step 4) — Binomial LogPDF,
+  NegBinomial PDF/LogPDF, Student-t CDF, von Mises CDF, Gaussian CDF and
+  the Bernoulli PDF/LogPDF and Geometric PDF mirrors → 8192; Cauchy CDF,
+  Beta LogPDF, Pareto CDF, Rayleigh CDF, Exponential CDF → 25k (gaps 209
+  → 18); round 3/4, three one-step rows taken (`TAKE_CANDIDATE`) —
+  Logistic LogPDF 50k → 25k, Gumbel CDF 50k → 25k, TruncatedNormal LogPDF
+  75k → 50k (gaps 211 → 19); round 5, four fork-zone rows whose profile
+  candidate was only the max of a > 2× spread while every quiet pass
+  shows PARALLEL ahead at 8192 (new `BENCH_CROSSOVER` rule, evidence per
+  row) — Beta PDF/LogPDF, Pareto CDF, Cauchy CDF 25k → 8192: gaps 208 →
+  5, 199 of 810 AUTO rows faster > 1.25×, 2 slower inside the noise band;
+  the five left are 1–2k trivial-kernel rows and two 1.3–1.4× unchanged
+  rows. Kept, bench-supported: Fisher-F PDF 8192, InverseGamma PDF 25k.
+  Header: 21 values on 21 rows (clang-format 20.1.8), other tables
+  untouched; the script's `2026-10-14:` markers extend with the new
+  old → new pairs. R1 at the final header: MSVC and clang-cl 0 warnings,
+  132/132 each, gates 0.235–0.254. The Gamma-at-8192 AUTO observation is
+  closed by `gamma_probe/`: `selectStrategy` returns VECTORIZED there and
+  AUTO times identically to forced VECTORIZED in every order, after a
+  PARALLEL call and after a pause; the bench rows were measurement
+  outliers (none in round 5). No issue. Worktree `../libstats-oldtable`
+  (10a7ff7) kept for reruns.
+  Next on Z: the user reviews, then commits the header, the script and
+  the evidence (one commit for header + script, one for evidence + this
+  file); CI on the push; nothing else on Z.
 - **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
   fixed the SDK `label` collision and sign-compare warnings in tests;
   86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract

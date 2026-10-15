@@ -1,0 +1,76 @@
+noise floor (forced, same code): median 0.998 p05 0.92 p95 1.08 n=1620
+pass-to-pass (old table, all rows): median 1.000 p05 0.91 p95 1.11
+AUTO rows 810: new/old median 0.993; faster >1.25x 199; slower >1.25x 2
+AUTO > 1.25x behind best forced: old table 208, new table 5
+
+== REGRESSIONS: new AUTO slower than old by > 1.25x
+  ChiSquared      logpdf    8192  old     1.40 new     1.77  new/old  1.27  old a/b 1.00(vect) new a/b 1.09(para)
+  Uniform         cdf      25000  old     0.35 new     0.44  new/old  1.26  old a/b 0.80(vect) new a/b 1.01(vect)
+
+== remaining gaps under the NEW table: AUTO > 1.25x behind best forced
+  Uniform         logpdf    1024  auto/best 1.54 (best vectorized)  old auto/best 1.52  new/old 0.97
+  Laplace         logpdf   10000  auto/best 1.40 (best vectorized)  old auto/best 1.25  new/old 1.10
+  Uniform         cdf       1024  auto/best 1.36 (best vectorized)  old auto/best 1.54  new/old 0.88
+  LogNormal       logpdf   25000  auto/best 1.27 (best parallel)  old auto/best 1.21  new/old 1.09
+  Discrete        cdf       2048  auto/best 1.27 (best parallel)  old auto/best 1.00  new/old 1.20
+
+== gaps CLOSED by the new table (old a/b > 1.25, new a/b <= 1.25)
+  Bernoulli       logpdf  n:new/old  8192:0.57 10000:0.64 25000:0.44 50000:0.31 100000:0.26 200000:0.25 500000:0.25
+  Bernoulli       pdf     n:new/old  8192:0.50 10000:0.56 25000:0.35 50000:0.29 100000:0.26 200000:0.25 500000:0.25
+  Beta            logpdf  n:new/old  8192:0.85 25000:0.54 50000:0.38 100000:0.31 200000:0.20 500000:0.18
+  Beta            pdf     n:new/old  8192:0.69 10000:0.77 25000:0.52 50000:0.40 100000:0.30 200000:0.20 500000:0.20
+  Binomial        logpdf  n:new/old  8192:0.36 10000:0.43 25000:0.28 50000:0.27 100000:0.25 200000:0.24 500000:0.23
+  Binomial        pdf     n:new/old  8192:0.34 10000:0.44 25000:0.28 50000:0.28 100000:0.25 200000:0.24 500000:0.24
+  Cauchy          cdf     n:new/old  8192:0.69 10000:0.76 25000:0.55 50000:0.25 100000:0.25 200000:0.25 500000:0.23
+  Cauchy          logpdf  n:new/old  100000:0.72 200000:0.63 500000:0.63
+  Cauchy          pdf     n:new/old  50000:0.52 100000:0.37 200000:0.31 500000:0.30
+  ChiSquared      logpdf  n:new/old  50000:0.50
+  Discrete        cdf     n:new/old  50000:0.77 200000:0.52 500000:0.40
+  Discrete        logpdf  n:new/old  50000:0.81
+  Discrete        pdf     n:new/old  100000:0.94
+  Erlang          logpdf  n:new/old  50000:0.51
+  Exponential     cdf     n:new/old  25000:0.82 50000:0.57 100000:0.35 200000:0.29
+  Exponential     logpdf  n:new/old  100000:0.64 200000:0.49
+  Exponential     pdf     n:new/old  50000:0.61 100000:0.42 200000:0.33
+  Gamma           logpdf  n:new/old  8192:0.48 25000:0.69 50000:0.46
+  Gamma           pdf     n:new/old  8192:0.63
+  Gaussian        cdf     n:new/old  8192:0.55 10000:0.58
+  Gaussian        logpdf  n:new/old  1024:0.87 100000:0.96 200000:0.67
+  Gaussian        pdf     n:new/old  50000:0.65 100000:0.51 200000:0.35 500000:0.30
+  Geometric       logpdf  n:new/old  8192:0.36 10000:0.44 25000:0.28 50000:0.26 100000:0.25 200000:0.25 500000:0.24
+  Geometric       pdf     n:new/old  8192:0.37 10000:0.44 25000:0.26 50000:0.26 100000:0.25 200000:0.25 500000:0.24
+  Gumbel          cdf     n:new/old  25000:0.66
+  HalfNormal      cdf     n:new/old  8192:0.70 10000:0.81 25000:0.49
+  HalfNormal      logpdf  n:new/old  100000:0.68 200000:0.40
+  HalfNormal      pdf     n:new/old  50000:0.59 100000:0.40
+  Laplace         cdf     n:new/old  8192:1.00
+  Laplace         logpdf  n:new/old  25000:1.02
+  LogNormal       logpdf  n:new/old  50000:0.50
+  LogNormal       pdf     n:new/old  25000:0.59 50000:0.48 100000:0.33
+  Logistic        logpdf  n:new/old  25000:0.58
+  Logistic        pdf     n:new/old  25000:0.54 50000:0.33
+  NegBinomial     logpdf  n:new/old  8192:0.34 10000:0.43 25000:0.28 50000:0.28 100000:0.25 200000:0.24 500000:0.24
+  NegBinomial     pdf     n:new/old  8192:0.35 10000:0.44 25000:0.28 50000:0.28 100000:0.25 200000:0.24 500000:0.23
+  Pareto          cdf     n:new/old  8192:0.61 10000:0.67 25000:0.41 50000:0.35 100000:0.28 200000:0.27 500000:0.25
+  Pareto          logpdf  n:new/old  50000:0.60 100000:0.40 200000:0.31 500000:0.27
+  Pareto          pdf     n:new/old  25000:0.68 50000:0.46 100000:0.38 200000:0.29 500000:0.27
+  Poisson         logpdf  n:new/old  8192:0.36 10000:0.44
+  Rayleigh        cdf     n:new/old  25000:0.65 50000:0.51 100000:0.26 200000:0.24
+  Rayleigh        logpdf  n:new/old  50000:0.48 100000:0.38
+  Rayleigh        pdf     n:new/old  25000:0.62 50000:0.46 100000:0.34
+  StudentT        cdf     n:new/old  8192:0.32 10000:0.39 25000:0.27 50000:0.27 100000:0.25 200000:0.25 500000:0.23
+  StudentT        logpdf  n:new/old  25000:0.62 50000:0.45 100000:0.36 200000:0.32 500000:0.26
+  StudentT        pdf     n:new/old  25000:0.50 50000:0.42 100000:0.32 200000:0.31 500000:0.27
+  TruncatedNormal cdf     n:new/old  8192:0.53 10000:0.55
+  TruncatedNormal logpdf  n:new/old  50000:0.74
+  TruncatedNormal pdf     n:new/old  25000:0.80 50000:0.54
+  Uniform         cdf     n:new/old  4096:0.80 100000:0.99 200000:0.39 500000:0.34
+  Uniform         logpdf  n:new/old  4096:0.78 500000:0.57
+  Uniform         pdf     n:new/old  1024:0.73 500000:0.52
+  VonMises        cdf     n:new/old  8192:0.36 10000:0.44
+  VonMises        logpdf  n:new/old  25000:0.79 50000:0.50
+  Weibull         cdf     n:new/old  8192:0.68 10000:0.70 25000:0.45 50000:0.35 100000:0.30 200000:0.28 500000:0.25
+  Weibull         logpdf  n:new/old  25000:0.58 50000:0.42 100000:0.33
+  Weibull         pdf     n:new/old  8192:0.66 10000:0.78 25000:0.47 50000:0.36 100000:0.29
+
+== per-row verdict for every changed proposal row would need the table; see rows_kNeon.txt
