@@ -37,9 +37,9 @@ Follow the standard architecture check:
 Then, because the active SIMD tier changes fundamentally between machines and
 code paths, thresholds and test results all depend on it:
 
-- Run `./build/tools/system_inspector --quick` (`.\build\tools\Release\system_inspector.exe --quick`
-  on Windows, with `stats.dll` copied beside it) to confirm the active SIMD capabilities before interpreting any
-  performance or test result.
+- Run `./build/tools/system_inspector --quick` (Windows: `.\build\tools\Release\system_inspector.exe`
+  under the Visual Studio generator, `.\build-clangcl\tools\system_inspector.exe` under Ninja/clang-cl)
+  to confirm the active SIMD capabilities before interpreting any performance or test result.
 - If the machine changed since the last session, say so explicitly, and
   reconfigure — the build directory may not be current for this architecture.
 - Benchmark results are **not** comparable across architectures, and dispatch
@@ -68,8 +68,8 @@ build directory map, and the header tooling are documented in
 `docs/BUILD_SYSTEM_GUIDE.md` and `docs/HEADER_TOOLS_GUIDE.md`.
 
 Windows has two builds: clang-cl (Ninja) is the performance build, cl.exe
-(Visual Studio x64 Release) the correctness build; both take `/arch:AVX2` or
-`/arch:AVX512` from the detected tier — see Platform-Specific Notes.
+(Visual Studio x64 Release) the correctness build; both take `/arch:AVX`,
+`/arch:AVX2` or `/arch:AVX512` from the detected tier — see Platform-Specific Notes.
 
 ### CMake standard
 
@@ -123,12 +123,13 @@ Toolchain activation, one-time setup, and the Smart App Control/Defender notes:
 libstats-specific steps after activating the toolchain:
 
 ```powershell
-Copy-Item "build\Release\stats.dll" -Destination "build\tests\" -Force
 ctest --test-dir build -C Release -LE "timing|benchmark" --output-on-failure
 ```
 
-After any clean rebuild, spot-check `test_gaussian_basic_dynamic.exe` and
-`test_exponential_basic_dynamic.exe` with
+Tools link `libstats_static`; the dynamic tests copy `stats.dll` beside
+themselves at build time. After any clean rebuild, spot-check
+`build\tests\Release\test_gaussian_basic_dynamic.exe` and
+`build\tests\Release\test_exponential_basic_dynamic.exe` with
 `dumpbin /imports <exe> | Select-String vcruntime` for a stale Debug CRT
 (`VCRUNTIME140D.dll` instead of `VCRUNTIME140.dll`).
 
@@ -164,7 +165,7 @@ distribution roster lives in the code and in that guide, not here.
 - Always rebuild after source changes before running tests
 - Use `initialize_performance_systems()` for optimal batch performance
 - SIMD kernels impose no alignment requirement on caller data: every load/store of a caller buffer is unaligned (`loadu`/`storeu`); aligned ops are used only on internal `alignas` locals
-- Parallel execution pays off only above the per-row thresholds in `dispatch_thresholds.h`; many rows are `NEVER`
+- Parallel execution pays off only above the per-row thresholds in `dispatch_thresholds.h`; only two Uniform entries are `NEVER`
 
 ### Platform-Specific Conventions
 - **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
@@ -206,9 +207,9 @@ produces silently wrong results or a deadlock, not a build error.
 Dispatch thresholds are per-(architecture, distribution, operation) in
 `dispatch_thresholds.h`, derived from the profiling data in
 `data/profiles/dispatcher/`.
-Derive them with `scripts/analyze_crossovers.py` (the sustained-crossover
-rule; not `threshold_validator`); recipe in
-`data/profiles/dispatcher/README.md`.
+`scripts/derive_threshold_rows.py` derives the rows from a three-run bundle,
+on top of `scripts/analyze_crossovers.py` (the sustained-crossover rule; not
+`threshold_validator`); recipe in `data/profiles/dispatcher/README.md`.
 
 ## SIMD kernel conventions
 

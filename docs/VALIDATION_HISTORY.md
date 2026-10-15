@@ -9,6 +9,48 @@ git-cliff). For SIMD methodology, see `docs/SIMD_OPTIMIZATION_REFERENCE.md` and
 
 ## Validation matrices by release
 
+### v2.5.0 — validation matrix
+
+Correctness column = `ctest -LE "timing|benchmark"` (132 registered at v2.5.0;
+the 14 timing tests are the `*_timing` binaries split out by `4eb0816`). Every
+machine validated at the code head `d1adc95` (fix-9 round `8d3c9c7`), then again
+at its own dispatch-table header (R8, below). Evidence directories are under
+`docs/bench-evidence/`; the R8 bundles under `data/profiles/dispatcher/`.
+
+| Machine | SIMD | Correctness | Timing | Notes |
+|---|---|---|---|---|
+| Asus TUF A16 (Windows 11) | AVX-512 | 132/132 ✅ MSVC 14.51 and clang-cl 22.1.3 | 14/14 ✅ (clang-cl, quiet, boost) | Native, 2026-10-13/15. Fresh configures, 0 warnings. R9 stress 109 passed + 27 skipped (the work-stealing probe, unreachable on Windows) under both compilers. `isa=AVX-512` block regenerated from the clang-cl sweep (`85e1350`): 26,882 rows, 190 oracle self-checks, 0 contract violations; the MSVC sweep through the same oracle, 0. R8 four tiers (`2026-10-14T0*_windows-*`), table A/B five rounds (`2026-10-15-zen4-threshold-rows/`), R1 again at the kAvx512 header `6c149f1`: 132/132 both compilers, gates 0.235–0.254. Every timing process opted out of power throttling (below). |
+| Kaby Lake (2017 MBP, macOS 13.7.8) | AVX2+FMA | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 15 Release (`34baa1f`). R9 under ThreadSanitizer: stress 136/136, the whole correctness suite, 0 reports (`2026-10-14-kabylake-r9-tsan/`). `isa=AVX2` block regenerated (`fab7345`): 26,882 rows, 0 contract violations. R8 AVX2, AVX, SSE2 (`2026-10-13T*_darwin-*`); R3 costs (`2026-10-14-kabylake-v242-cost/`). Table A/B for kAvx2/kAvx and the R1 at its header: in progress. |
+| Mac Mini M1 (macOS 27.0.1) | NEON | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 21 Release, outside the sandbox (`10a7ff7`). Quiet batch gates 0.21–0.26. R9 under ThreadSanitizer: stress 109 + 27 skipped, 0 reports (`2026-10-14-m1-concurrency/`). `isa=NEON` block regenerated (`ea3e4f3`): 26,882 rows, 0 contract violations. R8 NEON bundle (2026-10-14); table A/B four rounds (`2026-10-14-m1-threshold-rows/`), R1 at the kNeon header `bb9ac0b`: 0 warnings, 132/132, gates 0.21–0.22. |
+
+Costs of the accuracy work (R3, `tools/bench/v242_cost_bench.cpp` against
+v2.4.1, quiet, per call): the von Mises quantile 5.4–6.8× on Kaby Lake,
+6.4–9.5× on the M1, 15.8–22.8× on Zen 4 (v2.4.1 was an 18 ns grid lookup;
+v2.5.0 is 0.3–0.6 µs and exact); the Student-t quantile at ν ≥ 1e3 6.8–8.0×,
+7–9× and 10.6–11.5×; Gamma α ≥ 20 logpdf forced VECTORIZED 3.5–4.9×, 4.3× and
+4.6–8.2× (the scalar fall-back; AUTO takes PARALLEL there). Small-shape rows
+hold at 1.0–1.1×. Each machine's compare.txt lists the AUTO-vs-best gaps
+(Kaby Lake 49, M1 46, Zen 4 45 NEW), the input to R8.
+
+Dispatch tables (R8): three quiet `strategy_profile --large` runs per tier on
+every machine at `d1adc95`, re-derived into kAvx512, kAvx2, kAvx and kNeon by
+`scripts/derive_threshold_rows.py` (`580b7f7`: 162 values on 85 rows), then
+verified by a loaded A/B (`tools/bench/table_ab_bench.cpp`, AUTO against the
+forced strategies under the old and new headers, ABAB): kNeon (AUTO rows more
+than 1.25× behind their best forced strategy 202 → 24 with `580b7f7`, then
+13 → 9 with the eight rows of `bb9ac0b`), kAvx512 `6c149f1` (21 more rows;
+208 → 5). The discrete pmfs, the Student-t and von Mises CDFs and the Beta
+densities leave NEVER; most continuous CDFs cross to PARALLEL at 8k–25k
+instead of 25k–2M; the only NEVER cells left are kNeon Uniform PDF and kAvx2
+Uniform CDF. kAvx2 and kAvx await Kaby Lake's A/B.
+
+### v2.4.0 and v2.4.1
+
+No matrix was recorded for these two releases; their validation is described
+in their CHANGELOG entries (v2.4.0: three fleet machines, correctness 58 → 74,
+every table measurement-backed; v2.4.1: a two-issue correctness patch with
+fail-first gates).
+
 ### v2.3.1 — validation matrix
 
 Correctness column = `ctest -LE "timing|benchmark"` (58 registered at v2.3.1).
@@ -180,6 +222,9 @@ Opt each measured process out (`SetProcessInformation`,
 `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1`) and
 launch binaries directly, not through ctest: the opt-out is per process and a
 child does not inherit it. With the screen on, a single-core probe shows no
-drop over 90 s. Whether Precision Boost 2 lowers the all-core sustained clock
+drop over 90 s. Every v2.5.0 timing run on this machine (R3, R8, the table
+A/B) used the clang-cl performance build with each process opted out and a
+10-s clock probe before each phase (127–130 ms per pass at boost, ~190 at
+base clock), so the captures are comparable with each other. Whether Precision Boost 2 lowers the all-core sustained clock
 under heavy parallel load has not been measured here. Evidence:
 `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/README.md`.

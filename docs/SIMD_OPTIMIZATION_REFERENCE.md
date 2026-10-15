@@ -21,6 +21,15 @@ Resolved work from v1.4.0 through v2.0.0:
   only where they win (Gamma, Beta, Pareto, Weibull batch paths). von Mises
   batch PDF/LogPDF use `vector_sin`. clang-cl builds the Windows performance
   path with cl.exe's `/arch:` flags; see "MSVC vectorization limits" below.
+- v2.5.0 dispatch: below ParallelUtils' fork threshold PARALLEL runs the
+  batch (VECTORIZED) kernel, not a serial scalar loop (ee11e62), and
+  `parallelForSlices` folds a partial last slice into the one before it, so
+  every strategy returns VECTORIZED's bits (045acd9, #191). On 2026-10-14
+  `scripts/derive_threshold_rows.py` re-derived all four tables from the R8
+  three-run bundles at code head d1adc95 (`data/profiles/dispatcher/`); a
+  back-to-back A/B with `tools/bench/table_ab_bench.cpp` then settled the kNeon
+  and kAvx512 rows (580b7f7, bb9ac0b, 6c149f1). Evidence and numbers:
+  `SIMD_BENCHMARK_RESULTS.md` §v2.5.0.
 
 Which `simd_*.cpp` files compile for each tier, and how
 `LIBSTATS_MAX_SIMD_TIER` caps them, is in `cmake/SIMDDetection.cmake`
@@ -84,7 +93,7 @@ Two indicators distinguish L1 cache effects from dispatch troughs:
 - **Trough position**: L1 boundary troughs are pinned at N ≈ 5k on M1 regardless of threshold. A genuine dispatch trough minimum shifts to match the threshold value.
 - **NEVER test**: set the threshold to NEVER and re-sweep. A dispatch trough disappears; an L1 cache trough persists.
 
-Operations with `kNeon` threshold=64 (profiler floor artefact) have parallel always active; their N=5k throughput drop is entirely the L1→L2 transition and does not warrant recalibration. See `SIMD_BENCHMARK_RESULTS.md §NEON threshold recalibration sweep` for a worked example.
+Up to v2.4.x, operations with `kNeon` threshold=64 (profiler floor artefact) had parallel always active, so their N=5k throughput drop was entirely the L1→L2 transition and did not warrant recalibration. See `SIMD_BENCHMARK_RESULTS.md §NEON threshold recalibration sweep` for a worked example. Since ee11e62, PARALLEL below the fork threshold runs the VECTORIZED kernel, and since 2026-10-14 no table holds a value below 2048.
 
 ### NEVER thresholds for trivial SIMD operations
 
@@ -94,7 +103,7 @@ Distributions whose per-element SIMD cost is very low (Uniform, Laplace at small
 - The distribution performs arithmetic or a single transcendental per element with no iterative path.
 - The trough-at-threshold depth exceeds 50% throughput loss.
 
-For AVX-512 v2.0.2, Uniform PDF, Uniform LogPDF, and Uniform CDF are all NEVER.
+For AVX-512 v2.0.2, Uniform PDF, Uniform LogPDF, and Uniform CDF were all NEVER; the 2026-10-14 `kAvx512` rows are 300k/300k/100k. Of the Uniform rows, only `kNeon` PDF and `kAvx2` CDF remain NEVER.
 
 ### The secretly-serial parallel path signature (v2.4.0)
 
@@ -112,21 +121,27 @@ VECTORIZED at least in noise.
 Distinct from the trivial-op class above: a kernel can be expensive enough
 to vectorise well and still lose under a REAL fork because it is
 memory-bound — the fork adds coordination without adding usable bandwidth.
-Beta PDF/LogPDF measures 0.65–0.92× at 2M on every tier (AVX-512, AVX2,
-capped AVX, NEON); von Mises batch CDF was measured in the same class
-(#111/#144) before the v2.5.0 quadrature CDF (96b157f) replaced its
-full-array Bessel-series sweeps. <!-- R6b: confirm against the R8 rows -->
-Encode NEVER. Corollary: per-tier kernel economics can flip the verdict
-for compute-bound kernels — HalfNormal CDF is NEVER on NEON (2.2 ns/elem
-`vector_erf`, nothing left for 8 cores to win) but 1.3–2.1× parallel on
-x86, whose `vector_erf` is ~5× slower per element (corvus#37).
+In the v2.4.0 measurement Beta PDF/LogPDF ran 0.65–0.92× at 2M on every
+tier (AVX-512, AVX2, capped AVX, NEON), and von Mises batch CDF fell in the
+same class (#111/#144); both were encoded NEVER. The 2026-10-14
+re-derivation took them off NEVER: Beta PDF/LogPDF are 8192/10000 on
+`kNeon`, 4096/25000 on `kAvx`, 4096/8192 on `kAvx2` and 8192/8192 on
+`kAvx512`, and the quadrature CDF (96b157f) has no full-array sweep left
+(see "VonMises CDF" below). The diagnosis still holds for a kernel that
+measures below 1× at every size. Corollary: per-tier kernel economics can
+flip the verdict for compute-bound kernels — in v2.4.0 HalfNormal CDF was
+NEVER on NEON (2.2 ns/elem `vector_erf`, nothing left for 8 cores to win)
+but 1.3–2.1× parallel on x86, whose `vector_erf` is ~5× slower per element
+(corvus#37); its 2026-10-14 `kNeon` row is 75000.
 
 ### Extraction rule: sustained crossovers (v2.4.0)
 
 Read profiles with the sustained V→P crossover — parallel wins at that
 size AND every larger size — not the first crossing, which reports
 64-element noise ties. Binding statement: the 2026-09-04 amendment in
-`scripts/PROFILING_METHOD.md`; tool enforcement tracked as #146.
+`scripts/PROFILING_METHOD.md`. `scripts/analyze_crossovers.py` computes it
+(#146); `scripts/derive_threshold_rows.py` builds on it to turn bundles into
+table rows.
 
 ### Clean-entry criterion for iterative calibration
 
@@ -173,7 +188,7 @@ The L2 boundary is architecture-specific and must not be assumed to hold on AVX2
 - **Tier 1** (MSVC/GCC/Clang with `LIBSTATS_HAS_CXX17_BESSEL`): delegates to `std::cyl_bessel_i` (C++17 §29.9.3). Achieves <1 ULP against scipy for κ=2.
 - **Tier 2** (AppleClang/macOS, `LIBSTATS_HAS_CXX17_BESSEL` not defined): A&S §9.8.1–9.8.4 polynomial approximation. Documented precision: <1.6×10⁻⁷.
 
-The tier selection is automatic: CMakeLists.txt probes for `std::cyl_bessel_i` and defines `LIBSTATS_HAS_CXX17_BESSEL` only when available. AppleClang's libc++ does not implement the C++17 special functions, so macOS builds take Tier 2.
+The tier selection is automatic: CMakeLists.txt probes for `std::cyl_bessel_i` and records `LIBSTATS_HAS_CXX17_BESSEL` in the generated `libstats_config.h` (#97), so the library, tests and consumers compile the same tier. AppleClang's libc++ does not implement the C++17 special functions, so macOS builds take Tier 2. Since 8d3c9c7, Tier 1 `bessel_i0` returns 1 below 1e-8 (libstdc++'s `std::cyl_bessel_i(0, 5e-324)` is NaN), and `log_bessel_i0` and the tier-independent `log_bessel_i0_scaled` split log(2πx) past DBL_MAX/2π instead of returning −inf. The tier-independent A(κ) = I₁/I₀ ratio helpers build on whichever tier is active.
 
 ### Implication for VonMises accuracy
 
@@ -190,9 +205,9 @@ and from the Hankel series above (`src/von_mises.cpp`, `updateCacheUnsafe`).
 The batch kernel is `scalar_add(−μ)`, `scalar_multiply(½)`, `vector_sin`,
 `vector_multiply` (square), `scalar_multiply(−2κ)`,
 `scalar_add(−log scaled normaliser)`. The Bessel helpers in `bessel.h` still
-serve the circular moments. Current per-ISA figures are in the
-generated blocks of `docs/ACCURACY_CHARACTERIZATION.md`.
-<!-- R6b: confirm that the AVX2 and NEON von Mises pdf/logpdf rows match AVX-512 after regeneration -->
+serve the circular moments. Per-ISA figures are in the generated blocks of
+`docs/ACCURACY_CHARACTERIZATION.md`; the AVX-512, AVX2 and NEON blocks give
+identical von Mises rows (pdf max_rel 1.724e-12, logpdf 7.312e-15).
 
 The `vector_cos`/`vector_sin` implementations are the clean-room quadrant-reduction kernel of #95 on every tier (shared `trig_cleanroom_data.inc`, max 1 ULP), so AVX2 and AVX-512 remain algorithmically identical.
 
@@ -210,7 +225,7 @@ These distributions have throughput limitations that are inherent to their algor
 
 The CDF has no closed form. Historically a scalar integration loop (~200–900k elem/s vs scipy's ~30–50M/s Cephes quadrature — the numbers in the tables above date from that era). v2.3.0 (#51) shipped a cached Bessel-series CDF for κ ≤ 1000 with a wrapped-normal fallback above, whose batch path was memory-bound (#111).
 
-From v2.5.0 (96b157f, closing #111) the CDF is a quadrature in w = κ(1 − cos θ): a short Gauss–Legendre rule for the central mass within ¼ of the median, and beyond it the tail mass by a Watson-lemma series or Gauss–Legendre (`include/libstats/distributions/von_mises.h`). It is exact to κ = 1e20; above that it takes the normal limit Φ(2√κ·sin(t/2)). The Bessel series and the wrapped-normal fallback are gone. The batch CDF evaluates per element on one snapshot, at a fixed cost of 6–12 `exp` calls per element. Whether its dispatch rows stay NEVER is decided by the R8 re-measure. <!-- R6b: confirm against the R8 rows -->
+From v2.5.0 (96b157f, closing #111) the CDF is a quadrature in w = κ(1 − cos θ): a short Gauss–Legendre rule for the central mass within ¼ of the median, and beyond it the tail mass by a Watson-lemma series or Gauss–Legendre (`src/von_mises.cpp`). It is exact to κ = 1e20; above that it takes the normal limit Φ(2√κ·sin(t/2)). The Bessel series and the wrapped-normal fallback are gone. The batch CDF evaluates per element on one snapshot, at a fixed cost per element: one central-mass rule (6–12 `exp`) or one tail evaluation. Its 2026-10-14 dispatch rows are 2048 (`kNeon`), 4096 (`kAvx`, `kAvx2`) and 8192 (`kAvx512`).
 
 ### Cauchy CDF
 

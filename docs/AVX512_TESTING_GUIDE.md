@@ -23,8 +23,10 @@ cmake --build build-release --parallel
 Check that `simd_avx512.cpp` is included in the SIMD detection summary when the compiler and configuration enable it.
 
 On Windows, both cl.exe and clang-cl get `/arch:AVX512` globally on an
-AVX-512 build host. clang-cl (the performance build) is optional; build it
-in its own directory with Ninja:
+AVX-512 build host. cl.exe is the correctness build. clang-cl is the
+performance build and is required for timing and threshold work: every
+timing and threshold capture on Zen 4 uses it. Build it in its own
+directory with Ninja:
 
 ```powershell
 cmake -B build-clangcl -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang-cl
@@ -33,6 +35,13 @@ cmake --build build-clangcl --parallel
 
 `/arch:AVX512` enables AVX-512 F, CD, BW, DQ and VL; clang-cl's `-mavx512f`
 would enable F alone.
+
+A timing run on Zen 4 must opt every measured process out of Windows power
+throttling and launch it directly, not through ctest (a child does not
+inherit the opt-out); otherwise a locked screen drops the clock and the
+result reads like a dispatch-threshold anomaly: `docs/VALIDATION_HISTORY.md`, "Zen 4 timing:
+power throttling"; helper
+`docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1`.
 
 ## Runtime validation
 

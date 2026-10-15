@@ -33,28 +33,28 @@ copies inside these two bundles are historical record only:
 - `logs/*.txt` — suite/tier/configure logs (`.txt`, not `.log` — `.gitignore` excludes `*.log`)
 - the Kaby Lake bundle also carries that leg's `accuracy_sweep` CSV
 
-## Current table provenance (post-#143 fork repair, sustained crossovers)
+## Current table provenance (R8, re-derived 2026-10-14)
+
+Three quiet `--large` runs per bundle, code head `d1adc95` (Zen 4's bundles
+carry `df78931`, a docs-only descendant). `scripts/derive_threshold_rows.py`
+derived every table from these bundles; the note above each table in the
+header names its bundle.
 
 | Table | Machine | Bundle |
 |---|---|---|
-| kNeon | Mac Mini M1 (native) | `2026-09-04T04-22-28Z_darwin-arm64_…` |
-| kAvx2 | Kaby Lake i7-7820HQ (native) | `2026-09-04T02-36-22Z_darwin-x86_64_…` |
-| kAvx512 | Asus TUF A16 Zen 4 (native) | PR #143 record (no 2026-09 bundle checked in); von Mises CDF cell provisional — #144 |
-| kAvx | Kaby Lake, `LIBSTATS_MAX_SIMD_TIER=AVX` capped build — first measured kAvx (the 2012 AVX MBP is retired; its June bundles are historical) | `2026-09-04T23-51-14Z_darwin-x86_64_…` |
+| kNeon | Mac Mini M1 (native) | `2026-10-14T04-39-37Z_darwin-arm64_…` |
+| kAvx2 | Kaby Lake i7-7820HQ (native) | `2026-10-13T13-11-55Z_darwin-x86_64_…` |
+| kAvx512 | Asus TUF A16 Zen 4 (native, clang-cl) | `2026-10-14T02-41-05Z_windows-x86_64_…` |
+| kAvx | Kaby Lake, `LIBSTATS_MAX_SIMD_TIER=AVX` capped build | `2026-10-13T13-58-00Z_darwin-x86_64_…` |
 | kSse2 | delegates to kAvx by design | — |
 
-## v2.4.2 captures, not yet applied (2026-10-04/05)
-
-Kaby Lake bundles at the freeze head (code `5367999`, captured at
-`6f86996`), one per tier: `2026-10-05T01-50-52Z_…` (AVX2),
-`2026-10-05T03-09-27Z_…` (AVX-capped), `2026-10-05T04-31-33Z_…`
-(SSE2-capped). They supersede the `d9384f8` bundles of 2026-10-04
-(`2026-10-04T02-07-22Z_…`, `T03-51-16Z_…`, `T05-16-48Z_…`; the first
-measured SSE2 profile), which predate the speed work: that moved
-VonMises CDF to NEVER on every tier and Weibull and Pareto CDF later.
-`cross_tier_assessment.txt` in the new AVX2 bundle has the comparison.
-The M1 and Zen 4 bundles of the same week are listed in PLAN.md. The
-tables above stay as they are until the R8 decision (PLAN.md).
+Zen 4's capped AVX2 and AVX bundles (`2026-10-14T03-05-23Z_…`,
+`T03-29-48Z_…`) are the script's direction checks for kAvx2 and kAvx; each
+table's previous capture (`2026-10-05T*` for K and M, `2026-10-07T02-10-06Z_…`
+for Zen 4) is its standing-override test. The SSE2-capped bundles
+(`2026-10-13T14-44-55Z_…`, `2026-10-14T03-54-51Z_…`) feed no table. The
+v2.4.0 tables came from the 2026-09-04 bundles (kAvx512 from the PR #143
+record).
 
 June bundles remain as the historical record of the pre-repair calibration;
 do not derive new thresholds from them (their parallel timings measured
@@ -77,8 +77,14 @@ artifact). With `--table`, each row is flagged `ok` or `DIFF` against the
 encoded value (within one grid step), and `override?` when the table line
 carries a comment. The candidate is a starting point, not the encoding:
 many encoded rows are deliberate overrides (sweep data, bimodal runs,
-contaminated runs) or predate the v2.4.0 legs. Future bundles reference this
-tool and its commit instead of embedding a copy.
+contaminated runs) or predate the v2.4.0 legs. The R8 bundles also embed a
+copy of the tool for the record; run the one in `scripts/`.
+
+The 2026-10-14 rows came from `scripts/derive_threshold_rows.py`, which
+imports this tool, applies the PLAN.md R8 rules per row (keep, standing
+override, fork value, candidate) and writes a proposed header
+(`--out <dir>`); an A/B with `tools/bench/table_ab_bench.cpp` then
+checked the result.
 
 ## Capturing a new profile
 

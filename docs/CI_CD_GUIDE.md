@@ -27,8 +27,10 @@ deliberately dropped:
 | macOS 15 | AppleClang | Release | macOS baseline |
 | Windows latest | MSVC 19.38+ | Release | Production Windows validation |
 
-GCC 13 is the CMake-enforced minimum but is exercised only by the AVX-512
-compilation workflow, not the main matrix. The project requires C++20. Do
+GCC 13 is the CMake-enforced minimum. It is not in the main matrix; three
+places build with it: the `coverage` job in `ci.yml`, the
+`avx512-compilation.yml` matrix, and `avx512-testing.yml`. The project
+requires C++20. Do
 not reintroduce matrix entries below the baseline unless a maintenance
 branch explicitly needs them.
 
@@ -36,21 +38,29 @@ branch explicitly needs them.
 
 ### Main CI workflow (`ci.yml`)
 
-Runs on pull requests and pushes to supported branches (doc-only changes are
-skipped via `paths-ignore: ['**.md', 'docs/**', 'LICENSE']` — note that on
+Runs on pull requests to `main` and pushes to `main`, `develop`,
+`release/*` and `v*` (doc-only changes are skipped via
+`paths-ignore: ['**.md', 'docs/**', 'LICENSE']` — note that on
 pull_request events the filter applies to the PR's full changed-file set),
 plus a monthly scheduled canary that catches runner-image/toolchain drift.
+Pushes to `dev/*` branches do not trigger it; run it on such a branch by
+manual dispatch (`gh workflow run ci.yml --ref <branch>`). The AVX-512
+workflows have no manual dispatch.
+
 Beyond the build matrix and correctness suite it runs: code-quality checks,
 Strict warnings (Linux, `-Werror`), Sanitizers (ASan/UBSan), a Ninja
 generator configure, an export-stability-across-reconfigure job (the #90
-class), coverage, an install + `consumer_example` + pkg-config
-consumption job, and two legs added in v2.5.0:
+class), and coverage (GCC 13). The gcc-14 matrix leg also installs to a
+prefix, builds and runs `consumer_example` against it, and smoke-tests
+pkg-config; these are steps in that leg, not a separate job. Two legs were
+added in v2.5.0:
 
 - **`fma-contraction`** (Linux, clang-17, `-mfma -ffp-contract=on`, Release,
   correctness suite only). The other x86 legs build the generic sources
   without FMA, so a contracted `a*b + c` was seen only on the macos-15
   runner (AArch64, where AppleClang contracts by default); that is where
-  08d48aa's Gamma batch counted its rate-product rounding twice. This leg
+  08d48aa's Gamma rate-product correction was counted twice (fixed, and
+  this leg added, in ac72e9a). This leg
   reproduces AppleClang-AArch64 and clang-cl-with-FMA contraction on Linux,
   so the defect class fails with a readable log. The rule it enforces is
   the FP-contraction rule in `AGENTS.md`; `src/gamma.cpp` and
@@ -66,7 +76,7 @@ consumption job, and two legs added in v2.5.0:
   SMT Macs, locally.
 
 `test_concurrency_stress` runtime on the macos-15 runner varies 97–372 s on
-unchanged code, against 68–102 s on Linux and Windows: shared ARM VMs and
+unchanged code (six runs, 00d1597–d7e9dbd), against 68–102 s on Linux and Windows: shared ARM VMs and
 the spin-then-yield barriers, not a regression. The headroom is ctest's
 1,500 s default timeout and the stress test's 120 s per-race watchdog. If
 macOS nears half the limit, lower `LIBSTATS_STRESS_SCALE` for that job.
@@ -81,10 +91,13 @@ ctest --test-dir build --output-on-failure -LE "timing|benchmark"
 
 The AVX-512 workflow checks that AVX-512 sources compile with toolchains that support AVX-512 flags. GitHub-hosted runners do not guarantee AVX-512 hardware, so this workflow is a compile-time validation, not a runtime performance validation.
 
-It triggers on pushes/PRs to main (doc-only changes excluded via
-paths-ignore) plus a monthly scheduled canary. A separate runtime workflow
-(`avx512-testing.yml`) builds AND runs the suite, gated on the
-`avx512-test` PR label; `docs.yml` builds documentation and
+It triggers on pushes to `main` and `release/*`, PRs to `main` (doc-only
+changes excluded via paths-ignore), and a monthly scheduled canary. A
+separate runtime workflow (`avx512-testing.yml`) builds AND runs the suite
+on the same pushes as `ci.yml` and the monthly canary, and on a pull
+request only when it carries the `avx512-test` label; it runs on
+`ubuntu-latest` and, when the runner has no `avx512f`, skips the build and
+tests with a notice. `docs.yml` builds documentation and
 `lint-workflows.yml` lints the workflows themselves (actionlint/zizmor).
 
 ## Local reproduction
@@ -142,17 +155,21 @@ Then inspect the GTest discovery messages.
 ## Windows notes
 
 CI's Windows legs use cl.exe (Visual Studio generator), the correctness
-build. clang-cl (Ninja) is the local performance build; both take the same
-`/arch:` flag (`docs/BUILD_SYSTEM_GUIDE.md`, "SIMD detection"). A Windows
-timing run outside CI needs the power-throttling opt-out
+build. clang-cl (Ninja) is the local performance build, used for every
+timing and threshold capture; both take the same `/arch:` flag
+(`docs/BUILD_SYSTEM_GUIDE.md`, "SIMD detection"). A Windows timing run
+outside CI needs every measured process opted out of power throttling
 (`docs/VALIDATION_HISTORY.md`, "Zen 4 timing: power throttling").
 
+The Visual Studio generator writes Release test executables to
+`build\tests\Release\` (per-config output directories,
+`tests/CMakeLists.txt`); single-config Ninja writes them to `build\tests\`.
 Windows dynamic tests require `stats.dll` beside the test executable. The CMake test helper copies the DLL after building dynamic test targets.
 
 If a dynamic test crashes after a clean rebuild, verify the executable is not a stale Debug build linked against the Release DLL:
 
 ```powershell
-dumpbin /imports build\tests\test_gaussian_basic_dynamic.exe | Select-String vcruntime
+dumpbin /imports build\tests\Release\test_gaussian_basic_dynamic.exe | Select-String vcruntime
 ```
 
 Expected Release result:
@@ -166,7 +183,7 @@ Bad stale Debug result:
 Fix:
 
 ```powershell
-Remove-Item build\tests\test_gaussian_basic_dynamic.exe, build\tests\test_exponential_basic_dynamic.exe -Force
+Remove-Item build\tests\Release\test_gaussian_basic_dynamic.exe, build\tests\Release\test_exponential_basic_dynamic.exe -Force
 cmake --build build --config Release --target test_gaussian_basic_dynamic test_exponential_basic_dynamic
 ```
 
@@ -214,12 +231,7 @@ Then inspect the SIMD detection summary.
 
 ### Timing failure under load
 
-Correctness tests should not depend on wall-clock speed. Timing tests are labelled `timing` or `benchmark` and should run serially:
-
-```bash
-ctest --test-dir build -LE "timing|benchmark" --output-on-failure
-ctest --test-dir build -L timing -j1 --output-on-failure
-```
+Correctness tests should not depend on wall-clock speed. Timing tests are labelled `timing` or `benchmark`; run them serially on a quiet machine (see "Timing-sensitive tests" above).
 
 ### macOS code-signing failure
 

@@ -16,9 +16,8 @@ scalar and batch where a batch path exists (none for `quantile` and
 > regenerated at v2.4.1 on 2026-09-28: 32 / 32; NEON (macOS 27) the same
 > day: 32. v2.5.0 adds `survival` rows (`getSurvival`, written after every
 > other row so earlier line numbers hold) and scores relative error down to
-> DBL_MIN (see "Reading the tables"): 26,885 rows, 0 contract violations,
-> 190 oracle self-checks. <!-- R6b: confirm row count, violations and
-> self-checks after regeneration -->
+> DBL_MIN (see "Reading the tables"): 26,882 rows, 0 contract violations
+> and 190 oracle self-checks on all three ISAs.
 
 > **CHARACTERIZATION, not an audited claim.** All three fleet ISAs have
 > generated blocks: Zen 4 (AVX-512, clang-cl Release, UCRT libm), Kaby Lake
@@ -91,7 +90,7 @@ the label. Do not hand-edit anything between a `BEGIN GENERATED` /
   is never folded into `max_abs`/`max_rel`/`p99_rel`. The full list is
   the appendix at the end of the generated block.
 
-Five metric artifacts to read past — each is a property of the metric at
+Six metric artifacts to read past — each is a property of the metric at
 that row, not a defect:
 
 - **Von Mises `cdf` relative columns (blocks before v2.5.0).** Up to
@@ -99,8 +98,9 @@ that row, not a defect:
   **absolute** terms, so its deep-tail `max_rel`/`law_frac` values were
   astronomically large and meaningless (an absolute-1e-16 error against
   `F ~ 1e-89` read as `rel ~ 1e+73`). From v2.5.0 the CDF is a quadrature
-  that meets the relative law in both tails (`law_frac` below 1), so its
-  relative columns now read like any other `cdf` row.
+  with relative accuracy in both tails, so its relative columns read like
+  any other `cdf` row: `law_frac` is about 1.4 for `cdf` and 1.2 for
+  `survival` in every block, at the law rather than below it.
 - **`logpdf` relative error near its zero crossing.** Where
   `logpdf(x) ~ 0` (e.g. exponential at `lambda*x ~ ln(lambda)`), any
   fixed absolute error reads as a large relative one. Read `max_abs`.
@@ -116,8 +116,16 @@ that row, not a defect:
   smallest k with S(k) ≤ 1 − p. In exact arithmetic both select the
   right-continuous inverse, and the oracle scores that rule (Discrete by its
   library-CDF tie rule), so the one-count `rel = 1.0` lattice rows of earlier
-  generations no longer appear; a residual one-count difference comes from
-  the library's rounding of S. <!-- R6b: confirm no lattice rows remain -->
+  generations no longer appear: every discrete `quantile` row reads
+  `max_rel` 0 in all three blocks.
+- **A quantile whose reference is exactly 0 (#277).** An exact-zero
+  reference is scored relative to DBL_MIN, so any nonzero result reads as
+  an enormous `max_rel`. The AVX-512 block's `truncated_normal` `quantile`
+  row (`max_rel` 6.341e+291 at `p = 0.5`) is TruncatedNormal(0, 1) on the
+  window (−2, 2) returning −1.41e-16 for the exact-zero median; the AVX2
+  and NEON blocks do not show it. Such a row belongs to the
+  near-zero-crossing class: read `max_abs` against the window width.
+  Deferred to milestone #8; inside the contract.
 - **References beyond double range score a matching-sign `±inf` as
   correct (comparator rule since 2026-09-03).** A reference with
   `|ref| ≥ 2^1024 − 2^970` (the binary64 rounds-to-inf midpoint) has
@@ -144,7 +152,7 @@ that row, not a defect:
 Same sweep (5928 rows, `accuracy_sweep` banner `commit=cd87ab0 isa=AVX2`),
 i7-7820HQ, AppleClang Release (`release` preset), libc++ — so no
 `std::cyl_bessel_i` and the Bessel Tier 2 fallback is active. Compared
-against the Zen 4 tables below per (distribution, method, source) on
+against the then-current Zen 4 tables per (distribution, method, source) on
 `max_rel`; everything not listed agrees within 2x (last-digit libm noise).
 
 - **von Mises `pdf`/`logpdf`, scalar and batch: 4.7e-7 / 8.5e-7** vs
@@ -200,9 +208,10 @@ Compared against the Zen 4 tables per (distribution, method, source) on
 
 ## v2.3.1: AVX-512 block regenerated post-fix (2026-08-25)
 
-The Zen 4 AVX-512 generated block below now reflects **v2.3.1**
+The Zen 4 AVX-512 generated block was regenerated at **v2.3.1**
 (banner `commit=aa897ac`), superseding the v2.3.0-era numbers the prose
-above compares against. What changed:
+above compares against; the current block's banner is `df78931`. What
+changed:
 
 - **Grid: 5928 → 6063 rows.** `accuracy_sweep` now emits NaN/±inf special
   rows for the discrete family too (the v2.3.0 grid was continuous-only —
@@ -232,8 +241,9 @@ above compares against. What changed:
 
 ## Second machine re-run: Kaby Lake AVX2 at v2.3.1 (2026-08-26)
 
-The AVX2 generated block below now reflects **v2.3.1** (banner
-`commit=6fa1c68`, 6063-row grid), regenerated from a native sweep on the
+The AVX2 generated block then reflected **v2.3.1** (banner
+`commit=6fa1c68`, 6063-row grid; the current banner is `d1adc95`),
+regenerated from a native sweep on the
 i7-7820HQ, AppleClang Release, libc++ (Bessel Tier 2 active), 42/42
 oracle self-checks. Compared against the Zen 4 v2.3.1 block:
 
@@ -253,8 +263,9 @@ oracle self-checks. Compared against the Zen 4 v2.3.1 block:
 
 ## Third machine re-run: Mac Mini M1 NEON at v2.3.1 (2026-08-27)
 
-The NEON generated block below now reflects **v2.3.1** (banner
-`commit=b30cdb0`, 6063-row grid), regenerated from a native sweep on the
+The NEON generated block then reflected **v2.3.1** (banner
+`commit=b30cdb0`, 6063-row grid; the current banner is `df78931`),
+regenerated from a native sweep on the
 Apple M1, AppleClang Release, libc++ (Bessel Tier 2 active), 42/42
 oracle self-checks. Compared against the Zen 4 / Kaby Lake v2.3.1
 blocks:
@@ -284,7 +295,7 @@ blocks:
 
 ## v2.4.0: AVX-512 block regenerated on the 9030-row grid (2026-09-03)
 
-The Zen 4 AVX-512 generated block below now covers **all 27
+The Zen 4 AVX-512 generated block was extended to **all 27
 distributions** (banner `commit=8506f5a`, 9030 rows, 68/68 oracle
 self-checks), extending the grid to the eight added in v2.4.0: logistic,
 gumbel, bernoulli, erlang, fisher_f, inverse_gamma, half_normal,
@@ -451,7 +462,7 @@ absorption check at v3.0.0).
 
 **New baseline for regenerations on this grid and ISA: 34**, all in the
 pre-v2.4.0 classes (#136 erf_inv tails, #137 `inverse_beta_i`, the
-weibull/geometric `#103`-class rows). The generated block's banner is
+weibull/geometric `#103`-class rows). That block's banner was
 `commit=f99a82b` — the library state that produced the rows; the
 comparator that scored them is the `fix(oracle)` commit on the same
 branch. The AVX2 and NEON blocks were regenerated natively during
@@ -489,6 +500,17 @@ two geometric `logpdf` rows only, so the von Mises move came with the
 OS/toolchain upgrade from Tahoe, not from libstats code. The 32
 violations are the NEON set from v2.4.0; the weibull message text now
 reads `inf` as the x86 blocks already did.
+
+**v2.5.0 (2026-10-13, all three ISAs): 32 → 0.** Every block was
+regenerated natively from the code head `d1adc95`, 26,882 rows with the
+survival rows, 190 oracle self-checks: AVX-512 on Zen 4 with the
+VS-bundled clang-cl 22.1.3 (banner `df78931`, docs and data only over
+`d1adc95`; the MSVC sweep scored 0 violations too), AVX2 on Kaby Lake
+with AppleClang 15 (banner `d1adc95`), NEON on M1 with AppleClang 21.0.0
+(banner `df78931`). Beta `quantile` on AVX-512 fell from 8.0e+259 to
+1.3e-13 (#137), and von Mises `pdf`/`logpdf` on AVX2 and NEON from the
+Tier 2 Bessel 4.7e-7 / 8.5e-7 to 1.7e-12 / 7.3e-15: the density no
+longer has a Bessel tier.
 
 ## Findings (historical — v2.3.0 initial characterization, 2026-08-19)
 
@@ -532,7 +554,7 @@ other:
   `vector_cos`/`vector_sin` (max 1 ULP, mean 0.022-0.028 ULP).
 - `tests/test_vonmises_cdf_accuracy.cpp` (issue #51) — Von Mises CDF,
   flat budgets by kappa bucket (`2e-15` for kappa <= 100, `4e-15` for
-  kappa in (100, 1000]), against a 40-digit direct-quadrature oracle
+  kappa > 100, including the #106 buckets at 2000 and 10000), against a 40-digit direct-quadrature oracle
   independent of the library's quadrature (Bessel series up to v2.4.1).
 - `tests/test_lognormal_cdf_accuracy.cpp` (issue #49) — LogNormal CDF,
   the `law_budget(F)` relative-error law this document's `law_frac(cdf)`

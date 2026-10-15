@@ -5,6 +5,155 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-10-TBD
+
+Correctness and accuracy release — no source API change; the public API
+stays additive over v2.1.0. 75 issues closed (#137, #157–#177, #180,
+#183–#212, #216, #223–#242, #264, #274–#276) from one branch
+(`dev/v2.4.2`, 156 commits), each fix with a regression gate shown to
+fail on the code before it. Every one of the 27 distributions was swept
+against an mpmath oracle on all three fleet ISAs (AVX-512/clang-cl, AVX2
+and NEON/AppleClang): 26,882 rows per ISA including the new survival
+rows, 190 oracle self-checks, 0 contract violations (v2.4.1: 32 on each
+ISA). The correctness run grows 86 → 132 tests, all of them in CI;
+CI gains ThreadSanitizer and FMA-contraction legs; the dispatch tables
+are re-derived from fresh captures and verified by a loaded A/B.
+
+### Fixed — accuracy
+- Quantiles: Gaussian/LogNormal and the probit return finite values for
+  p < 2^-54 (#158); Student-t in the deep tail and at large ν (#159,
+  #233); Gamma/Erlang/ChiSquared at every p and at extreme shapes (#160,
+  #223, #226); Beta to the accuracy law at every p — `inverse_beta_i`
+  dropped its 1e-8 stop and clamp and its tiny-shape cancellation (#137,
+  #230, #232); Poisson, Binomial and NegativeBinomial/Geometric search
+  from a normal guess, unbounded, and return the smallest k with
+  F(k) ≥ p, ties included (#170, #171, #204); discrete quantiles are
+  non-decreasing across p = ½ and reach Q(1); NaN in gives NaN out in
+  every class (#194).
+- Incomplete gamma and beta to double precision at large shape (#166);
+  the discrete log-pmfs without the lgamma cancellation at large counts
+  (#172); stable log-beta normalisers; `log1pmx` in atanh form; the
+  constants `SQRT_PI`, `INV_SQRT_2` and four others correctly rounded.
+- Lower-tail CDFs of Weibull, Exponential, Rayleigh and Pareto through
+  log1p/expm1; Geometric CDF in closed form (#202); Gamma/Erlang CDF where
+  x·rate overflows (#224); the Gamma and InverseGamma rate product
+  corrected to second order, also under FMA contraction; Fisher-F CDF
+  with a subnormal intermediate (#216) and at `DBL_MAX` for tiny d2
+  (#242); Student-t CDF beyond |t| = √ν; Beta CDF at shapes below 1e-3
+  (#229) and above the branch point for b < 1.
+- von Mises: CDF and quantile by a fixed-cost quadrature in
+  w = κ(1 − cos θ) (closes #111); density at large κ without cancellation;
+  entropy with both signs right (#234); the standardized circular
+  kurtosis (#276); no hang at κ ≥ 6.5e15 (#231); the normal limit above
+  κ = 1000.
+- TruncatedNormal: near-bound CDF series and quantile (#201, #225),
+  half-infinite windows, far-tail windows with a subnormal normaliser
+  (#205), variance/skewness/kurtosis on narrow windows (#236), `fit` on
+  well-posed windows (#239).
+- Support edges and limits: Gamma/ChiSquared/Weibull at x = 0 with shape
+  < 1 (#161); Rayleigh and Weibull at +∞ (#164); Poisson logpdf −∞ out of
+  support (#165); NegativeBinomial/Geometric `cdf(1e300)` (#206); Gamma,
+  Weibull and Uniform contract edges; subnormal and overflowing scale
+  parameters in Rayleigh, HalfNormal and Uniform (#203, #240).
+- Moments and fits: Gamma entropy from shape ~1e10 (#235); Student-t fit
+  for ν ≤ 2 and past ν = 1000 with a Gaussian limit (#237); Weibull fit
+  scale-invariant (#238); Gamma fit on degenerate data throws (#207);
+  Binomial fit rejects bad observations (#195); the coefficient of
+  variation from one parameter state.
+- `getSurvival` is complement-native in every distribution: the eleven
+  that computed 1 − F returned exact 0 in the upper tail, and
+  `getHazard` returned +∞ inside the support (#197).
+- Samplers: Beta at small shapes in log space (#228); von Mises at tiny
+  κ (#231); Fisher-F without spurious +∞ (#242); Uniform when b − a
+  overflows (#240); Gaussian without a `thread_local` Box–Muller spare,
+  so seeded streams are reproducible (#188).
+
+### Fixed — concurrency and contracts
+- One parameter snapshot per call: scalar methods and batch lambdas no
+  longer mix two parameter states (Binomial, NegativeBinomial, von
+  Mises, Beta; #175); PARALLEL and WORK_STEALING run the
+  VECTORIZED kernel over 1024-element slices in every operation (#191),
+  with a partial last slice folded into the previous one so every
+  strategy returns the same bits; the Student-t PARALLEL CDF is no longer
+  a serial loop (#176).
+- Locks: setters validate under the lock (#183); move-assignment locks
+  both objects (#184); TruncatedNormal `fit` commits only if the bounds
+  are unchanged (#185); vector `sample` draws from one state (#186);
+  owners reject what their delegates reject (#227); lock-free getters
+  read the new parameters after copy/move assignment (#192); copy/move
+  constructors copy the cache (#163); the WORK_STEALING lambdas wait on
+  their own latch, not the global pool (#180); `SystemCapabilities`
+  reads the physical core count from the CPU detector (#190).
+- Casts and UB: counts stay in `double` until validated (#167); the
+  `lgamma` `signgam` write is avoided in library code (#173; the one
+  libstdc++ write inside `std::cyl_bessel_i` is #267, v3.0.0).
+- Streams: `operator<<` writes full precision in every class (#208);
+  Poisson and TruncatedNormal `operator>>` read their own output (#187,
+  #193).
+- Batch overloads check sizes on empty input and keep the overlap
+  assert (#196); exact special-parameter shortcuts fire only on exact
+  equality (#199).
+
+### Added
+- Oracle and sweep: `tools/accuracy_sweep` emits both sides of every
+  kernel switch and the survival rows; `tools/accuracy_vs_mpmath.py`
+  scores relative error down to `DBL_MIN` and ULP distance below it,
+  carries 190 self-checks with negative controls, and refuses to rewrite
+  the doc from a partial sweep.
+- Tests: `test_concurrency_stress` (all 27 distributions: racing
+  setters, readers, fits and streams against a one-state oracle, a
+  strategy differential, a deadlock watchdog; #210-class),
+  `test_distribution_identities` and `test_io_fit_fuzz` (#210),
+  `test_survival_tails`, `test_contract_gates`; the timing cases split
+  out of mixed binaries so their 214 correctness cases run in CI (#198,
+  #212); the batch-fit speedup gate measures above the parallel
+  threshold in steady state (#177).
+- CI: a ThreadSanitizer leg (Linux, clang-17) and an FMA-contraction leg
+  (clang-17, `-mfma`); manual dispatch; the macOS stress-test variance
+  documented.
+- Tooling: `scripts/analyze_crossovers.py` (the canonical sustained
+  V→P crossover; #146), `scripts/derive_threshold_rows.py` (every
+  dispatch table from its bundle under one set of rules),
+  `tools/bench/table_ab_bench.cpp` (AUTO against the forced strategies
+  under two headers) and `tools/bench/v242_cost_bench.cpp` (per-case
+  cost against v2.4.1).
+- Build: warning-clean under clang-cl, which takes cl.exe's `/arch:`
+  flags and is the Windows performance build (6245e4e, 606607f); a
+  `.git-blame-ignore-revs` for the clang-format 20.1.8 pass; the manual
+  GTest fallback links (#274); macOS ad-hoc codesign is idempotent
+  (#162).
+
+### Performance
+- Dispatch tables (`dispatch_thresholds.h`) re-derived for kAvx512,
+  kAvx2, kAvx and kNeon from three-run captures at the release head,
+  then verified by a loaded A/B (`tools/bench/table_ab_bench.cpp`, AUTO
+  against the forced strategies under the old and new headers): AUTO rows
+  more than 1.25× behind their best forced strategy fell 202 → 24 on NEON
+  with the first derivation and 13 → 9 with eight more rows, and 208 → 5
+  on AVX-512. The discrete pmfs, the Student-t and von Mises CDFs and
+  Beta leave NEVER; most continuous CDFs cross to PARALLEL at 8k–25k
+  instead of 25k–2M; the only NEVER cells left are two Uniform rows.
+- Speed work on the accuracy paths: Student-t and Beta densities SIMD at
+  every shape; `vector_log1p` and `vector_expm1` where they win; the
+  Gamma family's Stirling-form batch density from α = 20; the Binomial
+  quantile from a normal guess.
+- Costs of the accuracy fixes, per call against v2.4.1: the von Mises
+  quantile 5–23× (it was an 18 ns grid lookup; now 0.3–0.6 µs, exact),
+  the Student-t quantile at ν ≥ 1e3 7–13×; Gamma α ≥ 20 logpdf forced
+  VECTORIZED 4–8× and Beta at large shapes 3–5× (scalar fall-backs; AUTO
+  takes PARALLEL there). Small-shape rows are unchanged.
+
+### Known limitations
+- Thresholds are per distribution, not per shape: Gamma(20), Gamma(1000)
+  and Student-t(1000) densities cross to PARALLEL earlier than their
+  rows; a v3.0.0 input.
+- Deferred to the accuracy patch (milestone #8): #248–#251, #253,
+  #257–#265, #273 (TruncatedNormal variance on windows narrower than
+  ~1e-154 σ), #277 (the symmetric-window median reads −1.4e-16 on the
+  UCRT). To v3.0.0: #247, #252 (correctly rounded I_x, corvus), #266 (the
+  shape-20 Stirling switch), #267 (`std::cyl_bessel_i`'s `signgam`
+  write, suppressed under TSan).
+
 ## [2.4.1] - 2026-09-19
 
 Correctness patch — no API change. Two issues closed (#125, #127) in one

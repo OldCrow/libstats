@@ -483,6 +483,13 @@ distribution, so all five accept the same range:
 - `WORK_STEALING` still swallows a throwing kernel's exceptions, silently;
   `PARALLEL` rethrows the first. Each `WORK_STEALING` call waits
   on its own latch only.
+- AUTO picks a different strategy for some (distribution, operation, size)
+  cells: the threshold rows of all four measured tables (`kAvx512`,
+  `kAvx2`, `kAvx`, `kNeon`) were re-derived on 2026-10-14/15
+  (`include/libstats/core/dispatch_thresholds.h`).
+- A forced `PARALLEL` below the fork threshold runs the batch kernel
+  instead of a per-element scalar loop (ee11e62), and returns
+  `VECTORIZED`'s bits at every size (045acd9).
 - Move assignment locks both objects; setters validate under the lock.
 
 ### Build

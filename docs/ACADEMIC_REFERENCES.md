@@ -27,6 +27,7 @@ This document lists algorithmic references used by libstats.
 - Devroye, L. (1986). *Non-Uniform Random Variate Generation*. Springer.
 - Johnson, N. L., Kotz, S., and Balakrishnan, N. (1994–1997). *Continuous Univariate Distributions* and *Univariate Discrete Distributions*.
 - Press, W. H. et al. (2007). *Numerical Recipes: The Art of Scientific Computing*, 3rd ed.
+- Mardia, K. V. and Jupp, P. E. (2000). *Directional Statistics*. Wiley. Source of the standardized circular kurtosis that von Mises `getKurtosis()` returns.
 
 ## Parallelism and dispatch
 

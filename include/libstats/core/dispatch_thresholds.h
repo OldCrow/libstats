@@ -53,14 +53,15 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 // NEVER means VECTORIZED always wins on that machine for that operation.
 //
 // Table layout: {pdf, log_pdf, cdf} per distribution row.
-// GEOMETRIC: NEVER on measured SIMD tiers when vectorized/delegate path stays dominant.
-// LAPLACE/CAUCHY: measured on kAvx2/kAvx512 (sha-1b564ec); kAvx inferred.
-// BETA: PDF/LogPDF NEVER on ALL FOUR measured tiers post-parallelForSlices-
-// repair (BEST=VECTORIZED at 2M all runs — kAvx512 2026-09-03, kAvx2/kNeon
-// 2026-09-04, kAvx 2026-09-04 via LIBSTATS_MAX_SIMD_TIER=AVX capped build;
-// first seen on kNeon in sha-641bf62); CDF re-measured per tier. NOTE: the
-// June kAvx row was {128,128,256} — an inference table that dispatched Beta
-// parallel from 128 elements; the capped-build measurement corrected it.
+// 2026-10-14: every SIMD table re-derived from the R8 bundles (code d1adc95) by
+// scripts/derive_threshold_rows.py (note above each table). The smallest value
+// in any table is now 2048 (no 64-element profiler-floor rows remain), and the
+// only NEVER cells left are kNeon Uniform PDF and kAvx2 Uniform CDF. The
+// v2.4.0 notes below describe the older tables:
+// GEOMETRIC and BETA PDF/LogPDF were NEVER on all four measured tiers then
+// (BEST=VECTORIZED at 2M, all runs, post-parallelForSlices repair); the June
+// kAvx Beta row {128,128,256} was an inference the capped-build measurement
+// corrected.
 //
 // Measurement resolution caveat (applies to all architectures):
 //   Profiler timing resolution floors out around 0.1–0.2 µs. At batch sizes
@@ -746,7 +747,7 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
 //     ~1000–10000 ns (incomplete beta, lgamma, digamma).  Threading overhead
 //     (~500 µs / 8 cores) amortises at ~500 elements; 2048 is conservative.
 //     Distributions: Beta, StudentT, ChiSquared, Gamma, Poisson, Binomial,
-//     NegBinomial, VonMises (cos + cached Bessel Z).
+//     NegBinomial, VonMises (sin pipeline; CDF by fixed-cost quadrature in kappa(1 - cos)).
 //
 //   T2 — 8192: elementary transcendental distributions.  Per-element cost
 //     ~20–50 ns (exp, log, erf).  Amortises at ~80000 elements; 8192 is within
@@ -761,9 +762,9 @@ constexpr std::size_t sse2_parallel_threshold(DistributionType dist, OperationTy
 //     a placeholder only.  Note: 16384 sits at the L2→L3 cache boundary (two-array
 //     footprint = 256KB = L2 capacity), which compounds dispatch overhead with a
 //     cache-tier transition — the same failure mode seen on kAvx512 Uniform (issue
-//     #50).  On SIMD-capable hardware, Uniform and Discrete are NEVER in kAvx2 and
-//     kAvx512 for this reason.  T3 should likely be NEVER for no-SIMD builds too;
-//     update if strategy_profile on no-SIMD hardware confirms.
+//     #50).  On SIMD-capable hardware the Uniform and Discrete rows start at 25k or
+//     later, or are NEVER, for this reason.  T3 may belong later or at NEVER for
+//     no-SIMD builds too; update if strategy_profile on no-SIMD hardware confirms.
 //     Distributions: Uniform, Discrete.
 //
 // GEOMETRIC: T1 (delegates to NegBinomial — lgamma + incomplete beta).
@@ -786,7 +787,7 @@ constexpr ArchTable kNone = {{
     /* PARETO(10)            */ {8192, 8192, 8192},     // T2: log + exp pipeline
     /* WEIBULL(11)           */ {8192, 8192, 8192},     // T2: log + exp
     /* RAYLEIGH(12)          */ {8192, 8192, 8192},     // T2: x² + log
-    /* VON_MISES(13)         */ {2048, 2048, 2048},     // T1: cos + cached Bessel Z
+    /* VON_MISES(13)         */ {2048, 2048, 2048},     // T1: sin; CDF quadrature in kappa(1 - cos)
     /* BINOMIAL(14)          */ {2048, 2048, 2048},     // T1: lgamma + incomplete beta
     /* NEGATIVE_BINOMIAL(15) */ {2048, 2048, 2048},     // T1: lgamma + digamma/trigamma
     /* GEOMETRIC(16)         */ {2048, 2048, 2048},     // T1: delegates to NegBinomial

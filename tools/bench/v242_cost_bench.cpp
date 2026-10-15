@@ -32,6 +32,10 @@
 //        /DLIBSTATS_HAS_AVX512=1 /I %T%\include /I %T%\build\generated
 //        tools\bench\v242_cost_bench.cpp /Fe:bench_<ver>.exe
 //        /link %T%\build\Release\stats_static.lib
+//   Windows, clang-cl (the performance build): the same line with clang-cl for cl, plus
+//     /arch:AVX512 (or the capped tier's /arch:), linking the Ninja tree's
+//     %T%\build-clangcl\stats_static.lib. v2.4.1 needs v241_clangcl_compat.patch
+//     (docs/bench-evidence/2026-10-05-zen4-clangcl-v242-cost/) to build under clang-cl.
 // Run:  bench_v241 > v241.csv; bench_v242 > v242.csv; python v242_compare.py v241.csv v242.csv
 
 #include "libstats/distributions/beta.h"

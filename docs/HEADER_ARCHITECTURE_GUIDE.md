@@ -103,11 +103,13 @@ The concepts namespace avoids name collisions with concrete distribution classes
 
 ## Namespace hygiene
 
-Parameter validation lives in `stats::detail` (`libstats/core/error_handling.h`): one
-non-throwing `validate*Parameters` per distribution, which its constructors, setters,
-`trySet*`, `create` and `fit` share. The generic `validateParameter`,
-`validatePositiveParameter` and `validateNonNegativeParameter` helpers, moved there in
-v2.0.0, had no caller and were removed in v2.5.0. Do not expose validators as public API.
+Parameter validation lives in namespace `stats` (`libstats/core/error_handling.h`): one
+non-throwing `validate*Parameters` per distribution, returning `VoidResult`, which its
+constructors, setters, `trySet*`, `create` and `fit` share. These are callable free
+functions, documented in `MIGRATION_GUIDE.md` ("Parameter validators moved to free
+functions"). The generic `stats::detail` helpers `validateParameter`,
+`validatePositiveParameter` and `validateNonNegativeParameter`
+(`libstats/common/distribution_common.h`) had no caller and were removed in v2.5.0.
 
 ## Batch APIs
 

@@ -9,9 +9,9 @@ libstats v2.x requires C++20 and the following minimum compilers:
 | Platform | Minimum compiler | Notes |
 |---|---|---|
 | macOS | AppleClang 15 | macOS 13 Ventura or newer |
-| Linux | GCC 13 or Clang 17 | CI exercises GCC 14 and Clang 17; GCC 13 is the CMake-enforced floor (AVX-512 compile workflow only) |
+| Linux | GCC 13 or Clang 17 | CI exercises GCC 14 and Clang 17; GCC 13 is the CMake-enforced floor (coverage job and the two AVX-512 workflows only) |
 | Windows | MSVC 19.38 | Visual Studio 2022 17.8 or newer; the correctness build |
-| Windows | clang-cl, Clang 17 | The performance build (Ninja); 22.1.3 is the version used |
+| Windows | clang-cl, Clang 17 | The performance build (Ninja), used for every timing and threshold capture; the VS-bundled 22.1.3 is the version used |
 
 macOS builds use system AppleClang and Apple libc++. The v2.x build path does not support alternate LLVM toolchain setup.
 
@@ -221,10 +221,11 @@ Built tools live in `build/tools/`:
 ### Header not found
 
 For direct ad hoc compilation outside CMake, add both source include roots
-(the dual bare/`libstats/`-prefixed contract, see AGENTS.md):
+and the configured build tree's generated directory, which holds
+`libstats_version.h` and `libstats_config.h` (see "Include layout"):
 
 ```bash
--I./include -I./include/libstats
+-I./include -I./include/libstats -I<build>/generated
 ```
 
 ### SIMD source does not compile

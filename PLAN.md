@@ -1169,6 +1169,21 @@ affect.
 MIGRATION) now; R6b (generated blocks, VALIDATION_HISTORY matrix and R8
 table, CHANGELOG) after R8. R6a committed 2026-10-13 [DERIVED]. Prose that needs R8 or sweep numbers carries
 `<!-- R6b: confirm -->`; R6b clears every marker.
+**R6b applied on Z, 2026-10-15** [DERIVED; uncommitted, awaiting the user]:
+the docs sweep from a read-only inventory (every scoped doc read in full),
+the five markers cleared, the CHANGELOG 2.5.0 section written by hand
+(git-cliff parses only 14 of the 156 branch commits with `cliff.toml`),
+VALIDATION_HISTORY's v2.5.0 matrix, costs and R8 summary, and the
+CI_CD_GUIDE notes below. Touched: README, AGENTS, MIGRATION_GUIDE,
+PROJECT_CONCEPT, CHANGELOG, tools/ and scripts/ READMEs, the dispatcher
+profiles README, docs/{ACCURACY_CHARACTERIZATION, ACADEMIC_REFERENCES,
+AVX512_TESTING_GUIDE, BUILD_SYSTEM_GUIDE, CI_CD_GUIDE,
+HEADER_ARCHITECTURE_GUIDE, SIMD_BENCHMARK_RESULTS,
+SIMD_OPTIMIZATION_REFERENCE, VALIDATION_HISTORY}, and comments only in
+`dispatch_thresholds.h`, `gen_vonmises_cdf_vectors.py` and
+`v242_cost_bench.cpp`. Left for the tag: the CHANGELOG date, README's
+"released" wording, K's kAvx2/kAvx A/B result in VALIDATION_HISTORY and
+the CHANGELOG's table paragraph, and the cross-repo WINDOWS-TOOLCHAIN note.
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
 stale test counts), AGENTS "Current status", PROJECT_CONCEPT. CHANGELOG
 via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs,

@@ -28,8 +28,10 @@ now covers survival drove fixes to quantiles, deep tails and
 large-parameter densities; batch calls evaluate on one parameter snapshot; and parameter
 validation is one validator per distribution. Some results change: see the
 v2.4 → v2.5 section of [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) and
-[Contracts](#contracts) below. clang-cl is supported on Windows, and CI adds
-ThreadSanitizer and FMA-contraction legs.
+[Contracts](#contracts) below. The dispatch-threshold tables were re-derived
+from fresh captures on all three fleet machines and verified by a loaded A/B.
+clang-cl is supported on Windows, and CI adds ThreadSanitizer and
+FMA-contraction legs.
 
 ---
 
@@ -340,7 +342,7 @@ High-performance parallel and batch processing:
 - Performance optimization guidelines
 
 ### 🧰 **Windows Support**
-clang-cl (Ninja) is the Windows performance build and cl.exe (Visual Studio) the correctness build; both take `/arch:AVX2` or `/arch:AVX512` from the detected tier. For timing runs, opt the process out of Windows power throttling (see `docs/VALIDATION_HISTORY.md`, "Zen 4 timing: power throttling"). For environment setup (toolchain activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [AGENTS.md](AGENTS.md).
+clang-cl (Ninja) is the Windows performance build and cl.exe (Visual Studio) the correctness build; both take `/arch:AVX`, `/arch:AVX2` or `/arch:AVX512` from the detected tier. For timing runs, opt the process out of Windows power throttling (see `docs/VALIDATION_HISTORY.md`, "Zen 4 timing: power throttling"). For environment setup (toolchain activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [AGENTS.md](AGENTS.md).
 
 ## Installation and Consumption
 
