@@ -17,7 +17,10 @@ Per (distribution, operation) row, in order:
                       with the evidence recorded). Rows in KEEP_ROW keep the table value by the user's
                       judgment against the rules, with the evidence recorded. Rows in TAKE_CANDIDATE
                       take the candidate although rule 1 would keep them (one grid step away), where
-                      the loaded A/B agrees with the quiet captures; evidence recorded.
+                      the loaded A/B agrees with the quiet captures; evidence recorded. Rows in
+                      BENCH_CROSSOVER take the value given (the fork value, where the profile's
+                      candidate was only the max of a > 2x spread and the loaded A/B shows PARALLEL
+                      ahead at the fork value in every pass of several quiet rounds); evidence recorded.
   3. SKIP (spread)    the three runs spread more than 2x and the maximum (the conservative pick) is
                       within one grid step of the table: too noisy to change. If the maximum still
                       clears the table by more than a grid step, the maximum is the candidate.
@@ -73,6 +76,20 @@ DROP_OVERRIDE = {
     ("kNeon", "Exponential", "PDF"): "table_ab ABAB 2026-10-14: at 25k-50k VECTORIZED (1.6 ns) beats PARALLEL in every pass, so the 25k row is early; candidate 75k measured three times",
     ("kNeon", "Gumbel", "PDF"): "table_ab ABAB 2026-10-14: AUTO 1.45x behind PARALLEL at 50k under both tables; candidate 25k measured three times",
     ("kNeon", "FisherF", "PDF"): "table_ab ABAB 2026-10-14: PARALLEL 1.52x ahead at 4096 under both tables; the 8192 row has disagreed with the 2048 measurement since 2026-10-05",
+    ("kAvx512", "Binomial", "LogPDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.35x VECTORIZED from 8192; AUTO 2.8-4.3x behind from 8192 to 500k under both tables; candidate 8192 three times (Bernoulli LogPDF dispatches here)",
+    ("kAvx512", "NegBinomial", "PDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.34x from 8192; AUTO 3-4.3x behind from 8192 to 500k under both tables; candidate 6144 (Geometric PDF dispatches here)",
+    ("kAvx512", "NegBinomial", "LogPDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.34x from 8192; AUTO 3-4.2x behind from 8192 to 500k under both tables; candidate 8192 three times (Geometric LogPDF dispatches here)",
+    ("kAvx512", "StudentT", "CDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.33x from 8192; AUTO 2.9-4.25x behind from 8192 to 500k under both tables; candidate 6144",
+    ("kAvx512", "Cauchy", "CDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.65x at 8192, 0.27x from 50k; AUTO 1.5-4.2x behind from 8192 under both tables; candidate 25k",
+    ("kAvx512", "Beta", "LogPDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.72x at 8192, 0.51x at 25k, 0.18x at 500k; AUTO 1.9-6.2x behind from 25k under both tables; candidate 25k three times",
+    ("kAvx512", "Pareto", "CDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.57x at 8192, 0.25x from 200k; AUTO 1.5-3.9x behind from 8192 under both tables; candidate 25k (max of a 4x spread)",
+    ("kAvx512", "Rayleigh", "CDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.65x at 25k, 0.27x from 100k; AUTO 1.55-3.9x behind from 25k to 200k under both tables; candidate 25k three times",
+    ("kAvx512", "Exponential", "CDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.75x at 25k, 0.37x from 100k; AUTO 1.3-2.9x behind from 25k to 200k under both tables; candidate 25k three times",
+    ("kAvx512", "VonMises", "CDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.35x from 8192; AUTO 2.3-2.8x behind at 8192-10k under both tables; candidate 8192",
+    ("kAvx512", "Gaussian", "CDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): PARALLEL 0.56x from 8192; AUTO 1.6-1.8x behind at 8192-10k under both tables; candidate 8192",
+    ("kAvx512", "Bernoulli", "PDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): pass-through row (dispatch runs under Binomial's); kept consistent with Binomial PDF 8192; candidate 6144",
+    ("kAvx512", "Bernoulli", "LogPDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): pass-through row (dispatch runs under Binomial's); AUTO 1.6-4.1x behind from 8192 with Binomial LogPDF at NEVER; candidate 4096",
+    ("kAvx512", "Geometric", "PDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): dispatches under NegBinomial's row (identical gaps, 2.7-4.2x from 8192 under both tables); kept consistent with NegBinomial PDF 8192; candidate 8192",
 }
 # Rows kept at their table value by the user's judgment although the rules would change them.
 KEEP_ROW = {
@@ -90,6 +107,19 @@ TAKE_CANDIDATE = {
     ("kNeon", "LogNormal", "PDF"): "user 2026-10-14: candidate 25k; PARALLEL 1.25-1.4x ahead at 25k in both passes",
     ("kNeon", "Pareto", "PDF"): "user 2026-10-14: candidate 50k; PARALLEL 1.5-1.6x ahead at 50k in both passes",
     ("kNeon", "Gaussian", "PDF"): "user 2026-10-14: candidate 75k three times; VECTORIZED 1.45x ahead of PARALLEL at 50k in both passes (TruncatedNormal LogPDF's AUTO tracks this row)",
+    ("kAvx512", "Logistic", "LogPDF"): "user 2026-10-15: candidate three times in the d1adc95 capture; table_ab ABAB on Z (quiet, boost) rounds 1-2: PARALLEL 0.57-0.61x VECTORIZED at 25k in both rounds, AUTO 1.65-1.75x behind",
+    ("kAvx512", "Gumbel", "CDF"): "user 2026-10-15: candidate three times in the d1adc95 capture; table_ab ABAB on Z (quiet, boost) rounds 1-2: PARALLEL 0.65-0.69x at 25k, AUTO 1.45-1.54x behind",
+    ("kAvx512", "TruncatedNormal", "LogPDF"): "user 2026-10-15: candidate three times in the d1adc95 capture; table_ab ABAB on Z (quiet, boost) rounds 1-2: PARALLEL 0.68-0.73x at 50k, AUTO 1.37-1.45x behind",
+}
+# Rows whose quiet-profile candidate sits one or two grid steps above the fork value only because the
+# three runs spread past 2x (the rule takes their max), where the loaded A/B shows PARALLEL ahead at the
+# fork value in every pass of several quiet rounds: encode the value given. User's decisions, with the
+# evidence; keyed by table.
+BENCH_CROSSOVER = {
+    ("kAvx512", "Beta", "PDF"): (8192, "user 2026-10-15 (Z): the profile's three runs spread past 2x so the rule took their max (25k); table_ab ABAB on Z, three quiet rounds (1, 2, 4): PARALLEL 0.51-0.65x VECTORIZED at 8192 and 0.69-0.76x at 10k in every pass, AUTO 1.35-2x behind"),
+    ("kAvx512", "Beta", "LogPDF"): (8192, "user 2026-10-15 (Z): the profile's three runs spread past 2x so the rule took their max (25k); table_ab ABAB on Z, three quiet rounds (1, 2, 4): PARALLEL 0.54-0.74x at 8192 and 0.75-0.84x at 10k in every pass, AUTO 1.25-1.85x behind"),
+    ("kAvx512", "Pareto", "CDF"): (8192, "user 2026-10-15 (Z): the profile's three runs spread past 2x so the rule took their max (25k); table_ab ABAB on Z, three quiet rounds (1, 2, 4): PARALLEL 0.57-0.61x at 8192 and 0.67-0.68x at 10k in every pass, AUTO 1.5-1.8x behind"),
+    ("kAvx512", "Cauchy", "CDF"): (8192, "user 2026-10-15 (Z): the profile's three runs spread past 2x so the rule took their max (25k); table_ab ABAB on Z, three quiet rounds (1, 2, 4): PARALLEL 0.65-0.66x at 8192 and 0.75x at 10k in every pass (the quiet profile read 25k/10k/25k), AUTO 1.3-1.55x behind"),
 }
 REDERIVE_DATE = "2026-10-14"
 
@@ -188,7 +218,11 @@ def derive(table, cfg, header, grid_hint=None):
             sp = spread(vals)
             zdir = direction(ac.candidate(row_values(conf, dist, op)), t, grid) if conf else "-"
             note = ""
-            if (table, dist, op) in TAKE_CANDIDATE:
+            if (table, dist, op) in BENCH_CROSSOVER:
+                pick, ev = BENCH_CROSSOVER[(table, dist, op)]
+                decision, proposed = "CHANGE bench", pick
+                note = "bench crossover: " + ev
+            elif (table, dist, op) in TAKE_CANDIDATE:
                 pick = cand
                 if pick != NEVER and pick <= cfg["fork_zone"]:
                     pick = cfg["fork"]
