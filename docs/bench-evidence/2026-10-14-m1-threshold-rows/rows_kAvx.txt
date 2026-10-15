@@ -1,0 +1,88 @@
+kAvx: rows derived from 2026-10-13T13-58-00Z_darwin-x86_64_dev-v2.4.2_sha-d1adc95 (K (Kaby Lake, AppleClang 15), AVX-capped tree)
+previous capture 2026-10-05T03-09-27Z_darwin-x86_64_dev-v2.4.2_sha-6f86996; fork value 4096, fork zone <= 6144; Z direction from 2026-10-14T03-29-48Z_windows-x86_64_dev-v2.4.2_sha-df78931
+grid: 64 128 256 512 1024 2048 4096 6144 8192 10k 25k 50k 75k 100k 150k 200k 250k 300k 400k 500k 750k 1000k 1500k 2000k
+
+Distribution    Op       table          run1/run2/run3    cand    prev  decision       proposed  cmt  Zdir    note
+Bernoulli       PDF      NEVER           4096/128/4096    4096   NEVER  CHANGE fork        4096  yes  earlier runs spread 32.0x; max 4096 still clears the table; candidate 4096 in the fork zone: parallel once it forks
+Bernoulli       LogPDF   NEVER             1024/64/256    1024   NEVER  CHANGE fork        4096  yes  earlier runs spread 16.0x; max 1024 still clears the table; candidate 1024 in the fork zone: parallel once it forks
+Bernoulli       CDF      NEVER          4096/2048/4096    4096   NEVER  CHANGE fork        4096  yes  earlier candidate 4096 in the fork zone: parallel once it forks
+Beta            PDF      NEVER          6144/6144/6144    6144   NEVER  CHANGE fork        4096  yes  earlier candidate 6144 in the fork zone: parallel once it forks
+Beta            LogPDF   NEVER            10k/6144/25k     25k   NEVER  CHANGE              25k  yes  earlier runs spread 4.1x; max 25k still clears the table
+Beta            CDF       4096          4096/1024/4096    4096    4096  KEEP ok            4096  yes  later
+Binomial        PDF      NEVER           2048/512/2048    2048   NEVER  CHANGE fork        4096  yes  earlier runs spread 4.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
+Binomial        LogPDF   NEVER          4096/4096/4096    4096   NEVER  CHANGE fork        4096  yes  earlier candidate 4096 in the fork zone: parallel once it forks
+Binomial        CDF      NEVER          4096/2048/2048    2048   NEVER  CHANGE fork        4096  yes  earlier candidate 2048 in the fork zone: parallel once it forks
+Cauchy          PDF        50k             75k/50k/75k     75k     256  KEEP ok             50k  -    same
+Cauchy          LogPDF     50k             25k/50k/25k     25k     10k  KEEP ok             50k  -    same
+Cauchy          CDF       6144            6144/256/512    6144    6144  KEEP ok            6144  -    later
+ChiSquared      PDF       8192            10k/25k/8192     25k    8192  CHANGE              25k  -    same    runs spread 3.1x; max 25k still clears the table; Z direction same, DIFFERS
+ChiSquared      LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  -    same
+ChiSquared      CDF       4096           256/2048/2048    2048    4096  KEEP ok            4096  -    earlier
+Discrete        PDF        50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    later
+Discrete        LogPDF     50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    same
+Discrete        CDF        50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    same
+Erlang          PDF       6144          6144/6144/8192    6144    6144  KEEP ok            6144  yes  same
+Erlang          LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same
+Erlang          CDF       4096          4096/2048/1024    4096    4096  KEEP ok            4096  yes  earlier
+Exponential     PDF        25k             50k/25k/50k     50k     25k  KEEP ok             25k  -    same
+Exponential     LogPDF    100k          100k/100k/100k    100k    100k  KEEP ok            100k  -    same
+Exponential     CDF        25k           4096/6144/512    6144    6144  KEEP override       25k  -    same    measures as before; no comment on the row
+FisherF         PDF       4096            4096/512/512    4096    4096  KEEP ok            4096  yes  later
+FisherF         LogPDF    6144            512/512/1024     512    4096  CHANGE fork        4096  yes  same    candidate 512 in the fork zone: parallel once it forks
+FisherF         CDF       4096          4096/2048/4096    4096    4096  KEEP ok            4096  yes  same
+Gamma           PDF       6144          8192/6144/8192    8192    8192  KEEP ok            6144  yes  same
+Gamma           LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  earlier
+Gamma           CDF       4096          1024/4096/4096    4096    4096  KEEP ok            4096  yes  later
+Gaussian        PDF        50k             25k/50k/50k     50k     50k  KEEP ok             50k  -    same
+Gaussian        LogPDF    150k          150k/150k/150k    150k    150k  KEEP ok            150k  -    same
+Gaussian        CDF       4096          4096/2048/4096    4096    4096  KEEP ok            4096  -    same
+Geometric       PDF      NEVER          1024/2048/1024    1024   NEVER  CHANGE fork        4096  -    earlier candidate 1024 in the fork zone: parallel once it forks
+Geometric       LogPDF   NEVER           128/1024/4096    4096   NEVER  CHANGE fork        4096  -    earlier runs spread 32.0x; max 4096 still clears the table; candidate 4096 in the fork zone: parallel once it forks
+Geometric       CDF      NEVER          2048/4096/4096    4096   NEVER  CHANGE fork        4096  -    earlier candidate 4096 in the fork zone: parallel once it forks
+Gumbel          PDF        25k          8192/8192/6144    8192     25k  CHANGE             8192  -    earlier
+Gumbel          LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  -    same
+Gumbel          CDF        25k            6144/10k/25k     25k     25k  KEEP ok             25k  -    earlier
+HalfNormal      PDF        25k             25k/25k/50k     25k     50k  KEEP ok             25k  yes  same
+HalfNormal      LogPDF    100k          100k/100k/100k    100k     75k  KEEP ok            100k  yes  same
+HalfNormal      CDF        10k          4096/4096/4096    4096     10k  CHANGE fork        4096  yes  same    candidate 4096 in the fork zone: parallel once it forks; Z direction same, DIFFERS
+InverseGamma    PDF       6144            200k/25k/25k    200k     25k  CHANGE             200k  yes  later   runs spread 8.0x; max 200k still clears the table; table already overrode the previous capture
+InverseGamma    LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  later
+InverseGamma    CDF       2048           4096/512/2048    4096    4096  KEEP ok            2048  yes  earlier
+Laplace         PDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  -    same
+Laplace         LogPDF     50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    same
+Laplace         CDF        10k          6144/6144/6144    6144     25k  CHANGE fork        4096  -    same    candidate 6144 in the fork zone: parallel once it forks; Z direction same, DIFFERS
+LogNormal       PDF        25k            10k/10k/8192     10k     25k  KEEP ok             25k  yes  earlier
+LogNormal       LogPDF     25k             25k/25k/10k     25k     50k  KEEP ok             25k  yes  earlier
+LogNormal       CDF        256          4096/1024/2048    4096    4096  CHANGE fork        4096  yes  later   runs spread 4.0x; max 4096 still clears the table; candidate 4096 in the fork zone: parallel once it forks; table already overrode the previous capture
+Logistic        PDF        25k          6144/1024/6144    6144     25k  CHANGE fork        4096  -    earlier runs spread 6.0x; max 6144 still clears the table; candidate 6144 in the fork zone: parallel once it forks
+Logistic        LogPDF     50k           6144/6144/10k    6144     25k  CHANGE fork        4096  -    earlier candidate 6144 in the fork zone: parallel once it forks
+Logistic        CDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  -    same
+NegBinomial     PDF      NEVER           2048/2048/128    2048   NEVER  CHANGE fork        4096  yes  earlier runs spread 16.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
+NegBinomial     LogPDF   NEVER          4096/4096/4096    4096   NEVER  CHANGE fork        4096  yes  earlier candidate 4096 in the fork zone: parallel once it forks
+NegBinomial     CDF      NEVER          4096/4096/4096    4096   NEVER  CHANGE fork        4096  yes  earlier candidate 4096 in the fork zone: parallel once it forks
+Pareto          PDF        25k            10k/8192/25k     25k     25k  KEEP ok             25k  -    earlier
+Pareto          LogPDF     50k             25k/50k/25k     25k     50k  KEEP ok             50k  -    same
+Pareto          CDF        50k           6144/512/4096    6144    6144  KEEP override       50k  -    earlier measures as before; no comment on the row
+Poisson         PDF       4096          1024/1024/4096    4096    4096  KEEP ok            4096  yes  later
+Poisson         LogPDF    8192          4096/4096/4096    4096    2048  KEEP override      8192  yes  same    measures as before; table comment stands unless stale
+Poisson         CDF       4096           256/4096/4096    4096    4096  KEEP ok            4096  yes  later
+Rayleigh        PDF        25k           8192/8192/10k    8192     25k  CHANGE             8192  -    earlier
+Rayleigh        LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  -    earlier
+Rayleigh        CDF        50k          1024/1024/6144    6144    6144  KEEP override       50k  -    same    measures as before; no comment on the row
+StudentT        PDF        25k           25k/8192/6144     25k      64  KEEP ok             25k  yes  earlier
+StudentT        LogPDF     50k             25k/25k/25k     25k    6144  KEEP ok             50k  yes  same
+StudentT        CDF      NEVER          4096/4096/1024    4096   NEVER  CHANGE fork        4096  yes  earlier runs spread 4.0x; max 4096 still clears the table; candidate 4096 in the fork zone: parallel once it forks
+TruncatedNormal PDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  -    same
+TruncatedNormal LogPDF     50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    same
+TruncatedNormal CDF       4096           4096/2048/256    4096    4096  KEEP ok            4096  -    same
+Uniform         PDF      NEVER         2000k/250k/200k   2000k   NEVER  CHANGE            2000k  yes  same    runs spread 10.0x; max 2000k still clears the table; Z direction same, DIFFERS
+Uniform         LogPDF   NEVER          200k/250k/200k    200k   NEVER  CHANGE             200k  yes  same    Z direction same, DIFFERS
+Uniform         CDF        25k             25k/25k/50k     25k     25k  KEEP ok             25k  yes  later
+VonMises        PDF        25k          8192/8192/6144    8192     25k  CHANGE             8192  yes  earlier
+VonMises        LogPDF     50k             25k/25k/10k     25k     75k  KEEP ok             50k  yes  earlier
+VonMises        CDF      NEVER           2048/4096/512    4096   NEVER  CHANGE fork        4096  yes  earlier runs spread 8.0x; max 4096 still clears the table; candidate 4096 in the fork zone: parallel once it forks
+Weibull         PDF        25k          6144/6144/6144    6144     25k  CHANGE fork        4096  -    earlier candidate 6144 in the fork zone: parallel once it forks
+Weibull         LogPDF     25k           25k/8192/8192     25k     25k  KEEP ok             25k  -    earlier
+Weibull         CDF        25k          4096/4096/4096    4096     10k  CHANGE fork        4096  -    earlier candidate 4096 in the fork zone: parallel once it forks
+
+CHANGE=8  CHANGE fork=23  KEEP ok=46  KEEP override=4  total=81

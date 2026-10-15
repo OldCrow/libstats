@@ -542,6 +542,34 @@ Status by machine (each machine edits only its own line):
   two-line race under the same `TSAN_OPTIONS`; #183's positive control
   no longer exists (fixed in `b0ac2ad`). M's steps 1–6 at `d1adc95` are
   complete; bundle and evidence staged uncommitted, awaiting the user.
+  **Table rows, 2026-10-14 evening** [DERIVED, M; uncommitted, awaiting
+  the user]: `scripts/derive_threshold_rows.py` (new) derives every
+  table from its bundle under the 2026-10-14 rules, one script for
+  kAvx512 (Z's bundle, fork 8192), kAvx2 and kAvx (K's, fork 4096, Z's
+  capped tiers as a direction check) and kNeon (M's, fork 2048: M's
+  threshold is 1536 and the grid has no 1536 point). Two rules added
+  from M's A/B evidence: a table value below the fork value is never an
+  override (it was never a measured crossover), and `DROP_OVERRIDE` /
+  `KEEP_ROW` lists carry per-row user decisions with their evidence
+  (kNeon: von Mises PDF/LogPDF, Gaussian CDF, Discrete CDF, Exponential
+  PDF, Gumbel PDF, FisherF PDF dropped; Exponential CDF and Rayleigh CDF
+  kept at 25k, PARALLEL at 8192 losing 1.6–2× under load). Result: 162
+  values on 85 rows (kAvx512 45, kAvx2 41, kAvx 31, kNeon 45); each
+  changed row carries a `2026-10-14:` marker with its old and new
+  values, the earlier prose kept after it. Measured on M with
+  `tools/bench/table_ab_bench.cpp` (new: AUTO against forced
+  VECTORIZED/PARALLEL, 27 distributions × 10 sizes, ABAB, indicative
+  load): AUTO rows more than 1.25× behind their best forced strategy
+  202 → 24, 191 of 810 AUTO rows faster than 1.25×, none slower once
+  load is accounted for; the R3 cost bench agrees (54 → 7). The header
+  is **applied in this worktree** (clang-format run): R1 on M against it
+  0 warnings, 132/132, gates 0.20–0.23. Evidence and the four per-table
+  row files: `docs/bench-evidence/2026-10-14-m1-threshold-rows/`
+  (PROPOSAL.md, AB_RESULTS.md). Scratch tree `../libstats-rows` holds
+  the proposed header for reruns. Next [user]: review the rows and the
+  kept/dropped lists, K and Z build the bench against the header and run
+  it on their tables, one R1 each, then the header commit (message
+  drafted) and CI.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);

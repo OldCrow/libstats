@@ -1,0 +1,88 @@
+kNeon: rows derived from 2026-10-14T04-39-37Z_darwin-arm64_dev-v2.4.2_sha-d1adc95 (M (M1, AppleClang 21))
+previous capture 2026-10-05T04-36-25Z_darwin-arm64_dev-v2.4.2_sha-2c5230a; fork value 2048, fork zone <= 2048
+grid: 64 128 256 512 1024 2048 4096 6144 8192 10k 25k 50k 75k 100k 150k 200k 250k 300k 400k 500k 750k 1000k 1500k 2000k
+
+Distribution    Op       table          run1/run2/run3    cand    prev  decision       proposed  cmt  Zdir    note
+Bernoulli       PDF      NEVER           512/1024/1024    1024   NEVER  CHANGE fork        2048  yes  -       candidate 1024 in the fork zone: parallel once it forks
+Bernoulli       LogPDF   NEVER          4096/6144/6144    6144   NEVER  CHANGE             6144  yes  -
+Bernoulli       CDF      NEVER           2048/512/6144    6144   NEVER  CHANGE             6144  yes  -       runs spread 12.0x; max 6144 still clears the table
+Beta            PDF      NEVER           8192/10k/8192    8192   NEVER  CHANGE             8192  yes  -
+Beta            LogPDF   NEVER            8192/10k/10k     10k   NEVER  CHANGE              10k  yes  -
+Beta            CDF       4096          2048/2048/2048    2048    2048  KEEP ok            4096  yes  -
+Binomial        PDF      NEVER           2048/256/2048    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 8.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
+Binomial        LogPDF   NEVER           512/2048/2048    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 4.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
+Binomial        CDF      NEVER           1024/256/2048    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 8.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
+Cauchy          PDF        25k           100k/75k/100k    100k     50k  CHANGE             100k  yes  -
+Cauchy          LogPDF     50k             50k/75k/25k     75k     50k  KEEP ok             50k  yes  -
+Cauchy          CDF        25k          8192/6144/8192    8192     25k  CHANGE             8192  yes  -
+ChiSquared      PDF        512             10k/25k/10k     25k     25k  CHANGE              25k  -    -       runs spread 2.5x; max 25k still clears the table; table already overrode the previous capture
+ChiSquared      LogPDF     128             50k/50k/25k     50k     75k  CHANGE              50k  -    -       table 128 is below the fork value 2048: not a measured crossover, so not an override; table already overrode the previous capture
+ChiSquared      CDF         64            512/2048/128    2048    2048  CHANGE fork        2048  -    -       runs spread 16.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks; table already overrode the previous capture
+Discrete        PDF        50k          150k/200k/200k    200k    100k  CHANGE             200k  yes  -       table already overrode the previous capture
+Discrete        LogPDF     50k          200k/200k/200k    200k    100k  CHANGE             200k  yes  -       table already overrode the previous capture
+Discrete        CDF      1000k             75k/75k/75k     75k    100k  CHANGE              75k  yes  -       override dropped: table_ab ABAB 2026-10-14: AUTO 1.7-3.7x behind PARALLEL at 100k-500k under both tables; candidate 75k measured three times; table already overrode the previous capture
+Erlang          PDF        50k             25k/50k/50k     50k     25k  KEEP ok             50k  yes  -
+Erlang          LogPDF     75k             75k/50k/50k     50k     50k  KEEP ok             75k  yes  -
+Erlang          CDF       4096          2048/1024/1024    1024    2048  KEEP override      4096  yes  -       measures as before; table comment stands unless stale
+Exponential     PDF        25k             75k/75k/75k     75k     75k  CHANGE              75k  -    -       override dropped: table_ab ABAB 2026-10-14: at 25k-50k VECTORIZED (1.6 ns) beats PARALLEL in every pass, so the 25k row is early; candidate 75k measured three times; table already overrode the previous capture
+Exponential     LogPDF      64          200k/150k/200k    200k    200k  CHANGE             200k  -    -       table 64 is below the fork value 2048: not a measured crossover, so not an override; table already overrode the previous capture
+Exponential     CDF        25k          8192/8192/8192    8192     25k  KEEP judgment       25k  -    -       user 2026-10-14: the quiet profile's 8192 is marginal for a 2.5 ns/element kernel; on the loaded machine PARALLEL at 8192-10k loses 1.6-2x to VECTORIZED and only matches it at 25k (table_ab ABAB); 25k kept
+FisherF         PDF       8192            2048/128/256    2048    2048  CHANGE fork        2048  yes  -       runs spread 16.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks; table already overrode the previous capture
+FisherF         LogPDF     10k             256/128/256     256    4096  CHANGE fork        2048  yes  -       candidate 256 in the fork zone: parallel once it forks; table already overrode the previous capture
+FisherF         CDF       2048          2048/2048/1024    2048    2048  KEEP ok            2048  yes  -
+Gamma           PDF        50k             25k/25k/25k     25k     25k  KEEP ok             50k  yes  -
+Gamma           LogPDF     75k             25k/50k/25k     25k     75k  CHANGE              25k  yes  -
+Gamma           CDF       4096            1024/64/2048    2048    2048  KEEP ok            4096  yes  -
+Gaussian        PDF        50k            75k/75k/100k     75k     75k  KEEP ok             50k  -    -
+Gaussian        LogPDF      64          200k/200k/200k    200k    300k  CHANGE             200k  -    -       table already overrode the previous capture
+Gaussian        CDF      NEVER            10k/10k/8192     10k     25k  CHANGE              10k  -    -       override dropped: table_ab ABAB 2026-10-14: PARALLEL beats VECTORIZED 1.25x at 10k, 2.1x at 25k, 4.7x at 500k under both tables; candidate 10k measured three times; table already overrode the previous capture
+Geometric       PDF      NEVER          1024/2048/2048    2048   NEVER  CHANGE fork        2048  yes  -       candidate 2048 in the fork zone: parallel once it forks
+Geometric       LogPDF   NEVER            128/256/2048    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 16.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
+Geometric       CDF      NEVER           512/4096/4096    4096   NEVER  CHANGE             4096  yes  -       runs spread 8.0x; max 4096 still clears the table
+Gumbel          PDF        75k             25k/25k/25k     25k     50k  CHANGE              25k  -    -       override dropped: table_ab ABAB 2026-10-14: AUTO 1.45x behind PARALLEL at 50k under both tables; candidate 25k measured three times
+Gumbel          LogPDF     50k             75k/25k/50k     75k     50k  KEEP ok             50k  -    -
+Gumbel          CDF        50k             25k/25k/25k     25k     50k  KEEP ok             50k  -    -
+HalfNormal      PDF       100k             75k/75k/75k     75k     75k  KEEP ok            100k  yes  -
+HalfNormal      LogPDF    200k          100k/150k/150k    150k    150k  KEEP ok            200k  yes  -
+HalfNormal      CDF      NEVER             75k/75k/75k     75k   NEVER  CHANGE              75k  yes  -
+InverseGamma    PDF        50k             50k/25k/50k     50k     50k  KEEP ok             50k  yes  -
+InverseGamma    LogPDF     75k             25k/50k/25k     25k     75k  CHANGE              25k  yes  -
+InverseGamma    CDF       2048           2048/2048/512    2048    2048  KEEP ok            2048  yes  -
+Laplace         PDF        50k             75k/75k/10k     75k     50k  KEEP ok             50k  yes  -
+Laplace         LogPDF      64          100k/100k/100k    100k    150k  CHANGE             100k  yes  -       table 64 is below the fork value 2048: not a measured crossover, so not an override; table already overrode the previous capture
+Laplace         CDF        256          8192/6144/6144    6144     25k  CHANGE             6144  yes  -       table already overrode the previous capture
+LogNormal       PDF        50k             25k/25k/10k     25k     50k  KEEP ok             50k  yes  -
+LogNormal       LogPDF     50k             25k/50k/25k     25k     50k  KEEP ok             50k  yes  -
+LogNormal       CDF        25k             10k/10k/10k     10k     25k  KEEP ok             25k  yes  -
+Logistic        PDF        50k           25k/8192/8192     25k     50k  KEEP ok             50k  -    -
+Logistic        LogPDF     50k             25k/10k/25k     25k     50k  KEEP ok             50k  -    -
+Logistic        CDF        50k             50k/50k/25k     50k     50k  KEEP ok             50k  -    -
+NegBinomial     PDF      NEVER           1024/2048/512    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 4.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
+NegBinomial     LogPDF   NEVER          1024/2048/2048    2048   NEVER  CHANGE fork        2048  yes  -       candidate 2048 in the fork zone: parallel once it forks
+NegBinomial     CDF      NEVER           1024/2048/128    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 16.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
+Pareto          PDF        75k             50k/75k/50k     50k    150k  KEEP ok             75k  -    -
+Pareto          LogPDF     50k             75k/50k/75k     75k     75k  KEEP ok             50k  -    -
+Pareto          CDF        50k           6144/10k/8192    8192     25k  CHANGE             8192  -    -
+Poisson         PDF       4096          4096/4096/1024    4096     25k  KEEP ok            4096  -    -
+Poisson         LogPDF     256          1024/1024/2048    1024     25k  CHANGE fork        2048  -    -       candidate 1024 in the fork zone: parallel once it forks; table already overrode the previous capture
+Poisson         CDF        256           2048/512/1024    2048    2048  CHANGE fork        2048  -    -       runs spread 4.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks; table already overrode the previous capture
+Rayleigh        PDF        20k             25k/10k/25k     25k     25k  KEEP ok             20k  yes  -
+Rayleigh        LogPDF     25k            8192/10k/25k     25k     50k  KEEP ok             25k  yes  -
+Rayleigh        CDF        25k           10k/8192/8192    8192     25k  KEEP judgment       25k  yes  -       user 2026-10-14: as Exponential CDF; PARALLEL at 8192 loses 1.8x, wins at 25k (table_ab ABAB); 25k kept
+StudentT        PDF        50k             10k/50k/25k     50k     50k  KEEP ok             50k  -    -
+StudentT        LogPDF     25k             10k/50k/25k     50k     50k  KEEP ok             25k  -    -
+StudentT        CDF         64          2048/2048/2048    2048   NEVER  CHANGE fork        2048  -    -       candidate 2048 in the fork zone: parallel once it forks; table already overrode the previous capture
+TruncatedNormal PDF        50k             50k/75k/50k     50k     50k  KEEP ok             50k  -    -
+TruncatedNormal LogPDF     75k             75k/50k/75k     75k     75k  KEEP ok             75k  -    -
+TruncatedNormal CDF        25k          4096/4096/4096    4096     25k  CHANGE             4096  -    -
+Uniform         PDF      NEVER         500k/NEVER/500k   NEVER   NEVER  KEEP ok           NEVER  -    -
+Uniform         LogPDF   NEVER          500k/500k/500k    500k   NEVER  CHANGE             500k  -    -
+Uniform         CDF         64             25k/25k/25k     25k     50k  CHANGE              25k  -    -       table 64 is below the fork value 2048: not a measured crossover, so not an override; table already overrode the previous capture
+VonMises        PDF       100k            8192/25k/25k     25k     50k  CHANGE              25k  yes  -       runs spread 3.1x; max 25k still clears the table; table already overrode the previous capture
+VonMises        LogPDF    500k             25k/25k/25k     25k     50k  CHANGE              25k  yes  -       override dropped: user 2026-10-14: the 500k override argued from the pre-#111 CDF; 25k measured 2026-10-05 and 2026-10-14; AUTO 2.8-3x behind PARALLEL at 1e5 (AB_RESULTS); table already overrode the previous capture
+VonMises        CDF      NEVER          2048/2048/2048    2048   NEVER  CHANGE fork        2048  yes  -       candidate 2048 in the fork zone: parallel once it forks
+Weibull         PDF        25k             10k/10k/10k     10k     25k  KEEP ok             25k  -    -
+Weibull         LogPDF     50k            8192/25k/25k     25k     50k  KEEP ok             50k  -    -
+Weibull         CDF        50k          8192/8192/8192    8192     50k  CHANGE             8192  -    -
+
+CHANGE=29  CHANGE fork=16  KEEP judgment=2  KEEP ok=33  KEEP override=1  total=81

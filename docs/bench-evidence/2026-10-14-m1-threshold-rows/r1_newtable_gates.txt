@@ -1,0 +1,19 @@
+Running main() from /private/tmp/googletest-20260810-2300-tbptpn/googletest-1.18.0/googletest/src/gtest_main.cc
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ParallelBatchGates
+[ RUN      ] ParallelBatchGates.ParallelBeatsVectorizedAtOneMillion
+  Bernoulli(0.3) pmf: PARALLEL/VECTORIZED 0.226414 (2.10954 / 9.31717 ms)
+  Binomial(100, 0.3) pmf: PARALLEL/VECTORIZED 0.204738 (10.4337 / 50.9614 ms)
+  Binomial(100, 0.3) cdf: PARALLEL/VECTORIZED 0.206628 (25.1191 / 121.567 ms)
+  Geometric(0.3) pmf: PARALLEL/VECTORIZED 0.207297 (9.99713 / 48.226 ms)
+  NegativeBinomial(5, 0.3) logpmf: PARALLEL/VECTORIZED 0.208016 (9.61767 / 46.2351 ms)
+  NegativeBinomial(5, 0.3) cdf: PARALLEL/VECTORIZED 0.213969 (17.79 / 83.1429 ms)
+  VonMises(0, 2) cdf: PARALLEL/VECTORIZED 0.210454 (24.8462 / 118.06 ms)
+  StudentT(5) cdf: PARALLEL/VECTORIZED 0.204901 (15.5955 / 76.1127 ms)
+[       OK ] ParallelBatchGates.ParallelBeatsVectorizedAtOneMillion (4064 ms)
+[----------] 1 test from ParallelBatchGates (4064 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (4064 ms total)
+[  PASSED  ] 1 test.
