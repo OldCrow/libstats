@@ -160,8 +160,8 @@ using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>;
 constexpr ArchTable kNeon = {{
     /* UNIFORM(0)            */ {NEVER, 500000,
                                  25000},  // 2026-10-14: LogPDF NEVER→500k, CDF 64→25k.
-    /* GAUSSIAN(1)           */ {50000, 200000, 10000},  // 2026-10-14: LogPDF 64→200k, CDF
-                                                         // NEVER→10k.
+    /* GAUSSIAN(1)           */ {75000, 200000, 10000},  // 2026-10-14: PDF 50k→75k, LogPDF 64→200k,
+                                                         // CDF NEVER→10k.
     /* EXPONENTIAL(2)        */ {75000, 200000, 25000},  // 2026-10-14: PDF 25k→75k, LogPDF 64→200k.
     /* DISCRETE(3)           */ {200000, 200000, 75000},  // 2026-10-14: PDF 50k→200k, LogPDF
                                                           // 50k→200k, CDF 1000k→75k. CDF: bimodal
@@ -175,22 +175,24 @@ constexpr ArchTable kNeon = {{
     // first noise tie), max across three --large Release runs per
     // PROFILING_METHOD.md Step 3. Beta PDF/LogPDF stay NEVER: parallel loses
     // to the memory-bound SIMD kernel at every measured size, as on kAvx512.
-    /* GAMMA(5)              */ {50000, 25000, 4096},  // 2026-10-14: LogPDF 75k→25k. re-measured
-                                                       // post-repair
+    /* GAMMA(5)              */ {50000, 25000, 2048},  // 2026-10-14: LogPDF 75k→25k, CDF 4096→2048.
+                                                       // re-measured post-repair
                                                        // ({25k,25k,50k}/{75k×3}/{4096,4096,2048})
     /* STUDENT_T(6)          */ {50000, 25000, 2048},  // 2026-10-14: CDF 64→2048.
-    /* BETA(7)               */ {8192, 10000, 4096},   // 2026-10-14: PDF NEVER→8192, LogPDF
-                                                       // NEVER→10k. PDF/LogPDF: BEST=VECTORIZED all
-                                                       // 3 runs at 2M (post-repair); CDF {4096×3}
+    /* BETA(7)               */ {8192, 10000, 2048},   // 2026-10-14: CDF 4096→2048, PDF NEVER→8192,
+                                                       // LogPDF NEVER→10k. PDF/LogPDF:
+                                                       // BEST=VECTORIZED all 3 runs at 2M
+                                                       // (post-repair); CDF {4096×3}
     /* CHI_SQUARED(8)        */ {25000, 50000, 2048},  // 2026-10-14: PDF 512→25k, LogPDF 128→50k,
                                                        // CDF 64→2048.
-    /* LOG_NORMAL(9)         */ {50000, 50000, 25000},  // re-measured post-repair
+    /* LOG_NORMAL(9)         */ {25000, 50000, 25000},  // 2026-10-14: PDF 50k→25k. re-measured
+                                                        // post-repair
                                                         // ({50k×3}/{50k×3}/{10k,10k,25k}); CDF was
                                                         // the sliced path. Prior PDF=25k
                                                         // (pylibstats sweep) superseded by the
                                                         // sustained-crossover re-measure
-    /* PARETO(10)            */ {75000, 50000, 8192},   // 2026-10-14: CDF 50k→8192.
-    /* WEIBULL(11)           */ {25000, 50000, 8192},   // 2026-10-14: CDF 50k→8192.
+    /* PARETO(10)            */ {50000, 50000, 8192},   // 2026-10-14: CDF 50k→8192, PDF 75k→50k.
+    /* WEIBULL(11)           */ {25000, 25000, 8192},   // 2026-10-14: CDF 50k→8192, LogPDF 50k→25k.
     /* RAYLEIGH(12)          */ {20000, 25000, 25000},  // PDF: 10000→20000 (pylibstats sweep:
                                                         // trough at N=10k; parallel beats
                                                         // VECTORIZED at N=15k; 20k is conservative
@@ -231,7 +233,7 @@ constexpr ArchTable kNeon = {{
     // machine 2026-09-04 (strategy_profile --large, three runs, max across
     // runs per PROFILING_METHOD.md Step 3; "sustained" = parallel beats
     // VECTORIZED at that size and every larger one, not the first noise tie).
-    /* LOGISTIC(19)          */ {50000, 50000, 50000},
+    /* LOGISTIC(19)          */ {25000, 25000, 50000},  // 2026-10-14: PDF 50k→25k, LogPDF 50k→25k.
     /* GUMBEL(20)            */ {25000, 50000, 50000},  // 2026-10-14: PDF 75k→25k.
     /* BERNOULLI(21)         */ {2048, 6144, 6144},     // 2026-10-14: PDF NEVER→2048, LogPDF
                                                      // NEVER→6144, CDF NEVER→6144. ← BINOMIAL(14)

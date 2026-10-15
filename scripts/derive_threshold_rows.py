@@ -15,7 +15,9 @@ Per (distribution, operation) row, in order:
                       table value is below the fork value (PARALLEL does not fork there, so such a value
                       was never a measured crossover), nor to rows in DROP_OVERRIDE (user's decisions,
                       with the evidence recorded). Rows in KEEP_ROW keep the table value by the user's
-                      judgment against the rules, with the evidence recorded.
+                      judgment against the rules, with the evidence recorded. Rows in TAKE_CANDIDATE
+                      take the candidate although rule 1 would keep them (one grid step away), where
+                      the loaded A/B agrees with the quiet captures; evidence recorded.
   3. SKIP (spread)    the three runs spread more than 2x and the maximum (the conservative pick) is
                       within one grid step of the table: too noisy to change. If the maximum still
                       clears the table by more than a grid step, the maximum is the candidate.
@@ -76,6 +78,18 @@ DROP_OVERRIDE = {
 KEEP_ROW = {
     ("kNeon", "Exponential", "CDF"): "user 2026-10-14: the quiet profile's 8192 is marginal for a 2.5 ns/element kernel; on the loaded machine PARALLEL at 8192-10k loses 1.6-2x to VECTORIZED and only matches it at 25k (table_ab ABAB); 25k kept",
     ("kNeon", "Rayleigh", "CDF"): "user 2026-10-14: as Exponential CDF; PARALLEL at 8192 loses 1.8x, wins at 25k (table_ab ABAB); 25k kept",
+}
+# Rows within one grid step of the table (rule 1 would keep them) where the user takes the candidate: the
+# quiet captures and the loaded A/B agree on the direction at that size.
+TAKE_CANDIDATE = {
+    ("kNeon", "Gamma", "CDF"): "user 2026-10-14: candidate 2048 in both captures; table_ab round 3: PARALLEL 1.5-1.7x ahead at 2048 in both passes (ChiSquared and Erlang CDF follow this row)",
+    ("kNeon", "Beta", "CDF"): "user 2026-10-14: candidate 2048 three times in both captures; PARALLEL 1.6x ahead at 2048 in both passes",
+    ("kNeon", "Weibull", "LogPDF"): "user 2026-10-14: candidate 25k; PARALLEL 1.5-1.8x ahead at 25k in both passes",
+    ("kNeon", "Logistic", "PDF"): "user 2026-10-14: candidate 25k; PARALLEL 1.5x ahead at 25k in both passes",
+    ("kNeon", "Logistic", "LogPDF"): "user 2026-10-14: candidate 25k; PARALLEL 1.45x ahead at 25k in both passes",
+    ("kNeon", "LogNormal", "PDF"): "user 2026-10-14: candidate 25k; PARALLEL 1.25-1.4x ahead at 25k in both passes",
+    ("kNeon", "Pareto", "PDF"): "user 2026-10-14: candidate 50k; PARALLEL 1.5-1.6x ahead at 50k in both passes",
+    ("kNeon", "Gaussian", "PDF"): "user 2026-10-14: candidate 75k three times; VECTORIZED 1.45x ahead of PARALLEL at 50k in both passes (TruncatedNormal LogPDF's AUTO tracks this row)",
 }
 REDERIVE_DATE = "2026-10-14"
 
@@ -174,7 +188,13 @@ def derive(table, cfg, header, grid_hint=None):
             sp = spread(vals)
             zdir = direction(ac.candidate(row_values(conf, dist, op)), t, grid) if conf else "-"
             note = ""
-            if ac.within_one_step(grid, cand, t):
+            if (table, dist, op) in TAKE_CANDIDATE:
+                pick = cand
+                if pick != NEVER and pick <= cfg["fork_zone"]:
+                    pick = cfg["fork"]
+                decision, proposed = "CHANGE taken", pick
+                note = "candidate taken: " + TAKE_CANDIDATE[(table, dist, op)]
+            elif ac.within_one_step(grid, cand, t):
                 decision, proposed = "KEEP ok", t
             elif (table, dist, op) in KEEP_ROW:
                 decision, proposed = "KEEP judgment", t
@@ -253,7 +273,14 @@ def apply(header_text, table, cfg, rows):
         m = ROW_OPEN.search(lines[i])
         rest = lines[j][lines[j].index("}") + 1:]
         marker = f"// {REDERIVE_DATE}: " + ", ".join(marks) + "."
-        if "//" in rest:
+        existing = re.search(r"// %s: (.*?)\.(\s|$)" % re.escape(REDERIVE_DATE), rest)
+        prefix = f"// {REDERIVE_DATE}: "
+        if existing:  # a marker from an earlier run of this script: merge the new marks into it
+            rest = rest[:existing.start(1)] + existing.group(1) + ", " + ", ".join(marks) + rest[existing.end(1):]
+        elif prefix in rest:  # an earlier marker wrapped onto the next line by clang-format
+            i0 = rest.index(prefix) + len(prefix)
+            rest = rest[:i0] + ", ".join(marks) + ", " + rest[i0:]
+        elif "//" in rest:
             before, after = rest.split("//", 1)
             rest = before + marker + " " + after.lstrip()
         else:
@@ -264,7 +291,8 @@ def apply(header_text, table, cfg, rows):
             f"// by scripts/derive_threshold_rows.py (PLAN.md R8, the 2026-10-14 rules; fork value {cfg['fork']}).\n"
             f"// A row marked \"{REDERIVE_DATE}:\" names its old and new values; the prose after the marker\n"
             f"// predates the re-derivation and describes the older measurement.\n")
-    lines.insert(start, note)
+    if n and not any(note.splitlines()[0].strip() in l for l in lines[max(0, start - 8):start]):
+        lines.insert(start, note)
     return "".join(lines), n
 
 
