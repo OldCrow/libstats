@@ -8,7 +8,7 @@ Bernoulli       LogPDF   NEVER          4096/6144/6144    6144   NEVER  CHANGE  
 Bernoulli       CDF      NEVER           2048/512/6144    6144   NEVER  CHANGE             6144  yes  -       runs spread 12.0x; max 6144 still clears the table
 Beta            PDF      NEVER           8192/10k/8192    8192   NEVER  CHANGE             8192  yes  -
 Beta            LogPDF   NEVER            8192/10k/10k     10k   NEVER  CHANGE              10k  yes  -
-Beta            CDF       4096          2048/2048/2048    2048    2048  KEEP ok            4096  yes  -
+Beta            CDF       4096          2048/2048/2048    2048    2048  CHANGE taken       2048  yes  -       candidate taken: user 2026-10-14: candidate 2048 three times in both captures; PARALLEL 1.6x ahead at 2048 in both passes
 Binomial        PDF      NEVER           2048/256/2048    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 8.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
 Binomial        LogPDF   NEVER           512/2048/2048    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 4.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
 Binomial        CDF      NEVER           1024/256/2048    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 8.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
@@ -32,8 +32,8 @@ FisherF         LogPDF     10k             256/128/256     256    4096  CHANGE f
 FisherF         CDF       2048          2048/2048/1024    2048    2048  KEEP ok            2048  yes  -
 Gamma           PDF        50k             25k/25k/25k     25k     25k  KEEP ok             50k  yes  -
 Gamma           LogPDF     75k             25k/50k/25k     25k     75k  CHANGE              25k  yes  -
-Gamma           CDF       4096            1024/64/2048    2048    2048  KEEP ok            4096  yes  -
-Gaussian        PDF        50k            75k/75k/100k     75k     75k  KEEP ok             50k  -    -
+Gamma           CDF       4096            1024/64/2048    2048    2048  CHANGE taken       2048  yes  -       candidate taken: user 2026-10-14: candidate 2048 in both captures; table_ab round 3: PARALLEL 1.5-1.7x ahead at 2048 in both passes (ChiSquared and Erlang CDF follow this row)
+Gaussian        PDF        50k            75k/75k/100k     75k     75k  CHANGE taken        75k  -    -       candidate taken: user 2026-10-14: candidate 75k three times; VECTORIZED 1.45x ahead of PARALLEL at 50k in both passes (TruncatedNormal LogPDF's AUTO tracks this row)
 Gaussian        LogPDF      64          200k/200k/200k    200k    300k  CHANGE             200k  -    -       table already overrode the previous capture
 Gaussian        CDF      NEVER            10k/10k/8192     10k     25k  CHANGE              10k  -    -       override dropped: table_ab ABAB 2026-10-14: PARALLEL beats VECTORIZED 1.25x at 10k, 2.1x at 25k, 4.7x at 500k under both tables; candidate 10k measured three times; table already overrode the previous capture
 Geometric       PDF      NEVER          1024/2048/2048    2048   NEVER  CHANGE fork        2048  yes  -       candidate 2048 in the fork zone: parallel once it forks
@@ -51,16 +51,16 @@ InverseGamma    CDF       2048           2048/2048/512    2048    2048  KEEP ok 
 Laplace         PDF        50k             75k/75k/10k     75k     50k  KEEP ok             50k  yes  -
 Laplace         LogPDF      64          100k/100k/100k    100k    150k  CHANGE             100k  yes  -       table 64 is below the fork value 2048: not a measured crossover, so not an override; table already overrode the previous capture
 Laplace         CDF        256          8192/6144/6144    6144     25k  CHANGE             6144  yes  -       table already overrode the previous capture
-LogNormal       PDF        50k             25k/25k/10k     25k     50k  KEEP ok             50k  yes  -
+LogNormal       PDF        50k             25k/25k/10k     25k     50k  CHANGE taken        25k  yes  -       candidate taken: user 2026-10-14: candidate 25k; PARALLEL 1.25-1.4x ahead at 25k in both passes
 LogNormal       LogPDF     50k             25k/50k/25k     25k     50k  KEEP ok             50k  yes  -
 LogNormal       CDF        25k             10k/10k/10k     10k     25k  KEEP ok             25k  yes  -
-Logistic        PDF        50k           25k/8192/8192     25k     50k  KEEP ok             50k  -    -
-Logistic        LogPDF     50k             25k/10k/25k     25k     50k  KEEP ok             50k  -    -
+Logistic        PDF        50k           25k/8192/8192     25k     50k  CHANGE taken        25k  -    -       candidate taken: user 2026-10-14: candidate 25k; PARALLEL 1.5x ahead at 25k in both passes
+Logistic        LogPDF     50k             25k/10k/25k     25k     50k  CHANGE taken        25k  -    -       candidate taken: user 2026-10-14: candidate 25k; PARALLEL 1.45x ahead at 25k in both passes
 Logistic        CDF        50k             50k/50k/25k     50k     50k  KEEP ok             50k  -    -
 NegBinomial     PDF      NEVER           1024/2048/512    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 4.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
 NegBinomial     LogPDF   NEVER          1024/2048/2048    2048   NEVER  CHANGE fork        2048  yes  -       candidate 2048 in the fork zone: parallel once it forks
 NegBinomial     CDF      NEVER           1024/2048/128    2048   NEVER  CHANGE fork        2048  yes  -       runs spread 16.0x; max 2048 still clears the table; candidate 2048 in the fork zone: parallel once it forks
-Pareto          PDF        75k             50k/75k/50k     50k    150k  KEEP ok             75k  -    -
+Pareto          PDF        75k             50k/75k/50k     50k    150k  CHANGE taken        50k  -    -       candidate taken: user 2026-10-14: candidate 50k; PARALLEL 1.5-1.6x ahead at 50k in both passes; table already overrode the previous capture
 Pareto          LogPDF     50k             75k/50k/75k     75k     75k  KEEP ok             50k  -    -
 Pareto          CDF        50k           6144/10k/8192    8192     25k  CHANGE             8192  -    -
 Poisson         PDF       4096          4096/4096/1024    4096     25k  KEEP ok            4096  -    -
@@ -82,7 +82,7 @@ VonMises        PDF       100k            8192/25k/25k     25k     50k  CHANGE  
 VonMises        LogPDF    500k             25k/25k/25k     25k     50k  CHANGE              25k  yes  -       override dropped: user 2026-10-14: the 500k override argued from the pre-#111 CDF; 25k measured 2026-10-05 and 2026-10-14; AUTO 2.8-3x behind PARALLEL at 1e5 (AB_RESULTS); table already overrode the previous capture
 VonMises        CDF      NEVER          2048/2048/2048    2048   NEVER  CHANGE fork        2048  yes  -       candidate 2048 in the fork zone: parallel once it forks
 Weibull         PDF        25k             10k/10k/10k     10k     25k  KEEP ok             25k  -    -
-Weibull         LogPDF     50k            8192/25k/25k     25k     50k  KEEP ok             50k  -    -
+Weibull         LogPDF     50k            8192/25k/25k     25k     50k  CHANGE taken        25k  -    -       candidate taken: user 2026-10-14: candidate 25k; PARALLEL 1.5-1.8x ahead at 25k in both passes
 Weibull         CDF        50k          8192/8192/8192    8192     50k  CHANGE             8192  -    -
 
-CHANGE=29  CHANGE fork=16  KEEP judgment=2  KEEP ok=33  KEEP override=1  total=81
+CHANGE=29  CHANGE fork=16  CHANGE taken=8  KEEP judgment=2  KEEP ok=25  KEEP override=1  total=81

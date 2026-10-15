@@ -4,7 +4,7 @@ Script: `scripts/derive_threshold_rows.py` (uncommitted; one script for every ta
 bundle and fork threshold as parameters). Run: `python3 scripts/derive_threshold_rows.py --out <dir>`.
 Outputs here: `rows_<table>.txt` (all 81 rows per table with runs, candidate, previous candidate,
 decision, proposed value, comment flag, Z direction, note), `summary.txt`, `dispatch_thresholds.h.proposed`
-and `dispatch_thresholds.diff` (162 values on 85 rows). Every existing comment is kept; each changed row's trailing
+and `dispatch_thresholds.diff` (162 values on 85 rows; 170 after the eight-row follow-up below). Every existing comment is kept; each changed row's trailing
 comment is prefixed with a marker `// 2026-10-14: <Op old→new, ...>.` and a five-line note above each table names
 the bundle and the script, so the older prose is marked as predating the re-derivation.
 The proposed header compiles (`-fsyntax-only`, AppleClang 21). Nothing is applied to the repo header.
@@ -62,6 +62,11 @@ files carry the evidence. The sub-fork rule accounts for 4 of them.
   PDF/LogPDF rows come down to 25k–150k; Uniform PDF/LogPDF/CDF leave NEVER on kAvx512 and kAvx2/kAvx.
 - Beta PDF/LogPDF leave NEVER everywhere (fork value on K, 8192/10k on M, 25k on Z).
 - Discrete PDF/LogPDF on kNeon go the other way, 50k -> 200k (parallel wins later than the table says).
+
+## Follow-up: eight one-step rows (TAKE_CANDIDATE, user 2026-10-14)
+Rule 1 kept rows within one grid step of the table. Where the quiet candidate and the loaded A/B agreed, the
+candidate was taken (kNeon): Gamma CDF, Beta CDF 4096 → 2048; Weibull LogPDF, Logistic PDF/LogPDF, LogNormal PDF
+50k → 25k; Pareto PDF 75k → 50k; Gaussian PDF 50k → 75k. Round 4 in AB_RESULTS.md confirms all eight.
 
 ## After adoption
 One `dispatch_thresholds.h` commit; then R1 on every machine (the header is compiled into every build);

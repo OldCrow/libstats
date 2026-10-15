@@ -58,3 +58,14 @@ fork-zone rows at 2048 (Beta/Gamma/ChiSquared CDF 1.55-1.6x, FisherF PDF fixed i
 1.3-1.66x at one size for rows whose candidate sits one grid step below the table (Weibull LogPDF, Logistic
 PDF/LogPDF, LogNormal PDF, Student-t PDF at 25k; Pareto PDF 50k): within the rules' "ok" band; optional.
 Verdict: the proposed kNeon is applied to the worktree header for M's R1 (uncommitted).
+
+## Round 4 (23:29, load 2.3-5.3): the eight TAKE_CANDIDATE rows, against the 580b7f7 header (round4/)
+Gamma CDF, Beta CDF 4096 -> 2048; Weibull LogPDF, Logistic PDF/LogPDF, LogNormal PDF 50k -> 25k; Pareto PDF
+75k -> 50k; Gaussian PDF 50k -> 75k. Noise floor (forced rows) p05-p95 0.91-1.08. All eight rows now run AUTO at
+the best forced strategy's speed in both passes: Gamma/Beta/ChiSquared/Erlang CDF at 2048 from 34-42 ns to 21-31
+(PARALLEL); Weibull/Logistic/LogNormal at 25k and Pareto at 50k from 3.2-5.5 ns to 2.0-3.5 (PARALLEL); Gaussian PDF at
+50k from 1.9-2.3 to 1.5 (VECTORIZED), and TruncatedNormal LogPDF at 50k from 2.3 to 1.7-2.0 with it. AUTO > 1.25x behind
+best forced: 13 -> 9; the remaining nine are two single-pass outliers on unchanged rows (Uniform at 2048 and von Mises
+densities at 50k: first new pass 2-3x, second pass equal to the old, forced strategies unchanged) and five rows at
+1.25-1.27x (Student-t, Erlang, ChiSquared PDF at 25k; Pareto CDF 50k), inside the noise band. R1 against the
+header: 0 warnings, 132/132, gates 0.21-0.22. Committed from here.

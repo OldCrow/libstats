@@ -1,5 +1,5 @@
 kAvx512  Z (Zen 4, clang-cl): CHANGE 29, CHANGE fork 16, KEEP ok 20, KEEP override 16; 45 values written; 39 changed rows carry a comment to re-read; 23 changed rows already overrode the previous capture
 kAvx2    K (Kaby Lake, AppleClang 15): CHANGE 15, CHANGE fork 26, KEEP ok 33, KEEP override 7; 41 values written; Z direction differs on 2; 18 changed rows carry a comment to re-read; 16 changed rows already overrode the previous capture
 kAvx     K (Kaby Lake, AppleClang 15), AVX-capped tree: CHANGE 8, CHANGE fork 23, KEEP ok 46, KEEP override 4; 31 values written; Z direction differs on 5; 20 changed rows carry a comment to re-read; 2 changed rows already overrode the previous capture
-kNeon    M (M1, AppleClang 21): CHANGE 29, CHANGE fork 16, KEEP judgment 2, KEEP ok 33, KEEP override 1; 45 values written; 29 changed rows carry a comment to re-read; 20 changed rows already overrode the previous capture
-total values changed: 162
+kNeon    M (M1, AppleClang 21): CHANGE 29, CHANGE fork 16, CHANGE taken 8, KEEP judgment 2, KEEP ok 25, KEEP override 1; 53 values written; 32 changed rows carry a comment to re-read; 21 changed rows already overrode the previous capture
+total values changed: 170

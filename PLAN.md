@@ -569,6 +569,26 @@ Status by machine (each machine edits only its own line):
   the proposed header for reruns. Committed as `580b7f7` (header, script, bench) and `724c203`
   (evidence, this line). Next: K and Z run the table A/B (R8, "Table A/B
   on K and Z"), one R1 each; CI on the push.
+  **Eight one-step rows taken** [user, 2026-10-14 evening]: the residual
+  kNeon gaps where the quiet candidate and the loaded A/B agree
+  (`TAKE_CANDIDATE` in the script, evidence per row): Gamma and Beta CDF
+  4096 → 2048 (ChiSquared and Erlang CDF follow Gamma's row), Weibull
+  LogPDF, Logistic PDF/LogPDF, LogNormal PDF 50k → 25k, Pareto PDF 75k →
+  50k, Gaussian PDF 50k → 75k. Round 4 against `580b7f7`: all eight at
+  the best strategy's speed, AUTO gaps 13 → 9 (outliers and 1.25–1.27×
+  cases); R1 0 warnings, 132/132, gates 0.21–0.22. Residual on kNeon:
+  Student-t PDF at 25k (quiet runs 10k/50k/25k, left alone). Scratch
+  worktrees `libstats-rows` and `libstats-v2.4.1` removed.
+  **Eight one-step rows taken** [user, 2026-10-14 evening]: the residual
+  kNeon gaps where the quiet candidate and the loaded A/B agree
+  (`TAKE_CANDIDATE` in the script, evidence per row): Gamma and Beta CDF
+  4096 → 2048 (ChiSquared and Erlang CDF follow Gamma's row), Weibull
+  LogPDF, Logistic PDF/LogPDF, LogNormal PDF 50k → 25k, Pareto PDF 75k →
+  50k, Gaussian PDF 50k → 75k. Round 4 against `580b7f7`: all eight at
+  the best strategy's speed, AUTO gaps 13 → 9 (outliers and 1.25–1.27×
+  cases); R1 0 warnings, 132/132, gates 0.21–0.22. Residual on kNeon:
+  Student-t PDF at 25k (quiet runs 10k/50k/25k, left alone). Scratch
+  worktrees `libstats-rows` and `libstats-v2.4.1` removed.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);
