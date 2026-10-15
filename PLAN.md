@@ -566,10 +566,9 @@ Status by machine (each machine edits only its own line):
   0 warnings, 132/132, gates 0.20–0.23. Evidence and the four per-table
   row files: `docs/bench-evidence/2026-10-14-m1-threshold-rows/`
   (PROPOSAL.md, AB_RESULTS.md). Scratch tree `../libstats-rows` holds
-  the proposed header for reruns. Next [user]: review the rows and the
-  kept/dropped lists, K and Z build the bench against the header and run
-  it on their tables, one R1 each, then the header commit (message
-  drafted) and CI.
+  the proposed header for reruns. Committed as `580b7f7` (header, script, bench) and `724c203`
+  (evidence, this line). Next: K and Z run the table A/B (R8, "Table A/B
+  on K and Z"), one R1 each; CI on the push.
 
 ### Rules on every machine
 - Commit or push only when the user asks. Commits are signed (YubiKey);
@@ -820,6 +819,38 @@ Next on every machine, at the freeze head (Status):
 5. R9 (stress test and ThreadSanitizer): written on M; then run on
    every machine, after that machine's quiet runs.
 Then decide the rows.
+
+**Table A/B on K and Z** [M, 2026-10-14; the rows landed in `580b7f7`,
+derived from each machine's own bundle]. Verify your table the way M
+verified kNeon, then one R1:
+1. Two trees: the header before the rows, `10a7ff7` (`git worktree add
+   --detach ../libstats-oldtable 10a7ff7`), and the current head. Build
+   Release in both with tests and tools off (`cmake --preset release -G
+   Ninja -DLIBSTATS_BUILD_TESTS=OFF -DLIBSTATS_BUILD_TOOLS=OFF`, target
+   `libstats_static`). Z: clang-cl, one pair per tier
+   (`-DLIBSTATS_MAX_SIMD_TIER=` AVX2, AVX, SSE2 for the capped tiers).
+2. Build `tools/bench/table_ab_bench.cpp` from the head tree against each
+   (the build line is in its header comment; Z: cl or clang-cl). Run
+   old, new, old, new back to back under the same load; Z opts each
+   process out of power throttling and warms up first (Rules).
+3. `docs/bench-evidence/2026-10-14-m1-threshold-rows/table_ab_analyze.py`
+   expects `tab_old_{1,2}.csv` and `tab_new_{1,2}.csv` in its `R`
+   directory (edit the path or copy the files). Read: the forced-strategy
+   noise floor first; then "REGRESSIONS" (new AUTO slower than old by
+   more than 1.25×, where the forced strategies did not slow by the same
+   factor), then "remaining gaps" (AUTO more than 1.25× behind its best
+   forced strategy, same under both tables = a row the rules kept).
+4. Decide per row as M did: a regression caused by the table goes in
+   `KEEP_ROW` in `scripts/derive_threshold_rows.py` with the evidence;
+   an override the bench shows wrong under both tables goes in
+   `DROP_OVERRIDE`; rerun the script (`--out <dir>`), copy
+   `dispatch_thresholds.h.proposed` over the header, clang-format, rebuild,
+   rerun the bench pair. Keyed by table, so K's and Z's rows live beside
+   M's in the same file.
+5. R1 (Release, 0 warnings, correctness 132/132) and the gates. Evidence
+   under `docs/bench-evidence/2026-10-14-<machine>-threshold-rows/`;
+   commit the header, the script and the evidence with the user.
+M's A/B on kNeon: `2026-10-14-m1-threshold-rows/AB_RESULTS.md`.
 
 ### R9 — mechanical concurrency checks (M writes; M, K, Z run) [OPEN]
 Goal [user, 2026-10-06]: catch mechanically, before the v3 refactor
