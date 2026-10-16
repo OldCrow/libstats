@@ -13,11 +13,17 @@ commit `dda07d1`, 158 commits) closed the 75 issues of milestone #10,
 which is closed; CI, CodeQL, the AVX-512 workflows and the docs build
 green on `main`; the CHANGELOG date set in `e24d4ab`; signed tag
 `v2.5.0` on `e24d4ab`; GitHub release from the `[2.5.0]` section. Code
-stays frozen until corvus is integrated (v3.0.0). Left after the
-release: the pylibstats pin bump (Cross-Repo), the corvus session's
-merge note (R7), the standards repo's WINDOWS-TOOLCHAIN note (`/arch:`
-equivalence, the throttling opt-out); `dev/v2.4.2` can be deleted once
-pylibstats has moved.
+stays frozen until corvus is integrated (v3.0.0). Closed the same day:
+pylibstats 0.8.0 pins v2.5.0 (PR OldCrow/pylibstats#31, tag v0.8.0,
+PyPI 0.8.0, GitHub release; its #20 and #26 renumbered to the v3.0.0
+corvus pin); the corvus branch's `PLAN.md` carries the merge note's
+final state (`72f9195` on `dev/v2.5.0-corvus`: rebase onto `main`,
+fix-9 edges, the re-derived tables, the deferrals); the standards repo's
+WINDOWS-TOOLCHAIN §5/§6 (`731a99f`) cover the `/arch:` rule and the
+throttling opt-out. `dev/v2.4.2` is deleted (GitHub removed the remote
+on merge; the local branch and the Z worktrees `libstats-v2.4.2`,
+`libstats-oldtable`, `libstats-v2.4.1` are gone). Remaining on origin:
+`dev/v2.5.0-corvus` and the closed `spike/corvus-bessel` [user's call].
 
 **v2.5.0 was in progress [DONE 2026-10-16]** on `dev/v2.4.2` (cut from `main` at
 `d8d3388`; milestone #10 "v2.5.0 — Correctness & accuracy", #157–#172, which
