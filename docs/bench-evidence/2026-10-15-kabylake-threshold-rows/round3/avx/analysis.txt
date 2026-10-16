@@ -1,0 +1,17 @@
+noise floor (forced, same code): median 0.998 p05 0.93 p95 1.06 n=1620
+pass-to-pass (old table, all rows): median 1.003 p05 0.92 p95 1.12
+AUTO rows 810: new/old median 1.000; faster >1.25x 2; slower >1.25x 2
+AUTO > 1.25x behind best forced: old table 2, new table 2
+
+== REGRESSIONS: new AUTO slower than old by > 1.25x
+  Weibull         cdf       8192  old     7.61 new     9.85  new/old  1.30  old a/b 0.65(para) new a/b 0.83(para)
+  Logistic        cdf     100000  old     1.59 new     2.00  new/old  1.26  old a/b 0.69(para) new a/b 0.81(para)
+
+== remaining gaps under the NEW table: AUTO > 1.25x behind best forced
+  StudentT        logpdf   25000  auto/best 1.31 (best parallel)  old auto/best 1.18  new/old 1.04
+  Uniform         pdf     200000  auto/best 1.26 (best parallel)  old auto/best 1.29  new/old 1.07
+
+== gaps CLOSED by the new table (old a/b > 1.25, new a/b <= 1.25)
+  Uniform         pdf     n:new/old  500000:0.50
+
+== per-row verdict for every changed proposal row would need the table; see rows_kNeon.txt

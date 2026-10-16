@@ -1,0 +1,54 @@
+2026-10-15T23:15:19Z load=2.93 start new=31d3ec3 dirty=0
+Preparing worktree (detached HEAD 10a7ff7)
+Updating files:  97% (1199/1229)Updating files:  98% (1205/1229)Updating files:  99% (1217/1229)Updating files: 100% (1229/1229)Updating files: 100% (1229/1229), done.
+HEAD is now at 10a7ff7 docs(bench-evidence, plan): M at d1adc95 — R1–R3, gates and R9 evidence; M's status line
+2026-10-15T23:15:21Z load=2.93 old=10a7ff7 header_diff_files=include/libstats/core/dispatch_thresholds.h 
+2026-10-15T23:17:37Z load=10.46 AVX2 old lib exit=0 warnings=0 
+2026-10-15T23:17:55Z load=10.71 AVX2 old bench exit=0
+2026-10-15T23:20:30Z load=9.47 AVX2 new lib exit=0 warnings=0 
+2026-10-15T23:20:38Z load=12.09 AVX2 new bench exit=0
+2026-10-15T23:22:10Z load=10.27 AVX old lib exit=0 warnings=0 capped at AVX
+2026-10-15T23:22:16Z load=9.53 AVX old bench exit=0
+2026-10-15T23:23:47Z load=9.92 AVX new lib exit=0 warnings=0 capped at AVX
+2026-10-15T23:23:53Z load=9.37 AVX new bench exit=0
+2026-10-15T23:25:17Z load=13.58 SSE2 old lib exit=0 warnings=0 capped at SSE2
+2026-10-15T23:25:23Z load=12.81 SSE2 old bench exit=0
+2026-10-15T23:27:04Z load=15.08 SSE2 new lib exit=0 warnings=0 capped at SSE2
+2026-10-15T23:27:09Z load=13.06 SSE2 new bench exit=0
+2026-10-15T23:27:09Z load=13.06 AVX2 old1 waiting for load < 2.0
+2026-10-15T23:31:09Z load=1.71 AVX2 old1 start
+2026-10-15T23:32:19Z load=2.56 AVX2 old1 end exit=0 rows=    2431
+2026-10-15T23:32:19Z load=2.56 AVX2 new1 waiting for load < 2.0
+2026-10-15T23:32:49Z load=1.83 AVX2 new1 start
+2026-10-15T23:33:49Z load=3.73 AVX2 new1 end exit=0 rows=    2431
+2026-10-15T23:33:49Z load=3.73 AVX2 old2 waiting for load < 2.0
+2026-10-15T23:38:20Z load=1.91 AVX2 old2 start
+2026-10-15T23:39:27Z load=3.16 AVX2 old2 end exit=0 rows=    2431
+2026-10-15T23:39:27Z load=3.16 AVX2 new2 waiting for load < 2.0
+2026-10-15T23:40:57Z load=1.95 AVX2 new2 start
+2026-10-15T23:41:54Z load=3.52 AVX2 new2 end exit=0 rows=    2431
+2026-10-15T23:41:55Z load=3.52 AVX old1 waiting for load < 2.0
+2026-10-15T23:45:25Z load=1.96 AVX old1 start
+2026-10-15T23:46:35Z load=3.26 AVX old1 end exit=0 rows=    2431
+2026-10-15T23:46:35Z load=3.26 AVX new1 waiting for load < 2.0
+2026-10-15T23:48:05Z load=1.76 AVX new1 start
+2026-10-15T23:49:10Z load=5.64 AVX new1 end exit=0 rows=    2431
+2026-10-15T23:49:10Z load=5.64 AVX old2 waiting for load < 2.0
+2026-10-15T23:52:10Z load=1.51 AVX old2 start
+2026-10-15T23:53:22Z load=4.18 AVX old2 end exit=0 rows=    2431
+2026-10-15T23:53:22Z load=4.18 AVX new2 waiting for load < 2.0
+2026-10-15T23:54:52Z load=1.92 AVX new2 start
+2026-10-15T23:55:52Z load=2.70 AVX new2 end exit=0 rows=    2431
+2026-10-15T23:55:52Z load=2.70 SSE2 old1 waiting for load < 2.0
+2026-10-15T23:56:52Z load=1.65 SSE2 old1 start
+2026-10-15T23:58:08Z load=1.91 SSE2 old1 end exit=0 rows=    2431
+2026-10-15T23:58:08Z load=1.91 SSE2 new1 waiting for load < 2.0
+2026-10-15T23:58:08Z load=1.91 SSE2 new1 start
+2026-10-15T23:59:13Z load=2.33 SSE2 new1 end exit=0 rows=    2431
+2026-10-15T23:59:13Z load=2.33 SSE2 old2 waiting for load < 2.0
+2026-10-15T23:59:43Z load=1.92 SSE2 old2 start
+2026-10-16T00:00:58Z load=2.68 SSE2 old2 end exit=0 rows=    2431
+2026-10-16T00:00:58Z load=2.68 SSE2 new2 waiting for load < 2.0
+2026-10-16T00:01:58Z load=1.88 SSE2 new2 start
+2026-10-16T00:03:02Z load=3.45 SSE2 new2 end exit=0 rows=    2431
+2026-10-16T00:03:02Z load=3.45 DONE new=31d3ec3

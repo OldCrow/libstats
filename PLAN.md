@@ -112,6 +112,25 @@ anything unexplained.
     PARALLEL from 1e4; costs stable against 2026-10-04, apart from Gamma(20)
     logpdf +13% and Student-t(1000) cdf +8% (accuracy fixes).
   - Evidence: `docs/bench-evidence/2026-10-14-kabylake-{r9-tsan,v242-cost}/`.
+  - **Table A/B on kAvx2 and kAvx, 2026-10-15** [DERIVED, K; user's
+    decisions per round; evidence `2026-10-15-kabylake-threshold-rows/`].
+    Three rounds, each old/new/old/new per tier (AVX2, capped AVX, capped
+    SSE2), quiet.
+    - Round 1 (`580b7f7`'s rows against `10a7ff7`): AUTO gaps 158/146/173
+      → 15/9/26.
+    - Round 2 (13 values) and round 3 (3 rows): gaps → 2/2/17. The rest is
+      by design (Uniform PDF 200k on AVX), two marginal unchanged AVX2
+      rows, and the SSE2-only rows left for kSse2 (v3).
+    - Final header: 15 values on 13 rows over `31d3ec3`, reproduced by
+      `derive_threshold_rows.py`. Stale comments rewritten, including the
+      #111 notes (#211's last item).
+    - R1: Release 0 warnings, 132/132, gates 0.270–0.296, timing 14/14.
+    - **Finding for v3:** K's AUTO goes multi-threaded through
+      WORK_STEALING, which beats PARALLEL well below the profiled
+      crossover. The R8 profiles measure PARALLEL, and kAvx2/kAvx serve
+      PARALLEL platforms too, so the rows stay PARALLEL-optimal except
+      where PARALLEL is break-even (Gaussian LogPDF 100k) [user]. A
+      per-strategy threshold is a v3 input.
 - Note on `794f515`'s message: the discrete and CDF rows' NEVER → 1–4k
   also reflect #191's slice fix (2026-10-07/08). K's captures from that
   night were never committed, so the comparison base was `6f86996`.

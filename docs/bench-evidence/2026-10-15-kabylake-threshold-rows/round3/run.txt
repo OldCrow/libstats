@@ -1,0 +1,32 @@
+2026-10-16T01:25:49Z load=4.13 start head=31d3ec3 header_changed= 1 file changed, 45 insertions(+), 40 deletions(-)
+2026-10-16T01:26:28Z load=5.07 AVX2 lib exit=0 warnings=0
+2026-10-16T01:26:33Z load=5.39 AVX2 bench exit=0
+2026-10-16T01:27:12Z load=5.69 AVX lib exit=0 warnings=0
+2026-10-16T01:27:17Z load=5.31 AVX bench exit=0
+2026-10-16T01:27:52Z load=5.41 SSE2 lib exit=0 warnings=0
+2026-10-16T01:27:57Z load=5.30 SSE2 bench exit=0
+2026-10-16T01:29:57Z load=1.72 AVX2 old1 start
+2026-10-16T01:30:57Z load=3.70 AVX2 old1 end exit=0 rows=    2431
+2026-10-16T01:32:27Z load=1.94 AVX2 new1 start
+2026-10-16T01:33:26Z load=2.91 AVX2 new1 end exit=0 rows=    2431
+2026-10-16T01:35:26Z load=1.81 AVX2 old2 start
+2026-10-16T01:36:24Z load=3.02 AVX2 old2 end exit=0 rows=    2431
+2026-10-16T01:38:24Z load=1.83 AVX2 new2 start
+2026-10-16T01:39:22Z load=2.93 AVX2 new2 end exit=0 rows=    2431
+2026-10-16T01:40:52Z load=1.77 AVX old1 start
+2026-10-16T01:41:52Z load=3.47 AVX old1 end exit=0 rows=    2431
+2026-10-16T01:43:22Z load=1.81 AVX new1 start
+2026-10-16T01:44:22Z load=2.81 AVX new1 end exit=0 rows=    2431
+2026-10-16T01:48:22Z load=1.88 AVX old2 start
+2026-10-16T01:49:23Z load=4.06 AVX old2 end exit=0 rows=    2431
+2026-10-16T01:51:23Z load=1.80 AVX new2 start
+2026-10-16T01:52:22Z load=3.20 AVX new2 end exit=0 rows=    2431
+2026-10-16T01:53:22Z load=1.97 SSE2 old1 start
+2026-10-16T01:54:27Z load=2.96 SSE2 old1 end exit=0 rows=    2431
+2026-10-16T01:55:27Z load=1.83 SSE2 new1 start
+2026-10-16T01:56:32Z load=4.53 SSE2 new1 end exit=0 rows=    2431
+2026-10-16T01:58:32Z load=1.92 SSE2 old2 start
+2026-10-16T01:59:37Z load=3.84 SSE2 old2 end exit=0 rows=    2431
+2026-10-16T02:01:37Z load=1.78 SSE2 new2 start
+2026-10-16T02:02:41Z load=2.71 SSE2 new2 end exit=0 rows=    2431
+2026-10-16T02:02:41Z load=2.71 DONE
