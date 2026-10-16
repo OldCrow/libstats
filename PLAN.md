@@ -22,8 +22,11 @@ fix-9 edges, the re-derived tables, the deferrals); the standards repo's
 WINDOWS-TOOLCHAIN §5/§6 (`731a99f`) cover the `/arch:` rule and the
 throttling opt-out. `dev/v2.4.2` is deleted (GitHub removed the remote
 on merge; the local branch and the Z worktrees `libstats-v2.4.2`,
-`libstats-oldtable`, `libstats-v2.4.1` are gone). Remaining on origin:
-`dev/v2.5.0-corvus` and the closed `spike/corvus-bessel` [user's call].
+`libstats-oldtable`, `libstats-v2.4.1` are gone, as are Z's stale build
+trees). `spike/corvus-bessel` is deleted, archived as the signed tag
+`archive/spike-corvus-bessel` (its tip `d8443b0`). Remaining on origin:
+`dev/v2.5.0-corvus`. Z still carries a libstats 2.0.0 install under
+`C:\Program Files\libstats` that needs an elevated shell to remove.
 
 **v2.5.0 was in progress [DONE 2026-10-16]** on `dev/v2.4.2` (cut from `main` at
 `d8d3388`; milestone #10 "v2.5.0 — Correctness & accuracy", #157–#172, which
