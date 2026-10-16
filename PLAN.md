@@ -50,6 +50,40 @@ Read before resuming here.
   its doctrine; afterwards libstats calls corvus. Drafted as
   OldCrow/standards `NUMERICAL-KERNEL-PROMOTION.md`.
 
+**Third note from the `dev/v2.4.2` session, 2026-10-16: v2.5.0 has
+shipped.** PR #278 merged to `main` as `dda07d1` (158 commits); signed
+tag `v2.5.0` on `e24d4ab`; milestone #10 closed (75 issues). GitHub
+deleted `origin/dev/v2.4.2` on merge, so rebase this branch onto `main`,
+not onto `dev/v2.4.2`. The merge note is now in `main`'s `PLAN.md` (R7,
+"Corvus merge note"); since the second note above it gained:
+- **Fix-9 (`8d3c9c7`)**: `bessel.h` has the Tier 1 I₀ guard below 1e-8
+  and the log(2πx) split — a corvus replacement for the Bessel helpers
+  needs both edges; `laplace.cpp` and `inverse_gamma.cpp` carry
+  operand-tested overflow guards (AGENTS.md "Overflow-guard rule"; GCC
+  14/16 miscompile #275) — keep the operand form in any merged guard;
+  `executeWithStrategy`, the generic `validate*Parameter` helpers and
+  `is_delegation_wrapper` are deleted — this branch still defines them,
+  nothing calls them anywhere (checked 2026-10-14); take the deletions.
+- **Dispatch tables re-derived** (`580b7f7`, `bb9ac0b`, `6c149f1`,
+  `4c3a133`): every row of kNeon, kAvx, kAvx2 and kAvx512 came from
+  three-run R8 bundles at `d1adc95` through `scripts/derive_threshold_rows.py`
+  (on `scripts/analyze_crossovers.py`), then a loaded A/B with
+  `tools/bench/table_ab_bench.cpp` on each machine. Take `main`'s
+  `dispatch_thresholds.h` whole; after the corvus kernels swap in, the
+  rows must be re-measured the same way (R8 bundle → script → A/B →
+  R1), since the V/S ratios move with the kernels. The one NEVER cell
+  left is kNeon Uniform PDF.
+- **`getSurvival` is complement-native in every distribution**
+  (`4f05803`, `47bea80`); the sweep and oracle score survival rows
+  (26,882 rows, 190 self-checks, 0 contract violations on all three ISAs
+  at the release head).
+- **Deferred with evidence**: #277 (TruncatedNormal symmetric-window
+  median −1.4e-16 on the UCRT), #273, #266 (the shape-20 Stirling
+  switch), #267 (`std::cyl_bessel_i`'s `signgam` write, suppressed under
+  the new TSan CI leg; v3.0.0 removes it) — all in milestone #8 or #6.
+- **CI** gained ThreadSanitizer and FMA-contraction legs; `pushes` to
+  `dev/*` do not trigger CI (dispatch `ci.yml` manually).
+
 ## Status [DERIVED] — 2026-10-03
 **libstats-side levers 2026-10-03 (Zen 4) — IMPLEMENTED on
 `dev/v2.5.0-corvus`** (`e62a616` lever 1, `45000c6` lever 3, `c51e2ed`
