@@ -28,11 +28,17 @@ These are part of the normal development workflow and are expected to be used re
   shift a crossover point.
 - `summarize_dispatcher_profile.py` — reads a harness bundle and produces
   `crossovers.csv`, `best_strategies.csv`, and `summary.json`. Companion to
-  `capture_dispatcher_profile.sh`. NOTE: threshold derivation now reads
-  profiles with the SUSTAINED-crossover rule (PROFILING_METHOD.md 2026-09-04
-  amendment; #146 folds it into `threshold_validator`) — the v2.4.0 bundles
-  were captured directly via `strategy_profile -o` and analyzed with the
-  `analyze_crossovers.py` copy inside each bundle.
+  `capture_dispatcher_profile.sh`. Its crossovers are first crossings; derive
+  thresholds with `analyze_crossovers.py` instead.
+- `analyze_crossovers.py` — the canonical sustained V→P crossover analysis
+  (#146; PROFILING_METHOD.md 2026-09-04 amendment): per (distribution, op) the
+  smallest size where PARALLEL beats VECTORIZED there and at every larger size,
+  combined across runs; `--table` compares the candidates with an ArchTable.
+  The v2.4.0 bundles carry an earlier copy of it.
+- `derive_threshold_rows.py` — turns each table's three-run bundle into
+  `dispatch_thresholds.h` rows by the PLAN.md R8 rules (keep, standing override,
+  fork value, candidate), with per-row user decisions and their evidence; writes
+  per-table decisions and a proposed header. Derived the 2026-10-14 tables.
 - `PROFILING_METHOD.md` — the binding threshold-measurement method doc.
 - `gen_neon_erf_table.py` — regenerates `src/neon_erf_data.inc`, the
   1537-entry precomputed erf table used by `vector_erf_neon`. Re-run if the

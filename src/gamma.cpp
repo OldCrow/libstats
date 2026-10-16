@@ -1,10 +1,6 @@
 #include "libstats/distributions/gamma.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/parallel_batch_fit.h"
 
 // Core functionality - lightweight headers
@@ -22,6 +18,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <numeric>
@@ -30,6 +27,11 @@ using stats::detail::validatePositiveParameter;
 #include <stdexcept>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 //==========================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -52,7 +54,8 @@ GammaDistribution::GammaDistribution(const GammaDistribution& other) : Distribut
     std::shared_lock lock(other.cache_mutex_);
     alpha_ = other.alpha_;
     beta_ = other.beta_;
-    cache_valid_ = other.cache_valid_;
+    // The cache starts invalid and is rebuilt on first read: copying other's validity flag
+    // without its cached members made a copy compute with the default cache (#163).
     atomicAlpha_.store(alpha_, std::memory_order_release);
     atomicBeta_.store(beta_, std::memory_order_release);
 }
@@ -73,19 +76,21 @@ GammaDistribution::GammaDistribution(GammaDistribution&& other) noexcept
     : DistributionBase(std::move(other)) {
     alpha_ = other.alpha_;
     beta_ = other.beta_;
-    cache_valid_ = other.cache_valid_;
+    // Cache starts invalid, as in the copy constructor (#163).
     atomicAlpha_.store(alpha_, std::memory_order_release);
     atomicBeta_.store(beta_, std::memory_order_release);
 }
 
 GammaDistribution& GammaDistribution::operator=(GammaDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         alpha_ = other.alpha_;
         beta_ = other.beta_;
-        // Preserve noexcept move assignment by avoiding lock acquisition.
-        // As with standard containers, callers must not concurrently access
-        // an object while it is being move-assigned. Cache is invalidated and
-        // rebuilt on next read rather than updated unsafely here.
+        // The cache is invalidated and rebuilt on the next read.
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
@@ -144,18 +149,9 @@ double GammaDistribution::getMode() const {
 }
 
 void GammaDistribution::setAlpha(double alpha) {
-    // Copy current beta for validation (thread-safe)
-    double currentBeta;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentBeta = beta_;
-    }
-
-    // Validate parameters
-    validateParameters(alpha, currentBeta);
-
-    // Update with unique lock
+    // Validate against the other parameter under the lock that commits (#183).
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(alpha, beta_);
     alpha_ = alpha;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -163,18 +159,9 @@ void GammaDistribution::setAlpha(double alpha) {
 }
 
 void GammaDistribution::setBeta(double beta) {
-    // Copy current alpha for validation (thread-safe)
-    double currentAlpha;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentAlpha = alpha_;
-    }
-
-    // Validate parameters
-    validateParameters(currentAlpha, beta);
-
-    // Update with unique lock
+    // Validate against the other parameter under the lock that commits (#183).
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(alpha_, beta);
     beta_ = beta;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -199,19 +186,13 @@ void GammaDistribution::setParameters(double alpha, double beta) {
 //==========================================================================
 
 VoidResult GammaDistribution::trySetAlpha(double alpha) noexcept {
-    // Copy current beta for validation (thread-safe)
-    double currentBeta;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentBeta = beta_;
-    }
-
-    auto validation = validateGammaParameters(alpha, currentBeta);
+    // Validate against the other parameter under the lock that commits (#183).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateGammaParameters(alpha, beta_);
     if (validation.isError()) {
         return validation;
     }
 
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     alpha_ = alpha;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -223,19 +204,13 @@ VoidResult GammaDistribution::trySetAlpha(double alpha) noexcept {
 }
 
 VoidResult GammaDistribution::trySetBeta(double beta) noexcept {
-    // Copy current alpha for validation (thread-safe)
-    double currentAlpha;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentAlpha = alpha_;
-    }
-
-    auto validation = validateGammaParameters(currentAlpha, beta);
+    // Validate against the other parameter under the lock that commits (#183).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateGammaParameters(alpha_, beta);
     if (validation.isError()) {
         return validation;
     }
 
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     beta_ = beta;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -268,6 +243,253 @@ VoidResult GammaDistribution::trySetParameters(double alpha, double beta) noexce
 // 5. CORE PROBABILITY METHODS
 //==========================================================================
 
+namespace {
+// Below this shape the direct log density is kept bit for bit; from it, log_gamma_prefactor is
+// in Stirling's form.
+constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
+
+// The shape-only constant gammaLogDensity takes: α·log β − lgamma(α) for the direct form, and
+// from α = 20 the Stirling form's ½·log(α/2π) − c(α). Batch loops compute it once.
+[[nodiscard]] inline double gammaDensityConstant(double alpha, double alpha_log_beta,
+                                                 double log_gamma_alpha) noexcept {
+    return alpha < kStirlingDensityShape ? alpha_log_beta - log_gamma_alpha
+                                         : detail::log_gamma_prefactor_constant(alpha);
+}
+
+// x is exact, but the argument every path takes, y = fl(βx), is rounded, and at a large shape
+// the result amplifies that rounding: d log f / d log y = α − y, ~3e9 at α = 1e16 thirty standard
+// deviations out, so half an ulp of y moved the log density 1.5e-7 and the CDF 1.5e-7 relative
+// at a non-dyadic rate (Gamma(1e16, 3)). The product's rounding e = βx − y is exact as
+// fma(β, x, −y) for a normal y and is carried to second order in e/y; the third-order term is
+// α·(e/y)³/3 ≤ α·ε³/24, 4e-29 at α = 1e20. The first-order carry alone left α·(e/y)²/2 ≤
+// α·ε²/8: 6e-17 at α = 1e16 but 6e-13 at 1e20, 60 ulp of Gamma(1e20, 1.1)'s log density near
+// its mode (Fix7C). Applied from STIRLING_PREFACTOR_SHAPE, as the Stirling log density is; below
+// it the amplification is at most ~α·ε. A dyadic rate (ChiSquared's ½) gives e = 0 and leaves
+// every result bit for bit.
+// InverseGamma's reciprocalArgumentCorrection is coupled to this: it corrects the rounding of
+// β·fl(1/x) only up to the product this delegate now carries itself.
+
+// log f at βx = y + e given the log density `log_value` taken at y: + α·log1p(e/y) − e, the
+// change of log P(α, y) − log x, as (e/y)·(α − y) − α·(e/y)²/2. (e/y)·(α − y) is formed in that
+// order so that α/y, which overflows at a huge shape and a small y, never is.
+[[nodiscard]] inline double withRateProductRounding(double log_value, double alpha, double beta,
+                                                    double x, double y) noexcept {
+    if (!(y >= std::numeric_limits<double>::min()) || !(y <= std::numeric_limits<double>::max()))
+        return log_value;
+    const double e = std::fma(beta, x, -y);
+    if (e == detail::ZERO_DOUBLE || !std::isfinite(log_value))
+        return log_value;
+    const double rel = e / y;
+    return std::fma(rel, alpha - y, log_value - detail::HALF * alpha * rel * rel);
+}
+
+// (P(α, y + e) − P(α, y))/value for the rounding e of y = fl(βx) (relative rel = e/y) and value
+// = P(α, y) or Q(α, y) > 0: the density's integral over [y, y + e], exact to the orders that
+// matter. With f(s) = s^(α−1)·e^(−s)/Γ(α), log f(y + s) − log f(y) = (α − 1)·log1p(s/y) − s =
+// a·s − b·s² + O(α·(s/y)³), a = (α − 1 − y)/y, b = (α − 1)/(2y²), so the integral is
+// f(y)·e·(expm1(u)/u − b·e²/3) with u = a·e, and y·f(y) = exp(log_gamma_prefactor(α, y)). Not
+// carried in the log to first order, as until Fix7C: that left ΔP's second-order term
+// e²·(log P)''/2: 960 ulp at Gamma(1e20, 3)'s median, 80 at 1e19, 8e4 at 1e22. Wherever the density
+// at y is not 0 against value (the ratio below), |y − α| ≲ √(1500·α) or y ≲ α + 750, so |u| ≲
+// √(1500·α)·ε, below 1 through α ~ 1e29, and b·e², ~α·ε²/8, is the only other term above ε
+// through α ~ 1e25. Where the ratio is 0 so is the increment; u, which overflows there (y ≫ α
+// near DBL_MAX: Gamma(100, 100).cdf(1e300)), is not formed. From α ~ 1e32 half an ulp of y
+// spans many standard deviations, the expansion fails, and the callers only clamp the result
+// to [0, 1] (it was ±inf or 0 there before Fix7C as well). The ratio exp(lgp)/value is formed
+// in the log, so an exp(lgp) below DBL_MIN keeps it. InverseGamma's correctedIncompleteGamma
+// mirrors this.
+[[nodiscard]] inline double rateProductIncrement(double alpha, double y, double rel,
+                                                 double value) noexcept {
+    const double ratio = std::exp(detail::log_gamma_prefactor(alpha, y) - std::log(value));
+    if (ratio == detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
+    const double u = rel * ((alpha - y) - detail::ONE);
+    const double phi = u == detail::ZERO_DOUBLE ? detail::ONE : std::expm1(u) / u;
+    return rel * ratio * (phi - (alpha - detail::ONE) * rel * rel / 6.0);
+}
+
+// P(α, y) for y = fl(βx) ≥ DBL_MIN, corrected to βx as withRateProductRounding corrects the
+// density: P·(1 + rateProductIncrement), the increment's own integral exact to second order.
+[[nodiscard]] inline double gammaPAtRateProduct(double alpha, double beta, double x,
+                                                double y) noexcept {
+    const double p = detail::gamma_p(alpha, y);
+    // p > 0, not p >= DBL_MIN: a subnormal p still carries ~47 bits at 1e-309, and skipping the
+    // correction there left P at fl(βx), 1.9e-7 off at Gamma(1e16, 3) (M1 survival sweep).
+    if (alpha < kStirlingDensityShape || !(p > detail::ZERO_DOUBLE) ||
+        !(y <= std::numeric_limits<double>::max()))
+        return p;
+    const double e = std::fma(beta, x, -y);
+    if (e == detail::ZERO_DOUBLE)
+        return p;
+    return std::clamp(std::fma(p, rateProductIncrement(alpha, y, e / y, p), p), detail::ZERO_DOUBLE,
+                      detail::ONE);
+}
+
+// F(x) = P(α, βx) for x > 0 finite. Once βx is below DBL_MIN (a subnormal x at a rate below
+// 1, or a product that underflowed to 0) the argument is taken in log space: the mass there is
+// not small for small shapes (#216: Gamma(0.005, 0.5).cdf(5e-324) = 0.024, which βx = 0 gave
+// as 0).
+[[nodiscard]] inline double gammaCdfCore(double alpha, double beta, double x) noexcept {
+    const double y = beta * x;
+    if (y < std::numeric_limits<double>::min())
+        return detail::gamma_p_from_log_x(alpha, std::log(beta) + std::log(x));
+    return gammaPAtRateProduct(alpha, beta, x, y);
+}
+
+// Q(α, y) for y = fl(βx) ≥ DBL_MIN, corrected to βx: gammaPAtRateProduct mirrored. dQ/dy =
+// −dP/dy, so Q loses the increment P gains, again from STIRLING_PREFACTOR_SHAPE, so that
+// F + S = 1 holds to rounding wherever both are corrected.
+// Below that shape the uncorrected rounding moves log Q by at most ~(y·f/Q)·ε/2 ≤ ~y·ε, within
+// the |ln S|·ε law the far upper tail is held to.
+[[nodiscard]] inline double gammaQAtRateProduct(double alpha, double beta, double x,
+                                                double y) noexcept {
+    const double q = detail::gamma_q(alpha, y);
+    if (alpha < kStirlingDensityShape || !(q > detail::ZERO_DOUBLE) ||
+        !(y <= std::numeric_limits<double>::max()))
+        return q;
+    const double e = std::fma(beta, x, -y);
+    if (e == detail::ZERO_DOUBLE)
+        return q;
+    return std::clamp(std::fma(-q, rateProductIncrement(alpha, y, e / y, q), q),
+                      detail::ZERO_DOUBLE, detail::ONE);
+}
+
+// S(x) = Q(α, βx) for x > 0 finite, gammaCdfCore's complement formed directly: Q below DBL_MIN
+// of βx from log x (#216), and Q(α, +inf) = 0 where the product overflows.
+[[nodiscard]] inline double gammaSfCore(double alpha, double beta, double x) noexcept {
+    const double y = beta * x;
+    if (y < std::numeric_limits<double>::min())
+        return detail::gamma_q_from_log_x(alpha, std::log(beta) + std::log(x));
+    return gammaQAtRateProduct(alpha, beta, x, y);
+}
+
+// Entropy at shapes from kEntropyStirlingShape: the direct form α + lgamma(α) + (1 − α)ψ(α)
+// cancels at α·log α (DH2 M2: 7.5e-7 relative at 1e10, −64 for 19.84 at 1e16). From the
+// Stirling series of lgamma and ψ with Bernoulli numbers B_2k,
+//   h = ½·log(2πeα) − 1/(2α) + Σ_k B_2k / ((2k−1) α^(2k−1)) − Σ_k B_2k / (2k α^(2k)),
+// whose first terms are −1/(3α) − 1/(12α²) − 1/(90α³) + 1/(120α⁴) + 1/(210α⁵) − 1/(252α⁶)
+// − 1/(210α⁷) + 1/(240α⁸). The next term, 5/(594α⁹), is 8e-21 at α = 100; the direct form's
+// error there is ~α·log α·ε = 1e-13.
+constexpr double kEntropyStirlingShape = 100.0;
+
+[[nodiscard]] inline double gammaEntropyStirling(double alpha) noexcept {
+    const double t = detail::ONE / alpha;
+    const double tail =
+        t * (-1.0 / 3.0 +
+             t * (-1.0 / 12.0 +
+                  t * (-1.0 / 90.0 +
+                       t * (1.0 / 120.0 +
+                            t * (1.0 / 210.0 +
+                                 t * (-1.0 / 252.0 + t * (-1.0 / 210.0 + t * (1.0 / 240.0))))))));
+    return detail::HALF * (detail::LN_2PI + detail::ONE + std::log(alpha)) + tail;
+}
+
+// log of the Gamma(α, rate β) density at a finite x > 0. From α = 20 it is log P(α, βx) − log x,
+// with P = (βx)^α·e^{−βx}/Γ(α) in Stirling form: the direct α·log β − lgamma(α) + (α − 1)·log x −
+// βx cancels terms of size α·log α, 2e-11 relative at α = 1e4. density_constant is
+// gammaDensityConstant(α, …).
+// log1p(t) − t for t = βx/α − 1 where the product βx overflows (DH3: Gamma(100, 1e300).pdf(1e300)
+// formed (inf − α)/α and log(inf) − inf, NaN; the direct form below α = 20 is −inf there
+// already). The ratio is taken as β·(x/α), which overflows only where βx/α does; then
+// α·(log1p(t) − t) < −βx/2 < −DBL_MAX and the log-density is −inf.
+[[nodiscard]] inline double log1pmxOverflowedRate(double x, double alpha, double beta) noexcept {
+    const double r = beta * (x / alpha);
+    if (!std::isfinite(r))
+        return detail::NEGATIVE_INFINITY;
+    return std::log(r) - (r - detail::ONE);
+}
+
+// The Stirling log density where βx/α is below DBL_MIN (#264): log1p(t) − t = log(βx/α) + 1 −
+// βx/α, with the log taken as log β + log x − log α, the CDF's #216 form. The product or the
+// ratio is subnormal or 0 there, and log(βx/α) read it: Gamma(1e16, 1).logpdf(DBL_MIN) was −inf
+// for −7.44e18, Gamma(1e16, 3).logpdf(2.97e-308) 1.4e-4 relative off. βx/α < DBL_MIN is below
+// the sum's rounding, so it is dropped, and so is the product's rounding, which this form never
+// takes.
+[[nodiscard]] inline double stirlingLogDensityFromLogs(double x, double alpha, double beta,
+                                                       double density_constant) noexcept {
+    const double log_x = std::log(x);
+    return alpha * (std::log(beta) + log_x - std::log(alpha) + detail::ONE) + density_constant -
+           log_x;
+}
+
+[[nodiscard]] inline double gammaLogDensity(double x, double alpha, double beta,
+                                            double density_constant,
+                                            double alpha_minus_one) noexcept {
+    if (alpha < kStirlingDensityShape)
+        return density_constant + alpha_minus_one * std::log(x) - beta * x;
+    const double y = beta * x;
+    if (!std::isfinite(y))
+        return alpha * log1pmxOverflowedRate(x, alpha, beta) + density_constant - std::log(x);
+    if (y / alpha < std::numeric_limits<double>::min())
+        return stirlingLogDensityFromLogs(x, alpha, beta, density_constant);
+    return withRateProductRounding(
+        detail::log_gamma_prefactor(alpha, y, density_constant) - std::log(x), alpha, beta, x, y);
+}
+
+// gammaLogDensity's Stirling branch (α ≥ 20) over a batch: α·log1pmx(t) + C − log x with
+// t = (βx − α)/α and C = gammaDensityConstant(α, …), in the scalar path's order. The
+// branch-free log1pmx_series covers |t| < ½ and vectorizes; the few elements beyond take
+// log(βx/α) − t as the scalar path does (log1p(t) from the ratio, not from the rounded t, which
+// is −1 exactly at x ≪ α), not vector_log1p: log1p(t) − t still cancels up to threefold there and
+// α multiplies it, so its few ulp left 1e-12 in the log at large α.
+// The product's rounding is then carried as gammaLogDensity carries it (withRateProductRounding).
+// Inputs ≤ 0 and non-finite inputs come out meaningless here; the caller's fixup pass overwrites
+// them.
+void stirlingLogDensityBatch(const double* x, double* out, std::size_t count, double alpha,
+                             double beta, double density_constant) noexcept {
+    constexpr std::size_t kBlock = 256;
+    alignas(64) double log_x[kBlock];
+    std::size_t far_index[kBlock];
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t n = std::min(kBlock, count - start);
+        const double* xb = x + start;
+        double* ob = out + start;
+        arch::simd::VectorOps::vector_log(xb, log_x, n);
+        // y = fl(βx) in its own statement, as the scalar path forms it: written inline,
+        // (β·x − α) contracts to fma(β, x, −α) under -ffp-contract=on (AppleClang on AArch64,
+        // clang-cl with FMA), which uses the exact product, and withRateProductRounding below
+        // then adds the product's rounding a second time (−1.5e-7 at Gamma(1e16, 3), CI 08d48aa).
+        // Contraction is per expression there, so a separate statement keeps y rounded. GCC's
+        // `fast` contracts across statements, so this file is also built with
+        // -ffp-contract=off (CMakeLists.txt, the FP-contraction rule in AGENTS.md).
+        for (std::size_t i = 0; i < n; ++i) {
+            const double y = beta * xb[i];
+            ob[i] = detail::log1pmx_series((y - alpha) / alpha);
+        }
+        // The few lanes past the series, gathered first: written as a guarded log in one loop,
+        // AppleClang (no errno on Darwin, so log is pure) calls the log for every lane, 1.35x
+        // the whole batch at alpha = 20 (Kaby Lake, 2026-10-04).
+        std::size_t n_far = 0;
+        for (std::size_t i = 0; i < n; ++i) {
+            const double y = beta * xb[i];  // separate statement: see above
+            const double t = (y - alpha) / alpha;
+            if (std::fabs(t) >= detail::LOG1PMX_SERIES_LIMIT)
+                far_index[n_far++] = i;
+        }
+        for (std::size_t k = 0; k < n_far; ++k) {
+            const std::size_t i = far_index[k];
+            const double xp = beta * xb[i];
+            if (!std::isfinite(xp)) {
+                ob[i] = log1pmxOverflowedRate(xb[i], alpha, beta);  // as gammaLogDensity
+                continue;
+            }
+            const double t = (xp - alpha) / alpha;
+            ob[i] = std::log(xp / alpha) - t;  // log1p(t) as the scalar path forms it
+        }
+        for (std::size_t i = 0; i < n; ++i)
+            ob[i] = withRateProductRounding(alpha * ob[i] + density_constant - log_x[i], alpha,
+                                            beta, xb[i], beta * xb[i]);
+        // βx/α below DBL_MIN (all among the lanes past the series): gammaLogDensity's form.
+        for (std::size_t k = 0; k < n_far; ++k) {
+            const std::size_t i = far_index[k];
+            const double y = beta * xb[i];  // separate statement: see above
+            if (xb[i] > detail::ZERO_DOUBLE && y / alpha < std::numeric_limits<double>::min())
+                ob[i] = stirlingLogDensityFromLogs(xb[i], alpha, beta, density_constant);
+        }
+    }
+}
+}  // namespace
+
 double GammaDistribution::getProbability(double x) const {
     if (!std::isfinite(x)) {
         // +inf → density limit is 0 (#103); -inf → outside support → 0
@@ -297,7 +519,7 @@ double GammaDistribution::getProbability(double x) const {
                                     : detail::ZERO_DOUBLE;
     }
     // Inline log-space computation.
-    return std::exp(alb - lga + am1 * std::log(x) - b * x);
+    return std::exp(gammaLogDensity(x, a, b, gammaDensityConstant(a, alb, lga), am1));
 }
 
 double GammaDistribution::getLogProbability(double x) const {
@@ -328,10 +550,10 @@ double GammaDistribution::getLogProbability(double x) const {
         else if (a == detail::ONE)
             return lb;
         else
-            return detail::MIN_LOG_PROBABILITY;
+            return detail::NEGATIVE_INFINITY;
     }
     // General case: log(f(x)) = α*log(β) - log(Γ(α)) + (α-1)*log(x) - βx
-    return alb - lga + am1 * std::log(x) - b * x;
+    return gammaLogDensity(x, a, b, gammaDensityConstant(a, alb, lga), am1);
 }
 
 double GammaDistribution::getCumulativeProbability(double x) const {
@@ -353,10 +575,28 @@ double GammaDistribution::getCumulativeProbability(double x) const {
         b = beta_;
     });
     // Use regularized incomplete gamma function P(α, βx)
-    return detail::gamma_p(a, b * x);
+    return gammaCdfCore(a, b, x);
+}
+
+double GammaDistribution::getSurvival(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;  // includes −inf
+    if (x == std::numeric_limits<double>::infinity())
+        return detail::ZERO_DOUBLE;
+
+    double a, b;
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+    });
+    return gammaSfCore(a, b, x);
 }
 
 double GammaDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -368,7 +608,6 @@ double GammaDistribution::getQuantile(double p) const {
         return std::numeric_limits<double>::infinity();
     }
 
-    // Use Newton-Raphson iteration with bracketing
     return computeQuantile(p);
 }
 
@@ -531,6 +770,7 @@ void GammaDistribution::reset() noexcept {
 std::string GammaDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "GammaDistribution(alpha=" << alpha_ << ", beta=" << beta_ << ")";
     return oss.str();
 }
@@ -651,15 +891,17 @@ double GammaDistribution::getDegreesOfFreedom() const {
 }
 
 double GammaDistribution::getEntropy() const {
-    double a, lb, lga, da;
+    double a, lb, lga;
     withCacheSnapshot([&] {
         a = alpha_;
         lb = logBeta_;
         lga = logGammaAlpha_;
-        da = digammaAlpha_;
     });
-    // H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α)
-    return a - lb + lga + (detail::ONE - a) * da;
+    // H(X) = α - log(β) + log(Γ(α)) + (1-α)ψ(α); the Stirling form from α = 100 (DH2 M2).
+    // detail::digamma carries its series to B₁₄ from x ≥ 10, 4.4e-17 truncation (DH3).
+    if (a >= kEntropyStirlingShape)
+        return gammaEntropyStirling(a) - lb;
+    return a - lb + lga + (detail::ONE - a) * detail::digamma(a);
 }
 
 bool GammaDistribution::canUseNormalApproximation() const noexcept {
@@ -730,8 +972,7 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
             // Slice so each parallel task runs the SIMD log+exp pipeline
             // rather than computing log(x) per element in each task.
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
@@ -765,7 +1006,6 @@ void GammaDistribution::getProbability(std::span<const double> values, std::span
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
             });
-            pool.waitForAll();
         });
 }
 
@@ -807,8 +1047,7 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
 
             // Slice so each parallel task runs the SIMD log pipeline.
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
@@ -841,7 +1080,6 @@ void GammaDistribution::getLogProbability(std::span<const double> values, std::s
                     vals.data() + start, res.data() + start, len, cached_alpha, cached_beta,
                     cached_log_gamma_alpha, cached_alpha_log_beta, cached_alpha_minus_one);
             });
-            pool.waitForAll();
         });
 }
 
@@ -862,70 +1100,38 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
             dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, alpha, beta);
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double cached_alpha, cached_beta;
+            double alpha, beta;
             dist.withCacheSnapshot([&] {
-                cached_alpha = dist.alpha_;
-                cached_beta = dist.beta_;
+                alpha = dist.alpha_;
+                beta = dist.beta_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, alpha, beta);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                    }
-                }
-            }
         },
         [](const GammaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double cached_alpha, cached_beta;
+            double alpha, beta;
             dist.withCacheSnapshot([&] {
-                cached_alpha = dist.alpha_;
-                cached_beta = dist.beta_;
+                alpha = dist.alpha_;
+                beta = dist.beta_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::gamma_p(cached_alpha, cached_beta * x);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, alpha, beta);
             });
-            pool.waitForAll();
         });
 }
 
@@ -938,6 +1144,9 @@ void GammaDistribution::getCumulativeProbability(std::span<const double> values,
 //==========================================================================
 
 bool GammaDistribution::operator==(const GammaDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     // Use scoped_lock to prevent deadlock when comparing two distributions
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
@@ -971,7 +1180,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
         if (equals_pos != std::string::npos && comma_pos != std::string::npos) {
             std::string alpha_str =
                 temp.substr(equals_pos + detail::ONE_INT, comma_pos - equals_pos - detail::ONE_INT);
-            alpha = std::stod(alpha_str);
+            alpha = detail::parse_double(alpha_str);
 
             // Read "beta=value)"
             is >> temp;
@@ -982,7 +1191,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
                     std::string beta_str =
                         temp.substr(beta_equals_pos + detail::ONE_INT,
                                     close_paren_pos - beta_equals_pos - detail::ONE_INT);
-                    beta = std::stod(beta_str);
+                    beta = detail::parse_double(beta_str);
 
                     // Set parameters if valid
                     auto result = dist.trySetParameters(alpha, beta);
@@ -1030,7 +1239,7 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
 //             temp = -beta*x → results += temp → vector_exp
 //             fixup: x <= 0 → 0
 //   LogPDF: same pipeline, no final exp step
-//             fixup: x <= 0 → MIN_LOG_PROBABILITY (finite proxy; matches single-value method)
+//             fixup: x < 0 → -inf; x = 0 → the limit by shape (#161, as the scalar path)
 //
 // CDF architecture: the regularized incomplete gamma function gamma_p() is
 //   evaluated per element via a continued-fraction or series algorithm.
@@ -1046,10 +1255,11 @@ std::istream& operator>>(std::istream& is, GammaDistribution& dist) {
 //==============================================================================
 
 void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                      std::size_t count,
-                                                      [[maybe_unused]] double alpha, double beta,
+                                                      std::size_t count, double alpha, double beta,
                                                       double log_gamma_alpha, double alpha_log_beta,
                                                       double alpha_minus_one) const noexcept {
+    // The SIMD pipeline forms the direct log density below α = 20; from there, where the direct
+    // form cancels (see gammaLogDensity), it is the Stirling form (stirlingLogDensityBatch).
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     // EDGE-4 helper: write the correct PDF(0) value consistent with scalar path.
@@ -1064,6 +1274,8 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
     };
 
     if (!use_simd) {
+        const double density_constant =
+            gammaDensityConstant(alpha, alpha_log_beta, log_gamma_alpha);
         for (std::size_t i = 0; i < count; ++i) {
             if (!std::isfinite(values[i])) {
                 // #103: pdf(±inf) = 0, NaN propagates — the formula is NaN at
@@ -1074,28 +1286,33 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
             } else if (values[i] == detail::ZERO_DOUBLE) {
                 fixup_zero(i);
             } else {
-                results[i] = std::exp(alpha_log_beta - log_gamma_alpha +
-                                      alpha_minus_one * std::log(values[i]) - beta * values[i]);
+                results[i] = std::exp(
+                    gammaLogDensity(values[i], alpha, beta, density_constant, alpha_minus_one));
             }
         }
         return;
     }
 
-    // Fully vectorized log-space pipeline.
-    // One aligned temporary; results serves as workspace throughout.
-    const double log_constant = alpha_log_beta - log_gamma_alpha;
-    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+    if (alpha < kStirlingDensityShape) {
+        // Fully vectorized log-space pipeline.
+        // One aligned temporary; results serves as workspace throughout.
+        const double log_constant = alpha_log_beta - log_gamma_alpha;
+        std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
-    arch::simd::VectorOps::vector_log(values, results, count);
-    // Step 2: results = alpha_minus_one * log(values)
-    arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
-    // Step 3: results += log_constant  (= alpha_log_beta - log_gamma_alpha)
-    arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
-    // Step 4: temp = -beta * values
-    arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
-    // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
-    arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+        // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
+        arch::simd::VectorOps::vector_log(values, results, count);
+        // Step 2: results = alpha_minus_one * log(values)
+        arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
+        // Step 3: results += log_constant  (= alpha_log_beta - log_gamma_alpha)
+        arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
+        // Step 4: temp = -beta * values
+        arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
+        // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
+        arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+    } else {
+        stirlingLogDensityBatch(values, results, count, alpha, beta,
+                                gammaDensityConstant(alpha, alpha_log_beta, log_gamma_alpha));
+    }
     // Step 6: results = exp(log-space result)
     arch::simd::VectorOps::vector_exp(results, results, count);
     // Fixup: non-finite per #103 (pdf(±inf) = 0, NaN propagates — the SIMD
@@ -1112,54 +1329,74 @@ void GammaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doub
 }
 
 void GammaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                         std::size_t count,
-                                                         [[maybe_unused]] double alpha, double beta,
-                                                         double log_gamma_alpha,
+                                                         std::size_t count, double alpha,
+                                                         double beta, double log_gamma_alpha,
                                                          double alpha_log_beta,
                                                          double alpha_minus_one) const noexcept {
+    // The SIMD pipeline forms the direct log density below α = 20; from there, where the direct
+    // form cancels (see gammaLogDensity), it is the Stirling form (stirlingLogDensityBatch).
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
+    // logpdf(0) is the limit, as on the scalar path (#161): +inf for alpha < 1, log(beta) for
+    // alpha = 1 (alpha_log_beta is exactly log(beta) there), -inf for alpha > 1.
+    auto fixup_zero = [&](std::size_t i) {
+        if (alpha_minus_one < 0.0)
+            results[i] = std::numeric_limits<double>::infinity();
+        else if (alpha_minus_one == 0.0)
+            results[i] = alpha_log_beta;
+        else
+            results[i] = detail::NEGATIVE_INFINITY;
+    };
+
     if (!use_simd) {
+        const double density_constant =
+            gammaDensityConstant(alpha, alpha_log_beta, log_gamma_alpha);
         for (std::size_t i = 0; i < count; ++i) {
             if (!std::isfinite(values[i])) {
                 // #103: logpdf(±inf) = -inf, NaN propagates — the formula is
                 // NaN at +inf for alpha >= 1, matching the scalar guard.
                 results[i] = std::isnan(values[i]) ? values[i] : detail::NEGATIVE_INFINITY;
-            } else if (values[i] <= detail::ZERO_DOUBLE) {
+            } else if (values[i] < detail::ZERO_DOUBLE) {
                 results[i] = detail::NEGATIVE_INFINITY;
+            } else if (values[i] == detail::ZERO_DOUBLE) {
+                fixup_zero(i);
             } else {
-                results[i] = alpha_log_beta - log_gamma_alpha +
-                             alpha_minus_one * std::log(values[i]) - beta * values[i];
+                results[i] =
+                    gammaLogDensity(values[i], alpha, beta, density_constant, alpha_minus_one);
             }
         }
         return;
     }
 
-    // Fully vectorized log-space computation; no exp step needed.
-    // One aligned temporary for -beta*x; results is the accumulator.
-    const double log_constant = alpha_log_beta - log_gamma_alpha;
-    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+    if (alpha < kStirlingDensityShape) {
+        // Fully vectorized log-space computation; no exp step needed.
+        // One aligned temporary for -beta*x; results is the accumulator.
+        const double log_constant = alpha_log_beta - log_gamma_alpha;
+        std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
-    arch::simd::VectorOps::vector_log(values, results, count);
-    // Step 2: results = alpha_minus_one * log(values)
-    arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
-    // Step 3: results += log_constant
-    arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
-    // Step 4: temp = -beta * values
-    arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
-    // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
-    arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
-    // Fixup: non-finite per #103 (logpdf(±inf) = -inf, NaN propagates; the
-    // finite MIN_LOG_PROBABILITY clamp must never escape for ±inf inputs).
-    // Finite x <= 0 keeps MIN_LOG_PROBABILITY (finite proxy for -inf) to match
-    // the single-value getLogProbability() behaviour for alpha > 1 at x = 0,
-    // which avoids -inf propagation in log-probability summation algorithms.
+        // Step 1: results = log(values)  [NaN/-Inf for x <= 0; corrected by fixup]
+        arch::simd::VectorOps::vector_log(values, results, count);
+        // Step 2: results = alpha_minus_one * log(values)
+        arch::simd::VectorOps::scalar_multiply(results, alpha_minus_one, results, count);
+        // Step 3: results += log_constant
+        arch::simd::VectorOps::scalar_add(results, log_constant, results, count);
+        // Step 4: temp = -beta * values
+        arch::simd::VectorOps::scalar_multiply(values, -beta, temp.data(), count);
+        // Step 5: results = log_constant + (alpha-1)*log(x) - beta*x
+        arch::simd::VectorOps::vector_add(results, temp.data(), results, count);
+    } else {
+        stirlingLogDensityBatch(values, results, count, alpha, beta,
+                                gammaDensityConstant(alpha, alpha_log_beta, log_gamma_alpha));
+    }
+    // Fixup: non-finite per #103 (logpdf(±inf) = -inf, NaN propagates); x < 0 → -inf;
+    // x = 0 → the limit by shape (#161).
     for (std::size_t i = 0; i < count; ++i) {
         if (!std::isfinite(values[i])) {
             results[i] = std::isnan(values[i]) ? values[i] : detail::NEGATIVE_INFINITY;
-        } else if (values[i] <= detail::ZERO_DOUBLE) {
-            results[i] = detail::MIN_LOG_PROBABILITY;
+        } else if (values[i] < detail::ZERO_DOUBLE) {
+            results[i] = detail::NEGATIVE_INFINITY;
+        } else if (values[i] == detail::ZERO_DOUBLE) {
+            fixup_zero(i);
         }
     }
 }
@@ -1184,7 +1421,7 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
             } else if (values[i] == std::numeric_limits<double>::infinity()) {
                 results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
             } else {
-                results[i] = detail::gamma_p(alpha, beta * values[i]);
+                results[i] = gammaCdfCore(alpha, beta, values[i]);
             }
         }
         return;
@@ -1208,8 +1445,10 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
             results[i] = detail::ZERO_DOUBLE;
         } else if (values[i] == std::numeric_limits<double>::infinity()) {
             results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
+        } else if (scaled_values[i] < std::numeric_limits<double>::min()) {
+            results[i] = gammaCdfCore(alpha, beta, values[i]);  // log-space argument (#216)
         } else {
-            results[i] = detail::gamma_p(alpha, scaled_values[i]);
+            results[i] = gammaPAtRateProduct(alpha, beta, values[i], scaled_values[i]);
         }
     }
 }
@@ -1227,7 +1466,7 @@ double GammaDistribution::incompleteGamma(double a, double x) noexcept {
     if (a <= detail::ZERO_DOUBLE) {
         return std::numeric_limits<double>::quiet_NaN();
     }
-    return detail::gamma_p(a, x) * std::exp(std::lgamma(a));
+    return detail::gamma_p(a, x) * std::exp(detail::lgamma(a));
 }
 
 double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcept {
@@ -1243,169 +1482,21 @@ double GammaDistribution::regularizedIncompleteGamma(double a, double x) noexcep
 }
 
 double GammaDistribution::computeQuantile(double p) const noexcept {
-    // Quantile function using Newton-Raphson iteration with initial guess
+    // Gamma(alpha, rate beta): x with P(alpha, beta x) = p. gamma_p_inv solves against the smaller
+    // of p and 1 - p in log x, relative-accurate down to subnormal answers (#160); the
+    // Newton/bisection solver this replaced, and its Wilson-Hilferty seed, are gone.
     if (p <= detail::ZERO_DOUBLE) {
         return detail::ZERO_DOUBLE;
     }
     if (p >= detail::ONE) {
         return std::numeric_limits<double>::infinity();
     }
-
-    // Initial guess.
-    //
-    // Wilson-Hilferty (WH) is reliable for moderate p but can produce a
-    // negative value when alpha > 1 and p is very small (z << 0 with
-    // small h makes the cube negative).  Clamping a negative WH result to
-    // NEWTON_RAPHSON_TOLERANCE (1e-10) then causes the first Newton step
-    // to shoot x to ~p/pdf(1e-10) ~ 1e9, after which the PDF underflows
-    // and the solver exits without converging.
-    //
-    // Fix: when WH is negative use the small-x asymptotic expansion of the
-    // Gamma CDF: P(alpha,beta*x) ~ (beta*x)^alpha / (alpha * Gamma(alpha))
-    // => x ~ (p * Gamma(alpha+1))^(1/alpha) / beta.
-    double initial_guess;
-    if (alpha_ > detail::ONE) {
-        double h = detail::TWO / (detail::NINE * alpha_);
-        double z = detail::inverse_normal_cdf(p);
-        double wh = detail::ONE - h + z * std::sqrt(h);
-        if (wh > detail::ZERO_DOUBLE) {
-            initial_guess = alpha_ * std::pow(wh, 3) / beta_;
-        } else {
-            // WH failed; small-p asymptotic: x ~ (p * Gamma(alpha+1))^(1/alpha) / beta.
-            // Computed in the log domain: the linear form
-            // p * exp(lgamma(alpha+1)) overflows for alpha >~ 170
-            // (lgamma(10001) ~ 82100) long before x does — and this branch
-            // runs exactly when p < ~5.6e-17 rounds 2p−1 to −1 and the WH
-            // normal quantile is −inf, so large-alpha deep tails land here.
-            initial_guess = std::exp((std::log(p) + std::lgamma(alpha_ + detail::ONE)) / alpha_ -
-                                     std::log(beta_));
-        }
-    } else {
-        // For alpha <= 1, use exponential approximation
-        initial_guess = -std::log(detail::ONE - p) / beta_;
-    }
-    if (!std::isfinite(initial_guess)) {
-        initial_guess = alpha_ / beta_;  // seed at the mean rather than escaping to ±inf
-    }
-
-    // Newton-Raphson iteration with positive-x guard.
-    double x = std::max(initial_guess, detail::NEWTON_RAPHSON_TOLERANCE);
-    const double tolerance = detail::HIGH_PRECISION_TOLERANCE;
-    const int max_iterations = detail::MAX_NEWTON_ITERATIONS;
-
-    for (int i = 0; i < max_iterations; ++i) {
-        double cdf = getCumulativeProbability(x);
-        double pdf = getProbability(x);
-
-        // Convergence is relative in p: for deep-tail targets (p ~ 1e-300)
-        // an absolute test accepts cdf = 0 immediately and returns whatever
-        // seed the solver happened to hold.
-        if (std::abs(cdf - p) < tolerance * p) {
-            break;
-        }
-
-        if (pdf < detail::ULTRA_SMALL_THRESHOLD) {
-            // PDF underflow: fall back to bisection. Expand the upper bound
-            // until it brackets the root — a crude tail seed can sit far
-            // below it — and always keep the final midpoint: the old code
-            // discarded the bracket when 60 iterations met neither stopping
-            // test and returned the unimproved Newton iterate.
-            double lo = detail::NEWTON_RAPHSON_TOLERANCE, hi = x;
-            if (cdf < p) {
-                hi = x * 10.0;
-                for (int j = 0; j < 64 && getCumulativeProbability(hi) < p; ++j)
-                    hi *= 10.0;
-                if (!std::isfinite(hi))
-                    hi = std::numeric_limits<double>::max();
-            }
-            double mid = (lo + hi) * detail::HALF;
-            for (int j = 0; j < 128; ++j) {
-                mid = (lo + hi) * detail::HALF;
-                const double cmid = getCumulativeProbability(mid);
-                if (std::abs(cmid - p) < tolerance * p) {
-                    break;
-                }
-                if (cmid < p)
-                    lo = mid;
-                else
-                    hi = mid;
-                if (hi - lo <= tolerance * mid) {
-                    mid = (lo + hi) * detail::HALF;
-                    break;
-                }
-            }
-            x = mid;
-            break;
-        }
-
-        double delta = (cdf - p) / pdf;
-        x = std::max(x - delta, x * 0.1);  // Ensure x stays positive
-
-        if (std::abs(delta) < tolerance * x) {
-            break;
-        }
-    }
-
-    return x;
-}
-
-double GammaDistribution::sampleMarsagliaTsang(std::mt19937& rng) const noexcept {
-    // Marsaglia-Tsang "squeeze" method for α ≥ 1
-    // This is a fast rejection sampling method
-
-    std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
-    std::normal_distribution<double> normal(detail::ZERO_DOUBLE, detail::ONE);
-
-    const double d = alpha_ - detail::ONE / detail::THREE;
-    const double c = detail::ONE / std::sqrt(detail::NINE * d);
-
-    while (true) {
-        double x, v;
-
-        do {
-            x = normal(rng);
-            v = detail::ONE + c * x;
-        } while (v <= detail::ZERO_DOUBLE);
-
-        v = v * v * v;
-        double u = uniform(rng);
-
-        // Quick accept
-        if (u < detail::ONE - 0.0331 * (x * x) * (x * x)) {
-            return d * v / beta_;
-        }
-
-        // Quick reject
-        if (std::log(u) < detail::HALF * x * x + d * (detail::ONE - v + std::log(v))) {
-            return d * v / beta_;
-        }
-    }
-}
-
-double GammaDistribution::sampleAhrensDieter(std::mt19937& rng) const noexcept {
-    // Ahrens-Dieter acceptance-rejection method for α < 1
-    std::uniform_real_distribution<double> uniform(detail::ZERO_DOUBLE, detail::ONE);
-
-    const double b = (detail::E + alpha_) / detail::E;
-
-    while (true) {
-        double u = uniform(rng);
-        double p = b * u;
-
-        if (p <= detail::ONE) {
-            double x = std::pow(p, detail::ONE / alpha_);
-            double u2 = uniform(rng);
-            if (u2 <= std::exp(-x)) {
-                return x / beta_;
-            }
-        } else {
-            double x = -std::log((b - p) / alpha_);
-            double u2 = uniform(rng);
-            if (u2 <= std::pow(x, alpha_ - detail::ONE)) {
-                return x / beta_;
-            }
-        }
-    }
+    double a, b;  // one (α, β) state under a concurrent setter
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+    });
+    return detail::gamma_p_inv(a, p) / b;
 }
 
 void GammaDistribution::fitMethodOfMoments(const std::vector<double>& values) {
@@ -1451,6 +1542,11 @@ void GammaDistribution::fitMaximumLikelihood(const std::vector<double>& values) 
 
     // Initial guess using method of moments
     double s = std::log(mean_x) - mean_log_x;
+    // s = log(mean) − mean(log) ≥ 0 (Jensen), and 0 exactly for one point or all-equal data,
+    // where the Choi-Wette estimate is 0/0 and the fit was left at α = β = NaN (DH D13).
+    if (!(s > detail::ZERO_DOUBLE) || !std::isfinite(s))
+        throw std::invalid_argument(
+            "Gamma MLE needs at least two distinct observations (data has zero variance)");
     double alpha_est =
         (detail::THREE - s + std::sqrt((s - detail::THREE) * (s - detail::THREE) + 24.0 * s)) /
         (12.0 * s);

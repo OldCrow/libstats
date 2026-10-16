@@ -1,0 +1,139 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 15 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 11 tests from DiscreteEnhancedTest
+[ RUN      ] DiscreteEnhancedTest.BasicEnhancedFunctionality
+[       OK ] DiscreteEnhancedTest.BasicEnhancedFunctionality (18 ms)
+[ RUN      ] DiscreteEnhancedTest.GoodnessOfFitTests
+
+=== Goodness-of-Fit Tests ===
+  Chi-square test (uniform data): χ²=3.92, p=0.560991, reject=0
+  Chi-square test (non-uniform data): χ²=100.04, p=5.18354e-20, reject=1
+[       OK ] DiscreteEnhancedTest.GoodnessOfFitTests (0 ms)
+[ RUN      ] DiscreteEnhancedTest.InformationCriteriaTests
+
+=== Information Criteria Tests ===
+  AIC: 362.352, BIC: 367.562, AICc: 362.476
+  Log-likelihood: -179.176
+[       OK ] DiscreteEnhancedTest.InformationCriteriaTests (0 ms)
+[ RUN      ] DiscreteEnhancedTest.BootstrapMethods
+
+=== Bootstrap Methods ===
+  Lower bound 95% CI: [3.5, 3.5]
+  Upper bound 95% CI: [2.91667, 2.91667]
+  K-fold CV completed with 5 folds
+[       OK ] DiscreteEnhancedTest.BootstrapMethods (0 ms)
+[ RUN      ] DiscreteEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 31.7μs (baseline)
+  Vectorized: 1.5μs (21.1333x speedup)
+  Parallel: 1.5μs (21.1333x speedup)
+  Work Stealing: 1.5μs (21.1333x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 320.8μs (baseline)
+  Vectorized: 15.6μs (20.5641x speedup)
+  Parallel: 91.8μs (3.49455x speedup)
+  Work Stealing: 63.5μs (5.05197x speedup)
+[       OK ] DiscreteEnhancedTest.SIMDAndParallelBatchImplementations (30 ms)
+[ RUN      ] DiscreteEnhancedTest.AdvancedStatisticalMethods
+[       OK ] DiscreteEnhancedTest.AdvancedStatisticalMethods (0 ms)
+[ RUN      ] DiscreteEnhancedTest.CachingSpeedupVerification
+
+=== Caching Speedup Verification ===
+  First getter calls (cache miss): 5000ns
+  Second getter calls (cache hit): 100ns
+  Cache speedup: 50x
+  After parameter change: 300ns
+[       OK ] DiscreteEnhancedTest.CachingSpeedupVerification (0 ms)
+[ RUN      ] DiscreteEnhancedTest.AutoDispatchAssessment
+
+=== Auto-Dispatch Assessment (Discrete) ===
+Batch size: 5, Expected strategy: SCALAR
+  PMF: 1μs, Correct: ✅
+  LogPMF: 3μs, Correct: ✅
+  CDF: 0μs, Correct: ✅
+Batch size: 50, Expected strategy: SCALAR
+  PMF: 0μs, Correct: ✅
+  LogPMF: 0μs, Correct: ✅
+  CDF: 0μs, Correct: ✅
+Batch size: 500, Expected strategy: VECTORIZED
+  PMF: 0μs, Correct: ✅
+  LogPMF: 0μs, Correct: ✅
+  CDF: 0μs, Correct: ✅
+Batch size: 5000, Expected strategy: VECTORIZED
+  PMF: 2μs, Correct: ✅
+  LogPMF: 2μs, Correct: ✅
+  CDF: 2μs, Correct: ✅
+Batch size: 50000, Expected strategy: PARALLEL
+  PMF: 21μs, Correct: ✅
+  LogPMF: 15μs, Correct: ✅
+  CDF: 12μs, Correct: ✅
+
+=== Auto-Dispatch Assessment Completed (Discrete) ===
+[       OK ] DiscreteEnhancedTest.AutoDispatchAssessment (2 ms)
+[ RUN      ] DiscreteEnhancedTest.ParallelBatchPerformanceBenchmark
+
+=== Discrete Distribution Enhanced Performance Benchmark ===
+Dataset size: 50000 elements
+Hardware threads: 12
+  ✓ PMF batch operations completed (verification skipped for unknown operation)
+  ✓ LogPMF batch operations completed (verification skipped for unknown operation)
+  ✓ CDF batch operations produce correct results
+
+Benchmark Results:
+ Operation  Baseline  Vectorized    Parallel  Work-Steal   Vec-Speedup Par-Speedup  WS-Speedup
+--------------------------------------------------------------------------------------------------------
+       PMF       564          28         111          67         20.14        5.08        8.42
+    LogPMF       538          22         100         140         24.45        5.38        3.84
+       CDF       577          18          93          88         32.06        6.20        6.56
+
+Performance Analysis:
+  ✓ PMF SIMD shows good speedup
+  ✓ PMF thread pool shows good speedup
+  ✓ LogPMF SIMD shows good speedup
+  ✓ LogPMF thread pool shows good speedup
+  ✓ CDF SIMD shows good speedup
+  ✓ CDF thread pool shows good speedup
+[       OK ] DiscreteEnhancedTest.ParallelBatchPerformanceBenchmark (8 ms)
+[ RUN      ] DiscreteEnhancedTest.ParallelBatchFittingTests
+
+=== Parallel Batch Fitting Tests ===
+  Generated 6 datasets with different discrete distributions
+  ✓ Parallel batch fitting correctness verified
+  Parallel batch fitting: 12μs
+  Sequential individual fits: 10μs
+  Speedup: 0.83x
+  Testing edge cases...
+  ✓ Edge cases handled correctly
+  Testing thread safety...
+  ✓ Thread safety verified
+[       OK ] DiscreteEnhancedTest.ParallelBatchFittingTests (0 ms)
+[ RUN      ] DiscreteEnhancedTest.NumericalStabilityAndEdgeCases
+  ✓ Discrete extreme value handling test passed
+  ✓ Discrete empty batch operations handled gracefully
+[       OK ] DiscreteEnhancedTest.NumericalStabilityAndEdgeCases (0 ms)
+[----------] 11 tests from DiscreteEnhancedTest (68 ms total)
+
+[----------] 4 tests from Discrete/DistributionEnhancedTest/0, where TypeParam = stats::DiscreteDistribution
+[ RUN      ] Discrete/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Discrete/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Discrete/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Discrete/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Discrete/DistributionEnhancedTest/0.QuantileRoundTrip
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\include/enhanced_test_suite.h(204): Skipped
+QuantileRoundTrip is undefined for discrete distributions
+
+[  SKIPPED ] Discrete/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Discrete/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Discrete/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Discrete/DistributionEnhancedTest/0 (1 ms total)
+
+[----------] Global test environment tear-down
+[==========] 15 tests from 2 test suites ran. (71 ms total)
+[  PASSED  ] 14 tests.
+[  SKIPPED ] 1 test, listed below:
+[  SKIPPED ] Discrete/DistributionEnhancedTest/0.QuantileRoundTrip

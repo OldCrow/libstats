@@ -1,0 +1,52 @@
+Test project /Users/wolfman/Development/libstats-v2.4.2/build-release
+      Start 13: test_math_comprehensive
+ 1/22 Test #13: test_math_comprehensive ...........   Passed    0.30 sec
+      Start 23: test_performance_dispatcher
+ 2/22 Test #23: test_performance_dispatcher .......   Passed    0.12 sec
+      Start 24: test_system_capabilities
+ 3/22 Test #24: test_system_capabilities ..........   Passed    0.11 sec
+      Start 27: test_gaussian_enhanced
+ 4/22 Test #27: test_gaussian_enhanced ............   Passed    0.26 sec
+      Start 33: test_exponential_enhanced
+ 5/22 Test #33: test_exponential_enhanced .........   Passed    0.16 sec
+      Start 35: test_discrete_enhanced
+ 6/22 Test #35: test_discrete_enhanced ............   Passed    0.16 sec
+      Start 38: test_uniform_enhanced
+ 7/22 Test #38: test_uniform_enhanced .............   Passed    0.16 sec
+      Start 40: test_poisson_enhanced
+ 8/22 Test #40: test_poisson_enhanced .............   Passed    0.18 sec
+      Start 42: test_gamma_enhanced
+ 9/22 Test #42: test_gamma_enhanced ...............   Passed    0.26 sec
+      Start 44: test_chi_squared_enhanced
+10/22 Test #44: test_chi_squared_enhanced .........   Passed    0.11 sec
+      Start 46: test_student_t_enhanced
+11/22 Test #46: test_student_t_enhanced ...........   Passed    0.11 sec
+      Start 48: test_beta_enhanced
+12/22 Test #48: test_beta_enhanced ................   Passed    0.12 sec
+      Start 50: test_lognormal_enhanced
+13/22 Test #50: test_lognormal_enhanced ...........   Passed    0.15 sec
+      Start 52: test_pareto_enhanced
+14/22 Test #52: test_pareto_enhanced ..............   Passed    0.16 sec
+      Start 54: test_weibull_enhanced
+15/22 Test #54: test_weibull_enhanced .............   Passed    0.17 sec
+      Start 56: test_rayleigh_enhanced
+16/22 Test #56: test_rayleigh_enhanced ............   Passed    0.15 sec
+      Start 58: test_von_mises_enhanced
+17/22 Test #58: test_von_mises_enhanced ...........   Passed    0.10 sec
+      Start 83: test_binomial_enhanced
+18/22 Test #83: test_binomial_enhanced ............   Passed    0.10 sec
+      Start 85: test_negative_binomial_enhanced
+19/22 Test #85: test_negative_binomial_enhanced ...   Passed    0.11 sec
+      Start 87: test_geometric_enhanced
+20/22 Test #87: test_geometric_enhanced ...........   Passed    0.11 sec
+      Start 90: test_laplace_enhanced
+21/22 Test #90: test_laplace_enhanced .............   Passed    0.11 sec
+      Start 92: test_cauchy_enhanced
+22/22 Test #92: test_cauchy_enhanced ..............   Passed    0.12 sec
+
+100% tests passed out of 22
+
+Label Time Summary:
+timing    =   3.34 sec*proc (22 tests)
+
+Total Test time (real) =   3.37 sec

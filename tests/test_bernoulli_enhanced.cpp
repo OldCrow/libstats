@@ -40,8 +40,7 @@ struct stats::tests::DistTraits<stats::BernoulliDistribution> : stats::tests::Di
                     .isError();
             },
             [] {
-                return stats::BernoulliDistribution::create(
-                           std::numeric_limits<double>::infinity())
+                return stats::BernoulliDistribution::create(std::numeric_limits<double>::infinity())
                     .isError();
             },
         };
@@ -149,8 +148,7 @@ TEST_F(BernoulliEnhancedTest, QuantileContract) {
         EXPECT_FALSE(std::isnan(qv)) << "quantile must never be NaN for q=" << q;
         if (q <= 0.7) {
             EXPECT_EQ(qv, 0.0) << "q=" << q << " <= 1-p=0.7";
-        }
-        else
+        } else
             EXPECT_EQ(qv, 1.0) << "q=" << q << " > 1-p=0.7";
     }
     EXPECT_EQ(b03.getQuantile(0.0), 0.0);

@@ -12,11 +12,20 @@ namespace stats {
  *
  * @par Mathematical Definition:
  * - PMF:    P(X = k) = C(n,k)·p^k·(1−p)^(n−k)  for k ∈ {0,…,n}
- * - LogPMF: lgamma(n+1) − lgamma(k+1) − lgamma(n−k+1) + k·log(p) + (n−k)·log(1−p)
+ * - LogPMF: log C(n,k) + k·log(p) + (n−k)·log(1−p), evaluated by detail::binomial_log_pmf
+ *   without the n·log n cancellation of the lgamma form (#172)
  * - CDF:    I_{1−p}(n−k, k+1)  via the regularized incomplete beta (existing detail::beta_i)
- * - Quantile: smallest k ∈ {0,…,n} such that CDF(k) ≥ p
+ * - Quantile: smallest k ∈ {0,…,n} such that CDF(k) ≥ p (S(k) ≤ 1 − p for p > ½); Q(1) is the
+ *   support's upper end, n (0 at p = 0)
  * - Parameters: n > 0 (integer trials), p ∈ [0,1] (success probability)
- * - Support: k ∈ {0, 1, …, n}
+ * - Support: k ∈ {0, 1, …, n} ({0} at p = 0, {n} at p = 1)
+ *
+ * @par Non-integer arguments:
+ * The PMF and log-PMF round x to the nearest integer (halves away from zero) and give 0 (−∞) when
+ * that is outside {0,…,n}: x in (−½, ½) is the count 0, so pmf(−1e-300) = pmf(0), and x ≤ −½
+ * has mass 0. The CDF and survival floor x instead: F(x) = F(⌊x⌋), S(x) = S(⌊x⌋), so
+ * F(−1e-300) = 0 and S(−1e-300) = 1. At a non-integer x, pmf(x) is therefore not
+ * F(x) − F(x − 1).
  *
  * @par Moments:
  * - Mean:     n·p
@@ -177,14 +186,14 @@ class BinomialDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief PMF at k (rounded to nearest integer): C(n,k)·p^k·(1−p)^(n−k).
-     * Returns 0 for non-integer or out-of-range values.
+     * @brief PMF at x rounded to the nearest integer k: C(n,k)·p^k·(1−p)^(n−k).
+     * Returns 0 where k is outside {0,…,n}, and for ±∞ (see "Non-integer arguments" above).
      */
     [[nodiscard]] double getProbability(double x) const override;
 
     /**
-     * @brief Log-PMF at k.
-     * Returns −∞ for out-of-range values.
+     * @brief Log-PMF at x rounded to the nearest integer, as getProbability.
+     * Returns −∞ where that is outside {0,…,n}, and for ±∞.
      */
     [[nodiscard]] double getLogProbability(double x) const override;
 
@@ -195,7 +204,18 @@ class BinomialDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
-     * @brief Smallest k ∈ {0,…,n} such that CDF(k) ≥ p.
+     * @brief Survival S(x) = P(X > x) = I_p(k+1, n−k), k = ⌊x⌋, formed as the complement itself
+     *        (AR A11): relative precision deep in the upper tail, where 1 − CDF cancels.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
+     * @brief Smallest k ∈ {0,…,n} such that CDF(k) ≥ p, decided as: for p ≤ ½ the smallest k
+     *        with getCumulativeProbability(k) ≥ p; for p > ½ the smallest k with
+     *        getSurvival(k) ≤ 1 − p (1 − p is exact there; F(k) near 1 is not).
+     *
+     * Q(0) = 0. Q(1) is the smallest k with S(k) = 0, the support's upper end: n, or 0 when the
+     * success probability is 0.
      * @throws std::invalid_argument if p not in [0,1]
      */
     [[nodiscard]] double getQuantile(double p) const override;
@@ -221,7 +241,8 @@ class BinomialDistribution : public DistributionBase {
      *          treated as a lower bound, not a reliable point estimate.
      *
      * @param values Non-negative integer observations
-     * @throws std::invalid_argument if values is empty
+     * @throws std::invalid_argument if values is empty, or holds a non-finite, negative or
+     *         beyond-int-range observation
      */
     void fit(const std::vector<double>& values) override;
 
@@ -291,9 +312,6 @@ class BinomialDistribution : public DistributionBase {
     static BinomialDistribution createUnchecked(int n, double p) noexcept;
     BinomialDistribution(int n, double p, bool /*bypassValidation*/) noexcept;
 
-    /** @brief Compute log C(n,k) = logNFact_ − lgamma(k+1) − lgamma(n−k+1). */
-    double logBinomCoeff(int k) const noexcept;
-
     //==========================================================================
     // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
@@ -312,15 +330,15 @@ class BinomialDistribution : public DistributionBase {
      * Until then, PARALLEL is the recommended strategy for large batches.
      */
     void getLogProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                    int cached_n, double cached_logNFact, double cached_logP,
+                                    int cached_n, double cached_p, double cached_logP,
                                     double cached_log1mP) const noexcept;
 
     void getProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                 int cached_n, double cached_logNFact, double cached_logP,
+                                 int cached_n, double cached_p, double cached_logP,
                                  double cached_log1mP) const noexcept;
 
-    void getCumulativeProbabilityBatchImpl(const double* values, double* results,
-                                           std::size_t count) const noexcept;
+    void getCumulativeProbabilityBatchImpl(const double* values, double* results, std::size_t count,
+                                           int cached_n, double cached_p) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS

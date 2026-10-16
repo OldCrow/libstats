@@ -1,0 +1,142 @@
+
+== AVX2: candidate vs current kAvx2 (rows > 1 grid step apart)
+  Cauchy          PDF    table    75k -> cand     64   runs 64/64/64  d9384f8 runs 64/64/64
+  Cauchy          LogPDF table    75k -> cand    10k   runs 10k/10k/10k  d9384f8 runs 10k/10k/10k
+  ChiSquared      PDF    table   2048 -> cand    25k   runs 10k/25k/25k  d9384f8 runs 10k/10k/25k
+  ChiSquared      LogPDF table    128 -> cand    25k   runs 25k/25k/25k  d9384f8 runs 25k/25k/25k
+  ChiSquared      CDF    table     64 -> cand   4096   runs 4096/4096/4096  d9384f8 runs 64/4096/4096
+  Discrete        CDF    table   1024 -> cand    50k   runs 50k/50k/75k  d9384f8 runs 50k/50k/50k
+  Exponential     PDF    table   120k -> cand    50k   runs 50k/75k/50k  d9384f8 runs 75k/100k/75k
+  Exponential     LogPDF table    25k -> cand   100k   runs 100k/100k/150k  d9384f8 runs 150k/100k/100k
+  Exponential     CDF    table   100k -> cand    10k   runs 6144/10k/10k  d9384f8 runs 8192/8192/10k
+  FisherF         CDF    table    512 -> cand   4096   runs 4096/4096/4096  d9384f8 runs 64/64/64
+  Gaussian        LogPDF table    20k -> cand   200k   runs 200k/150k/200k  d9384f8 runs 150k/150k/150k
+  Gumbel          PDF    table    50k -> cand   300k   runs 75k/50k/300k  d9384f8 runs 50k/150k/50k
+  Laplace         PDF    table     64 -> cand    25k   runs 25k/50k/25k  d9384f8 runs 50k/50k/25k
+  Laplace         CDF    table    256 -> cand    25k   runs 25k/10k/8192  d9384f8 runs 10k/10k/10k
+  Logistic        PDF    table   100k -> cand   200k   runs 200k/100k/75k  d9384f8 runs 75k/200k/150k
+  Pareto          PDF    table    25k -> cand    75k   runs 75k/100k/75k  d9384f8 runs 75k/75k/50k
+  Pareto          LogPDF table    25k -> cand    75k   runs 100k/75k/75k  d9384f8 runs 50k/75k/75k
+  Pareto          CDF    table    75k -> cand    10k   runs 10k/10k/6144  d9384f8 runs 4096/4096/4096
+  Poisson         PDF    table    128 -> cand   4096   runs 4096/4096/4096  d9384f8 runs 2048/4096/4096
+  Poisson         LogPDF table    128 -> cand   4096   runs 64/4096/4096  d9384f8 runs 4096/128/4096
+  Poisson         CDF    table    256 -> cand   4096   runs 4096/1024/512  d9384f8 runs 2048/2048/4096
+  Rayleigh        LogPDF table     64 -> cand    50k   runs 50k/50k/50k  d9384f8 runs 25k/50k/50k
+  Rayleigh        CDF    table    25k -> cand   6144   runs 6144/8192/6144  d9384f8 runs 8192/10k/10k
+  StudentT        PDF    table    25k -> cand     64   runs 64/64/64  d9384f8 runs 64/64/512
+  StudentT        LogPDF table    25k -> cand   8192   runs 6144/8192/8192  d9384f8 runs 8192/8192/6144
+  StudentT        CDF    table     64 -> cand  NEVER   runs 2000k/NEVER/2000k  d9384f8 runs 2000k/NEVER/NEVER
+  Uniform         CDF    table  NEVER -> cand    25k   runs 25k/25k/25k  d9384f8 runs 25k/25k/25k
+  VonMises        PDF    table   200k -> cand   300k   runs 300k/150k/100k  d9384f8 runs 100k/150k/100k
+  Weibull         PDF    table    50k -> cand   250k   runs 100k/75k/250k  d9384f8 runs 75k/75k/75k
+  Weibull         LogPDF table    10k -> cand    50k   runs 50k/50k/50k  d9384f8 runs 50k/50k/50k
+  30 of 81 rows would change
+
+== AVX: candidate vs current kAvx (rows > 1 grid step apart)
+  Cauchy          PDF    table    50k -> cand    256   runs 64/256/64  d9384f8 runs 64/64/64
+  Cauchy          LogPDF table    50k -> cand    10k   runs 10k/8192/10k  d9384f8 runs 8192/10k/10k
+  Exponential     CDF    table    25k -> cand   6144   runs 6144/2048/6144  d9384f8 runs 2048/6144/6144
+  InverseGamma    PDF    table   6144 -> cand    25k   runs 25k/25k/25k  d9384f8 runs 25k/25k/25k
+  LogNormal       CDF    table    256 -> cand   4096   runs 4096/4096/4096  d9384f8 runs 4096/1024/64
+  Pareto          CDF    table    50k -> cand   6144   runs 4096/6144/6144  d9384f8 runs 4096/4096/4096
+  Poisson         LogPDF table   8192 -> cand   2048   runs 256/2048/2048  d9384f8 runs 4096/4096/4096
+  Rayleigh        CDF    table    50k -> cand   6144   runs 2048/6144/6144  d9384f8 runs 6144/25k/6144
+  StudentT        PDF    table    25k -> cand     64   runs 64/64/64  d9384f8 runs 64/64/64
+  StudentT        LogPDF table    50k -> cand   6144   runs 8192/6144/6144  d9384f8 runs 8192/6144/25k
+  10 of 81 rows would change
+
+== SSE2: candidate vs current kAvx (rows > 1 grid step apart)
+  Beta            PDF    table  NEVER -> cand   500k   runs 500k/500k/400k  d9384f8 runs 500k/400k/400k
+  Cauchy          PDF    table    50k -> cand     64   runs 64/64/64  d9384f8 runs 64/64/64
+  Cauchy          LogPDF table    50k -> cand   8192   runs 10k/8192/8192  d9384f8 runs 6144/8192/8192
+  ChiSquared      LogPDF table    25k -> cand   8192   runs 8192/10k/8192  d9384f8 runs 25k/25k/8192
+  Erlang          LogPDF table    25k -> cand   8192   runs 8192/10k/8192  d9384f8 runs 10k/25k/25k
+  Exponential     CDF    table    25k -> cand     64   runs 64/64/64  d9384f8 runs 64/64/64
+  FisherF         LogPDF table   6144 -> cand     64   runs 64/128/64  d9384f8 runs 4096/4096/4096
+  Gaussian        CDF    table   4096 -> cand     64   runs 64/64/64  d9384f8 runs 64/64/64
+  Gumbel          PDF    table    25k -> cand   6144   runs 8192/6144/6144  d9384f8 runs 6144/6144/6144
+  Gumbel          CDF    table    25k -> cand   6144   runs 6144/4096/6144  d9384f8 runs 8192/6144/4096
+  HalfNormal      CDF    table    10k -> cand   2048   runs 64/64/2048  d9384f8 runs 64/64/256
+  InverseGamma    PDF    table   6144 -> cand    25k   runs 25k/25k/25k  d9384f8 runs 25k/10k/25k
+  LogNormal       PDF    table    25k -> cand   6144   runs 6144/8192/6144  d9384f8 runs 8192/8192/6144
+  LogNormal       CDF    table    256 -> cand   2048   runs 2048/1024/512  d9384f8 runs 4096/256/4096
+  Logistic        PDF    table    25k -> cand   6144   runs 6144/6144/6144  d9384f8 runs 4096/4096/4096
+  Logistic        LogPDF table    50k -> cand   8192   runs 10k/8192/8192  d9384f8 runs 6144/6144/6144
+  Pareto          CDF    table    50k -> cand   4096   runs 4096/4096/4096  d9384f8 runs 4096/4096/4096
+  Poisson         LogPDF table   8192 -> cand   4096   runs 4096/4096/4096  d9384f8 runs 64/64/4096
+  Rayleigh        PDF    table    25k -> cand   6144   runs 6144/8192/6144  d9384f8 runs 6144/6144/6144
+  Rayleigh        CDF    table    50k -> cand   2048   runs 2048/64/64  d9384f8 runs 6144/64/64
+  StudentT        PDF    table    25k -> cand     64   runs 64/64/64  d9384f8 runs 64/64/64
+  StudentT        LogPDF table    50k -> cand   6144   runs 64/6144/6144  d9384f8 runs 64/6144/8192
+  TruncatedNormal CDF    table   4096 -> cand     64   runs 64/64/64  d9384f8 runs 64/64/64
+  VonMises        PDF    table    25k -> cand   6144   runs 4096/6144/6144  d9384f8 runs 6144/6144/6144
+  Weibull         PDF    table    25k -> cand   6144   runs 6144/4096/6144  d9384f8 runs 6144/4096/4096
+  Weibull         LogPDF table    25k -> cand   8192   runs 10k/8192/8192  d9384f8 runs 8192/8192/8192
+  Weibull         CDF    table    25k -> cand   4096   runs 4096/4096/4096  d9384f8 runs 2048/2048/2048
+  27 of 81 rows would change
+
+== speed work: candidate vs the same tier at d9384f8 (rows > 1 grid step apart)
+  AVX2: 14 of 81
+    Erlang          PDF    d9384f8   8192 ->    25k   runs 8192/25k/10k
+    FisherF         LogPDF d9384f8    512 ->   4096   runs 512/128/4096
+    FisherF         CDF    d9384f8     64 ->   4096   runs 4096/4096/4096
+    Gaussian        CDF    d9384f8   4096 ->    10k   runs 4096/10k/4096
+    Gumbel          PDF    d9384f8   150k ->   300k   runs 75k/50k/300k
+    LogNormal       PDF    d9384f8   150k ->    50k   runs 50k/50k/50k
+    Logistic        LogPDF d9384f8   250k ->   100k   runs 150k/100k/75k
+    Pareto          CDF    d9384f8   4096 ->    10k   runs 10k/10k/6144
+    Rayleigh        CDF    d9384f8    10k ->   6144   runs 6144/8192/6144
+    StudentT        PDF    d9384f8    512 ->     64   runs 64/64/64
+    VonMises        PDF    d9384f8   100k ->   300k   runs 300k/150k/100k
+    VonMises        CDF    d9384f8   4096 ->  NEVER   runs NEVER/NEVER/NEVER
+    Weibull         PDF    d9384f8    75k ->   250k   runs 100k/75k/250k
+    Weibull         CDF    d9384f8   4096 ->    25k   runs 25k/25k/25k
+  AVX: 5 of 81
+    Cauchy          PDF    d9384f8     64 ->    256   runs 64/256/64
+    Rayleigh        CDF    d9384f8    25k ->   6144   runs 2048/6144/6144
+    StudentT        LogPDF d9384f8    25k ->   6144   runs 8192/6144/6144
+    VonMises        CDF    d9384f8   4096 ->  NEVER   runs NEVER/NEVER/NEVER
+    Weibull         CDF    d9384f8   4096 ->    10k   runs 8192/10k/10k
+  SSE2: 8 of 81
+    ChiSquared      LogPDF d9384f8    25k ->   8192   runs 8192/10k/8192
+    Erlang          LogPDF d9384f8    25k ->   8192   runs 8192/10k/8192
+    FisherF         LogPDF d9384f8   4096 ->     64   runs 64/128/64
+    HalfNormal      CDF    d9384f8    256 ->   2048   runs 64/64/2048
+    Laplace         CDF    d9384f8    25k ->   8192   runs 8192/8192/10k
+    Rayleigh        CDF    d9384f8   6144 ->   2048   runs 2048/64/64
+    StudentT        CDF    d9384f8  1500k ->  NEVER   runs NEVER/NEVER/NEVER
+    VonMises        CDF    d9384f8   4096 ->  NEVER   runs NEVER/NEVER/NEVER
+
+== run-to-run: rows whose three new runs span > 2x (candidate takes the max)
+  AVX2: 17  Beta.CDF, ChiSquared.PDF, Erlang.PDF, Erlang.CDF, FisherF.LogPDF, Gamma.PDF, Gaussian.CDF, Gumbel.PDF, InverseGamma.CDF, Laplace.CDF, LogNormal.CDF, Logistic.PDF, Poisson.LogPDF, Poisson.CDF, StudentT.CDF, VonMises.PDF, Weibull.PDF
+  AVX: 11  Cauchy.PDF, Erlang.CDF, Exponential.CDF, FisherF.CDF, Gamma.CDF, Gaussian.CDF, Laplace.CDF, Poisson.LogPDF, Rayleigh.CDF, StudentT.CDF, TruncatedNormal.CDF
+  SSE2: 17  Cauchy.CDF, ChiSquared.PDF, ChiSquared.CDF, Erlang.CDF, Exponential.PDF, FisherF.CDF, Gamma.PDF, Gumbel.LogPDF, HalfNormal.CDF, InverseGamma.LogPDF, Laplace.PDF, LogNormal.CDF, Logistic.CDF, Rayleigh.CDF, StudentT.LogPDF, TruncatedNormal.PDF, VonMises.LogPDF
+
+== SSE2 vs AVX candidates (SSE2 delegates to kAvx today): rows > 1 grid step apart
+  Beta            PDF    AVX  NEVER  SSE2   500k
+  Cauchy          PDF    AVX    256  SSE2     64
+  ChiSquared      LogPDF AVX    25k  SSE2   8192
+  Erlang          LogPDF AVX    25k  SSE2   8192
+  Exponential     CDF    AVX   6144  SSE2     64
+  FisherF         LogPDF AVX   4096  SSE2     64
+  Gaussian        CDF    AVX   4096  SSE2     64
+  Gumbel          PDF    AVX    25k  SSE2   6144
+  Gumbel          CDF    AVX    25k  SSE2   6144
+  HalfNormal      CDF    AVX    10k  SSE2   2048
+  Laplace         CDF    AVX    25k  SSE2   8192
+  LogNormal       PDF    AVX    25k  SSE2   6144
+  Logistic        PDF    AVX    25k  SSE2   6144
+  Logistic        LogPDF AVX    25k  SSE2   8192
+  Rayleigh        PDF    AVX    25k  SSE2   6144
+  Rayleigh        CDF    AVX   6144  SSE2   2048
+  TruncatedNormal CDF    AVX   4096  SSE2     64
+  VonMises        PDF    AVX    25k  SSE2   6144
+  VonMises        LogPDF AVX    75k  SSE2    25k
+  Weibull         PDF    AVX    25k  SSE2   6144
+  Weibull         LogPDF AVX    25k  SSE2   8192
+  Weibull         CDF    AVX    10k  SSE2   4096
+  22 of 81
+
+== tier ordering of candidates (expect SSE2 <= AVX <= AVX2: slower VECTORIZED -> parallel sooner)
+  Cauchy          PDF    SSE2 64  AVX 256  AVX2 64
+  1 rows out of order by > 2x

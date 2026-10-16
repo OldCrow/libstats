@@ -1,0 +1,147 @@
+Running main() from /private/tmp/googletest-20260810-2300-tbptpn/googletest-1.18.0/googletest/src/gtest_main.cc
+[==========] Running 13 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 13 tests from ThreadPoolIntegration
+[ RUN      ] ThreadPoolIntegration.Level0Constants
+
+=== Test 1: Level 0 Constants Integration ===
+  Min parallel size: 1536
+  Min distribution parallel size: 1024
+  Default grain size: 256
+  SIMD block size: 48
+  Memory alignment: 128 bytes
+  Small array processing time: 2 μs
+  ✓ Constants integration working correctly
+[       OK ] ThreadPoolIntegration.Level0Constants (0 ms)
+[ RUN      ] ThreadPoolIntegration.CpuDetection
+
+=== Test 2: CPU Detection Integration ===
+  Physical cores: 8
+  Logical cores: 8
+  L1 cache: 64 KB
+  L2 cache: 4096 KB
+  L3 cache: 0 MB
+  Cache line size: 64 bytes
+  Optimal threads: 8
+  Has hyperthreading: No
+  Apple (Apple M1): NEON
+  ✓ CPU detection integration working correctly
+[       OK ] ThreadPoolIntegration.CpuDetection (0 ms)
+[ RUN      ] ThreadPoolIntegration.SimdAwareness
+
+=== Test 3: SIMD Awareness ===
+  SIMD support: Yes
+  SIMD double width: 2
+  SIMD float width: 4
+  Optimal alignment: 128 bytes
+  Base grain size: 256
+  SIMD-aligned grain size: 256
+  ✓ SIMD awareness working correctly
+[       OK ] ThreadPoolIntegration.SimdAwareness (0 ms)
+[ RUN      ] ThreadPoolIntegration.SafetyIntegration
+
+=== Test 4: Safety Integration ===
+  Safe log(e): 0.999999
+  Clamped probability (1.5): 1
+  Safe exp(-100): 3.72008e-44
+  Safe sqrt(-1): 0
+  ✓ Safety integration working correctly
+[       OK ] ThreadPoolIntegration.SafetyIntegration (0 ms)
+[ RUN      ] ThreadPoolIntegration.ErrorHandling
+
+=== Test 5: Error Handling Integration ===
+  Success result: OK
+  Error result: Error
+  Error message: Test error
+  Error string: Invalid parameter value
+  ✓ Error handling integration working correctly
+[       OK ] ThreadPoolIntegration.ErrorHandling (0 ms)
+[ RUN      ] ThreadPoolIntegration.BasicFunctionality
+
+=== Test 6: Basic ThreadPool Functionality ===
+  Task 1 result: 42
+  Task 2 result: 42
+  Void task executed: Yes
+  Pool thread count: 4
+  Pending tasks: 0
+  ✓ Basic ThreadPool functionality working correctly
+[       OK ] ThreadPoolIntegration.BasicFunctionality (0 ms)
+[ RUN      ] ThreadPoolIntegration.ParallelFor
+
+=== Test 7: ParallelFor Integration ===
+  Processed 10000 elements in 556 μs
+  Results correct: Yes
+  Custom grain size test: Passed
+  ✓ ParallelFor integration working correctly
+[       OK ] ThreadPoolIntegration.ParallelFor (1 ms)
+[ RUN      ] ThreadPoolIntegration.ParallelTransformSIMD
+
+=== Test 8: SIMD-aware Parallel Transform ===
+  Processed 10000 elements in 402 μs
+  Results correct: Yes
+  SQRT transform test: Passed
+  ✓ SIMD-aware parallel transform working correctly
+[       OK ] ThreadPoolIntegration.ParallelTransformSIMD (1 ms)
+[ RUN      ] ThreadPoolIntegration.ParallelReduce
+
+=== Test 9: Parallel Reduce Integration ===
+  Processed 10000 elements in 347 μs
+  Sum: 5.0005e+07 (expected: 5.0005e+07)
+  Results correct: Yes
+  Product test: 3.6288e+06 (expected: 3.6288e+06)
+  ✓ Parallel reduce integration working correctly
+[       OK ] ThreadPoolIntegration.ParallelReduce (0 ms)
+[ RUN      ] ThreadPoolIntegration.ParallelStatOperation
+
+=== Test 10: Parallel Statistical Operation ===
+  Processed 10000 elements in 519 μs
+  Parallel mean: 0.0145111
+  Sequential mean: 0.0145111
+  Mean difference: 2.60209e-17
+  Results match: Yes
+  Results reasonable: Yes
+  Parallel sum test: Passed
+  Parallel variance test: Passed
+  ✓ Parallel statistical operations working correctly
+[       OK ] ThreadPoolIntegration.ParallelStatOperation (3 ms)
+[ RUN      ] ThreadPoolIntegration.OptimalThreadCount
+
+=== Test 11: Optimal Thread Count Calculation ===
+  Optimal threads: 8
+  Physical cores: 8
+  Logical cores: 8
+  Has hyperthreading: No
+  ✓ Optimal thread count calculation working correctly
+[       OK ] ThreadPoolIntegration.OptimalThreadCount (0 ms)
+[ RUN      ] ThreadPoolIntegration.PerformanceScaling
+
+=== Test 12: Performance Scaling ===
+  Sequential time: 224 μs
+  Parallel time: 635 μs
+  Speedup: 0.352756x
+  Results match: Yes
+  ✓ Performance scaling working correctly
+
+  === Large Dataset Performance Comparison ===
+  Processing 1000000 elements...
+  Large dataset sequential time: 6602 μs
+  Large dataset parallel time: 2029 μs
+  Large dataset speedup: 3.25x
+  Large dataset results match: Yes
+  Expected speedup achieved: Yes
+  Multi-core speedup validation: Passed
+  ✓ Large dataset performance scaling working correctly
+[       OK ] ThreadPoolIntegration.PerformanceScaling (23 ms)
+[ RUN      ] ThreadPoolIntegration.DocumentationExamples
+
+=== Test 13: Documentation Examples ===
+  Example 1 mean: 3.00
+  Example 2 SIMD transform: Passed
+  Example 3 parallel mean: 500.50 (expected: 500.50)
+  ✓ Documentation examples working correctly
+[       OK ] ThreadPoolIntegration.DocumentationExamples (1 ms)
+[----------] 13 tests from ThreadPoolIntegration (33 ms total)
+
+[----------] Global test environment tear-down
+[==========] 13 tests from 1 test suite ran. (33 ms total)
+[  PASSED  ] 13 tests.

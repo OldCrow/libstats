@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -71,6 +73,11 @@ ErlangDistribution::ErlangDistribution(ErlangDistribution&& other) noexcept
 
 ErlangDistribution& ErlangDistribution::operator=(ErlangDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         k_ = other.k_;
         lambda_ = other.lambda_;
         gamma_ = std::move(other.gamma_);
@@ -104,28 +111,29 @@ ErlangDistribution::ErlangDistribution(int k, double lambda, bool /*bypassValida
 //==============================================================================
 
 void ErlangDistribution::setK(int k) {
-    validateParameters(k, lambda_);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(k, lambda_);
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(static_cast<double>(k));
     }
-    // Sync gamma_ outside our lock -- same pattern as ChiSquaredDistribution.
-    // gamma_ is private, so no external thread can acquire its lock while we
-    // don't hold ours.
-    (void)gamma_.trySetAlpha(static_cast<double>(k));
 }
 
 void ErlangDistribution::setLambda(double lambda) {
-    validateParameters(k_, lambda);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(k_, lambda);
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetBeta(lambda);
     }
-    (void)gamma_.trySetBeta(lambda);
 }
 
 void ErlangDistribution::setParameters(int k, double lambda) {
@@ -136,35 +144,41 @@ void ErlangDistribution::setParameters(int k, double lambda) {
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(static_cast<double>(k), lambda);
     }
-    (void)gamma_.trySetParameters(static_cast<double>(k), lambda);
 }
 
 VoidResult ErlangDistribution::trySetK(int k) noexcept {
-    auto v = validateErlangParameters(k, lambda_);
-    if (v.isError())
-        return v;
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateErlangParameters(k, lambda_);
+        if (v.isError())
+            return v;
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(static_cast<double>(k));
     }
-    (void)gamma_.trySetAlpha(static_cast<double>(k));
     return VoidResult::ok({});
 }
 
 VoidResult ErlangDistribution::trySetLambda(double lambda) noexcept {
-    auto v = validateErlangParameters(k_, lambda);
-    if (v.isError())
-        return v;
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateErlangParameters(k_, lambda);
+        if (v.isError())
+            return v;
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetBeta(lambda);
     }
-    (void)gamma_.trySetBeta(lambda);
     return VoidResult::ok({});
 }
 
@@ -178,8 +192,10 @@ VoidResult ErlangDistribution::trySetParameters(int k, double lambda) noexcept {
         lambda_ = lambda;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(static_cast<double>(k), lambda);
     }
-    (void)gamma_.trySetParameters(static_cast<double>(k), lambda);
     return VoidResult::ok({});
 }
 
@@ -238,8 +254,7 @@ void ErlangDistribution::fit(const std::vector<double>& values) {
     if (var_x > detail::ZERO_DOUBLE && std::isfinite(mean_x) && std::isfinite(var_x)) {
         const double raw = std::round((mean_x * mean_x) / var_x);
         if (std::isfinite(raw) && raw > 1.0) {
-            k_hat = (raw > kMaxKAsDouble) ? std::numeric_limits<int>::max()
-                                          : static_cast<int>(raw);
+            k_hat = (raw > kMaxKAsDouble) ? std::numeric_limits<int>::max() : static_cast<int>(raw);
         }
     }
     const double lambda_hat = static_cast<double>(k_hat) / mean_x;
@@ -258,13 +273,16 @@ void ErlangDistribution::reset() noexcept {
         lambda_ = detail::ONE;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(detail::ONE, detail::ONE);  // Gamma(1,1) = Erlang(1,1)
     }
-    (void)gamma_.trySetParameters(detail::ONE, detail::ONE);  // Gamma(1,1) = Erlang(1,1)
 }
 
 std::string ErlangDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "ErlangDistribution(k=" << k_ << ",lambda=" << lambda_ << ")";
     return oss.str();
 }
@@ -342,8 +360,8 @@ std::istream& operator>>(std::istream& is, ErlangDistribution& dist) {
     int k;
     double lambda;
     try {
-        const double k_raw = std::stod(token.substr(k_pos + 2, k_comma - k_pos - 2));
-        lambda = std::stod(token.substr(lambda_pos + 7, lambda_close - lambda_pos - 7));
+        const double k_raw = detail::parse_double(token.substr(k_pos + 2, k_comma - k_pos - 2));
+        lambda = detail::parse_double(token.substr(lambda_pos + 7, lambda_close - lambda_pos - 7));
         // #125-class guard: static_cast<int> of a double outside int's range is
         // UB. A serialized k beyond INT_MAX cannot be a valid round-trip, so
         // reject it (failbit) rather than saturate. The comparison also rejects

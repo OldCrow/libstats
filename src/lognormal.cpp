@@ -1,11 +1,7 @@
 #include "libstats/distributions/lognormal.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -14,6 +10,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -21,6 +18,38 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+
+// ½erfc(a) where it is subnormal (a ≳ 26.5), for getSurvival. libm's erfc is good there to a
+// few units of the subnormal grid, which is all of a value near the smallest subnormal (macOS:
+// erfc(27.2053) returns 0 for 7.6e-324), and halving it rounds a second time. Instead the
+// asymptotic form ½erfc(a) = e^(−a²)/(2a√π)·Σₖ (−1)ᵏ(2k − 1)!!/(2a²)ᵏ, whose terms fall below
+// 1e-17 by k = 8 from a = 26. a² is split exactly (explicit fma) and the exponent reduced by
+// m·ln2 (Cody–Waite, m·kLn2Hi exact for |m| < 2¹¹), so ldexp by 2^m is the one rounding into
+// the subnormal range.
+[[nodiscard]] double half_erfc_subnormal(double a) noexcept {
+    constexpr double kLn2Hi = 6.93147180369123816490e-01;  // 0x3FE62E42FEE00000
+    constexpr double kLn2Lo = 1.90821492927058770002e-10;
+    if (a > 28.0)
+        return detail::ZERO_DOUBLE;  // ½erfc(28) = 3.3e-343, below half the smallest subnormal
+    const double a2 = a * a;
+    const double a2_lo = std::fma(a, a, -a2);
+    const double u = detail::ONE / (detail::TWO * a2);
+    double term = detail::ONE;
+    double series = detail::ONE;
+    for (int k = 1; k <= 8; ++k) {
+        term *= -static_cast<double>(2 * k - 1) * u;
+        series += term;
+    }
+    const double c = std::log(series / (detail::TWO * a * detail::SQRT_PI)) - a2_lo;
+    const double m = std::nearbyint((c - a2) / detail::LN2);
+    const double r = ((-a2 - m * kLn2Hi) - m * kLn2Lo) + c;
+    return std::ldexp(std::exp(r), static_cast<int>(m));
+}
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -91,6 +120,11 @@ LogNormalDistribution::LogNormalDistribution(LogNormalDistribution&& other) noex
 
 LogNormalDistribution& LogNormalDistribution::operator=(LogNormalDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         mu_ = other.mu_;
         sigma_ = other.sigma_;
         logSigma_ = other.logSigma_;
@@ -287,7 +321,26 @@ double LogNormalDistribution::getCumulativeProbability(double x) const {
     return detail::normal_cdf((std::log(x) - mu) / sigma);
 }
 
+double LogNormalDistribution::getSurvival(double x) const {
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+
+    double mu, sigma;
+    withCacheSnapshot([&] {
+        mu = mu_;
+        sigma = sigma_;
+    });
+    // Φ(−z) = ½erfc(z/√2) for z > 0 through normal_cdf's erfc branch; log(+inf) gives 0.
+    const double z = (std::log(x) - mu) / sigma;
+    const double s = detail::normal_cdf(-z);
+    if (s < std::numeric_limits<double>::min() && std::isfinite(z))
+        return half_erfc_subnormal(z * detail::INV_SQRT_2);  // the same erfc argument
+    return s;
+}
+
 double LogNormalDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -380,7 +433,7 @@ void LogNormalDistribution::reset() noexcept {
 std::string LogNormalDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "LogNormalDistribution(mu=" << mu_ << ",sigma=" << sigma_ << ")";
     return oss.str();
 }
@@ -451,36 +504,17 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double mu, ni2s2, lnc;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
                 ni2s2 = d.negInv2SigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        const double log_x = std::log(x);
-                        const double z = log_x - mu;
-                        res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                    mu, ni2s2, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else {
-                        const double log_x = std::log(x);
-                        const double z = log_x - mu;
-                        res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
-                    }
-                }
-            }
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -489,24 +523,16 @@ void LogNormalDistribution::getProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double mu, ni2s2, lnc;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
                 ni2s2 = d.negInv2SigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else {
-                    const double log_x = std::log(x);
-                    const double z = log_x - mu;
-                    res[i] = std::exp(ni2s2 * z * z - log_x + lnc);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, mu,
+                                                ni2s2, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -531,36 +557,17 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double mu, ni2s2, lnc;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
                 ni2s2 = d.negInv2SigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else {
-                        const double log_x = std::log(x);
-                        const double z = log_x - mu;
-                        res[i] = ni2s2 * z * z - log_x + lnc;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       mu, ni2s2, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else {
-                        const double log_x = std::log(x);
-                        const double z = log_x - mu;
-                        res[i] = ni2s2 * z * z - log_x + lnc;
-                    }
-                }
-            }
         },
         [](const LogNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -569,24 +576,16 @@ void LogNormalDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double mu, ni2s2, lnc;
             d.withCacheSnapshot([&] {
                 mu = d.mu_;
                 ni2s2 = d.negInv2SigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else {
-                    const double log_x = std::log(x);
-                    const double z = log_x - mu;
-                    res[i] = ni2s2 * z * z - log_x + lnc;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, mu,
+                                                   ni2s2, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -617,8 +616,7 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 iss2 = d.invSigmaSqrt2_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
                                                           len, mu, iss2);
             });
@@ -641,7 +639,6 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
                 d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
                                                           len, mu, iss2);
             });
-            pool.waitForAll();
         });
 }
 
@@ -654,6 +651,9 @@ void LogNormalDistribution::getCumulativeProbability(std::span<const double> val
 //==============================================================================
 
 bool LogNormalDistribution::operator==(const LogNormalDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
@@ -690,8 +690,9 @@ std::istream& operator>>(std::istream& is, LogNormalDistribution& d) {
         return is;
     }
     try {
-        const double mu = std::stod(token.substr(mu_pos + 3, comma - mu_pos - 3));
-        const double sigma = std::stod(token.substr(sigma_pos + 6, close - sigma_pos - 6));
+        const double mu = detail::parse_double(token.substr(mu_pos + 3, comma - mu_pos - 3));
+        const double sigma =
+            detail::parse_double(token.substr(sigma_pos + 6, close - sigma_pos - 6));
         auto result = d.trySetParameters(mu, sigma);
         if (result.isError())
             is.setstate(std::ios::failbit);
@@ -824,9 +825,8 @@ void LogNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
                 // math_utils.cpp. z here already carries the /sqrt(2)
                 // factor via cached_inv_sigma_sqrt2, so erfc(-z) is the
                 // direct left-tail form (no extra INV_SQRT_2 needed).
-                results[i] = z < detail::ZERO_DOUBLE
-                                 ? detail::HALF * std::erfc(-z)
-                                 : detail::HALF * (detail::ONE + std::erf(z));
+                results[i] = z < detail::ZERO_DOUBLE ? detail::HALF * std::erfc(-z)
+                                                     : detail::HALF * (detail::ONE + std::erf(z));
             }
         }
         return;

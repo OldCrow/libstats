@@ -53,8 +53,12 @@ function(apply_simd_source_flags)
 
     if(_sse2)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
-            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
-                                        PROPERTIES COMPILE_OPTIONS "/arch:SSE2")
+            # x64 has SSE2 as its baseline and no /arch:SSE2 (cl.exe ignores it there, clang-cl
+            # warns); the flag exists only for 32-bit targets.
+            if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+                set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
+                                            PROPERTIES COMPILE_OPTIONS "/arch:SSE2")
+            endif()
         else()
             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
                                         PROPERTIES COMPILE_OPTIONS "-msse2")

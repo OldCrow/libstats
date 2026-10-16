@@ -11,8 +11,8 @@ Quick reference for the actively useful tools in `tools/`.
 ### SIMD and performance validation
 - `simd_verification` — validate SIMD correctness and measure speedups across distributions
 - `strategy_profile` — canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes (flags: `-l/--large`, `-o/--output-csv PATH`; there is no `--runs` — that belongs to the capture script)
-- `accuracy_sweep` — deterministic bit-exact accuracy sweep over all 27 distributions (CSV consumed by `accuracy_vs_mpmath.py`)
-- `threshold_validator` — compares measured crossovers against `dispatch_thresholds.h` (first-crossing heuristic — read with the sustained-crossover rule instead; #146)
+- `accuracy_sweep` — deterministic bit-exact accuracy sweep over all 27 distributions: pdf, logpdf, cdf, quantile and survival rows (CSV consumed by `accuracy_vs_mpmath.py`)
+- `threshold_validator` — compares measured crossovers against `dispatch_thresholds.h` (first-crossing heuristic; derive thresholds with `scripts/analyze_crossovers.py`, the sustained-crossover rule, #146)
 - `quantile_accuracy` — quantile accuracy probe
 - `toctou_validator` — TOCTOU validation for the cache/dispatch fast paths
 - `copy_move_stress` — concurrent copy/move stress over all 27 distributions (replaced `test_copy_move_stress.cpp`)
@@ -22,17 +22,19 @@ Quick reference for the actively useful tools in `tools/`.
 - `math_cache_benchmark.py` — math-cache micro-benchmark
 - `parallel_batch_fitting_benchmark` — benchmark batch fitting behavior across distributions
 - `parallel_correctness_verification` — validate batch correctness under parallel execution
+- `gen_gauss_legendre_tables.py` — generates (or `--check`s) the Gauss–Legendre tables of the von Mises CDF and quantile in `src/von_mises.cpp`; needs mpmath
 
+### Benches (`tools/bench/`)
+- `v242_cost_bench.cpp` — per-element cost of the paths v2.5.0 changed, built once against a v2.4.1 tree and once against this branch (build steps in its header comment)
+- `v242_compare.py` — joins the two CSVs and reports the rows that moved
+- `table_ab_bench.cpp` — AUTO against forced VECTORIZED and PARALLEL for every distribution's batch pdf/logpdf/cdf, built against two trees that differ only in `dispatch_thresholds.h`, to check a threshold-table change (build steps in its header comment)
 
 ### Header-analysis tools
 These remain useful for include and compilation-health work:
 - `header_dashboard.py`
-- `header_insights.py`
 - `compilation_benchmark.py`
 - `header_analysis.py`
 - `static_analysis.py`
-- `header_optimization_analysis.py`
-- `header_optimization_summary.py`
 
 See `docs/HEADER_TOOLS_GUIDE.md` for the header-analysis workflow.
 
@@ -55,6 +57,6 @@ part of the active development workflow:
 ## Guidance
 
 - Prefer the compiled C++ tools for release validation and performance checks.
-- For dispatcher threshold tuning, prefer `strategy_profile` as the canonical raw data source.
+- For dispatcher threshold tuning, prefer `strategy_profile` as the canonical raw data source, read with `scripts/analyze_crossovers.py`.
 - Prefer the Python analysis tools for repo-maintenance work.
 - Do not treat every file in `tools/` as part of the primary supported workflow; some are archival.

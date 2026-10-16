@@ -1,9 +1,6 @@
 #include "libstats/distributions/gumbel.h"
 
 #include "libstats/common/distribution_impl_common.h"
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -12,6 +9,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -19,6 +17,11 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 namespace {
 
@@ -31,7 +34,12 @@ namespace {
 /// LogPDF for a finite z, without the −log β term (added by the caller).
 /// As z → −∞, e^(−z) overflows to +inf and the result collapses to −inf, which
 /// is the correct limit; no intermediate NaN can appear because −z stays finite.
+/// A finite x still gives an infinite z where |x − μ| > DBL_MAX·β or x − μ overflows; at
+/// z = −inf the form is inf − inf = NaN (Gumbel(0, 1e-10) at −1e300), so both infinities
+/// return −inf, as the batch kernel's fixup does (Fix8).
 [[nodiscard]] inline double gumbelLogKernel(double z) noexcept {
+    if (std::isinf(z))
+        return detail::NEGATIVE_INFINITY;
     return -z - std::exp(-z);
 }
 
@@ -107,6 +115,11 @@ GumbelDistribution::GumbelDistribution(GumbelDistribution&& other) noexcept
 
 GumbelDistribution& GumbelDistribution::operator=(GumbelDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         mu_ = other.mu_;
         beta_ = other.beta_;
         inv_beta_ = other.inv_beta_;
@@ -155,8 +168,8 @@ double GumbelDistribution::getBetaAtomic() const noexcept {
 }
 
 void GumbelDistribution::setMu(double mu) {
-    validateParameters(mu, beta_);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu, beta_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -165,8 +178,8 @@ void GumbelDistribution::setMu(double mu) {
 }
 
 void GumbelDistribution::setBeta(double beta) {
-    validateParameters(mu_, beta);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu_, beta);
     beta_ = beta;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -190,10 +203,10 @@ void GumbelDistribution::setParameters(double mu, double beta) {
 //==============================================================================
 
 VoidResult GumbelDistribution::trySetMu(double mu) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateGumbelParameters(mu, beta_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -203,10 +216,10 @@ VoidResult GumbelDistribution::trySetMu(double mu) noexcept {
 }
 
 VoidResult GumbelDistribution::trySetBeta(double beta) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateGumbelParameters(mu_, beta);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     beta_ = beta;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -282,8 +295,25 @@ double GumbelDistribution::getCumulativeProbability(double x) const {
     return gumbelCdfKernel((x - m) * ib);
 }
 
+double GumbelDistribution::getSurvival(double x) const {
+    // S = 1 − exp(−e^(−z)) = −expm1(−e^(−z)): exact in the upper tail, where 1 − F rounds to 0.
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x))
+        return (x > detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::ONE;
+
+    double m, ib;
+    withCacheSnapshot([&] {
+        m = mu_;
+        ib = inv_beta_;
+    });
+    return -std::expm1(-std::exp(-(x - m) * ib));
+}
+
 double GumbelDistribution::getQuantile(double p) const {
-    if (std::isnan(p) || p < detail::ZERO_DOUBLE || p > detail::ONE)
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
         return -std::numeric_limits<double>::infinity();
@@ -388,7 +418,7 @@ void GumbelDistribution::reset() noexcept {
 std::string GumbelDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "GumbelDistribution(mu=" << mu_ << ",beta=" << beta_ << ")";
     return oss.str();
 }
@@ -436,41 +466,29 @@ void GumbelDistribution::getProbability(std::span<const double> values, std::spa
                 ib = d.inv_beta_;
                 nlb = d.neg_log_beta_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return detail::ZERO_DOUBLE;
-                return std::exp(gumbelLogKernel((x - m) * ib) + nlb);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                    ib, nlb);
+                });
         },
-        // Work-stealing
         [](const GumbelDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, ib, nlb;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 ib = d.inv_beta_;
                 nlb = d.neg_log_beta_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = detail::ZERO_DOUBLE;
-                else
-                    res[i] = std::exp(gumbelLogKernel((x - m) * ib) + nlb);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m, ib,
+                                                nlb);
             });
-            pool.waitForAll();
         });
 }
 
@@ -501,40 +519,29 @@ void GumbelDistribution::getLogProbability(std::span<const double> values,
                 ib = d.inv_beta_;
                 nlb = d.neg_log_beta_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return detail::NEGATIVE_INFINITY;
-                return gumbelLogKernel((x - m) * ib) + nlb;
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       m, ib, nlb);
+                });
         },
         [](const GumbelDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, ib, nlb;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 ib = d.inv_beta_;
                 nlb = d.neg_log_beta_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = detail::NEGATIVE_INFINITY;
-                else
-                    res[i] = gumbelLogKernel((x - m) * ib) + nlb;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                   ib, nlb);
             });
-            pool.waitForAll();
         });
 }
 
@@ -563,39 +570,28 @@ void GumbelDistribution::getCumulativeProbability(std::span<const double> values
                 m = d.mu_;
                 ib = d.inv_beta_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return (x > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-                return gumbelCdfKernel((x - m) * ib);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, m, ib);
+                });
         },
         [](const GumbelDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, ib;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 ib = d.inv_beta_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = (x > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-                else
-                    res[i] = gumbelCdfKernel((x - m) * ib);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, m, ib);
             });
-            pool.waitForAll();
         });
 }
 
@@ -646,8 +642,8 @@ std::istream& operator>>(std::istream& is, GumbelDistribution& dist) {
     }
 
     try {
-        mu = std::stod(token.substr(mu_pos + 3, beta_pos - mu_pos - 3));
-        beta = std::stod(token.substr(beta_pos + 6, close - beta_pos - 6));
+        mu = detail::parse_double(token.substr(mu_pos + 3, beta_pos - mu_pos - 3));
+        beta = detail::parse_double(token.substr(beta_pos + 6, close - beta_pos - 6));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

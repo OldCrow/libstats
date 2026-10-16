@@ -1,11 +1,7 @@
 #include "libstats/distributions/weibull.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -14,6 +10,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -21,6 +18,46 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
+// Inputs the log-density formula c + (k−1)·log(x) − (x/λ)^k cannot evaluate; edgeLogDensity
+// gives their value. x < 0 is outside the support; x = 0 is the boundary, where log(x) = −inf;
+// at x = +inf the sum is inf − inf = NaN, so it takes its limit instead (#164). NaN fails both
+// tests and propagates through the formula.
+constexpr bool outsideDensity(double x) noexcept {
+    return x <= 0.0 || x == std::numeric_limits<double>::infinity();
+}
+
+// logpdf at the support boundary x = 0, the limit by shape (#161): +inf for k < 1, c for k = 1
+// (the exponential density; c = log(k) − k·log(λ) is exactly −log(λ) there), −∞ for k > 1. The
+// shape test is exact, as Gamma's is: Weibull(1 + 1e-9) has pdf(0) = 0, not 1/λ. pdf is exp of
+// this, so the scalar and every batch path compute the same bits from the cached constants.
+inline double logDensityAtZero(double shape_minus1, double log_norm_const) noexcept {
+    if (shape_minus1 < 0.0)
+        return std::numeric_limits<double>::infinity();
+    if (shape_minus1 == 0.0)
+        return log_norm_const;
+    return -std::numeric_limits<double>::infinity();
+}
+
+// logpdf where outsideDensity(x) holds: the x = 0 limit, else −∞.
+inline double edgeLogDensity(double x, double shape_minus1, double log_norm_const) noexcept {
+    return x == 0.0 ? logDensityAtZero(shape_minus1, log_norm_const)
+                    : -std::numeric_limits<double>::infinity();
+}
+
+// CDF at x > 0: −expm1(−(x/λ)^k). The form 1 − exp(−(x/λ)^k) cancelled in the lower tail, to
+// exactly 0 below (x/λ)^k = ε/2 (CDF(4.6e-14) = 0 for k = 1.5, λ = 1, not 1e-20) and 8e-4
+// relative at 1e-15.
+[[nodiscard]] inline double weibullCdf(double x, double shape, double log_scale) noexcept {
+    return -std::expm1(-std::exp(shape * (std::log(x) - log_scale)));
+}
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -91,6 +128,11 @@ WeibullDistribution::WeibullDistribution(WeibullDistribution&& other) noexcept
 
 WeibullDistribution& WeibullDistribution::operator=(WeibullDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         shape_ = other.shape_;
         scale_ = other.scale_;
         logShape_ = other.logShape_;
@@ -177,41 +219,60 @@ double WeibullDistribution::getVariance() const {
     return v;
 }
 
+// Skewness and kurtosis are scale-free, so they are formed from g_n = Γ(1 + n/k) alone (DH3):
+// λ³·num/var^{3/2} and λ⁴·m4/var² overflowed or underflowed in λ^n and var (Weibull(2, 1e200)
+// gave NaN, Weibull(0.05, 1e-100) a kurtosis of −3, λ⁴ = 0). Where the largest g_n overflows
+// (k below 3/171 for the skewness, 4/171 for the kurtosis: Weibull(0.02, 1) gave NaN for a
+// finite 2.4e33), each is formed in log space as the ratio of its leading term,
+// e^{L_n − (n/2)·L2} with L_n = lgamma(1 + n/k), times the remaining terms over it, each
+// e^{(sum of L) − L_n} ≤ 1 by the log-convexity of Γ.
 double WeibullDistribution::getSkewness() const {
-    double k, sc, var;
-    withCacheSnapshot([&] {
-        k = shape_;
-        sc = scale_;
-        var = variance_;
-    });
-    const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / k));
-    const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / k));
-    const double g3 = std::exp(detail::lgamma(detail::ONE + detail::THREE / k));
+    double k;
+    withCacheSnapshot([&] { k = shape_; });
+    const double l1 = detail::lgamma(detail::ONE + detail::ONE / k);
+    const double l2 = detail::lgamma(detail::ONE + detail::TWO / k);
+    const double l3 = detail::lgamma(detail::ONE + detail::THREE / k);
+    const double g3 = std::exp(l3);
+    if (!std::isfinite(g3)) {
+        const double num = detail::ONE - detail::THREE * std::exp(l1 + l2 - l3) +
+                           detail::TWO * std::exp(detail::THREE * l1 - l3);
+        const double v = -std::expm1(detail::TWO * l1 - l2);
+        return std::exp(l3 - 1.5 * l2) * num / (v * std::sqrt(v));
+    }
+    const double g1 = std::exp(l1);
+    const double g2 = std::exp(l2);
     const double var_raw = g2 - g1 * g1;
     if (var_raw <= detail::ZERO)
         return detail::ZERO_DOUBLE;
     const double num = g3 - detail::THREE * g1 * g2 + detail::TWO * g1 * g1 * g1;
-    return sc * sc * sc * num / (var * std::sqrt(var));
+    return num / (var_raw * std::sqrt(var_raw));
 }
 
 double WeibullDistribution::getKurtosis() const {
-    double k, sc, var;
-    withCacheSnapshot([&] {
-        k = shape_;
-        sc = scale_;
-        var = variance_;
-    });
-    const double g1 = std::exp(detail::lgamma(detail::ONE + detail::ONE / k));
-    const double g2 = std::exp(detail::lgamma(detail::ONE + detail::TWO / k));
-    const double g3 = std::exp(detail::lgamma(detail::ONE + detail::THREE / k));
-    const double g4 = std::exp(detail::lgamma(detail::ONE + detail::FOUR / k));
+    double k;
+    withCacheSnapshot([&] { k = shape_; });
+    const double l1 = detail::lgamma(detail::ONE + detail::ONE / k);
+    const double l2 = detail::lgamma(detail::ONE + detail::TWO / k);
+    const double l3 = detail::lgamma(detail::ONE + detail::THREE / k);
+    const double l4 = detail::lgamma(detail::ONE + detail::FOUR / k);
+    const double g4 = std::exp(l4);
+    if (!std::isfinite(g4)) {
+        const double m4 = detail::ONE - detail::FOUR * std::exp(l3 + l1 - l4) +
+                          detail::SIX * std::exp(l2 + detail::TWO * l1 - l4) -
+                          detail::THREE * std::exp(detail::FOUR * l1 - l4);
+        const double v = -std::expm1(detail::TWO * l1 - l2);
+        return std::exp(l4 - detail::TWO * l2) * m4 / (v * v) - detail::THREE;
+    }
+    const double g1 = std::exp(l1);
+    const double g2 = std::exp(l2);
+    const double g3 = std::exp(l3);
     const double var_raw = g2 - g1 * g1;
     if (var_raw <= detail::ZERO)
         return detail::ZERO_DOUBLE;
     // Raw fourth central moment (λ-normalised) / normalised-variance² − 3
     const double m4 = (g4 - detail::FOUR * g3 * g1 + detail::SIX * g2 * g1 * g1 -
                        detail::THREE * g1 * g1 * g1 * g1);
-    return sc * sc * sc * sc * m4 / (var * var) - detail::THREE;
+    return m4 / (var_raw * var_raw) - detail::THREE;
 }
 
 //==============================================================================
@@ -268,29 +329,25 @@ VoidResult WeibullDistribution::validateCurrentParameters() const noexcept {
 //==============================================================================
 
 double WeibullDistribution::getProbability(double x) const {
-    if (x < detail::ZERO_DOUBLE)
+    if (x < detail::ZERO_DOUBLE || x == std::numeric_limits<double>::infinity())
         return detail::ZERO_DOUBLE;
 
-    double k, ls, km1, lnc, sc;
+    double k, ls, km1, lnc;
     withCacheSnapshot([&] {
         k = shape_;
         ls = logScale_;
         km1 = shapeMinus1_;
         lnc = logNormConst_;
-        sc = scale_;
     });
-    if (x == detail::ZERO_DOUBLE) {
-        if (std::abs(k - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return detail::ONE / sc;
-        return (k > detail::ONE) ? detail::ZERO_DOUBLE : std::numeric_limits<double>::infinity();
-    }
+    if (x == detail::ZERO_DOUBLE)
+        return std::exp(logDensityAtZero(km1, lnc));
     const double log_x = std::log(x);
     const double z = log_x - ls;
     return std::exp(lnc + km1 * log_x - std::exp(k * z));
 }
 
 double WeibullDistribution::getLogProbability(double x) const {
-    if (x < detail::ZERO_DOUBLE)
+    if (x < detail::ZERO_DOUBLE || x == std::numeric_limits<double>::infinity())
         return detail::NEGATIVE_INFINITY;
 
     double k, ls, km1, lnc;
@@ -300,12 +357,8 @@ double WeibullDistribution::getLogProbability(double x) const {
         km1 = shapeMinus1_;
         lnc = logNormConst_;
     });
-    if (x == detail::ZERO_DOUBLE) {
-        if (std::abs(k - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return -ls;
-        return (k > detail::ONE) ? detail::NEGATIVE_INFINITY
-                                 : std::numeric_limits<double>::infinity();
-    }
+    if (x == detail::ZERO_DOUBLE)
+        return logDensityAtZero(km1, lnc);
     const double log_x = std::log(x);
     const double z = log_x - ls;
     const double power = std::exp(k * z);
@@ -321,10 +374,26 @@ double WeibullDistribution::getCumulativeProbability(double x) const {
         k = shape_;
         ls = logScale_;
     });
-    return detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
+    return weibullCdf(x, k, ls);
+}
+
+double WeibullDistribution::getSurvival(double x) const {
+    // S(x) = exp(−(x/λ)^k), the complement weibullCdf forms with expm1 (AR A11).
+    if (std::isnan(x))
+        return x;
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+    double k, ls;
+    withCacheSnapshot([&] {
+        k = shape_;
+        ls = logScale_;
+    });
+    return std::exp(-std::exp(k * (std::log(x) - ls)));
 }
 
 double WeibullDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1] for Weibull distribution");
     }
@@ -339,7 +408,7 @@ double WeibullDistribution::getQuantile(double p) const {
         k = shape_;
     });
     // Q(p) = λ · (−log(1−p))^(1/k)
-    return sc * std::pow(-std::log(detail::ONE - p), detail::ONE / k);
+    return sc * std::pow(-std::log1p(-p), detail::ONE / k);
 }
 
 double WeibullDistribution::sample(std::mt19937& rng) const {
@@ -374,19 +443,11 @@ std::vector<double> WeibullDistribution::sample(std::mt19937& rng, size_t n) con
 
 namespace {
 
-/// Method-of-moments seed for Weibull k using coefficient-of-variation.
-/// Returns a positive estimate of k; 1.0 as fallback.
-double weibull_mom_k_init(double mean, double variance) noexcept {
-    if (mean <= detail::ZERO || variance <= detail::ZERO)
-        return detail::ONE;
-    const double cv = std::sqrt(variance) / mean;
-    double k_est;
-    if (cv < 0.2)
-        k_est = detail::ONE / (cv * cv * detail::SIX);
-    else if (cv < detail::ONE)
-        k_est = std::pow(1.2 / cv, 1.086);  // Thoman-Bain-Antle approximation
-    else
-        k_est = detail::ONE / cv;
+/// Seed for Weibull k from the spread of log x: Var[log X] = π²/(6k²), so k ≈ π/(√6·sd(log x)).
+/// Scale-free (the method-of-moments seed from Σx and Σx² under- or overflowed with the data
+/// scale, DH2 F2). Requires sd_log > 0.
+double weibull_log_k_init(double sd_log) noexcept {
+    const double k_est = detail::PI / (std::sqrt(detail::SIX) * sd_log);
     return std::max(detail::MIN_DISTRIBUTION_PARAMETER,
                     std::min(k_est, detail::MAX_DISTRIBUTION_PARAMETER));
 }
@@ -397,6 +458,11 @@ double weibull_mom_k_init(double mean, double variance) noexcept {
 ///   where E_k[log x] = Σ(xᵢ^k · log xᵢ) / Σ(xᵢ^k) and s̄ = mean(log xᵢ).
 /// Derivative: g'(k) = Var_k[log x] + 1/k² > 0 always (Newton always converges).
 /// After convergence: λ̂ = (Σxᵢ^k / n)^(1/k).
+///
+/// The score is invariant to a shift of log x (a rescaling of the data), so the caller passes
+/// log(xᵢ / max x) ≤ 0: every xᵢ^k is then in (0, 1], the largest exactly 1, and the sums cannot
+/// overflow or vanish whatever the data scale (DH2 F2). The λ̂ returned is in the same units,
+/// i.e. λ̂ / max x.
 ///
 /// @return {k, lambda} pair
 std::pair<double, double> weibull_mle_newton(const std::vector<double>& log_x,
@@ -433,12 +499,11 @@ std::pair<double, double> weibull_mle_newton(const std::vector<double>& log_x,
             break;
     }
 
-    // λ̂ = (Σxᵢ^k / n)^(1/k)
+    // λ̂ = (Σxᵢ^k / n)^(1/k); s0f ≥ 1 for the shifted logs, so the quotient is defined.
     double s0f = detail::ZERO_DOUBLE;
     for (std::size_t i = 0; i < sz; ++i)
         s0f += std::exp(k * log_x[i]);
-    const double lambda =
-        (s0f > detail::ZERO && n > detail::ZERO) ? std::exp(std::log(s0f / n) / k) : detail::ONE;
+    const double lambda = std::exp(std::log(s0f / n) / k);
     return {k, lambda};
 }
 
@@ -449,39 +514,53 @@ void WeibullDistribution::fit(const std::vector<double>& values) {
         throw std::invalid_argument("Cannot fit distribution to empty data");
     }
 
-    std::vector<double> log_x, log_x2;
+    // Everything is formed on log(x / max x) (DH2 F2): the profile score is shift-invariant in
+    // log x, so the fit is invariant to the data scale across the finite range, and λ̂ is
+    // restored as max x · λ̂'. The seed comes from the spread of log x.
+    std::vector<double> log_x;
     log_x.reserve(values.size());
-    log_x2.reserve(values.size());
-
-    double sum = detail::ZERO_DOUBLE;
-    double sum_sq = detail::ZERO_DOUBLE;
-    double sum_log = detail::ZERO_DOUBLE;
-    std::size_t count = 0;
-
+    double x_max = detail::ZERO_DOUBLE;
     for (double v : values) {
         if (v <= detail::ZERO_DOUBLE || !std::isfinite(v)) {
             throw std::invalid_argument(
                 "Weibull distribution requires strictly positive finite values");
         }
-        ++count;
-        sum += v;
-        sum_sq += v * v;
-        const double l = std::log(v);
+        log_x.push_back(std::log(v));
+        x_max = std::max(x_max, v);
+    }
+    const double log_max = std::log(x_max);
+
+    const double n = static_cast<double>(log_x.size());
+    double sum_log = detail::ZERO_DOUBLE;
+    for (double& l : log_x) {
+        l -= log_max;
         sum_log += l;
-        log_x.push_back(l);
+    }
+    const double s_bar = sum_log / n;
+    std::vector<double> log_x2;
+    log_x2.reserve(log_x.size());
+    double ss_log = detail::ZERO_DOUBLE;
+    for (const double l : log_x) {
         log_x2.push_back(l * l);
+        ss_log += (l - s_bar) * (l - s_bar);
+    }
+    const double sd_log = std::sqrt(ss_log / n);
+    if (!(sd_log > detail::ZERO_DOUBLE)) {
+        // Every value equal: the shape is unbounded above and the likelihood has no maximum.
+        // An exception, not a default (the #207 class).
+        throw std::invalid_argument(
+            "Weibull fit requires at least two distinct values: the shape is undefined for "
+            "constant data");
     }
 
-    const double n = static_cast<double>(count);
-    const double mean = sum / n;
-    const double var = sum_sq / n - mean * mean;
-    const double s_bar = sum_log / n;
-    const double k_init = weibull_mom_k_init(mean, var);
+    const auto [k, lambda_scaled] =
+        weibull_mle_newton(log_x, log_x2, n, s_bar, weibull_log_k_init(sd_log));
+    const double lambda = lambda_scaled * x_max;  // λ̂' · max x
 
-    const auto [k, lambda] = weibull_mle_newton(log_x, log_x2, n, s_bar, k_init);
-
-    if (std::isfinite(k) && std::isfinite(lambda) && k > detail::ZERO && lambda > detail::ZERO &&
-        k < detail::MAX_DISTRIBUTION_PARAMETER && lambda < detail::MAX_DISTRIBUTION_PARAMETER) {
+    // λ̂ is positive and finite wherever the data are: no magnitude bound on it (detail::ZERO,
+    // 1e-30, rejected every fit at a scale below it).
+    if (std::isfinite(k) && std::isfinite(lambda) && k > detail::ZERO_DOUBLE &&
+        lambda > detail::ZERO_DOUBLE && k < detail::MAX_DISTRIBUTION_PARAMETER) {
         setParameters(k, lambda);
     } else {
         throw std::runtime_error("Weibull MLE did not converge to a valid estimate");
@@ -506,7 +585,7 @@ void WeibullDistribution::reset() noexcept {
 std::string WeibullDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "WeibullDistribution(shape=" << shape_ << ",scale=" << scale_ << ")";
     return oss.str();
 }
@@ -593,33 +672,19 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                 km1 = d.shapeMinus1_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-                    const double log_x = std::log(x);
-                    const double z = log_x - ls;
-                    res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k,
+                                                    ls, km1, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-                    const double log_x = std::log(x);
-                    const double z = log_x - ls;
-                    res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
-                }
-            }
         },
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double k, ls, km1, lnc;
             d.withCacheSnapshot([&] {
                 k = d.shape_;
@@ -627,17 +692,10 @@ void WeibullDistribution::getProbability(std::span<const double> values, std::sp
                 km1 = d.shapeMinus1_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-                const double log_x = std::log(x);
-                const double z = log_x - ls;
-                res[i] = std::exp(lnc + km1 * log_x - std::exp(k * z));
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k, ls,
+                                                km1, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -670,33 +728,19 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                 km1 = d.shapeMinus1_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                        return;
-                    }
-                    const double log_x = std::log(x);
-                    const double z = log_x - ls;
-                    res[i] = lnc + km1 * log_x - std::exp(k * z);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       k, ls, km1, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x <= detail::ZERO_DOUBLE) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                        continue;
-                    }
-                    const double log_x = std::log(x);
-                    const double z = log_x - ls;
-                    res[i] = lnc + km1 * log_x - std::exp(k * z);
-                }
-            }
         },
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double k, ls, km1, lnc;
             d.withCacheSnapshot([&] {
                 k = d.shape_;
@@ -704,17 +748,10 @@ void WeibullDistribution::getLogProbability(std::span<const double> values,
                 km1 = d.shapeMinus1_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= detail::ZERO_DOUBLE) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                    return;
-                }
-                const double log_x = std::log(x);
-                const double z = log_x - ls;
-                res[i] = lnc + km1 * log_x - std::exp(k * z);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, k,
+                                                   ls, km1, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -743,37 +780,28 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
                 ls = d.logScale_;
                 k = d.shape_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, ls, k);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
-                }
-            }
         },
         [](const WeibullDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double ls, k;
             d.withCacheSnapshot([&] {
                 ls = d.logScale_;
                 k = d.shape_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE)
-                             ? detail::ZERO_DOUBLE
-                             : detail::ONE - std::exp(-std::exp(k * (std::log(x) - ls)));
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, ls, k);
             });
-            pool.waitForAll();
         });
 }
 
@@ -786,6 +814,9 @@ void WeibullDistribution::getCumulativeProbability(std::span<const double> value
 //==============================================================================
 
 bool WeibullDistribution::operator==(const WeibullDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
@@ -822,8 +853,8 @@ std::istream& operator>>(std::istream& is, WeibullDistribution& d) {
         return is;
     }
     try {
-        const double sh = std::stod(token.substr(sh_pos + 6, comma - sh_pos - 6));
-        const double sc = std::stod(token.substr(sc_pos + 6, close - sc_pos - 6));
+        const double sh = detail::parse_double(token.substr(sh_pos + 6, comma - sh_pos - 6));
+        const double sc = detail::parse_double(token.substr(sc_pos + 6, close - sc_pos - 6));
         auto result = d.trySetParameters(sh, sc);
         if (result.isError())
             is.setstate(std::ios::failbit);
@@ -851,15 +882,14 @@ std::istream& operator>>(std::istream& is, WeibullDistribution& d) {
 //
 // PDF: append vector_exp.
 //
-// CDF (8 steps, no temp buffer):
+// CDF (7 steps, no temp buffer):
 //   results = log(x)                      [vector_log]
 //   results = log(x/λ)                    [scalar_add(−logScale_)]
 //   results = k·log(x/λ)                  [scalar_multiply(k_)]
 //   results = (x/λ)^k                     [vector_exp]
 //   results = −(x/λ)^k                   [scalar_multiply(−1)]
-//   results = exp(−(x/λ)^k)              [vector_exp]
-//   results = −exp(...)                   [scalar_multiply(−1)]
-//   results = 1 − exp(−(x/λ)^k)          [scalar_add(1)]
+//   results = expm1(−(x/λ)^k)            [vector_expm1]
+//   results = 1 − exp(−(x/λ)^k)          [scalar_multiply(−1)]
 //==============================================================================
 
 void WeibullDistribution::getProbabilityBatchUnsafeImpl(
@@ -871,8 +901,9 @@ void WeibullDistribution::getProbabilityBatchUnsafeImpl(
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x <= detail::ZERO_DOUBLE) {
-                results[i] = detail::ZERO_DOUBLE;
+            if (outsideDensity(x)) {
+                results[i] =
+                    std::exp(edgeLogDensity(x, cached_shape_minus1, cached_log_norm_const));
                 continue;
             }
             const double lx = std::log(x);
@@ -904,10 +935,11 @@ void WeibullDistribution::getProbabilityBatchUnsafeImpl(
     // PDF: exponentiate
     arch::simd::VectorOps::vector_exp(results, results, count);
 
-    // Fixup: x <= 0 is outside support; PDF = 0.
+    // Fixup: x < 0 and +inf → 0; x = 0 → the limit by shape (#161, #164).
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE)
-            results[i] = detail::ZERO_DOUBLE;
+        if (outsideDensity(values[i]))
+            results[i] =
+                std::exp(edgeLogDensity(values[i], cached_shape_minus1, cached_log_norm_const));
     }
 }
 
@@ -920,8 +952,8 @@ void WeibullDistribution::getLogProbabilityBatchUnsafeImpl(
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x <= detail::ZERO_DOUBLE) {
-                results[i] = detail::NEGATIVE_INFINITY;
+            if (outsideDensity(x)) {
+                results[i] = edgeLogDensity(x, cached_shape_minus1, cached_log_norm_const);
                 continue;
             }
             const double lx = std::log(x);
@@ -951,10 +983,10 @@ void WeibullDistribution::getLogProbabilityBatchUnsafeImpl(
     // Step 8: results += logNormConst_
     arch::simd::VectorOps::scalar_add(results, cached_log_norm_const, results, count);
 
-    // Fixup: x <= 0 is outside support; LogPDF = −∞.
+    // Fixup: x < 0 and +inf → −∞; x = 0 → the limit by shape (#161, #164).
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE)
-            results[i] = detail::NEGATIVE_INFINITY;
+        if (outsideDensity(values[i]))
+            results[i] = edgeLogDensity(values[i], cached_shape_minus1, cached_log_norm_const);
     }
 }
 
@@ -970,8 +1002,7 @@ void WeibullDistribution::getCumulativeProbabilityBatchUnsafeImpl(
                 results[i] = detail::ZERO_DOUBLE;
                 continue;
             }
-            results[i] =
-                detail::ONE - std::exp(-std::exp(cached_shape * (std::log(x) - cached_log_scale)));
+            results[i] = weibullCdf(x, cached_shape, cached_log_scale);
         }
         return;
     }
@@ -986,12 +1017,10 @@ void WeibullDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     arch::simd::VectorOps::vector_exp(results, results, count);
     // Step 5: results = −(x/λ)^k
     arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
-    // Step 6: results = exp(−(x/λ)^k)
-    arch::simd::VectorOps::vector_exp(results, results, count);
-    // Step 7: results = −exp(−(x/λ)^k)
+    // Step 6: results = expm1(−(x/λ)^k), without the cancellation of 1 − exp in the lower tail
+    arch::simd::VectorOps::vector_expm1(results, results, count);
+    // Step 7: results = −expm1(−(x/λ)^k) = 1 − exp(−(x/λ)^k)
     arch::simd::VectorOps::scalar_multiply(results, detail::NEG_ONE, results, count);
-    // Step 8: results = 1 − exp(−(x/λ)^k)
-    arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
 
     // Fixup: x <= 0 is outside support; CDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
@@ -1011,13 +1040,28 @@ void WeibullDistribution::updateCacheUnsafe() const noexcept {
     // logNormConst = log(k) − k·log(λ) = logShape_ − shape_·logScale_
     logNormConst_ = logShape_ - shape_ * logScale_;
 
-    // Mean: λ·Γ(1 + 1/k)
-    const double g1 = std::exp(std::lgamma(detail::ONE + detail::ONE / shape_));
-    mean_ = scale_ * g1;
+    // Mean: λ·Γ(1 + 1/k). Γ overflows from 1/k = 171 while λ·Γ need not (DH3: Weibull(0.003,
+    // 1e-100) gave +inf), so there the product is taken in log space.
+    const double l1 = detail::lgamma(detail::ONE + detail::ONE / shape_);
+    const double g1 = std::exp(l1);
+    mean_ = std::isfinite(g1) ? scale_ * g1 : std::exp(logScale_ + l1);
 
-    // Variance: λ²·[Γ(1 + 2/k) − Γ(1 + 1/k)²]
-    const double g2 = std::exp(std::lgamma(detail::ONE + detail::TWO / shape_));
-    variance_ = scale_ * scale_ * (g2 - g1 * g1);
+    // Variance: λ²·[Γ(1 + 2/k) − Γ(1 + 1/k)²]. Where Γ(1 + 2/k) overflows (k < 0.0117) the
+    // difference was inf − inf = NaN (DH3); it is then λ²·Γ(1 + 2/k)·(1 − Γ(1 + 1/k)²/Γ(1 + 2/k)),
+    // in log space, the ratio e^{2·L1 − L2} ≤ 1. λ² over- or underflows where the variance need
+    // not (λ = 1e-170), so the scale enters as λ·(λ·v) there.
+    const double l2 = detail::lgamma(detail::ONE + detail::TWO / shape_);
+    const double g2 = std::exp(l2);
+    if (std::isfinite(g2)) {
+        const double v = g2 - g1 * g1;
+        const double scale_sq = scale_ * scale_;
+        variance_ = (std::isfinite(scale_sq) && scale_sq >= std::numeric_limits<double>::min())
+                        ? scale_sq * v
+                        : scale_ * (scale_ * v);
+    } else {
+        variance_ =
+            std::exp(detail::TWO * logScale_ + l2 + std::log(-std::expm1(detail::TWO * l1 - l2)));
+    }
 
     isExponential_ = (std::fabs(shape_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
 

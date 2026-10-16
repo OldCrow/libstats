@@ -82,9 +82,8 @@ TEST_F(HalfNormalEnhancedTest, PDFAccuracyVsMpmath) {
     const struct {
         double x, ref;
     } rows[] = {
-        {0.1, 0.79390509495402353},   {0.5, 0.70413065352859896},
-        {1.0, 0.48394144903828670},   {2.0, 0.10798193302637610},
-        {3.0, 0.0088636968238760144}, {5.0, 2.9734390294685954e-6},
+        {0.1, 0.79390509495402353},    {0.5, 0.70413065352859896},   {1.0, 0.48394144903828670},
+        {2.0, 0.10798193302637610},    {3.0, 0.0088636968238760144}, {5.0, 2.9734390294685954e-6},
         {8.0, 1.0104542167073785e-14},
     };
     for (const auto& r : rows) {
@@ -160,12 +159,12 @@ TEST_F(HalfNormalEnhancedTest, InfinityLimitsScalarAndBatch) {
     h1_.getLogProbability(std::span<const double>(xs), std::span<double>(lpdf_b), vec_hint);
     h1_.getCumulativeProbability(std::span<const double>(xs), std::span<double>(cdf_b), vec_hint);
 
-    EXPECT_EQ(pdf_b[0], 0.0);    // pdf(-inf)
-    EXPECT_EQ(pdf_b[1], 0.0);    // pdf(+inf)
-    EXPECT_EQ(lpdf_b[0], -kInf); // logpdf(-inf)
-    EXPECT_EQ(lpdf_b[1], -kInf); // logpdf(+inf)
-    EXPECT_EQ(cdf_b[0], 0.0);    // cdf(-inf)
-    EXPECT_EQ(cdf_b[1], 1.0);    // cdf(+inf)
+    EXPECT_EQ(pdf_b[0], 0.0);     // pdf(-inf)
+    EXPECT_EQ(pdf_b[1], 0.0);     // pdf(+inf)
+    EXPECT_EQ(lpdf_b[0], -kInf);  // logpdf(-inf)
+    EXPECT_EQ(lpdf_b[1], -kInf);  // logpdf(+inf)
+    EXPECT_EQ(cdf_b[0], 0.0);     // cdf(-inf)
+    EXPECT_EQ(cdf_b[1], 1.0);     // cdf(+inf)
 
     // batch ≡ scalar on every lane (exact for the specials; finite lanes
     // may differ by the documented vector-kernel ulp band)
@@ -200,8 +199,8 @@ TEST_F(HalfNormalEnhancedTest, NaNPropagationScalarAndBatch) {
 
 TEST_F(HalfNormalEnhancedTest, QuantileNeverNaNInOpenInterval) {
     // (c) #104: finite, non-NaN, non-negative for every p in (0,1)
-    const double ps[] = {1e-300, 1e-100, 1e-16, 1e-10, 0.01, 0.5,
-                         0.99,   1.0 - 1e-10, 1.0 - 1e-14, 0.9999999999999999};
+    const double ps[] = {1e-300, 1e-100, 1e-16,       1e-10,       0.01,
+                         0.5,    0.99,   1.0 - 1e-10, 1.0 - 1e-14, 0.9999999999999999};
     for (double p : ps) {
         const double q = h1_.getQuantile(p);
         EXPECT_FALSE(std::isnan(q)) << "quantile(" << p << ") is NaN";
@@ -224,15 +223,12 @@ TEST_F(HalfNormalEnhancedTest, QuantileNeverNaNInOpenInterval) {
 TEST_F(HalfNormalEnhancedTest, BatchSizeMismatchThrows) {
     // (d) all three overloads throw on size mismatch
     std::vector<double> in(8), out(7);
-    EXPECT_THROW(
-        h1_.getProbability(std::span<const double>(in), std::span<double>(out)),
-        std::invalid_argument);
-    EXPECT_THROW(
-        h1_.getLogProbability(std::span<const double>(in), std::span<double>(out)),
-        std::invalid_argument);
-    EXPECT_THROW(
-        h1_.getCumulativeProbability(std::span<const double>(in), std::span<double>(out)),
-        std::invalid_argument);
+    EXPECT_THROW(h1_.getProbability(std::span<const double>(in), std::span<double>(out)),
+                 std::invalid_argument);
+    EXPECT_THROW(h1_.getLogProbability(std::span<const double>(in), std::span<double>(out)),
+                 std::invalid_argument);
+    EXPECT_THROW(h1_.getCumulativeProbability(std::span<const double>(in), std::span<double>(out)),
+                 std::invalid_argument);
 }
 
 //==============================================================================

@@ -85,7 +85,8 @@ class GaussianDistribution : public DistributionBase {
      * @brief Constructs a Gaussian distribution with given parameters.
      *
      * @param mean Mean parameter μ (any finite value)
-     * @param standardDeviation Standard deviation parameter σ (must be positive)
+     * @param standardDeviation Standard deviation σ (in [√DBL_MIN, 1e10]: MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION)
      * @throws std::invalid_argument if parameters are invalid
      *
      * Implementation in .cpp: Complex validation and cache initialization logic
@@ -144,7 +145,8 @@ class GaussianDistribution : public DistributionBase {
      * See `error_handling.h` for the Result<T> design rationale.
      *
      * @param mean Mean parameter μ (any finite value)
-     * @param standardDeviation Standard deviation parameter σ (must be positive)
+     * @param standardDeviation Standard deviation σ (in [√DBL_MIN, 1e10]: MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION)
      * @return Result containing either a valid GaussianDistribution or error info
      *
      * @par Usage Example:
@@ -245,8 +247,9 @@ class GaussianDistribution : public DistributionBase {
      * @brief Sets the standard deviation parameter σ (exception-based API).
      * Thread-safe: validates first, then locks and sets
      *
-     * @param stdDev New standard deviation parameter (must be positive)
-     * @throws std::invalid_argument if stdDev <= 0 or is not finite
+     * @param stdDev New standard deviation (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
+     * @throws std::invalid_argument if stdDev is outside [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      */
     void setStandardDeviation(double stdDev);
 
@@ -346,7 +349,7 @@ class GaussianDistribution : public DistributionBase {
      * @brief Safely set the standard deviation parameter σ without throwing exceptions
      * (Result-based API). Thread-safe: validates first, then locks and sets
      *
-     * @param stdDev New standard deviation parameter (must be positive)
+     * @param stdDev New standard deviation (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
      * @return VoidResult indicating success or failure
      */
     [[nodiscard]] VoidResult trySetStandardDeviation(double stdDev) noexcept;
@@ -356,7 +359,8 @@ class GaussianDistribution : public DistributionBase {
      * API). Thread-safe: validates first, then locks and sets both parameters atomically
      *
      * @param mean New mean parameter (any finite value)
-     * @param standardDeviation New standard deviation parameter (must be positive)
+     * @param standardDeviation New standard deviation (in [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION])
      * @return VoidResult indicating success or failure
      */
     [[nodiscard]] VoidResult trySetParameters(double mean, double standardDeviation) noexcept;
@@ -402,8 +406,17 @@ class GaussianDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = 1 − F(x), formed as the complement itself (AR A11), so it keeps full
+     * relative precision in the upper tail, where 1 − F(x) cancels to 0, and getHazard stays
+     * finite inside the support.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
-     * Uses inverse error function for accurate quantile calculation
+     * Uses detail::inverse_normal_cdf, which solves the tails on the survival side
+     * (inv_survival_normal), so the quantile is finite for every p in (0, 1) and accurate
+     * deep into both tails
      *
      * @param p Probability value in [0,1]
      * @return x such that P(X ≤ x) = p
@@ -689,12 +702,12 @@ class GaussianDistribution : public DistributionBase {
      * Updates cached values when parameters change - assumes mutex is already held
      * Marked inline for performance optimization
      */
-    inline void updateCacheUnsafe() const noexcept override;
+    void updateCacheUnsafe() const noexcept override;
 
     /**
      * Validates parameters for the Gaussian distribution
      * @param mean Mean parameter (any finite value)
-     * @param stdDev Standard deviation parameter (must be positive and finite)
+     * @param stdDev Standard deviation parameter (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
      * @throws std::invalid_argument if parameters are invalid
      */
     static void validateParameters(double mean, double stdDev);
@@ -713,7 +726,7 @@ class GaussianDistribution : public DistributionBase {
     /** @brief Mean parameter μ - can be any finite real number */
     double mean_{detail::ZERO_DOUBLE};
 
-    /** @brief Standard deviation parameter σ - must be positive */
+    /** @brief σ in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION]: −1/(2σ²) is cached */
     double standardDeviation_{detail::ONE};
 
     /** @brief C++20 atomic copies of parameters for lock-free access */

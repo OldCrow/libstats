@@ -163,7 +163,7 @@ inline constexpr std::size_t MIN_TOTAL_WORK_FOR_MONTE_CARLO_PARALLEL = 10000;
 
 /// Runtime adaptive parallel optimization functions (forward declarations)
 /// These provide CPU feature-based optimization for parallel processing
-/// Implementation is in platform_constants_impl.cpp for PIMPL optimization
+/// Implementation is out-of-line in platform_constants_impl.cpp to keep the header light
 
 /// Get platform-optimized minimum elements for parallel processing
 std::size_t get_min_elements_for_parallel();

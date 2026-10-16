@@ -62,7 +62,7 @@ std::tuple<double, double, bool> runsTest(const std::vector<double>& data, doubl
             "Zero variance: all values have the same sign relative to the median");
 
     const double z = (static_cast<double>(runs) - mu_r) / std::sqrt(var_r);
-    const double p_value = 2.0 * (1.0 - detail::normal_cdf(std::abs(z)));
+    const double p_value = 2.0 * detail::normal_cdf(-std::abs(z));
 
     return {z, p_value, p_value < alpha};
 }

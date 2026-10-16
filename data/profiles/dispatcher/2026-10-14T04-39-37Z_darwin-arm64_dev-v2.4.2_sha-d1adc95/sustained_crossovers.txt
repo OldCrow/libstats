@@ -1,0 +1,84 @@
+Distribution      Op            run1      run2      run3  candidate  encoded    match     note
+Bernoulli         PDF            512      1024      1024       1024  NEVER      DIFF      override?
+Bernoulli         LogPDF        4096      6144      6144       6144  NEVER      DIFF      override?
+Bernoulli         CDF           2048       512      6144       6144  NEVER      DIFF      override?
+Beta              PDF           8192     10000      8192       8192  NEVER      DIFF      override?
+Beta              LogPDF        8192     10000     10000      10000  NEVER      DIFF      override?
+Beta              CDF           2048      2048      2048       2048  4096       ok        override?
+Binomial          PDF           2048       256      2048       2048  NEVER      DIFF      override?
+Binomial          LogPDF         512      2048      2048       2048  NEVER      DIFF      override?
+Binomial          CDF           1024       256      2048       2048  NEVER      DIFF      override?
+Cauchy            PDF         100000     75000    100000     100000  25000      DIFF      override?
+Cauchy            LogPDF       50000     75000     25000      75000  50000      ok        override?
+Cauchy            CDF           8192      6144      8192       8192  25000      DIFF      override?
+ChiSquared        PDF          10000     25000     10000      25000  512        DIFF
+ChiSquared        LogPDF       50000     50000     25000      50000  128        DIFF
+ChiSquared        CDF            512      2048       128       2048  64         DIFF
+Discrete          PDF         150000    200000    200000     200000  50000      DIFF      override?
+Discrete          LogPDF      200000    200000    200000     200000  50000      DIFF      override?
+Discrete          CDF          75000     75000     75000      75000  1000000    DIFF      override?
+Erlang            PDF          25000     50000     50000      50000  50000      ok        override?
+Erlang            LogPDF       75000     50000     50000      50000  75000      ok        override?
+Erlang            CDF           2048      1024      1024       1024  4096       DIFF      override?
+Exponential       PDF          75000     75000     75000      75000  25000      DIFF
+Exponential       LogPDF      200000    150000    200000     200000  64         DIFF
+Exponential       CDF           8192      8192      8192       8192  25000      DIFF
+FisherF           PDF           2048       128       256       2048  8192       DIFF      override?
+FisherF           LogPDF         256       128       256        256  10000      DIFF      override?
+FisherF           CDF           2048      2048      1024       2048  2048       ok        override?
+Gamma             PDF          25000     25000     25000      25000  50000      ok        override?
+Gamma             LogPDF       25000     50000     25000      25000  75000      DIFF      override?
+Gamma             CDF           1024        64      2048       2048  4096       ok        floor-run override?
+Gaussian          PDF          75000     75000    100000      75000  50000      ok
+Gaussian          LogPDF      200000    200000    200000     200000  64         DIFF
+Gaussian          CDF          10000     10000      8192      10000  NEVER      DIFF
+Geometric         PDF           1024      2048      2048       2048  NEVER      DIFF      override?
+Geometric         LogPDF         128       256      2048       2048  NEVER      DIFF      override?
+Geometric         CDF            512      4096      4096       4096  NEVER      DIFF      override?
+Gumbel            PDF          25000     25000     25000      25000  75000      DIFF
+Gumbel            LogPDF       75000     25000     50000      75000  50000      ok
+Gumbel            CDF          25000     25000     25000      25000  50000      ok
+HalfNormal        PDF          75000     75000     75000      75000  100000     ok        override?
+HalfNormal        LogPDF      100000    150000    150000     150000  200000     ok        override?
+HalfNormal        CDF          75000     75000     75000      75000  NEVER      DIFF      override?
+InverseGamma      PDF          50000     25000     50000      50000  50000      ok        override?
+InverseGamma      LogPDF       25000     50000     25000      25000  75000      DIFF      override?
+InverseGamma      CDF           2048      2048       512       2048  2048       ok        override?
+Laplace           PDF          75000     75000     10000      75000  50000      ok        override?
+Laplace           LogPDF      100000    100000    100000     100000  64         DIFF      override?
+Laplace           CDF           8192      6144      6144       6144  256        DIFF      override?
+LogNormal         PDF          25000     25000     10000      25000  50000      ok        override?
+LogNormal         LogPDF       25000     50000     25000      25000  50000      ok        override?
+LogNormal         CDF          10000     10000     10000      10000  25000      ok        override?
+Logistic          PDF          25000      8192      8192      25000  50000      ok
+Logistic          LogPDF       25000     10000     25000      25000  50000      ok
+Logistic          CDF          50000     50000     25000      50000  50000      ok
+NegBinomial       PDF           1024      2048       512       2048  ?          n/a       not in table
+NegBinomial       LogPDF        1024      2048      2048       2048  ?          n/a       not in table
+NegBinomial       CDF           1024      2048       128       2048  ?          n/a       not in table
+Pareto            PDF          50000     75000     50000      50000  75000      ok
+Pareto            LogPDF       75000     50000     75000      75000  50000      ok
+Pareto            CDF           6144     10000      8192       8192  50000      DIFF
+Poisson           PDF           4096      4096      1024       4096  4096       ok
+Poisson           LogPDF        1024      1024      2048       1024  256        DIFF
+Poisson           CDF           2048       512      1024       2048  256        DIFF
+Rayleigh          PDF          25000     10000     25000      25000  20000      ok        override?
+Rayleigh          LogPDF        8192     10000     25000      25000  25000      ok        override?
+Rayleigh          CDF          10000      8192      8192       8192  25000      DIFF      override?
+StudentT          PDF          10000     50000     25000      50000  50000      ok
+StudentT          LogPDF       10000     50000     25000      50000  25000      ok
+StudentT          CDF           2048      2048      2048       2048  64         DIFF
+TruncatedNormal   PDF          50000     75000     50000      50000  50000      ok
+TruncatedNormal   LogPDF       75000     50000     75000      75000  75000      ok
+TruncatedNormal   CDF           4096      4096      4096       4096  25000      DIFF
+Uniform           PDF         500000     NEVER    500000      NEVER  NEVER      ok
+Uniform           LogPDF      500000    500000    500000     500000  NEVER      DIFF
+Uniform           CDF          25000     25000     25000      25000  64         DIFF
+VonMises          PDF           8192     25000     25000      25000  100000     DIFF      override?
+VonMises          LogPDF       25000     25000     25000      25000  500000     DIFF      override?
+VonMises          CDF           2048      2048      2048       2048  NEVER      DIFF      override?
+Weibull           PDF          10000     10000     10000      10000  25000      ok
+Weibull           LogPDF        8192     25000     25000      25000  50000      ok
+Weibull           CDF           8192      8192      8192       8192  50000      DIFF
+
+rows: ok=33 DIFF=45 (DIFF with table comment=28, without=17; ok with comment=17)

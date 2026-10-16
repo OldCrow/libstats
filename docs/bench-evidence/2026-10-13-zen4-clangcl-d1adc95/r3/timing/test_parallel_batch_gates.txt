@@ -1,0 +1,19 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ParallelBatchGates
+[ RUN      ] ParallelBatchGates.ParallelBeatsVectorizedAtOneMillion
+  Bernoulli(0.3) pmf: PARALLEL/VECTORIZED 0.246981 (2.8263 / 11.4434 ms)
+  Binomial(100, 0.3) pmf: PARALLEL/VECTORIZED 0.240119 (13.6014 / 56.6443 ms)
+  Binomial(100, 0.3) cdf: PARALLEL/VECTORIZED 0.234856 (26.6502 / 113.475 ms)
+  Geometric(0.3) pmf: PARALLEL/VECTORIZED 0.243196 (24.3485 / 100.119 ms)
+  NegativeBinomial(5, 0.3) logpmf: PARALLEL/VECTORIZED 0.236664 (23.1926 / 97.998 ms)
+  NegativeBinomial(5, 0.3) cdf: PARALLEL/VECTORIZED 0.243233 (33.4859 / 137.67 ms)
+  VonMises(0, 2) cdf: PARALLEL/VECTORIZED 0.260275 (30.0096 / 115.299 ms)
+  StudentT(5) cdf: PARALLEL/VECTORIZED 0.251637 (17.4325 / 69.2764 ms)
+[       OK ] ParallelBatchGates.ParallelBeatsVectorizedAtOneMillion (5410 ms)
+[----------] 1 test from ParallelBatchGates (5411 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (5412 ms total)
+[  PASSED  ] 1 test.

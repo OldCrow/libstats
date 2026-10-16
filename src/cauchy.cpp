@@ -1,10 +1,6 @@
 #include "libstats/distributions/cauchy.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
@@ -12,6 +8,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -30,9 +27,9 @@ static double requireFiniteX0(double x0) {
     return x0;
 }
 static double requirePositiveGamma(double gamma) {
-    if (std::isnan(gamma) || std::isinf(gamma) || gamma <= 0.0) {
-        throw std::invalid_argument("Scale parameter gamma must be a positive finite number");
-    }
+    auto v = validateCauchyParameters(detail::ZERO_DOUBLE, gamma);
+    if (v.isError())
+        throw std::invalid_argument(v.message());
     return gamma;
 }
 
@@ -85,6 +82,11 @@ CauchyDistribution::CauchyDistribution(CauchyDistribution&& other) noexcept
 
 CauchyDistribution& CauchyDistribution::operator=(CauchyDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         x0_ = other.x0_;
         gamma_ = other.gamma_;
         inv_gamma_ = other.inv_gamma_;
@@ -120,8 +122,8 @@ CauchyDistribution::CauchyDistribution(double x0, double gamma, bool /*bypassVal
 //==============================================================================
 
 void CauchyDistribution::setX0(double x0) {
-    validateParameters(x0, gamma_);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(x0, gamma_);
     x0_ = x0;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -130,8 +132,8 @@ void CauchyDistribution::setX0(double x0) {
 }
 
 void CauchyDistribution::setGamma(double gamma) {
-    validateParameters(x0_, gamma);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(x0_, gamma);
     gamma_ = gamma;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -155,10 +157,10 @@ void CauchyDistribution::setParameters(double x0, double gamma) {
 //==============================================================================
 
 VoidResult CauchyDistribution::trySetX0(double x0) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateCauchyParameters(x0, gamma_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     x0_ = x0;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -168,10 +170,10 @@ VoidResult CauchyDistribution::trySetX0(double x0) noexcept {
 }
 
 VoidResult CauchyDistribution::trySetGamma(double gamma) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateCauchyParameters(x0_, gamma);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     gamma_ = gamma;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -219,19 +221,71 @@ namespace {
         return std::atan(-detail::ONE / z) * detail::INV_PI;
     return detail::HALF + std::atan(z) * detail::INV_PI;
 }
+
+// Cauchy density on z = (x − x₀)/γ with c = 1/(πγ): c/(1 + z²), and (c/|z|)/|z| once z² nears
+// overflow. Every intermediate stays a normal double down to a subnormal density, which is
+// rounded once. The Student-t(1) delegate formed exp(ln c' − log1p(z²)) and then scaled by
+// 1/γ: a density below DBL_MIN·γ passed through a subnormal intermediate and lost its low bits
+// (Cauchy(0, 1e-6) at x = −3.18e153: 3.141763e-314 for 3.141593e-314, 5.4e-5 relative), and
+// the exponential carried |ln f|·ε relative error everywhere.
+[[nodiscard]] inline double cauchy_pdf_standardized(double z, double c) noexcept {
+    const double az = std::fabs(z);
+    if (az > 1e150)
+        return (c / az) / az;
+    return c / (detail::ONE + z * z);
+}
+
+// z = (x − x₀)·(1/γ). Where x − x₀ overflows (a finite x and x₀ of opposite sign near ±DBL_MAX)
+// the halves are differenced, exact there, so that a z within range keeps its value
+// (Cauchy(−1e308, 1e308) at 1e308: z = 2, which read +inf and gave a density of 0 and a CDF of 1).
+[[nodiscard]] inline double cauchy_standardize(double x, double x0, double ig) noexcept {
+    const double d = x - x0;
+    if (std::isfinite(d) || !std::isfinite(x))
+        return d * ig;
+    return (detail::HALF * x - detail::HALF * x0) * ig * detail::TWO;
+}
+
+// Past z's overflow (a finite x with |x − x₀| > DBL_MAX·γ, which needs γ < 1) the density is
+// γ/(π·d²) to a relative 1/z² < 1e-616, d = x − x₀; it read 0, and the log density −inf
+// (Cauchy(0, 1e-300) at 1e10: 3.18e-321 and −737.8). With γ ≥ DBL_MIN it is below 4.5e-310,
+// subnormal, so it is formed scaled by 2^1000, where every intermediate is normal wherever the
+// result is not 0, and rounded once by the final ldexp. Where d overflows as well the density is
+// below 1/(π·DBL_MAX²) = 0.
+constexpr int kCauchyDensityScale = 1000;
+
+[[nodiscard]] double cauchy_pdf_past_overflow(double x, double x0, double gamma) noexcept {
+    const double ad = std::fabs(x - x0);
+    if (!std::isfinite(ad))
+        return detail::ZERO_DOUBLE;
+    const double q = std::ldexp(gamma, kCauchyDensityScale) / ad;
+    return std::ldexp(detail::INV_PI * q / ad, -kCauchyDensityScale);
+}
+
+// The log density there: −log π + log γ − 2·log|d|, with log|d| from the halves where d itself
+// overflows. The dropped −log1p(1/z²) is below 1e-616.
+[[nodiscard]] double cauchy_log_pdf_past_overflow(double x, double x0, double log_gamma) noexcept {
+    const double ad = std::fabs(x - x0);
+    const double log_d =
+        std::isfinite(ad) ? std::log(ad)
+                          : std::log(std::fabs(detail::HALF * x - detail::HALF * x0)) + detail::LN2;
+    return log_gamma - detail::LN_PI - detail::TWO * log_d;
+}
 }  // namespace
 
 double CauchyDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
 
-    double x0, ig;
+    double x0, ig, g;
     withCacheSnapshot([&] {
         x0 = x0_;
         ig = inv_gamma_;
+        g = gamma_;
     });
-    const double z = (x - x0) * ig;
-    return student_t_.getProbability(z) * ig;
+    const double z = cauchy_standardize(x, x0, ig);
+    if (!std::isfinite(z) && std::isfinite(x))
+        return cauchy_pdf_past_overflow(x, x0, g);
+    return cauchy_pdf_standardized(z, ig * detail::INV_PI);
 }
 
 double CauchyDistribution::getLogProbability(double x) const {
@@ -244,7 +298,9 @@ double CauchyDistribution::getLogProbability(double x) const {
         ig = inv_gamma_;
         lg = log_gamma_;
     });
-    const double z = (x - x0) * ig;
+    const double z = cauchy_standardize(x, x0, ig);
+    if (!std::isfinite(z) && std::isfinite(x))
+        return cauchy_log_pdf_past_overflow(x, x0, lg);
     return student_t_.getLogProbability(z) - lg;
 }
 
@@ -259,10 +315,26 @@ double CauchyDistribution::getCumulativeProbability(double x) const {
     });
     // Closed form — one atan, no delegation. Previously routed through
     // StudentT(1)'s regularized incomplete-beta path (#48).
-    return cauchy_cdf_standardized((x - x0) * ig);
+    return cauchy_cdf_standardized(cauchy_standardize(x, x0, ig));
+}
+
+double CauchyDistribution::getSurvival(double x) const {
+    // S(z) = F(−z) by symmetry: atan(1/z)/π past x₀, never 0.5 − atan(z)/π, which cancels to 0
+    // once atan(z) rounds to π/2.
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+
+    double x0, ig;
+    withCacheSnapshot([&] {
+        x0 = x0_;
+        ig = inv_gamma_;
+    });
+    return cauchy_cdf_standardized(-cauchy_standardize(x, x0, ig));
 }
 
 double CauchyDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
@@ -275,7 +347,14 @@ double CauchyDistribution::getQuantile(double p) const {
         x0 = x0_;
         g = gamma_;
     });
-    return x0 + g * std::tan(detail::PI * (p - detail::HALF));
+    // tan(π(p − ½)) only where p − ½ is exact (p in [¼, ¾]). In the tails p − ½ rounds a small p
+    // away (−½ at p = 1e-300, giving −1.6e16·γ for −3.2e299·γ), so take cot(π·q) on the smaller
+    // tail q, which 1 − p forms exactly for p ≥ ½.
+    if (p >= 0.25 && p <= 0.75)
+        return x0 + g * std::tan(detail::PI * (p - detail::HALF));
+    const double q = p < detail::HALF ? p : detail::ONE - p;
+    const double cot = detail::ONE / std::tan(detail::PI * q);
+    return p < detail::HALF ? x0 - g * cot : x0 + g * cot;
 }
 
 double CauchyDistribution::sample(std::mt19937& rng) const {
@@ -402,7 +481,7 @@ void CauchyDistribution::reset() noexcept {
 std::string CauchyDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "CauchyDistribution(x0=" << x0_ << ",gamma=" << gamma_ << ")";
     return oss.str();
 }
@@ -433,48 +512,104 @@ double CauchyDistribution::getGammaAtomic() const noexcept {
     return getGamma();
 }
 
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+
+// Closed-form density over [vals, vals + count); the VECTORIZED kernel and the scalar method's
+// expression, so every strategy is bit-identical to getProbability.
+void cauchyPdfBatch(const double* vals, double* res, std::size_t count, double x0, double ig,
+                    double gamma) noexcept {
+    const double c = ig * detail::INV_PI;
+    for (std::size_t i = 0; i < count; ++i) {
+        const double z = cauchy_standardize(vals[i], x0, ig);
+        res[i] = !std::isfinite(z) && std::isfinite(vals[i])
+                     ? cauchy_pdf_past_overflow(vals[i], x0, gamma)
+                     : cauchy_pdf_standardized(z, c);
+    }
+}
+
+// Standardized closed-form CDF over [vals, vals + count); the VECTORIZED kernel.
+void cauchyCdfBatch(const double* vals, double* res, std::size_t count, double x0,
+                    double ig) noexcept {
+    for (std::size_t i = 0; i < count; ++i)
+        res[i] = cauchy_cdf_standardized(cauchy_standardize(vals[i], x0, ig));
+}
+}  // namespace
+
 //==============================================================================
 // 13. SMART BATCH OPERATIONS
-// PDF/LogPDF: transform z[i] = (x[i] − x₀)/γ, delegate to StudentT(1)'s
-// auto-dispatch batch, then scale output (PDF: ×1/γ; LogPDF: −logγ).
-// CDF: closed-form arctan via autoDispatch, no delegation (#48).
+// LogPDF: transform z[i] = (x[i] − x₀)/γ, delegate to StudentT(1)'s
+// auto-dispatch batch, then shift the output by −logγ.
+// PDF and CDF: closed forms via autoDispatch, no delegation (#48; the PDF so
+// that a subnormal density is rounded once).
 //==============================================================================
 
 void CauchyDistribution::getProbability(std::span<const double> values, std::span<double> results,
                                         const detail::PerformanceHint& hint) const {
-    const std::size_t n = values.size();
-    if (n == 0)
-        return;
-    if (n != results.size())
-        throw std::invalid_argument("Input and output spans must have the same size");
+    detail::DispatchUtils::autoDispatch(
+        *this, values, results, hint, detail::OperationType::PDF,
+        [](const CauchyDistribution& dist, double value) { return dist.getProbability(value); },
+        [](const CauchyDistribution& dist, const double* vals, double* res, std::size_t count) {
+            double x0, ig, g;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+                g = dist.gamma_;
+            });
+            cauchyPdfBatch(vals, res, count, x0, ig, g);
+        },
+        [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
+            const std::size_t count = vals.size();
+            if (count == 0)
+                return;
 
-    double x0, ig;
-    withCacheSnapshot([&] {
-        x0 = x0_;
-        ig = inv_gamma_;
-    });
+            double x0, ig, g;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+                g = dist.gamma_;
+            });
 
-    // Transform inputs: z[i] = (x[i] - x0) / gamma
-    std::vector<double, arch::simd::aligned_allocator<double>> z(n);
-    using VectorOps = arch::simd::VectorOps;
-    VectorOps::scalar_add(values.data(), -x0, z.data(), n);
-    VectorOps::scalar_multiply(z.data(), ig, z.data(), n);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    cauchyPdfBatch(vals.data() + start, res.data() + start, len, x0, ig, g);
+                });
+        },
+        [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res,
+           WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
+            const std::size_t count = vals.size();
+            if (count == 0)
+                return;
 
-    // Delegate to StudentT(1) — inherits its full SIMD/parallel dispatch
-    student_t_.getProbability(std::span<const double>(z.data(), n), results, hint);
+            double x0, ig, g;
+            dist.withCacheSnapshot([&] {
+                x0 = dist.x0_;
+                ig = dist.inv_gamma_;
+                g = dist.gamma_;
+            });
 
-    // Scale output: PDF_Cauchy(x) = PDF_StudentT(1)(z) / gamma = PDF_StudentT(1)(z) * inv_gamma
-    VectorOps::scalar_multiply(results.data(), ig, results.data(), n);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                cauchyPdfBatch(vals.data() + start, res.data() + start, len, x0, ig, g);
+            });
+        });
 }
 
 void CauchyDistribution::getLogProbability(std::span<const double> values,
                                            std::span<double> results,
                                            const detail::PerformanceHint& hint) const {
     const std::size_t n = values.size();
-    if (n == 0)
-        return;
+    // Size check before the empty return, and the overlap assert on the caller's spans: the
+    // delegate below sees the scratch buffer z, never values (AR D5).
     if (n != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
+    LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), n, "CauchyDistribution batch");
+    if (n == 0)
+        return;
 
     double x0, ig, lg;
     withCacheSnapshot([&] {
@@ -492,9 +627,19 @@ void CauchyDistribution::getLogProbability(std::span<const double> values,
 
     // LogPDF_Cauchy(x) = LogPDF_StudentT(1)(z) - log(gamma)
     VectorOps::scalar_add(results.data(), -lg, results.data(), n);
+
+    // A finite x whose z overflowed, there or only in x − x₀: the scalar path's value. Re-reading
+    // values after results is written is what the non-overlap contract permits (#112).
+    for (std::size_t i = 0; i < n; ++i) {
+        if (std::isfinite(z[i]) || !std::isfinite(values[i]))
+            continue;
+        const double zi = cauchy_standardize(values[i], x0, ig);
+        results[i] = std::isfinite(zi) ? student_t_.getLogProbability(zi) - lg
+                                       : cauchy_log_pdf_past_overflow(values[i], x0, lg);
+    }
 }
 
-// Batch CDF is the one batch path that does NOT delegate to StudentT(1):
+// Batch CDF does not delegate to StudentT(1) either:
 // the closed form (#48) is one atan per element, so delegation would trade
 // it for the regularized incomplete-beta iteration. No vector_atan SIMD
 // primitive exists yet, so the VECTORIZED strategy runs the same scalar
@@ -513,8 +658,7 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
                 x0 = dist.x0_;
                 ig = dist.inv_gamma_;
             });
-            for (std::size_t i = 0; i < count; ++i)
-                res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+            cauchyCdfBatch(vals, res, count, x0, ig);
         },
         [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -529,14 +673,10 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
                 ig = dist.inv_gamma_;
             });
 
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    cauchyCdfBatch(vals.data() + start, res.data() + start, len, x0, ig);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
-            }
         },
         [](const CauchyDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
@@ -552,8 +692,8 @@ void CauchyDistribution::getCumulativeProbability(std::span<const double> values
                 ig = dist.inv_gamma_;
             });
 
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                res[i] = cauchy_cdf_standardized((vals[i] - x0) * ig);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                cauchyCdfBatch(vals.data() + start, res.data() + start, len, x0, ig);
             });
         });
 }
@@ -605,8 +745,8 @@ std::istream& operator>>(std::istream& is, CauchyDistribution& dist) {
     }
 
     try {
-        x0 = std::stod(token.substr(x0_pos + 3, gamma_pos - x0_pos - 3));
-        gamma = std::stod(token.substr(gamma_pos + 7, close - gamma_pos - 7));
+        x0 = detail::parse_double(token.substr(x0_pos + 3, gamma_pos - x0_pos - 3));
+        gamma = detail::parse_double(token.substr(gamma_pos + 7, close - gamma_pos - 7));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

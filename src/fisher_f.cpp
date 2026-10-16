@@ -1,15 +1,16 @@
 #include "libstats/distributions/fisher_f.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel
-
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 
@@ -39,9 +40,13 @@ constexpr int kBisectIterations = 80;
 // constructed (mirrors ErlangDistribution::requireValidLambda).
 static double requireValidDF(double v, const char* which) {
     if (std::isnan(v) || std::isinf(v) || v <= 0.0) {
-        std::string msg = std::string(which) +
-                          " degrees of freedom must be a positive finite number";
+        std::string msg =
+            std::string(which) + " degrees of freedom must be a positive finite number";
         throw std::invalid_argument(msg);
+    }
+    if (v * detail::HALF <= 0.0) {  // the Beta delegate's d/2 must not underflow (#227)
+        throw std::invalid_argument(std::string(which) +
+                                    " degrees of freedom is too small: d/2 underflows to zero");
     }
     return v;
 }
@@ -88,6 +93,11 @@ FDistribution::FDistribution(FDistribution&& other) noexcept : DistributionBase(
 
 FDistribution& FDistribution::operator=(FDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         d1_ = other.d1_;
         d2_ = other.d2_;
         beta_ = std::move(other.beta_);
@@ -136,9 +146,9 @@ double FDistribution::getD2Atomic() const noexcept {
 }
 
 void FDistribution::setD1(double d1) {
-    validateParameters(d1, d2_);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(d1, d2_);
         d1_ = d1;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -147,9 +157,9 @@ void FDistribution::setD1(double d1) {
 }
 
 void FDistribution::setD2(double d2) {
-    validateParameters(d1_, d2);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(d1_, d2);
         d2_ = d2;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
@@ -169,19 +179,30 @@ void FDistribution::setParameters(double d1, double d2) {
     }
 }
 
+// The trySet* validate and assign under one lock rather than calling the throwing setters,
+// which would end in std::terminate from these noexcept functions (and read the other degree of
+// freedom unlocked).
 VoidResult FDistribution::trySetD1(double d1) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateFisherFParameters(d1, d2_);
     if (v.isError())
         return v;
-    setD1(d1);
+    d1_ = d1;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     return VoidResult::ok({});
 }
 
 VoidResult FDistribution::trySetD2(double d2) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateFisherFParameters(d1_, d2);
     if (v.isError())
         return v;
-    setD2(d2);
+    d2_ = d2;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     return VoidResult::ok({});
 }
 
@@ -189,7 +210,12 @@ VoidResult FDistribution::trySetParameters(double d1, double d2) noexcept {
     auto v = validateFisherFParameters(d1, d2);
     if (v.isError())
         return v;
-    setParameters(d1, d2);
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    d1_ = d1;
+    d2_ = d2;
+    cache_valid_ = false;
+    cacheValidAtomic_.store(false, std::memory_order_release);
+    atomicParamsValid_.store(false, std::memory_order_release);
     return VoidResult::ok({});
 }
 
@@ -300,27 +326,45 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
             return detail::NEGATIVE_INFINITY;  // density vanishes at 0
         if (a < detail::ONE)
             return kInf;  // density is unbounded at 0
-        return log_pdf_const - (a + b) * std::log(d2);  // a == 1: finite limit
+        // a == 1: finite limit, (d1/d2)/B(1, b)
+        return log_pdf_const + std::log(d1 / d2);
     }
 
-    const double denom = d1 * x + d2;
-    if (!std::isfinite(denom))
-        return detail::NEGATIVE_INFINITY;  // x so large the density has underflowed
-
-    return log_pdf_const + (a - detail::ONE) * std::log(x) - (a + b) * std::log(denom);
+    // log f = −log B(a, b) + a·log y + b·log ȳ − log x, with r = d1·x/d2, y = r/(1 + r) and
+    // ȳ = 1/(1 + r) taken by log1p on whichever side of r = 1 keeps the argument small. The form
+    // a·log d1 + b·log d2 − (a + b)·log(d1·x + d2) cancelled terms of size (a + b)·log d2, 1e-9 at
+    // d2 = 1e6, and returned −inf once d1·x + d2 overflowed.
+    const double r = d1 * x / d2;
+    const double log_r = (r > detail::ZERO_DOUBLE && std::isfinite(r))
+                             ? std::log(r)
+                             : std::log(d1) + std::log(x) - std::log(d2);
+    double y, ybar, log_y, log_ybar;
+    if (r <= detail::ONE) {
+        ybar = detail::ONE / (detail::ONE + r);
+        y = r * ybar;
+        log_ybar = -std::log1p(r);
+        log_y = log_r + log_ybar;
+    } else {
+        const double inv_r = detail::ONE / r;
+        y = detail::ONE / (detail::ONE + inv_r);
+        ybar = inv_r * y;
+        log_y = -std::log1p(inv_r);
+        log_ybar = log_y - log_r;
+    }
+    // From both shapes 20, Beta's Stirling form of log[y^a ȳ^b / B(a, b)]: the direct sum held
+    // terms of size (a + b) log 2 against each other, 5 (d1 + d2) eps absolute, 1.25e-5 at
+    // d1 = d2 = 1e10 (M1 seam hunt). log_pdf_const is beta_prefactor_constant(a, b), which is
+    // -log B(a, b) below 20, where this is the direct sum as before.
+    return detail::log_beta_prefactor_logs(y, ybar, a, b, log_y, log_ybar, log_pdf_const) -
+           std::log(x);
 }
 
 // CDF = I_y(a,b) with y = d1 x/(d1 x + d2), evaluated on the small side.
 //
 // The complement ybar = d2/(d1 x + d2) is formed by division, never as 1 - y:
 // as x grows y -> 1 and `1 - y` in double loses every significant bit of the
-// complement (the #49 cancellation class). detail::beta_i's own internal
-// series/complement switch is `z < (A+1)/(A+B+2)`; we pick the branch that
-// satisfies it, so beta_i always takes its direct continued-fraction path.
-//
-//   y < (a+1)/(a+b+2)  =>  I_y(a,b)              (direct)
-//   otherwise          =>  1 - I_ybar(b,a), and  y > (a+1)/(a+b+2) implies
-//                          ybar < (b+1)/(a+b+2), so that call is direct too.
+// complement (the #49 cancellation class). The orientation is chosen at
+// cdfImpl below.
 //
 // The log-beta prefix lgamma(a+b)-lgamma(a)-lgamma(b) is symmetric in (a,b),
 // so one cached value serves both branches.
@@ -331,32 +375,119 @@ double FDistribution::logPdfImpl(double x, double a, double b, double d1, double
 // output lands there, so quantile→cdf did not close). That band switches to
 // the algebraically identical
 //   y = x/(x + d2/d1),  ybar = (d2/d1)/(x + d2/d1)
-// where x enters exactly. If d2/d1 itself overflows, y underflows to 0 in
-// every form, so the pre-switch result is restored. Returns false when
-// d1·x + d2 overflows: y is 1 to every bit available.
-static inline bool f_beta_args(double x, double d1, double d2, double& y,
-                               double& ybar) noexcept {
+// where x enters exactly. The same form serves when d1·x overflows, where
+// the old code returned "y is 1 to every bit available" although ybar is
+// still representable: F(5, 0.001)'s survival at DBL_MAX is 0.30, not 0.
+// If d2/d1 itself is out of range, the ratio r = d2/(d1·x) is formed as
+// (d2/x)/d1 instead, y = 1/(1 + r), ybar = r/(1 + r). Where the smaller of
+// y and ybar leaves the normal range (subnormal, too few bits for z^s, or 0),
+// `extreme` is set and log_r = log d2 − log d1 − log x carries the argument
+// instead (see f_extreme_tails).
+struct FBetaArgs {
+    double y, ybar;  // when !extreme
+    double log_r;    // log(d2/(d1·x)), when extreme
+    bool extreme;
+};
+
+static inline FBetaArgs f_beta_args(double x, double d1, double d2) noexcept {
+    FBetaArgs r{};
     const double dx = d1 * x;
-    if (!std::isfinite(dx + d2))
-        return false;
-    if (dx >= std::numeric_limits<double>::min()) {
-        const double denom = dx + d2;
-        y = dx / denom;
-        ybar = d2 / denom;
+    const double denom = dx + d2;
+    if (dx >= std::numeric_limits<double>::min() && std::isfinite(denom)) {
+        r.y = dx / denom;
+        r.ybar = d2 / denom;
+    } else if (const double c = d2 / d1; c >= std::numeric_limits<double>::min() &&
+                                         std::isfinite(c) && std::isfinite(x + c)) {
+        r.y = x / (x + c);
+        r.ybar = c / (x + c);
     } else {
-        const double c = d2 / d1;
-        if (std::isfinite(c)) {
-            const double denom = x + c;
-            y = x / denom;
-            ybar = c / denom;
-        } else {
-            y = detail::ZERO_DOUBLE;
-            ybar = detail::ONE;
-        }
+        const double ratio = (d2 / x) / d1;
+        r.y = detail::ONE / (detail::ONE + ratio);
+        r.ybar = ratio / (detail::ONE + ratio);
     }
-    return true;
+    if (std::min(r.y, r.ybar) >= std::numeric_limits<double>::min())
+        return r;
+    r.extreme = true;
+    r.log_r = std::log(d2) - std::log(d1) - std::log(x);
+    return r;
 }
 
+// CDF and survival where the beta argument z = min(y, ybar) is below DBL_MIN. The small side is
+// the CDF for log_r > 0 (z = y, shape s = a) and the survival for log_r < 0 (z = ybar, s = b),
+// with log z = −|log_r| to a relative 1/r < DBL_MIN; t is the other shape.
+//
+// While (a + b)·z ≤ 2^-60 it is the leading term of I_z(s, t), z^s/(s·B(a, b)), whose relative
+// error is of order t·z. Past that — t ≳ 1e289, so d₂ or d₁ near the top of the range — the
+// leading term exceeded 1 (F(2, 1.6e308).cdf(1.5) = 1.4999999999998, for 0.777) and lbeta of two
+// huge shapes is ∞ − ∞ (F(DBL_MAX, DBL_MAX) was NaN at every x). There I_z(s, t) is its gamma
+// limit P(s, λ), λ = t·z, to a relative O(s/t + s·z): t·z ≤ t·DBL_MIN ≤ 4 there, so P(s, λ) is
+// nonzero only for s up to a few hundred, against t ≥ 1e289. λ = t·z is a·x·ybar on the CDF side
+// and a·ybar = b·y/x on the survival side, and the factor next to 1 is 1 to within z, so
+// λ = a·x or b/x, each one rounding.
+struct FTails {
+    double cdf, sf;
+};
+
+static inline FTails f_extreme_tails(double log_r, double x, double a, double b) noexcept {
+    const bool lower = log_r > detail::ZERO_DOUBLE;
+    const double s = lower ? a : b;
+    const double abs_log_r = std::fabs(log_r);
+    constexpr double kLeadingTermLimit = -41.58883083359672;  // log 2^-60
+    if (std::log(a + b) - abs_log_r <= kLeadingTermLimit) {
+        const double t = lower ? b : a;
+        if (s <= detail::HALF && t >= detail::ONE) {
+            // A small s puts the leading term near 1, I = exp(L) with L = s·log z − log(s·B(s, t))
+            // of order s, and its complement 1 − exp(L) lost the digits of L (F(1e-47, 2).sf at
+            // x = 3.4e-275 was 0 for 3.7e-45). Here log(s·B(s, t)) is formed without the
+            // cancellation of log s against lbeta, and the complement is −expm1(L).
+            const double l = -s * abs_log_r - detail::log_small_shape_beta(s, t);
+            const double leading = std::exp(l);
+            const double other = -std::expm1(l);
+            return lower ? FTails{leading, other} : FTails{other, leading};
+        }
+        const double lb = detail::lbeta(a, b);
+        if (std::isfinite(lb)) {
+            const double small_side = std::exp(-s * abs_log_r - std::log(s) - lb);
+            return lower ? FTails{small_side, detail::ONE - small_side}
+                         : FTails{detail::ONE - small_side, small_side};
+        }
+        // Both shapes beyond ~2.5e305: the small side is below e^(−700·s), and P(s, λ ≤ 4)
+        // below returns that 0.
+    }
+    // Each side from the small one: gamma_p(5e-301, 0.5) is 1 − 3.5e-14, where gamma_q is right.
+    const double lambda = lower ? a * x : b / x;
+    double p = detail::gamma_p(s, lambda);
+    double q = detail::gamma_q(s, lambda);
+    if (p <= q)
+        q = detail::ONE - p;
+    else
+        p = detail::ONE - q;
+    return lower ? FTails{p, q} : FTails{q, p};
+}
+
+// y below the branch point (a + 1)/(a + b + 2), decided on ybar where that is the smaller: next to
+// 1, y and the branch point both round to 1. F(9e220, 2).cdf(0.06) = y^a = 6.3e-8 was taken as
+// 1 − (1 − 6.3e-8), 3e6·ε off, and F(7.8e138, 2).cdf(0.015) was 0 for 3.3e-29.
+static inline bool f_y_below_switch(const FBetaArgs& args, double a, double b) noexcept {
+    if (args.y <= args.ybar)
+        return args.y < (a + detail::ONE) / (a + b + detail::TWO);
+    return args.ybar > (b + detail::ONE) / (a + b + detail::TWO);
+}
+
+// The beta arguments y and ybar are each formed to relative ε, so both go to beta_i_pair, which
+// takes the log of the smaller and log1p(−smaller) for the other: 1 − y re-formed from y next to
+// 0 lost the large shape's product with its rounding, and 1 at y < ε (F(1, 1e18).cdf(2) was
+// 2.29, F(2, 1e300).cdf(2) 0 for 0.865).
+//
+// The orientation is chosen as before, by the branch point (a + 1)/(a + b + 2) (f_y_below_switch):
+// I_y(a, b) below it and 1 − I_ybar(b, a) above, except where the side wanted can be small on the
+// far side of that point. beta_i_pair forms I_y(a, b) itself there when b < 1 (its tail-integral
+// side, kTailIntegralShape in math_utils.cpp), so the CDF is handed to it directly for b < 1 and
+// the survival I_ybar(b, a) for a < 1. The complement lost them: F(2, 3.2e-15).cdf(4.62e-11) was
+// 1.6320e-14 for 1.6433e-14, F(2, 6.2e-262).cdf(2.13e-260) was 0 for 1.3e-261 and
+// F(4.03e-152, 2).sf(2.63e124) 0 for 1.27e-150. Where that direct value is the large side, it is
+// the complement of the other side instead, so CDF + survival = 1 to an ulp (F(0.001, 1e300) at
+// x = 1: the direct CDF carried the prefactor's log(1e300)-sized cancellation, 9.5e-15).
 double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2,
                               double log_beta_prefix) noexcept {
     if (std::isnan(x))
@@ -366,15 +497,17 @@ double FDistribution::cdfImpl(double x, double a, double b, double d1, double d2
     if (x == kInf)
         return detail::ONE;
 
-    double y, ybar;
-    if (!f_beta_args(x, d1, d2, y, ybar))
-        return detail::ONE;  // d1*x overflowed: y is 1 to every bit available
+    const FBetaArgs args = f_beta_args(x, d1, d2);
+    if (args.extreme)
+        return f_extreme_tails(args.log_r, x, a, b).cdf;
 
-    const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
-
-    if (y < switch_point)
-        return detail::beta_i(y, a, b, log_beta_prefix);
-    return detail::ONE - detail::beta_i(ybar, b, a, log_beta_prefix);
+    if (f_y_below_switch(args, a, b) || b < detail::ONE) {
+        const double i = detail::beta_i_pair(args.y, args.ybar, a, b, log_beta_prefix);
+        if (a < detail::ONE && i > detail::HALF)  // the survival is the small side
+            return detail::ONE - detail::beta_i_pair(args.ybar, args.y, b, a, log_beta_prefix);
+        return i;
+    }
+    return detail::ONE - detail::beta_i_pair(args.ybar, args.y, b, a, log_beta_prefix);
 }
 
 // Survival function, complement-native: I_ybar(b,a) is computed, never
@@ -389,17 +522,18 @@ double FDistribution::sfImpl(double x, double a, double b, double d1, double d2,
     if (x == kInf)
         return detail::ZERO_DOUBLE;
 
-    double y, ybar;
-    if (!f_beta_args(x, d1, d2, y, ybar))
-        return detail::ZERO_DOUBLE;
+    const FBetaArgs args = f_beta_args(x, d1, d2);
+    if (args.extreme)
+        return f_extreme_tails(args.log_r, x, a, b).sf;
 
-    const double switch_point = (a + detail::ONE) / (a + b + detail::TWO);
-
-    // Mirror of cdfImpl: whichever argument is on its small side is the one
-    // handed to beta_i; only the branch that is already accurate is complemented.
-    if (y < switch_point)
-        return detail::ONE - detail::beta_i(y, a, b, log_beta_prefix);
-    return detail::beta_i(ybar, b, a, log_beta_prefix);
+    // Mirror of cdfImpl.
+    if (!f_y_below_switch(args, a, b) || a < detail::ONE) {
+        const double i = detail::beta_i_pair(args.ybar, args.y, b, a, log_beta_prefix);
+        if (b < detail::ONE && i > detail::HALF)  // the CDF is the small side
+            return detail::ONE - detail::beta_i_pair(args.y, args.ybar, a, b, log_beta_prefix);
+        return i;
+    }
+    return detail::ONE - detail::beta_i_pair(args.y, args.ybar, a, b, log_beta_prefix);
 }
 
 double FDistribution::getProbability(double x) const {
@@ -454,7 +588,9 @@ double FDistribution::getSurvivalProbability(double x) const {
 }
 
 double FDistribution::getQuantile(double p) const {
-    if (std::isnan(p) || p < detail::ZERO_DOUBLE || p > detail::ONE)
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability p must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
@@ -502,28 +638,119 @@ double FDistribution::getQuantile(double p) const {
     return std::exp(detail::HALF * (lo + hi));
 }
 
+namespace {
+// X = (d2/d1)·G₁/G₂ with G₁ ~ Gamma(d1/2, 1), G₂ ~ Gamma(d2/2, 1), the variates held as logs
+// (Marsaglia–Tsang on s or s + 1, the s < 1 boost added as log U / s, as BetaDistribution's
+// sampler does, #228) so that the ratio is exp(log G₁ − log G₂ + log d2 − log d1): +inf only
+// where the draw itself exceeds DBL_MAX. The Beta-delegate transform (d2/d1)·Y/(1 − Y) this
+// replaced rounded Y to 1 — and the draw to +inf — for 98% of the draws at F(5, 0.001), where
+// 30% exceed DBL_MAX, and could never return a draw above (d2/d1)·2^53 at any d2. Two shapes
+// both ≥ 1 draw std::gamma_distribution directly: no underflow is possible there, and the
+// stream consumes the RNG exactly as the Beta delegate did.
+struct LogGammaRatioSampler {
+    std::normal_distribution<double> normal{detail::ZERO_DOUBLE, detail::ONE};
+    std::uniform_real_distribution<double> uniform{detail::ZERO_DOUBLE, detail::ONE};
+    // The boost uniform is drawn on [DBL_MIN, 1) so its log is finite.
+    std::uniform_real_distribution<double> boost{std::numeric_limits<double>::min(), detail::ONE};
+
+    // log of a Gamma(shape, 1) variate.
+    double logGamma(std::mt19937& rng, double shape) {
+        const bool boosted = shape < detail::ONE;
+        const double d = (boosted ? shape + detail::ONE : shape) - detail::ONE / detail::THREE;
+        const double c = detail::ONE / std::sqrt(detail::NINE * d);
+        double v;
+        while (true) {
+            double x;
+            do {
+                x = normal(rng);
+                v = detail::ONE + c * x;
+            } while (v <= detail::ZERO_DOUBLE);
+            v = v * v * v;
+            const double u = uniform(rng);
+            const double x2 = x * x;
+            if (u < detail::ONE - 0.0331 * x2 * x2)
+                break;
+            if (std::log(u) < detail::HALF * x2 + d * (detail::ONE - v + std::log(v)))
+                break;
+        }
+        double log_g = std::log(d * v);
+        if (boosted)
+            log_g += std::log(boost(rng)) / shape;
+        return log_g;
+    }
+
+    // One F(d1, d2) draw from the log variates; log_scale = log d2 − log d1.
+    double draw(std::mt19937& rng, double a, double b, double log_scale) {
+        const double dl = logGamma(rng, a) - logGamma(rng, b);
+        if (std::isnan(dl)) {
+            // Both −∞: shapes below ~1e-308, where even log U / shape overflows. The limit of
+            // the Beta(a, b) ratio is the two-point law P(Y = 1) = a/(a + b): X = +inf there.
+            return uniform(rng) * (a + b) < a ? kInf : detail::ZERO_DOUBLE;
+        }
+        return std::exp(dl + log_scale);
+    }
+};
+}  // namespace
+
+// One draw. gamma_a/gamma_b are the direct std::gamma_distribution pair when both shapes are
+// ≥ 1, null otherwise.
+static double f_sample_one(std::mt19937& rng, double d1, double d2, double a, double b,
+                           std::gamma_distribution<double>* gamma_a,
+                           std::gamma_distribution<double>* gamma_b, LogGammaRatioSampler& g) {
+    const double log_scale = std::log(d2) - std::log(d1);
+    if (gamma_a) {
+        const double x = (*gamma_a)(rng);
+        const double y = (*gamma_b)(rng);
+        if (x > detail::ZERO_DOUBLE && y > detail::ZERO_DOUBLE) {
+            const double v = (x / y) * (d2 / d1);
+            if (std::isfinite(v) && v > detail::ZERO_DOUBLE)
+                return v;
+            return std::exp(std::log(x) - std::log(y) + log_scale);  // d2/d1 or x/y out of range
+        }
+        // A shape of exactly 1 can draw 0: fall through to the log construction.
+    }
+    return g.draw(rng, a, b, log_scale);
+}
+
 double FDistribution::sample(std::mt19937& rng) const {
-    // Y ~ Beta(d1/2, d2/2)  =>  X = (d2/d1) Y/(1-Y) ~ F(d1,d2).
-    // The 1-Y here is unavoidable (the delegate hands back Y, not its
-    // complement), so a draw in the extreme upper tail is resolution-limited.
-    // That is a property of the sampled value, not of a precision contract:
-    // the probability functions never go through this transform.
-    double d1, d2;
+    double d1, d2, a, b;
     withCacheSnapshot([&] {
         d1 = d1_;
         d2 = d2_;
+        a = a_;
+        b = b_;
     });
-    const double y = beta_.sample(rng);
-    if (y >= detail::ONE)
-        return kInf;
-    return (d2 / d1) * y / (detail::ONE - y);
+    LogGammaRatioSampler g;
+    if (a >= detail::ONE && b >= detail::ONE) {
+        std::gamma_distribution<double> gamma_a(a, detail::ONE);
+        std::gamma_distribution<double> gamma_b(b, detail::ONE);
+        return f_sample_one(rng, d1, d2, a, b, &gamma_a, &gamma_b, g);
+    }
+    return f_sample_one(rng, d1, d2, a, b, nullptr, nullptr, g);
 }
 
 std::vector<double> FDistribution::sample(std::mt19937& rng, size_t n) const {
+    // One state per call: snapshot the parameters under this object's lock and draw all n from
+    // them. Looping the scalar sample mixed states under a setter (#186).
+    double d1, d2, a, b;
+    withCacheSnapshot([&] {
+        d1 = d1_;
+        d2 = d2_;
+        a = a_;
+        b = b_;
+    });
     std::vector<double> out;
     out.reserve(n);
+    LogGammaRatioSampler g;
+    if (a >= detail::ONE && b >= detail::ONE) {
+        std::gamma_distribution<double> gamma_a(a, detail::ONE);
+        std::gamma_distribution<double> gamma_b(b, detail::ONE);
+        for (size_t i = 0; i < n; ++i)
+            out.push_back(f_sample_one(rng, d1, d2, a, b, &gamma_a, &gamma_b, g));
+        return out;
+    }
     for (size_t i = 0; i < n; ++i)
-        out.push_back(sample(rng));
+        out.push_back(f_sample_one(rng, d1, d2, a, b, nullptr, nullptr, g));
     return out;
 }
 
@@ -607,6 +834,7 @@ void FDistribution::reset() noexcept {
 std::string FDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "FDistribution(d1=" << d1_ << ",d2=" << d2_ << ")";
     return oss.str();
 }
@@ -666,8 +894,7 @@ void FDistribution::getProbability(std::span<const double> values, std::span<dou
                 c = dist.logPdfConst_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 pdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
         },
@@ -690,7 +917,6 @@ void FDistribution::getProbability(std::span<const double> values, std::span<dou
             pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 pdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
-            pool.waitForAll();
         });
 }
 
@@ -725,8 +951,7 @@ void FDistribution::getLogProbability(std::span<const double> values, std::span<
                 c = dist.logPdfConst_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 logPdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
         },
@@ -749,7 +974,6 @@ void FDistribution::getLogProbability(std::span<const double> values, std::span<
             pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 logPdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, c);
             });
-            pool.waitForAll();
         });
 }
 
@@ -787,8 +1011,7 @@ void FDistribution::getCumulativeProbability(std::span<const double> values,
                 pfx = dist.logBetaPrefix_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, pfx);
             });
         },
@@ -811,7 +1034,6 @@ void FDistribution::getCumulativeProbability(std::span<const double> values,
             pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b, d1, d2, pfx);
             });
-            pool.waitForAll();
         });
 }
 
@@ -866,8 +1088,8 @@ std::istream& operator>>(std::istream& is, FDistribution& dist) {
 
     double d1, d2;
     try {
-        d1 = std::stod(token.substr(d1_pos + 3, d1_comma - d1_pos - 3));
-        d2 = std::stod(token.substr(d2_pos + 3, d2_close - d2_pos - 3));
+        d1 = detail::parse_double(token.substr(d1_pos + 3, d1_comma - d1_pos - 3));
+        d2 = detail::parse_double(token.substr(d2_pos + 3, d2_close - d2_pos - 3));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -887,10 +1109,12 @@ void FDistribution::updateCacheUnsafe() const noexcept {
     a_ = d1_ * detail::HALF;
     b_ = d2_ * detail::HALF;
 
-    // lgamma(a+b) - lgamma(a) - lgamma(b) == -ln B(a,b); symmetric in (a,b), so
-    // both incomplete-beta branches in cdfImpl/sfImpl reuse this one value.
-    logBetaPrefix_ = -detail::lbeta(a_, b_);
-    logPdfConst_ = a_ * std::log(d1_) + b_ * std::log(d2_) + logBetaPrefix_;
+    // The incomplete beta's hoisted prefactor constant; symmetric in (a, b), so both
+    // incomplete-beta branches in cdfImpl/sfImpl reuse this one value.
+    logBetaPrefix_ = detail::beta_prefactor_constant(a_, b_);
+    // logPdfImpl's shape constant: −log B(a, b) below shape 20, the Stirling form's above (M1 seam
+    // hunt). d1 and d2 enter through r.
+    logPdfConst_ = detail::beta_prefactor_constant(a_, b_);
 
     // Keep the Beta delegate in sync (used by sample()). beta_ owns its own
     // mutex, independent of ours; it is private so no external thread can be

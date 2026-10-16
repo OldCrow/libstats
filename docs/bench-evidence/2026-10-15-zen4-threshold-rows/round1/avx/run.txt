@@ -1,0 +1,14 @@
+2026-10-15 00:29:47 avx cpu=2.8% quiet
+2026-10-15 00:29:47 clock[avx] start (set=True ok=True control=1 state=0)
+2026-10-15 00:31:23 clock[avx] end exit=0 rows=18 90s cpu=3.2%
+2026-10-15 00:31:23 clock[avx] ms/pass=127.5/127.4/127.6/127.2/127.3/127.5/127.4/127.5/127.4/127.4/127.3/127.7/127.5/127.5/127.5/127.3/127.4/127.5 (boost ~128, base ~190)
+2026-10-15 00:31:45 avx warm-up 20s discarded
+2026-10-15 00:31:45 avx old pass 1 start (set=True ok=True control=1 state=0)
+2026-10-15 00:32:46 avx old pass 1 end exit=0 rows=2431 55s cpu=3.1%
+2026-10-15 00:32:47 avx new pass 1 start (set=True ok=True control=1 state=0)
+2026-10-15 00:33:40 avx new pass 1 end exit=0 rows=2431 47s cpu=5.5%
+2026-10-15 00:33:40 avx old pass 2 start (set=True ok=True control=1 state=0)
+2026-10-15 00:34:41 avx old pass 2 end exit=0 rows=2431 55s cpu=2.7%
+2026-10-15 00:34:41 avx new pass 2 start (set=True ok=True control=1 state=0)
+2026-10-15 00:35:34 avx new pass 2 end exit=0 rows=2431 47s cpu=2.5%
+2026-10-15 00:35:34 avx DONE

@@ -3,8 +3,11 @@
 // Absolute-error accuracy gate for VonMisesDistribution::getCumulativeProbability
 // (issue #51). Ground truth comes from tests/vonmises_cdf_vectors.inc: F(x;
 // mu, kappa) evaluated by DIRECT QUADRATURE at mpmath dps=40, deliberately
-// independent of the Bessel-series/trapezoidal method the implementation
-// uses (scripts/gen_vonmises_cdf_vectors.py) -- a budget miss here is a
+// independent of the library's method (scripts/gen_vonmises_cdf_vectors.py).
+// From v2.5.0 (96b157f) the library evaluates the CDF by quadrature in
+// w = kappa(1 - cos theta) up to kappa = 1e20 (central mass by Gauss-Legendre,
+// tail mass by a Watson-lemma series or Gauss-Legendre); up to v2.4.1 it was a
+// Bessel series to kappa = 1000 and a wrapped normal above -- a budget miss here is a
 // kernel bug for the orchestrator to fix, not a test-tuning problem; do not
 // loosen a budget below without a matching implementation fix.
 //
@@ -15,8 +18,8 @@
 // pre-fix implementation before being trusted (see PLAN.md / the landing
 // commit for this file's fail-first numbers).
 //
-// Budgets PINNED from measurement on Zen 4, 2026-08-20, against the fixed
-// #51 implementation: scalar max 2.2e-16 at EVERY kappa bucket including
+// Budgets PINNED from measurement on Zen 4, 2026-08-20, against the v2.3.0
+// #51 Bessel-series implementation: scalar max 2.2e-16 at EVERY kappa bucket including
 // 1000 (std::sin per term, smallest-term-first summation); batch max
 // 8.9e-16 (worst at kappa=500/1000, vector_sin per term); specials exact.
 // The pinned values below carry >=4.5x headroom over those measurements to
@@ -24,19 +27,14 @@
 // matching kernel fix; a budget miss here is a kernel bug, not a
 // test-tuning problem.
 //
-// The kappa in {2000, 10000} buckets (issue #106) are a DIFFERENT branch and
-// a different budget law: above kappa = 1000 the implementation leaves the
-// series for a wrapped-normal approximation whose intrinsic error is
-// ~0.043/kappa absolute -- O(1/kappa), ten orders of magnitude above the
-// series branch's round-off floor. Their budgets are DERIVED from that law
-// rather than pinned from measurement, and what they gate above all is the
-// WRAP CONVENTION: #106 wrapped x rather than x - mu, so every x on the far
-// side of the +-pi cut from mu returned F = 0 where the truth is 1.0.
-// Measured on Zen 4, 2026-08-25, against the fixed implementation: scalar and
-// batch both 2.02e-5 at kappa=2000 and 4.03e-6 at kappa=10000 -- within 7% of
-// the law's 2.15e-5 and 4.30e-6, and 3.2x under the budgets below. Those
-// maxima come from the eight near-mode rows the generator adds to these two
-// buckets; the uniform draws all sit in a saturated 0/1 tail at this kappa.
+// The kappa in {2000, 10000} buckets (issue #106) gate the wrap convention
+// above all: #106 wrapped x rather than x - mu, so every x on the far side of
+// the +-pi cut from mu returned F = 0 where the truth is 1.0. Up to v2.4.1 the
+// CDF took a wrapped normal there (~0.043/kappa absolute, budgets 6.5e-5 and
+// 1.3e-5); since v2.5.0 it is exact to kappa = 1e20 (src/von_mises.cpp,
+// kNormalLimitKappaMin), and these buckets take the (100, 1000] budget.
+// Measured on K (AppleClang, Tier 2) and GCC 16 (Tier 1), 2026-10-13: scalar
+// and batch 1.1e-16 at kappa=2000 and 2.2e-19 at kappa=10000.
 
 #include "libstats/distributions/von_mises.h"
 
@@ -70,26 +68,14 @@ double bitsToF64(std::uint64_t b) {
 // batch) is mild enough that one bound with headroom covers the range.
 // -------------------------------------------------------------------------
 constexpr double kBudgetKappaLe100 = 2e-15;   // scalar+batch, kappa <= 100
-constexpr double kBudgetKappaLe1000 = 4e-15;  // scalar+batch, kappa in (100, 1000]
+constexpr double kBudgetKappaLe1000 = 4e-15;  // scalar+batch, kappa > 100
 constexpr double kBudgetSpecials = 0.0;       // NaN/+-inf: exact per contract
 // Batch (VECTORIZED/PARALLEL/AUTO strategies inside the span overload) is
 // allowed to differ from the scalar path -- different summation/step-count
 // strategy -- but only up to this much.
 constexpr double kBudgetBatchVsScalar = 4e-15;
 
-// Mirrors kCdfSeriesKappaMax in src/von_mises.cpp (file-local there, not
-// exported). Above it the wrapped-normal fallback runs instead of the series;
-// move both together.
-constexpr double kCdfSeriesKappaMax = 1000.0;
-// Wrapped-normal fallback: intrinsic error ~kFallbackErrorCoeff/kappa
-// absolute, times headroom for cross-platform erf/libm variation. Yields
-// 6.5e-5 at kappa=2000 and 1.3e-5 at kappa=10000.
-constexpr double kFallbackErrorCoeff = 0.043;
-constexpr double kFallbackHeadroom = 3.0;
-
 double budgetForKappa(double kappa) {
-    if (kappa > kCdfSeriesKappaMax)
-        return kFallbackHeadroom * kFallbackErrorCoeff / kappa;
     return kappa <= 100.0 ? kBudgetKappaLe100 : kBudgetKappaLe1000;
 }
 
@@ -193,7 +179,7 @@ BucketResult run_bucket(double kappa, double mu, const VmCdfVector* rows, std::s
 // order) without assuming a fixed bucket size, so this test stays correct
 // even if the generator's per-kappa row count changes.
 std::vector<std::pair<std::size_t, std::size_t>> find_kappa_buckets(const VmCdfVector* rows,
-                                                                     std::size_t n) {
+                                                                    std::size_t n) {
     std::vector<std::pair<std::size_t, std::size_t>> buckets;  // (start, count)
     std::size_t start = 0;
     for (std::size_t i = 1; i <= n; ++i) {
@@ -229,8 +215,8 @@ TEST(VonMisesCdfGates, MainSweepPerKappaBucket) {
 }
 
 // -------------------------------------------------------------------------
-// Seam gate (#106). The kappa > 1000 wrapped-normal branch must form its
-// standardised argument from wrap(x - mu); the shipped code wrapped x alone
+// Seam gate (#106). The kappa > 1000 branch (a wrapped normal up to v2.4.1) must
+// form its argument from wrap(x - mu); the shipped code wrapped x alone
 // and subtracted mu afterwards. The two agree only while x and mu land on the
 // same side of the +-pi cut, so VM(mu=3, kappa=2000).cdf(-3.1) returned 0.0
 // against a truth of 1.0 -- the maximal error a CDF admits.
@@ -275,8 +261,8 @@ TEST(VonMisesCdfGates, FallbackBranchWrapsXMinusMu) {
     const double budget = budgetForKappa(2000.0);
     std::cout << std::setprecision(17) << "vmcdf seam kappa=2000 mu=3 x=-3.1 ref=" << ref
               << " scalar=" << scalar << " batch=" << batch << "\n";
-    EXPECT_LE(std::fabs(scalar - ref), budget) << "scalar seam value " << scalar << " vs ref "
-                                               << ref;
+    EXPECT_LE(std::fabs(scalar - ref), budget)
+        << "scalar seam value " << scalar << " vs ref " << ref;
     EXPECT_LE(std::fabs(batch - ref), budget) << "batch seam value " << batch << " vs ref " << ref;
 }
 
@@ -316,12 +302,10 @@ TEST(VonMisesCdfGates, Specials) {
             const double be = std::fabs(batch_out[i] - refs[i]);
             scalar_max = std::max(scalar_max, se);
             batch_max = std::max(batch_max, be);
-            EXPECT_EQ(scalar_out[i], refs[i])
-                << "scalar: F(x=" << xs[i] << ") must equal " << refs[i] << " exactly, got "
-                << scalar_out[i];
-            EXPECT_EQ(batch_out[i], refs[i])
-                << "batch: F(x=" << xs[i] << ") must equal " << refs[i] << " exactly, got "
-                << batch_out[i];
+            EXPECT_EQ(scalar_out[i], refs[i]) << "scalar: F(x=" << xs[i] << ") must equal "
+                                              << refs[i] << " exactly, got " << scalar_out[i];
+            EXPECT_EQ(batch_out[i], refs[i]) << "batch: F(x=" << xs[i] << ") must equal " << refs[i]
+                                             << " exactly, got " << batch_out[i];
         }
     }
     std::cout << std::setprecision(17) << "vmcdf scalar specials max_abs=" << scalar_max << "\n";

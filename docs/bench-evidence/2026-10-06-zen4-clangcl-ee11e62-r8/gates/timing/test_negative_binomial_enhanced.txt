@@ -1,0 +1,56 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 18 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 14 tests from NegativeBinomialEnhancedTest
+[ RUN      ] NegativeBinomialEnhancedTest.KnownPMFValues
+[       OK ] NegativeBinomialEnhancedTest.KnownPMFValues (11 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.LogPMFConsistency
+[       OK ] NegativeBinomialEnhancedTest.LogPMFConsistency (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.CDFMonotoneAndBoundary
+[       OK ] NegativeBinomialEnhancedTest.CDFMonotoneAndBoundary (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.Moments
+[       OK ] NegativeBinomialEnhancedTest.Moments (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.BoundaryPMF
+[       OK ] NegativeBinomialEnhancedTest.BoundaryPMF (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.QuantileRoundTrip
+[       OK ] NegativeBinomialEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.BatchMatchesScalar
+[       OK ] NegativeBinomialEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.VectorizedEqualsScalar
+[       OK ] NegativeBinomialEnhancedTest.VectorizedEqualsScalar (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.MLEFit
+[       OK ] NegativeBinomialEnhancedTest.MLEFit (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.MLERealR
+[       OK ] NegativeBinomialEnhancedTest.MLERealR (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.InvalidParameters
+[       OK ] NegativeBinomialEnhancedTest.InvalidParameters (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.SetterPropagates
+[       OK ] NegativeBinomialEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.PEqualsOneEdgeCase
+[       OK ] NegativeBinomialEnhancedTest.PEqualsOneEdgeCase (0 ms)
+[ RUN      ] NegativeBinomialEnhancedTest.ParallelBatchCorrectness
+NegBinom LogPDF PARALLEL vs SCALAR: 557μs vs 599μs (n=5000)
+Note: VECTORIZED = cached scalar loop (no vector_lgamma);
+      PARALLEL provides true multi-core throughput.
+[       OK ] NegativeBinomialEnhancedTest.ParallelBatchCorrectness (1 ms)
+[----------] 14 tests from NegativeBinomialEnhancedTest (17 ms total)
+
+[----------] 4 tests from NegativeBinomial/DistributionEnhancedTest/0, where TypeParam = stats::NegativeBinomialDistribution
+[ RUN      ] NegativeBinomial/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] NegativeBinomial/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] NegativeBinomial/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] NegativeBinomial/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] NegativeBinomial/DistributionEnhancedTest/0.QuantileRoundTrip
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\include/enhanced_test_suite.h(204): Skipped
+QuantileRoundTrip is undefined for discrete distributions
+
+[  SKIPPED ] NegativeBinomial/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] NegativeBinomial/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] NegativeBinomial/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from NegativeBinomial/DistributionEnhancedTest/0 (1 ms total)
+
+[----------] Global test environment tear-down
+[==========] 18 tests from 2 test suites ran. (19 ms total)
+[  PASSED  ] 17 tests.
+[  SKIPPED ] 1 test, listed below:
+[  SKIPPED ] NegativeBinomial/DistributionEnhancedTest/0.QuantileRoundTrip

@@ -1,0 +1,128 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9cd1350..f19d897 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -237,34 +237,47 @@ if(NOT LIBSTATS_PORTABLE)
+     # reads to auto-#define LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
+     # getDispatchTable() to reference vector_*_avx2 symbols that were never compiled (simd_avx2.cpp
+     # is excluded by the cap), producing LNK2019 unresolved externals.
+-    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
++    #
++    # clang-cl takes the same /arch: flags as cl.exe, so both build the same ISA: /arch:AVX2 is AVX2
++    # with FMA, F16C, BMI1/2, LZCNT and MOVBE, and /arch:AVX512 adds AVX-512 F, CD, BW, DQ and VL.
++    # clang-cl's -mavx2 is AVX2 alone (no FMA) and -mavx512f is F alone.
++    if((CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
++       AND CMAKE_SIZEOF_VOID_P EQUAL 8)
++        if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
++            set(_libstats_win_compiler "MSVC")
++        else()
++            set(_libstats_win_compiler "Clang-cl")
++        endif()
+         if(LIBSTATS_HAS_AVX512)
+             add_compile_options(/arch:AVX512)
+-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX512")
++            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX512")
+         elseif(LIBSTATS_HAS_AVX2)
+             add_compile_options(/arch:AVX2)
+-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
++            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX2")
+         elseif(LIBSTATS_HAS_AVX)
+             add_compile_options(/arch:AVX)
+-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX")
++            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX")
+         else()
+-            message(STATUS "Applied MSVC x64 SIMD flags: none (SSE2 is the x64 baseline)")
++            message(STATUS
++                    "Applied ${_libstats_win_compiler} x64 SIMD flags: none (SSE2 is the x64 baseline)")
+         endif()
++        unset(_libstats_win_compiler)
+     elseif(
+         CMAKE_CXX_COMPILER_ID MATCHES "Clang"
+         AND WIN32
+         AND CMAKE_SIZEOF_VOID_P EQUAL 8)
++        # Clang with the GNU-style driver on Windows (not clang-cl); unvalidated.
+         if(LIBSTATS_HAS_AVX512)
+             add_compile_options(-mavx512f)
+-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx512f")
++            message(STATUS "Applied Clang x64 SIMD flags: -mavx512f")
+         elseif(LIBSTATS_HAS_AVX2)
+             add_compile_options(-mavx2)
+-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
++            message(STATUS "Applied Clang x64 SIMD flags: -mavx2")
+         elseif(LIBSTATS_HAS_AVX)
+             add_compile_options(-mavx)
+-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx")
++            message(STATUS "Applied Clang x64 SIMD flags: -mavx")
+         else()
+-            message(STATUS "Applied Clang-cl x64 SIMD flags: none (SSE2 is the x64 baseline)")
++            message(STATUS "Applied Clang x64 SIMD flags: none (SSE2 is the x64 baseline)")
+         endif()
+     endif()
+ else()
+diff --git a/cmake/CompilerFlags.cmake b/cmake/CompilerFlags.cmake
+index cb33e84..66a45e9 100644
+--- a/cmake/CompilerFlags.cmake
++++ b/cmake/CompilerFlags.cmake
+@@ -50,6 +50,13 @@ set(LIBSTATS_CLANG_STRICT_WARNINGS
+     -Wno-c++98-compat # We're using C++20
+     -Wno-c++98-compat-pedantic)
+ 
++# clang-cl (Clang with the MSVC-style driver) reads -Wall as cl.exe's /Wall, i.e. -Weverything.
++# /W4 is its spelling of -Wall -Wextra.
++if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
++    list(TRANSFORM LIBSTATS_COMMON_WARNINGS_UNIX REPLACE "^-Wall$" "/W4")
++    list(TRANSFORM LIBSTATS_CLANG_STRICT_WARNINGS REPLACE "^-Wall$" "/W4")
++endif()
++
+ set(LIBSTATS_GCC_STRICT_WARNINGS
+     -Wall
+     -Wextra
+diff --git a/cmake/SIMDApplication.cmake b/cmake/SIMDApplication.cmake
+index 86cd095..7aeb341 100644
+--- a/cmake/SIMDApplication.cmake
++++ b/cmake/SIMDApplication.cmake
+@@ -53,8 +53,12 @@ function(apply_simd_source_flags)
+ 
+     if(_sse2)
+         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
+-            set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
+-                                        PROPERTIES COMPILE_OPTIONS "/arch:SSE2")
++            # x64 has SSE2 as its baseline and no /arch:SSE2 (cl.exe ignores it there, clang-cl
++            # warns); the flag exists only for 32-bit targets.
++            if(CMAKE_SIZEOF_VOID_P EQUAL 4)
++                set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
++                                            PROPERTIES COMPILE_OPTIONS "/arch:SSE2")
++            endif()
+         else()
+             set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/simd_sse2.cpp"
+                                         PROPERTIES COMPILE_OPTIONS "-msse2")
+diff --git a/src/cpu_detection.cpp b/src/cpu_detection.cpp
+index 8990480..ff607e2 100644
+--- a/src/cpu_detection.cpp
++++ b/src/cpu_detection.cpp
+@@ -133,15 +133,17 @@ void detect_macos_topology(Features& features);
+  */
+ void safe_cpuid(uint32_t eax, uint32_t ecx, uint32_t& out_eax, uint32_t& out_ebx, uint32_t& out_ecx,
+                 uint32_t& out_edx) {
+-    #if defined(__GNUC__) || defined(__clang__)
+-    __cpuid_count(eax, ecx, out_eax, out_ebx, out_ecx, out_edx);
+-    #elif defined(_MSC_VER)
++    // _MSC_VER first: clang-cl defines both it and __clang__, and takes <intrin.h> above, which
++    // has __cpuidex but not <cpuid.h>'s __cpuid_count.
++    #if defined(_MSC_VER)
+     int regs[4];
+-    __cpuidex(regs, eax, ecx);
+-    out_eax = regs[0];
+-    out_ebx = regs[1];
+-    out_ecx = regs[2];
+-    out_edx = regs[3];
++    __cpuidex(regs, static_cast<int>(eax), static_cast<int>(ecx));
++    out_eax = static_cast<uint32_t>(regs[0]);
++    out_ebx = static_cast<uint32_t>(regs[1]);
++    out_ecx = static_cast<uint32_t>(regs[2]);
++    out_edx = static_cast<uint32_t>(regs[3]);
++    #elif defined(__GNUC__) || defined(__clang__)
++    __cpuid_count(eax, ecx, out_eax, out_ebx, out_ecx, out_edx);
+     #else
+     // Fallback for unknown compilers
+     out_eax = out_ebx = out_ecx = out_edx = 0;

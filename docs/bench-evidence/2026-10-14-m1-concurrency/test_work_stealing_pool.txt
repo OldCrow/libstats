@@ -1,0 +1,44 @@
+Running main() from /private/tmp/googletest-20260810-2300-tbptpn/googletest-1.18.0/googletest/src/gtest_main.cc
+[==========] Running 12 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 12 tests from WorkStealingPool
+[ RUN      ] WorkStealingPool.BasicTaskSubmission
+  All 10 tasks executed successfully
+[       OK ] WorkStealingPool.BasicTaskSubmission (0 ms)
+[ RUN      ] WorkStealingPool.ParallelForConcurrentCallersWaitIndependently
+[       OK ] WorkStealingPool.ParallelForConcurrentCallersWaitIndependently (30 ms)
+[ RUN      ] WorkStealingPool.CppRangesWithWorkStealing
+  Parallel sum: 999000 (expected: 999000)
+[       OK ] WorkStealingPool.CppRangesWithWorkStealing (0 ms)
+[ RUN      ] WorkStealingPool.ParallelForWithConcepts
+  Concept-based parallelFor processed 1000 elements
+[       OK ] WorkStealingPool.ParallelForWithConcepts (0 ms)
+[ RUN      ] WorkStealingPool.PerformanceAndStatistics
+  Execution: 3 ms, steals: 661
+[       OK ] WorkStealingPool.PerformanceAndStatistics (3 ms)
+[ RUN      ] WorkStealingPool.GlobalUtilities
+  Global utilities executed 50 tasks
+[       OK ] WorkStealingPool.GlobalUtilities (0 ms)
+[ RUN      ] WorkStealingPool.Level0ConstantsIntegration
+  Min parallel: 1536, grain: 256, alignment: 128 bytes
+[       OK ] WorkStealingPool.Level0ConstantsIntegration (0 ms)
+[ RUN      ] WorkStealingPool.CPUDetectionIntegration
+  Physical: 8, Logical: 8, Optimal: 8
+[       OK ] WorkStealingPool.CPUDetectionIntegration (0 ms)
+[ RUN      ] WorkStealingPool.ParallelForDoesNotDeadlockOnTaskException
+  parallelFor returned after task exception at index 1536 (2688/3071 non-throwing tasks ran)
+[       OK ] WorkStealingPool.ParallelForDoesNotDeadlockOnTaskException (0 ms)
+[ RUN      ] WorkStealingPool.OptimalThreadCountCappedAt32
+  getOptimalThreadCount()=8 (hardware_concurrency=8)
+[       OK ] WorkStealingPool.OptimalThreadCountCappedAt32 (0 ms)
+[ RUN      ] WorkStealingPool.DestructorDrainsAllPendingTasks
+  All 200 tasks completed before destructor returned
+[       OK ] WorkStealingPool.DestructorDrainsAllPendingTasks (1 ms)
+[ RUN      ] WorkStealingPool.ParallelForPerCallFencePreventsDataRace
+  Per-call fence verified: sum=1024 (expected 1024)
+[       OK ] WorkStealingPool.ParallelForPerCallFencePreventsDataRace (0 ms)
+[----------] 12 tests from WorkStealingPool (37 ms total)
+
+[----------] Global test environment tear-down
+[==========] 12 tests from 1 test suite ran. (37 ms total)
+[  PASSED  ] 12 tests.

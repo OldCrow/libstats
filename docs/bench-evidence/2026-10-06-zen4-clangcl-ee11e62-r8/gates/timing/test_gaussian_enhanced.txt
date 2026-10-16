@@ -1,0 +1,141 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 17 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 11 tests from GaussianEnhancedTest
+[ RUN      ] GaussianEnhancedTest.BasicEnhancedFunctionality
+[       OK ] GaussianEnhancedTest.BasicEnhancedFunctionality (11 ms)
+[ RUN      ] GaussianEnhancedTest.AdvancedStatisticalMethods
+
+=== Advanced Statistical Methods ===
+  95% CI for mean: [4.63318, 5.36006]
+  t-test: t=-0.0182157, p=0.985503, reject=0
+  MoM estimates: mean=4.99662, std=1.84503
+  Jarque-Bera: JB=0.120626, p=0.94147, reject=0
+  Robust estimates: location=5.0287, scale=1.68747
+[       OK ] GaussianEnhancedTest.AdvancedStatisticalMethods (0 ms)
+[ RUN      ] GaussianEnhancedTest.GoodnessOfFitTests
+
+=== Goodness-of-Fit Tests ===
+  KS test (normal data): D=0.0586952, p=1, reject=0
+  KS test (non-normal data): D=0.96, p=1.78597e-80, reject=1
+  AD test (normal data): A²=0.306213, p=1, reject=0
+  AD test (non-normal data): A²=inf, p=0, reject=1
+[       OK ] GaussianEnhancedTest.GoodnessOfFitTests (0 ms)
+[ RUN      ] GaussianEnhancedTest.InformationCriteriaTests
+
+=== Information Criteria Tests ===
+  AIC: 410.292, BIC: 415.502, AICc: 410.416
+  Log-likelihood: -203.146
+[       OK ] GaussianEnhancedTest.InformationCriteriaTests (0 ms)
+[ RUN      ] GaussianEnhancedTest.BootstrapMethods
+
+=== Bootstrap Methods ===
+  Mean 95% CI: [4.64145, 5.36817]
+  Std 95% CI: [2.5299, 4.34125]
+  K-fold CV completed with 5 folds
+  Leave-one-out CV: LogL=-38.288
+[       OK ] GaussianEnhancedTest.BootstrapMethods (1 ms)
+[ RUN      ] GaussianEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 41μs (baseline)
+  Vectorized: 4.6μs (8.91304x speedup)
+  Parallel: 4.5μs (9.11111x speedup)
+  Work Stealing: 4.5μs (9.11111x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 419.9μs (baseline)
+  Vectorized: 47μs (8.93404x speedup)
+  Parallel: 68.3μs (6.14788x speedup)
+  Work Stealing: 70.7μs (5.93918x speedup)
+[       OK ] GaussianEnhancedTest.SIMDAndParallelBatchImplementations (45 ms)
+[ RUN      ] GaussianEnhancedTest.AutoDispatchAssessment
+
+=== Auto-Dispatch Strategy Assessment ===
+  Batch size 5 (expected: SCALAR): Auto 0.04825μs vs Traditional 0.03925μs, Correct: ✅
+  Batch size 50 (expected: SCALAR): Auto 0.08575μs vs Traditional 0.3905μs, Correct: ✅
+  Batch size 500 (expected: VECTORIZED): Auto 0.51μs vs Traditional 3.91μs, Correct: ✅
+  Batch size 5000 (expected: VECTORIZED): Auto 4.625μs vs Traditional 39.225μs, Correct: ✅
+  Batch size 50000 (expected: PARALLEL): Auto 46.1μs vs Traditional 394μs, Correct: ✅
+[       OK ] GaussianEnhancedTest.AutoDispatchAssessment (20 ms)
+[ RUN      ] GaussianEnhancedTest.CachingSpeedupVerification
+
+=== Caching Speedup Verification ===
+  First getter calls (cache miss): 100ns
+  Second getter calls (cache hit): 0ns
+  Cache speedup: infx
+  After parameter change: 100ns
+[       OK ] GaussianEnhancedTest.CachingSpeedupVerification (0 ms)
+[ RUN      ] GaussianEnhancedTest.ParallelBatchPerformanceBenchmark
+
+=== Gaussian Distribution Enhanced Performance Benchmark ===
+Dataset size: 50000 elements
+Hardware threads: 12
+  ✓ PDF batch operations produce correct results
+  ✓ LogPDF batch operations produce correct results
+  ✓ CDF batch operations produce correct results
+
+Benchmark Results:
+ Operation  Baseline  Vectorized    Parallel  Work-Steal   Vec-Speedup Par-Speedup  WS-Speedup
+--------------------------------------------------------------------------------------------------------
+       PDF       519          48          94         128         10.81        5.52        4.05
+    LogPDF       298          17          94          84         17.53        3.17        3.55
+       CDF       799         286         152         136          2.79        5.26        5.88
+
+Performance Analysis:
+  ✓ PDF SIMD shows good speedup
+  ✓ PDF thread pool shows good speedup
+  ✓ LogPDF SIMD shows good speedup
+  ✓ LogPDF thread pool shows good speedup
+  ✓ CDF SIMD shows good speedup
+  ✓ CDF thread pool shows good speedup
+[       OK ] GaussianEnhancedTest.ParallelBatchPerformanceBenchmark (23 ms)
+[ RUN      ] GaussianEnhancedTest.NumericalStabilityAndEdgeCases
+
+=== Numerical Stability and Edge Cases ===
+  Value -100.00: PDF=0.00, LogPDF=-5000.92, CDF=0.00
+  Value -10.00: PDF=0.00, LogPDF=-50.92, CDF=0.00
+  Value 10.00: PDF=0.00, LogPDF=-50.92, CDF=1.00
+  Value 100.00: PDF=0.00, LogPDF=-5000.92, CDF=1.00
+  Edge case testing completed
+[       OK ] GaussianEnhancedTest.NumericalStabilityAndEdgeCases (0 ms)
+[ RUN      ] GaussianEnhancedTest.ParallelBatchFittingTests
+
+=== Parallel Batch Fitting Tests ===
+  Generated 6 datasets with known parameters
+  ✓ Parallel batch fitting correctness verified
+  Parallel batch fitting: 25.50μs
+  Sequential individual fits: 25.50μs
+  Speedup: 1.00x
+  Testing edge cases...
+  ✓ Edge cases handled correctly
+  Testing thread safety...
+  Thread safety: 40/40 calls successful (100.00%)
+  ✓ Thread safety verified
+✅ All parallel batch fitting tests passed
+[       OK ] GaussianEnhancedTest.ParallelBatchFittingTests (1 ms)
+[----------] 11 tests from GaussianEnhancedTest (109 ms total)
+
+[----------] 2 tests from FitWithDiagnosticsTest
+[ RUN      ] FitWithDiagnosticsTest.GaussianReturnsValidResults
+[       OK ] FitWithDiagnosticsTest.GaussianReturnsValidResults (0 ms)
+[ RUN      ] FitWithDiagnosticsTest.FailurePathPopulatesNaN
+[       OK ] FitWithDiagnosticsTest.FailurePathPopulatesNaN (0 ms)
+[----------] 2 tests from FitWithDiagnosticsTest (0 ms total)
+
+[----------] 4 tests from Gaussian/DistributionEnhancedTest/0, where TypeParam = stats::GaussianDistribution
+[ RUN      ] Gaussian/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Gaussian/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Gaussian/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Gaussian/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Gaussian/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Gaussian/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Gaussian/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Gaussian/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Gaussian/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 17 tests from 3 test suites ran. (113 ms total)
+[  PASSED  ] 17 tests.

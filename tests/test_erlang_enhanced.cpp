@@ -339,7 +339,8 @@ struct stats::tests::DistTraits<stats::ErlangDistribution> : stats::tests::DistT
             [] { return stats::ErlangDistribution::create(-1, 1.0).isError(); },
             [] { return stats::ErlangDistribution::create(1, -1.0).isError(); },
             [] {
-                return stats::ErlangDistribution::create(1, std::numeric_limits<double>::quiet_NaN())
+                return stats::ErlangDistribution::create(1,
+                                                         std::numeric_limits<double>::quiet_NaN())
                     .isError();
             },
         };

@@ -1,0 +1,19 @@
+beta.cpp(301) : info C5002: loop not vectorized due to reason '1106'
+beta.cpp(306) : info C5001: loop vectorized
+beta.cpp(309) : info C5002: loop not vectorized due to reason '1106'
+beta.cpp(317) : info C5002: loop not vectorized due to reason '1502'
+beta.cpp(324) : info C5002: loop not vectorized due to reason '1106'
+beta.cpp(336) : info C5001: loop vectorized
+gamma.cpp(310) : info C5002: loop not vectorized due to reason '1106'
+gamma.cpp(315) : info C5002: loop not vectorized due to reason '1106'
+gamma.cpp(321) : info C5002: loop not vectorized due to reason '1502'
+gamma.cpp(326) : info C5002: loop not vectorized due to reason '1102'
+gamma.cpp(332) : info C5001: loop vectorized
+simd_dispatch.cpp(228) : info C5002: loop not vectorized due to reason '1106'
+simd_dispatch.cpp(232) : info C5001: loop vectorized
+simd_dispatch.cpp(235) : info C5001: loop vectorized
+simd_dispatch.cpp(237) : info C5002: loop not vectorized due to reason '1200'
+simd_dispatch.cpp(272) : info C5002: loop not vectorized due to reason '1106'
+simd_dispatch.cpp(277) : info C5002: loop not vectorized due to reason '1106'
+simd_dispatch.cpp(280) : info C5002: loop not vectorized due to reason '1105'
+simd_dispatch.cpp(284) : info C5002: loop not vectorized due to reason '1200'

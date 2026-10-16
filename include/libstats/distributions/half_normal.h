@@ -38,8 +38,7 @@ namespace stats {
  * - CDF upper tail: F(x) → 1 is representable and returned at full absolute
  *   precision, but the survival probability 1−F(x) computed from it cancels
  *   catastrophically for x ≳ 6σ (1−F underflows the 1-ulp floor near
- *   x ≈ 8.2σ). This class deliberately provides no survival API; callers
- *   needing tail probabilities should use erfc(x/(σ√2)) directly.
+ *   x ≈ 8.2σ). getSurvival forms erfc(x/(σ√2)) directly instead.
  * - Quantile: central region (p ≤ ½) via detail::erf_inv plus a Newton
  *   polish on the erf residual; upper tail (p > ½) entirely in the
  *   erfc/survival domain (1−p is exact by Sterbenz there), via an AS 26.2.23
@@ -84,7 +83,8 @@ class HalfNormalDistribution : public DistributionBase {
     /**
      * @brief Construct a Half-Normal distribution.
      * @param sigma Scale parameter σ (must be positive, default 1)
-     * @throws std::invalid_argument if sigma is not strictly positive or non-finite
+     * @throws std::invalid_argument if sigma is not in [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      *
      * Default σ = 1 is the standard Half-Normal distribution.
      * Implementation in .cpp.
@@ -139,7 +139,8 @@ class HalfNormalDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter σ.
-     * @throws std::invalid_argument if sigma <= 0 or non-finite
+     * @throws std::invalid_argument if sigma is not in [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      */
     void setSigma(double sigma);
 
@@ -208,10 +209,14 @@ class HalfNormalDistribution : public DistributionBase {
      *
      * Lower tail keeps full relative precision (erf near 0 is
      * well-conditioned). Upper tail returns values approaching 1 exactly;
-     * the survival probability 1−CDF computed by the caller cancels for
-     * x ≳ 6σ — see the class-level numerical notes.
+     * 1 − CDF cancels for x ≳ 6σ; use getSurvival there.
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
+
+    /**
+     * @brief Survival S(x) = erfc(x/(σ√2)), full relative precision in the upper tail; 1 for x < 0.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
 
     /**
      * @brief Quantile: σ√2·erf⁻¹(p), tail-branched (see class-level notes).
@@ -361,6 +366,11 @@ class HalfNormalDistribution : public DistributionBase {
     static void validateParameters(double sigma) {
         if (std::isnan(sigma) || std::isinf(sigma) || sigma <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Sigma (σ) must be a positive finite number");
+        }
+        // σ² must stay finite and normal (DH D6); the upper bound is Gaussian's.
+        if (sigma < detail::MIN_SQUARABLE_SCALE || sigma > detail::MAX_STANDARD_DEVIATION) {
+            throw std::invalid_argument(
+                "Sigma (σ) is outside the range where σ² is a normal double");
         }
     }
 

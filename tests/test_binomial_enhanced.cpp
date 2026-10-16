@@ -111,12 +111,22 @@ TEST_F(BinomialEnhancedTest, BoundaryPMF) {
     EXPECT_DOUBLE_EQ(b10_05_.getLogProbability(-1.0), -std::numeric_limits<double>::infinity());
 }
 
-// Quantile round-trip: quantile(CDF(k)) == k for all k in {0..10}
+// Quantile round-trip: quantile(CDF(k)) == k for F(k) <= 1/2; above, the survival-side rule
 TEST_F(BinomialEnhancedTest, QuantileRoundTrip) {
     for (int k = 0; k <= 10; ++k) {
         const double cdf = b10_05_.getCumulativeProbability(static_cast<double>(k));
         const double q = b10_05_.getQuantile(cdf);
-        EXPECT_NEAR(q, static_cast<double>(k), 0.5) << "at k=" << k;
+        if (cdf <= 0.5) {
+            EXPECT_EQ(q, static_cast<double>(k)) << "at k=" << k;
+            continue;
+        }
+        // Above ½ the quantile is the smallest k with getSurvival(k) ≤ 1 − p. With p = ½ the
+        // tail 1 − F(k) is dyadic, an exact tie, so getSurvival's last ulp decides between k
+        // and k + 1.
+        EXPECT_GE(q, static_cast<double>(k)) << "at k=" << k;
+        EXPECT_LE(q, static_cast<double>(k + 1)) << "at k=" << k;
+        EXPECT_LE(b10_05_.getSurvival(q), 1.0 - cdf) << "at k=" << k;
+        EXPECT_GT(b10_05_.getSurvival(q - 1.0), 1.0 - cdf) << "at k=" << k;
     }
     EXPECT_DOUBLE_EQ(b10_05_.getQuantile(0.0), 0.0);
     EXPECT_DOUBLE_EQ(b10_05_.getQuantile(1.0), 10.0);

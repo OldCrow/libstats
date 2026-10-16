@@ -6,6 +6,7 @@
 
 #include "include/enhanced_test_suite.h"
 #include "include/tests.h"
+#include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/student_t.h"
 
 #include <cmath>
@@ -13,6 +14,7 @@
 #include <limits>
 #include <random>
 #include <span>
+#include <string>
 #include <vector>
 
 using namespace std;
@@ -140,6 +142,166 @@ TEST_F(StudentTEnhancedTest, MLEFit) {
 
     EXPECT_GT(fitted.getNu(), 2.0);
     EXPECT_LT(fitted.getNu(), 15.0);
+}
+
+// F1: the Newton step in ν was capped upward but not downward, so from the ν = 5 start on data
+// with ν ≤ 2 the first step landed on the 0.1 floor and the fit returned 0.1 for ν = 0.5, 1,
+// 1.5, 2. The MLE at these ν exists and is close to the truth at n = 20000; the bound is
+// generous (the replicate SE at ν = 1 is ~0.02) but two-sided, and 0.1 fails it at every row.
+TEST_F(StudentTEnhancedTest, MLEFitRecoversHeavyTails) {
+    for (double nu : {0.5, 1.0, 1.5, 2.0, 3.0, 30.0}) {
+        mt19937 rng(7);
+        auto source = StudentTDistribution::create(nu).unwrap();
+        const auto data = source.sample(rng, 20000);
+        auto fitted = StudentTDistribution::create(1.0).unwrap();
+        fitted.fit(data);
+        EXPECT_NEAR(fitted.getNu(), nu, 0.15 * nu) << "fit at nu = " << nu;
+    }
+}
+
+// The ν fit solved its score equation on [0.1, 1000] and clamped, so data from t(ν ≫ 1000) or a
+// Gaussian returned 1000 or less, never more. In θ = 1/ν the MLE is asymptotically normal about
+// the truth with variance 1/(3.5 n) at θ = 0 (Fisher information of the t family at the Gaussian
+// limit), so n = 1e5 resolves θ only to σ ≈ 1.7e-3: ν = 1e4 and 1e5 are indistinguishable from a
+// Gaussian at this n. The honest checks are therefore on the θ scale:
+//   (a) every fit lies within 4.5σ of the true θ (two-sided; 1e8 counts as θ ≈ 0);
+//   (b) the estimator reaches past the old cap: P(θ̂ < 1e-3) ≥ Φ(0.53) ≈ 0.70 per replicate
+//       (ν = 1e4 the lowest), so pooled over the 24 replicates at least 6 must exceed 1000
+//       (P(fewer) = 7.9e-7 under the model; the capped fit gives 0). Per case, 3 of 8 would
+//       false-alarm at 1.1e-2, and libstdc++'s draws hit it on CI;
+//   (c) data no heavier-tailed than a Gaussian returns the documented limit ν = 1e8 exactly;
+//   (d) ordinary ν is recovered as before.
+TEST_F(StudentTEnhancedTest, MLEFitBeyondOldCapAndGaussianLimit) {
+    constexpr double kNuLimit = 1e8;  // StudentTDistribution::fit's documented Gaussian limit
+    constexpr size_t n = 100000;
+    const double sigma_theta = 1.0 / std::sqrt(3.5 * static_cast<double>(n));
+
+    int above_old_cap = 0;
+    for (double nu : {1e4, 1e5, std::numeric_limits<double>::infinity()}) {
+        for (unsigned rep = 0; rep < 8; ++rep) {
+            mt19937 rng(1000 + rep);
+            vector<double> data(n);
+            if (std::isfinite(nu)) {
+                data = StudentTDistribution::create(nu).unwrap().sample(rng, n);
+            } else {
+                normal_distribution<double> g(0.0, 1.0);
+                for (auto& x : data)
+                    x = g(rng);
+            }
+            auto fitted = StudentTDistribution::create(1.0).unwrap();
+            fitted.fit(data);
+            const double nu_hat = fitted.getNu();
+            EXPECT_LE(nu_hat, kNuLimit);
+            EXPECT_NEAR(1.0 / nu_hat, 1.0 / nu, 4.5 * sigma_theta)
+                << "nu = " << nu << ", rep " << rep << ", nu_hat = " << nu_hat;
+            if (nu_hat > 1000.0)
+                ++above_old_cap;
+        }
+    }
+    EXPECT_GE(above_old_cap, 6) << "of 24 replicates at nu = 1e4, 1e5 and a Gaussian";
+
+    // (c) Lighter than Gaussian: ±1, a uniform grid, and a Gaussian quantile grid (whose truncated
+    // tails make its fourth moment fall short of 3). The score is positive at every ν, so the
+    // likelihood still rises at the bound.
+    vector<double> pm1(1000);
+    for (size_t i = 0; i < pm1.size(); ++i)
+        pm1[i] = (i % 2 == 0) ? 1.0 : -1.0;
+    vector<double> uniform_grid(1001);
+    for (size_t i = 0; i < uniform_grid.size(); ++i)
+        uniform_grid[i] = -1.0 + 2.0 * static_cast<double>(i) / 1000.0;
+    auto stdnorm = GaussianDistribution::create(0.0, 1.0).unwrap();
+    vector<double> gauss_grid(20000);
+    for (size_t i = 0; i < gauss_grid.size(); ++i)
+        gauss_grid[i] = stdnorm.getQuantile((static_cast<double>(i) + 0.5) / 20000.0);
+    for (const auto* data : {&pm1, &uniform_grid, &gauss_grid}) {
+        auto fitted = StudentTDistribution::create(1.0).unwrap();
+        fitted.fit(*data);
+        EXPECT_EQ(fitted.getNu(), kNuLimit);
+    }
+
+    // (d) Ordinary ν: unchanged recovery (bands as in MLEFitRecoversHeavyTails, wider at ν = 100
+    // where the replicate SE at n = 1e5 is ~13).
+    for (double nu : {5.0, 30.0, 100.0}) {
+        mt19937 rng(7);
+        const auto data = StudentTDistribution::create(nu).unwrap().sample(rng, n);
+        auto fitted = StudentTDistribution::create(1.0).unwrap();
+        fitted.fit(data);
+        EXPECT_NEAR(fitted.getNu(), nu, (nu < 50.0 ? 0.15 : 0.5) * nu) << "fit at nu = " << nu;
+    }
+}
+
+// The ν fit's Newton step used a wrong derivative of the score (its data term), so it crept toward
+// a root past ~1e4 by ~0.17% a step, stopped at max_iter = 100 and returned the last iterate as if
+// converged; elsewhere a loose |ν²S| test stopped it up to ~1e-5 short. t(100) data,
+// mt19937(305), n = 1e4 (libc++ draws):
+// ν = 26099.018, the root of the score is 27470.35 (mpmath, dps 40). The check is on the root
+// itself, so it holds on any standard library's draws: the score, computed here independently of
+// the library, must change sign across ν̂·(1 ∓ 1e-6). The fit stops at a step or bracket below
+// 1e-8 in log ν, and this score is accurate to ~1e-11 of its slope there, so 1e-6 is 100 times the
+// fit's own tolerance; the unfixed fit is 5% off in the repro.
+namespace {
+
+// ψ((ν+1)/2) − ψ(ν/2) − 1/ν. Shifted up by the recurrence
+// d(ν) = d(ν + 2m) + Σ_{k<m} 1/(4(x+k)(x+k+½)(x+k+1)), x = ν/2 (every term positive), then the
+// asymptotic series in w = 1/ν², whose relative error is below 6e-16 from ν = 60 (both checked
+// against mpmath).
+double scoreDigammaPart(double nu) {
+    double acc = 0.0;
+    const double x = 0.5 * nu;
+    int k = 0;
+    for (; nu + 2.0 * k < 80.0; ++k) {
+        const double y = x + k;
+        acc += 1.0 / (4.0 * y * (y + 0.5) * (y + 1.0));
+    }
+    const double big = nu + 2.0 * k;
+    const double w = 1.0 / (big * big);
+    return acc + w * (0.5 + w * (-0.25 + w * (0.5 + w * (-17.0 / 8.0 + w * 15.5))));
+}
+
+// The t log-likelihood score in ν: n·d(ν) + Σ [r/ν − (log(1 + x²/ν) − r)], r = x²/(ν + x²).
+double tScore(const vector<double>& data, double nu) {
+    double s = static_cast<double>(data.size()) * scoreDigammaPart(nu);
+    for (double x : data) {
+        const double a = x * x / nu;
+        const double r = a / (1.0 + a);
+        s += r / nu - (std::log1p(a) - r);
+    }
+    return s;
+}
+
+// ν̂ is the score's root to relative `rel`: S > 0 just below, S < 0 just above.
+void expectScoreRoot(const vector<double>& data, double nu_hat, double rel, const string& what) {
+    EXPECT_GT(tScore(data, nu_hat * (1.0 - rel)), 0.0) << what << ", nu_hat = " << nu_hat;
+    EXPECT_LT(tScore(data, nu_hat * (1.0 + rel)), 0.0) << what << ", nu_hat = " << nu_hat;
+}
+
+}  // namespace
+
+TEST_F(StudentTEnhancedTest, MLEFitReachesTheScoreRoot) {
+    constexpr double kNuLimit = 1e8;  // the documented Gaussian limit: no interior root
+    {
+        mt19937 rng(305);
+        const auto data = StudentTDistribution::create(100.0).unwrap().sample(rng, 10000);
+        auto fitted = StudentTDistribution::create(1.0).unwrap();
+        fitted.fit(data);
+        ASSERT_LT(fitted.getNu(), kNuLimit);
+        expectScoreRoot(data, fitted.getNu(), 1e-6, "repro t(100), seed 305");
+    }
+    // A sweep over ν and seeds, from heavy tails to past the old creeping range. Every fit either
+    // returns the Gaussian limit or the root; none throws (the fit now throws rather than return an
+    // unconverged ν, which its iteration bound makes unreachable).
+    for (double nu : {0.5, 2.0, 10.0, 100.0, 1e3, 1e4}) {
+        for (unsigned seed = 300; seed < 306; ++seed) {
+            mt19937 rng(seed);
+            const auto data = StudentTDistribution::create(nu).unwrap().sample(rng, 10000);
+            auto fitted = StudentTDistribution::create(1.0).unwrap();
+            ASSERT_NO_THROW(fitted.fit(data)) << "nu = " << nu << ", seed " << seed;
+            if (fitted.getNu() == kNuLimit)
+                continue;
+            expectScoreRoot(data, fitted.getNu(), 1e-6,
+                            "nu = " + to_string(nu) + ", seed " + to_string(seed));
+        }
+    }
 }
 
 TEST_F(StudentTEnhancedTest, InvalidParameters) {

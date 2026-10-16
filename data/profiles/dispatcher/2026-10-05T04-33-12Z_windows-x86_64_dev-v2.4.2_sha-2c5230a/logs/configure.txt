@@ -1,0 +1,62 @@
+-- Building for: Visual Studio 18 2026
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.26300.
+-- The CXX compiler identification is MSVC 19.51.36260.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test LIBSTATS_HAS_CXX17_BESSEL
+-- Performing Test LIBSTATS_HAS_CXX17_BESSEL - Success
+-- std::cyl_bessel_i (C++17 special functions): available
+-- Detecting threading capabilities...
+--   ✓ OpenMP found
+--   ✓ Win32 threads available
+--   ✓ Windows Thread Pool API available
+-- Threading: OpenMP=TRUE Pthreads=FALSE GCD=FALSE
+-- Detecting SIMD features...
+-- SIMDDetection: CMAKE_CXX_COMPILER_ID='MSVC' CMAKE_CXX_COMPILER='C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe' MSVC='1' WIN32='1'
+-- SIMD: SSE2 enabled (MSVC/Clang-cl x64, default support)
+-- SIMD: AVX enabled (MSVC/Clang-cl x64, default support)
+-- SIMD: AVX2 enabled (MSVC/Clang-cl x64, default support)
+-- SIMDDetection: Checking AVX-512 support...
+-- Performing Test COMPILER_SUPPORTS_AVX512
+-- Performing Test COMPILER_SUPPORTS_AVX512 - Success
+-- SIMDDetection: check_cxx_compiler_flag('/arch:AVX512') result = 1
+-- Performing Test RUNTIME_SUPPORTS_AVX512
+-- Performing Test RUNTIME_SUPPORTS_AVX512 - Success
+-- SIMD: AVX-512 enabled (compiler + runtime, CPU verified)
+-- SIMD: NEON disabled (not ARM architecture)
+-- SIMD: capped at SSE2 via LIBSTATS_MAX_SIMD_TIER; disabled: AVX, AVX2, AVX512
+-- SIMD detection complete:
+--   SSE2: TRUE
+--   AVX:  FALSE
+--   AVX2: FALSE
+--   AVX-512: FALSE
+--   NEON: FALSE
+--   Sources: src/simd_sse2.cpp;src/simd_fallback.cpp;src/simd_dispatch.cpp
+-- Intel TBB: NOT FOUND - C++20 execution policies may have limited performance
+-- Applied MSVC x64 SIMD flags: none (SSE2 is the x64 baseline)
+-- Release build (MSVC): Optimized for performance
+-- SIMD: SSE2 enabled (MSVC x64)
+-- SIMD interface target created with definitions: LIBSTATS_HAS_SSE2=1
+-- Test infrastructure disabled
+-- SIMD dev tools disabled (LIBSTATS_BUILD_SIMD_DEV_TOOLS=OFF)
+-- Tools enabled:
+--   - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)
+--   - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests
+--   - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing
+--   - strategy_profile: Canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes
+--   - simd_verification: Architecture-agnostic SIMD operations correctness verification across all distributions and edge cases
+--   - parallel_correctness_verification: Platform-aware parallel execution correctness validation across different threading systems (GCD, OpenMP, ThreadPool)
+--   - toctou_validator: Concurrent writer/reader race stress test for TOCTOU cache inconsistency detection across all 19 distributions
+--   - copy_move_stress: Concurrent copy/move throughput stress test across all 19 distributions (replaces test_copy_move_stress)
+--   - accuracy_sweep: Issue #46 deterministic bit-exact scalar/batch pdf/logpdf/cdf/quantile sweep across all 27 distributions for the mpmath oracle comparison
+-- libstats Configuration Summary:
+--   Version: 2.4.1
+--   C++ Standard: 20
+--   Build Type: Release
+--   Testing: Disabled
+-- Configuring done (15.1s)
+-- Generating done (0.3s)
+-- Build files have been written to: C:/Users/gdwol/Development/libstats-v2.4.2/build-sse2

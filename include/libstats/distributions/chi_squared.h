@@ -49,14 +49,15 @@ namespace stats {
  *   acquire the inner lock) has no lock-ordering conflict because `gamma_` is private and
  *   never exposed to external code
  * - ChiSquaredDistribution has **no** `atomicParamsValid_` member and no per-parameter atomic
- *   copies of its own. The atomic fast-path is provided entirely by `gamma_`'s own atomics.
- *   If a `getKAtomic()` fast-path is ever added, `atomicParamsValid_` and corresponding atomic
- *   storage must be added and invalidated in `setK`, `trySetK`, and `reset()`.
+ *   copies of its own. Scalar and batch paths read `gamma_` under `gamma_`'s own lock;
+ *   nothing reads `gamma_`'s atomic copies. If a `getKAtomic()` fast path is ever added,
+ *   `atomicParamsValid_` and corresponding atomic storage must be added and invalidated in
+ *   `setK`, `trySetK`, and `reset()`.
  *
  * @par Implementation Notes for Contributors:
- * - **Two-phase setters**: `setK` / `trySetK` release the ChiSquaredDistribution lock *before*
- *   calling `gamma_.trySetAlpha()`. Do not collapse into a single locked block — that would
- *   acquire two mutexes simultaneously without a defined ordering convention.
+ * - **Delegate update under the owner's lock**: `setK` / `trySetK` call `gamma_.trySetAlpha()`
+ *   while holding our lock (ours, then the delegate's), so concurrent setters reach the
+ *   delegate in the order they reach us. Never call a delegate setter outside the lock.
  * - **`updateCacheUnsafe()` is a sync trigger, not a computation**: it calls
  *   `gamma_.trySetAlpha(k_/2)` and sets `cache_valid_ = true`. All parameter derivation
  *   happens inside `gamma_`; ChiSquared itself caches nothing.
@@ -76,7 +77,7 @@ namespace stats {
  *     auto& chi2 = result.unwrap();
  *
  *     double test_statistic = 11.07;
- *     double p_value = 1.0 - chi2.getCumulativeProbability(test_statistic);
+ *     double p_value = chi2.getSurvival(test_statistic);
  *     // p_value ≈ 0.05 → reject at 5% significance
  *
  *     // Batch computation: evaluate PDF over a grid
@@ -313,6 +314,9 @@ class ChiSquaredDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override {
         return gamma_.getCumulativeProbability(x);
     }
+
+    /** @brief Survival S(x) — delegates to GammaDistribution's directly formed complement. */
+    [[nodiscard]] double getSurvival(double x) const override { return gamma_.getSurvival(x); }
 
     /**
      * @brief Quantile function (inverse CDF) — delegates to GammaDistribution.

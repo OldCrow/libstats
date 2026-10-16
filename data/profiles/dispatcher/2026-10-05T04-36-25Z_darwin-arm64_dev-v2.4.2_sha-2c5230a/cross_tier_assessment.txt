@@ -1,0 +1,40 @@
+== NEON: candidate vs current kNeon (rows > 1 grid step apart)
+  ChiSquared      PDF    table    512 -> cand    25k   runs 10k/25k/25k  Sep runs 25k/25k/50k  same as Sep
+  ChiSquared      LogPDF table    128 -> cand    75k   runs 75k/50k/75k  Sep runs 75k/50k/75k  same as Sep
+  ChiSquared      CDF    table     64 -> cand   2048   runs 2048/2048/1024  Sep runs 2048/2048/4096  same as Sep
+  Discrete        PDF    table    50k -> cand   100k   runs 100k/150k/100k  Sep runs 100k/100k/100k  same as Sep
+  Discrete        LogPDF table    50k -> cand   100k   runs 100k/150k/100k  Sep runs 100k/100k/100k  same as Sep
+  Discrete        CDF    table  1000k -> cand   100k   runs 100k/100k/75k  Sep runs 75k/75k/75k  same as Sep
+  Exponential     PDF    table    25k -> cand    75k   runs 75k/75k/75k  Sep runs 75k/75k/100k  same as Sep
+  Exponential     LogPDF table     64 -> cand   200k   runs 200k/200k/200k  Sep runs 250k/200k/200k  same as Sep
+  FisherF         PDF    table   8192 -> cand   2048   runs 2048/2048/4096  Sep runs 6144/8192/6144  MOVED since Sep
+  FisherF         LogPDF table    10k -> cand   4096   runs 6144/4096/4096  Sep runs 10k/6144/4096  MOVED since Sep
+  Gaussian        LogPDF table     64 -> cand   300k   runs 250k/300k/300k  Sep runs 300k/300k/300k  same as Sep
+  Gaussian        CDF    table  NEVER -> cand    25k   runs 25k/25k/25k  Sep runs 25k/25k/25k  same as Sep
+  Laplace         LogPDF table     64 -> cand   150k   runs 150k/150k/150k  Sep runs 100k/75k/100k  same as Sep
+  Laplace         CDF    table    256 -> cand    25k   runs 25k/25k/25k  Sep runs 25k/25k/25k  same as Sep
+  Pareto          PDF    table    75k -> cand   150k   runs 150k/150k/150k  Sep runs 100k/150k/150k  same as Sep
+  Poisson         PDF    table   4096 -> cand    25k   runs 25k/25k/25k  Sep runs 10k/25k/25k  same as Sep
+  Poisson         LogPDF table    256 -> cand    25k   runs 6144/10k/25k  Sep runs 50k/25k/25k  same as Sep
+  Poisson         CDF    table    256 -> cand   2048   runs 2048/2048/2048  Sep runs 2048/2048/2048  same as Sep
+  StudentT        CDF    table     64 -> cand  NEVER   runs 1000k/NEVER/NEVER  Sep runs NEVER/NEVER/NEVER  same as Sep
+  Uniform         CDF    table     64 -> cand    50k   runs 50k/50k/50k  Sep runs 50k/50k/75k  same as Sep
+  VonMises        PDF    table   100k -> cand    50k   runs 50k/50k/50k  Sep runs 50k/25k/25k  same as Sep
+  VonMises        LogPDF table   500k -> cand    50k   runs 50k/50k/50k  Sep runs 50k/50k/50k  same as Sep
+  22 of 81 rows would change; 2 of them moved since the 2026-09-04 capture
+
+== NEON: candidates moved > 1 grid step since 2026-09-04 (v2.4.0 -> v2.4.2), any table agreement
+  Cauchy          PDF    Sep   150k -> now    50k   table    25k
+  Exponential     CDF    Sep    75k -> now    25k   table    25k
+  FisherF         PDF    Sep   6144 -> now   2048   table   8192
+  FisherF         LogPDF Sep    10k -> now   4096   table    10k
+  InverseGamma    PDF    Sep   500k -> now    50k   table    50k
+  Rayleigh        CDF    Sep    75k -> now    25k   table    25k
+  StudentT        PDF    Sep   100k -> now    50k   table    50k
+  Weibull         PDF    Sep  1000k -> now    25k   table    25k
+  Weibull         LogPDF Sep   750k -> now    50k   table    50k
+  Weibull         CDF    Sep   750k -> now    50k   table    50k
+  10 of 81
+
+== run-to-run: rows whose three new runs span > 2x (candidate takes the max)
+  NEON: 9  ChiSquared.PDF, Erlang.CDF, FisherF.CDF, InverseGamma.LogPDF, InverseGamma.CDF, LogNormal.CDF, Poisson.LogPDF, StudentT.CDF, TruncatedNormal.CDF

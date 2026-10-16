@@ -28,10 +28,9 @@ TEST(WorkStealingPool, BasicTaskSubmission) {
     std::atomic<int> counter{0};
 
     for (int i = 0; i < 10; ++i) {
-        pool.submit([&counter, i]() {
-            counter.fetch_add(1);
-            std::cout << "  Task " << i << " executed\n";
-        });
+        // No printing here: the tasks run concurrently, and their writes to std::cout raced
+        // (ThreadSanitizer, in libc++'s lazy fill()); the counter is the check.
+        pool.submit([&counter]() { counter.fetch_add(1); });
     }
 
     pool.waitForAll();

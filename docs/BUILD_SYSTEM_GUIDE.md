@@ -9,8 +9,9 @@ libstats v2.x requires C++20 and the following minimum compilers:
 | Platform | Minimum compiler | Notes |
 |---|---|---|
 | macOS | AppleClang 15 | macOS 13 Ventura or newer |
-| Linux | GCC 13 or Clang 17 | CI exercises GCC 14 and Clang 17; GCC 13 is the CMake-enforced floor (AVX-512 compile workflow only) |
-| Windows | MSVC 19.38 | Visual Studio 2022 17.8 or newer |
+| Linux | GCC 13 or Clang 17 | CI exercises GCC 14 and Clang 17; GCC 13 is the CMake-enforced floor (coverage job and the two AVX-512 workflows only) |
+| Windows | MSVC 19.38 | Visual Studio 2022 17.8 or newer; the correctness build |
+| Windows | clang-cl, Clang 17 | The performance build (Ninja), used for every timing and threshold capture; the VS-bundled 22.1.3 is the version used |
 
 macOS builds use system AppleClang and Apple libc++. The v2.x build path does not support alternate LLVM toolchain setup.
 
@@ -51,8 +52,19 @@ cmake -B build -DLIBSTATS_FORCE_TBB=ON
 # Enable runtime CPU checks when cross-compiling
 cmake -B build -DLIBSTATS_ENABLE_RUNTIME_CHECKS=ON
 
-# Disable tools or tests
-cmake -B build -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF
+# Disable tools, tests or examples (examples default ON only for a top-level build)
+cmake -B build -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF -DLIBSTATS_BUILD_EXAMPLES=OFF
+
+# Windows: skip the global /arch: flag so the binary runs on machines with a lower ISA
+# than the build host (per-file flags on the SIMD kernel TUs stay); use for wheels
+cmake -B build -DLIBSTATS_PORTABLE=ON
+
+# Disable OpenMP when GCD (macOS) or the Windows Thread Pool is available, so two
+# thread pools do not oversubscribe the cores
+cmake -B build -DLIBSTATS_PREFER_PLATFORM_THREADING=ON
+
+# Doxygen documentation target
+cmake -B build -DBUILD_DOCS=ON
 
 # Cap the highest compiled x86 SIMD tier (SSE2|AVX|AVX2|AVX512; empty = no cap).
 # Runtime dispatch normally picks the highest tier the CPU supports, so lower-tier
@@ -63,6 +75,10 @@ cmake -B build -DLIBSTATS_BUILD_TOOLS=OFF -DLIBSTATS_BUILD_TESTS=OFF
 # check the archive has no higher-tier vector_* kernel symbols.
 cmake -B build-avx-cap -DCMAKE_BUILD_TYPE=Release -DLIBSTATS_MAX_SIMD_TIER=AVX
 ```
+
+Environment, read at run time by `tests/test_concurrency_stress.cpp`:
+`LIBSTATS_STRESS_SCALE` (default 1) multiplies the stress test's rounds and
+loop time; CI lowers it under ThreadSanitizer.
 
 ## Target layout
 
@@ -102,7 +118,11 @@ ALL-target refresh on Windows).
 The build tree carries the same dual include contract as the installed
 package: `<src>/include` (for `#include "libstats/core/foo.h"`),
 `<src>/include/libstats` (for the bare `#include "libstats.h"`), and
-`<build>/generated` (for the configure-time-generated `libstats_version.h`).
+`<build>/generated` (for the configure-time-generated `libstats_version.h` and
+`libstats_config.h`). `libstats_config.h` (template
+`cmake/libstats_config.h.in`) records configure-time facts that public
+headers branch on, such as `LIBSTATS_HAS_CXX17_BESSEL`; it is installed
+beside the hand-written headers so every consumer sees the same values.
 
 ## SIMD detection
 
@@ -120,6 +140,27 @@ The detector identifies available compile-time backends and adds source files fo
 Per-source SIMD flags use `COMPILE_OPTIONS`, not the deprecated `COMPILE_FLAGS` property.
 
 Runtime dispatch still checks CPU capabilities before selecting SIMD paths.
+
+On Windows, MSVC and clang-cl both take a global `/arch:` flag from the
+detected (and `LIBSTATS_MAX_SIMD_TIER`-capped) tier: `/arch:AVX512`,
+`/arch:AVX2` or `/arch:AVX`, none for SSE2 (`CMakeLists.txt`, skipped under
+`LIBSTATS_PORTABLE`). clang-cl takes cl.exe's `/arch:` flags rather than
+`-m` flags because they differ: `/arch:AVX2` includes FMA (with F16C,
+BMI1/2, LZCNT and MOVBE) and `/arch:AVX512` adds AVX-512 CD, BW, DQ and VL,
+while clang-cl's `-mavx2` lacks FMA and `-mavx512f` is AVX-512 F alone.
+Per-file kernel flags come from `cmake/SIMDApplication.cmake`.
+
+## Floating-point contraction
+
+`src/gamma.cpp` and `src/inverse_gamma.cpp` compile with contraction off
+(`-ffp-contract=off`; `/clang:-ffp-contract=off` under clang-cl; cl.exe
+does not contract by default). Their rate-product corrections carry the
+rounding of fl(βx) as an exact fma residual, which a contracted `β·x − α`
+would count twice. Every other file takes the compiler default (GCC
+`fast`, AppleClang and clang-cl `on`, MSVC off). The rule for new
+error-free transforms is in `AGENTS.md`, "FP-contraction rule"; CI's
+`fma-contraction` leg runs the correctness suite under contraction
+(`docs/CI_CD_GUIDE.md`).
 
 ## Threading detection
 
@@ -180,10 +221,11 @@ Built tools live in `build/tools/`:
 ### Header not found
 
 For direct ad hoc compilation outside CMake, add both source include roots
-(the dual bare/`libstats/`-prefixed contract, see AGENTS.md):
+and the configured build tree's generated directory, which holds
+`libstats_version.h` and `libstats_config.h` (see "Include layout"):
 
 ```bash
--I./include -I./include/libstats
+-I./include -I./include/libstats -I<build>/generated
 ```
 
 ### SIMD source does not compile
@@ -219,14 +261,16 @@ Moved here from AGENTS.md on 2026-09-07: navigation detail needed when
 editing the build, not in every session. The guarded-FORCE gotcha stayed in
 AGENTS.md, because it is a silent-failure trap rather than a signpost.
 
-  compiler-flag/warning-set logic live in `cmake/Threading.cmake` and
-  `cmake/CompilerFlags.cmake`; tests and tools are registered from their own
-  `tests/CMakeLists.txt` and `tools/CMakeLists.txt` via `add_subdirectory`.
-  Warnings are applied PRIVATE per-target through `libstats_apply_warnings(target)`
-  (defined in `cmake/CompilerFlags.cmake`), called on every object library,
-  the final static/shared libs, tests, and tools — GTest is exempt (fetched
-  sources never receive our warning flags). Optimization/debug-info flags
-  for the custom `Dev`/`Strict` build types come from `CMAKE_CXX_FLAGS_DEV`/
+Threading detection and compiler-flag/warning-set logic live in
+`cmake/Threading.cmake` and `cmake/CompilerFlags.cmake`; tests and tools are registered from their own
+`tests/CMakeLists.txt` and `tools/CMakeLists.txt` via `add_subdirectory`.
+Warnings are applied PRIVATE per-target through `libstats_apply_warnings(target)`
+(defined in `cmake/CompilerFlags.cmake`), called on every object library,
+the final static/shared libs, tests, and tools — GTest is exempt (fetched
+sources never receive our warning flags). Optimization/debug-info flags
+for the custom `Dev`/`Strict` build types come from `CMAKE_CXX_FLAGS_DEV`/
+`CMAKE_CXX_FLAGS_STRICT`, set with the guarded-FORCE idiom described in
+AGENTS.md.
 
 ## The #97 config-header incident
 

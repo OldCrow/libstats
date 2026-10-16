@@ -1,10 +1,6 @@
 #include "libstats/distributions/uniform.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/math_constants.h"
 #include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/statistical_constants.h"
@@ -24,12 +20,51 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
 #include <vector>
 
 namespace stats {
+
+namespace {
+// Width-dependent forms that hold when b − a overflows (DH2 S2). Each equals the direct form
+// bit for bit whenever the width is finite (halving and doubling are exact), so the direct form
+// is kept on that path and these are reached only from an overflowed width.
+//   a + t·(b − a)      →  2·(a/2 + t·h),      h = b/2 − a/2
+//   (x − a)/(b − a)    →  (x/2 − a/2)/h
+[[nodiscard]] inline double uniformAffine(double a, double t, double width,
+                                          double half_width) noexcept {
+    if (std::isfinite(width))
+        return a + t * width;
+    return detail::TWO * (detail::HALF * a + t * half_width);
+}
+
+// F(x) on [a, b], by division rather than by the cached 1/(b − a). The reciprocal is subnormal
+// from width 4.5e307 (U(−DBL_MAX, 0).cdf(0) = 1 − 1.1e-16) and +inf at a subnormal width
+// (U(0, 1e-320).cdf(5e-321) = inf), and even at ordinary widths w·fl(1/w) need not be 1
+// (49·fl(1/49) = 1 − 1.1e-16). The quotient is correctly rounded, exactly 0 at a and 1 at b
+// (fl(b − a)/fl(b − a)), and monotone in x.
+[[nodiscard]] inline double uniformCdfInterior(double x, double a, double b) noexcept {
+    const double width = b - a;
+    if (std::isfinite(width))
+        return (x - a) / width;
+    return (detail::HALF * x - detail::HALF * a) / (detail::HALF * b - detail::HALF * a);
+}
+
+// S(x) on [a, b], the CDF's quotient mirrored: b − x is exact near b (Sterbenz), so the upper end
+// keeps full relative precision where 1 − (x − a)/(b − a) carries the quotient's rounding.
+[[nodiscard]] inline double uniformSurvivalInterior(double x, double a, double b) noexcept {
+    const double width = b - a;
+    if (std::isfinite(width))
+        return (b - x) / width;
+    return (detail::HALF * b - detail::HALF * x) / (detail::HALF * b - detail::HALF * a);
+}
+
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTORS
@@ -50,13 +85,16 @@ UniformDistribution::UniformDistribution(const UniformDistribution& other)
 
 UniformDistribution& UniformDistribution::operator=(const UniformDistribution& other) {
     if (this != &other) {
-        // Acquire locks in a consistent order to prevent deadlock
-
-        // Copy parameters (don't call base class operator= to avoid deadlock)
+        // Both locks at once, in std::lock's deadlock-free order, as the other distributions do;
+        // this assignment took none, so it read other's bounds mid-update.
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         a_ = other.a_;
         b_ = other.b_;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -69,11 +107,17 @@ UniformDistribution::UniformDistribution(UniformDistribution&& other) noexcept
     other.b_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
     // Cache will be updated on first use
 }
 
 UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         a_ = other.a_;
         b_ = other.b_;
         other.a_ = detail::ZERO_DOUBLE;
@@ -82,7 +126,9 @@ UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other)
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -99,18 +145,10 @@ UniformDistribution& UniformDistribution::operator=(UniformDistribution&& other)
 //==============================================================================
 
 void UniformDistribution::setLowerBound(double a) {
-    // Copy current upper bound for validation (thread-safe)
-    double currentB;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentB = b_;
-    }
-
-    // Validate parameters outside of any lock
-    validateParameters(a, currentB);
-
-    // Set parameter under lock
+    // Validate against the upper bound and write under one lock: a copy validated outside
+    // it let a concurrent setUpperBound leave a >= b.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(a, b_);
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -120,18 +158,10 @@ void UniformDistribution::setLowerBound(double a) {
 }
 
 void UniformDistribution::setUpperBound(double b) {
-    // Copy current lower bound for validation (thread-safe)
-    double currentA;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentA = a_;
-    }
-
-    // Validate parameters outside of any lock
-    validateParameters(currentA, b);
-
-    // Set parameter under lock
+    // Validate against the lower bound and write under one lock: a copy validated outside
+    // it let a concurrent setLowerBound leave a >= b.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(a_, b);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -205,18 +235,12 @@ double UniformDistribution::getWidth() const {
 //==============================================================================
 
 VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
-    double currentB;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentB = b_;
-    }
-
-    auto validation = validateUniformParameters(a, currentB);
+    // One lock for the validation and the write (see setLowerBound).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateUniformParameters(a, b_);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -226,18 +250,12 @@ VoidResult UniformDistribution::trySetLowerBound(double a) noexcept {
 }
 
 VoidResult UniformDistribution::trySetUpperBound(double b) noexcept {
-    double currentA;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentA = a_;
-    }
-
-    auto validation = validateUniformParameters(currentA, b);
+    // One lock for the validation and the write (see setUpperBound).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateUniformParameters(a_, b);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -291,30 +309,29 @@ double UniformDistribution::getLogProbability(double x) const {
     // Ensure cache is valid
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-    double lo, hi, w;
+    double lo, hi, log_inv_w;
     bool is_unit;
     withCacheSnapshot([&] {
         lo = a_;
         hi = b_;
         is_unit = isUnitInterval_;
-        w = width_;
+        log_inv_w = logInvWidth_;
     });
     if (x < lo || x > hi)
         return detail::NEGATIVE_INFINITY;
     if (is_unit)
         return detail::ZERO_DOUBLE;
-    return -std::log(w);
+    return log_inv_w;
 }
 
 double UniformDistribution::getCumulativeProbability(double x) const {
     // Ensure cache is valid
-    double lo, hi, inv_w;
+    double lo, hi;
     bool is_unit;
     withCacheSnapshot([&] {
         lo = a_;
         hi = b_;
         is_unit = isUnitInterval_;
-        inv_w = invWidth_;
     });
     if (x < lo)
         return detail::ZERO_DOUBLE;
@@ -322,40 +339,57 @@ double UniformDistribution::getCumulativeProbability(double x) const {
         return detail::ONE;
     if (is_unit)
         return x;
-    return (x - lo) * inv_w;
+    return uniformCdfInterior(x, lo, hi);
+}
+
+double UniformDistribution::getSurvival(double x) const {
+    double lo, hi;
+    withCacheSnapshot([&] {
+        lo = a_;
+        hi = b_;
+    });
+    if (x < lo)
+        return detail::ONE;
+    if (x > hi)
+        return detail::ZERO_DOUBLE;
+    return uniformSurvivalInterior(x, lo, hi);  // NaN falls through to NaN
 }
 
 double UniformDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
 
-    if (p == detail::ZERO_DOUBLE) {
-        return a_;
-    }
-    if (p == detail::ONE) {
-        return b_;
-    }
-
-    double lo, w;
+    double lo, hi, w, hw;
     bool is_unit;
     withCacheSnapshot([&] {
         lo = a_;
+        hi = b_;
         is_unit = isUnitInterval_;
         w = width_;
+        hw = halfWidth_;
     });
+    if (p == detail::ZERO_DOUBLE) {
+        return lo;
+    }
+    if (p == detail::ONE) {
+        return hi;
+    }
     if (is_unit)
         return p;
-    return lo + p * w;
+    return uniformAffine(lo, p, w, hw);
 }
 
 double UniformDistribution::sample(std::mt19937& rng) const {
     bool cached_is_unit_interval;
-    double cached_a, cached_width;
+    double cached_a, cached_width, cached_half_width;
     withCacheSnapshot([&] {
         cached_is_unit_interval = isUnitInterval_;
         cached_a = a_;
         cached_width = width_;
+        cached_half_width = halfWidth_;
     });
 
     // Use high-quality uniform distribution
@@ -369,7 +403,7 @@ double UniformDistribution::sample(std::mt19937& rng) const {
     }
 
     // General case: linear transformation X = a + (b-a)*U
-    return cached_a + cached_width * u;
+    return uniformAffine(cached_a, u, cached_width, cached_half_width);
 }
 
 std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) const {
@@ -379,7 +413,7 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
     std::uniform_real_distribution<double> dist(detail::ZERO_DOUBLE, detail::ONE);
 
     // Snapshot cached fields; no re-acquire = no TOCTOU gap.
-    double cached_a, cached_width;
+    double cached_a, cached_width, cached_half_width;
     bool cached_is_unit_interval;
     {
         std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -390,10 +424,12 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
                 updateCacheUnsafe();
             cached_a = a_;
             cached_width = width_;
+            cached_half_width = halfWidth_;
             cached_is_unit_interval = isUnitInterval_;
         } else {
             cached_a = a_;
             cached_width = width_;
+            cached_half_width = halfWidth_;
             cached_is_unit_interval = isUnitInterval_;
         }
     }
@@ -404,7 +440,7 @@ std::vector<double> UniformDistribution::sample(std::mt19937& rng, size_t n) con
         if (cached_is_unit_interval) {
             samples.push_back(u);
         } else {
-            samples.push_back(cached_a + u * cached_width);
+            samples.push_back(uniformAffine(cached_a, u, cached_width, cached_half_width));
         }
     }
 
@@ -463,6 +499,7 @@ void UniformDistribution::reset() noexcept {
 std::string UniformDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "UniformDistribution(a=" << a_ << ", b=" << b_ << ")";
     return oss.str();
 }
@@ -540,7 +577,7 @@ std::tuple<double, double, bool> UniformDistribution::uniformityTest(
 // 12. DISTRIBUTION-SPECIFIC UTILITY METHODS
 //==========================================================================
 
-// Inline utility methods moved from header for PIMPL optimization
+// Utility methods out-of-line to keep the header light
 // These retain 'inline' hint to allow compiler optimization while reducing header bloat
 
 double UniformDistribution::getRange() const {
@@ -555,7 +592,11 @@ bool UniformDistribution::contains(double x) const noexcept {
 
 double UniformDistribution::getEntropy() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return std::log(b_ - a_);  // ln(range)
+    const double w = b_ - a_;
+    if (std::isfinite(w))
+        return std::log(w);  // ln(range)
+    return std::log(detail::HALF * b_ - detail::HALF * a_) +
+           detail::LN2;  // range overflowed (DH2 S2)
 }
 
 bool UniformDistribution::isUnitInterval() const noexcept {
@@ -571,17 +612,20 @@ bool UniformDistribution::isSymmetricAroundZero() const noexcept {
 
 double UniformDistribution::getMedian() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return (a_ + b_) / 2.0;
+    const double sum = a_ + b_;
+    return std::isfinite(sum) ? sum / 2.0 : detail::HALF * a_ + detail::HALF * b_;
 }
 
 double UniformDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return (a_ + b_) / 2.0;
+    const double sum = a_ + b_;
+    return std::isfinite(sum) ? sum / 2.0 : detail::HALF * a_ + detail::HALF * b_;
 }
 
 double UniformDistribution::getMidpoint() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    return (a_ + b_) * detail::HALF;  // Multiplication is faster than division
+    const double sum = a_ + b_;  // overflows near ±DBL_MAX; the halves do not
+    return std::isfinite(sum) ? sum * detail::HALF : detail::HALF * a_ + detail::HALF * b_;
 }
 
 //==============================================================================
@@ -619,16 +663,11 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                                                cached_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_inv_width;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -647,35 +686,19 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                     cached_inv_width = dist.invWidth_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] =
-                        (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       cached_a, cached_b, cached_inv_width);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] =
-                        (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
-                }
-            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_inv_width;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
@@ -694,11 +717,9 @@ void UniformDistribution::getProbability(std::span<const double> values, std::sp
                     cached_inv_width = dist.invWidth_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x >= cached_a && x <= cached_b) ? cached_inv_width : detail::ZERO_DOUBLE;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   cached_a, cached_b, cached_inv_width);
             });
         });
 }
@@ -721,7 +742,7 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                 // Snapshot under unique_lock — eliminates TOCTOU gap.
                 const double cached_a = dist.a_;
                 const double cached_b = dist.b_;
-                const double cached_log_inv_width = -std::log(dist.width_);
+                const double cached_log_inv_width = dist.logInvWidth_;
                 dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
                                                       cached_log_inv_width);
                 return;
@@ -729,24 +750,18 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
             // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
-            const double cached_log_inv_width = -std::log(dist.width_);
+            const double cached_log_inv_width = dist.logInvWidth_;
             lock.unlock();
             dist.getLogProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
                                                   cached_log_inv_width);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_log_inv_width;
-            bool cached_is_unit_interval;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -757,56 +772,28 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_log_inv_width = -std::log(dist.width_);
-                    cached_is_unit_interval = dist.isUnitInterval_;
+                    cached_log_inv_width = dist.logInvWidth_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_log_inv_width = -std::log(dist.width_);
-                    cached_is_unit_interval = dist.isUnitInterval_;
+                    cached_log_inv_width = dist.logInvWidth_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x < cached_a || x > cached_b) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else if (cached_is_unit_interval) {
-                        res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                    } else {
-                        res[i] = cached_log_inv_width;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, cached_a, cached_b,
+                                                          cached_log_inv_width);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x < cached_a || x > cached_b) {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    } else if (cached_is_unit_interval) {
-                        res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                    } else {
-                        res[i] = cached_log_inv_width;
-                    }
-                }
-            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
             double cached_a, cached_b, cached_log_inv_width;
-            bool cached_is_unit_interval;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -817,26 +804,16 @@ void UniformDistribution::getLogProbability(std::span<const double> values,
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_log_inv_width = -std::log(dist.width_);
-                    cached_is_unit_interval = dist.isUnitInterval_;
+                    cached_log_inv_width = dist.logInvWidth_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_log_inv_width = -std::log(dist.width_);
-                    cached_is_unit_interval = dist.isUnitInterval_;
+                    cached_log_inv_width = dist.logInvWidth_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < cached_a || x > cached_b) {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                } else if (cached_is_unit_interval) {
-                    res[i] = detail::ZERO_DOUBLE;  // log(1) = 0
-                } else {
-                    res[i] = cached_log_inv_width;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      cached_a, cached_b, cached_log_inv_width);
             });
         });
 }
@@ -861,32 +838,22 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                 // Snapshot under unique_lock — eliminates TOCTOU gap.
                 const double cached_a = dist.a_;
                 const double cached_b = dist.b_;
-                const double cached_inv_width = dist.invWidth_;
-                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
-                                                             cached_inv_width);
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b);
                 return;
             }
             // Cache hit — snapshot under shared_lock.
             const double cached_a = dist.a_;
             const double cached_b = dist.b_;
-            const double cached_inv_width = dist.invWidth_;
             lock.unlock();
-            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b,
-                                                         cached_inv_width);
+            dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b);
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
-            double cached_a, cached_b, cached_inv_width;
-            bool cached_is_unit_interval;
+            double cached_a, cached_b;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -897,60 +864,25 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_inv_width = dist.invWidth_;
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_inv_width = dist.invWidth_;
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x < cached_a) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else if (x > cached_b) {
-                        res[i] = detail::ONE;
-                    } else if (cached_is_unit_interval) {
-                        res[i] = x;  // CDF(x) = x for U(0,1)
-                    } else {
-                        res[i] = (x - cached_a) * cached_inv_width;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, cached_a, cached_b);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (x < cached_a) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else if (x > cached_b) {
-                        res[i] = detail::ONE;
-                    } else if (cached_is_unit_interval) {
-                        res[i] = x;  // CDF(x) = x for U(0,1)
-                    } else {
-                        res[i] = (x - cached_a) * cached_inv_width;
-                    }
-                }
-            }
         },
         [](const UniformDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot cached fields; no re-acquire = no TOCTOU gap.
-            double cached_a, cached_b, cached_inv_width;
-            bool cached_is_unit_interval;
+            double cached_a, cached_b;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
@@ -961,28 +893,14 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
                     }
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_inv_width = dist.invWidth_;
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 } else {
                     cached_a = dist.a_;
                     cached_b = dist.b_;
-                    cached_inv_width = dist.invWidth_;
-                    cached_is_unit_interval = dist.isUnitInterval_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x < cached_a) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (x > cached_b) {
-                    res[i] = detail::ONE;
-                } else if (cached_is_unit_interval) {
-                    res[i] = x;  // CDF(x) = x for U(0,1)
-                } else {
-                    res[i] = (x - cached_a) * cached_inv_width;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_a, cached_b);
             });
         });
 }
@@ -996,6 +914,9 @@ void UniformDistribution::getCumulativeProbability(std::span<const double> value
 //==============================================================================
 
 bool UniformDistribution::operator==(const UniformDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
@@ -1053,7 +974,7 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
 
     try {
         std::string a_str = line.substr(a_pos, comma_pos - a_pos);
-        a = std::stod(a_str);
+        a = detail::parse_double(a_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -1074,7 +995,7 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
 
     try {
         std::string b_str = line.substr(b_pos, close_paren - b_pos);
-        b = std::stod(b_str);
+        b = detail::parse_double(b_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -1103,11 +1024,10 @@ std::istream& operator>>(std::istream& is, UniformDistribution& distribution) {
 // fill guarded by a bounds check, and there is no arithmetic to vectorize
 // without a blend/select primitive in VectorOps.
 //
-// CDF is partially vectorized. The interior is a linear function
-// (x - a) * inv_width that maps cleanly to scalar_add + scalar_multiply.
-// A scalar fixup pass then clamps values outside [a, b]. The unit-interval
-// special case collapses to the same formula (a=0, inv_width=1), so the
-// two-branch structure in the old SIMD path has been removed.
+// CDF is partially vectorized. The interior (x - a)/(b - a) is a branch-free
+// loop the compiler packs into subtract and divide; a scalar fixup pass then
+// clamps values outside [a, b]. The unit-interval special case collapses to
+// the same formula (a=0, b=1).
 //==============================================================================
 
 void UniformDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
@@ -1193,8 +1113,7 @@ void UniformDistribution::getLogProbabilityBatchUnsafeImpl(const double* values,
 void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* values,
                                                                   double* results,
                                                                   std::size_t count, double a,
-                                                                  double b,
-                                                                  double inv_width) const noexcept {
+                                                                  double b) const noexcept {
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
 
     if (!use_simd) {
@@ -1206,19 +1125,31 @@ void UniformDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             } else if (x > b) {
                 results[i] = detail::ONE;
             } else {
-                results[i] = (x - a) * inv_width;
+                results[i] = uniformCdfInterior(x, a, b);
             }
         }
         return;
     }
 
-    // Vectorize the linear interior (x-a)*inv_width across the full batch,
-    // then a scalar pass clamps the boundary values.
-    // The unit-interval case (a=0, inv_width=1) is handled by the same formula.
-    // Step 1: results = values - a
-    arch::simd::VectorOps::scalar_add(values, -a, results, count);
-    // Step 2: results = (values - a) * inv_width
-    arch::simd::VectorOps::scalar_multiply(results, inv_width, results, count);
+    const double width = b - a;
+    if (!std::isfinite(width)) {
+        // b − a overflowed (DH2 S2): the linear form below would give inf·0 at x − a = inf.
+        for (std::size_t i = 0; i < count; ++i) {
+            const double x = values[i];
+            results[i] = (x < a)   ? detail::ZERO_DOUBLE
+                         : (x > b) ? detail::ONE
+                                   : uniformCdfInterior(x, a, b);
+        }
+        return;
+    }
+
+    // The interior (x − a)/(b − a) across the full batch, then a scalar pass clamps the
+    // boundary values. The quotient is uniformCdfInterior's, element for element, so every
+    // strategy returns the scalar result bit for bit; the branch-free loop vectorizes to a
+    // packed subtract and divide (VectorOps has no divide-by-scalar).
+    // The unit-interval case (a = 0, b = 1) is handled by the same formula.
+    for (std::size_t i = 0; i < count; ++i)
+        results[i] = (values[i] - a) / width;
     // Clamp fixup: boundaries are 0 below a and 1 above b.
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] < a) {

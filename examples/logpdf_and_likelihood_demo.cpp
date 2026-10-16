@@ -28,7 +28,7 @@
 #include <cmath>      // for std::exp, std::log, std::isfinite
 #include <iomanip>
 #include <iostream>
-#include <numeric>   // for std::accumulate
+#include <numeric>  // for std::accumulate
 #include <random>
 #include <span>
 #include <vector>
@@ -65,7 +65,8 @@ double log_likelihood(const Dist& dist, const std::vector<double>& data) {
 // ─────────────────────────────────────────────────────────────────────────────
 double log_sum_exp(const std::vector<double>& log_vals) {
     const double max_val = *std::max_element(log_vals.begin(), log_vals.end());
-    if (!std::isfinite(max_val)) return max_val;
+    if (!std::isfinite(max_val))
+        return max_val;
 
     double sum = 0.0;
     for (double v : log_vals) {
@@ -75,7 +76,8 @@ double log_sum_exp(const std::vector<double>& log_vals) {
 }
 
 static void section(const char* title) {
-    std::cout << "\n" << std::string(60, '=') << "\n"
+    std::cout << "\n"
+              << std::string(60, '=') << "\n"
               << title << "\n"
               << std::string(60, '=') << "\n";
 }
@@ -94,13 +96,12 @@ int main() {
     // ─────────────────────────────────────────────────────────────────────────
     section("1. Scalar Log-Probability");
 
-    auto normal  = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
     auto exp_dist = stats::ExponentialDistribution::create(2.0).unwrap();
 
     std::cout << std::fixed << std::setprecision(6);
     std::cout << "Gaussian N(0,1) at x = 0.0:\n";
-    std::cout << "  getProbability(0.0)   = " << normal.getProbability(0.0)
-              << "  (PDF value)\n";
+    std::cout << "  getProbability(0.0)   = " << normal.getProbability(0.0) << "  (PDF value)\n";
     std::cout << "  getLogProbability(0.0) = " << normal.getLogProbability(0.0)
               << "  (log PDF, i.e. log(" << normal.getProbability(0.0) << "))\n\n";
 
@@ -125,9 +126,11 @@ int main() {
 
     std::cout << "Batch getLogProbability() for Gaussian N(0,1):\n";
     std::cout << "  x     :";
-    for (double x : xs) std::cout << std::setw(9) << x;
+    for (double x : xs)
+        std::cout << std::setw(9) << x;
     std::cout << "\n  LogPDF:";
-    for (double lp : log_probs) std::cout << std::setw(9) << std::setprecision(3) << lp;
+    for (double lp : log_probs)
+        std::cout << std::setw(9) << std::setprecision(3) << lp;
     std::cout << "\n\n";
 
     std::cout << "Note: the batch span API and the scalar loop produce identical results;\n"
@@ -179,15 +182,14 @@ int main() {
 
     double log_sum = 0.0;
     std::vector<double> lp_large(obs_large.size());
-    true_dist.getLogProbability(std::span<const double>(obs_large),
-                                std::span<double>(lp_large));
+    true_dist.getLogProbability(std::span<const double>(obs_large), std::span<double>(lp_large));
     for (double lp : lp_large) {
-        if (std::isfinite(lp)) log_sum += lp;
+        if (std::isfinite(lp))
+            log_sum += lp;
     }
 
     std::cout << "800 observations from N(1.5, 0.8):\n";
-    std::cout << "  Raw product ∏ f(xᵢ) = " << raw_product
-              << "  ← underflows to 0 for n ≳ 150\n";
+    std::cout << "  Raw product ∏ f(xᵢ) = " << raw_product << "  ← underflows to 0 for n ≳ 150\n";
     std::cout << "  Log-sum ∑ log f(xᵢ) = " << std::setprecision(1) << log_sum
               << "  ← always finite and meaningful\n\n";
 
@@ -205,7 +207,7 @@ int main() {
 
     // Fit both models to the data
     auto gauss_fitted = stats::GaussianDistribution::create(1.0, 1.0).unwrap();
-    auto exp_fitted   = stats::ExponentialDistribution::create(1.0).unwrap();
+    auto exp_fitted = stats::ExponentialDistribution::create(1.0).unwrap();
     gauss_fitted.fit(latency_obs);
     exp_fitted.fit(latency_obs);
 
@@ -216,7 +218,7 @@ int main() {
               << "  (mean = " << exp_fitted.getMean() << ")\n\n";
 
     const double ll_gauss = log_likelihood(gauss_fitted, latency_obs);
-    const double ll_exp   = log_likelihood(exp_fitted,   latency_obs);
+    const double ll_exp = log_likelihood(exp_fitted, latency_obs);
 
     std::cout << std::setprecision(1);
     std::cout << "Log-likelihoods:\n";
@@ -250,16 +252,15 @@ int main() {
                                     std::span<double>(scores));
 
     std::cout << "Anomaly scores (log-probability; lower = more anomalous):\n";
-    std::cout << "  " << std::left << std::setw(10) << "x"
-              << std::setw(16) << "log P(x|model)" << "Assessment\n";
+    std::cout << "  " << std::left << std::setw(10) << "x" << std::setw(16) << "log P(x|model)"
+              << "Assessment\n";
     std::cout << "  " << std::string(40, '-') << "\n";
 
     const double threshold = -10.0;  // domain-specific; tune in practice
     for (size_t i = 0; i < test_points.size(); ++i) {
         const char* tag = (scores[i] < threshold) ? "ANOMALY" : "normal";
         std::cout << "  " << std::setw(10) << std::setprecision(1) << test_points[i]
-                  << std::setw(16) << std::setprecision(2) << scores[i]
-                  << tag << "\n";
+                  << std::setw(16) << std::setprecision(2) << scores[i] << tag << "\n";
     }
 
     std::cout << "\nKey points:\n"

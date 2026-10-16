@@ -16,29 +16,35 @@ namespace stats {
  * - PDF:    f(x; μ, κ) = exp(κ·cos(x−μ)) / (2π·I₀(κ))
  * - LogPDF: κ·cos(x−μ) − logNormaliser_
  *           where logNormaliser_ = log(2π) + log I₀(κ)
- * - CDF:    for 0 < κ ≤ 1000, a Bessel-series expansion (issue #51):
- *             F(x) = (t+π)/(2π) + Σⱼ bⱼ·sin(j·t),  t = wrap(x−μ) ∈ [−π,π]
- *           with bⱼ = Iⱼ(κ)/(j·π·I₀(κ)) from a per-instance Miller backward
- *           recurrence (cdfSeriesCoeffs_, §24), j = 1..j_max,
- *           j_max = ⌈10 + 8.5√κ⌉. κ = 0 uses the exact linear form
- *           (t+π)/(2π). κ > 1000 (unvalidated range for the series) falls
- *           back to the wrapped-normal approximation, ≈ 0.04/κ absolute error.
- * - Quantile: bisection on the CDF grid in (−π, π]; O(log N) via cdfGrid*
- *           (§24), still built from the O(512) trapezoidal rule (issue #51
- *           left this as-is: the full test suite round-trips cleanly against
- *           the more accurate series CDF at the grid's existing resolution;
- *           rebuilding the grid from the series is a tracked follow-up, not
- *           a correctness requirement).
+ * - CDF:    for 0 < κ ≤ 1e20, at t = wrap(x−μ), with w = κ(1 − cos θ) as the
+ *           integration variable: where F is within 1/4 of the median,
+ *           F = 1/2 ∓ C(|t|)/(2π·I₀(κ)e^−κ), C the central mass by a short
+ *           Gauss–Legendre rule; beyond, the tail mass G(t) = g(t)·J(t), J by
+ *           a Watson-lemma series where κ(1 + cos t) ≥ 45 (and, within a quarter
+ *           turn of μ, κ(1 − cos t) ≥ 45) and by Gauss–Legendre otherwise —
+ *           relative to the accuracy law in both tails. κ = 0 uses
+ *           the exact linear form (t+π)/(2π). κ > 1e20 takes the normal limit
+ *           Φ(2√κ·sin(t/2)), whose first correction, (w² − 1)/(8κ) relative,
+ *           is below 2e-18 there; the quantile inverts the same limit.
+ * - Quantile: on the small side of the probability scale (the CDF below the
+ *           median, the survival above it): Halley on the central mass within
+ *           1/4 of the median, on the logarithm of the tail mass beyond,
+ *           bracketed. The left end of the support maps to the smallest double
+ *           above −π + μ, wrapped.
  * - Parameters: μ ∈ ℝ (wrapped to (−π, π]), κ ≥ 0
- * - Support: x ∈ (−π, π]
+ * - Support: x ∈ (−π, π]. In doubles the interval is (−M_PI, M_PI]: the double −M_PI is the
+ *   same point of the circle as M_PI and wraps to it (#51), so getCumulativeProbability(−M_PI) is
+ * 1, as at M_PI, and a probability mass that starts at the lower edge starts just above −M_PI.
  *
  * @par Moments (circular):
  * - Circular mean: μ
  * - Circular variance: 1 − I₁(κ)/I₀(κ)  ∈ [0, 1]
  *   (0 = fully concentrated at μ, 1 = uniform)
  * - getVariance() returns the circular variance by convention.
- * - getSkewness() returns 0 (symmetric distribution).
- * - getKurtosis() returns 0 (not meaningfully defined for circular data).
+ * - getSkewness() returns 0, the circular skewness (symmetric about μ).
+ * - getKurtosis() returns the standardized circular kurtosis (ρ₂ − ρ₁⁴)/(1 − ρ₁)², ρₚ = Iₚ(κ)/I₀(κ)
+ *   (Mardia and Jupp 2000, §3.4.2): the circular counterpart of excess kurtosis, 0 for the
+ *   wrapped normal, ~2/κ as κ → ∞ and κ²/8 as κ → 0.
  *
  * @par Special Cases:
  * - κ = 0: uniform distribution on (−π, π]; PDF = 1/(2π) everywhere.
@@ -46,21 +52,21 @@ namespace stats {
  *
  * @par Bessel Functions:
  * The implementation requires modified Bessel functions I₀ and I₁.
- * These are provided by include/core/bessel.h via two tiers:
+ * These are provided by include/libstats/core/bessel.h via two tiers:
  *   Tier 1 (LIBSTATS_HAS_CXX17_BESSEL): std::cyl_bessel_i (GCC, MSVC).
  *   Tier 2 (fallback): A&S §9.8.1–9.8.4 polynomial, error < 1.6×10⁻⁷.
  *   AppleClang / macOS libc++ always uses Tier 2.
  *
  * @par Batch operations and SIMD:
- * The VECTORIZED strategy uses `VectorOps::vector_cos` via the 4-step pipeline:
- *   1. scalar_add(−μ)         — shift to zero-centred angle
- *   2. vector_cos(results)    — SIMD cosine across all backends (AVX/AVX2/NEON/AVX-512)
- *   3. scalar_multiply(κ)     — scale by concentration
- *   4. scalar_add(−ln Z)      — subtract log-normaliser
- * The CDF batch path (issue #51) evaluates the same Bessel series per lane:
- * `t = wrap(x−μ)` per element, then `VectorOps::vector_sin` once per series
- * term (j = j_max down to 1) accumulated against the per-instance bⱼ. The
- * PARALLEL strategy provides multi-core throughput for very large batches.
+ * The VECTORIZED strategy evaluates log f = −2κ·sin²(t/2) − log(2π·I₀(κ)e^−κ), t = x − μ,
+ * without the κ·cos t − log I₀(κ) cancellation:
+ *   1. scalar_add(−μ), scalar_multiply(½) — half the zero-centred angle (exact)
+ *   2. vector_sin, vector_multiply         — SIMD sin² across all backends
+ *   3. scalar_multiply(−2κ)                — scale by concentration
+ *   4. scalar_add(−log scaled normaliser)  — subtract the scaled log-normaliser
+ * The CDF batch path evaluates the scalar CDF per element on one cache
+ * snapshot. The PARALLEL strategy provides multi-core throughput for very
+ * large batches.
  *
  * @par MLE:
  * - μ̂ = atan2(Σsin(xᵢ), Σcos(xᵢ))  (one-pass circular mean)
@@ -196,9 +202,12 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getSkewness() const noexcept override { return detail::ZERO_DOUBLE; }
 
     /**
-     * @brief Kurtosis = 0 (not meaningfully defined for circular distributions).
+     * @brief Standardized circular kurtosis (ρ₂ − ρ₁⁴)/(1 − ρ₁)², to ~1.4 ulp for every κ.
+     *
+     * The circular counterpart of excess kurtosis, consistent with getVariance()'s circular
+     * variance: 0 for the wrapped normal, ~2/κ as κ → ∞. It returned 0 before v2.5.0.
      */
-    [[nodiscard]] double getKurtosis() const noexcept override { return detail::ZERO_DOUBLE; }
+    [[nodiscard]] double getKurtosis() const noexcept override;
 
     /** @brief Number of parameters (always 2). */
     [[nodiscard]] int getNumParameters() const noexcept override { return 2; }
@@ -243,25 +252,38 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
-     * @brief CDF via the Bessel-series expansion for 0 < κ ≤ 1000 (issue #51);
-     * exact linear form at κ = 0; wrapped-normal approximation for κ > 1000
-     * (unvalidated range for the series). O(j_max) per call, j_max = ⌈10+8.5√κ⌉.
-     * @note x−μ is wrapped to [−π, π] before series evaluation.
-     * PROVISIONAL accuracy bound pending the mpmath-oracle accuracy gate
-     * (tests/test_vonmises_cdf_accuracy.cpp).
+     * @brief CDF for 0 < κ ≤ 1e20: the central mass within 1/4 of the median,
+     * the tail mass beyond, so both tails are accurate relative to the accuracy
+     * law; at most one short Gauss–Legendre rule (≤ 36 nodes) per call, none
+     * where the tail's series applies. Exact linear form at κ = 0; the normal limit
+     * Φ(2√κ·sin(t/2)) for κ > 1e20, exact to double there.
+     * @note x−μ is wrapped to (−M_PI, M_PI] first: −M_PI wraps to M_PI, so F is 1 there (#51).
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
-     * @brief Quantile via bisection on CDF in (−π, π].
-     * O(512 · 50) = ~25 000 cos calls per query. Use sparingly in hot paths.
+     * @brief Survival S(μ + t) = F(μ − t) by symmetry, with t = x − μ wrapped to (−M_PI, M_PI] and
+     * the CDF kernel evaluated at −t directly (not re-wrapped, which would fold −M_PI to
+     * M_PI). S(M_PI) is the mass on (M_PI, π), not 0: the double M_PI lies below π.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
+     * @brief Quantile in (−π, π]: bracketed Halley on the smaller of p and
+     * 1 − p, on the central mass within 1/4 of the median and on the log of
+     * the tail mass beyond. A few CDF evaluations per query. NaN propagates;
+     * p = 0 gives the smallest double above −π + μ (wrapped), p = 1 gives
+     * π + μ (wrapped).
      * @throws std::invalid_argument if p not in [0, 1]
      */
     [[nodiscard]] double getQuantile(double p) const override;
 
     /**
-     * @brief Sample via the Best (1979) rejection sampler for Von Mises.
-     * Falls back to uniform sampling when κ < 1e-9.
+     * @brief Sample via the Best (1979) rejection sampler for Von Mises: the
+     * textbook form for κ < 1e4, a half-angle form (full relative precision
+     * near the mean) for 1e4 ≤ κ < 1e15, and θ = μ + z/√κ, z ~ N(0, 1), from
+     * κ = 1e15, where the two laws differ by < 4.4e-17 in CDF. Uniform on the
+     * circle when κ < 1e-300.
      */
     [[nodiscard]] double sample(std::mt19937& rng) const override;
 
@@ -310,13 +332,14 @@ class VonMisesDistribution : public DistributionBase {
     [[nodiscard]] double getMode() const;
 
     /**
-     * @brief Entropy = log(2π) − log I₀(κ) + κ·I₁(κ)/I₀(κ).
-     * Matches the uniform entropy log(2π) at κ = 0.
+     * @brief Entropy = log(2π I₀(κ)) − κ·I₁(κ)/I₀(κ).
+     * Matches the uniform entropy log(2π) at κ = 0; decreases through 0 near
+     * κ ≈ 4.4 and tends to ½·log(2π/κ) + ½ as κ → ∞ (the Gaussian limit).
      */
     [[nodiscard]] double getEntropy() const override;
 
     /**
-     * @brief True if κ = 0 within tolerance (uniform circular distribution).
+     * @brief True if κ = 0 exactly (uniform circular distribution).
      * When true, PDF = 1/(2π) everywhere.
      */
     [[nodiscard]] bool isUniform() const noexcept {
@@ -372,10 +395,11 @@ class VonMisesDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief SIMD-accelerated batch LogPDF / PDF via `VectorOps::vector_cos`.
+     * @brief SIMD-accelerated batch LogPDF / PDF via `VectorOps::vector_sin`.
      *
-     * Pipeline: scalar_add(−μ) → vector_cos → scalar_multiply(κ) → scalar_add(−ln Z).
-     * logNormaliser_ is cached — avoids one Bessel call per element.
+     * Pipeline: scalar_add(−μ) → scalar_multiply(½) → vector_sin → vector_multiply (square)
+     * → scalar_multiply(−2κ) → scalar_add(−log scaled normaliser); PDF then vector_exp.
+     * The scaled normaliser is cached — no Bessel call per element.
      * κ and μ are loop-invariant scalars.
      * These methods are "Unsafe" because they skip parameter validation;
      * callers must hold the cache lock or guarantee parameter stability.
@@ -389,18 +413,19 @@ class VonMisesDistribution : public DistributionBase {
                                        double cached_log_normaliser) const noexcept;
 
     /**
-     * @brief CDF batch — Bessel series evaluated batch-wise (issue #51).
+     * @brief CDF batch — the scalar CDF per element on one cache snapshot.
      *
-     * `cached_mu`/`cached_coeffs` are a snapshot taken by the caller under
-     * the cache lock (see the CDF autoDispatch lambda in .cpp). When
-     * `cached_coeffs` is empty (κ = 0 or κ > 1000 — series not applicable,
-     * see updateCacheUnsafe()) this falls back to the per-element scalar
-     * getCumulativeProbability() loop. Unsafe: no parameter validation.
+     * `cached_mu`/`cached_kappa`/`cached_log_scaled_norm`/`cached_inv_norm`/
+     * `cached_half_j`/`cached_uniform` are a snapshot taken by the caller under the cache lock
+     * (see the CDF autoDispatch lambda in .cpp). For κ = 0 or κ > 1e20 this is
+     * the per-element scalar getCumulativeProbability() loop. Unsafe: no
+     * parameter validation.
      */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                  std::size_t count, double cached_mu,
-                                                 const std::vector<double>& cached_coeffs) const
-        noexcept;
+                                                 double cached_kappa, double cached_log_scaled_norm,
+                                                 double cached_inv_norm, double cached_half_j,
+                                                 bool cached_uniform) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS
@@ -408,14 +433,11 @@ class VonMisesDistribution : public DistributionBase {
 
     void updateCacheUnsafe() const noexcept override;
 
+    // validateVonMisesParameters holds the bounds, so that every entry point agrees (Fix8).
     static void validateParameters(double mu, double kappa) {
-        if (std::isnan(mu) || std::isinf(mu)) {
-            throw std::invalid_argument("Mu (mean direction) must be a finite real number");
-        }
-        if (std::isnan(kappa) || std::isinf(kappa) || kappa < detail::ZERO_DOUBLE) {
-            throw std::invalid_argument(
-                "Kappa (concentration) must be a non-negative finite number");
-        }
+        auto v = validateVonMisesParameters(mu, kappa);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -449,6 +471,14 @@ class VonMisesDistribution : public DistributionBase {
      *  is the primary performance gain in batch LogPDF evaluation. */
     mutable double logNormaliser_{detail::ZERO_DOUBLE};
 
+    /** @brief log(2π·I₀(κ)·e^−κ) — logNormaliser_ − κ formed without the
+     *  cancellation; scales the directly integrated CDF tails and the quantile. */
+    mutable double logScaledNormaliser_{detail::ZERO_DOUBLE};
+
+    /** @brief 1/(2π·I₀(κ)·e^−κ), formed directly (not as exp of the log above,
+     *  which carries that log's rounding): scales the CDF's central mass. */
+    mutable double invScaledNormaliser_{detail::ONE};
+
     /** @brief 1 − I₁(κ)/I₀(κ) — circular variance ∈ [0, 1]. */
     mutable double circularVariance_{detail::ONE};
 
@@ -456,7 +486,7 @@ class VonMisesDistribution : public DistributionBase {
     // 23. OPTIMIZATION FLAGS
     //==========================================================================
 
-    /** @brief True if κ < 1e-10 (uniform circular distribution). */
+    /** @brief True if κ == 0 (uniform circular distribution); exact equality only. */
     mutable bool isUniform_{false};
 
     //==========================================================================
@@ -464,31 +494,11 @@ class VonMisesDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief Lazily-initialized CDF grid for O(log N) quantile lookup.
-     *
-     * Built on first getQuantile() call with a given κ. 2049 uniformly-spaced
-     * angles in [−π, π] and their CDF values. Binary search + linear interpolation
-     * replaces the 60-step bisection that called the 512-point trapezoidal CDF.
-     * Thread safety: guarded by cache_mutex_; rebuilt when κ changes.
+     * @brief J(−π/2) = G(−π/2)/g(−π/2) for μ = 0: the tail mass at a quarter
+     * turn over the density there. The CDF tail and the quantile scale it by
+     * e^(−κ cos t) for the part of the tail mass beyond a quarter turn.
      */
-    mutable std::vector<double> cdfGridAngles_;  ///< angles[i] = -PI + i*h, i in [0,2048]
-    mutable std::vector<double> cdfGridValues_;  ///< CDF(angles[i]; mu_=0, current kappa_)
-    mutable double cdfGridKappa_{-1.0};          ///< kappa for which grid was built; -1=unbuilt
-
-    /** @brief Build cdfGrid* for the current kappa_. Called under cache_mutex_. */
-    void buildCdfGrid() const noexcept;
-
-    /**
-     * @brief CDF Bessel-series coefficients bⱼ = Iⱼ(κ)/(j·π·I₀(κ)), j = 1..j_max
-     * (issue #51). cdfSeriesCoeffs_[j-1] holds bⱼ. Computed via a Miller
-     * backward recurrence in updateCacheUnsafe() — no forward recurrence, no
-     * Bessel anchor (the recurrence's own f_j/f_0 ratio already equals
-     * Iⱼ/I₀; see updateCacheUnsafe() for the derivation). Empty when the
-     * series is not applicable: κ = 0 (isUniform_; exact linear CDF) or
-     * κ > 1000 (unvalidated range; wrapped-normal fallback). Invalidated
-     * automatically on κ/μ change via the normal cache mechanism.
-     */
-    mutable std::vector<double> cdfSeriesCoeffs_;
+    mutable double tailHalfJ_{detail::ZERO_DOUBLE};
 };
 
 }  // namespace stats

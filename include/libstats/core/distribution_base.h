@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard library includes
+#include <cmath>       // for std::floor, std::log
 #include <cstddef>     // for size_t
 #include <functional>  // for std::function
 #include <limits>      // for std::numeric_limits
@@ -37,11 +38,13 @@ namespace stats {
  * concurrently with const methods; the internal shared_mutex ensures that
  * cache recomputation and parameter reads are mutually consistent.
  *
- * Move construction and move assignment are @b NOT thread-safe with respect
- * to the source object — the caller must ensure no concurrent access to the
- * source during a move. This follows the same convention as @c std::vector
- * and other STL containers: the source is left in a valid but unspecified
- * state and must not be accessed concurrently during or after the move.
+ * Copy and move assignment lock both objects (std::lock order), so they may run
+ * concurrently with const methods on either, as setters may (#184). A concurrent
+ * reader of a move's source sees its old or its moved-from state, never a mix;
+ * which one is unspecified, so the caller must still not use the source
+ * concurrently with a move. Move construction does not lock the source. This follows the same
+ * convention as @c std::vector and other STL containers: the source is left in a valid but
+ * unspecified state and must not be accessed concurrently during or after the move.
  *
  * @par Usage Example:
  * @code
@@ -133,7 +136,7 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
     }
 
     // =============================================================================
-    // SURVIVAL ANALYSIS - Concrete (derived from core interface)
+    // SURVIVAL ANALYSIS - Virtual (Override Optional)
     // =============================================================================
 
     /**
@@ -143,10 +146,19 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * as a reliability / survival probability for Weibull, Exponential, Pareto
      * and other positive-support distributions.
      *
+     * The default forms 1 - F(x), which cancels to 0 in the upper tail where
+     * S(x) is still representable. Every distribution in the library overrides
+     * it with the complement formed directly (AR A11); Poisson, Binomial,
+     * NegativeBinomial, Geometric and Bernoulli also decide their quantiles'
+     * p > ½ on it. The default remains for user-derived classes. Virtual since v2.5.0: an ABI
+     * change for code built against an earlier v2.x header that derives from DistributionBase.
+     *
      * @param x Evaluation point.
      * @return S(x) in [0, 1].
      */
-    [[nodiscard]] double getSurvival(double x) const { return 1.0 - getCumulativeProbability(x); }
+    [[nodiscard]] virtual double getSurvival(double x) const {
+        return 1.0 - getCumulativeProbability(x);
+    }
 
     /**
      * @brief Hazard function h(x) = f(x) / S(x).
@@ -154,14 +166,24 @@ class DistributionBase : public DistributionInterface, public ThreadSafeCacheMan
      * Instantaneous failure rate (or hazard rate) at x. Returns +inf when
      * the survival function is zero (x past the support upper bound).
      *
+     * For a discrete distribution both factors are evaluated at floor(x): the
+     * pmf rounds x to nearest and S floors it, so h(x) = pmf(k) / S(k) with
+     * k = floor(x), a step function constant on [k, k + 1). NaN propagates.
+     *
+     * f and S see one parameter state under a concurrent setter
+     * (readConsistent): each is a separate locking call.
+     *
      * @param x Evaluation point.
      * @return h(x) ≥ 0, or +inf if S(x) = 0.
      */
     [[nodiscard]] double getHazard(double x) const {
-        const double s = getSurvival(x);
-        if (s <= 0.0)
-            return std::numeric_limits<double>::infinity();
-        return getProbability(x) / s;
+        const double at = isDiscrete() ? std::floor(x) : x;
+        return readConsistent([this, at] {
+            const double s = getSurvival(at);
+            if (s <= 0.0)
+                return std::numeric_limits<double>::infinity();
+            return getProbability(at) / s;
+        });
     }
 
     // getEntropy() promoted to DistributionInterface in v2.0.0 (Step 3A).

@@ -1,0 +1,5 @@
+19:02:37 load=5.02 clang-format exit=1 (1 = reformatted):  1 file changed, 268 insertions(+), 178 deletions(-)
+19:02:52 load=9.33 build exit=0 warnings=0 targets=177
+19:04:15 load=7.28 ctest exit=0 : 100% tests passed out of 132
+19:04:19 load=6.94 gates exit=0 : 0.226414 0.204738 0.206628 0.207297 0.208016 0.213969 0.210454 0.204901
+19:04:19 load=6.94 DONE

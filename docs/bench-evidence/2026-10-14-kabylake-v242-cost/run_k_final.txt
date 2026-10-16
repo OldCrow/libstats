@@ -1,0 +1,27 @@
+2026-10-14T00:25:21Z load=2.01 start sha=df78931 code=d1adc95 dirty=0
+2026-10-14T00:31:52Z load=2.70 R1 build exit=0 warnings=0
+2026-10-14T00:31:53Z load=2.70 R1 System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+2026-10-14T00:34:20Z load=4.62 R1 ctest exit=0 100% tests passed out of 132
+2026-10-14T00:34:37Z load=3.97 R9 configure exit=0
+2026-10-14T00:42:24Z load=2.36 R9 build exit=0 warnings=0
+2026-10-14T00:42:25Z load=2.36 R9 test_concurrency_stress exit=127 tsan_reports=0 
+2026-10-14T00:42:25Z load=2.36 R9 test_concurrency_gates exit=127 tsan_reports=0 
+2026-10-14T00:42:25Z load=2.36 R9 test_snapshot_consistency exit=127 tsan_reports=0 
+2026-10-14T00:42:25Z load=2.36 R9 test_thread_pool exit=127 tsan_reports=0 
+2026-10-14T00:42:25Z load=2.36 R9 test_work_stealing_pool exit=127 tsan_reports=0 
+2026-10-14T00:42:25Z load=2.36 R9 test_parallel_execution_integration exit=127 tsan_reports=0 
+2026-10-14T00:42:25Z load=2.36 R9 test_parallel_exception_propagation exit=127 tsan_reports=0 
+2026-10-14T00:45:19Z load=6.02 R9 ctest exit=0 100% tests passed out of 132 tsan_reports=0
+Preparing worktree (detached HEAD 692fd08)
+HEAD is now at 692fd08 chore(release): v2.4.1 version bump and doc set
+2026-10-14T00:46:19Z load=5.06 R3 v2.4.1 build exit=0
+2026-10-14T00:46:22Z load=4.81 R3 bench_v241 build exit=0
+2026-10-14T00:46:24Z load=4.81 R3 bench_v242 build exit=0
+2026-10-14T00:46:24Z load=4.81 R3 bench waiting for load < 2.0
+2026-10-14T00:49:54Z load=1.74 R3 start bench_v241
+2026-10-14T00:52:09Z load=2.64 R3 end bench_v241 exit=0; start bench_v242
+2026-10-14T00:53:44Z load=2.44 R3 end bench_v242 exit=0
+2026-10-14T00:53:44Z load=2.44 R3 compare exit=0; timing waiting for load < 2.0
+2026-10-14T00:54:44Z load=1.60 R3 start timing ctest
+2026-10-14T00:54:54Z load=1.58 R3 end timing ctest exit=0 100% tests passed out of 14
+2026-10-14T00:54:54Z load=1.58 DONE sha=df78931

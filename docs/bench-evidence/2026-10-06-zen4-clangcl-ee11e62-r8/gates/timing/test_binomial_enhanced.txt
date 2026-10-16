@@ -1,0 +1,56 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 18 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 14 tests from BinomialEnhancedTest
+[ RUN      ] BinomialEnhancedTest.KnownPMFValues
+[       OK ] BinomialEnhancedTest.KnownPMFValues (14 ms)
+[ RUN      ] BinomialEnhancedTest.LogPMFConsistency
+[       OK ] BinomialEnhancedTest.LogPMFConsistency (0 ms)
+[ RUN      ] BinomialEnhancedTest.CDFMonotoneAndBoundary
+[       OK ] BinomialEnhancedTest.CDFMonotoneAndBoundary (0 ms)
+[ RUN      ] BinomialEnhancedTest.KnownCDFValues
+[       OK ] BinomialEnhancedTest.KnownCDFValues (0 ms)
+[ RUN      ] BinomialEnhancedTest.Moments
+[       OK ] BinomialEnhancedTest.Moments (0 ms)
+[ RUN      ] BinomialEnhancedTest.BoundaryPMF
+[       OK ] BinomialEnhancedTest.BoundaryPMF (0 ms)
+[ RUN      ] BinomialEnhancedTest.QuantileRoundTrip
+[       OK ] BinomialEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] BinomialEnhancedTest.BatchMatchesScalar
+[       OK ] BinomialEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] BinomialEnhancedTest.VectorizedEqualsScalar
+[       OK ] BinomialEnhancedTest.VectorizedEqualsScalar (0 ms)
+[ RUN      ] BinomialEnhancedTest.MLEFit
+[       OK ] BinomialEnhancedTest.MLEFit (0 ms)
+[ RUN      ] BinomialEnhancedTest.InvalidParameters
+[       OK ] BinomialEnhancedTest.InvalidParameters (0 ms)
+[ RUN      ] BinomialEnhancedTest.SetterPropagates
+[       OK ] BinomialEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] BinomialEnhancedTest.ProbabilityEdgeCases
+[       OK ] BinomialEnhancedTest.ProbabilityEdgeCases (0 ms)
+[ RUN      ] BinomialEnhancedTest.ParallelBatchCorrectness
+Binomial LogPDF PARALLEL vs SCALAR: 416μs vs 441μs (n=5000)
+Note: VECTORIZED = cached scalar loop (no vector_lgamma);
+      PARALLEL provides true multi-core throughput.
+[       OK ] BinomialEnhancedTest.ParallelBatchCorrectness (0 ms)
+[----------] 14 tests from BinomialEnhancedTest (20 ms total)
+
+[----------] 4 tests from Binomial/DistributionEnhancedTest/0, where TypeParam = stats::BinomialDistribution
+[ RUN      ] Binomial/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Binomial/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Binomial/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Binomial/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Binomial/DistributionEnhancedTest/0.QuantileRoundTrip
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\include/enhanced_test_suite.h(204): Skipped
+QuantileRoundTrip is undefined for discrete distributions
+
+[  SKIPPED ] Binomial/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Binomial/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Binomial/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Binomial/DistributionEnhancedTest/0 (1 ms total)
+
+[----------] Global test environment tear-down
+[==========] 18 tests from 2 test suites ran. (23 ms total)
+[  PASSED  ] 17 tests.
+[  SKIPPED ] 1 test, listed below:
+[  SKIPPED ] Binomial/DistributionEnhancedTest/0.QuantileRoundTrip

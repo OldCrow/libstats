@@ -1,0 +1,23 @@
+Running main() from googletest/src/gtest_main.cc
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from ConcurrencyGates
+[ RUN      ] ConcurrencyGates.PoissonMedianUnderSetLambda
+[       OK ] ConcurrencyGates.PoissonMedianUnderSetLambda (3420 ms)
+[ RUN      ] ConcurrencyGates.UniformBoundSettersKeepAOrderedBelowB
+[       OK ] ConcurrencyGates.UniformBoundSettersKeepAOrderedBelowB (245 ms)
+[ RUN      ] ConcurrencyGates.DiscreteBoundSettersKeepAOrderedBelowB
+[       OK ] ConcurrencyGates.DiscreteBoundSettersKeepAOrderedBelowB (546 ms)
+[ RUN      ] ConcurrencyGates.DelegateFollowsConcurrentSetters
+[       OK ] ConcurrencyGates.DelegateFollowsConcurrentSetters (1010 ms)
+[ RUN      ] ConcurrencyGates.ParallelTransformCallsEachElementOnce
+[       OK ] ConcurrencyGates.ParallelTransformCallsEachElementOnce (12 ms)
+[ RUN      ] ConcurrencyGates.SelfComparisonIsTrue
+[       OK ] ConcurrencyGates.SelfComparisonIsTrue (0 ms)
+[ RUN      ] ConcurrencyGates.ParallelBelowForkThresholdTakesTheBatchPath
+[       OK ] ConcurrencyGates.ParallelBelowForkThresholdTakesTheBatchPath (0 ms)
+[----------] 7 tests from ConcurrencyGates (5235 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 1 test suite ran. (5235 ms total)
+[  PASSED  ] 7 tests.

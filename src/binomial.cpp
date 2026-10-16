@@ -1,11 +1,7 @@
 #include "libstats/distributions/binomial.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -14,6 +10,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -21,6 +18,43 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// P(X ≤ k) for 0 ≤ k < n from one (n, p) copy: I_{1−p}(n − k, k + 1). p is exact and 1 − p
+// rounded below p = ½, so the pair form takes log(1 − p) as log1p(−p) and log p directly, rather
+// than both from the rounded 1 − p, whose ε/2 the shape n − k multiplies.
+double binomialCdf(int k, int n, double p) noexcept {
+    if (k < 0)
+        return detail::ZERO_DOUBLE;
+    if (p == detail::ZERO_DOUBLE)
+        return detail::ONE;
+    if (p == detail::ONE)
+        return detail::ZERO_DOUBLE;
+    const double a = static_cast<double>(n - k);
+    const double b = static_cast<double>(k + 1);
+    return detail::beta_i_pair(detail::ONE - p, p, a, b, detail::beta_prefactor_constant(a, b));
+}
+
+// P(X > k) for 0 ≤ k < n, the complement of binomialCdf formed directly: I_p(k + 1, n − k), the
+// same pair with the roles swapped, so it is small where the upper tail is and keeps relative
+// precision there instead of the ε absolute error of 1 − binomialCdf.
+double binomialSf(int k, int n, double p) noexcept {
+    if (k < 0)
+        return detail::ONE;
+    if (k >= n || p == detail::ZERO_DOUBLE)
+        return detail::ZERO_DOUBLE;
+    if (p == detail::ONE)
+        return detail::ONE;
+    const double a = static_cast<double>(k + 1);
+    const double b = static_cast<double>(n - k);
+    return detail::beta_i_pair(p, detail::ONE - p, a, b, detail::beta_prefactor_constant(a, b));
+}
+
+// PARALLEL and WORK_STEALING take one snapshot and run the lock-free batch kernels over slices
+// of this many elements, as Beta does. Calling the scalar methods per element took
+// withCacheSnapshot's shared_lock on every element from every thread (#175).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -78,6 +112,11 @@ BinomialDistribution::BinomialDistribution(BinomialDistribution&& other) noexcep
 
 BinomialDistribution& BinomialDistribution::operator=(BinomialDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         n_ = other.n_;
         p_ = other.p_;
         logNFact_ = other.logNFact_;
@@ -235,38 +274,28 @@ VoidResult BinomialDistribution::validateCurrentParameters() const noexcept {
 // 5. CORE PROBABILITY METHODS
 //==============================================================================
 
-double BinomialDistribution::logBinomCoeff(int k) const noexcept {
-    if (k < 0 || k > n_)
-        return detail::NEGATIVE_INFINITY;
-    return logNFact_ - std::lgamma(static_cast<double>(k + 1)) -
-           std::lgamma(static_cast<double>(n_ - k + 1));
-}
-
 double BinomialDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::ZERO_DOUBLE;  // ±inf is not a valid count → 0
-    const int k = static_cast<int>(std::round(x));
-    if (k < 0 || k > n_)
-        return detail::ZERO_DOUBLE;
-    if (p_ == detail::ZERO_DOUBLE)
-        return (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
-    if (p_ == detail::ONE)
-        return (k == n_) ? detail::ONE : detail::ZERO_DOUBLE;
 
+    // Every branch below reads the snapshot only: a concurrent setP(0) between an unlocked
+    // p_ == 0 test and the snapshot reached the kernel with p = 0, which returned NaN.
     int sn;
-    double slnf, slp, sl1mp;
+    double sp;
     withCacheSnapshot([&] {
         sn = n_;
-        slnf = logNFact_;
-        slp = logP_;
-        sl1mp = log1mP_;
+        sp = p_;
     });
-    const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
-                               : slnf - std::lgamma(static_cast<double>(k + 1)) -
-                                     std::lgamma(static_cast<double>(sn - k + 1));
-    const double lp_val = lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
+    // #167: range-check the rounded double before the int cast (1e10, 1e300 are UB).
+    const double rounded = std::round(x);
+    if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(sn)))
+        return detail::ZERO_DOUBLE;
+    const int k = static_cast<int>(rounded);
+    // Without the n·log n cancellation of the lgamma form (#172); total on p = 0 and 1.
+    const double lp_val =
+        detail::binomial_log_pmf(static_cast<double>(k), static_cast<double>(sn - k), sp);
     return std::clamp(std::exp(lp_val), detail::ZERO_DOUBLE, detail::ONE);
 }
 
@@ -275,84 +304,87 @@ double BinomialDistribution::getLogProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::NEGATIVE_INFINITY;  // ±inf → -∞
-    const int k = static_cast<int>(std::round(x));
-    if (k < 0 || k > n_)
-        return detail::NEGATIVE_INFINITY;
-    if (p_ == detail::ZERO_DOUBLE)
-        return (k == 0) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
-    if (p_ == detail::ONE)
-        return (k == n_) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
 
-    int sn;
-    double slnf, slp, sl1mp;
-    withCacheSnapshot([&] {
-        sn = n_;
-        slnf = logNFact_;
-        slp = logP_;
-        sl1mp = log1mP_;
-    });
-    const double lc = (k > sn) ? detail::NEGATIVE_INFINITY
-                               : slnf - std::lgamma(static_cast<double>(k + 1)) -
-                                     std::lgamma(static_cast<double>(sn - k + 1));
-    return lc + static_cast<double>(k) * slp + static_cast<double>(sn - k) * sl1mp;
-}
-
-double BinomialDistribution::getCumulativeProbability(double x) const {
-    // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
-    if (!std::isfinite(x)) {
-        if (std::isnan(x))
-            return std::numeric_limits<double>::quiet_NaN();
-        return (x < 0) ? detail::ZERO_DOUBLE : detail::ONE;
-    }
-    const int k = static_cast<int>(std::floor(x));
-    if (k < 0)
-        return detail::ZERO_DOUBLE;
-    if (k >= n_)
-        return detail::ONE;
-
+    // Branches on the snapshot only, as getProbability.
     int sn;
     double sp;
     withCacheSnapshot([&] {
         sn = n_;
         sp = p_;
     });
-    if (sp == detail::ZERO_DOUBLE)
+    // #167: range-check the rounded double before the int cast.
+    const double rounded = std::round(x);
+    if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(sn)))
+        return detail::NEGATIVE_INFINITY;
+    const int k = static_cast<int>(rounded);
+    // Without the n·log n cancellation of the lgamma form (#172); total on p = 0 and 1.
+    return detail::binomial_log_pmf(static_cast<double>(k), static_cast<double>(sn - k), sp);
+}
+
+double BinomialDistribution::getCumulativeProbability(double x) const {
+    // Snapshot first: an unlocked n_ above a concurrently shrunk sn gave beta_i a b ≤ 0, and 0.
+    int sn;
+    double sp;
+    withCacheSnapshot([&] {
+        sn = n_;
+        sp = p_;
+    });
+    double result;
+    getCumulativeProbabilityBatchImpl(&x, &result, 1, sn, sp);
+    return result;
+}
+
+double BinomialDistribution::getSurvival(double x) const {
+    int sn;
+    double sp;
+    withCacheSnapshot([&] {
+        sn = n_;
+        sp = p_;
+    });
+    if (!std::isfinite(x))
+        return std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
+                             : ((x < 0) ? detail::ONE : detail::ZERO_DOUBLE);
+    // #167: range-check the floored double before the int cast, as the CDF does.
+    const double floored = std::floor(x);
+    if (floored < detail::ZERO_DOUBLE)
         return detail::ONE;
-    if (sp == detail::ONE)
+    if (floored >= static_cast<double>(sn))
         return detail::ZERO_DOUBLE;
-    return detail::beta_i(detail::ONE - sp, static_cast<double>(sn - k),
-                          static_cast<double>(k + 1));
+    return binomialSf(static_cast<int>(floored), sn, sp);
 }
 
 double BinomialDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
-    if (p == detail::ONE)
-        return static_cast<double>(n_);
 
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const int n = n_;
+    const double sp = p_;
     lock.unlock();
+    // Q(1) is the smallest k with S(k) = 0, the support's upper end: n, or 0 when p = 0 puts all
+    // the mass there (Binomial(10, 0).Q(1) returned 10).
+    if (p == detail::ONE)
+        return (sp > detail::ZERO_DOUBLE) ? static_cast<double>(n) : detail::ZERO_DOUBLE;
 
-    // Scan from 0 — for large n use bisection
-    if (n <= 500) {
-        for (int k = 0; k <= n; ++k) {
-            if (getCumulativeProbability(static_cast<double>(k)) >= p)
-                return static_cast<double>(k);
-        }
-        return static_cast<double>(n);
-    }
-    int lo = 0, hi = n;
-    while (lo < hi) {
-        const int mid = lo + (hi - lo) / 2;
-        if (getCumulativeProbability(static_cast<double>(mid)) < p)
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    return static_cast<double>(lo);
+    // Smallest k with CDF(k) >= p (p <= 1/2) or S(k) <= 1 - p (p > 1/2), searched outward from
+    // the normal approximation: two or three evaluations instead of a scan from 0. Both read
+    // the same (n, p) copy as the guess, not the live members.
+    const double mean = static_cast<double>(n) * sp;
+    const double stddev = std::sqrt(mean * (detail::ONE - sp));
+    const double skewness = (detail::ONE - detail::TWO * sp) / stddev;
+    const std::int64_t k = detail::discrete_quantile_search(
+        [n, sp](std::int64_t i) {
+            return i >= n ? detail::ONE : binomialCdf(static_cast<int>(i), n, sp);
+        },
+        [n, sp](std::int64_t i) {
+            return i >= n ? detail::ZERO_DOUBLE : binomialSf(static_cast<int>(i), n, sp);
+        },
+        p, 0, n, detail::discrete_quantile_guess(p, mean, stddev, skewness));
+    return static_cast<double>(k);
 }
 
 double BinomialDistribution::sample(std::mt19937& rng) const {
@@ -389,15 +421,24 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
     double sum = detail::ZERO_DOUBLE;
     double sum_sq = detail::ZERO_DOUBLE;
     std::size_t count = 0;
+    // Invalid data throws before any state changes, as in the other 26 fits (AR D4); this loop
+    // used to drop such observations silently.
     for (double v : values) {
-        if (v >= detail::ZERO_DOUBLE && std::isfinite(v)) {
-            const int k = static_cast<int>(std::round(v));
-            maxObs = std::max(maxObs, k);
-            const double kd = static_cast<double>(k);
-            sum += kd;
-            sum_sq += kd * kd;
-            ++count;
-        }
+        if (!std::isfinite(v) || v < detail::ZERO_DOUBLE)
+            throw std::invalid_argument(
+                "All values must be non-negative and finite for Binomial distribution");
+        // #167: an observation beyond int range cannot be a trial count; casting it is UB.
+        if (std::round(v) > static_cast<double>(std::numeric_limits<int>::max()))
+            throw std::invalid_argument(
+                "Observation exceeds the largest representable trial count");
+    }
+    for (double v : values) {
+        const int k = static_cast<int>(std::round(v));
+        maxObs = std::max(maxObs, k);
+        const double kd = static_cast<double>(k);
+        sum += kd;
+        sum_sq += kd * kd;
+        ++count;
     }
     if (count == 0 || maxObs == 0) {
         reset();
@@ -417,7 +458,10 @@ void BinomialDistribution::fit(const std::vector<double>& values) {
     double p_hat;
     if (count >= 2 && var > detail::ZERO_DOUBLE && var < xbar) {
         const double n_mom = xbar * xbar / (xbar - var);
-        n_hat = std::max(maxObs, static_cast<int>(std::round(n_mom)));
+        // #167: n_mom is unbounded as var → xbar; saturate at INT_MAX before the cast.
+        const double n_mom_capped =
+            std::min(std::round(n_mom), static_cast<double>(std::numeric_limits<int>::max()));
+        n_hat = std::max(maxObs, static_cast<int>(n_mom_capped));
         p_hat = std::clamp(xbar / static_cast<double>(n_hat), detail::ZERO_DOUBLE, detail::ONE);
     } else {
         // Fallback: max(obs) is a lower bound for n; MLE p̂ = x̄ / n given n.
@@ -445,7 +489,7 @@ void BinomialDistribution::reset() noexcept {
 std::string BinomialDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "BinomialDistribution(n=" << n_ << ",p=" << p_ << ")";
     return oss.str();
 }
@@ -468,12 +512,12 @@ double BinomialDistribution::getPAtomic() const noexcept {
 
 double BinomialDistribution::getMode() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    const double np1p = static_cast<double>(n_ + 1) * p_;
-    const int mode = static_cast<int>(std::floor(np1p));
+    // #167: stay in double — n_ + 1 overflows int at INT_MAX and floor(np1p) can reach 2^31.
+    const double np1p = (static_cast<double>(n_) + detail::ONE) * p_;
     // If (n+1)p is exactly integer, mode is np1p-1; otherwise floor(np1p)
     if (std::fabs(np1p - std::round(np1p)) < 1e-12 && np1p > detail::ZERO_DOUBLE)
         return np1p - detail::ONE;
-    return static_cast<double>(mode);
+    return std::floor(np1p);
 }
 
 double BinomialDistribution::getEntropy() const {
@@ -500,12 +544,12 @@ double BinomialDistribution::getEntropy() const {
         if (p <= detail::ZERO_DOUBLE || p >= detail::ONE)
             return detail::ZERO_DOUBLE;  // degenerate: all mass at one point
         const double lp = std::log(p);
-        const double l1mp = std::log(detail::ONE - p);
+        const double l1mp = std::log1p(-p);
         double h = detail::ZERO_DOUBLE;
         for (int k = 0; k <= n; ++k) {
             // log P(k): log-binomial coefficient + log p^k (1-p)^(n-k)
-            const double log_pmf = lnf - std::lgamma(static_cast<double>(k + 1)) -
-                                   std::lgamma(static_cast<double>(n - k + 1)) +
+            const double log_pmf = lnf - detail::lgamma(static_cast<double>(k + 1)) -
+                                   detail::lgamma(static_cast<double>(n - k + 1)) +
                                    static_cast<double>(k) * lp + static_cast<double>(n - k) * l1mp;
             // P(k) * log P(k); guard against log_pmf = -inf when P(k) is tiny
             if (std::isfinite(log_pmf))
@@ -531,14 +575,14 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
         [](const BinomialDistribution& d, double x) { return d.getProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             int n;
-            double lnf, lp, l1mp;
+            double sp, lp, l1mp;
             d.withCacheSnapshot([&] {
                 n = d.n_;
-                lnf = d.logNFact_;
+                sp = d.p_;
                 lp = d.logP_;
                 l1mp = d.log1mP_;
             });
-            d.getProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
+            d.getProbabilityBatchImpl(vals, res, count, n, sp, lp, l1mp);
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -546,22 +590,39 @@ void BinomialDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            // Snapshot vars unused here — batch delegates to scalar getProbability per element.
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getProbability(vals[i]);
+            int n;
+            double sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n, sp,
+                                              lp, l1mp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getProbability(vals[i]);
-            }
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getProbability(vals[i]); });
-            pool.waitForAll();
+            if (count == 0)
+                return;
+            int n;
+            double sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n, sp, lp,
+                                          l1mp);
+            });
         });
 }
 
@@ -573,14 +634,14 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
         [](const BinomialDistribution& d, double x) { return d.getLogProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
             int n;
-            double lnf, lp, l1mp;
+            double sp, lp, l1mp;
             d.withCacheSnapshot([&] {
                 n = d.n_;
-                lnf = d.logNFact_;
+                sp = d.p_;
                 lp = d.logP_;
                 l1mp = d.log1mP_;
             });
-            d.getLogProbabilityBatchImpl(vals, res, count, n, lnf, lp, l1mp);
+            d.getLogProbabilityBatchImpl(vals, res, count, n, sp, lp, l1mp);
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -588,21 +649,39 @@ void BinomialDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getLogProbability(vals[i]);
+            int n;
+            double sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n,
+                                                 sp, lp, l1mp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getLogProbability(vals[i]);
-            }
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getLogProbability(vals[i]); });
-            pool.waitForAll();
+            if (count == 0)
+                return;
+            int n;
+            double sp, lp, l1mp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+                lp = d.logP_;
+                l1mp = d.log1mP_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n, sp,
+                                             lp, l1mp);
+            });
         });
 }
 
@@ -613,7 +692,13 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
         *this, values, results, hint, detail::OperationType::CDF,
         [](const BinomialDistribution& d, double x) { return d.getCumulativeProbability(x); },
         [](const BinomialDistribution& d, const double* vals, double* res, size_t count) {
-            d.getCumulativeProbabilityBatchImpl(vals, res, count);
+            int n;
+            double sp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+            });
+            d.getCumulativeProbabilityBatchImpl(vals, res, count, n, sp);
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
@@ -621,21 +706,35 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    res[i] = d.getCumulativeProbability(vals[i]);
+            int n;
+            double sp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+            });
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchImpl(vals.data() + start, res.data() + start,
+                                                        len, n, sp);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = d.getCumulativeProbability(vals[i]);
-            }
         },
         [](const BinomialDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            pool.parallelFor(std::size_t{0}, count,
-                             [&](std::size_t i) { res[i] = d.getCumulativeProbability(vals[i]); });
-            pool.waitForAll();
+            if (count == 0)
+                return;
+            int n;
+            double sp;
+            d.withCacheSnapshot([&] {
+                n = d.n_;
+                sp = d.p_;
+            });
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchImpl(vals.data() + start, res.data() + start, len, n,
+                                                    sp);
+            });
         });
 }
 
@@ -648,6 +747,9 @@ void BinomialDistribution::getCumulativeProbability(std::span<const double> valu
 //==============================================================================
 
 bool BinomialDistribution::operator==(const BinomialDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
@@ -683,8 +785,15 @@ std::istream& operator>>(std::istream& is, BinomialDistribution& d) {
         return is;
     }
     try {
-        const int n = static_cast<int>(std::stod(token.substr(n_pos + 2, comma - n_pos - 2)));
-        const double p = std::stod(token.substr(p_pos + 2, close - p_pos - 2));
+        const double n_val = detail::parse_double(token.substr(n_pos + 2, comma - n_pos - 2));
+        // #167: reject n outside int range before the cast (UB); NaN fails the test too.
+        if (!(n_val >= static_cast<double>(std::numeric_limits<int>::min()) &&
+              n_val <= static_cast<double>(std::numeric_limits<int>::max()))) {
+            is.setstate(std::ios::failbit);
+            return is;
+        }
+        const int n = static_cast<int>(n_val);
+        const double p = detail::parse_double(token.substr(p_pos + 2, close - p_pos - 2));
         auto result = d.trySetParameters(n, p);
         if (result.isError())
             is.setstate(std::ios::failbit);
@@ -704,7 +813,7 @@ std::istream& operator>>(std::istream& is, BinomialDistribution& d) {
 
 void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, double* results,
                                                       std::size_t count, int cached_n,
-                                                      double cached_logNFact, double cached_logP,
+                                                      double cached_p, double cached_logP,
                                                       double cached_log1mP) const noexcept {
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
@@ -712,11 +821,13 @@ void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, doub
             results[i] = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
             continue;
         }
-        const int k = static_cast<int>(std::round(x));
-        if (k < 0 || k > cached_n) {
+        // #167: range-check the rounded double before the int cast.
+        const double rounded = std::round(x);
+        if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(cached_n))) {
             results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
+        const int k = static_cast<int>(rounded);
         if (cached_logP == detail::NEGATIVE_INFINITY) {
             results[i] = (k == 0) ? 0.0 : detail::NEGATIVE_INFINITY;
             continue;
@@ -725,16 +836,15 @@ void BinomialDistribution::getLogProbabilityBatchImpl(const double* values, doub
             results[i] = (k == cached_n) ? 0.0 : detail::NEGATIVE_INFINITY;
             continue;
         }
-        const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -
-                          std::lgamma(static_cast<double>(cached_n - k + 1));
-        results[i] = lc + static_cast<double>(k) * cached_logP +
-                     static_cast<double>(cached_n - k) * cached_log1mP;
+        // Without the n·log n cancellation of the lgamma form (#172).
+        results[i] = detail::binomial_log_pmf(static_cast<double>(k),
+                                              static_cast<double>(cached_n - k), cached_p);
     }
 }
 
 void BinomialDistribution::getProbabilityBatchImpl(const double* values, double* results,
-                                                   std::size_t count, int cached_n,
-                                                   double cached_logNFact, double cached_logP,
+                                                   std::size_t count, int cached_n, double cached_p,
+                                                   double cached_logP,
                                                    double cached_log1mP) const noexcept {
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
@@ -742,11 +852,13 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
             results[i] = std::isnan(x) ? x : detail::ZERO_DOUBLE;
             continue;
         }
-        const int k = static_cast<int>(std::round(x));
-        if (k < 0 || k > cached_n) {
+        // #167: range-check the rounded double before the int cast.
+        const double rounded = std::round(x);
+        if (!(rounded >= detail::ZERO_DOUBLE && rounded <= static_cast<double>(cached_n))) {
             results[i] = detail::ZERO_DOUBLE;
             continue;
         }
+        const int k = static_cast<int>(rounded);
         if (cached_logP == detail::NEGATIVE_INFINITY) {
             results[i] = (k == 0) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
@@ -755,18 +867,33 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
             results[i] = (k == cached_n) ? detail::ONE : detail::ZERO_DOUBLE;
             continue;
         }
-        const double lc = cached_logNFact - std::lgamma(static_cast<double>(k + 1)) -
-                          std::lgamma(static_cast<double>(cached_n - k + 1));
-        const double lp = lc + static_cast<double>(k) * cached_logP +
-                          static_cast<double>(cached_n - k) * cached_log1mP;
+        // Without the n·log n cancellation of the lgamma form (#172).
+        const double lp = detail::binomial_log_pmf(static_cast<double>(k),
+                                                   static_cast<double>(cached_n - k), cached_p);
         results[i] = std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
     }
 }
 
 void BinomialDistribution::getCumulativeProbabilityBatchImpl(const double* values, double* results,
-                                                             std::size_t count) const noexcept {
-    for (std::size_t i = 0; i < count; ++i)
-        results[i] = getCumulativeProbability(values[i]);
+                                                             std::size_t count, int cached_n,
+                                                             double cached_p) const noexcept {
+    for (std::size_t i = 0; i < count; ++i) {
+        const double x = values[i];
+        // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
+        if (!std::isfinite(x)) {
+            results[i] = std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
+                                       : ((x < 0) ? detail::ZERO_DOUBLE : detail::ONE);
+            continue;
+        }
+        // #167: range-check the floored double before the int cast.
+        const double floored = std::floor(x);
+        if (floored < detail::ZERO_DOUBLE)
+            results[i] = detail::ZERO_DOUBLE;
+        else if (floored >= static_cast<double>(cached_n))
+            results[i] = detail::ONE;
+        else
+            results[i] = binomialCdf(static_cast<int>(floored), cached_n, cached_p);
+    }
 }
 
 //==============================================================================
@@ -774,9 +901,9 @@ void BinomialDistribution::getCumulativeProbabilityBatchImpl(const double* value
 //==============================================================================
 
 void BinomialDistribution::updateCacheUnsafe() const noexcept {
-    logNFact_ = std::lgamma(static_cast<double>(n_ + 1));
+    logNFact_ = detail::lgamma(static_cast<double>(n_ + 1));
     logP_ = (p_ > detail::ZERO_DOUBLE) ? std::log(p_) : detail::NEGATIVE_INFINITY;
-    log1mP_ = (p_ < detail::ONE) ? std::log(detail::ONE - p_) : detail::NEGATIVE_INFINITY;
+    log1mP_ = (p_ < detail::ONE) ? std::log1p(-p_) : detail::NEGATIVE_INFINITY;
     cache_valid_ = true;
     cacheValidAtomic_.store(true, std::memory_order_release);
     atomicN_.store(n_, std::memory_order_release);

@@ -70,8 +70,8 @@ constexpr double kSf_1000 = 1.3313349324448253e-9;
 constexpr double kQ_1e_12 = 0.058733055992991084;
 constexpr double kQ_1e_6 = 0.10455237678297955;
 constexpr double kQ_0_5 = 0.7479262863802243;
-constexpr double kQ_1m1e_6 = 109.56332845305316;   // p = double(1 - 1e-6)
-constexpr double kQ_1m1e_12 = 11006.00531543801;   // p = double(1 - 1e-12)
+constexpr double kQ_1m1e_6 = 109.56332845305316;  // p = double(1 - 1e-6)
+constexpr double kQ_1m1e_12 = 11006.00531543801;  // p = double(1 - 1e-12)
 
 constexpr double kEntropy_3_2 = 0.695157020726;  // 40-dps quadrature cross-check
 
@@ -156,8 +156,8 @@ TEST_F(InverseGammaEnhancedTest, DelegatesToGammaWithBetaAsIs) {
 
     for (double x : {0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 20.0}) {
         // Density transform: f_Y(x) = f_X(1/x) / x^2.
-        EXPECT_NEAR(ig_.getLogProbability(x),
-                    gam.getLogProbability(1.0 / x) - 2.0 * std::log(x), 1e-13)
+        EXPECT_NEAR(ig_.getLogProbability(x), gam.getLogProbability(1.0 / x) - 2.0 * std::log(x),
+                    1e-13)
             << "log density identity at x=" << x;
         // Distribution transform: F_Y(x) = 1 - F_X(1/x), checked in the region
         // where the subtraction is harmless (it is NOT how the CDF is computed).
@@ -169,9 +169,9 @@ TEST_F(InverseGammaEnhancedTest, DelegatesToGammaWithBetaAsIs) {
     // The wrong parameterization (rate = 1/beta) must NOT reproduce the CDF —
     // a two-sided check, so this guard cannot pass on either convention.
     auto wrong = GammaDistribution::create(alpha, 1.0 / beta).unwrap();
-    EXPECT_GT(std::abs(ig_.getCumulativeProbability(1.0) -
-                       (1.0 - wrong.getCumulativeProbability(1.0))),
-              1e-3);
+    EXPECT_GT(
+        std::abs(ig_.getCumulativeProbability(1.0) - (1.0 - wrong.getCumulativeProbability(1.0))),
+        1e-3);
 }
 
 //==============================================================================
@@ -433,16 +433,14 @@ TEST_F(InverseGammaEnhancedTest, InfAndNaNContractBatch) {
 
         EXPECT_EQ(std::isnan(pdf_b[i]), std::isnan(s_pdf)) << "PDF NaN mismatch i=" << i;
         if (!std::isnan(s_pdf)) {
-            EXPECT_LT(relErr(pdf_b[i], s_pdf), kBatchUlpRelTol)
-                << "PDF batch != scalar i=" << i;
+            EXPECT_LT(relErr(pdf_b[i], s_pdf), kBatchUlpRelTol) << "PDF batch != scalar i=" << i;
         }
 
         EXPECT_EQ(std::isnan(lpdf_b[i]), std::isnan(s_lpdf)) << "LogPDF NaN mismatch i=" << i;
         if (!std::isnan(s_lpdf) && std::isfinite(s_lpdf)) {
             EXPECT_LT(relErr(lpdf_b[i], s_lpdf), kBatchUlpRelTol)
                 << "LogPDF batch != scalar i=" << i;
-        }
-        else if (!std::isnan(s_lpdf)) {
+        } else if (!std::isnan(s_lpdf)) {
             EXPECT_EQ(lpdf_b[i], s_lpdf) << "LogPDF batch != scalar (infinite) i=" << i;
         }
 
@@ -500,11 +498,10 @@ TEST_F(InverseGammaEnhancedTest, InfAndNaNContractLargeBatch) {
     EXPECT_EQ(lpdf_b[10], -std::numeric_limits<double>::infinity());
     EXPECT_TRUE(std::isnan(lpdf_b[11]));
 
-    for (size_t i : {size_t{0}, size_t{1}, size_t{500}, size_t{4999}, size_t{20000},
-                     size_t{39998}}) {
+    for (size_t i :
+         {size_t{0}, size_t{1}, size_t{500}, size_t{4999}, size_t{20000}, size_t{39998}}) {
         EXPECT_LT(relErr(pdf_b[i], ig_.getProbability(xs[i])), kBatchUlpRelTol) << "i=" << i;
-        EXPECT_LT(relErr(lpdf_b[i], ig_.getLogProbability(xs[i])), kBatchUlpRelTol)
-            << "i=" << i;
+        EXPECT_LT(relErr(lpdf_b[i], ig_.getLogProbability(xs[i])), kBatchUlpRelTol) << "i=" << i;
         // CDF: own scalar kernel on every tier, so exact.
         EXPECT_EQ(cdf_b[i], ig_.getCumulativeProbability(xs[i])) << "i=" << i;
     }
@@ -528,8 +525,8 @@ TEST_F(InverseGammaEnhancedTest, QuantileNeverNaN) {
 
     EXPECT_THROW((void)ig_.getQuantile(-0.1), std::invalid_argument);
     EXPECT_THROW((void)ig_.getQuantile(1.1), std::invalid_argument);
-    EXPECT_THROW((void)ig_.getQuantile(std::numeric_limits<double>::quiet_NaN()),
-                 std::invalid_argument);
+    // NaN in, NaN out, as all 27 (AR D3).
+    EXPECT_TRUE(std::isnan(ig_.getQuantile(std::numeric_limits<double>::quiet_NaN())));
 
     for (double p : {1e-12, 1e-8, 1e-4, 0.3, 0.5, 0.7, 0.9999}) {
         const double q = ig_.getQuantile(p);
@@ -594,8 +591,7 @@ TEST_F(InverseGammaEnhancedTest, FitRejectsInvalidData) {
     EXPECT_THROW(fitted.fit({1.0, 0.0, 2.0}), std::invalid_argument);
     EXPECT_THROW(fitted.fit({1.0, std::numeric_limits<double>::quiet_NaN()}),
                  std::invalid_argument);
-    EXPECT_THROW(fitted.fit({1.0, std::numeric_limits<double>::infinity()}),
-                 std::invalid_argument);
+    EXPECT_THROW(fitted.fit({1.0, std::numeric_limits<double>::infinity()}), std::invalid_argument);
     // Reciprocal overflow is rejected explicitly rather than silently producing inf.
     EXPECT_THROW(fitted.fit({1.0, 1e-320}), std::invalid_argument);
 }
@@ -610,8 +606,7 @@ TEST_F(InverseGammaEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(InverseGammaDistribution::create(1.0, 0.0).isError());
     EXPECT_TRUE(InverseGammaDistribution::create(1.0, -1.0).isError());
     EXPECT_TRUE(
-        InverseGammaDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0)
-            .isError());
+        InverseGammaDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
     EXPECT_TRUE(
         InverseGammaDistribution::create(1.0, std::numeric_limits<double>::infinity()).isError());
 

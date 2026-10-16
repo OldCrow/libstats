@@ -1,0 +1,49 @@
+H1 - capture vs table: is the difference beyond each row's own run noise?
+     (beyond = |median - table| > max(1, run spread) grid steps)
+  set          rows spread>2 steps differ>1 beyond noise of which sooner later
+  K AVX2         81             11       29           24               9    15
+  K AVX          81              4       12            9               7     2
+  K SSE2         81              6       33           27              26     1
+  M NEON         81              3       22           22               6    16
+  Z AVX-512      81              8       47           41              17    24
+  Z AVX2         81              6       49           42              17    25
+  Z AVX          81              8       33           28               9    19
+  Z SSE2         81              5       42           38              21    17
+
+H3 - cost model: log2(crossover) against log2(VECTORIZED ns/element at n=1e5), finite crossovers above the 64 floor
+     expected slope -1 if crossover = overhead / cost; residual SD in grid steps vs run noise
+  K AVX2       n=62 slope -0.79 R2 0.37 | slope -1: K=2^17.5 ns, |resid| median 0.7 log2 units | NEVER rows median cost 51.04 ns vs finite 7.76 ns | run spread median 0 steps
+  K AVX        n=61 slope -0.97 R2 0.70 | slope -1: K=2^17.3 ns, |resid| median 0.6 log2 units | NEVER rows median cost 62.95 ns vs finite 9.81 ns | run spread median 0 steps
+  K SSE2       n=55 slope -0.87 R2 0.56 | slope -1: K=2^16.8 ns, |resid| median 0.3 log2 units | NEVER rows median cost 71.62 ns vs finite 15.09 ns | run spread median 1 steps
+  M NEON       n=62 slope -1.03 R2 0.85 | slope -1: K=2^17.4 ns, |resid| median 0.3 log2 units | NEVER rows median cost 28.15 ns vs finite 4.24 ns | run spread median 0 steps
+  Z AVX-512    n=67 slope -0.81 R2 0.69 | slope -1: K=2^18.2 ns, |resid| median 0.9 log2 units | NEVER rows median cost 8.69 ns vs finite 2.70 ns | run spread median 1 steps
+  Z AVX2       n=69 slope -0.61 R2 0.44 | slope -1: K=2^17.4 ns, |resid| median 0.6 log2 units | NEVER rows median cost 11.81 ns vs finite 4.59 ns | run spread median 1 steps
+  Z AVX        n=71 slope -0.68 R2 0.47 | slope -1: K=2^17.4 ns, |resid| median 0.9 log2 units | NEVER rows median cost 13.33 ns vs finite 5.38 ns | run spread median 0 steps
+  Z SSE2       n=67 slope -0.51 R2 0.29 | slope -1: K=2^17.6 ns, |resid| median 0.8 log2 units | NEVER rows median cost 13.35 ns vs finite 9.30 ns | run spread median 0 steps
+
+H2 - is AUTO reluctant (table later than measured), overall and by per-element cost tercile?
+  K AVX2       cheap late/early 2/8  mid late/early 5/3  costly late/early 2/4
+  K AVX        cheap late/early 0/0  mid late/early 5/2  costly late/early 2/0
+  K SSE2       cheap late/early 3/0  mid late/early 17/1  costly late/early 6/0
+  M NEON       cheap late/early 1/8  mid late/early 3/4  costly late/early 2/4
+  Z AVX-512    cheap late/early 2/9  mid late/early 8/8  costly late/early 7/7
+  Z AVX2       cheap late/early 2/11  mid late/early 8/5  costly late/early 7/9
+  Z AVX        cheap late/early 0/10  mid late/early 1/3  costly late/early 8/6
+  Z SSE2       cheap late/early 2/5  mid late/early 7/4  costly late/early 12/8
+  (late = table crosses later than measured beyond noise, i.e. AUTO reluctant)
+
+H4 - SSE2 vs AVX on the same machine (beyond both rows' noise)
+  K: SSE2 sooner 21, later 0, within noise 60
+     SSE2/AVX vectorized cost ratio: median 1.16, p10 0.99, p90 1.62
+  Z: SSE2 sooner 15, later 1, within noise 65
+     SSE2/AVX vectorized cost ratio: median 1.65, p10 1.01, p90 2.00
+
+H5 - Z vs K, same tier: real differences, and does per-element cost explain them?
+  AVX2  beyond noise: Z sooner 10, Z later 19 | K/Z vectorized cost median 2.06x | log2(n*Z/n*K) vs log2(cK/cZ): slope +1.11 (cost model predicts +1), mean offset +0.75
+  AVX   beyond noise: Z sooner 9, Z later 22 | K/Z vectorized cost median 2.13x | log2(n*Z/n*K) vs log2(cK/cZ): slope +1.10 (cost model predicts +1), mean offset +1.20
+  SSE2  beyond noise: Z sooner 11, Z later 27 | K/Z vectorized cost median 1.75x | log2(n*Z/n*K) vs log2(cK/cZ): slope +0.36 (cost model predicts +1), mean offset +0.99
+  cost-model K per machine (2^x ns, slope -1 fits): K AVX2 17.5, K AVX 17.3, K SSE2 16.8, M NEON 17.4, Z AVX-512 18.2, Z AVX2 17.4, Z AVX 17.4, Z SSE2 17.6
+
+Holistic - one model n* = 2^(K_machine) / cost: fraction of all rows within run noise (+1 step)
+  model within noise+1 step: 449/648 (69%)
+  current tables within noise+1 step: 485/648 (75%)

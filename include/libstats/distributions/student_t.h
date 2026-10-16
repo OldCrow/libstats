@@ -21,7 +21,7 @@ namespace stats {
  * - LogPDF: log_norm_const − (ν+1)/2 · log(1 + x²/ν)
  * - CDF: via regularized incomplete beta function I_{ν/(ν+x²)}(ν/2, 1/2)
  * - Support: x ∈ (−∞, +∞)
- * - Parameter: ν > 0 (degrees of freedom)
+ * - Parameter: ν finite and ≥ DBL_MIN (degrees of freedom)
  *
  * @par Moments:
  * - Mean: 0 for ν > 1; undefined for ν ≤ 1
@@ -86,8 +86,8 @@ class StudentTDistribution : public DistributionBase {
 
     /**
      * @brief Construct a Student's t distribution.
-     * @param nu Degrees of freedom (must be positive, default: 1.0)
-     * @throws std::invalid_argument if nu is not a positive finite number
+     * @param nu Degrees of freedom (finite and at least DBL_MIN, default: 1.0)
+     * @throws std::invalid_argument if nu is not finite or is below DBL_MIN
      *
      * Implementation in .cpp: validates nu and populates the performance cache.
      */
@@ -114,7 +114,7 @@ class StudentTDistribution : public DistributionBase {
 
     /**
      * @brief Safely create a Student's t distribution without throwing exceptions.
-     * @param nu Degrees of freedom (must be positive)
+     * @param nu Degrees of freedom (finite and at least DBL_MIN)
      * @return Result containing either a valid StudentTDistribution or error info
      */
     [[nodiscard]] static Result<StudentTDistribution> create(double nu = detail::ONE) {
@@ -221,6 +221,12 @@ class StudentTDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(t) = F(−t) by symmetry, through detail::t_cdf, so the upper tail keeps the
+     * lower tail's relative precision.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile via detail::inverse_t_cdf(p, ν) (Newton-Raphson).
      * @throws std::invalid_argument if p not in [0, 1]
      */
@@ -247,7 +253,13 @@ class StudentTDistribution : public DistributionBase {
      *   ∂L/∂ν = n·[ψ((ν+1)/2) − ψ(ν/2) − 1/ν] − Σlog(1+xᵢ²/ν) + ((ν+1)/ν)·Σxᵢ²/(ν+xᵢ²)
      *
      * Method-of-moments (excess kurtosis) provides the initial estimate when ν > 4;
-     * otherwise ν is initialised to 5.
+     * otherwise ν is initialised to 5. The root is bracketed in log ν on [0.1, 1e8].
+     *
+     * Large ν: the likelihood is flat there. In θ = 1/ν the estimate has standard error
+     * ~1/sqrt(3.5·n) near θ = 0, so n observations tell ν from a Gaussian only up to
+     * ν ~ sqrt(3.5·n), and an estimate past that is noise. When the score is still positive at
+     * ν = 1e8 (data no heavier-tailed than a Gaussian, e.g. Gaussian samples about half the time)
+     * the fit returns exactly 1e8, the Gaussian limit: t(1e8) differs from N(0, 1) by ~1e-8.
      *
      * @param values Observed data (any finite real values)
      * @throws std::invalid_argument if values is empty or contains non-finite entries
@@ -388,7 +400,7 @@ class StudentTDistribution : public DistributionBase {
     // 23. DISTRIBUTION PARAMETERS
     //==========================================================================
 
-    /** @brief Degrees of freedom ν — must be positive. */
+    /** @brief Degrees of freedom ν — finite and at least DBL_MIN. */
     double nu_{detail::ONE};
 
     /** @brief Atomic copy for lock-free access. */

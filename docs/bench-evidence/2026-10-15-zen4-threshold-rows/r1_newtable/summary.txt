@@ -1,0 +1,6 @@
+2026-10-15 09:52:56 head=122aa51 dirty=[ M PLAN.md; M include/libstats/core/dispatch_thresholds.h; M scripts/derive_threshold_rows.py;?? docs/bench-evidence/2026-10-15-zen4-threshold-rows/]
+2026-10-15 09:54:45 build msvc rc=0 warnings=0 109s
+2026-10-15 09:58:45 ctest msvc rc=0 100% tests passed out of 132 241s
+2026-10-15 10:02:42 ctest clangcl rc=0 100% tests passed out of 132 237s
+2026-10-15 10:02:49 gates exit=0 optout=True ratios=[0.254018 0.239268 0.240879 0.241324 0.235067 0.245239 0.253637 0.252043]
+2026-10-15 10:02:49 DONE

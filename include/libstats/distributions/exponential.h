@@ -399,6 +399,13 @@ class ExponentialDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = 1 − F(x), formed as the complement itself (AR A11), so it keeps full
+     * relative precision in the upper tail, where 1 − F(x) cancels to 0, and getHazard stays
+     * finite inside the support.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      * For exponential distribution: F^(-1)(p) = -ln(1-p)/λ
      *
@@ -750,7 +757,9 @@ class ExponentialDistribution : public DistributionBase {
         negLambda_ = -lambda_;
 
         // Optimization flags
-        isUnitRate_ = (std::abs(lambda_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+        // Exactly 1: a 1e-8 tolerance sent λ = 1 + 5e-9 down the λ = 1 formulas, 9.5e-8 off in
+        // the pdf at x = 20.
+        isUnitRate_ = (lambda_ == detail::ONE);
         isHighRate_ = (lambda_ > detail::THOUSAND);
         isLowRate_ = (lambda_ < detail::THOUSANDTH);
 

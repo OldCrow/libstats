@@ -1,0 +1,43 @@
+Running main() from /private/tmp/googletest-20260810-2300-tbptpn/googletest-1.18.0/googletest/src/gtest_main.cc
+[==========] Running 14 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 7 tests from ParallelForExceptions
+[ RUN      ] ParallelForExceptions.TestExercisesTheChunkedPath
+[       OK ] ParallelForExceptions.TestExercisesTheChunkedPath (0 ms)
+[ RUN      ] ParallelForExceptions.PropagatesExceptionFromChunk
+[       OK ] ParallelForExceptions.PropagatesExceptionFromChunk (1 ms)
+[ RUN      ] ParallelForExceptions.ExceptionCarriesTheOriginalPayload
+[       OK ] ParallelForExceptions.ExceptionCarriesTheOriginalPayload (0 ms)
+[ RUN      ] ParallelForExceptions.NoChunkStillRunningWhenExceptionEscapes
+[       OK ] ParallelForExceptions.NoChunkStillRunningWhenExceptionEscapes (195 ms)
+[ RUN      ] ParallelForExceptions.FirstThrowingChunkInIndexOrderWins
+[       OK ] ParallelForExceptions.FirstThrowingChunkInIndexOrderWins (105 ms)
+[ RUN      ] ParallelForExceptions.SequentialPathPropagates
+[       OK ] ParallelForExceptions.SequentialPathPropagates (0 ms)
+[ RUN      ] ParallelForExceptions.NonThrowingRunIsUnaffected
+[       OK ] ParallelForExceptions.NonThrowingRunIsUnaffected (6 ms)
+[----------] 7 tests from ParallelForExceptions (309 ms total)
+
+[----------] 4 tests from ParallelReduceExceptions
+[ RUN      ] ParallelReduceExceptions.AllSiblingChunksCompleteBeforeExceptionEscapes
+[       OK ] ParallelReduceExceptions.AllSiblingChunksCompleteBeforeExceptionEscapes (175 ms)
+[ RUN      ] ParallelReduceExceptions.FirstThrowingChunkInIndexOrderWins
+[       OK ] ParallelReduceExceptions.FirstThrowingChunkInIndexOrderWins (100 ms)
+[ RUN      ] ParallelReduceExceptions.SequentialPathPropagates
+[       OK ] ParallelReduceExceptions.SequentialPathPropagates (0 ms)
+[ RUN      ] ParallelReduceExceptions.NonThrowingRunIsUnaffected
+[       OK ] ParallelReduceExceptions.NonThrowingRunIsUnaffected (0 ms)
+[----------] 4 tests from ParallelReduceExceptions (276 ms total)
+
+[----------] 3 tests from ParallelStatOperationExceptions
+[ RUN      ] ParallelStatOperationExceptions.TestPinsTheChunkCount
+[       OK ] ParallelStatOperationExceptions.TestPinsTheChunkCount (0 ms)
+[ RUN      ] ParallelStatOperationExceptions.AllSiblingChunksCompleteBeforeExceptionEscapes
+[       OK ] ParallelStatOperationExceptions.AllSiblingChunksCompleteBeforeExceptionEscapes (151 ms)
+[ RUN      ] ParallelStatOperationExceptions.FirstThrowingChunkInIndexOrderWins
+[       OK ] ParallelStatOperationExceptions.FirstThrowingChunkInIndexOrderWins (110 ms)
+[----------] 3 tests from ParallelStatOperationExceptions (264 ms total)
+
+[----------] Global test environment tear-down
+[==========] 14 tests from 3 test suites ran. (851 ms total)
+[  PASSED  ] 14 tests.

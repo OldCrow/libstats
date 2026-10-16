@@ -20,7 +20,8 @@ namespace stats {
  * - LogPDF: −(log x − μ)²/(2σ²) − log x − log σ − ½·log(2π)
  * - CDF:    Φ((log x − μ)/σ)  where Φ is the standard normal CDF
  * - Quantile: exp(μ + σ·Φ⁻¹(p))
- * - Parameters: μ ∈ ℝ (log-mean), σ > 0 (log-stddev)
+ * - Parameters: μ ∈ ℝ (log-mean), σ ∈ [√DBL_MIN, 1e10] (log-stddev; −1/(2σ²) is cached:
+ *   MIN_SQUARABLE_SCALE and MAX_STANDARD_DEVIATION, Gaussian's bounds)
  * - Support:  x ∈ (0, ∞)
  *
  * @par Moments:
@@ -70,8 +71,9 @@ class LogNormalDistribution : public DistributionBase {
     /**
      * @brief Construct a Log-Normal distribution.
      * @param mu    Location parameter μ — log-mean (any finite real, default 0)
-     * @param sigma Scale parameter σ — log-stddev (must be positive, default 1)
-     * @throws std::invalid_argument if sigma <= 0 or either parameter is non-finite
+     * @param sigma σ, log-stddev (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION], default 1)
+     * @throws std::invalid_argument if sigma is outside [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION] or mu is not finite
      *
      * Default (0, 1) is the standard log-normal distribution.
      * Implementation in .cpp.
@@ -100,7 +102,7 @@ class LogNormalDistribution : public DistributionBase {
     /**
      * @brief Safely create a Log-Normal distribution without throwing exceptions.
      * @param mu    Location parameter μ (any finite real)
-     * @param sigma Scale parameter σ (must be positive)
+     * @param sigma Scale parameter σ (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
      * @return Result containing a valid LogNormalDistribution or error info
      */
     [[nodiscard]] static Result<LogNormalDistribution> create(double mu = detail::ZERO_DOUBLE,
@@ -149,13 +151,15 @@ class LogNormalDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter σ.
-     * @throws std::invalid_argument if sigma <= 0
+     * @throws std::invalid_argument if sigma is outside [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      */
     void setSigma(double sigma);
 
     /**
      * @brief Set both parameters simultaneously.
-     * @throws std::invalid_argument if sigma <= 0 or mu is non-finite
+     * @throws std::invalid_argument if sigma is outside [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION] or mu is non-finite
      */
     void setParameters(double mu, double sigma);
 
@@ -222,6 +226,11 @@ class LogNormalDistribution : public DistributionBase {
      * Returns 0 for x ≤ 0.
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
+
+    /**
+     * @brief Survival S(x) = Φ(−(log x − μ)/σ) = ½erfc((log x − μ)/(σ√2)); 1 for x ≤ 0.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
 
     /**
      * @brief Quantile: exp(μ + σ·Φ⁻¹(p)).
@@ -375,12 +384,9 @@ class LogNormalDistribution : public DistributionBase {
     void updateCacheUnsafe() const noexcept override;
 
     static void validateParameters(double mu, double sigma) {
-        if (std::isnan(mu) || std::isinf(mu)) {
-            throw std::invalid_argument("Mu (log-mean) must be a finite real number");
-        }
-        if (std::isnan(sigma) || std::isinf(sigma) || sigma <= detail::ZERO_DOUBLE) {
-            throw std::invalid_argument("Sigma (log-stddev) must be a positive finite number");
-        }
+        auto v = validateLogNormalParameters(mu, sigma);
+        if (v.isError())
+            throw std::invalid_argument(v.message());
     }
 
     //==========================================================================
@@ -397,7 +403,7 @@ class LogNormalDistribution : public DistributionBase {
     /** @brief Location parameter μ (log-mean) — any finite real. */
     double mu_{detail::ZERO_DOUBLE};
 
-    /** @brief Scale parameter σ (log-stddev) — must be positive. */
+    /** @brief Scale parameter σ (log-stddev) — in [√DBL_MIN, 1e10]. */
     double sigma_{detail::ONE};
 
     /** @brief Atomic copies for lock-free access. */

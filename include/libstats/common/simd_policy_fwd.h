@@ -5,7 +5,7 @@
 
 /**
  * @file common/simd_policy_fwd.h
- * @brief Lightweight forward declarations for SIMD policy - Phase 2 PIMPL optimization
+ * @brief Lightweight forward declarations for SIMD policy (definitions out-of-line)
  *
  * This header provides a minimal interface to SIMD policy capabilities without
  * pulling in heavy platform-specific dependencies and CPU detection overhead.

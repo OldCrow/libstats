@@ -1,0 +1,52 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 17 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from Geometric/DistributionEnhancedTest/0, where TypeParam = stats::GeometricDistribution
+[ RUN      ] Geometric/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Geometric/DistributionEnhancedTest/0.LogPDFConsistency (16 ms)
+[ RUN      ] Geometric/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Geometric/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Geometric/DistributionEnhancedTest/0.QuantileRoundTrip
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\include/enhanced_test_suite.h(204): Skipped
+QuantileRoundTrip is undefined for discrete distributions
+
+[  SKIPPED ] Geometric/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Geometric/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Geometric/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Geometric/DistributionEnhancedTest/0 (19 ms total)
+
+[----------] 13 tests from GeometricEnhancedTest
+[ RUN      ] GeometricEnhancedTest.KnownPMFValues
+[       OK ] GeometricEnhancedTest.KnownPMFValues (0 ms)
+[ RUN      ] GeometricEnhancedTest.KnownLogPMFValues
+[       OK ] GeometricEnhancedTest.KnownLogPMFValues (0 ms)
+[ RUN      ] GeometricEnhancedTest.KnownCDFValues
+[       OK ] GeometricEnhancedTest.KnownCDFValues (0 ms)
+[ RUN      ] GeometricEnhancedTest.MomentFormulas
+[       OK ] GeometricEnhancedTest.MomentFormulas (0 ms)
+[ RUN      ] GeometricEnhancedTest.ModeIsAlwaysZero
+[       OK ] GeometricEnhancedTest.ModeIsAlwaysZero (0 ms)
+[ RUN      ] GeometricEnhancedTest.MedianFormula
+[       OK ] GeometricEnhancedTest.MedianFormula (0 ms)
+[ RUN      ] GeometricEnhancedTest.EntropyFormula
+[       OK ] GeometricEnhancedTest.EntropyFormula (0 ms)
+[ RUN      ] GeometricEnhancedTest.QuantileFloorProperty
+[       OK ] GeometricEnhancedTest.QuantileFloorProperty (0 ms)
+[ RUN      ] GeometricEnhancedTest.SetterPropagates
+[       OK ] GeometricEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] GeometricEnhancedTest.MLEFit
+[       OK ] GeometricEnhancedTest.MLEFit (0 ms)
+[ RUN      ] GeometricEnhancedTest.LogPMFConsistency
+[       OK ] GeometricEnhancedTest.LogPMFConsistency (0 ms)
+[ RUN      ] GeometricEnhancedTest.BatchMatchesScalar
+[       OK ] GeometricEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] GeometricEnhancedTest.VectorizedSpeedup
+Geometric LogPMF PARALLEL speedup: 2.5715x (PARALLEL 2007µs, SCALAR 5161µs)
+[       OK ] GeometricEnhancedTest.VectorizedSpeedup (7 ms)
+[----------] 13 tests from GeometricEnhancedTest (10 ms total)
+
+[----------] Global test environment tear-down
+[==========] 17 tests from 2 test suites ran. (32 ms total)
+[  PASSED  ] 16 tests.
+[  SKIPPED ] 1 test, listed below:
+[  SKIPPED ] Geometric/DistributionEnhancedTest/0.QuantileRoundTrip

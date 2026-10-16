@@ -1,0 +1,32 @@
+noise floor (forced, same code): median 1.001 p05 0.94 p95 1.06 n=1620
+pass-to-pass (old table, all rows): median 1.001 p05 0.92 p95 1.09
+AUTO rows 810: new/old median 0.999; faster >1.25x 1; slower >1.25x 0
+AUTO > 1.25x behind best forced: old table 20, new table 17
+
+== REGRESSIONS: new AUTO slower than old by > 1.25x
+
+== remaining gaps under the NEW table: AUTO > 1.25x behind best forced
+  StudentT        logpdf   25000  auto/best 1.60 (best parallel)  old auto/best 1.55  new/old 1.00
+  Gaussian        pdf      25000  auto/best 1.58 (best parallel)  old auto/best 1.50  new/old 1.04
+  Gumbel          cdf       8192  auto/best 1.55 (best parallel)  old auto/best 1.52  new/old 1.04
+  LogNormal       pdf      10000  auto/best 1.54 (best parallel)  old auto/best 1.57  new/old 0.99
+  LogNormal       pdf       8192  auto/best 1.49 (best parallel)  old auto/best 1.52  new/old 1.01
+  Gumbel          cdf      10000  auto/best 1.48 (best parallel)  old auto/best 1.48  new/old 0.98
+  Weibull         logpdf   10000  auto/best 1.46 (best parallel)  old auto/best 1.54  new/old 0.99
+  StudentT        pdf       8192  auto/best 1.42 (best parallel)  old auto/best 1.48  new/old 0.98
+  Beta            logpdf    8192  auto/best 1.42 (best parallel)  old auto/best 1.34  new/old 1.04
+  Weibull         logpdf    8192  auto/best 1.41 (best parallel)  old auto/best 1.37  new/old 0.98
+  StudentT        pdf      10000  auto/best 1.39 (best parallel)  old auto/best 1.55  new/old 1.00
+  Beta            logpdf   10000  auto/best 1.38 (best parallel)  old auto/best 1.41  new/old 1.00
+  Cauchy          logpdf   25000  auto/best 1.37 (best parallel)  old auto/best 1.34  new/old 1.00
+  Pareto          pdf       8192  auto/best 1.36 (best parallel)  old auto/best 1.34  new/old 1.00
+  Pareto          pdf      10000  auto/best 1.31 (best parallel)  old auto/best 1.45  new/old 0.93
+  Pareto          logpdf   25000  auto/best 1.30 (best parallel)  old auto/best 1.36  new/old 0.99
+  VonMises        logpdf   10000  auto/best 1.29 (best parallel)  old auto/best 1.33  new/old 1.00
+
+== gaps CLOSED by the new table (old a/b > 1.25, new a/b <= 1.25)
+  Gaussian        logpdf  n:new/old  100000:0.96
+  Uniform         pdf     n:new/old  500000:0.41
+  VonMises        logpdf  n:new/old  8192:1.00
+
+== per-row verdict for every changed proposal row would need the table; see rows_kNeon.txt

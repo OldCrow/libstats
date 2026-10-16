@@ -281,8 +281,8 @@ class DatasetGenerator {
     // to ensure numerically valid data without reimplementing each distribution's RNG.
 
     template <typename Dist, typename... Args>
-    static std::vector<std::vector<double>> generateViaSample(
-            size_t count, size_t size, std::mt19937& rng, Args&&... args) {
+    static std::vector<std::vector<double>> generateViaSample(size_t count, size_t size,
+                                                              std::mt19937& rng, Args&&... args) {
         std::vector<std::vector<double>> datasets;
         for (size_t i = 0; i < count; ++i) {
             auto dist = Dist::create(std::forward<Args>(args)...).unwrap();
@@ -291,8 +291,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateLogNormalDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateLogNormalDatasets(size_t count, size_t size,
+                                                                      std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> mu_dist(-1.0, 2.0);
         std::uniform_real_distribution<double> sigma_dist(0.3, 1.5);
@@ -303,8 +303,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateParetoDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateParetoDatasets(size_t count, size_t size,
+                                                                   std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> scale_dist(0.5, 3.0);
         std::uniform_real_distribution<double> alpha_dist(1.5, 5.0);
@@ -315,8 +315,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateWeibullDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateWeibullDatasets(size_t count, size_t size,
+                                                                    std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> k_dist(0.8, 4.0);
         std::uniform_real_distribution<double> lambda_dist(0.5, 3.0);
@@ -327,8 +327,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateRayleighDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateRayleighDatasets(size_t count, size_t size,
+                                                                     std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> sigma_dist(0.5, 3.0);
         for (size_t i = 0; i < count; ++i) {
@@ -338,8 +338,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateVonMisesDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateVonMisesDatasets(size_t count, size_t size,
+                                                                     std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> mu_dist(-2.0, 2.0);
         std::uniform_real_distribution<double> kappa_dist(0.5, 5.0);
@@ -350,8 +350,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateBinomialDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateBinomialDatasets(size_t count, size_t size,
+                                                                     std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> p_dist(0.2, 0.8);
         // Fixed n=20 across all datasets so fit() recovers a stable n estimate.
@@ -362,8 +362,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateNegBinomialDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateNegBinomialDatasets(size_t count, size_t size,
+                                                                        std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> r_dist(2.0, 8.0);
         std::uniform_real_distribution<double> p_dist(0.3, 0.7);
@@ -374,8 +374,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateGeometricDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateGeometricDatasets(size_t count, size_t size,
+                                                                      std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> p_dist(0.2, 0.8);
         for (size_t i = 0; i < count; ++i) {
@@ -385,8 +385,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateLaplaceDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateLaplaceDatasets(size_t count, size_t size,
+                                                                    std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> mu_dist(-5.0, 5.0);
         std::uniform_real_distribution<double> b_dist(0.5, 3.0);
@@ -397,8 +397,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateCauchyDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateCauchyDatasets(size_t count, size_t size,
+                                                                   std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> x0_dist(-5.0, 5.0);
         std::uniform_real_distribution<double> gamma_dist(0.5, 3.0);
@@ -409,8 +409,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateBetaDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateBetaDatasets(size_t count, size_t size,
+                                                                 std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> param_dist(0.5, 5.0);
         for (size_t i = 0; i < count; ++i) {
@@ -420,8 +420,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateChiSquaredDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateChiSquaredDatasets(size_t count, size_t size,
+                                                                       std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> k_dist(2.0, 10.0);
         for (size_t i = 0; i < count; ++i) {
@@ -431,8 +431,8 @@ class DatasetGenerator {
         return datasets;
     }
 
-    static std::vector<std::vector<double>> generateStudentTDatasets(
-            size_t count, size_t size, std::mt19937& rng) {
+    static std::vector<std::vector<double>> generateStudentTDatasets(size_t count, size_t size,
+                                                                     std::mt19937& rng) {
         std::vector<std::vector<double>> datasets;
         std::uniform_real_distribution<double> nu_dist(3.0, 20.0);
         for (size_t i = 0; i < count; ++i) {
@@ -639,7 +639,8 @@ class ParallelBatchFittingBenchmark {
                 "Binomial", &DatasetGenerator::generateBinomialDatasets, summary);
         }
 
-        if (config_.target_distribution == "all" || config_.target_distribution == "negativebinomial") {
+        if (config_.target_distribution == "all" ||
+            config_.target_distribution == "negativebinomial") {
             runDistributionBenchmark<NegativeBinomialDistribution>(
                 "NegativeBinomial", &DatasetGenerator::generateNegBinomialDatasets, summary);
         }
@@ -895,8 +896,10 @@ BenchmarkConfig parseArguments(int argc, char* argv[]) {
             std::cout << "  --export             Export results to CSV files\n";
             std::cout << "  --verbose            Enable verbose output\n";
             std::cout << "  --distribution D     Test only distribution D\n";
-            std::cout << "                       (gaussian, exponential, uniform, gamma, poisson,\n";
-            std::cout << "                        discrete, lognormal, pareto, weibull, rayleigh,\n";
+            std::cout
+                << "                       (gaussian, exponential, uniform, gamma, poisson,\n";
+            std::cout
+                << "                        discrete, lognormal, pareto, weibull, rayleigh,\n";
             std::cout << "                        vonmises, binomial, negativebinomial, beta,\n";
             std::cout << "                        chisquared, studentt)\n";
             std::cout << "  --help, -h           Show this help message\n\n";

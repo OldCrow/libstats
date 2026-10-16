@@ -1,0 +1,54 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-10-05T04-36-25Z_darwin-arm64_dev-v2.4.2_sha-2c5230a
+Captured at (UTC): 2026-10-05T04-36-25Z (run 1; runs 2-3 07:53Z and 09:02Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- cross_tier_assessment.py
+- cross_tier_assessment.txt
+- logs/run.txt
+- logs/gate_samples.txt
+- logs/noise_run1.txt, logs/noise_run2.txt, logs/noise_run3.txt
+- logs/system_inspector.txt
+- logs/tier.txt
+
+Capture notes:
+- Native NEON (Release, build-release/, ninja) on the Mac Mini M1,
+  macOS 27.0.1, AppleClang 21.0.0, v2.4.2 code at 2c5230a (freeze head
+  6cab6ed plus test and doc commits only), for the v2.4.2 re-derivation
+  of kNeon. Built and R1-checked (89/89) the same evening.
+- Three `strategy_profile --large -o <csv>` runs, ~16-17 min each, screen
+  locked, from a detached script (docs/bench-evidence/2026-10-05-m1-v242-cost/
+  overnight_m1.sh). The gate is ambient CPU (100 - top's idle %, all 8
+  cores), not the 1-min load, which sits at 4-10 on this machine with the
+  efficiency cores busy: two consecutive 10 s windows below 15%, relaxing
+  to 20% after 3 h of waiting. Run 1 started at 6.20%, run 2 at 9.85%
+  (after the relax), run 3 at 5.50% (logs/run.txt).
+- NOT quiet throughout. The gate opened in lulls; within a minute or two
+  mediaanalysisd (Photos analysis, launches on idle) and bztransmit
+  (Backblaze) returned at 0.5-1.7 cores each for much of every run, plus
+  corespotlightd and backupd at times (logs/noise_run*.txt, one sample a
+  minute). Run-to-run spread is 9 rows > 2x, inside K's 12-19 per tier.
+- The `--large` grid and the SUSTAINED V->P rule are the 2026-09-04
+  bundles'. analyze_crossovers.py is K's 2026-10-04 copy (DIR relative).
+- cross_tier_assessment.py/.txt: K's method (candidate = median of three,
+  or the max when the runs spread more than 2x) against the current kNeon
+  table and the 2026-09-04 v2.4.0 NEON bundle.
+- Findings (detail in cross_tier_assessment.txt):
+  - 22 of 81 rows differ from kNeon by more than one grid step; 20 of
+    those measure the same as 2026-09-04, i.e. deliberate table
+    overrides, not v2.4.2 effects.
+  - The two that moved are FisherF PDF 8192 -> 2048 and LogPDF 10k ->
+    4096: parallel wins sooner, as on K's kAvx2.
+  - 10 rows moved since 2026-09-04; the other 8 (Cauchy and StudentT
+    PDF, Exponential/Rayleigh/Weibull CDF, Weibull PDF/LogPDF,
+    InverseGamma PDF) moved onto the value kNeon already holds.
+- kNeon is NOT updated from this bundle [user, 2026-10-04]: the table
+  update follows the Zen 4 captures and the user's decision.

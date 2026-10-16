@@ -23,27 +23,25 @@
  * Exit code: 0 = all distributions pass, 1 = exception or bad value detected.
  */
 
-#include "tool_utils.h"
-
+#include "libstats/distributions/bernoulli.h"
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/binomial.h"
 #include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/discrete.h"
+#include "libstats/distributions/erlang.h"
 #include "libstats/distributions/exponential.h"
+#include "libstats/distributions/fisher_f.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
 #include "libstats/distributions/geometric.h"
-#include "libstats/distributions/laplace.h"
-#include "libstats/distributions/lognormal.h"
-#include "libstats/distributions/negative_binomial.h"
-#include "libstats/distributions/bernoulli.h"
-#include "libstats/distributions/erlang.h"
-#include "libstats/distributions/fisher_f.h"
 #include "libstats/distributions/gumbel.h"
 #include "libstats/distributions/half_normal.h"
 #include "libstats/distributions/inverse_gamma.h"
+#include "libstats/distributions/laplace.h"
 #include "libstats/distributions/logistic.h"
+#include "libstats/distributions/lognormal.h"
+#include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
 #include "libstats/distributions/rayleigh.h"
@@ -52,6 +50,7 @@
 #include "libstats/distributions/uniform.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/distributions/weibull.h"
+#include "tool_utils.h"
 
 #include <atomic>
 #include <chrono>
@@ -69,14 +68,14 @@ using namespace stats;
 namespace {
 
 constexpr int DEFAULT_DURATION_MS = 300;
-constexpr int QUICK_DURATION_MS   = 50;
-constexpr int DEFAULT_THREADS     = 8;
+constexpr int QUICK_DURATION_MS = 50;
+constexpr int DEFAULT_THREADS = 8;
 
 // ─── Per-distribution stress result ──────────────────────────────────────────
 
 struct StressResult {
-    long long total_ops  = 0;  // complete copy/move cycles
-    bool      pass       = true;
+    long long total_ops = 0;  // complete copy/move cycles
+    bool pass = true;
     std::string failure_msg;
 
     long long ops_per_sec(int duration_ms) const {
@@ -90,18 +89,15 @@ struct StressResult {
 // then loops: copy-construct, copy-assign, move-construct, getMean() check.
 // template parameter Dist is the concrete distribution type.
 
-template<typename Dist>
-StressResult run_stress(
-    std::function<std::pair<Dist, Dist>(int thread_id)> make_pair,
-    int duration_ms,
-    int n_threads)
-{
+template <typename Dist>
+StressResult run_stress(std::function<std::pair<Dist, Dist>(int thread_id)> make_pair,
+                        int duration_ms, int n_threads) {
     constexpr auto rlx = std::memory_order_relaxed;
 
-    std::atomic<bool>      stop{false};
+    std::atomic<bool> stop{false};
     std::atomic<long long> total_ops{0};
-    std::atomic<bool>      had_error{false};
-    std::string            error_msg;
+    std::atomic<bool> had_error{false};
+    std::string error_msg;
 
     std::vector<std::thread> threads;
     threads.reserve(static_cast<size_t>(n_threads));
@@ -115,12 +111,12 @@ StressResult run_stress(
                 while (!stop.load(rlx)) {
                     // Inner loop amortises the stop-flag check
                     for (int i = 0; i < 10 && !stop.load(rlx); ++i) {
-                        auto c1 = d1;           // copy-construct
-                        auto c2 = d2;           // copy-construct
-                        c1 = c2;               // copy-assign
-                        c2 = d1;               // copy-assign
-                        auto m1 = std::move(c1); // move-construct
-                        auto m2 = std::move(c2); // move-construct
+                        auto c1 = d1;             // copy-construct
+                        auto c2 = d2;             // copy-construct
+                        c1 = c2;                  // copy-assign
+                        c2 = d1;                  // copy-assign
+                        auto m1 = std::move(c1);  // move-construct
+                        auto m2 = std::move(c2);  // move-construct
 
                         // Verify CDF is in [0,1] after copy/move chain.
                         // getCumulativeProbability(0.0) is always finite for any valid
@@ -153,11 +149,12 @@ StressResult run_stress(
 
     std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
     stop.store(true, rlx);
-    for (auto& t : threads) t.join();
+    for (auto& t : threads)
+        t.join();
 
     StressResult r;
-    r.total_ops   = total_ops.load();
-    r.pass        = !had_error.load();
+    r.total_ops = total_ops.load();
+    r.pass = !had_error.load();
     r.failure_msg = error_msg;
     return r;
 }
@@ -165,219 +162,248 @@ StressResult run_stress(
 // ─── Per-distribution runners ─────────────────────────────────────────────────
 
 StressResult stress_gaussian(int dur, int nt) {
-    return run_stress<GaussianDistribution>([](int t) {
-        return std::make_pair(
-            GaussianDistribution::create(t * 1.0,      1.0).unwrap(),
-            GaussianDistribution::create(t * 1.0 + 10, 2.0).unwrap());
-    }, dur, nt);
+    return run_stress<GaussianDistribution>(
+        [](int t) {
+            return std::make_pair(GaussianDistribution::create(t * 1.0, 1.0).unwrap(),
+                                  GaussianDistribution::create(t * 1.0 + 10, 2.0).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_exponential(int dur, int nt) {
-    return run_stress<ExponentialDistribution>([](int t) {
-        return std::make_pair(
-            ExponentialDistribution::create(t + 1.0).unwrap(),
-            ExponentialDistribution::create(t + 2.0).unwrap());
-    }, dur, nt);
+    return run_stress<ExponentialDistribution>(
+        [](int t) {
+            return std::make_pair(ExponentialDistribution::create(t + 1.0).unwrap(),
+                                  ExponentialDistribution::create(t + 2.0).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_uniform(int dur, int nt) {
-    return run_stress<UniformDistribution>([](int t) {
-        return std::make_pair(
-            UniformDistribution::create(t * 10.0, t * 10.0 + 5.0).unwrap(),
-            UniformDistribution::create(0.0, 1.0).unwrap());
-    }, dur, nt);
+    return run_stress<UniformDistribution>(
+        [](int t) {
+            return std::make_pair(UniformDistribution::create(t * 10.0, t * 10.0 + 5.0).unwrap(),
+                                  UniformDistribution::create(0.0, 1.0).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_poisson(int dur, int nt) {
-    return run_stress<PoissonDistribution>([](int t) {
-        return std::make_pair(
-            PoissonDistribution::create(t + 1.0).unwrap(),
-            PoissonDistribution::create(t + 3.0).unwrap());
-    }, dur, nt);
+    return run_stress<PoissonDistribution>(
+        [](int t) {
+            return std::make_pair(PoissonDistribution::create(t + 1.0).unwrap(),
+                                  PoissonDistribution::create(t + 3.0).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_gamma(int dur, int nt) {
-    return run_stress<GammaDistribution>([](int t) {
-        return std::make_pair(
-            GammaDistribution::create(2.0, t + 0.5).unwrap(),
-            GammaDistribution::create(3.0, t + 1.0).unwrap());
-    }, dur, nt);
+    return run_stress<GammaDistribution>(
+        [](int t) {
+            return std::make_pair(GammaDistribution::create(2.0, t + 0.5).unwrap(),
+                                  GammaDistribution::create(3.0, t + 1.0).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_discrete(int dur, int nt) {
-    return run_stress<DiscreteDistribution>([](int t) {
-        return std::make_pair(
-            DiscreteDistribution::create(1, t + 6).unwrap(),
-            DiscreteDistribution::create(0, t + 4).unwrap());
-    }, dur, nt);
+    return run_stress<DiscreteDistribution>(
+        [](int t) {
+            return std::make_pair(DiscreteDistribution::create(1, t + 6).unwrap(),
+                                  DiscreteDistribution::create(0, t + 4).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_beta(int dur, int nt) {
-    return run_stress<BetaDistribution>([](int t) {
-        return std::make_pair(
-            BetaDistribution::create(1.5 + t * 0.001, 2.5).unwrap(),
-            BetaDistribution::create(2.5, 1.5 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<BetaDistribution>(
+        [](int t) {
+            return std::make_pair(BetaDistribution::create(1.5 + t * 0.001, 2.5).unwrap(),
+                                  BetaDistribution::create(2.5, 1.5 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_binomial(int dur, int nt) {
-    return run_stress<BinomialDistribution>([](int t) {
-        return std::make_pair(
-            BinomialDistribution::create(t % 20 + 5, 0.3).unwrap(),
-            BinomialDistribution::create(t % 15 + 8, 0.6).unwrap());
-    }, dur, nt);
+    return run_stress<BinomialDistribution>(
+        [](int t) {
+            return std::make_pair(BinomialDistribution::create(t % 20 + 5, 0.3).unwrap(),
+                                  BinomialDistribution::create(t % 15 + 8, 0.6).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_chi_squared(int dur, int nt) {
-    return run_stress<ChiSquaredDistribution>([](int t) {
-        return std::make_pair(
-            ChiSquaredDistribution::create(2.0 + t * 0.001).unwrap(),
-            ChiSquaredDistribution::create(5.0 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<ChiSquaredDistribution>(
+        [](int t) {
+            return std::make_pair(ChiSquaredDistribution::create(2.0 + t * 0.001).unwrap(),
+                                  ChiSquaredDistribution::create(5.0 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_lognormal(int dur, int nt) {
-    return run_stress<LogNormalDistribution>([](int t) {
-        return std::make_pair(
-            LogNormalDistribution::create(0.0, 0.5 + t * 0.001).unwrap(),
-            LogNormalDistribution::create(0.5, 0.5 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<LogNormalDistribution>(
+        [](int t) {
+            return std::make_pair(LogNormalDistribution::create(0.0, 0.5 + t * 0.001).unwrap(),
+                                  LogNormalDistribution::create(0.5, 0.5 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_negative_binomial(int dur, int nt) {
-    return run_stress<NegativeBinomialDistribution>([](int t) {
-        return std::make_pair(
-            NegativeBinomialDistribution::create(3.0 + t * 0.001, 0.4).unwrap(),
-            NegativeBinomialDistribution::create(5.0 + t * 0.001, 0.6).unwrap());
-    }, dur, nt);
+    return run_stress<NegativeBinomialDistribution>(
+        [](int t) {
+            return std::make_pair(
+                NegativeBinomialDistribution::create(3.0 + t * 0.001, 0.4).unwrap(),
+                NegativeBinomialDistribution::create(5.0 + t * 0.001, 0.6).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_pareto(int dur, int nt) {
-    return run_stress<ParetoDistribution>([](int t) {
-        return std::make_pair(
-            ParetoDistribution::create(1.0, 2.0 + t * 0.001).unwrap(),
-            ParetoDistribution::create(1.0, 3.0 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<ParetoDistribution>(
+        [](int t) {
+            return std::make_pair(ParetoDistribution::create(1.0, 2.0 + t * 0.001).unwrap(),
+                                  ParetoDistribution::create(1.0, 3.0 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_rayleigh(int dur, int nt) {
-    return run_stress<RayleighDistribution>([](int t) {
-        return std::make_pair(
-            RayleighDistribution::create(1.0 + t * 0.001).unwrap(),
-            RayleighDistribution::create(2.0 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<RayleighDistribution>(
+        [](int t) {
+            return std::make_pair(RayleighDistribution::create(1.0 + t * 0.001).unwrap(),
+                                  RayleighDistribution::create(2.0 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_student_t(int dur, int nt) {
-    return run_stress<StudentTDistribution>([](int t) {
-        return std::make_pair(
-            StudentTDistribution::create(3.0 + t * 0.001).unwrap(),
-            StudentTDistribution::create(5.0 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<StudentTDistribution>(
+        [](int t) {
+            return std::make_pair(StudentTDistribution::create(3.0 + t * 0.001).unwrap(),
+                                  StudentTDistribution::create(5.0 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_von_mises(int dur, int nt) {
-    return run_stress<VonMisesDistribution>([](int t) {
-        return std::make_pair(
-            VonMisesDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
-            VonMisesDistribution::create(1.0, 2.0 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<VonMisesDistribution>(
+        [](int t) {
+            return std::make_pair(VonMisesDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+                                  VonMisesDistribution::create(1.0, 2.0 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_weibull(int dur, int nt) {
-    return run_stress<WeibullDistribution>([](int t) {
-        return std::make_pair(
-            WeibullDistribution::create(1.5 + t * 0.001, 1.0).unwrap(),
-            WeibullDistribution::create(2.5 + t * 0.001, 1.0).unwrap());
-    }, dur, nt);
+    return run_stress<WeibullDistribution>(
+        [](int t) {
+            return std::make_pair(WeibullDistribution::create(1.5 + t * 0.001, 1.0).unwrap(),
+                                  WeibullDistribution::create(2.5 + t * 0.001, 1.0).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_geometric(int dur, int nt) {
-    return run_stress<GeometricDistribution>([](int t) {
-        return std::make_pair(
-            GeometricDistribution::create(0.2 + t * 0.001).unwrap(),
-            GeometricDistribution::create(0.5 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<GeometricDistribution>(
+        [](int t) {
+            return std::make_pair(GeometricDistribution::create(0.2 + t * 0.001).unwrap(),
+                                  GeometricDistribution::create(0.5 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_laplace(int dur, int nt) {
-    return run_stress<LaplaceDistribution>([](int t) {
-        return std::make_pair(
-            LaplaceDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
-            LaplaceDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<LaplaceDistribution>(
+        [](int t) {
+            return std::make_pair(LaplaceDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+                                  LaplaceDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_cauchy(int dur, int nt) {
-    return run_stress<CauchyDistribution>([](int t) {
-        return std::make_pair(
-            CauchyDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
-            CauchyDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<CauchyDistribution>(
+        [](int t) {
+            return std::make_pair(CauchyDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+                                  CauchyDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_logistic(int dur, int nt) {
-    return run_stress<LogisticDistribution>([](int t) {
-        return std::make_pair(
-            LogisticDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
-            LogisticDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<LogisticDistribution>(
+        [](int t) {
+            return std::make_pair(LogisticDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+                                  LogisticDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_gumbel(int dur, int nt) {
-    return run_stress<GumbelDistribution>([](int t) {
-        return std::make_pair(
-            GumbelDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
-            GumbelDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<GumbelDistribution>(
+        [](int t) {
+            return std::make_pair(GumbelDistribution::create(0.0, 1.0 + t * 0.001).unwrap(),
+                                  GumbelDistribution::create(1.0, 0.5 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_bernoulli(int dur, int nt) {
-    return run_stress<BernoulliDistribution>([](int t) {
-        return std::make_pair(
-            BernoulliDistribution::create(0.2 + (t % 500) * 0.001).unwrap(),
-            BernoulliDistribution::create(0.5 + (t % 400) * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<BernoulliDistribution>(
+        [](int t) {
+            return std::make_pair(BernoulliDistribution::create(0.2 + (t % 500) * 0.001).unwrap(),
+                                  BernoulliDistribution::create(0.5 + (t % 400) * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_erlang(int dur, int nt) {
-    return run_stress<ErlangDistribution>([](int t) {
-        return std::make_pair(
-            ErlangDistribution::create(2 + t % 5, 1.0 + t * 0.001).unwrap(),
-            ErlangDistribution::create(3 + t % 4, 0.5 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<ErlangDistribution>(
+        [](int t) {
+            return std::make_pair(ErlangDistribution::create(2 + t % 5, 1.0 + t * 0.001).unwrap(),
+                                  ErlangDistribution::create(3 + t % 4, 0.5 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_fisher_f(int dur, int nt) {
-    return run_stress<FDistribution>([](int t) {
-        return std::make_pair(
-            FDistribution::create(3.0 + t * 0.001, 5.0).unwrap(),
-            FDistribution::create(8.0 + t * 0.001, 10.0).unwrap());
-    }, dur, nt);
+    return run_stress<FDistribution>(
+        [](int t) {
+            return std::make_pair(FDistribution::create(3.0 + t * 0.001, 5.0).unwrap(),
+                                  FDistribution::create(8.0 + t * 0.001, 10.0).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_inverse_gamma(int dur, int nt) {
-    return run_stress<InverseGammaDistribution>([](int t) {
-        return std::make_pair(
-            InverseGammaDistribution::create(2.0 + t * 0.001, 1.0).unwrap(),
-            InverseGammaDistribution::create(3.0 + t * 0.001, 2.0).unwrap());
-    }, dur, nt);
+    return run_stress<InverseGammaDistribution>(
+        [](int t) {
+            return std::make_pair(InverseGammaDistribution::create(2.0 + t * 0.001, 1.0).unwrap(),
+                                  InverseGammaDistribution::create(3.0 + t * 0.001, 2.0).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_half_normal(int dur, int nt) {
-    return run_stress<HalfNormalDistribution>([](int t) {
-        return std::make_pair(
-            HalfNormalDistribution::create(1.0 + t * 0.001).unwrap(),
-            HalfNormalDistribution::create(2.0 + t * 0.001).unwrap());
-    }, dur, nt);
+    return run_stress<HalfNormalDistribution>(
+        [](int t) {
+            return std::make_pair(HalfNormalDistribution::create(1.0 + t * 0.001).unwrap(),
+                                  HalfNormalDistribution::create(2.0 + t * 0.001).unwrap());
+        },
+        dur, nt);
 }
 
 StressResult stress_truncated_normal(int dur, int nt) {
-    return run_stress<TruncatedNormalDistribution>([](int t) {
-        return std::make_pair(
-            TruncatedNormalDistribution::create(0.0, 1.0 + t * 0.001, -2.0, 3.0).unwrap(),
-            TruncatedNormalDistribution::create(1.0, 0.5 + t * 0.001, 0.0, 4.0).unwrap());
-    }, dur, nt);
+    return run_stress<TruncatedNormalDistribution>(
+        [](int t) {
+            return std::make_pair(
+                TruncatedNormalDistribution::create(0.0, 1.0 + t * 0.001, -2.0, 3.0).unwrap(),
+                TruncatedNormalDistribution::create(1.0, 0.5 + t * 0.001, 0.0, 4.0).unwrap());
+        },
+        dur, nt);
 }
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
@@ -389,52 +415,56 @@ struct Entry {
 
 std::vector<Entry> build_registry() {
     return {
-        {"Gaussian",         stress_gaussian},
-        {"Exponential",      stress_exponential},
-        {"Uniform",          stress_uniform},
-        {"Poisson",          stress_poisson},
-        {"Gamma",            stress_gamma},
-        {"Discrete",         stress_discrete},
-        {"Beta",             stress_beta},
-        {"Binomial",         stress_binomial},
-        {"ChiSquared",       stress_chi_squared},
-        {"LogNormal",        stress_lognormal},
+        {"Gaussian", stress_gaussian},
+        {"Exponential", stress_exponential},
+        {"Uniform", stress_uniform},
+        {"Poisson", stress_poisson},
+        {"Gamma", stress_gamma},
+        {"Discrete", stress_discrete},
+        {"Beta", stress_beta},
+        {"Binomial", stress_binomial},
+        {"ChiSquared", stress_chi_squared},
+        {"LogNormal", stress_lognormal},
         {"NegativeBinomial", stress_negative_binomial},
-        {"Pareto",           stress_pareto},
-        {"Rayleigh",         stress_rayleigh},
-        {"StudentT",         stress_student_t},
-        {"VonMises",         stress_von_mises},
-        {"Weibull",          stress_weibull},
-        {"Geometric",        stress_geometric},
-        {"Laplace",          stress_laplace},
-        {"Cauchy",           stress_cauchy},
-        {"Logistic",         stress_logistic},
-        {"Gumbel",           stress_gumbel},
-        {"Bernoulli",        stress_bernoulli},
-        {"Erlang",           stress_erlang},
-        {"FisherF",          stress_fisher_f},
-        {"InverseGamma",     stress_inverse_gamma},
-        {"HalfNormal",       stress_half_normal},
-        {"TruncatedNormal",  stress_truncated_normal},
+        {"Pareto", stress_pareto},
+        {"Rayleigh", stress_rayleigh},
+        {"StudentT", stress_student_t},
+        {"VonMises", stress_von_mises},
+        {"Weibull", stress_weibull},
+        {"Geometric", stress_geometric},
+        {"Laplace", stress_laplace},
+        {"Cauchy", stress_cauchy},
+        {"Logistic", stress_logistic},
+        {"Gumbel", stress_gumbel},
+        {"Bernoulli", stress_bernoulli},
+        {"Erlang", stress_erlang},
+        {"FisherF", stress_fisher_f},
+        {"InverseGamma", stress_inverse_gamma},
+        {"HalfNormal", stress_half_normal},
+        {"TruncatedNormal", stress_truncated_normal},
     };
 }
 
 void print_usage(const char* prog) {
-    std::cout <<
-        "Usage: " << prog << " [options]\n\n"
-        "Options:\n"
-        "  --duration-ms N   ms per distribution (default " << DEFAULT_DURATION_MS << ")\n"
-        "  --threads N       worker threads per distribution (default " << DEFAULT_THREADS << ")\n"
-        "  --quick           50 ms per distribution\n"
-        "  --help            print this message\n\n"
-        "Exit code: 0 = all pass, 1 = exception or bad value detected\n";
+    std::cout << "Usage: " << prog
+              << " [options]\n\n"
+                 "Options:\n"
+                 "  --duration-ms N   ms per distribution (default "
+              << DEFAULT_DURATION_MS
+              << ")\n"
+                 "  --threads N       worker threads per distribution (default "
+              << DEFAULT_THREADS
+              << ")\n"
+                 "  --quick           50 ms per distribution\n"
+                 "  --help            print this message\n\n"
+                 "Exit code: 0 = all pass, 1 = exception or bad value detected\n";
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
     int duration_ms = DEFAULT_DURATION_MS;
-    int n_threads   = DEFAULT_THREADS;
+    int n_threads = DEFAULT_THREADS;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -475,7 +505,7 @@ int main(int argc, char** argv) {
         std::cout << std::left << std::setw(COL_NAME) << entry.name << std::flush;
 
         const StressResult r = entry.run(duration_ms, n_threads);
-        const long long ops  = r.ops_per_sec(duration_ms);
+        const long long ops = r.ops_per_sec(duration_ms);
 
         // Status first.
         // ✓/✗ are 3-byte UTF-8 but 1-char display width: std::setw counts bytes,
@@ -494,7 +524,8 @@ int main(int argc, char** argv) {
             std::string s = std::to_string(ops);
             int ins = static_cast<int>(s.size()) % 3;
             for (int i = 0; i < static_cast<int>(s.size()); ++i) {
-                if (i > 0 && (i - ins) % 3 == 0) os << ',';
+                if (i > 0 && (i - ins) % 3 == 0)
+                    os << ',';
                 os << s[static_cast<size_t>(i)];
             }
             os << " cycles/s";
@@ -512,8 +543,7 @@ int main(int argc, char** argv) {
         std::cout << "\n✓ All " << registry.size() << " distributions PASS"
                   << " — no deadlocks, no exceptions, CDF always in [0,1]\n\n";
     } else {
-        std::cout << "\n✗ " << failures << " of " << registry.size()
-                  << " distributions FAIL\n\n";
+        std::cout << "\n✗ " << failures << " of " << registry.size() << " distributions FAIL\n\n";
     }
 
     std::cout << "Notes:\n"

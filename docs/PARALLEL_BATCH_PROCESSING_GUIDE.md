@@ -21,7 +21,7 @@ Manual strategy-specific v1.x methods were removed in v2.0.0. Use the unified sp
 #include <vector>
 
 int main() {
-    auto normal = stats::GaussianDistribution::create(0.0, 1.0).value;
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
 
     std::vector<double> x = {-2.0, -1.0, 0.0, 1.0, 2.0};
     std::vector<double> pdf(x.size());
@@ -43,13 +43,27 @@ dist.getCumulativeProbability(values, results, hint);
 
 `hint` is optional. With the default hint, libstats auto-dispatches based on batch size, operation type, distribution type, and system capabilities.
 
+There is no batch quantile or batch survival. `getQuantile`, `getSurvival`
+and `getHazard` are scalar methods.
+
+## One parameter state per batch
+
+A batch call under `VECTORIZED`, `PARALLEL` or `WORK_STEALING` takes one
+parameter snapshot and evaluates every element on it, so a concurrent setter
+cannot mix two states into one result span. `SCALAR` is the exception: it
+calls the locking scalar method per element, so a forced `SCALAR` batch, or
+AUTO's choice of `SCALAR` for counts below the SIMD minimum, can mix states
+under a concurrent setter. Per-element is the v2.x decision; one state under
+every strategy is a v3 design input.
+
 ## Aliasing
 
 The input and output spans of every batch overload must not overlap. The
 size check (`values.size() == results.size()`, enforced) says nothing about
 overlap, and several kernels re-read `values` after `results` has been
-written — the Gaussian and von Mises CDF tail fixups, the Gamma PDF pipeline
-and the LogNormal LogPDF support fixup — so an in-place call
+written — the Gaussian CDF tail fixups, the von Mises PDF/LogPDF NaN and
+±inf fixups, the Gamma PDF pipeline, the LogNormal LogPDF support fixup and
+the InverseGamma and Cauchy LogPDF fixups — so an in-place call
 (`dist.getCumulativeProbability(buf, buf, hint)`) returns wrong values with
 no error (review 2026-08-21, issue #112). Use a separate output buffer. The
 lower-level `VectorOps` kernels *are* in-place safe by design; that guarantee
@@ -58,9 +72,11 @@ does not extend to the distribution layer.
 #112 was resolved by documenting the contract rather than by making the tail
 fixups aliasing-safe. Debug builds carry an assert
 (`LIBSTATS_ASSERT_NO_OVERLAP`) beside the size check in
-`detail::DispatchUtils::autoDispatch` and `executeWithStrategy` — the single
-point every batch span overload funnels through — so an aliased call trips
-immediately in a Debug build. Under `NDEBUG` the assert compiles to nothing and
+`detail::DispatchUtils::autoDispatch`. Every batch overload reaches
+`autoDispatch`, directly or through its delegate; Cauchy and InverseGamma
+LogPDF repeat the size check and the overlap assert on the caller's spans
+before delegating. An aliased call therefore trips immediately in a Debug
+build. Under `NDEBUG` the assert compiles to nothing and
 nothing checks it: Release builds of an aliased call are silently wrong, as
 before.
 
@@ -71,8 +87,9 @@ exception thrown inside a chunk: it waits for every chunk, then harvests the
 futures in order and rethrows the first exception (#118).
 `ParallelUtils::parallelReduce` and `parallelStatOperation` share that contract
 (#127); their combine step does not run when a chunk threw. The work-stealing
-path does not — `WorkStealingPool::parallelFor` logs and swallows chunk
-exceptions because its completion latch must be decremented on every path.
+path does not — `WorkStealingPool::parallelFor` swallows chunk exceptions
+silently (no log), and the rest of the failing chunk is skipped, because its
+completion latch must be decremented on every path.
 A batch call dispatched to `Strategy::WORK_STEALING` therefore loses a throwing
 kernel's exception where `Strategy::PARALLEL` reports it.
 
@@ -98,9 +115,14 @@ Available preferences:
 | `FORCE_VECTORIZED` | Use SIMD/vectorized path |
 | `FORCE_PARALLEL` | Use standard parallel path |
 | `MINIMIZE_LATENCY` | Prefer low overhead for small batches |
-| `MAXIMIZE_THROUGHPUT` | Prefer work stealing for high-throughput workloads |
+| `MAXIMIZE_THROUGHPUT` | The dispatcher's multi-threaded choice: `PARALLEL` on Windows and Linux, `WORK_STEALING` on hyper-threaded macOS |
 
-In v2.x, `MAXIMIZE_THROUGHPUT` routes to the shared `GlobalWorkStealingPool`, not a per-thread pool. This avoids spawning `N * hardware_concurrency` worker threads when multiple callers run concurrently.
+No hint forces `WORK_STEALING`. When a call does run `WORK_STEALING`, it uses the shared `GlobalWorkStealingPool`, not a per-thread pool. This avoids spawning `N * hardware_concurrency` worker threads when multiple callers run concurrently.
+
+`PARALLEL` (forced or chosen) falls back to the serial batch kernel below
+`arch::get_min_elements_for_parallel()` (1,536–8,192 elements, by SIMD
+tier), where forking costs more than it saves. Above it, the kernel runs
+over slices on the thread pool.
 
 ## Strategy selection
 
@@ -144,7 +166,12 @@ Individual out-of-support values are generally represented by distribution seman
 - LogPDF/LogPMF: usually `-inf`
 - CDF: clamped to `[0, 1]` as appropriate
 
-NaN handling is distribution-specific, but the base `getLogProbability(NaN)` default propagates NaN.
+NaN propagates through every scalar and batch method of every distribution
+(`getQuantile(NaN)` included); ±inf inputs follow the distribution's limits.
+
+Discrete distributions take non-integer x by two rules: the PMF and log-PMF
+round to the nearest integer (halves away from zero), while the CDF and
+survival floor. So pmf(x) ≠ F(x) − F(x − 1) at non-integer x.
 
 ## Parallel batch fitting
 
@@ -227,7 +254,7 @@ dist.getProbability(std::span<const double>(values),
 
 - Use the default hint unless profiling shows a reason to override it.
 - Use `MINIMIZE_LATENCY` for small batches in latency-sensitive code.
-- Use `MAXIMIZE_THROUGHPUT` for large irregular workloads.
+- Use `MAXIMIZE_THROUGHPUT` to take the platform's multi-threaded strategy for large batches.
 - Pre-size output vectors and reuse them across calls.
 - Profile in Release builds only.
 - Re-run `system_inspector --quick` and `simd_verification` when moving between machines.

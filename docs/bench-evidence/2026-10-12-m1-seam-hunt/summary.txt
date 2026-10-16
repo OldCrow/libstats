@@ -1,0 +1,55 @@
+M1 review and seam hunt at a033bbb (freeze head 6e188b4 plus docs), 2026-10-12.
+Mac Mini M1, macOS 27.0.1, AppleClang 21, NEON. Every binary ran inside the Claude Code sandbox:
+correctness, sweeps and oracle only (cache sizes do not affect values); no timing.
+
+Baseline: Release 0 warnings, correctness 118/118. Sweep 18,732 rows on NEON, oracle
+(mpmath 1.3.0, libstats-log-cleanroom venv) 0 contract violations, with FP contraction on (the
+default) and with -ffp-contract=off: the first NEON run of fix-5's sweep and the first oracle run
+of a contracted build (K's generic x86 TUs never contract). Contraction changes 3,019 rows' bits,
+2 rows' max error > 2x worse and 4 > 2x better, all within budget; batch != scalar in 449 rows with
+it against 92 without (Gamma pdf 29 vs 0), so bit-equality assertions across contracted files
+(ContractGates.H5) hold per row by luck.
+
+Found and fixed (each guard in test_contract_gates.cpp, run against HEAD's library first: fails;
+with the fix: passes):
+  1. Binomial and NegativeBinomial quantiles stepped down across p = 1/2 (CDF rule below, survival
+     rule above, disagreeing where F(k) + S(k) misses 1): 1,647 cases in 4.1M constructed checks,
+     with or without contraction. Random grids: 0 in 397k. Fix: discrete_quantile_search raises a
+     survival-side count below the median count to it. Guard M1_DiscreteQuantileMonotoneAcrossHalf.
+     Sweep bit-identical.
+  2. Von Mises pdf/logpdf at large kappa: exp(kappa cos t - log(2 pi I0)) cancelled; 4e-7 relative
+     at kappa 1e10, 78% at 1e16, exactly 1 from 1e20. Fix: -2 kappa sin^2(t/2) - log(2 pi I0 e^-k)
+     (logScaledNormaliser_), scalar and batch. Oracle: pdf max rel 4.7e-7 -> 1.7e-12, logpdf
+     8.5e-7 -> 7.5e-15. Guard M1_VonMisesDensityAtLargeKappa.
+  3. Student-t CDF beyond |t| = sqrt(nu): log x = log nu - 2 log|t| + log y cancelled, times nu/2:
+     worst step down across neighbouring t 117/86/556 ulp -> 5/3/0. Fix: log(inv_u) + log y.
+     Guard M1_StudentTTailBeyondSqrtNu (accuracy vs mpmath within 1.5x the law, step down <= 8 ulp).
+  4. Fisher-F logpdf at large df: -log B + a log y + b log ybar cancelled, 1.25e-5 absolute at
+     d1 = d2 = 1e10. Fix: Beta's Stirling form from both shapes 20 (log_beta_prefactor_logs, now
+     exported); bit-identical below. Oracle logpdf max abs 3.1e-12 -> 3.4e-13. Guard
+     M1_FisherFLogDensityAtLargeDf.
+After all four: correctness 131/131, stress 109 passed + 27 skipped (cross-wait, no WORK_STEALING
+on M), oracle 0 contract violations.
+
+Found, not fixed (decisions):
+  5. Von Mises CDF at x = -M_PI reads 1: wrapAngle folds the double -PI to +pi. That is the
+     convention #51 settled (sweep, oracle and vector generator replicate it), though -M_PI lies
+     inside the documented (-pi, pi]. A fix to `<` was tried and reverted.
+  6. Shape-20 Stirling switch: the direct forms below 20 lose about min*ln(max)*eps, 10-988 ulp
+     (Gamma(19,1).CDF 39 ulp and a decrease; Beta(19,1e15) 988 ulp; Binomial(1e9,1.1e-8) 360 ulp;
+     Student-t 16 <= nu < 40; NegBin r = 19.9; lbeta(19.99.., 0.5) 112 ulp vs 1-2 at 20); jumps of
+     94-210 ulp across 20. Within the oracle's budget; contradicts the comment that the direct form
+     is the more accurate below 20. Fixing means moving a threshold many functions share.
+  7. Gamma-family quantile at shape ~0.004 non-monotone by 700-1500 ulp of x (2-6 ulp of log x)
+     well above p = 1e-300: #214's mechanism outside its stated range.
+  8. ContractGates.H5's batch == scalar bit-equality for Gamma logpdf holds only where contracted
+     and uncontracted roundings agree (math_utils.cpp contracts; gamma.cpp does not).
+Reviewer suspicions not reproduced: a TruncatedNormal moment-quadrature hang (such windows are
+rejected at create()); Student-t fit on NaN data (rejected).
+
+Test hardening (no library change): cross-wait budget adaptive (20x the batch's own time, 1-30 s;
+verify on K, M skips it); check_inline_member_definitions matches inline on its own line, after
+attributes, or indented (old: 1 of 4 crafted cases); per-name check that each
+libstats_split_timing_cases name selects a test (one misspelled name now fails).
+
+Probes: probes/ (seam_probe.cpp, tmono.cpp, vm_check.cpp; hunt_*.cpp from the seam-hunt agent).

@@ -6,7 +6,7 @@ libstats is a modern C++20 statistical distributions library built as a design a
 
 ## Current Status
 
-The library is at **v2.4.1** on `main` (27 distributions).
+The library is at **v2.5.0** on `main` (27 distributions).
 
 Twenty-seven distributions are fully implemented, all sharing a uniform API:
 
@@ -15,9 +15,8 @@ Twenty-seven distributions are fully implemented, all sharing a uniform API:
 - HalfNormal, TruncatedNormal, Erlang, InverseGamma, FisherF
 - Binomial, Negative Binomial, Geometric, Bernoulli
 
-The current per-machine validation matrix lives in AGENTS.md (74 correctness
-targets, 22 timing, 70/70 `simd_verification`); historical matrices are in
-`docs/VALIDATION_HISTORY.md`. Fleet coverage: Kaby Lake (AVX2+FMA natively,
+Per-release validation matrices are in `docs/VALIDATION_HISTORY.md`; the
+current counts are in `PLAN.md`. Fleet coverage: Kaby Lake (AVX2+FMA natively,
 the AVX tier via a `LIBSTATS_MAX_SIMD_TIER=AVX` capped build), Mac Mini M1
 (NEON), Asus TUF A16 (AVX-512).
 
@@ -145,7 +144,7 @@ Strategy selection uses empirically-derived per-architecture thresholds (profili
 ### Core directories
 - `include/libstats/` — public headers and internal header structure (mirrors the installed layout)
 - `src/` — implementation files
-- `tests/` — correctness, integration, and enhanced tests (all GTest-based)
+- `tests/` — correctness, integration, and enhanced tests (GTest or standalone executables)
 - `examples/` — usage-oriented demonstrations
 - `tools/` — analysis, validation, and benchmarking utilities
 - `docs/` — focused guides and reference material
@@ -170,4 +169,4 @@ Validate correctness, SIMD behaviour, thresholds, and runtime capabilities:
 - `parallel_batch_fitting_benchmark` — parallel MLE performance analysis
 
 ### Test infrastructure
-All tests use GTest and are registered with CTest. Tests are labelled `timing` when they contain speedup assertions sensitive to CPU load; correctness tests carry no label and are safe to run in parallel (`ctest -j8 -LE "timing|benchmark"`).
+Tests are GTest executables (86, `create_libstats_gtest`) or standalone executables (32 via `create_libstats_test`, plus 3 linked against the shared library), all registered with CTest (`tests/CMakeLists.txt`). Tests are labelled `timing` when they assert on speedups sensitive to CPU load (a binary that mixes both is registered twice, one half per label) and `benchmark` when they are benchmarks; correctness tests carry no label and are safe to run in parallel (`ctest -j8 -LE "timing|benchmark"`: 132 tests, against 14 timing and 2 benchmark).

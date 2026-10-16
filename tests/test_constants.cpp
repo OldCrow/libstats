@@ -554,6 +554,12 @@ void test_compile_time_validation() {
 TEST(Constants, MathConstants) {
     test_math_constants();
 }
+
+// Bit-exact: the decimal literal for √π once rounded one ulp low (…5158819…, not …5160272…), which
+// a tolerance check cannot see. The hex value is the correctly rounded double (mpmath, 40 digits).
+TEST(Constants, SqrtPiCorrectlyRounded) {
+    EXPECT_EQ(stats::detail::SQRT_PI, 0x1.c5bf891b4ef6bp+0);
+}
 TEST(Constants, ProbabilityConstants) {
     test_probability_constants();
 }

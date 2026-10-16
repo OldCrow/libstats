@@ -1,0 +1,12 @@
+[run1 check pass] 22:06:22 load=2.12 waiting
+[run1 check pass] 22:07:22 load=1.94 start sha=d9384f8
+[run1 check pass] 22:34:13 load=3.97 end exit=0
+2026-10-03 22:50:51 load=21.44 batch start tier=AVX2 build=build-release runs=2 3 sha=d9384f8
+2026-10-03 22:50:51 load=21.44 system_inspector: System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+2026-10-03 22:50:51 load=21.44 run2 waiting for load < 2.0
+2026-10-03 22:54:21 load=1.93 run2 start
+2026-10-03 23:21:10 load=4.38 run2 end exit=0 rows=    7777
+2026-10-03 23:21:10 load=4.38 run3 waiting for load < 2.0
+2026-10-03 23:22:40 load=1.73 run3 start
+2026-10-03 23:49:16 load=3.83 run3 end exit=0 rows=    7777
+2026-10-03 23:49:16 load=3.83 batch DONE

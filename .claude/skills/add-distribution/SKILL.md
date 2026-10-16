@@ -14,7 +14,7 @@ recently implemented (2026-09-03); for any future distribution (N+1), follow all
 1. **Append** the new `DistributionType` enum value to `include/libstats/core/distribution_type.h`
    (append-only; never reorder — values are used as array indices).
 2. **Append** a `DistributionMeta` row to `kDistributionMeta[]` in `include/libstats/core/distribution_meta.h`
-   (enum name, display name, `is_discrete`, `is_delegation_wrapper`). Bump the
+   (enum name, display name, `is_discrete`). Bump the
    `static_assert(kDistributionTypeCount >= N, ...)` minimum to match the new count.
 3. **Append** one `ThresholdRow` to each of the five `kXxx` tables in
    `include/libstats/core/dispatch_thresholds.h` (use `{NEVER, NEVER, NEVER}` until profiled;

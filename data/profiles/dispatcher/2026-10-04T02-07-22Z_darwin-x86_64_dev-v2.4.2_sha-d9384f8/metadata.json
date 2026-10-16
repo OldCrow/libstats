@@ -1,0 +1,18 @@
+{
+  "captured_at_utc": "2026-10-04T02-07-22Z",
+  "run_id": "2026-10-04T02-07-22Z_darwin-x86_64_dev-v2.4.2_sha-d9384f8",
+  "git_branch": "dev/v2.4.2",
+  "git_sha": "d9384f8",
+  "project_root": "/Users/wolfman/Development/libstats",
+  "build_dir": "/Users/wolfman/Development/libstats/build-release",
+  "build_type": "Release",
+  "cmake_options": "",
+  "cxx_compiler": "/usr/bin/c++ (Apple clang 15.0.0, clang-1500.1.0.2.5)",
+  "os": "darwin (macOS 13.7.8)",
+  "arch": "x86_64",
+  "simd_tier_active": "AVX2",
+  "simd_tier_capped": "",
+  "cpu_brand": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}

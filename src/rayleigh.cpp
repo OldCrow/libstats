@@ -1,11 +1,7 @@
 #include "libstats/distributions/rayleigh.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -14,6 +10,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -21,6 +18,20 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
+
+namespace {
+// pdf = 0 and logpdf = −∞: x ≤ 0 is outside the support, and at x = +inf the log density
+// log(x) + c − x²/(2σ²) evaluates inf − inf = NaN, so it takes its limit instead (#164).
+// NaN fails both tests and propagates through the formula.
+constexpr bool outsideDensity(double x) noexcept {
+    return x <= 0.0 || x == std::numeric_limits<double>::infinity();
+}
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -77,6 +88,11 @@ RayleighDistribution::RayleighDistribution(RayleighDistribution&& other) noexcep
 
 RayleighDistribution& RayleighDistribution::operator=(RayleighDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         sigma_ = other.sigma_;
         logSigma_ = other.logSigma_;
         negHalfInvSigmaSquared_ = other.negHalfInvSigmaSquared_;
@@ -194,7 +210,7 @@ VoidResult RayleighDistribution::validateCurrentParameters() const noexcept {
 //==============================================================================
 
 double RayleighDistribution::getProbability(double x) const {
-    if (x <= detail::ZERO_DOUBLE)
+    if (outsideDensity(x))
         return detail::ZERO_DOUBLE;
 
     double lnc, nhis;
@@ -206,7 +222,7 @@ double RayleighDistribution::getProbability(double x) const {
 }
 
 double RayleighDistribution::getLogProbability(double x) const {
-    if (x <= detail::ZERO_DOUBLE)
+    if (outsideDensity(x))
         return detail::NEGATIVE_INFINITY;
 
     double lnc, nhis;
@@ -223,10 +239,23 @@ double RayleighDistribution::getCumulativeProbability(double x) const {
 
     double nhis;
     withCacheSnapshot([&] { nhis = negHalfInvSigmaSquared_; });
-    return detail::ONE - std::exp(nhis * x * x);
+    return -std::expm1(nhis * x * x);
+}
+
+double RayleighDistribution::getSurvival(double x) const {
+    // S(x) = exp(−x²/(2σ²)) (AR A11).
+    if (std::isnan(x))
+        return x;
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+    double nhis;
+    withCacheSnapshot([&] { nhis = negHalfInvSigmaSquared_; });
+    return std::exp(nhis * x * x);
 }
 
 double RayleighDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1] for Rayleigh distribution");
     }
@@ -237,7 +266,7 @@ double RayleighDistribution::getQuantile(double p) const {
 
     double s;
     withCacheSnapshot([&] { s = sigma_; });
-    return s * std::sqrt(-detail::TWO * std::log(detail::ONE - p));
+    return s * std::sqrt(-detail::TWO * std::log1p(-p));
 }
 
 double RayleighDistribution::sample(std::mt19937& rng) const {
@@ -304,7 +333,7 @@ void RayleighDistribution::reset() noexcept {
 std::string RayleighDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "RayleighDistribution(sigma=" << sigma_ << ")";
     return oss.str();
 }
@@ -365,36 +394,28 @@ void RayleighDistribution::getProbability(std::span<const double> values, std::s
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : std::exp(std::log(x) + lnc + nhis * x * x);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                    nhis, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE)
-                                 ? detail::ZERO_DOUBLE
-                                 : std::exp(std::log(x) + lnc + nhis * x * x);
-                }
-            }
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis, lnc;
             d.withCacheSnapshot([&] {
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                    : std::exp(std::log(x) + lnc + nhis * x * x);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, nhis,
+                                                lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -423,34 +444,28 @@ void RayleighDistribution::getLogProbability(std::span<const double> values,
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                        : std::log(x) + lnc + nhis * x * x;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       nhis, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                        : std::log(x) + lnc + nhis * x * x;
-                }
-            }
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis, lnc;
             d.withCacheSnapshot([&] {
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                    : std::log(x) + lnc + nhis * x * x;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   nhis, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -473,31 +488,25 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
                 return;
             double nhis;
             d.withCacheSnapshot([&] { nhis = d.negHalfInvSigmaSquared_; });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                        : detail::ONE - std::exp(nhis * x * x);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, nhis);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                        : detail::ONE - std::exp(nhis * x * x);
-                }
-            }
         },
         [](const RayleighDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis;
             d.withCacheSnapshot([&] { nhis = d.negHalfInvSigmaSquared_; });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                    : detail::ONE - std::exp(nhis * x * x);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, nhis);
             });
-            pool.waitForAll();
         });
 }
 
@@ -510,6 +519,9 @@ void RayleighDistribution::getCumulativeProbability(std::span<const double> valu
 //==============================================================================
 
 bool RayleighDistribution::operator==(const RayleighDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
@@ -542,7 +554,7 @@ std::istream& operator>>(std::istream& is, RayleighDistribution& d) {
         return is;
     }
     try {
-        const double sg = std::stod(token.substr(sg_pos + 6, close - sg_pos - 6));
+        const double sg = detail::parse_double(token.substr(sg_pos + 6, close - sg_pos - 6));
         auto result = d.trySetSigma(sg);
         if (result.isError())
             is.setstate(std::ios::failbit);
@@ -587,7 +599,7 @@ void RayleighDistribution::getProbabilityBatchUnsafeImpl(
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x <= detail::ZERO_DOUBLE) {
+            if (outsideDensity(x)) {
                 results[i] = detail::ZERO_DOUBLE;
                 continue;
             }
@@ -615,7 +627,7 @@ void RayleighDistribution::getProbabilityBatchUnsafeImpl(
 
     // Fixup: x ≤ 0 is outside support; PDF = 0.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE)
+        if (outsideDensity(values[i]))
             results[i] = detail::ZERO_DOUBLE;
     }
 }
@@ -628,7 +640,7 @@ void RayleighDistribution::getLogProbabilityBatchUnsafeImpl(
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
-            if (x <= detail::ZERO_DOUBLE) {
+            if (outsideDensity(x)) {
                 results[i] = detail::NEGATIVE_INFINITY;
                 continue;
             }
@@ -653,7 +665,7 @@ void RayleighDistribution::getLogProbabilityBatchUnsafeImpl(
 
     // Fixup: x ≤ 0 is outside support; LogPDF = −∞.
     for (std::size_t i = 0; i < count; ++i) {
-        if (values[i] <= detail::ZERO_DOUBLE)
+        if (outsideDensity(values[i]))
             results[i] = detail::NEGATIVE_INFINITY;
     }
 }
@@ -670,7 +682,7 @@ void RayleighDistribution::getCumulativeProbabilityBatchUnsafeImpl(
                 results[i] = detail::ZERO_DOUBLE;
                 continue;
             }
-            results[i] = detail::ONE - std::exp(cached_neg_half_inv_sigma2 * x * x);
+            results[i] = -std::expm1(cached_neg_half_inv_sigma2 * x * x);
         }
         return;
     }
@@ -686,10 +698,13 @@ void RayleighDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // Step 5: results = 1 − exp(−x²/(2σ²))
     arch::simd::VectorOps::scalar_add(results, detail::ONE, results, count);
 
-    // Fixup: x ≤ 0 is outside support; CDF = 0.
+    // Fixup: x ≤ 0 is outside support; CDF = 0. Lanes below ½, where 1 − exp(−x²/2σ²) cancels
+    // (to exactly 0 below x²/2σ² = ε/2), are redone as −expm1 (no vector expm1).
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= detail::ZERO_DOUBLE)
             results[i] = detail::ZERO_DOUBLE;
+        else if (results[i] < detail::HALF)
+            results[i] = -std::expm1(cached_neg_half_inv_sigma2 * values[i] * values[i]);
     }
 }
 

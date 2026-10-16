@@ -472,6 +472,12 @@ class UniformDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = (b − x)/(b − a) on [a, b], 1 below, 0 above. b − x is exact near b
+     * (Sterbenz), so the upper end keeps full relative precision.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      *
      * For uniform distribution: F^(-1)(p) = a + p(b-a)
@@ -833,8 +839,8 @@ class UniformDistribution : public DistributionBase {
 
     /** @brief Internal implementation for batch CDF calculation */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                 std::size_t count, double a, double b,
-                                                 double inv_width) const noexcept;
+                                                 std::size_t count, double a,
+                                                 double b) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS (if needed)
@@ -844,19 +850,32 @@ class UniformDistribution : public DistributionBase {
      * Updates cached values when parameters change - assumes mutex is already held
      */
     void updateCacheUnsafe() const noexcept override {
-        // Primary calculations - compute once, reuse multiple times
+        // Primary calculations - compute once, reuse multiple times.
+        // The half-width b/2 − a/2 cannot overflow where b − a can (Uniform(−1e308, 1e308) is a
+        // valid instance, DH2 S2); halving is exact, so for every ordinary pair it is width_/2
+        // bit for bit and the derived values below are unchanged. Only when width_ overflowed are
+        // 1/width, log(width) and the midpoint taken through the half-width (1/(2h), log h + log 2,
+        // a/2 + b/2), since 1/inf = 0 made the density 0 and the CDF 0 everywhere.
         width_ = b_ - a_;
-        invWidth_ = detail::ONE / width_;
+        halfWidth_ = detail::HALF * b_ - detail::HALF * a_;
+        const bool width_overflows = !std::isfinite(width_);
+        invWidth_ = width_overflows ? detail::HALF / halfWidth_ : detail::ONE / width_;
         widthSquared_ = width_ * width_;
 
-        // Core cached values
-        midpoint_ = (a_ + b_) * detail::HALF;
-        variance_ = widthSquared_ / 12.0;
-        logInvWidth_ = -std::log(width_);
+        // Core cached values. a + b overflows independently of b − a (both bounds near
+        // −DBL_MAX: U(−DBL_MAX, −1e308) has a finite width and an infinite sum), so the midpoint
+        // falls back to a/2 + b/2 on the sum, not on the width. (b − a)²/12 overflows in the
+        // square from width 1.3e154 while the variance stays finite to 4.6e154; (w/12)·w is
+        // finite there and +inf only where the variance itself overflows.
+        const double sum = a_ + b_;
+        midpoint_ = std::isfinite(sum) ? sum * detail::HALF : detail::HALF * a_ + detail::HALF * b_;
+        variance_ = std::isfinite(widthSquared_) ? widthSquared_ / 12.0 : (width_ / 12.0) * width_;
+        logInvWidth_ = width_overflows ? -(std::log(halfWidth_) + detail::LN2) : -std::log(width_);
 
-        // Optimization flags
-        isUnitInterval_ = (std::abs(a_ - detail::ZERO_DOUBLE) <= detail::DEFAULT_TOLERANCE &&
-                           std::abs(b_ - detail::ONE) <= detail::DEFAULT_TOLERANCE);
+        // Optimization flags. The unit-interval fast paths return x for the CDF and 1 for the
+        // density, so the flag must be exact: a tolerance of 1e-8 made U(0, 1 + 1e-9).cdf(b)
+        // exceed 1 and U(1e-9, 1).cdf(a) nonzero.
+        isUnitInterval_ = (a_ == detail::ZERO_DOUBLE && b_ == detail::ONE);
         isSymmetric_ = (std::abs(a_ + b_) <= detail::DEFAULT_TOLERANCE);
         isNarrowInterval_ = (width_ < detail::DEFAULT_TOLERANCE * 100.0);
         isWideInterval_ = (width_ > detail::THOUSAND);
@@ -914,8 +933,12 @@ class UniformDistribution : public DistributionBase {
     // 22. PERFORMANCE CACHE
     //==========================================================================
 
-    /** @brief Cached value of (b - a) for efficiency */
+    /** @brief Cached value of (b - a) for efficiency; +inf where it overflows */
     mutable double width_{detail::ONE};
+
+    /** @brief Cached value of b/2 - a/2: width_/2 where that is finite, and the finite stand-in
+     *  for the width where b - a overflows (DH2 S2) */
+    mutable double halfWidth_{detail::HALF};
 
     /** @brief Cached value of 1/(b - a) for efficiency in PDF calculations */
     mutable double invWidth_{detail::ONE};

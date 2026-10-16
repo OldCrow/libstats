@@ -1,0 +1,7 @@
+00:46:59 load=4.81 top: 8.1%backupd 4.7%diskimagesiod 4.0%com.apple.DriverKit-AppleBCMWLAN
+00:47:59 load=4.09 top: 208.6%strategy_profile 2.5%bzserv 1.1%com.apple.DriverKit-AppleBCMWLAN
+00:48:59 load=4.21 top: 179.1%strategy_profile 12.7%backupd 2.6%com.apple.DriverKit-AppleBCMWLAN
+00:49:59 load=7.32 top: 264.5%strategy_profile 126.6%mediaanalysisd 17.1%VTDecoderXPCService
+00:50:59 load=7.06 top: 164.7%strategy_profile 90.3%mediaanalysisd 8.0%VTDecoderXPCService
+00:51:59 load=8.31 top: 186.8%strategy_profile 91.4%mediaanalysisd 8.8%VTEncoderXPCService
+00:52:59 load=7.46 top: 179.4%strategy_profile 92.6%Software 90.3%mediaanalysisd

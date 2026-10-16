@@ -48,7 +48,7 @@ inline constexpr double LN_10 = 2.302585092994046;
 inline constexpr double E = 2.7182818284590452353602874713526625;
 
 /// Square root of π
-inline constexpr double SQRT_PI = 1.7724538509055158819194275219496950;
+inline constexpr double SQRT_PI = 1.7724538509055160272981674833411452;
 
 /// Square root of 2π  (used in Gaussian normalization)
 inline constexpr double SQRT_2PI = 2.5066282746310005024157652848110453;
@@ -140,24 +140,27 @@ inline constexpr int TEN_INT = 10;
 // DERIVED EXPRESSIONS
 // =============================================================================
 
-/// Precomputed reciprocals to avoid repeated division
+/// Precomputed reciprocals to avoid repeated division. A derived expression is itself rounded
+/// twice (the operand, then the quotient), so six of these were 1 ulp off as `1.0 / X` or
+/// `PI / k` (INV_SQRT_2 low by 1 ulp put ~z²·ulp into every erfc(z·INV_SQRT_2)); those are
+/// written as correctly rounded literals (40-digit mpmath values). A test checks every one.
 inline constexpr double ONE_THIRD = 1.0 / 3.0;
 inline constexpr double ONE_SIXTH = 1.0 / 6.0;
 inline constexpr double ONE_TWELFTH = 1.0 / 12.0;
 
 inline constexpr double E_INV = 1.0 / E;
-inline constexpr double PHI_INV = 1.0 / PHI;
+inline constexpr double PHI_INV = 0.6180339887498948482045868343656381177;
 inline constexpr double PI_INV = 1.0 / PI;
 inline constexpr double INV_LN2 = 1.0 / LN2;
-inline constexpr double INV_SQRT_2PI = 1.0 / SQRT_2PI;
-inline constexpr double INV_SQRT_2 = 1.0 / SQRT_2;
-inline constexpr double INV_SQRT_3 = 1.0 / SQRT_3;
+inline constexpr double INV_SQRT_2PI = 0.3989422804014326779399460599343818685;
+inline constexpr double INV_SQRT_2 = 0.7071067811865475244008443621048490393;
+inline constexpr double INV_SQRT_3 = 0.5773502691896257645091487805019574556;
 
 inline constexpr double TWO_PI = 2.0 * PI;
 inline constexpr double PI_OVER_2 = PI / 2.0;
-inline constexpr double PI_OVER_3 = PI / 3.0;
+inline constexpr double PI_OVER_3 = 1.047197551196597746154214461093167628;
 inline constexpr double PI_OVER_4 = PI / 4.0;
-inline constexpr double PI_OVER_6 = PI / 6.0;
+inline constexpr double PI_OVER_6 = 0.523598775598298873077107230546583814;
 inline constexpr double THREE_PI_OVER_2 = 3.0 * PI / 2.0;
 inline constexpr double FOUR_PI = 4.0 * PI;
 inline constexpr double NEG_HALF_LN_2PI = -0.5 * LN_2PI;
@@ -186,6 +189,16 @@ inline constexpr double LOG_PROBABILITY_EPSILON_PRECISION = 1.0e-300;
 inline constexpr double MIN_STD_DEV = 1.0e-6;
 inline constexpr double HIGH_PRECISION_UPPER_BOUND = 1.0e12;
 inline constexpr double MAX_STANDARD_DEVIATION = 1.0e10;
+/// Smallest scale σ whose square is a normal double: √DBL_MIN. Rayleigh and HalfNormal form σ²
+/// (and 1/σ²); below this it is subnormal or 0 and their CDFs read 1 or NaN (DH D6). Their upper
+/// bound is Gaussian's MAX_STANDARD_DEVIATION.
+inline constexpr double MIN_SQUARABLE_SCALE = 1.4916681462400413e-154;
+
+/// Convergence tolerance of the incomplete gamma and beta series and continued fractions:
+/// 3·DBL_EPSILON, as Numerical Recipes and Boost use. Until v2.5.0 they stopped at
+/// DEFAULT_TOLERANCE, which left CDF errors of 1e-9 to 8e-6 at large shape (#166);
+/// DEFAULT_TOLERANCE stays for the fitting and root-finding paths.
+inline constexpr double SPECIAL_FUNCTION_TOLERANCE = 3.0 * std::numeric_limits<double>::epsilon();
 
 inline constexpr double STRICT_TOLERANCE = 1e-10;
 inline constexpr double RELAXED_TOLERANCE = 1e-9;

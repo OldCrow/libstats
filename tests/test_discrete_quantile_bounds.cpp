@@ -27,8 +27,10 @@
 // gated here misses by 100%, so the gap between the two is enormous.
 
 #include "libstats/core/math_utils.h"
+#include "libstats/distributions/binomial.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/negative_binomial.h"
+#include "libstats/distributions/poisson.h"
 
 #include <array>
 #include <cmath>
@@ -55,7 +57,9 @@ constexpr double kIntMax = 2147483647.0;
 TEST(DiscreteQuantileBounds, GeometricQuantileBeyondIntMax) {
     constexpr double p = 1e-9;
     auto g = stats::GeometricDistribution::create(p).unwrap();
-    const auto cdf_at = [&](double k) { return stats::detail::beta_i(p, 1.0, k + 1.0); };
+    // The closed form 1 - (1-p)^(k+1), which getCumulativeProbability uses at r = 1 since
+    // v2.5.0 (DH D4); I_p(1, k+1) through detail::beta_i erred ~1e-8 here.
+    const auto cdf_at = [&](double k) { return -std::expm1((k + 1.0) * std::log1p(-p)); };
 
     for (double q : {0.5, 0.99}) {
         const double k = g.getQuantile(q);
@@ -63,10 +67,9 @@ TEST(DiscreteQuantileBounds, GeometricQuantileBeyondIntMax) {
         EXPECT_NEAR(k, closed_form, 1e-5 * closed_form)
             << "Geometric(1e-9).getQuantile(" << q << ") = " << k << ", closed form "
             << closed_form;
-        // The discrete quantile's defining property, evaluated through
-        // detail::beta_i -- the same I_p(r, k+1) the public
-        // getCumulativeProbability computes, but without the
-        // static_cast<int>(std::floor(x)) it applies to its argument first.
+        // The discrete quantile's defining property, evaluated through the
+        // closed form -- the same value the public getCumulativeProbability
+        // computes at r = 1, but without the floor it applies first.
         // A too-small search bound fails the first of these (the search
         // returns max_k, whose CDF is below q), so neither is tautological
         // against the bisection.
@@ -121,7 +124,19 @@ TEST(DiscreteQuantileBounds, SmallParametersUnchanged) {
     EXPECT_DOUBLE_EQ(nb.getQuantile(0.0), 0.0);
     for (int k = 0; k <= 10; ++k) {
         const double cdf = nb.getCumulativeProbability(static_cast<double>(k));
-        EXPECT_NEAR(nb.getQuantile(cdf), static_cast<double>(k), 0.5) << "at k=" << k;
+        const double q = nb.getQuantile(cdf);
+        if (cdf <= 0.5) {
+            EXPECT_EQ(q, static_cast<double>(k)) << "at k=" << k;
+            continue;
+        }
+        // Above ½ the quantile is decided on getSurvival, not on the CDF it is handed: Q(F(k))
+        // is k or, where getSurvival(k) rounds above 1 − F(k), k + 1. NB(2, ½) has the dyadic
+        // S(k) = (k + 3)/2^(k+2), so 1 − F(k) is an exact tie and S's last ulps decide it
+        // (k + 1 at k = 4, 7, 8 on AppleClang/x86-64).
+        EXPECT_GE(q, static_cast<double>(k)) << "at k=" << k;
+        EXPECT_LE(q, static_cast<double>(k + 1)) << "at k=" << k;
+        EXPECT_LE(nb.getSurvival(q), 1.0 - cdf) << "at k=" << k;
+        EXPECT_GT(nb.getSurvival(q - 1.0), 1.0 - cdf) << "at k=" << k;
     }
 
     auto g = stats::GeometricDistribution::create(0.5).unwrap();
@@ -277,4 +292,119 @@ TEST(DiscreteCountNarrowing, SampleBeyondIntMax) {
     EXPECT_NEAR(sum / kDraws, 1e9, 1e8);
     // Expected 0.117 * 4000 = 467, sigma ~ 20.
     EXPECT_NEAR(beyond, 467, 120);
+}
+
+// -------------------------------------------------------------------------
+// The defining property over the whole p range: k = quantile(p) is the
+// smallest count with CDF(k) >= p, decided for p > ½ as the smallest count with
+// S(k) <= 1 - p through the public getSurvival. Binomial, Poisson and NegativeBinomial (so
+// Geometric) share detail::discrete_quantile_search since v2.5.0. The search
+// starts from a normal approximation
+// that is far off in the tails, so the grid reaches both: it includes p below
+// PMF(0), where the answer is 0, and p within 1e-12 of 1. The Poisson search
+// this replaced returned 1 for every p <= CDF(0) (#170); NegativeBinomial's
+// returned its mean + 10 sigma + 100 bound for p near 1 (#171).
+// -------------------------------------------------------------------------
+
+namespace {
+
+template <typename Distribution>
+void expectSmallestCountAtOrAbove(const Distribution& d, const char* label) {
+    for (double p : {1e-300, 1e-12, 1e-6, 1e-3, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99, 0.999,
+                     1.0 - 1e-6, 1.0 - 1e-12, 1.0 - 1e-15, 1.0 - 0x1p-53}) {
+        const double k = d.getQuantile(p);
+        if (p <= 0.5) {
+            EXPECT_GE(d.getCumulativeProbability(k), p) << label << " p=" << p << " k=" << k;
+            if (k > 0.0) {
+                EXPECT_LT(d.getCumulativeProbability(k - 1.0), p)
+                    << label << " p=" << p << " k=" << k;
+            }
+        } else {
+            EXPECT_LE(d.getSurvival(k), 1.0 - p) << label << " p=" << p << " k=" << k;
+            if (k > 0.0) {
+                EXPECT_GT(d.getSurvival(k - 1.0), 1.0 - p) << label << " p=" << p << " k=" << k;
+            }
+            // The survival is the complement: it agrees with 1 - CDF to the CDF's rounding.
+            EXPECT_NEAR(d.getSurvival(k), 1.0 - d.getCumulativeProbability(k), 1e-12)
+                << label << " p=" << p << " k=" << k;
+        }
+    }
+}
+
+}  // namespace
+
+TEST(DiscreteQuantileBounds, QuantileIsSmallestCountAtOrAboveP) {
+    for (double lambda : {0.01, 0.5, 3.0, 12.0, 250.0, 1e5}) {
+        expectSmallestCountAtOrAbove(stats::PoissonDistribution::create(lambda).unwrap(),
+                                     "Poisson");
+    }
+    for (int n : {1, 7, 50, 501, 20000}) {
+        for (double sp : {0.001, 0.3, 0.5, 0.97}) {
+            expectSmallestCountAtOrAbove(stats::BinomialDistribution::create(n, sp).unwrap(),
+                                         "Binomial");
+        }
+    }
+    for (double r : {0.5, 1.0, 12.0, 300.0}) {
+        for (double sp : {0.02, 0.3, 0.9}) {
+            expectSmallestCountAtOrAbove(
+                stats::NegativeBinomialDistribution::create(r, sp).unwrap(), "NegativeBinomial");
+        }
+    }
+}
+
+// -------------------------------------------------------------------------
+// Upper half: for p > ½ the quantile is decided on the survival side, the smallest k with
+// S(k) ≤ 1 − p, where 1 − p is exact (Sterbenz) and S is formed as the complement itself. Near
+// p = 1 the CDF is a double next to 1, whose spacing 1.1e-16 resolves only ~11% of 1 − p =
+// 1e-15, so the CDF-side search accepted k with S(k) up to 7% above 1 − p: one count low for
+// Poisson and Binomial, and 54067 counts low for Geometric(1e-6), whose CDF −expm1 rounds a run
+// of consecutive counts onto the same double.
+//
+// References: mpmath at 60 digits, the smallest k with the exact S(k) ≤ 1 − p, where S is
+// (1 − p)^(k+1), the regularized lower gamma P(k + 1, λ) and I_p(k + 1, n − k); the S(k)/(1 − p)
+// ratios either side are noted. Each is two-sided: the CDF-side search returned 34485491, 10802
+// and 418, so EXPECT_EQ fails on the old rule and holds only on the survival rule.
+// -------------------------------------------------------------------------
+
+TEST(DiscreteQuantileBounds, UpperHalfDecidedOnSurvivalSide) {
+    constexpr double p = 0.999999999999999;  // 1 − 1e-15 rounded; 1 − p is exact
+
+    // S(34539557)/(1 − p) = 1.0000007, S(34539558)/(1 − p) = 0.9999997
+    EXPECT_EQ(stats::GeometricDistribution::create(1e-6).unwrap().getQuantile(p), 34539558.0);
+    // S(10802)/(1 − p) = 1.0715, S(10803)/(1 − p) = 0.9905
+    EXPECT_EQ(stats::PoissonDistribution::create(9999.0).unwrap().getQuantile(p), 10803.0);
+    // S(418)/(1 − p) = 1.0383, S(419)/(1 − p) = 0.6120
+    EXPECT_EQ(stats::BinomialDistribution::create(1000, 0.3).unwrap().getQuantile(p), 419.0);
+    // Geometric is NegativeBinomial(1, p); the r = 1 survival must take the same side.
+    EXPECT_EQ(stats::NegativeBinomialDistribution::create(1.0, 1e-6).unwrap().getQuantile(p),
+              34539558.0);
+}
+
+// The rule switches sides at p = ½; the quantile must stay non-decreasing across the switch and
+// up to the last double below 1, where 1 − p = 2⁻⁵³.
+TEST(DiscreteQuantileBounds, QuantileMonotoneAcrossHalfAndNearOne) {
+    const double ps[] = {std::nextafter(0.5, 0.0),
+                         0.5,
+                         std::nextafter(0.5, 1.0),
+                         0.75,
+                         1.0 - 1e-12,
+                         1.0 - 1e-15,
+                         1.0 - 0x1p-52,
+                         1.0 - 0x1p-53};
+    const auto check = [&](const auto& d, const char* label) {
+        double prev = -1.0;
+        for (double p : ps) {
+            const double k = d.getQuantile(p);
+            EXPECT_GE(k, prev) << label << " p=" << p;
+            prev = k;
+        }
+    };
+    for (double lambda : {0.01, 3.0, 9999.0, 1e5, 1e6})
+        check(stats::PoissonDistribution::create(lambda).unwrap(), "Poisson");
+    for (int n : {1, 2, 1000, 1000000})
+        for (double sp : {1e-6, 0.3, 0.5, 0.999})
+            check(stats::BinomialDistribution::create(n, sp).unwrap(), "Binomial");
+    for (double r : {0.5, 1.0, 1e4})
+        for (double sp : {1e-6, 0.01, 0.5, 0.99})
+            check(stats::NegativeBinomialDistribution::create(r, sp).unwrap(), "NegativeBinomial");
 }

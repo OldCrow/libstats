@@ -2,11 +2,13 @@
 """Generate tests/vonmises_cdf_vectors.inc -- high-precision Von Mises CDF
 reference vectors for issue #51 (VonMisesDistribution::getCumulativeProbability).
 
-Oracle: DIRECT QUADRATURE, deliberately independent of the Bessel-series
-method the implementation uses (src/von_mises.cpp integrates a
-trapezoidal-rule PDF grid for kappa <= 50 and a wrapped-normal/Bessel-based
-approximation for kappa > 50 -- an oracle built the same way could not catch
-a shared bug). At mp.dps = 40:
+Oracle: DIRECT QUADRATURE of the density in theta, deliberately independent
+of the implementation (an oracle built the same way could not catch a shared
+bug). v2.3.0-v2.4.1 used a Bessel series for kappa <= 1000 and a wrapped
+normal above; since 96b157f (v2.5.0) src/von_mises.cpp computes
+the CDF and quantile by fixed-cost Gauss-Legendre / Watson-lemma quadrature in
+w = kappa(1 - cos theta), and this mpmath tanh-sinh integral in theta remains
+the independent reference. At mp.dps = 40:
 
     F(x; mu, kappa) = quad(exp(kappa*cos(p)), [-pi, t])
                       / quad(exp(kappa*cos(p)), [-pi, pi])

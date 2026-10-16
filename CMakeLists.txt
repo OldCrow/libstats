@@ -80,7 +80,7 @@ endif()
 
 project(
     libstats
-    VERSION 2.4.1
+    VERSION 2.5.0
     LANGUAGES CXX)
 
 # GNUInstallDirs gives platform-correct, packager-overridable destinations (e.g. lib64 on some Linux
@@ -237,34 +237,47 @@ if(NOT LIBSTATS_PORTABLE)
     # reads to auto-#define LIBSTATS_HAS_AVX2 -- silently overriding an AVX or SSE2 cap and causing
     # getDispatchTable() to reference vector_*_avx2 symbols that were never compiled (simd_avx2.cpp
     # is excluded by the cap), producing LNK2019 unresolved externals.
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    #
+    # clang-cl takes the same /arch: flags as cl.exe, so both build the same ISA: /arch:AVX2 is AVX2
+    # with FMA, F16C, BMI1/2, LZCNT and MOVBE, and /arch:AVX512 adds AVX-512 F, CD, BW, DQ and VL.
+    # clang-cl's -mavx2 is AVX2 alone (no FMA) and -mavx512f is F alone.
+    if((CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+       AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+            set(_libstats_win_compiler "MSVC")
+        else()
+            set(_libstats_win_compiler "Clang-cl")
+        endif()
         if(LIBSTATS_HAS_AVX512)
             add_compile_options(/arch:AVX512)
-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX512")
+            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX512")
         elseif(LIBSTATS_HAS_AVX2)
             add_compile_options(/arch:AVX2)
-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX2")
+            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX2")
         elseif(LIBSTATS_HAS_AVX)
             add_compile_options(/arch:AVX)
-            message(STATUS "Applied MSVC x64 SIMD flags: /arch:AVX")
+            message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX")
         else()
-            message(STATUS "Applied MSVC x64 SIMD flags: none (SSE2 is the x64 baseline)")
+            message(STATUS
+                    "Applied ${_libstats_win_compiler} x64 SIMD flags: none (SSE2 is the x64 baseline)")
         endif()
+        unset(_libstats_win_compiler)
     elseif(
         CMAKE_CXX_COMPILER_ID MATCHES "Clang"
         AND WIN32
         AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+        # Clang with the GNU-style driver on Windows (not clang-cl); unvalidated.
         if(LIBSTATS_HAS_AVX512)
             add_compile_options(-mavx512f)
-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx512f")
+            message(STATUS "Applied Clang x64 SIMD flags: -mavx512f")
         elseif(LIBSTATS_HAS_AVX2)
             add_compile_options(-mavx2)
-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx2")
+            message(STATUS "Applied Clang x64 SIMD flags: -mavx2")
         elseif(LIBSTATS_HAS_AVX)
             add_compile_options(-mavx)
-            message(STATUS "Applied Clang-cl x64 SIMD flags: -mavx")
+            message(STATUS "Applied Clang x64 SIMD flags: -mavx")
         else()
-            message(STATUS "Applied Clang-cl x64 SIMD flags: none (SSE2 is the x64 baseline)")
+            message(STATUS "Applied Clang x64 SIMD flags: none (SSE2 is the x64 baseline)")
         endif()
     endif()
 else()
@@ -356,7 +369,7 @@ set(LIBSTATS_FOUNDATION_SOURCES
     src/cpu_vendor_detection.cpp # Phase 3D: CPU vendor-specific detection
     src/cpu_tier.cpp # CPU tier classification (absorbs vendor-string cascade)
     src/simd_policy.cpp # SIMD policy and feature detection
-    src/platform_constants_impl.cpp # Platform constants PIMPL implementation (Phase 2)
+    src/platform_constants_impl.cpp # Platform constants, out-of-line
 )
 
 # Level 2: Core Utilities (Depends on Level 0-1)
@@ -423,6 +436,23 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/binomial_analysis.cpp # Binomial-specific analysis
     src/discrete_analysis.cpp # Discrete-uniform-specific analysis
 )
+
+# FP-contraction rule (AGENTS.md): Gamma and InverseGamma carry the rounding of y = fl(βx)
+# (fl(β·(1/x))) as an exact fma residual, which holds only if y stays rounded wherever it is
+# used. A contracted β·x − α uses the exact product and the correction is then added twice:
+# −1.5e-7 at Gamma(1e16, 3) on AArch64 (CI on 08d48aa). Splitting the statement protects
+# Clang's per-expression `on`; GCC's `fast` fuses across statements, so contraction is off for
+# these two files. cl.exe does not contract by default; clang-cl takes the flag via /clang:.
+set(_libstats_no_contract_sources src/gamma.cpp src/inverse_gamma.cpp)
+if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # cl.exe: /fp:precise does not contract unless /fp:contract is given.
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32)
+    set_source_files_properties(${_libstats_no_contract_sources}
+                                PROPERTIES COMPILE_OPTIONS "/clang:-ffp-contract=off")
+else()
+    set_source_files_properties(${_libstats_no_contract_sources}
+                                PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+endif()
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
 # architecture flags and are platform-dependent
@@ -576,13 +606,15 @@ if(APPLE)
     # Ad-hoc code signing for macOS Library Validation. Required on Catalina (10.15) and later:
     # unsigned dylibs are rejected by the system's Library Validation policy. Ad-hoc signing (-s -)
     # applies a local signature without a Developer ID, which satisfies Library Validation for
-    # locally-built libraries. This is safe on all macOS versions.
+    # locally-built libraries. This is safe on all macOS versions. --force makes the step
+    # idempotent: Ninja re-runs it with the symlink step after a reconfigure, without a relink,
+    # and plain -s fails on an already-signed dylib (#162).
     find_program(CODESIGN_EXECUTABLE codesign)
     if(CODESIGN_EXECUTABLE)
         add_custom_command(
             TARGET libstats_shared
             POST_BUILD
-            COMMAND ${CODESIGN_EXECUTABLE} -s - $<TARGET_FILE:libstats_shared>
+            COMMAND ${CODESIGN_EXECUTABLE} --force -s - $<TARGET_FILE:libstats_shared>
             COMMENT
                 "Ad-hoc signing ${CMAKE_SHARED_LIBRARY_PREFIX}stats${CMAKE_SHARED_LIBRARY_SUFFIX} for macOS Library Validation"
         )
@@ -699,7 +731,7 @@ option(LIBSTATS_BUILD_TESTS "Build tests" ON)
 
 if(LIBSTATS_BUILD_TESTS)
     # enable_testing() stays top-level (Phase 3B/B3) -- test registration itself (GTest detection,
-    # create_libstats_test/gtest/dynamic, run_tests/run_all_tests/run_tests_timing) moved to
+    # create_libstats_test/gtest/dynamic, run_tests_correctness/run_all_tests/run_tests_timing) moved to
     # tests/CMakeLists.txt via add_subdirectory below.
     enable_testing()
     add_subdirectory(tests)

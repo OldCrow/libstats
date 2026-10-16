@@ -1,0 +1,32 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-10-05T04-31-33Z_darwin-x86_64_dev-v2.4.2_sha-6f86996
+Captured at (UTC): 2026-10-05T04-31-33Z (run 1; runs 2-3 04:57Z and 05:23Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- logs/run.txt
+- logs/system_inspector.txt
+- logs/tier.txt
+
+Capture notes:
+- SSE2-capped (LIBSTATS_MAX_SIMD_TIER=SSE2, Release, build-cap-sse2/) on Kaby Lake i7-7820HQ, AppleClang 15, macOS 13.7.8.
+  v2.4.2 code at the freeze head 5367999, captured at its docs head
+  6f86996. One of three tier bundles captured the same night: this one,
+  the AVX2 2026-10-05T01-50-52Z, the AVX 2026-10-05T03-09-27Z. Supersedes the same tier's 2026-10-04 d9384f8 bundle, which
+  predates the speed work (b5a47df-5367999).
+- Three `strategy_profile --large -o <csv>` runs from a detached script,
+  screen locked, each started only once the 1-min load fell below 2.0
+  (1.82-1.95; logs/run.txt). Loads at the end of each run come from the
+  run's own parallel strategies.
+- The `--large` grid and the SUSTAINED V->P rule are the 2026-09-04
+  bundles'. analyze_crossovers.py is a copy of scripts/analyze_crossovers.py
+  at 69c7be4; sustained_crossovers.txt is its `--table kSse2` output.
+- No correctness run in this bundle; R1 on build-release at the freeze
+  head (89/89) is in PLAN.md.

@@ -24,6 +24,11 @@ namespace stats {
  * - CDF: F(k) = Σ(i=0 to k) (λ^i * e^(-λ)) / i! = Q(k+1, λ) (regularized gamma function)
  * - Parameter: λ > 0 (rate parameter, mean number of events)
  * - Support: k ∈ {0, 1, 2, 3, ...} (non-negative integers)
+ * - Non-integer arguments: the PMF and log-PMF round x to the nearest integer (halves away from
+ *   zero) and give 0 (−∞) when that is negative: x in (−½, ½) is the count 0, so
+ *   pmf(−1e-300) = pmf(0), and x ≤ −½ has mass 0. The CDF and survival floor x instead:
+ *   F(x) = F(⌊x⌋), S(x) = S(⌊x⌋), so F(−1e-300) = 0 and S(−1e-300) = 1. At a non-integer x,
+ *   pmf(x) is therefore not F(x) − F(x − 1).
  * - Mean: λ
  * - Variance: λ
  * - Mode: ⌊λ⌋ (floor of λ, or λ-1 if λ is integer)
@@ -98,12 +103,11 @@ namespace stats {
  * - Probability generating function: e^(λ(z - 1))
  *
  * @par Computational Algorithms:
- * - **Small λ (< 10)**: Direct computation with cached factorials
- * - **Medium λ (10-100)**: Stirling's approximation for factorials
- * - **Large λ (> 100)**: Normal approximation with continuity correction
- * - **CDF**: Regularized incomplete gamma function Q(k+1, λ)
- * - **Quantile**: Inverse regularized gamma function with bracketing
- * - **Sampling**: Knuth's algorithm for small λ, acceptance-rejection for large λ
+ * - **PMF / log-PMF**: `detail::poisson_log_pmf` at every λ, without the lgamma cancellation
+ *   at large counts (#172); no normal approximation
+ * - **CDF**: Regularized incomplete gamma function Q(k+1, λ); survival P(k+1, λ)
+ * - **Quantile**: `detail::discrete_quantile_search` from a normal guess, unbounded (#170)
+ * - **Sampling**: Knuth's algorithm for small λ, std::poisson_distribution for large λ
  *
  * @par Numerical Considerations:
  * - Robust handling of factorial overflow using log-space computation
@@ -400,9 +404,8 @@ class PoissonDistribution : public DistributionBase {
      * For Poisson distribution: P(X = k) = (λ^k * e^(-λ)) / k! for k = 0, 1, 2, ...
      * Uses different algorithms based on λ size for optimal performance and accuracy.
      *
-     * @param x The value at which to evaluate the PMF (will be rounded to nearest non-negative
-     * integer)
-     * @return Probability mass for the given value, 0 for negative values
+     * @param x The value at which to evaluate the PMF, rounded to the nearest integer first
+     * @return Probability mass at that count; 0 where it is negative (x ≤ −½), and for ±∞
      */
     [[nodiscard]] double getProbability(double x) const override;
 
@@ -412,9 +415,8 @@ class PoissonDistribution : public DistributionBase {
      * For Poisson distribution: log(P(X = k)) = k*log(λ) - λ - log(k!) for k = 0, 1, 2, ...
      * Uses log-space computation to avoid overflow for large k or λ.
      *
-     * @param x The value at which to evaluate the log-PMF (will be rounded to nearest non-negative
-     * integer)
-     * @return Natural logarithm of the probability mass, or -∞ for negative values
+     * @param x The value at which to evaluate the log-PMF, rounded to the nearest integer first
+     * @return Natural logarithm of the probability mass, or -∞ where the count is negative
      */
     [[nodiscard]] double getLogProbability(double x) const override;
 
@@ -424,19 +426,30 @@ class PoissonDistribution : public DistributionBase {
      * For Poisson distribution: F(k) = Q(k+1, λ) where Q is the regularized gamma function
      * Uses efficient algorithms for different λ ranges.
      *
-     * @param x The value at which to evaluate the CDF
+     * @param x The value at which to evaluate the CDF, floored to a count (0 for x < 0)
      * @return Cumulative probability P(X ≤ x)
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = P(X > x) = P(k+1, λ), the regularized lower incomplete gamma,
+     *        formed as the complement itself (AR A11): relative precision deep in the upper
+     *        tail, where 1 − getCumulativeProbability(x) cancels. x maps to a count as in
+     *        getCumulativeProbability.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      *
-     * For Poisson distribution: F^(-1)(p) = min{k : F(k) ≥ p}
-     * Uses bracketing search with efficient CDF computation.
+     * For p ≤ ½ the smallest k with getCumulativeProbability(k) ≥ p; for p > ½ the smallest k
+     * with getSurvival(k) ≤ 1 − p, decided on the survival side because 1 − p is exact there
+     * and F(k) near 1 is not. Bracketing search from a normal-approximation guess.
+     * Q(0) = 0; Q(1) = +∞, the smallest k with S(k) = 0 on the unbounded support. The search
+     * range ends at INT_MAX, past every quantile the λ ≤ 1e6 limit allows.
      *
      * @param p Probability value in [0,1]
-     * @return k such that P(X ≤ k) ≥ p (smallest integer satisfying this)
+     * @return the smallest count k with P(X ≤ k) ≥ p, under the rule above
      * @throws std::invalid_argument if p not in [0,1]
      */
     [[nodiscard]] double getQuantile(double p) const override;
@@ -536,7 +549,7 @@ class PoissonDistribution : public DistributionBase {
      * @return Tuple of (test_statistic, p_value, has_excess_zeros)
      */
     // excessZerosTest, rateStabilityTest, chiSquareGoodnessOfFit moved to
-    // stats::analysis::poisson (include/stats/analysis/poisson_analysis.h) in v2.0.0.
+    // stats::analysis::poisson (include/libstats/stats/analysis/poisson_analysis.h) in v2.0.0.
 
     //==========================================================================
     // 8. GOODNESS-OF-FIT TESTS
@@ -765,17 +778,24 @@ class PoissonDistribution : public DistributionBase {
     // 19. PRIVATE COMPUTATIONAL METHODS
     //==========================================================================
 
-    /** @brief Compute PMF for small λ using direct method */
-    [[nodiscard]] double computePMFSmall(int k) const noexcept;
+    // The helpers below take λ (and e^{−λ}) from the caller's cache snapshot, never the members,
+    // so one call cannot mix two parameter states under a concurrent setLambda.
 
-    /** @brief Compute PMF for large λ using Stirling's approximation */
-    [[nodiscard]] double computePMFLarge(int k) const noexcept;
+    /** @brief Compute PMF for small λ using direct method */
+    [[nodiscard]] static double computePMFSmall(int k, double lambda,
+                                                double exp_neg_lambda) noexcept;
+
+    /** @brief Compute PMF for large λ in log space */
+    [[nodiscard]] static double computePMFLarge(int k, double lambda) noexcept;
 
     /** @brief Compute log PMF for any λ using log-space arithmetic */
-    [[nodiscard]] double computeLogPMF(int k) const noexcept;
+    [[nodiscard]] static double computeLogPMF(int k, double lambda) noexcept;
 
     /** @brief Compute CDF using regularized incomplete gamma function */
-    [[nodiscard]] double computeCDF(int k) const noexcept;
+    [[nodiscard]] static double computeCDF(int k, double lambda) noexcept;
+
+    /** @brief Survival P(X > k) = P(k+1, λ), the complement formed directly */
+    [[nodiscard]] static double computeSurvival(int k, double lambda) noexcept;
 
     /** @brief Fast factorial computation with caching */
     [[nodiscard]] static double factorial(int n) noexcept;
@@ -799,8 +819,11 @@ class PoissonDistribution : public DistributionBase {
     // 20. PRIVATE UTILITY METHODS
     //==========================================================================
 
-    /** @brief Round double to nearest non-negative integer */
+    /** @brief Nearest integer to x (PMF, log-PMF), or −1 when that is not a valid count */
     static int roundToNonNegativeInt(double x) noexcept;
+
+    /** @brief Largest count ≤ x (CDF and survival: F is a right-continuous step function) */
+    static int floorToNonNegativeInt(double x) noexcept;
 
     /** @brief Check if rounded value is a valid count (non-negative integer) */
     static bool isValidCount(double x) noexcept;

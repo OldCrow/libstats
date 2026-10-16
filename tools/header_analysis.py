@@ -128,8 +128,7 @@ class HeaderAnalyzer:
         common_header_patterns = {
             'common/distribution_common.h': ['common/distribution_common.h', '../common/distribution_common.h'],
             'core/essential_constants.h': ['core/essential_constants.h', '../core/essential_constants.h'],
-            'common/platform_common.h': ['platform_common.h', '../common/platform_common.h'],
-            'common/distribution_platform_common.h': ['distribution_platform_common.h', '../common/distribution_platform_common.h']
+            'common/platform_common.h': ['platform_common.h', '../common/platform_common.h']
         }
 
         common_header_usage = {header: 0 for header in common_header_patterns}

@@ -1,0 +1,47 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 17 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 13 tests from RayleighEnhancedTest
+[ RUN      ] RayleighEnhancedTest.PDFAtSigma
+[       OK ] RayleighEnhancedTest.PDFAtSigma (18 ms)
+[ RUN      ] RayleighEnhancedTest.CDFAtSigma
+[       OK ] RayleighEnhancedTest.CDFAtSigma (0 ms)
+[ RUN      ] RayleighEnhancedTest.MomentFormulas
+[       OK ] RayleighEnhancedTest.MomentFormulas (0 ms)
+[ RUN      ] RayleighEnhancedTest.ConstantSkewnessKurtosis
+[       OK ] RayleighEnhancedTest.ConstantSkewnessKurtosis (0 ms)
+[ RUN      ] RayleighEnhancedTest.LogPDFConsistency
+[       OK ] RayleighEnhancedTest.LogPDFConsistency (0 ms)
+[ RUN      ] RayleighEnhancedTest.OutOfSupport
+[       OK ] RayleighEnhancedTest.OutOfSupport (0 ms)
+[ RUN      ] RayleighEnhancedTest.QuantileRoundTrip
+[       OK ] RayleighEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] RayleighEnhancedTest.BatchMatchesScalar
+[       OK ] RayleighEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] RayleighEnhancedTest.VectorizedMatchesScalar
+[       OK ] RayleighEnhancedTest.VectorizedMatchesScalar (0 ms)
+[ RUN      ] RayleighEnhancedTest.MLEFit
+[       OK ] RayleighEnhancedTest.MLEFit (0 ms)
+[ RUN      ] RayleighEnhancedTest.SetterPropagates
+[       OK ] RayleighEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] RayleighEnhancedTest.InvalidParameters
+[       OK ] RayleighEnhancedTest.InvalidParameters (0 ms)
+[ RUN      ] RayleighEnhancedTest.VectorizedSpeedup
+Rayleigh LogPDF VECTORIZED speedup: 3.36391x (VECTORIZED 134.1μs, SCALAR 451.1μs)
+[       OK ] RayleighEnhancedTest.VectorizedSpeedup (9 ms)
+[----------] 13 tests from RayleighEnhancedTest (31 ms total)
+
+[----------] 4 tests from Rayleigh/DistributionEnhancedTest/0, where TypeParam = stats::RayleighDistribution
+[ RUN      ] Rayleigh/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Rayleigh/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Rayleigh/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Rayleigh/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Rayleigh/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Rayleigh/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Rayleigh/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Rayleigh/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Rayleigh/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 17 tests from 2 test suites ran. (34 ms total)
+[  PASSED  ] 17 tests.

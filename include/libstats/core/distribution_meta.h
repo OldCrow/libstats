@@ -42,21 +42,13 @@ namespace detail {
  *   display_name        — PascalCase name for human-readable output and tool
  *                         tables (e.g. "NegativeBinomial").
  *   is_discrete         — true for PMF-based distributions (Poisson, Binomial,
- *                         NegBinomial, Discrete, Geometric).
- *   is_delegation_wrapper — true when PDF/LogPDF delegate to an internal
- *                         instance of another distribution (e.g.
- *                         ChiSquared→Gamma, Geometric→NegBinomial,
- *                         Cauchy→StudentT; Cauchy's CDF/Quantile are
- *                         closed-form since #48). Informational: no code
- *                         reads this flag today, and dispatch thresholds
- *                         are profiled per distribution regardless.
+ *                         NegBinomial, Discrete, Geometric, Bernoulli).
  */
 struct DistributionMeta {
     DistributionType type;
     std::string_view enum_name;
     std::string_view display_name;
     bool is_discrete;
-    bool is_delegation_wrapper;
 };
 
 // ============================================================================
@@ -66,43 +58,43 @@ struct DistributionMeta {
 // value.  The static_assert below verifies this at compile time.
 // ============================================================================
 inline constexpr DistributionMeta kDistributionMeta[] = {
-    // type                       enum_name              display_name        discrete  delegate
-    {DistributionType::UNIFORM, "UNIFORM", "Uniform", false, false},
-    {DistributionType::GAUSSIAN, "GAUSSIAN", "Gaussian", false, false},
-    {DistributionType::EXPONENTIAL, "EXPONENTIAL", "Exponential", false, false},
-    {DistributionType::DISCRETE, "DISCRETE", "Discrete", true, false},
-    {DistributionType::POISSON, "POISSON", "Poisson", true, false},
-    {DistributionType::GAMMA, "GAMMA", "Gamma", false, false},
-    {DistributionType::STUDENT_T, "STUDENT_T", "StudentT", false, false},
-    {DistributionType::BETA, "BETA", "Beta", false, false},
-    {DistributionType::CHI_SQUARED, "CHI_SQUARED", "ChiSquared", false,
-     true},  // delegates to Gamma(α=ν/2, β=1/2)
-    {DistributionType::LOG_NORMAL, "LOG_NORMAL", "LogNormal", false, false},
-    {DistributionType::PARETO, "PARETO", "Pareto", false, false},
-    {DistributionType::WEIBULL, "WEIBULL", "Weibull", false, false},
-    {DistributionType::RAYLEIGH, "RAYLEIGH", "Rayleigh", false, false},
-    {DistributionType::VON_MISES, "VON_MISES", "VonMises", false, false},
-    {DistributionType::BINOMIAL, "BINOMIAL", "Binomial", true, false},
-    {DistributionType::NEGATIVE_BINOMIAL, "NEGATIVE_BINOMIAL", "NegativeBinomial", true, false},
+    // type                       enum_name              display_name        discrete
+    {DistributionType::UNIFORM, "UNIFORM", "Uniform", false},
+    {DistributionType::GAUSSIAN, "GAUSSIAN", "Gaussian", false},
+    {DistributionType::EXPONENTIAL, "EXPONENTIAL", "Exponential", false},
+    {DistributionType::DISCRETE, "DISCRETE", "Discrete", true},
+    {DistributionType::POISSON, "POISSON", "Poisson", true},
+    {DistributionType::GAMMA, "GAMMA", "Gamma", false},
+    {DistributionType::STUDENT_T, "STUDENT_T", "StudentT", false},
+    {DistributionType::BETA, "BETA", "Beta", false},
+    {DistributionType::CHI_SQUARED, "CHI_SQUARED", "ChiSquared",
+     false},  // delegates to Gamma(α=ν/2, β=1/2)
+    {DistributionType::LOG_NORMAL, "LOG_NORMAL", "LogNormal", false},
+    {DistributionType::PARETO, "PARETO", "Pareto", false},
+    {DistributionType::WEIBULL, "WEIBULL", "Weibull", false},
+    {DistributionType::RAYLEIGH, "RAYLEIGH", "Rayleigh", false},
+    {DistributionType::VON_MISES, "VON_MISES", "VonMises", false},
+    {DistributionType::BINOMIAL, "BINOMIAL", "Binomial", true},
+    {DistributionType::NEGATIVE_BINOMIAL, "NEGATIVE_BINOMIAL", "NegativeBinomial", true},
     // v2.0.0 additions — implemented 2026-06-28 --------------------------------
-    {DistributionType::GEOMETRIC, "GEOMETRIC", "Geometric", true,
+    {DistributionType::GEOMETRIC, "GEOMETRIC", "Geometric",
      true},  // delegates to NegativeBinomial(r=1)
-    {DistributionType::LAPLACE, "LAPLACE", "Laplace", false, false},
-    {DistributionType::CAUCHY, "CAUCHY", "Cauchy", false, true},  // PDF/LogPDF only; CDF/Quantile closed-form (#48)
+    {DistributionType::LAPLACE, "LAPLACE", "Laplace", false},
+    {DistributionType::CAUCHY, "CAUCHY", "Cauchy",
+     false},  // PDF/LogPDF only; CDF/Quantile closed-form (#48)
     // v2.4.0 additions — scaffolded 2026-09-03 (#54–#57) -----------------------
-    {DistributionType::LOGISTIC, "LOGISTIC", "Logistic", false, false},
-    {DistributionType::GUMBEL, "GUMBEL", "Gumbel", false, false},
-    {DistributionType::BERNOULLI, "BERNOULLI", "Bernoulli", true,
-     true},  // delegates to Binomial(n=1)
-    {DistributionType::ERLANG, "ERLANG", "Erlang", false,
-     true},  // delegates to Gamma(k, λ) — libstats Gamma β is a RATE
-    {DistributionType::FISHER_F, "FISHER_F", "FisherF", false,
-     true},  // delegates to Beta(d₁/2, d₂/2) via x → d₁x/(d₁x+d₂)
-    {DistributionType::INVERSE_GAMMA, "INVERSE_GAMMA", "InverseGamma", false,
-     true},  // delegates to Gamma via x → 1/x (upper-tail complement)
-    {DistributionType::HALF_NORMAL, "HALF_NORMAL", "HalfNormal", false, false},
-    {DistributionType::TRUNCATED_NORMAL, "TRUNCATED_NORMAL", "TruncatedNormal", false,
-     true},  // renormalized internal Gaussian
+    {DistributionType::LOGISTIC, "LOGISTIC", "Logistic", false},
+    {DistributionType::GUMBEL, "GUMBEL", "Gumbel", false},
+    {DistributionType::BERNOULLI, "BERNOULLI", "Bernoulli", true},  // delegates to Binomial(n=1)
+    {DistributionType::ERLANG, "ERLANG", "Erlang",
+     false},  // delegates to Gamma(k, λ) — libstats Gamma β is a RATE
+    {DistributionType::FISHER_F, "FISHER_F", "FisherF",
+     false},  // delegates to Beta(d₁/2, d₂/2) via x → d₁x/(d₁x+d₂)
+    {DistributionType::INVERSE_GAMMA, "INVERSE_GAMMA", "InverseGamma",
+     false},  // delegates to Gamma via x → 1/x (upper-tail complement)
+    {DistributionType::HALF_NORMAL, "HALF_NORMAL", "HalfNormal", false},
+    {DistributionType::TRUNCATED_NORMAL, "TRUNCATED_NORMAL", "TruncatedNormal",
+     false},  // renormalized internal Gaussian
 };
 
 /// Number of defined distribution types (= std::size(kDistributionMeta)).

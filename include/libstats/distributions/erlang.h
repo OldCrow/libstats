@@ -70,8 +70,8 @@ namespace stats {
  * @par Thread Safety:
  * All methods are fully thread-safe using reader-writer locks. Like
  * ChiSquaredDistribution, ErlangDistribution has no atomic parameter copies
- * of its own; the atomic fast path is provided entirely by `gamma_`'s own
- * atomics.
+ * of its own; it reads `gamma_` under `gamma_`'s lock, and setters update
+ * `gamma_` while holding Erlang's lock (ours, then the delegate's).
  *
  * @author libstats Development Team
  * @version 2.4.0
@@ -80,8 +80,7 @@ namespace stats {
 class ErlangDistribution : public DistributionBase {
    public:
     // Dispatch metadata
-    static constexpr detail::DistributionType kDistributionType =
-        detail::DistributionType::ERLANG;
+    static constexpr detail::DistributionType kDistributionType = detail::DistributionType::ERLANG;
     static constexpr bool kIsDiscrete = false;
 
    public:
@@ -122,8 +121,7 @@ class ErlangDistribution : public DistributionBase {
      * @param lambda Rate parameter (must be positive and finite)
      * @return Result containing either a valid ErlangDistribution or error info
      */
-    [[nodiscard]] static Result<ErlangDistribution> create(int k = 1,
-                                                           double lambda = detail::ONE) {
+    [[nodiscard]] static Result<ErlangDistribution> create(int k = 1, double lambda = detail::ONE) {
         auto v = validateErlangParameters(k, lambda);
         if (v.isError())
             return Result<ErlangDistribution>::makeError(v.errorCode(), v.message());
@@ -243,6 +241,9 @@ class ErlangDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override {
         return gamma_.getCumulativeProbability(x);
     }
+
+    /** @brief Survival S(x) — delegates to GammaDistribution's directly formed complement. */
+    [[nodiscard]] double getSurvival(double x) const override { return gamma_.getSurvival(x); }
 
     /**
      * @brief Quantile function (inverse CDF) — delegates to GammaDistribution.

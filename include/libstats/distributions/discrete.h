@@ -21,6 +21,11 @@ namespace stats {
  * - CDF: F(k) = (⌊k⌋ - a + 1)/(b - a + 1) for k ∈ {a, a+1, ..., b}
  * - Parameters: a, b ∈ ℤ with a ≤ b (lower and upper bounds, inclusive)
  * - Support: k ∈ {a, a+1, a+2, ..., b}
+ * - Non-integer arguments: the PMF and log-PMF round x to the nearest integer (halves away from
+ *   zero) and give 1/(b−a+1) (its log) when that is in {a,…,b}, so Discrete(0, 3).pmf(−1e-300)
+ *   = pmf(0) = ¼ and pmf(2.4) = pmf(2). The CDF and survival floor x instead: F(x) = F(⌊x⌋),
+ *   so F(−1e-300) = F(−1) = 0 there. At a non-integer x, pmf(x) is therefore not
+ *   F(x) − F(x − 1).
  * - Mean: (a + b)/2
  * - Variance: (b - a + 1)² - 1)/12 = ((b - a)(b - a + 2))/12
  * - Mode: Not unique (any value in {a, a+1, ..., b})
@@ -507,7 +512,7 @@ class DiscreteDistribution : public DistributionBase {
      * For discrete uniform distribution: P(X = k) = 1/(b-a+1) for k ∈ {a, a+1, ..., b}, 0 otherwise
      *
      * @param x The value at which to evaluate the PMF (will be rounded to nearest integer)
-     * @return Probability mass (constant 1/(b-a+1) for integers in support, 0 otherwise)
+     * @return 1/(b-a+1) where the rounded value is in {a, ..., b}, 0 otherwise (and for ±∞)
      */
     [[nodiscard]] double getProbability(double x) const override;
 
@@ -533,9 +538,17 @@ class DiscreteDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(k) = (b − ⌊k⌋)/(b − a + 1) on [a, b), 1 below a, 0 from b; an exact integer
+     * numerator, rounded once.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      *
-     * For discrete uniform distribution: F^(-1)(p) = a + ⌊p(b-a+1)⌋
+     * For discrete uniform distribution: F^(-1)(p) = a + ⌈p(b-a+1)⌉ − 1, a at p = 0, decided
+     * against the CDF as getCumulativeProbability rounds it. Q(1) = b, the smallest k with
+     * S(k) = 0.
      *
      * @param p Probability value in [0,1]
      * @return k such that P(X ≤ k) ≥ p (smallest integer satisfying this)

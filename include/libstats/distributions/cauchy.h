@@ -2,8 +2,8 @@
 
 #include "libstats/common/distribution_common.h"
 
-// Cauchy delegates PDF/LogPDF to StudentTDistribution(ν=1); CDF and Quantile are
-// closed-form (arctan / tan, #48) and do not delegate.
+// Cauchy delegates LogPDF to StudentTDistribution(ν=1); PDF, CDF and Quantile are
+// closed-form (rational, arctan / tan, #48) and do not delegate.
 #include "student_t.h"
 
 namespace stats {
@@ -21,7 +21,7 @@ namespace stats {
  * - LogPDF: −log(πγ) − log(1 + ((x−x₀)/γ)²)
  * - CDF:    0.5 + atan((x−x₀)/γ)/π
  * - Quantile: x₀ + γ·tan(π(p − 0.5))
- * - Parameters: x₀ ∈ ℝ (location), γ > 0 (scale)
+ * - Parameters: x₀ ∈ ℝ (location), γ finite and ≥ DBL_MIN (scale; subnormal γ rejected)
  * - Support: x ∈ (−∞, +∞)
  *
  * @par Moments:
@@ -34,15 +34,14 @@ namespace stats {
  * If Z ~ StudentT(1), then x₀ + γZ ~ Cauchy(x₀, γ).
  *
  * @par Delegation Design Pattern:
- * CauchyDistribution delegates PDF and LogPDF computation to a private
+ * CauchyDistribution delegates LogPDF computation to a private
  * `StudentTDistribution student_t_{1.0}` member, which is fixed at ν=1 and
  * never needs to be updated when x₀ or γ change.  The location-scale transform
- * is applied to inputs before delegation (z = (x − x₀)/γ) and outputs are
- * scaled accordingly (PDF: ÷γ; LogPDF: −log γ).  This pattern automatically
- * inherits future improvements to StudentT (including SIMD batch
- * vectorisation).  CDF and Quantile do NOT delegate: both have trivial
- * closed forms (arctan / tan) where the StudentT route would substitute an
- * iterative regularized incomplete-beta evaluation (#48).
+ * is applied to inputs before delegation (z = (x − x₀)/γ) and the output is
+ * shifted by −log γ.  PDF, CDF and Quantile do NOT delegate: each has a
+ * closed form (rational, arctan, tan) where the StudentT route would substitute
+ * an exp-of-log density, rounded through a subnormal intermediate below
+ * DBL_MIN·γ, or an iterative regularized incomplete-beta evaluation (#48).
  *
  * @par Thread Safety:
  * - All methods are fully thread-safe using reader-writer locks.
@@ -50,13 +49,15 @@ namespace stats {
  *   independent mutexes on distinct objects; acquiring the outer lock and then
  *   calling the `student_t_` batch methods (which acquire the inner lock) has
  *   no lock-ordering conflict because `student_t_` is private and never exposed.
- * - CauchyDistribution has `atomicX0_`/`atomicGamma_`/`atomicParamsValid_` for
- *   lock-free atomic parameter reads.
+ * - CauchyDistribution keeps `atomicX0_`/`atomicGamma_`/`atomicParamsValid_`
+ *   for the atomic getters, which no library path reads; scalar and batch
+ *   methods read the parameters under `withCacheSnapshot`.
  *
  * @par Batch Operations:
- * The three batch span overloads allocate a temporary aligned buffer z of size n,
- * transform the inputs (z[i] = (x[i] − x₀)/γ), then call StudentT's batch method
- * on z.  StudentT's own auto-dispatch handles SIMD/parallel routing internally.
+ * The batch log-PDF allocates a temporary aligned buffer z of size n,
+ * transforms the inputs (z[i] = (x[i] − x₀)/γ), then calls StudentT's batch method
+ * on z; StudentT's own auto-dispatch handles SIMD/parallel routing internally.
+ * The batch PDF and CDF run their closed forms through autoDispatch.
  *
  * @par MLE:
  * - Seed: x₀⁽⁰⁾ = median(data), γ⁽⁰⁾ = IQR/2
@@ -82,8 +83,9 @@ class CauchyDistribution : public DistributionBase {
     /**
      * @brief Construct a Cauchy distribution.
      * @param x0    Location parameter (must be finite, default 0)
-     * @param gamma Scale parameter (must be positive and finite, default 1)
-     * @throws std::invalid_argument if x0 is not finite or gamma ≤ 0
+     * @param gamma Scale parameter (must be finite and at least DBL_MIN, default 1)
+     * @throws std::invalid_argument if x0 is not finite or gamma is not in
+     * [DBL_MIN, DBL_MAX]
      */
     explicit CauchyDistribution(double x0 = detail::ZERO_DOUBLE, double gamma = detail::ONE);
 
@@ -109,7 +111,7 @@ class CauchyDistribution : public DistributionBase {
     /**
      * @brief Safely create a Cauchy distribution without throwing exceptions.
      * @param x0    Location parameter (must be finite)
-     * @param gamma Scale parameter (must be positive and finite)
+     * @param gamma Scale parameter (must be finite and at least DBL_MIN)
      * @return Result containing a valid CauchyDistribution or error info
      */
     [[nodiscard]] static Result<CauchyDistribution> create(double x0 = detail::ZERO_DOUBLE,
@@ -150,7 +152,7 @@ class CauchyDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter γ.
-     * @throws std::invalid_argument if gamma ≤ 0
+     * @throws std::invalid_argument if gamma is not in [DBL_MIN, DBL_MAX]
      */
     void setGamma(double gamma);
 
@@ -208,12 +210,13 @@ class CauchyDistribution : public DistributionBase {
     [[nodiscard]] VoidResult validateCurrentParameters() const noexcept;
 
     //==========================================================================
-    // 5. CORE PROBABILITY METHODS — PDF/LogPDF delegate to StudentT(ν=1) via
-    // z=(x−x₀)/γ; CDF (#48) and Quantile use their closed forms directly.
+    // 5. CORE PROBABILITY METHODS — LogPDF delegates to StudentT(ν=1) via
+    // z=(x−x₀)/γ; PDF, CDF (#48) and Quantile use their closed forms directly.
     //==========================================================================
 
     /**
-     * @brief PDF: 1/(πγ(1+((x−x₀)/γ)²)) = student_t_(1).PDF((x−x₀)/γ) / γ.
+     * @brief PDF: 1/(πγ(1+z²)), z = (x−x₀)/γ, as (1/(πγ))/(1+z²), or (1/(πγ))/|z|/|z|
+     * once z² nears overflow, so that a subnormal density is rounded once.
      * Returns NaN for NaN input.
      */
     [[nodiscard]] double getProbability(double x) const override;
@@ -230,6 +233,12 @@ class CauchyDistribution : public DistributionBase {
      * Returns NaN for NaN input; 0/1 for ±∞.
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
+
+    /**
+     * @brief Survival S(x) = F(x₀ − (x − x₀)) by symmetry: atan(γ/(x − x₀))/π past x₀, with no
+     * 0.5 − atan subtraction, so the upper tail keeps full relative precision.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
 
     /**
      * @brief Quantile (inverse CDF): x₀ + γ·tan(π(p−0.5)).
@@ -301,9 +310,9 @@ class CauchyDistribution : public DistributionBase {
 
     //==========================================================================
     // 13. SMART AUTO-DISPATCH BATCH OPERATIONS
-    // PDF/LogPDF transform inputs z=(x−x₀)/γ, delegate to StudentT(1)'s
-    // auto-dispatch batch, then scale output (PDF: ×1/γ; LogPDF: −logγ).
-    // CDF uses the closed-form arctan directly via autoDispatch (#48).
+    // LogPDF transforms inputs z=(x−x₀)/γ, delegates to StudentT(1)'s
+    // auto-dispatch batch, then shifts the output by −logγ. PDF and CDF use
+    // their closed forms directly via autoDispatch (#48).
     //==========================================================================
     // For all three overloads below: values and results must have the same
     // size (a mismatch throws std::invalid_argument) and must not overlap (#112).
@@ -312,8 +321,8 @@ class CauchyDistribution : public DistributionBase {
     // core/distribution_interface.h.
 
     /**
-     * @brief Batch PDF — delegates to StudentT(1) batch after input transform.
-     * PDF_Cauchy(x) = PDF_StudentT(1)((x−x₀)/γ) / γ.
+     * @brief Batch PDF — the scalar closed form per element via autoDispatch;
+     * every strategy is bit-identical to getProbability(x).
      */
     void getProbability(std::span<const double> values, std::span<double> results,
                         const detail::PerformanceHint& hint = {}) const;
@@ -386,7 +395,7 @@ class CauchyDistribution : public DistributionBase {
     /** @brief Location parameter x₀. */
     double x0_{detail::ZERO_DOUBLE};
 
-    /** @brief Scale parameter γ — must be positive. */
+    /** @brief Scale parameter γ — finite and at least DBL_MIN. */
     double gamma_{detail::ONE};
 
     /** @brief Atomic copies for lock-free parameter access. */

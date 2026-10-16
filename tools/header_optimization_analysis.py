@@ -122,7 +122,6 @@ def find_optimization_opportunities():
         'platform/benchmark.h',
         'platform/thread_pool.h',
         'platform/parallel_execution.h',
-        'core/distribution_memory.h',
         'core/dispatch_utils.h'
     ]
 

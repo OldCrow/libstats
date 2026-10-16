@@ -19,8 +19,9 @@ libstats is a **design and teaching library**: a demonstration of how to build
 statistical software correctly in modern C++20, with genuine SIMD and parallel
 performance. Zero external dependencies.
 
-**Current status**: v2.4.1 released (tagged on `main`; correctness patch over v2.4.0) — 27 distributions across
-7 families, API additive over v2.1.0. v1.5.3 is the final v1.x release; v2.0.0
+**Current status**: v2.5.0 (correctness and accuracy release over v2.4.1; no
+source API change) — 27 distributions across 7 families, API additive over
+v2.1.0. v1.5.3 is the final v1.x release; v2.0.0
 introduced breaking changes, and `MIGRATION_GUIDE.md` has the old→new call
 mapping.
 
@@ -36,17 +37,18 @@ Follow the standard architecture check:
 Then, because the active SIMD tier changes fundamentally between machines and
 code paths, thresholds and test results all depend on it:
 
-- Run `./build/tools/system_inspector --quick` (`.\build\tools\Release\system_inspector.exe --quick`
-  on Windows, with `stats.dll` copied beside it) to confirm the active SIMD capabilities before interpreting any
-  performance or test result.
+- Run `./build/tools/system_inspector --quick` (Windows: `.\build\tools\Release\system_inspector.exe`
+  under the Visual Studio generator, `.\build-clangcl\tools\system_inspector.exe` under Ninja/clang-cl)
+  to confirm the active SIMD capabilities before interpreting any performance or test result.
 - If the machine changed since the last session, say so explicitly, and
   reconfigure — the build directory may not be current for this architecture.
 - Benchmark results are **not** comparable across architectures, and dispatch
   thresholds in `include/libstats/core/dispatch_thresholds.h` are
   architecture-specific.
 
-The tier-to-CPU mapping and which `simd_*.cpp` files compile per tier are in
-`docs/SIMD_OPTIMIZATION_REFERENCE.md`.
+The tier-to-CPU mapping is in `docs/SIMD_OPTIMIZATION_REFERENCE.md`. Which
+`simd_*.cpp` files compile per tier, and how `LIBSTATS_MAX_SIMD_TIER` caps them,
+is in `cmake/SIMDDetection.cmake` (`apply_simd_tier_cap`).
 
 ## Build Commands
 
@@ -65,7 +67,9 @@ Build options (`LIBSTATS_VERBOSE_BUILD`, `LIBSTATS_FORCE_TBB`,
 build directory map, and the header tooling are documented in
 `docs/BUILD_SYSTEM_GUIDE.md` and `docs/HEADER_TOOLS_GUIDE.md`.
 
-Windows uses the Visual Studio x64 Release flow — see Platform-Specific Notes.
+Windows has two builds: clang-cl (Ninja) is the performance build, cl.exe
+(Visual Studio x64 Release) the correctness build; both take `/arch:AVX`,
+`/arch:AVX2` or `/arch:AVX512` from the detected tier — see Platform-Specific Notes.
 
 ### CMake standard
 
@@ -105,11 +109,12 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
 |---|---|---|---|---|
 | MacBook Pro 14,1 (2017) | macOS Ventura | Intel Kaby Lake | SSE2+AVX+AVX2+FMA | AVX2/FMA validation |
 | Mac Mini M1 | macOS 27 Golden Gate | Apple Silicon M1 | NEON only | ARM/NEON path validation |
-| Asus TUF A16 (2025) | Windows 11 Pro | Ryzen 7 7445 (Zen 4) | +**AVX-512** | Windows/MSVC, only AVX-512 machine |
+| Asus TUF A16 (2025) | Windows 11 Pro | Ryzen 7 7445 (Zen 4) | +**AVX-512** | Windows (clang-cl performance, MSVC correctness), only AVX-512 machine |
 
-macOS requires Ventura 13+. Timing runs on the Zen 4 box carry a
-frequency-scaling artifact that reads like a dispatch-threshold anomaly —
-see `docs/VALIDATION_HISTORY.md`, "Zen 4 frequency scaling".
+macOS requires Ventura 13+. On the Zen 4 box a locked screen puts running
+processes under Windows power throttling, which reads like a dispatch-threshold
+anomaly; opt measured processes out — see `docs/VALIDATION_HISTORY.md`,
+"Zen 4 timing: power throttling".
 
 ### Windows Session Setup
 
@@ -118,12 +123,13 @@ Toolchain activation, one-time setup, and the Smart App Control/Defender notes:
 libstats-specific steps after activating the toolchain:
 
 ```powershell
-Copy-Item "build\Release\stats.dll" -Destination "build\tests\" -Force
 ctest --test-dir build -C Release -LE "timing|benchmark" --output-on-failure
 ```
 
-After any clean rebuild, spot-check `test_gaussian_basic_dynamic.exe` and
-`test_exponential_basic_dynamic.exe` with
+Tools link `libstats_static`; the dynamic tests copy `stats.dll` beside
+themselves at build time. After any clean rebuild, spot-check
+`build\tests\Release\test_gaussian_basic_dynamic.exe` and
+`build\tests\Release\test_exponential_basic_dynamic.exe` with
 `dumpbin /imports <exe> | Select-String vcruntime` for a stale Debug CRT
 (`VCRUNTIME140D.dll` instead of `VCRUNTIME140.dll`).
 
@@ -135,10 +141,12 @@ platform detection) → Core Utilities (math, safety, validation) + Platform
 Distribution Framework (base classes, interfaces) → Concrete Distributions →
 Complete Library Interface (`libstats.h`).
 
-Two API surfaces: an **auto-dispatch API** that selects the strategy for you,
-and an **explicit strategy API** for direct SIMD/parallel control. Thread safety
-rests on lock-free atomic parameter reads on the fast path, a `shared_mutex` for
-cache updates, and thread-safe batch operations.
+One batch API: the span overloads, with an optional `detail::PerformanceHint`
+(`AUTO` by default; `FORCE_SCALAR`, `FORCE_VECTORIZED`, `FORCE_PARALLEL`,
+`MINIMIZE_LATENCY`, `MAXIMIZE_THROUGHPUT`). No hint forces `WORK_STEALING`;
+`AUTO` and `MAXIMIZE_THROUGHPUT` reach it only on hyper-threaded macOS. Thread safety
+rests on one `shared_mutex` per distribution; scalar and batch paths read one
+parameter snapshot (`withCacheSnapshot`/`readConsistent`).
 
 Header layout, include styles, namespace hygiene, and the per-distribution and
 analysis header maps are in `docs/HEADER_ARCHITECTURE_GUIDE.md`. The
@@ -157,25 +165,30 @@ distribution roster lives in the code and in that guide, not here.
 - Always rebuild after source changes before running tests
 - Use `initialize_performance_systems()` for optimal batch performance
 - SIMD kernels impose no alignment requirement on caller data: every load/store of a caller buffer is unaligned (`loadu`/`storeu`); aligned ops are used only on internal `alignas` locals
-- Large batch operations (>1000 elements) benefit significantly from parallel execution
+- Parallel execution pays off only above the per-row thresholds in `dispatch_thresholds.h`; only one entry (`kNeon` Uniform PDF) is `NEVER`
 
 ### Platform-Specific Conventions
 - **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).
 - **Build artifacts**: Always in `build/tools/` and `build/tests/`, never `bin/`;
   the Windows Visual Studio generator adds a per-config subdirectory (`build\tools\Release\`)
-- **Threading**: GCD preferred on macOS, TBB/OpenMP on Linux/Windows
+- **Threading**: batch PARALLEL and WORK_STEALING run on the library's own
+  `std::thread` pools on every platform. The `safe_*` wrappers in
+  `parallel_execution.h` pick a backend at compile time: `std::execution` where
+  the standard library provides it, else GCD (macOS), Windows Thread Pool,
+  OpenMP or pthreads
 
 ## Batch API contracts
 
-These two are deliberately kept in this file rather than a doc: violating either
+These three are deliberately kept in this file rather than a doc: violating any
 produces silently wrong results or a deadlock, not a build error.
 
 - **Input and output spans must not overlap.** Several batch kernels re-read
-  `values` after writing `results` (Gaussian/von Mises CDF tail fixups, Gamma
-  PDF, LogNormal LogPDF — #112), so an in-place call returns wrong values
+  `values` after writing `results` (Gaussian CDF tail fixups, von Mises
+  PDF/LogPDF NaN and ±inf fixups, Gamma PDF, LogNormal LogPDF, InverseGamma
+  and Cauchy LogPDF fixups — #112), so an in-place call returns wrong values
   silently. This is a documented contract, not an implementation guarantee: the
   debug-mode `LIBSTATS_ASSERT_NO_OVERLAP` beside the size check in
-  `detail::DispatchUtils::autoDispatch`/`executeWithStrategy` compiles away under
+  `detail::DispatchUtils::autoDispatch` compiles away under
   `NDEBUG`, so Release builds do not detect aliasing. Span sizes must match;
   every overload throws otherwise.
 - **Exception behaviour differs by strategy.** `ParallelUtils::parallelFor`,
@@ -184,10 +197,19 @@ produces silently wrong results or a deadlock, not a build error.
   `WorkStealingPool::parallelFor` deliberately swallows, because its completion
   latch must be decremented on every path or the caller deadlocks. So
   `Strategy::WORK_STEALING` loses what `Strategy::PARALLEL` reports.
+- **One parameter state per batch holds for every strategy but SCALAR.**
+  The VECTORIZED, PARALLEL and WORK_STEALING lambdas take one snapshot;
+  `executeStrategy`'s SCALAR case calls the locking scalar method per
+  element, so under a concurrent setter a SCALAR batch (forced, or AUTO's
+  choice for small counts) can mix states. Decided per-element for v2.x;
+  one state under every strategy is a v3 design input.
 
 Dispatch thresholds are per-(architecture, distribution, operation) in
 `dispatch_thresholds.h`, derived from the profiling data in
 `data/profiles/dispatcher/`.
+`scripts/derive_threshold_rows.py` derives the rows from a three-run bundle,
+on top of `scripts/analyze_crossovers.py` (the sustained-crossover rule; not
+`threshold_validator`); recipe in `data/profiles/dispatcher/README.md`.
 
 ## SIMD kernel conventions
 
@@ -212,13 +234,32 @@ Dispatch thresholds are per-(architecture, distribution, operation) in
 
 **A new error-free transform (Kahan/Neumaier, TwoSum/Fast2Sum, `fma(a,b,-a*b)`
 residuals) must spell every intended fusion explicitly, or scope
-`-ffp-contract=off` to that file.** No `-ffp-contract` flag is set anywhere in
-this build, so every TU takes its compiler default (GCC `fast`, AppleClang
-`on`, MSVC/clang-cl off); an unspelled contraction silently breaks the exactness
-the transform's proof assumes. The three compensated sequences in
+`-ffp-contract=off` to that file.** Only `src/gamma.cpp` and
+`src/inverse_gamma.cpp` set it (CMakeLists.txt: their rate-product residuals
+need fl(βx) to stay rounded; a contracted `β·x − α` double-counted it on
+AArch64, CI on 08d48aa). Every other TU takes its compiler default (GCC
+`fast`, AppleClang and clang-cl `on`, MSVC off; clang-cl's FMAs are visible in
+its Beta and Gamma batch code, 2026-10-05); an unspelled contraction silently
+breaks the exactness the transform's proof assumes. CI's `fma-contraction`
+leg (clang-17, `-mfma -ffp-contract=on`) runs the correctness suite under
+contraction on Linux. The three compensated sequences in
 `src/simd_neon.cpp` are safe today (#84, audited 2026-08-16) because every
 fusion is an explicit `vfmaq_f64`/`vfmsq_f64` and the one remaining
 multiply-then-add is exact by construction.
+
+### Overflow-guard rule
+
+**Test an overflow guard's operand, not the overflowed result, when the
+fallback reuses that operand.** Write `x < DBL_MAX / c ? log(c * x) : log(c) + log(x)`,
+never `p = c * x; isfinite(p) ? log(p) : log(c) + log(x)`. GCC 14 and 16 (-O1
+and up, no fast-math) take an overflowed `c * x`, with `c` a compile-time
+constant, to mean `x = ±inf` (and `1 / x` to mean `x = 0`), and fold the
+fallback's `log(x)` to `+inf`: von Mises at κ > 2.9e307 and InverseGamma past
+the reciprocal range read `+inf` on CI's gcc-14 leg only (fixed 2026-10-13).
+The comparison is strict because `fl(DBL_MAX / c)` may round up. A guard whose
+fallback returns a constant is unaffected, and a GCC-against-AppleClang probe
+of every other product, quotient and sum guard (about 650k results) found no
+other case.
 
 ## Testing
 

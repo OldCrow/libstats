@@ -19,17 +19,17 @@
 
 // Additional standard library includes for SIMD verification
 #include "libstats/distributions/beta.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
+#include "libstats/distributions/geometric.h"
+#include "libstats/distributions/laplace.h"
 #include "libstats/distributions/poisson.h"
 #include "libstats/distributions/student_t.h"
 #include "libstats/distributions/uniform.h"
-#include "libstats/distributions/geometric.h"
-#include "libstats/distributions/laplace.h"
-#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/platform/simd.h"
 
@@ -145,10 +145,10 @@ class SIMDVerifier {
         // New v2.0.0 distributions — placed after all existing tests to preserve
         // rng_ state for the established baselines.
         testGeometricDistribution();  // uses local RNG (integer outputs)
-        testLaplaceDistribution();     // uses deterministic linspace data
-        testCauchyDistribution();      // uses deterministic linspace data
+        testLaplaceDistribution();    // uses deterministic linspace data
+        testCauchyDistribution();     // uses deterministic linspace data
 
-        testPrimitiveVectorOps();    // uses deterministic linspace data
+        testPrimitiveVectorOps();  // uses deterministic linspace data
 
         // Analyze and report results
         analyzeResults();
@@ -202,8 +202,8 @@ class SIMDVerifier {
 
         std::vector<double> test_data(TEST_SIZE);
         for (size_t i = 0; i < TEST_SIZE; ++i)
-            test_data[i] = -5.0 + 10.0 * static_cast<double>(i) /
-                           static_cast<double>(TEST_SIZE - 1);
+            test_data[i] =
+                -5.0 + 10.0 * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
 
         verifyOperation(
             dist, test_data, "PDF", "Laplace",
@@ -232,20 +232,22 @@ class SIMDVerifier {
                     output[i] = d.getCumulativeProbability(data[i]);
             },
             [](const auto& d, const auto& data, auto& output) {
-                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+                d.getCumulativeProbability(std::span<const double>(data),
+                                           std::span<double>(output));
             });
     }
 
     void testCauchyDistribution() {
-        stats::detail::detail::subsectionHeader("Cauchy Distribution (delegates to StudentT(nu=1))");
+        stats::detail::detail::subsectionHeader(
+            "Cauchy Distribution (delegates to StudentT(nu=1))");
         // Standard Cauchy(0,1): batch ops transform input then delegate to StudentT.
         // Correctness: VECTORIZED vs SCALAR should match to TOLERANCE_NORMAL.
         auto dist = stats::CauchyDistribution::create(0.0, 1.0).unwrap();
 
         std::vector<double> test_data(TEST_SIZE);
         for (size_t i = 0; i < TEST_SIZE; ++i)
-            test_data[i] = -10.0 + 20.0 * static_cast<double>(i) /
-                           static_cast<double>(TEST_SIZE - 1);
+            test_data[i] =
+                -10.0 + 20.0 * static_cast<double>(i) / static_cast<double>(TEST_SIZE - 1);
 
         verifyOperation(
             dist, test_data, "PDF", "Cauchy",
@@ -274,12 +276,14 @@ class SIMDVerifier {
                     output[i] = d.getCumulativeProbability(data[i]);
             },
             [](const auto& d, const auto& data, auto& output) {
-                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+                d.getCumulativeProbability(std::span<const double>(data),
+                                           std::span<double>(output));
             });
     }
 
     void testGeometricDistribution() {
-        stats::detail::detail::subsectionHeader("Geometric Distribution (delegates to NegBinomial)");
+        stats::detail::detail::subsectionHeader(
+            "Geometric Distribution (delegates to NegBinomial)");
         // Geometric(p=0.5): PMF(k) = 0.5^(k+1), inputs are non-negative integers.
         // Batch correctness: scalar vs auto-dispatch must match exactly (discrete,
         // no SIMD approximation).
@@ -317,7 +321,8 @@ class SIMDVerifier {
                     output[i] = d.getCumulativeProbability(data[i]);
             },
             [](const auto& d, const auto& data, auto& output) {
-                d.getCumulativeProbability(std::span<const double>(data), std::span<double>(output));
+                d.getCumulativeProbability(std::span<const double>(data),
+                                           std::span<double>(output));
             });
     }
 
@@ -624,8 +629,7 @@ class SIMDVerifier {
             [](const auto& d, const auto& data, auto& output) {
                 // SIMD version: force-vectorized span batch call (TOOL-2)
                 stats::detail::PerformanceHint hint;
-                hint.strategy =
-                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+                hint.strategy = stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
                 d.getProbability(input_span, output_span, hint);
@@ -643,8 +647,7 @@ class SIMDVerifier {
             [](const auto& d, const auto& data, auto& output) {
                 // SIMD version: force-vectorized span batch call (TOOL-2)
                 stats::detail::PerformanceHint hint;
-                hint.strategy =
-                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+                hint.strategy = stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
                 d.getLogProbability(input_span, output_span, hint);
@@ -662,8 +665,7 @@ class SIMDVerifier {
             [](const auto& d, const auto& data, auto& output) {
                 // SIMD version: force-vectorized span batch call (TOOL-2)
                 stats::detail::PerformanceHint hint;
-                hint.strategy =
-                    stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+                hint.strategy = stats::detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
                 std::span<const double> input_span(data);
                 std::span<double> output_span(output);
                 d.getCumulativeProbability(input_span, output_span, hint);
@@ -745,17 +747,21 @@ class SIMDVerifier {
         // Per-distribution tolerance table keyed by exact (dist_name, op_name) pairs.
         // Uses == rather than find() so a name change does not silently fall through
         // to TOLERANCE_NORMAL — any rename is immediately visible as a table miss.
-        struct ToleranceEntry { const char* dist; const char* op; double tol; };
+        struct ToleranceEntry {
+            const char* dist;
+            const char* op;
+            double tol;
+        };
         static const ToleranceEntry kToleranceTable[] = {
             // Gaussian CDF routes through vector_erf (musl polynomial, max ~2.2e-16)
-            { "Gaussian",            "CDF", TOLERANCE_ERF_APPROX },
+            {"Gaussian", "CDF", TOLERANCE_ERF_APPROX},
             // Same pipeline applies in the edge-case variant (name suffix breaks exact match)
-            { "Gaussian_EdgeCases",  "CDF", TOLERANCE_ERF_APPROX },
+            {"Gaussian_EdgeCases", "CDF", TOLERANCE_ERF_APPROX},
             // Beta LogPDF: two vector_log calls accumulate ~1 ULP rounding vs scalar
-            { "Beta",     "LogPDF", TOLERANCE_RELAXED     },
+            {"Beta", "LogPDF", TOLERANCE_RELAXED},
             // VonMises PDF/LogPDF route through vector_cos (7-term Horner, ~1e-10 floor)
-            { "VonMises", "PDF",    TOLERANCE_VONMISES    },
-            { "VonMises", "LogPDF", TOLERANCE_VONMISES    },
+            {"VonMises", "PDF", TOLERANCE_VONMISES},
+            {"VonMises", "LogPDF", TOLERANCE_VONMISES},
         };
         double default_tolerance = TOLERANCE_NORMAL;
         for (const auto& e : kToleranceTable) {

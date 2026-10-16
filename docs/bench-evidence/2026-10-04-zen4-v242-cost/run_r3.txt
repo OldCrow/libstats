@@ -1,0 +1,8 @@
+2026-10-04 22:19:02 r3 cpu=18.6% waiting
+2026-10-04 22:20:14 r3 cpu=6.4% ac=True quiet
+2026-10-04 22:20:14 start bench_v241 (LIBSTATS_BENCH_WARMUP_SECONDS=20) sha=2c5230a
+2026-10-04 22:22:49 end bench_v241 exit=0 cpu=3.2%; start bench_v242
+2026-10-04 22:25:14 end bench_v242 exit=0 cpu=4.6%
+2026-10-04 22:25:14 compare exit=0; start timing ctest
+2026-10-04 22:25:36 end timing ctest exit=0
+2026-10-04 22:25:36 DONE

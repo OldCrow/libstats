@@ -1,23 +1,26 @@
 #include "libstats/distributions/beta.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"  // beta_i, inverse_beta_i, lbeta, digamma
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
 #include <stdexcept>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -101,6 +104,11 @@ BetaDistribution::BetaDistribution(BetaDistribution&& other) noexcept
 
 BetaDistribution& BetaDistribution::operator=(BetaDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         alpha_ = other.alpha_;
         beta_ = other.beta_;
         alphaMinus1_ = other.alphaMinus1_;
@@ -259,6 +267,103 @@ double BetaDistribution::getMode() const {
 // 5. CORE PROBABILITY METHODS
 //==============================================================================
 
+namespace {
+// From both shapes 20 the direct log density lnc + (α − 1)·log x + (β − 1)·log(1 − x) cancels
+// terms of size (α + β)·log 2 in lnc = −log B(α, β) against the two logs: 1.8e-11 relative in the
+// pdf, 2.2e-14 at Beta(50, 60) x = 0.4. There it is the Stirling-form incomplete-beta prefactor
+// log[x^α (1 − x)^β / B(α, β)], which has no large terms, less log x and log(1 − x). One large
+// shape alone does not cancel (lnc and the log terms then differ in size), so the switch takes
+// both, as log_beta_prefactor's does.
+[[nodiscard]] inline bool betaStirlingShapes(double a, double b) noexcept {
+    return a >= detail::STIRLING_PREFACTOR_SHAPE && b >= detail::STIRLING_PREFACTOR_SHAPE;
+}
+
+// log density at x in (0, 1); shape_constant = beta_prefactor_constant(a, b), read only in
+// Stirling's form.
+[[nodiscard]] inline double betaLogDensity(double x, double a, double b, double lnc, double am1,
+                                           double bm1, double shape_constant) noexcept {
+    if (!betaStirlingShapes(a, b))
+        return lnc + am1 * std::log(x) + bm1 * std::log1p(-x);
+    return detail::log_beta_prefactor(x, a, b, shape_constant) - std::log(x) - std::log1p(-x);
+}
+
+[[nodiscard]] inline double betaShapeConstant(double a, double b) noexcept {
+    return betaStirlingShapes(a, b) ? detail::beta_prefactor_constant(a, b) : 0.0;
+}
+
+// betaLogDensity's Stirling branch over a batch, in the scalar path's order: a·log1pmx(u) +
+// b·log1pmx(v) + C − log x − log(1 − x), u = (x − x₀)/x₀, v = (x₀ − x)/(1 − x₀), x₀ = a/(a + b).
+// log1pmx_series covers |u|, |v| < ½ branch-free; beyond, from x itself as the scalar path.
+// Inputs outside (0, 1) come out meaningless; the caller's fixup overwrites them.
+void stirlingBetaLogDensityBatch(const double* x, double* out, std::size_t count, double a,
+                                 double b) noexcept {
+    constexpr std::size_t kBlock = 256;
+    alignas(64) double log_x[kBlock];
+    alignas(64) double log_1mx[kBlock];
+    std::size_t far_index[kBlock];
+    const double sum = a + b;
+    const double x0 = a / sum;
+    const double one_minus_x0 = b / sum;
+    const double shape_constant = detail::beta_prefactor_constant(a, b);
+    const double log_one_minus_x0 = std::log(one_minus_x0);
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t n = std::min(kBlock, count - start);
+        const double* xb = x + start;
+        double* ob = out + start;
+        arch::simd::VectorOps::vector_log(xb, log_x, n);
+        for (std::size_t i = 0; i < n; ++i)
+            log_1mx[i] = -xb[i];
+        arch::simd::VectorOps::vector_log1p(log_1mx, log_1mx, n);
+        for (std::size_t i = 0; i < n; ++i)
+            ob[i] = a * detail::log1pmx_series((xb[i] - x0) / x0) +
+                    b * detail::log1pmx_series((x0 - xb[i]) / one_minus_x0);
+        // Beyond the series, log(1 + u) and log(1 + v) from x itself, as log_beta_prefactor
+        // forms them (the rounded u, v ≈ −1 have lost x, or 1 − x). Gathered first, as in Gamma's
+        // batch: a guarded log in one loop is called for every
+        // lane (log is pure on Darwin, so the compiler hoists it), 2x the batch at Beta(25, 25).
+        std::size_t n_far = 0;
+        for (std::size_t i = 0; i < n; ++i) {
+            const double u = (xb[i] - x0) / x0;
+            const double v = (x0 - xb[i]) / one_minus_x0;
+            if (std::fabs(u) >= detail::LOG1PMX_SERIES_LIMIT ||
+                std::fabs(v) >= detail::LOG1PMX_SERIES_LIMIT)
+                far_index[n_far++] = i;
+        }
+        for (std::size_t k = 0; k < n_far; ++k) {
+            const std::size_t i = far_index[k];
+            const double u = (xb[i] - x0) / x0;
+            const double v = (x0 - xb[i]) / one_minus_x0;
+            const double lu = std::fabs(u) < detail::LOG1PMX_SERIES_LIMIT
+                                  ? detail::log1pmx_series(u)
+                                  : std::log(xb[i] / x0) - u;
+            const double lv = std::fabs(v) < detail::LOG1PMX_SERIES_LIMIT
+                                  ? detail::log1pmx_series(v)
+                                  : (std::log1p(-xb[i]) - log_one_minus_x0) - v;
+            ob[i] = a * lu + b * lv;
+        }
+        for (std::size_t i = 0; i < n; ++i)
+            ob[i] = ob[i] + shape_constant - log_x[i] - log_1mx[i];
+    }
+}
+
+// The log-density at x outside (0, 1) from one snapshot: −inf out of support; at x = 0 and x = 1
+// the limit by shape (#161, #165): +inf for a shape below 1, log_norm_const for exactly 1, −inf
+// above. Read from α − 1 and β − 1, whose sign and zero are exactly α's and β's against 1. The pdf
+// is its exp. The batch kernels called the scalar methods here, so each such element took the lock
+// and read the live parameters instead of the batch's snapshot.
+[[nodiscard]] double betaLogDensityOutside(double x, double log_norm_const, double alpha_minus_one,
+                                           double beta_minus_one) noexcept {
+    if (x < detail::ZERO_DOUBLE || x > detail::ONE)
+        return -std::numeric_limits<double>::infinity();
+    const double shape_minus_one = (x == detail::ZERO_DOUBLE) ? alpha_minus_one : beta_minus_one;
+    if (shape_minus_one > detail::ZERO_DOUBLE)
+        return -std::numeric_limits<double>::infinity();
+    if (shape_minus_one == detail::ZERO_DOUBLE)  // exactly: just below 1 the limit is +inf
+        return log_norm_const;
+    return std::numeric_limits<double>::infinity();
+}
+}  // namespace
+
 double BetaDistribution::getProbability(double x) const {
     // Snapshot cached fields under the appropriate lock; no re-acquire = no TOCTOU gap.
     double a, b, lnc, am1, bm1;
@@ -282,26 +387,9 @@ double BetaDistribution::getProbability(double x) const {
             bm1 = betaMinus1_;
         }
     }
-    if (x <= detail::ZERO_DOUBLE || x >= detail::ONE) {
-        // Boundary: PDF = 0 for α,β > 1; ∞ for α or β < 1 (return +inf); 1 for α or β = 1
-        if (x < detail::ZERO_DOUBLE || x > detail::ONE)
-            return detail::ZERO_DOUBLE;
-        // x = 0 or x = 1: handle carefully
-        if (x == detail::ZERO_DOUBLE) {
-            if (a > detail::ONE)
-                return detail::ZERO_DOUBLE;
-            if (std::abs(a - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-                return std::exp(lnc);
-            return std::numeric_limits<double>::infinity();
-        }
-        // x = 1
-        if (b > detail::ONE)
-            return detail::ZERO_DOUBLE;
-        if (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return std::exp(lnc);
-        return std::numeric_limits<double>::infinity();
-    }
-    return std::exp(lnc + am1 * std::log(x) + bm1 * std::log(detail::ONE - x));
+    if (x <= detail::ZERO_DOUBLE || x >= detail::ONE)
+        return std::exp(betaLogDensityOutside(x, lnc, am1, bm1));
+    return std::exp(betaLogDensity(x, a, b, lnc, am1, bm1, betaShapeConstant(a, b)));
 }
 
 double BetaDistribution::getLogProbability(double x) const {
@@ -327,24 +415,9 @@ double BetaDistribution::getLogProbability(double x) const {
             bm1 = betaMinus1_;
         }
     }
-    if (x < detail::ZERO_DOUBLE || x > detail::ONE) {
-        return -std::numeric_limits<double>::infinity();
-    }
-    if (x == detail::ZERO_DOUBLE) {
-        if (a > detail::ONE)
-            return -std::numeric_limits<double>::infinity();
-        if (std::abs(a - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return lnc;
-        return std::numeric_limits<double>::infinity();
-    }
-    if (x == detail::ONE) {
-        if (b > detail::ONE)
-            return -std::numeric_limits<double>::infinity();
-        if (std::abs(b - detail::ONE) <= detail::DEFAULT_TOLERANCE)
-            return lnc;
-        return std::numeric_limits<double>::infinity();
-    }
-    return lnc + am1 * std::log(x) + bm1 * std::log(detail::ONE - x);
+    if (x <= detail::ZERO_DOUBLE || x >= detail::ONE)
+        return betaLogDensityOutside(x, lnc, am1, bm1);
+    return betaLogDensity(x, a, b, lnc, am1, bm1, betaShapeConstant(a, b));
 }
 
 double BetaDistribution::getCumulativeProbability(double x) const {
@@ -358,7 +431,27 @@ double BetaDistribution::getCumulativeProbability(double x) const {
     return detail::beta_i(x, a, b);
 }
 
+double BetaDistribution::getSurvival(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (x <= detail::ZERO_DOUBLE)
+        return detail::ONE;
+    if (x >= detail::ONE)
+        return detail::ZERO_DOUBLE;
+    double a, b;
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+    });
+    // S(x) = I_{1−x}(β, α). beta_i_pair takes x itself as the complement of 1 − x, so the
+    // reflection adds no rounding to the small side wherever x is, and the small side is
+    // returned directly rather than as 1 − I_x(α, β).
+    return detail::beta_i_pair(detail::ONE - x, x, b, a, detail::beta_prefactor_constant(b, a));
+}
+
 double BetaDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1]");
     }
@@ -372,20 +465,83 @@ double BetaDistribution::getQuantile(double p) const {
     return detail::inverse_beta_i(p, a, b);
 }
 
+namespace {
+// A Beta draw is X/(X + Y) with X ~ Gamma(α, 1), Y ~ Gamma(β, 1). A gamma variate at shape
+// s < 1 is Gamma(s + 1)·U^{1/s}, and that boost underflows once log U / s < −708: at
+// Beta(1e-4, 1e-4) 86% of the draws had both variates at 0 and the 0/0 fallback returned ½,
+// where a U-shaped Beta has almost no mass (#228). Both variates are therefore held as logs —
+// Marsaglia–Tsang on s (or s + 1), the boost added as log U / s, finite for every s ≥ ~1e-308 —
+// and the ratio is the logistic of log Y − log X, formed on whichever side keeps full relative
+// precision. Two shapes both ≥ 1 take std::gamma_distribution as before (no underflow is
+// possible there), so their sample streams are bit-identical to v2.4.1.
+struct LogGammaSampler {
+    std::normal_distribution<double> normal{detail::ZERO_DOUBLE, detail::ONE};
+    std::uniform_real_distribution<double> uniform{detail::ZERO_DOUBLE, detail::ONE};
+    // The boost uniform is drawn on [DBL_MIN, 1) so its log is finite.
+    std::uniform_real_distribution<double> boost{std::numeric_limits<double>::min(), detail::ONE};
+
+    // log of a Gamma(shape, 1) variate.
+    double operator()(std::mt19937& rng, double shape) {
+        const bool boosted = shape < detail::ONE;
+        const double d = (boosted ? shape + detail::ONE : shape) - detail::ONE / detail::THREE;
+        const double c = detail::ONE / std::sqrt(detail::NINE * d);
+        double v;
+        while (true) {
+            double x;
+            do {
+                x = normal(rng);
+                v = detail::ONE + c * x;
+            } while (v <= detail::ZERO_DOUBLE);
+            v = v * v * v;
+            const double u = uniform(rng);
+            const double x2 = x * x;
+            if (u < detail::ONE - 0.0331 * x2 * x2)
+                break;
+            if (std::log(u) < detail::HALF * x2 + d * (detail::ONE - v + std::log(v)))
+                break;
+        }
+        double log_g = std::log(d * v);
+        if (boosted)
+            log_g += std::log(boost(rng)) / shape;
+        return log_g;
+    }
+
+    // X/(X + Y) from log X and log Y.
+    double ratio(std::mt19937& rng, double log_x, double log_y, double a, double b) {
+        const double dl = log_y - log_x;  // log(Y/X); ±∞ when exactly one variate underflowed
+        if (std::isnan(dl)) {
+            // Both −∞: shapes below ~1e-308, where even log U / shape overflows. The limit of
+            // Beta(a, b) as a, b → 0 is the two-point law P(X = 1) = a/(a + b).
+            return uniform(rng) * (a + b) < a ? detail::ONE : detail::ZERO_DOUBLE;
+        }
+        if (dl >= detail::ZERO_DOUBLE) {  // x ≤ ½: t/(1 + t) keeps relative precision near 0
+            const double t = std::exp(-dl);
+            return t / (detail::ONE + t);
+        }
+        return detail::ONE / (detail::ONE + std::exp(dl));  // x > ½: absolute precision ulp(1)
+    }
+};
+}  // namespace
+
 double BetaDistribution::sample(std::mt19937& rng) const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     const double a = alpha_, b = beta_;
     lock.unlock();
 
-    // X ~ Gamma(α, 1), Y ~ Gamma(β, 1) → X/(X+Y) ~ Beta(α, β)
-    std::gamma_distribution<double> gamma_a(a, detail::ONE);
-    std::gamma_distribution<double> gamma_b(b, detail::ONE);
-    const double x = gamma_a(rng);
-    const double y = gamma_b(rng);
-    const double sum = x + y;
-    if (sum <= detail::ZERO_DOUBLE)
-        return detail::HALF;  // numerical safety
-    return x / sum;
+    if (a >= detail::ONE && b >= detail::ONE) {
+        std::gamma_distribution<double> gamma_a(a, detail::ONE);
+        std::gamma_distribution<double> gamma_b(b, detail::ONE);
+        const double x = gamma_a(rng);
+        const double y = gamma_b(rng);
+        const double sum = x + y;
+        if (sum > detail::ZERO_DOUBLE)
+            return x / sum;
+        // x = y = 0 (a shape of exactly 1 can draw 0): fall through to the log construction.
+    }
+    LogGammaSampler g;
+    const double log_x = g(rng, a);
+    const double log_y = g(rng, b);
+    return g.ratio(rng, log_x, log_y, a, b);
 }
 
 std::vector<double> BetaDistribution::sample(std::mt19937& rng, size_t n) const {
@@ -394,15 +550,30 @@ std::vector<double> BetaDistribution::sample(std::mt19937& rng, size_t n) const 
     const double a = alpha_, b = beta_;
     lock.unlock();
 
-    std::gamma_distribution<double> gamma_a(a, detail::ONE);
-    std::gamma_distribution<double> gamma_b(b, detail::ONE);
     std::vector<double> samples;
     samples.reserve(n);
+    LogGammaSampler g;
+    if (a >= detail::ONE && b >= detail::ONE) {
+        std::gamma_distribution<double> gamma_a(a, detail::ONE);
+        std::gamma_distribution<double> gamma_b(b, detail::ONE);
+        for (size_t i = 0; i < n; ++i) {
+            const double x = gamma_a(rng);
+            const double y = gamma_b(rng);
+            const double sum = x + y;
+            if (sum > detail::ZERO_DOUBLE) {
+                samples.push_back(x / sum);
+            } else {
+                const double log_x = g(rng, a);
+                const double log_y = g(rng, b);
+                samples.push_back(g.ratio(rng, log_x, log_y, a, b));
+            }
+        }
+        return samples;
+    }
     for (size_t i = 0; i < n; ++i) {
-        const double x = gamma_a(rng);
-        const double y = gamma_b(rng);
-        const double sum = x + y;
-        samples.push_back(sum <= detail::ZERO_DOUBLE ? detail::HALF : x / sum);
+        const double log_x = g(rng, a);
+        const double log_y = g(rng, b);
+        samples.push_back(g.ratio(rng, log_x, log_y, a, b));
     }
     return samples;
 }
@@ -429,7 +600,7 @@ void BetaDistribution::fit(const std::vector<double>& values) {
     double sum = 0.0, sum_sq = 0.0;
     for (double v : values) {
         log_x_sum += std::log(v);
-        log_1mx_sum += std::log(detail::ONE - v);
+        log_1mx_sum += std::log1p(-v);
         sum += v;
         sum_sq += v * v;
     }
@@ -518,6 +689,7 @@ void BetaDistribution::reset() noexcept {
 std::string BetaDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "BetaDistribution(alpha=" << alpha_ << ", beta=" << beta_ << ")";
     return oss.str();
 }
@@ -565,8 +737,7 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
@@ -589,7 +760,6 @@ void BetaDistribution::getProbability(std::span<const double> values, std::span<
                 dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                    lnc, am1, bm1);
             });
-            pool.waitForAll();
         });
 }
 
@@ -620,8 +790,7 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 bm1 = dist.betaMinus1_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
@@ -644,7 +813,6 @@ void BetaDistribution::getLogProbability(std::span<const double> values, std::sp
                 dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
                                                       lnc, am1, bm1);
             });
-            pool.waitForAll();
         });
 }
 
@@ -664,50 +832,33 @@ void BetaDistribution::getCumulativeProbability(std::span<const double> values,
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res) {
             if (vals.size() != res.size())
-                throw std::invalid_argument("Span size mismatch");
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            // Acquire cache once; hoist lgamma prefix for the batch.
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (x <= 0.0)
-                        res[i] = 0.0;
-                    else if (x >= 1.0)
-                        res[i] = 1.0;
-                    else
-                        res[i] = detail::beta_i(x, a, b, log_prefix);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                                 res.data() + start, len, a, b);
                 });
-            } else {
-                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data(), res.data(), count, a, b);
-            }
         },
         [](const BetaDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
             if (vals.size() != res.size())
-                throw std::invalid_argument("Span size mismatch");
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
             std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
             const double a = dist.alpha_, b = dist.beta_;
             lock.unlock();
-            const double log_prefix = detail::lgamma(a + b) - detail::lgamma(a) - detail::lgamma(b);
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (x <= 0.0)
-                    res[i] = 0.0;
-                else if (x >= 1.0)
-                    res[i] = 1.0;
-                else
-                    res[i] = detail::beta_i(x, a, b, log_prefix);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, a, b);
             });
-            pool.waitForAll();
         });
 }
 
@@ -772,8 +923,8 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
         return is;
     }
     try {
-        const double a = std::stod(line.substr(a_pos + 6, comma - a_pos - 6));
-        const double b = std::stod(line.substr(b_pos + 5, close - b_pos - 5));
+        const double a = detail::parse_double(line.substr(a_pos + 6, comma - a_pos - 6));
+        const double b = detail::parse_double(line.substr(b_pos + 5, close - b_pos - 5));
         auto result = dist.trySetParameters(a, b);
         if (result.isError())
             is.setstate(std::ios::failbit);
@@ -787,20 +938,19 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
 // 18. PRIVATE BATCH IMPLEMENTATION METHODS
 //
 // Log-space pipeline for PDF and LogPDF.
-// Two vector_log calls (one for log(x), one for log(1-x)) + one aligned temp.
+// vector_log for log(x), betaLog1mx for log(1-x), + one aligned temp.
 // Scalar fixup for x <= 0 or x >= 1 (delegates to single-value method).
 //
-// LogPDF (8 steps):
+// LogPDF (7 steps):
 //   Step 1: temp    = log(x)                  [vector_log(values, temp)]
 //   Step 2: temp    = (α-1)*log(x)             [scalar_multiply]
-//   Step 3: results = x-1                      [scalar_add(values, -1)]
-//   Step 4: results = 1-x                      [scalar_multiply(results, -1)]
-//   Step 5: results = log(1-x)                 [vector_log]
-//   Step 6: results = (β-1)*log(1-x)           [scalar_multiply]
-//   Step 7: results = (α-1)log(x)+(β-1)log(1-x) [vector_add(temp, results)]
-//   Step 8: results += log_norm_const          [scalar_add]
+//   Steps 3-4: results = log(1-x)              [betaLog1mx: 1-x and vector_log up to
+//                                               |β-1| = 16, vector_log1p(-x) beyond]
+//   Step 5: results = (β-1)*log(1-x)           [scalar_multiply]
+//   Step 6: results = (α-1)log(x)+(β-1)log(1-x) [vector_add(temp, results)]
+//   Step 7: results += log_norm_const          [scalar_add]
 //
-// PDF: steps 1-8 then vector_exp.
+// PDF: steps 1-7 then vector_exp.
 // CDF architecture: detail::beta_i (regularized incomplete beta) is evaluated
 //   per element via a continued-fraction algorithm. The convergence rate varies
 //   with (x, alpha, beta): some inputs converge in a few iterations, others
@@ -812,42 +962,70 @@ std::istream& operator>>(std::istream& is, BetaDistribution& dist) {
 //   approximation, which is outside the scope of this library.
 //==============================================================================
 
+namespace {
+// results = log(1 − x) over the batch. Up to |β − 1| = 16, as 1 − x then vector_log: 1 − x's
+// rounding (up to ε/2 for x < ½), which β − 1 multiplies, stays within the law there, and this is
+// the cheaper form. Past it, vector_log1p(−x), relative-accurate as the scalar log1p is: formed
+// the first way the error reached 1e-11 at β = 1e5. Measured on Kaby Lake (2026-10-04),
+// vector_log1p costs ~1.2x the first form at small β and halves the large-shape batch, which
+// used to fall back to the scalar loop.
+void betaLog1mx(const double* values, double* results, std::size_t count,
+                double beta_minus_one) noexcept {
+    if (std::fabs(beta_minus_one) <= 16.0) {
+        arch::simd::VectorOps::scalar_add(values, -detail::ONE, results, count);        // x-1
+        arch::simd::VectorOps::scalar_multiply(results, -detail::ONE, results, count);  // 1-x
+        arch::simd::VectorOps::vector_log(results, results, count);                     // log(1-x)
+    } else {
+        arch::simd::VectorOps::scalar_multiply(values, -detail::ONE, results, count);  // -x
+        arch::simd::VectorOps::vector_log1p(results, results, count);                  // log1p(-x)
+    }
+}
+}  // namespace
+
 void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                      std::size_t count, double log_norm_const,
                                                      double alpha_minus_one,
                                                      double beta_minus_one) const noexcept {
+    // SIMD at every shape: betaLog1mx forms log(1 − x) accurately for any β − 1, and from both
+    // shapes 20 the Stirling form replaces the cancelling direct one (betaLogDensity).
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    const double a = alpha_minus_one + detail::ONE;  // exact for shapes >= 1, where it is read
+    const double b = beta_minus_one + detail::ONE;
+    const double shape_constant = betaShapeConstant(a, b);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             if (x <= 0.0 || x >= 1.0) {
-                results[i] = getProbability(x);
+                results[i] = std::exp(
+                    betaLogDensityOutside(x, log_norm_const, alpha_minus_one, beta_minus_one));
             } else {
-                results[i] = std::exp(log_norm_const + alpha_minus_one * std::log(x) +
-                                      beta_minus_one * std::log(detail::ONE - x));
+                results[i] = std::exp(betaLogDensity(x, a, b, log_norm_const, alpha_minus_one,
+                                                     beta_minus_one, shape_constant));
             }
         }
         return;
     }
 
-    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+    if (betaStirlingShapes(a, b)) {
+        stirlingBetaLogDensityBatch(values, results, count, a, b);
+    } else {
+        std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 1-2: temp = (α-1)*log(x)
-    arch::simd::VectorOps::vector_log(values, temp.data(), count);
-    arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
+        // Step 1-2: temp = (α-1)*log(x)
+        arch::simd::VectorOps::vector_log(values, temp.data(), count);
+        arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
 
-    // Step 3-6: results = (β-1)*log(1-x)
-    arch::simd::VectorOps::scalar_add(values, -detail::ONE, results, count);        // x-1
-    arch::simd::VectorOps::scalar_multiply(results, -detail::ONE, results, count);  // 1-x
-    arch::simd::VectorOps::vector_log(results, results, count);                     // log(1-x)
-    arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
+        // Step 3-6: results = (β-1)*log(1-x)
+        betaLog1mx(values, results, count, beta_minus_one);
+        arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
 
-    // Step 7: results = (α-1)*log(x) + (β-1)*log(1-x)
-    arch::simd::VectorOps::vector_add(temp.data(), results, results, count);
+        // Step 7: results = (α-1)*log(x) + (β-1)*log(1-x)
+        arch::simd::VectorOps::vector_add(temp.data(), results, results, count);
 
-    // Step 8: results += log_norm_const
-    arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+        // Step 8: results += log_norm_const
+        arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+    }
 
     // PDF: exponentiate
     arch::simd::VectorOps::vector_exp(results, results, count);
@@ -855,7 +1033,8 @@ void BetaDistribution::getProbabilityBatchUnsafeImpl(const double* values, doubl
     // Fixup: x <= 0 or x >= 1 (NaN/Inf from log(0) or log of negative)
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= 0.0 || values[i] >= 1.0) {
-            results[i] = getProbability(values[i]);
+            results[i] = std::exp(
+                betaLogDensityOutside(values[i], log_norm_const, alpha_minus_one, beta_minus_one));
         }
     }
 }
@@ -864,41 +1043,50 @@ void BetaDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, do
                                                         std::size_t count, double log_norm_const,
                                                         double alpha_minus_one,
                                                         double beta_minus_one) const noexcept {
+    // SIMD at every shape: betaLog1mx forms log(1 − x) accurately for any β − 1, and from both
+    // shapes 20 the Stirling form replaces the cancelling direct one (betaLogDensity).
     const bool use_simd = arch::simd::SIMDPolicy::shouldUseSIMD(count);
+    const double a = alpha_minus_one + detail::ONE;  // exact for shapes >= 1, where it is read
+    const double b = beta_minus_one + detail::ONE;
+    const double shape_constant = betaShapeConstant(a, b);
 
     if (!use_simd) {
         for (std::size_t i = 0; i < count; ++i) {
             const double x = values[i];
             if (x <= 0.0 || x >= 1.0) {
-                results[i] = getLogProbability(x);
+                results[i] =
+                    betaLogDensityOutside(x, log_norm_const, alpha_minus_one, beta_minus_one);
             } else {
-                results[i] = log_norm_const + alpha_minus_one * std::log(x) +
-                             beta_minus_one * std::log(detail::ONE - x);
+                results[i] = betaLogDensity(x, a, b, log_norm_const, alpha_minus_one,
+                                            beta_minus_one, shape_constant);
             }
         }
         return;
     }
 
-    std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
+    if (betaStirlingShapes(a, b)) {
+        stirlingBetaLogDensityBatch(values, results, count, a, b);
+    } else {
+        std::vector<double, arch::simd::aligned_allocator<double>> temp(count);
 
-    // Step 1-2: temp = (α-1)*log(x)
-    arch::simd::VectorOps::vector_log(values, temp.data(), count);
-    arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
+        // Step 1-2: temp = (α-1)*log(x)
+        arch::simd::VectorOps::vector_log(values, temp.data(), count);
+        arch::simd::VectorOps::scalar_multiply(temp.data(), alpha_minus_one, temp.data(), count);
 
-    // Step 3-6: results = (β-1)*log(1-x)
-    arch::simd::VectorOps::scalar_add(values, -detail::ONE, results, count);
-    arch::simd::VectorOps::scalar_multiply(results, -detail::ONE, results, count);
-    arch::simd::VectorOps::vector_log(results, results, count);
-    arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
+        // Step 3-6: results = (β-1)*log(1-x)
+        betaLog1mx(values, results, count, beta_minus_one);
+        arch::simd::VectorOps::scalar_multiply(results, beta_minus_one, results, count);
 
-    // Step 7-8: full LogPDF
-    arch::simd::VectorOps::vector_add(temp.data(), results, results, count);
-    arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+        // Step 7-8: full LogPDF
+        arch::simd::VectorOps::vector_add(temp.data(), results, results, count);
+        arch::simd::VectorOps::scalar_add(results, log_norm_const, results, count);
+    }
 
     // Fixup: x <= 0 or x >= 1
     for (std::size_t i = 0; i < count; ++i) {
         if (values[i] <= 0.0 || values[i] >= 1.0) {
-            results[i] = getLogProbability(values[i]);
+            results[i] =
+                betaLogDensityOutside(values[i], log_norm_const, alpha_minus_one, beta_minus_one);
         }
     }
 }
@@ -911,8 +1099,7 @@ void BetaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* val
     // vectorized without replacing it with a fixed-iteration approximation.
     // Hoist the lgamma prefix: lgamma(a+b) - lgamma(a) - lgamma(b) is constant
     // for fixed (alpha, beta), saving 3 lgamma calls per element.
-    const double log_prefix =
-        detail::lgamma(alpha + beta) - detail::lgamma(alpha) - detail::lgamma(beta);
+    const double log_prefix = detail::beta_prefactor_constant(alpha, beta);
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
         if (x <= detail::ZERO_DOUBLE) {

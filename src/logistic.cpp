@@ -1,9 +1,6 @@
 #include "libstats/distributions/logistic.h"
 
 #include "libstats/common/distribution_impl_common.h"
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -12,6 +9,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -19,6 +17,11 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 namespace {
 
@@ -40,8 +43,7 @@ namespace {
 ///   z ≥ 0 → 1/(1 + e^(−z));  z < 0 → e^(z)/(1 + e^(z)).
 [[nodiscard]] inline double logisticCdfKernel(double z) noexcept {
     const double e = std::exp(-std::fabs(z));
-    return (z >= detail::ZERO_DOUBLE) ? detail::ONE / (detail::ONE + e)
-                                      : e / (detail::ONE + e);
+    return (z >= detail::ZERO_DOUBLE) ? detail::ONE / (detail::ONE + e) : e / (detail::ONE + e);
 }
 
 /// tanh(z/2) = 2·F(z) − 1, evaluated from e = exp(−|z|) so that no overflow can
@@ -115,6 +117,11 @@ LogisticDistribution::LogisticDistribution(LogisticDistribution&& other) noexcep
 
 LogisticDistribution& LogisticDistribution::operator=(LogisticDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         mu_ = other.mu_;
         s_ = other.s_;
         inv_s_ = other.inv_s_;
@@ -164,8 +171,8 @@ double LogisticDistribution::getSAtomic() const noexcept {
 }
 
 void LogisticDistribution::setMu(double mu) {
-    validateParameters(mu, s_);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu, s_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -174,8 +181,8 @@ void LogisticDistribution::setMu(double mu) {
 }
 
 void LogisticDistribution::setS(double s) {
-    validateParameters(mu_, s);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu_, s);
     s_ = s;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -199,10 +206,10 @@ void LogisticDistribution::setParameters(double mu, double s) {
 //==============================================================================
 
 VoidResult LogisticDistribution::trySetMu(double mu) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateLogisticParameters(mu, s_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -212,10 +219,10 @@ VoidResult LogisticDistribution::trySetMu(double mu) noexcept {
 }
 
 VoidResult LogisticDistribution::trySetS(double s) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateLogisticParameters(mu_, s);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     s_ = s;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -291,8 +298,25 @@ double LogisticDistribution::getCumulativeProbability(double x) const {
     return logisticCdfKernel((x - m) * is);
 }
 
+double LogisticDistribution::getSurvival(double x) const {
+    // S(z) = F(−z) by symmetry, through the same sign-branched kernel.
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x))
+        return (x > detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::ONE;
+
+    double m, is;
+    withCacheSnapshot([&] {
+        m = mu_;
+        is = inv_s_;
+    });
+    return logisticCdfKernel(-((x - m) * is));
+}
+
 double LogisticDistribution::getQuantile(double p) const {
-    if (std::isnan(p) || p < detail::ZERO_DOUBLE || p > detail::ONE)
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
         return -std::numeric_limits<double>::infinity();
@@ -423,8 +447,7 @@ void LogisticDistribution::fit(const std::vector<double>& values) {
         else
             u_hi = u;
 
-        double u_next = (gp != detail::ZERO_DOUBLE) ? u - g / gp
-                                                    : detail::HALF * (u_lo + u_hi);
+        double u_next = (gp != detail::ZERO_DOUBLE) ? u - g / gp : detail::HALF * (u_lo + u_hi);
         if (!std::isfinite(u_next) || u_next <= u_lo || u_next >= u_hi)
             u_next = detail::HALF * (u_lo + u_hi);
 
@@ -459,7 +482,7 @@ void LogisticDistribution::reset() noexcept {
 std::string LogisticDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "LogisticDistribution(mu=" << mu_ << ",s=" << s_ << ")";
     return oss.str();
 }
@@ -501,47 +524,35 @@ void LogisticDistribution::getProbability(std::span<const double> values, std::s
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double m, is, nls;
+            double m, nis, nls;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
-                is = d.inv_s_;
+                nis = d.neg_inv_s_;
                 nls = d.neg_log_s_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return detail::ZERO_DOUBLE;
-                return std::exp(logisticLogKernel((x - m) * is) + nls);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                    nis, nls);
+                });
         },
-        // Work-stealing
         [](const LogisticDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            double m, is, nls;
+            if (count == 0)
+                return;
+            double m, nis, nls;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
-                is = d.inv_s_;
+                nis = d.neg_inv_s_;
                 nls = d.neg_log_s_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = detail::ZERO_DOUBLE;
-                else
-                    res[i] = std::exp(logisticLogKernel((x - m) * is) + nls);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                nis, nls);
             });
-            pool.waitForAll();
         });
 }
 
@@ -566,46 +577,35 @@ void LogisticDistribution::getLogProbability(std::span<const double> values,
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-            double m, is, nls;
+            double m, nis, nls;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
-                is = d.inv_s_;
+                nis = d.neg_inv_s_;
                 nls = d.neg_log_s_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return detail::NEGATIVE_INFINITY;
-                return logisticLogKernel((x - m) * is) + nls;
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       m, nis, nls);
+                });
         },
         [](const LogisticDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
-            double m, is, nls;
+            if (count == 0)
+                return;
+            double m, nis, nls;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
-                is = d.inv_s_;
+                nis = d.neg_inv_s_;
                 nls = d.neg_log_s_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = detail::NEGATIVE_INFINITY;
-                else
-                    res[i] = logisticLogKernel((x - m) * is) + nls;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                   nis, nls);
             });
-            pool.waitForAll();
         });
 }
 
@@ -634,39 +634,28 @@ void LogisticDistribution::getCumulativeProbability(std::span<const double> valu
                 m = d.mu_;
                 is = d.inv_s_;
             });
-            const auto kernel = [=](double x) {
-                if (std::isnan(x))
-                    return x;
-                if (!std::isfinite(x))
-                    return (x > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-                return logisticCdfKernel((x - m) * is);
-            };
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count,
-                                           [&](std::size_t i) { res[i] = kernel(vals[i]); });
-            } else {
-                for (std::size_t i = 0; i < count; ++i)
-                    res[i] = kernel(vals[i]);
-            }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, m, is);
+                });
         },
         [](const LogisticDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, is;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 is = d.inv_s_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (std::isnan(x))
-                    res[i] = x;
-                else if (!std::isfinite(x))
-                    res[i] = (x > detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-                else
-                    res[i] = logisticCdfKernel((x - m) * is);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, m, is);
             });
-            pool.waitForAll();
         });
 }
 
@@ -716,8 +705,8 @@ std::istream& operator>>(std::istream& is, LogisticDistribution& dist) {
     }
 
     try {
-        mu = std::stod(token.substr(mu_pos + 3, s_pos - mu_pos - 3));
-        s = std::stod(token.substr(s_pos + 3, close - s_pos - 3));
+        mu = detail::parse_double(token.substr(mu_pos + 3, s_pos - mu_pos - 3));
+        s = detail::parse_double(token.substr(s_pos + 3, close - s_pos - 3));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

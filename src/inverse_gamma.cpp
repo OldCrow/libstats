@@ -1,15 +1,16 @@
 #include "libstats/distributions/inverse_gamma.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel
-
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 
@@ -28,6 +29,79 @@ constexpr double kLogXHi = 709.0;
 /// Halvings of [kLogXLo, kLogXHi]; 1454 / 2^80 is far below one ulp of any
 /// representable log-x, so the bracket collapses onto adjacent doubles.
 constexpr int kBisectIterations = 80;
+
+// x is exact, but the argument the incomplete gamma and the density take, β/x, is rounded, and
+// at a large shape the result amplifies that rounding: d log f / d log(β/x) = α − β/x, ~3e9 at
+// α = 1e16 thirty standard deviations out, so half an ulp of β/x moved the density 1.6e-7 and
+// the CDF 7.4e-8 relative (Gamma(1e16, 1) is clean at the mirrored points: there βx is x).
+// Each rounding is recovered exactly with an fma and carried to second order: the first-order
+// carry left α·(δ/y)²/2 for a relative rounding δ/y ≤ ε/2, 6e-17 at α = 1e16 but 6e-13 at 1e20,
+// and its CDF erred 1100 ulp at InverseGamma(1e20, 3), 1.7e5 at 1e22 (Fix7C).
+
+// log f(x) − (what the delegate returns at inv_x = fl(1/x), minus 2·log x). The delegate takes
+// y = fl(β·inv_x); with e = 1 − inv_x·x (log(1/x) − log inv_x to first order), exact by fma.
+// Below α = STIRLING_PREFACTOR_SHAPE it evaluates (α − 1)·log inv_x − y, which takes y only
+// linearly and uncorrected, so the argument's whole error d = β/x − y counts, exact up to the
+// final division. From there it evaluates log P(α, Y) − log inv_x at Y = β·inv_x, exact, with
+// its own product's rounding e_p = Y − y already carried (gamma.cpp, withRateProductRounding),
+// so what remains is log P(α, β/x) − log P(α, Y) + log(inv_x·x) = −(α − 1)·log1p(−e) − d with
+// d = β/x − Y = Y·e/(1 − e). Expanded about y, so that the terms of size α·e cancel exactly:
+// e·((α − y − 1) + e·((α − 1)/2 − y) − e_p), whose next term is ~α·e³ (4e-29 at α = 1e20). The
+// first-order (α − y)·(d/y) − e it replaces missed ~α·e²/2, 6e-13 at α = 1e20 (Fix7C). Coupled
+// to that delegate: the β = 3 rows of the H4 guard in test_contract_gates fail if the two
+// disagree.
+[[nodiscard]] double reciprocalArgumentCorrection(double x, double inv_x, double alpha,
+                                                  double beta) noexcept {
+    const double y = beta * inv_x;
+    if (!(y >= std::numeric_limits<double>::min()) || !std::isfinite(y))
+        return detail::ZERO_DOUBLE;  // the delegate's own edge handling stands
+    const double e = std::fma(-inv_x, x, detail::ONE);
+    if (alpha < detail::STIRLING_PREFACTOR_SHAPE)
+        return (alpha - detail::ONE) * e - std::fma(-y, x, beta) / x;
+    const double e_p = std::fma(beta, inv_x, -y);
+    return e * (((alpha - y) - detail::ONE) + e * (detail::HALF * (alpha - detail::ONE) - y) - e_p);
+}
+
+// Q(α, t) or P(α, t) at t = fl(β/x), corrected to t + δ, δ = β/x − t = r/x with the exact
+// residual r = β − t·x, so δ/t = r/(t·x) = r/(β − r). P gains and Q loses the density's integral
+// over [t, t + δ], f(t)·δ·(expm1(u)/u − b·δ²/3) with u = δ·(α − 1 − t)/t and b = (α − 1)/(2t²),
+// t·f(t) = exp(log_gamma_prefactor(α, t)): gamma.cpp's rateProductIncrement, which derives it.
+// Carried in the log to first order until Fix7C, which left 1100 ulp at InverseGamma(1e20, 3)
+// and 1.7e5 at 1e22. The ratio is formed in the log, so an exp(lgp) below DBL_MIN
+// keeps it.
+[[nodiscard]] double correctedIncompleteGamma(double value, bool upper, double alpha, double beta,
+                                              double x, double t) noexcept {
+    const double r = std::fma(-t, x, beta);
+    // value > 0, not >= DBL_MIN: a subnormal P or Q keeps ~47 bits near 1e-309, and skipping the
+    // correction there left it 1.8e-7 off at InverseGamma(1e16, 3) (M1 survival sweep).
+    if (r == detail::ZERO_DOUBLE || !(value > detail::ZERO_DOUBLE))
+        return value;
+    const double rel = r / (beta - r);
+    const double ratio = std::exp(detail::log_gamma_prefactor(alpha, t) - std::log(value));
+    if (ratio == detail::ZERO_DOUBLE)
+        return value;  // and u may overflow (t ≫ α): see rateProductIncrement
+    const double u = rel * ((alpha - t) - detail::ONE);
+    const double phi = u == detail::ZERO_DOUBLE ? detail::ONE : std::expm1(u) / u;
+    const double increment = rel * ratio * (phi - (alpha - detail::ONE) * rel * rel / 6.0);
+    // Clamped as gamma.cpp's callers clamp (the expansion fails from α ~ 1e32).
+    return std::clamp(std::fma(upper ? -value : value, increment, value), detail::ZERO_DOUBLE,
+                      detail::ONE);
+}
+
+// log f(x) where 1/x overflows (0 < x < 1/DBL_MAX, ~5.6e-309), from t = β/x, which is finite
+// there for β < 1: log f = log_gamma_prefactor(α, t) − log x, with t's rounding δ = r/x carried
+// as α·log1p(δ/t) − δ to second order. Read as −inf, the reciprocal path's limit, until Fix7C,
+// though the density need not be small there: InverseGamma(1e10, 1e-300).pdf(1.0003e-310) =
+// 1.35e119. Where t overflows too, −t dominates the log density for any α below ~t/709.
+[[nodiscard]] double logDensityPastReciprocalRange(double x, double alpha, double beta) noexcept {
+    const double t = beta / x;
+    if (!(t <= std::numeric_limits<double>::max()))
+        return detail::NEGATIVE_INFINITY;
+    const double r = std::fma(-t, x, beta);
+    const double rel = r / (beta - r);
+    const double log_value = detail::log_gamma_prefactor(alpha, t) - std::log(x);
+    return std::fma(rel, alpha - t, log_value - detail::HALF * alpha * rel * rel);
+}
 
 }  // namespace
 
@@ -97,6 +171,11 @@ InverseGammaDistribution::InverseGammaDistribution(InverseGammaDistribution&& ot
 InverseGammaDistribution& InverseGammaDistribution::operator=(
     InverseGammaDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         alpha_ = other.alpha_;
         beta_ = other.beta_;
         gamma_ = std::move(other.gamma_);
@@ -118,7 +197,7 @@ InverseGammaDistribution& InverseGammaDistribution::operator=(
 //==============================================================================
 
 InverseGammaDistribution InverseGammaDistribution::createUnchecked(double alpha,
-                                                                  double beta) noexcept {
+                                                                   double beta) noexcept {
     return InverseGammaDistribution(alpha, beta, true);
 }
 
@@ -147,29 +226,31 @@ double InverseGammaDistribution::getBetaAtomic() const noexcept {
 }
 
 void InverseGammaDistribution::setAlpha(double alpha) {
-    validateParameters(alpha, beta_);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(alpha, beta_);
         alpha_ = alpha;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(alpha);
     }
-    // Sync the delegate outside our lock -- same pattern as ChiSquared/Erlang.
-    // gamma_ is private, so no external thread can hold its mutex.
-    (void)gamma_.trySetAlpha(alpha);
 }
 
 void InverseGammaDistribution::setBeta(double beta) {
-    validateParameters(alpha_, beta);
     {
         std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        validateParameters(alpha_, beta);
         beta_ = beta;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetBeta(beta);  // SCALE here == RATE there
     }
-    (void)gamma_.trySetBeta(beta);  // SCALE here == RATE there
 }
 
 void InverseGammaDistribution::setParameters(double alpha, double beta) {
@@ -181,23 +262,46 @@ void InverseGammaDistribution::setParameters(double alpha, double beta) {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(alpha, beta);
     }
-    (void)gamma_.trySetParameters(alpha, beta);
 }
 
+// The trySet* validate and assign under one lock rather than calling the throwing setters,
+// which would end in std::terminate from these noexcept functions; the delegate is synced
+// outside the lock, as in the setters.
 VoidResult InverseGammaDistribution::trySetAlpha(double alpha) noexcept {
-    auto v = validateInverseGammaParameters(alpha, beta_);
-    if (v.isError())
-        return v;
-    setAlpha(alpha);
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateInverseGammaParameters(alpha, beta_);
+        if (v.isError())
+            return v;
+        alpha_ = alpha;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(alpha);
+    }
     return VoidResult::ok({});
 }
 
 VoidResult InverseGammaDistribution::trySetBeta(double beta) noexcept {
-    auto v = validateInverseGammaParameters(alpha_, beta);
-    if (v.isError())
-        return v;
-    setBeta(beta);
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        auto v = validateInverseGammaParameters(alpha_, beta);
+        if (v.isError())
+            return v;
+        beta_ = beta;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetBeta(beta);  // SCALE here == RATE there
+    }
     return VoidResult::ok({});
 }
 
@@ -205,7 +309,17 @@ VoidResult InverseGammaDistribution::trySetParameters(double alpha, double beta)
     auto v = validateInverseGammaParameters(alpha, beta);
     if (v.isError())
         return v;
-    setParameters(alpha, beta);
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        alpha_ = alpha;
+        beta_ = beta;
+        cache_valid_ = false;
+        cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(alpha, beta);
+    }
     return VoidResult::ok({});
 }
 
@@ -288,10 +402,10 @@ double InverseGammaDistribution::getEntropy() const {
 //   x  = NaN                -> NaN                    (propagate)
 //   x <= 0 (incl. -inf)     -> -inf   (outside the support)
 //   x  = +inf               -> -inf   (density ~ x^(-alpha-1) -> 0)
-//   x < ~5.6e-309           -> -inf   1/x overflows; the true density there is
-//                                     already 0 (exp(-beta/x) underflows long
-//                                     before), so -inf is the correct limit and
-//                                     +inf must never reach the delegate.
+//   x < ~5.6e-309           -> -inf   1/x overflows, so +inf must never reach the
+//                                     delegate. -inf is not the density there for a
+//                                     small beta: callers take a positive finite x
+//                                     to logDensityPastReciprocalRange instead.
 bool InverseGammaDistribution::reciprocalIsUsable(double x, double& inv_x,
                                                   double& edge_logpdf) noexcept {
     if (std::isnan(x)) {
@@ -302,11 +416,14 @@ bool InverseGammaDistribution::reciprocalIsUsable(double x, double& inv_x,
         edge_logpdf = detail::NEGATIVE_INFINITY;
         return false;
     }
-    inv_x = detail::ONE / x;
-    if (!std::isfinite(inv_x)) {
+    // 1/x overflows exactly when x <= 2^-1024. x is tested, not 1/x: GCC 14 and 16 take an
+    // overflowed 1/x to mean x = 0, and the callers' logDensityPastReciprocalRange(x) read +inf
+    // (AGENTS.md).
+    if (x <= 0x1p-1024) {
         edge_logpdf = detail::NEGATIVE_INFINITY;
         return false;
     }
+    inv_x = detail::ONE / x;
     edge_logpdf = detail::ZERO_DOUBLE;  // unused
     return true;
 }
@@ -329,8 +446,10 @@ double InverseGammaDistribution::cdfImpl(double x, double alpha, double beta) no
 
     const double t = beta / x;
     if (!std::isfinite(t))
-        return detail::ZERO_DOUBLE;  // x subnormal-tiny: Q(alpha, +inf) = 0
-    return detail::gamma_q(alpha, t);
+        return detail::ZERO_DOUBLE;              // x subnormal-tiny: Q(alpha, +inf) = 0
+    if (t < std::numeric_limits<double>::min())  // β/x below DBL_MIN: log space (#216)
+        return detail::gamma_q_from_log_x(alpha, std::log(beta) - std::log(x));
+    return correctedIncompleteGamma(detail::gamma_q(alpha, t), true, alpha, beta, x, t);
 }
 
 // Survival 1 - CDF(x) = P(alpha, beta/x), the LOWER regularized incomplete
@@ -348,17 +467,37 @@ double InverseGammaDistribution::sfImpl(double x, double alpha, double beta) noe
     const double t = beta / x;
     if (!std::isfinite(t))
         return detail::ONE;
-    return detail::gamma_p(alpha, t);
+    if (t < std::numeric_limits<double>::min())  // β/x below DBL_MIN: log space (#216)
+        return detail::gamma_p_from_log_x(alpha, std::log(beta) - std::log(x));
+    return correctedIncompleteGamma(detail::gamma_p(alpha, t), false, alpha, beta, x, t);
 }
 
 double InverseGammaDistribution::getLogProbability(double x) const {
     double inv_x = detail::ZERO_DOUBLE;
     double edge = detail::ZERO_DOUBLE;
-    if (!reciprocalIsUsable(x, inv_x, edge))
-        return edge;
+    if (!reciprocalIsUsable(x, inv_x, edge)) {
+        if (!(x > detail::ZERO_DOUBLE) || x == kInf)
+            return edge;
+        double a, b;
+        withCacheSnapshot([&] {
+            a = alpha_;
+            b = beta_;
+        });
+        return logDensityPastReciprocalRange(x, a, b);
+    }
     // Jacobian of Y = 1/X is 1/x^2, i.e. -2 ln x in log space. Exact in log
     // space -- no cancellation, and no intermediate density to overflow.
-    return gamma_.getLogProbability(inv_x) - detail::TWO * std::log(x);
+    // The delegate is evaluated inside this object's snapshot: every setter updates it under
+    // our unique lock (ours, then the delegate's), so under our lock it holds (alpha_, beta_),
+    // and the correction and the delegate's value come from one state.
+    double a, b, delegate_logpdf;
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+        delegate_logpdf = gamma_.getLogProbability(inv_x);
+    });
+    return delegate_logpdf + reciprocalArgumentCorrection(x, inv_x, a, b) -
+           detail::TWO * std::log(x);
 }
 
 double InverseGammaDistribution::getProbability(double x) const {
@@ -387,7 +526,9 @@ double InverseGammaDistribution::getSurvivalProbability(double x) const {
 }
 
 double InverseGammaDistribution::getQuantile(double p) const {
-    if (std::isnan(p) || p < detail::ZERO_DOUBLE || p > detail::ONE)
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
+    if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability p must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
@@ -438,10 +579,16 @@ double InverseGammaDistribution::sample(std::mt19937& rng) const {
 }
 
 std::vector<double> InverseGammaDistribution::sample(std::mt19937& rng, size_t n) const {
+    // One state per call: copy the delegate under this object's lock (owner, then delegate) and
+    // draw all n from the copy. Looping the scalar sample mixed states under a setter (#186).
+    std::optional<GammaDistribution> gamma;
+    withCacheSnapshot([&] { gamma.emplace(gamma_); });
     std::vector<double> out;
     out.reserve(n);
-    for (size_t i = 0; i < n; ++i)
-        out.push_back(sample(rng));
+    for (size_t i = 0; i < n; ++i) {
+        const double g = gamma->sample(rng);
+        out.push_back(g > detail::ZERO_DOUBLE ? detail::ONE / g : kInf);
+    }
     return out;
 }
 
@@ -480,9 +627,8 @@ void InverseGammaDistribution::fit(const std::vector<double>& values) {
     setParameters(g.getAlpha(), g.getBeta());
 }
 
-void InverseGammaDistribution::parallelBatchFit(
-    const std::vector<std::vector<double>>& datasets,
-    std::vector<InverseGammaDistribution>& results) {
+void InverseGammaDistribution::parallelBatchFit(const std::vector<std::vector<double>>& datasets,
+                                                std::vector<InverseGammaDistribution>& results) {
     detail::batchFitParallel(datasets, results);
 }
 
@@ -494,13 +640,16 @@ void InverseGammaDistribution::reset() noexcept {
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicParamsValid_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetParameters(detail::ONE, detail::ONE);
     }
-    (void)gamma_.trySetParameters(detail::ONE, detail::ONE);
 }
 
 std::string InverseGammaDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "InverseGammaDistribution(alpha=" << alpha_ << ",beta=" << beta_ << ")";
     return oss.str();
 }
@@ -515,6 +664,10 @@ void InverseGammaDistribution::getLogProbability(std::span<const double> values,
     if (values.size() != results.size())
         throw std::invalid_argument("Input and output spans must have the same size");
     const std::size_t count = values.size();
+    // The delegate sees the scratch buffer, so its own overlap assert cannot see the caller's
+    // spans; the fixup pass below re-reads values after results is written (AR D5).
+    LIBSTATS_ASSERT_NO_OVERLAP(values.data(), results.data(), count,
+                               "InverseGammaDistribution::getLogProbability");
     if (count == 0)
         return;
 
@@ -529,7 +682,15 @@ void InverseGammaDistribution::getLogProbability(std::span<const double> values,
         scratch[i] = reciprocalIsUsable(values[i], inv_x, edge) ? inv_x : detail::ONE;
     }
 
-    gamma_.getLogProbability(std::span<const double>(scratch), results, hint);
+    // The delegate batch runs inside this object's snapshot, as in the scalar path, so (a, b) and
+    // every delegate value come from one state; a setter waits for the batch. Its worker threads
+    // take only the delegate's lock, in the setters' order (ours, then the delegate's).
+    double a, b;
+    withCacheSnapshot([&] {
+        a = alpha_;
+        b = beta_;
+        gamma_.getLogProbability(std::span<const double>(scratch), results, hint);
+    });
 
     // Re-reading `values` after `results` has been written is exactly what the
     // documented non-overlap contract permits (#112) -- the same shape as the
@@ -538,7 +699,10 @@ void InverseGammaDistribution::getLogProbability(std::span<const double> values,
         double inv_x = detail::ZERO_DOUBLE;
         double edge = detail::ZERO_DOUBLE;
         if (reciprocalIsUsable(values[i], inv_x, edge))
-            results[i] -= detail::TWO * std::log(values[i]);
+            results[i] = results[i] + reciprocalArgumentCorrection(values[i], inv_x, a, b) -
+                         detail::TWO * std::log(values[i]);
+        else if (values[i] > detail::ZERO_DOUBLE && values[i] != kInf)
+            results[i] = logDensityPastReciprocalRange(values[i], a, b);
         else
             results[i] = edge;
     }
@@ -555,16 +719,15 @@ void InverseGammaDistribution::getProbability(std::span<const double> values,
         results[i] = std::isnan(results[i]) ? kNaN : std::exp(results[i]);
 }
 
-void InverseGammaDistribution::cdfKernel(const double* values, double* results,
-                                         std::size_t count, double alpha,
-                                         double beta) noexcept {
+void InverseGammaDistribution::cdfKernel(const double* values, double* results, std::size_t count,
+                                         double alpha, double beta) noexcept {
     for (std::size_t i = 0; i < count; ++i)
         results[i] = cdfImpl(values[i], alpha, beta);
 }
 
-void InverseGammaDistribution::getCumulativeProbability(
-    std::span<const double> values, std::span<double> results,
-    const detail::PerformanceHint& hint) const {
+void InverseGammaDistribution::getCumulativeProbability(std::span<const double> values,
+                                                        std::span<double> results,
+                                                        const detail::PerformanceHint& hint) const {
     // No delegation here: detail::gamma_q has no vector form (see the DEFERRED
     // note on vector_gamma_q in math_utils.h), and the delegate's own CDF is
     // the wrong tail. Own scalar kernel under autoDispatch.
@@ -595,8 +758,7 @@ void InverseGammaDistribution::getCumulativeProbability(
                 b = dist.beta_;
             });
             constexpr std::size_t CHUNK = 1024;
-            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start,
-                                                               std::size_t len) {
+            ParallelUtils::parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b);
             });
         },
@@ -616,7 +778,6 @@ void InverseGammaDistribution::getCumulativeProbability(
             pool.parallelForSlices(count, CHUNK, [&](std::size_t start, std::size_t len) {
                 cdfKernel(vals.data() + start, res.data() + start, len, a, b);
             });
-            pool.waitForAll();
         });
 }
 
@@ -671,8 +832,8 @@ std::istream& operator>>(std::istream& is, InverseGammaDistribution& dist) {
 
     double alpha, beta;
     try {
-        alpha = std::stod(token.substr(a_pos + 6, a_comma - a_pos - 6));
-        beta = std::stod(token.substr(b_pos + 5, b_close - b_pos - 5));
+        alpha = detail::parse_double(token.substr(a_pos + 6, a_comma - a_pos - 6));
+        beta = detail::parse_double(token.substr(b_pos + 5, b_close - b_pos - 5));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

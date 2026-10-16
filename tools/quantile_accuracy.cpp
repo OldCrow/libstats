@@ -251,16 +251,16 @@ int main(int argc, char* argv[]) {
             test_continuous("Gaussian", "N(5,2)", GaussianDistribution::create(5.0, 2.0).unwrap()));
 
         // Exponential: closed-form -log(1-p)/lambda; exact to machine precision
-        results.push_back(
-            test_continuous("Exponential", "Exp(1)", ExponentialDistribution::create(1.0).unwrap()));
-        results.push_back(
-            test_continuous("Exponential", "Exp(0.1)", ExponentialDistribution::create(0.1).unwrap()));
+        results.push_back(test_continuous("Exponential", "Exp(1)",
+                                          ExponentialDistribution::create(1.0).unwrap()));
+        results.push_back(test_continuous("Exponential", "Exp(0.1)",
+                                          ExponentialDistribution::create(0.1).unwrap()));
 
         // Gamma: numerical Newton-Raphson inverse
         results.push_back(
             test_continuous("Gamma", "G(2,1)", GammaDistribution::create(2.0, 1.0).unwrap()));
-        results.push_back(
-            test_continuous("Gamma", "G(0.5,1)", GammaDistribution::create(0.5, 1.0).unwrap(), 1e-5));
+        results.push_back(test_continuous("Gamma", "G(0.5,1)",
+                                          GammaDistribution::create(0.5, 1.0).unwrap(), 1e-5));
 
         // Chi-squared: delegates to Gamma
         results.push_back(
@@ -283,20 +283,20 @@ int main(int argc, char* argv[]) {
         // Beta: numerical; avoid very small alpha/beta which stress the solver
         results.push_back(
             test_continuous("Beta", "B(2,3)", BetaDistribution::create(2.0, 3.0).unwrap()));
-        results.push_back(
-            test_continuous("Beta", "B(0.5,0.5)", BetaDistribution::create(0.5, 0.5).unwrap(), 1e-5));
+        results.push_back(test_continuous("Beta", "B(0.5,0.5)",
+                                          BetaDistribution::create(0.5, 0.5).unwrap(), 1e-5));
 
         // LogNormal: closed-form via Gaussian inverse
-        results.push_back(
-            test_continuous("LogNormal", "LN(0,1)", LogNormalDistribution::create(0.0, 1.0).unwrap()));
+        results.push_back(test_continuous("LogNormal", "LN(0,1)",
+                                          LogNormalDistribution::create(0.0, 1.0).unwrap()));
         results.push_back(test_continuous("LogNormal", "LN(2,0.5)",
                                           LogNormalDistribution::create(2.0, 0.5).unwrap()));
 
         // Pareto: closed-form power-law; avoid p→1 (unbounded)
         results.push_back(
             test_continuous("Laplace", "Lap(0,1)", LaplaceDistribution::create(0.0, 1.0).unwrap()));
-        results.push_back(
-            test_continuous("Laplace", "Lap(2,0.5)", LaplaceDistribution::create(2.0, 0.5).unwrap()));
+        results.push_back(test_continuous("Laplace", "Lap(2,0.5)",
+                                          LaplaceDistribution::create(2.0, 0.5).unwrap()));
 
         // Cauchy: closed-form tan() quantile; very accurate
         results.push_back(

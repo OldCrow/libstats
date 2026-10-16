@@ -34,6 +34,7 @@
 #include "libstats_config.h"
 
 #include <cmath>
+#include <limits>
 
 namespace stats {
 namespace detail {
@@ -57,8 +58,14 @@ namespace detail {
 // Latent while every in-library caller passes a concentration κ ≥ 0, but these
 // are helpers in an INSTALLED header and a consumer may pass anything. It
 // stopped being latent the moment #97 let consumers reach Tier 1 at all.
+//
+// Below 1e-8, I₀(x) = 1 + x²/4 + … rounds to 1. It is returned directly: libstdc++'s
+// std::cyl_bessel_i(0, x) is NaN at x = 5e-324 (GCC 16; 1 from 1e-320 up).
+inline constexpr double kBesselI0IsOneBelow = 1e-8;
+
 [[nodiscard]] inline double bessel_i0(double x) noexcept {
-    return std::cyl_bessel_i(0.0, std::fabs(x));
+    const double ax = std::fabs(x);
+    return ax < kBesselI0IsOneBelow ? 1.0 : std::cyl_bessel_i(0.0, ax);
 }
 
 [[nodiscard]] inline double bessel_i1(double x) noexcept {
@@ -102,12 +109,17 @@ inline constexpr double kTwoPi = 6.283185307179586476925286766559;
     if (ax > 700.0) {
         const double t = 1.0 / ax;
         const double s =
-            t * (0.125 +
-                 t * (0.0703125 +
-                      t * (0.0732421875 + t * (0.112152099609375 + t * 0.22710800170898438))));
-        return ax - 0.5 * std::log(kTwoPi * ax) + std::log1p(s);
+            t * (0.125 + t * (0.0703125 + t * (0.0732421875 +
+                                               t * (0.112152099609375 + t * 0.22710800170898438))));
+        // 2πx overflows past DBL_MAX/(2π); there log(2πx) is split. x is tested, not 2πx (GCC
+        // folds the split's log x to +inf when it sees the product overflow; AGENTS.md).
+        constexpr double kLn2Pi = 1.8378770664093454835606594728112;
+        const double log_two_pi_x = ax < std::numeric_limits<double>::max() / kTwoPi
+                                        ? std::log(kTwoPi * ax)
+                                        : kLn2Pi + std::log(ax);
+        return ax - 0.5 * log_two_pi_x + std::log1p(s);
     }
-    return std::log(std::cyl_bessel_i(0.0, ax));
+    return std::log(bessel_i0(ax));
 }
 
 #else
@@ -284,21 +296,56 @@ inline constexpr double kTwoPi = 6.283185307179586476925286766559;
 
 inline constexpr double kBesselRatioAsymptoticCut = 50.0;
 
+/// @brief log(e^{−x} I₀(x)), the scaled log Bessel function. Requires x ≥ 0.
+///
+/// For a caller that would otherwise subtract x from log I₀(x) (the von Mises
+/// entropy log(2π I₀(κ)) − κ A(κ), whose two κ-sized terms cancel to ½·log(2π/κ)
+/// + ½ as κ → ∞, DH2 M1). From the ratio cut, the large-x series
+///     I₀(x) ~ e^x/√(2πx) · Σ_k c_k x^-k,   c_k = ((2k−1)!!)² / (k! 8^k)
+/// to ten terms (c₁₁/50¹¹ ≈ 1e-16: double accuracy on both tiers, where Tier 2's
+/// A&S polynomials carry ~2e-7); below it, log I₀(x) − x on the tier's I₀, which
+/// loses at most x·ε. Tier-independent, like the ratio helpers that follow.
+/// log_bessel_i0 keeps its own series above 700 unchanged.
+[[nodiscard]] inline double log_bessel_i0_scaled(double x) noexcept {
+    if (x >= kBesselRatioAsymptoticCut) {
+        // Coefficients are exact dyadic rationals generated from the c_k formula.
+        const double t = 1.0 / x;
+        const double s =
+            t * (0.125 + t * (0.0703125 +
+                              t * (0.0732421875 +
+                                   t * (0.112152099609375 +
+                                        t * (0.22710800170898438 +
+                                             t * (0.5725014209747314 +
+                                                  t * (1.7277275025844574 +
+                                                       t * (6.074042001273483 +
+                                                            t * (24.380529699556064 +
+                                                                 t * 110.01714026924674)))))))));
+        constexpr double two_pi = 6.283185307179586476925286766559;  // kTwoPi is Tier 1 only
+        constexpr double ln_two_pi = 1.8378770664093454835606594728112;
+        // Split past DBL_MAX/(2π), where 2πx overflows; x is tested, not 2πx (see above).
+        const double log_two_pi_x = x < std::numeric_limits<double>::max() / two_pi
+                                        ? std::log(two_pi * x)
+                                        : ln_two_pi + std::log(x);
+        return -0.5 * log_two_pi_x + std::log1p(s);
+    }
+    return log_bessel_i0(x) - x;
+}
+
 /// @brief 1 − I₁(x)/I₀(x) — the von Mises circular variance. Requires x ≥ 0.
 [[nodiscard]] inline double bessel_i1_i0_complement(double x) noexcept {
     if (x >= kBesselRatioAsymptoticCut) {
         // Horner in t = 1/x. Finite for every x up to +inf (t → 0 → 0).
         const double t = 1.0 / x;
-        return t * (0.5 +
-                    t * (0.125 +
-                         t * (0.125 +
-                              t * (0.1953125 +
-                                   t * (0.40625 +
-                                        t * (1.0478515625 +
-                                             t * (3.21875 +
-                                                  t * (11.466461181640625 +
-                                                       t * (46.478515625 +
-                                                            t * 211.27614974975586)))))))));
+        return t *
+               (0.5 +
+                t * (0.125 +
+                     t * (0.125 +
+                          t * (0.1953125 +
+                               t * (0.40625 +
+                                    t * (1.0478515625 +
+                                         t * (3.21875 + t * (11.466461181640625 +
+                                                             t * (46.478515625 +
+                                                                  t * 211.27614974975586)))))))));
     }
     const double i0 = bessel_i0(x);
     const double i1 = bessel_i1(x);

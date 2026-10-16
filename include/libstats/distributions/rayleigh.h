@@ -76,7 +76,8 @@ class RayleighDistribution : public DistributionBase {
     /**
      * @brief Construct a Rayleigh distribution.
      * @param sigma Scale parameter σ (must be positive, default 1)
-     * @throws std::invalid_argument if sigma is not strictly positive or non-finite
+     * @throws std::invalid_argument if sigma is not in [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      *
      * Default σ = 1 is the standard Rayleigh distribution.
      * Implementation in .cpp.
@@ -131,7 +132,8 @@ class RayleighDistribution : public DistributionBase {
 
     /**
      * @brief Set scale parameter σ.
-     * @throws std::invalid_argument if sigma <= 0
+     * @throws std::invalid_argument if sigma is not in [MIN_SQUARABLE_SCALE,
+     * MAX_STANDARD_DEVIATION]
      */
     void setSigma(double sigma);
 
@@ -199,6 +201,13 @@ class RayleighDistribution : public DistributionBase {
      * @brief CDF: 1 − exp(−x²/(2σ²)) for x ≥ 0; 0 for x < 0.
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
+
+    /**
+     * @brief Survival S(x) = 1 − F(x), formed as the complement itself (AR A11), so it keeps full
+     * relative precision in the upper tail, where 1 − F(x) cancels to 0, and getHazard stays
+     * finite inside the support.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
 
     /**
      * @brief Quantile: σ·√(−2·log(1−p)).
@@ -343,6 +352,11 @@ class RayleighDistribution : public DistributionBase {
     static void validateParameters(double sigma) {
         if (std::isnan(sigma) || std::isinf(sigma) || sigma <= detail::ZERO_DOUBLE) {
             throw std::invalid_argument("Sigma (σ) must be a positive finite number");
+        }
+        // σ² must stay finite and normal (DH D6); the upper bound is Gaussian's.
+        if (sigma < detail::MIN_SQUARABLE_SCALE || sigma > detail::MAX_STANDARD_DEVIATION) {
+            throw std::invalid_argument(
+                "Sigma (σ) is outside the range where σ² is a normal double");
         }
     }
 

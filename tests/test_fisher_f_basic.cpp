@@ -71,8 +71,7 @@ int main() {
         BasicTestFormatter::printProperty("Initial d2", f.getD2());
         BasicTestFormatter::printProperty("Mean (d2/(d2-2) = 1.25)", f.getMean());
         BasicTestFormatter::printProperty("Variance (expect 1.3541666...)", f.getVariance());
-        BasicTestFormatter::printPropertyInt("Num parameters (should be 2)",
-                                             f.getNumParameters());
+        BasicTestFormatter::printPropertyInt("Num parameters (should be 2)", f.getNumParameters());
         cout << "Distribution name: " << f.getDistributionName() << endl;
         cout << "Is discrete: " << (f.isDiscrete() ? "YES" : "NO") << endl;
         BasicTestFormatter::printProperty("Support lower", f.getSupportLowerBound());
@@ -131,8 +130,7 @@ int main() {
 
         // Out-of-support and support edge
         BasicTestFormatter::printProperty("PDF(-1) should be 0", ref.getProbability(-1.0));
-        BasicTestFormatter::printProperty("CDF(0)  should be 0",
-                                          ref.getCumulativeProbability(0.0));
+        BasicTestFormatter::printProperty("CDF(0)  should be 0", ref.getCumulativeProbability(0.0));
         BasicTestFormatter::printProperty("PDF(0)  should be 0 (d1=5 > 2)",
                                           ref.getProbability(0.0));
 
@@ -218,10 +216,7 @@ int main() {
         // =====================================================================
         // Test 6: Auto-dispatch Batch Operations
         // =====================================================================
-        stats::tests::BasicDistConfig cfg{"FisherF",
-                                          {0.1, 0.5, 1.0, 2.0, 5.0},
-                                          0.05,
-                                          5.0,
+        stats::tests::BasicDistConfig cfg{"FisherF", {0.1, 0.5, 1.0, 2.0, 5.0}, 0.05, 5.0,
                                           1e-12,  // pdf_tolerance
                                           1e-12};
         auto f_batch = stats::FDistribution::create(5.0, 10.0).unwrap();

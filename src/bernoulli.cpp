@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -68,6 +70,11 @@ BernoulliDistribution::BernoulliDistribution(BernoulliDistribution&& other) noex
 
 BernoulliDistribution& BernoulliDistribution::operator=(BernoulliDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         p_ = other.p_;
         binomial_ = std::move(other.binomial_);
         other.p_ = detail::HALF;
@@ -115,11 +122,10 @@ void BernoulliDistribution::setP(double p) {
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicP_.store(p_, std::memory_order_release);
         atomicParamsValid_.store(true, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)binomial_.trySetP(p);
     }
-    // Update the delegate outside our lock to avoid holding two locks at once.
-    // binomial_ is private, so no external thread can reach it while we don't
-    // hold our lock.
-    (void)binomial_.trySetP(p);
 }
 
 //==============================================================================
@@ -137,8 +143,10 @@ VoidResult BernoulliDistribution::trySetP(double p) noexcept {
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicP_.store(p_, std::memory_order_release);
         atomicParamsValid_.store(true, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)binomial_.trySetP(p);
     }
-    (void)binomial_.trySetP(p);
     return VoidResult::ok({});
 }
 
@@ -180,13 +188,16 @@ void BernoulliDistribution::reset() noexcept {
         cacheValidAtomic_.store(false, std::memory_order_release);
         atomicP_.store(detail::HALF, std::memory_order_release);
         atomicParamsValid_.store(true, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)binomial_.trySetP(detail::HALF);
     }
-    (void)binomial_.trySetP(detail::HALF);
 }
 
 std::string BernoulliDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "BernoulliDistribution(p=" << p_ << ")";
     return oss.str();
 }
@@ -261,7 +272,7 @@ std::istream& operator>>(std::istream& is, BernoulliDistribution& dist) {
     }
 
     try {
-        p = std::stod(token.substr(p_pos + 2, close - p_pos - 2));
+        p = detail::parse_double(token.substr(p_pos + 2, close - p_pos - 2));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

@@ -1,0 +1,18 @@
+{
+  "captured_at_utc": "2026-10-05T04-36-25Z",
+  "run_id": "2026-10-05T04-36-25Z_darwin-arm64_dev-v2.4.2_sha-2c5230a",
+  "git_branch": "dev/v2.4.2",
+  "git_sha": "2c5230a",
+  "project_root": "/Users/wolfman/Development/libstats-v2.4.2",
+  "build_dir": "/Users/wolfman/Development/libstats-v2.4.2/build-release",
+  "build_type": "Release",
+  "cmake_options": "",
+  "cxx_compiler": "/usr/bin/c++ (Apple clang 21.0.0, clang-2100.3.34.2)",
+  "os": "darwin (macOS 27.0.1)",
+  "arch": "arm64",
+  "simd_tier_active": "NEON",
+  "simd_tier_capped": "",
+  "cpu_brand": "Apple M1",
+  "physical_cores": "8",
+  "logical_cores": "8"
+}

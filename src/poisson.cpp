@@ -1,10 +1,6 @@
 #include "libstats/distributions/poisson.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/math_constants.h"
 #include "libstats/core/parallel_batch_fit.h"
 #include "libstats/core/statistical_constants.h"
@@ -26,14 +22,21 @@ using stats::detail::validatePositiveParameter;
 #include <any>
 #include <cmath>
 #include <cstdint>
+#include <iomanip>
 #include <limits>
 #include <map>
 #include <numeric>
 #include <random>
 #include <sstream>
+#include <string_view>
 #include <vector>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTORS
@@ -62,6 +65,7 @@ PoissonDistribution& PoissonDistribution::operator=(const PoissonDistribution& o
         lambda_ = other.lambda_;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -72,18 +76,26 @@ PoissonDistribution::PoissonDistribution(PoissonDistribution&& other) noexcept
     other.lambda_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
     // Cache will be updated on first use
 }
 
 PoissonDistribution& PoissonDistribution::operator=(PoissonDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         lambda_ = other.lambda_;
         other.lambda_ = detail::ONE;
 
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -152,19 +164,19 @@ double PoissonDistribution::getLambdaAtomic() const noexcept {
     return getLambda();
 }
 
-inline int PoissonDistribution::getNumParameters() const noexcept {
+int PoissonDistribution::getNumParameters() const noexcept {
     return 1;
 }
 
-inline bool PoissonDistribution::isDiscrete() const noexcept {
+bool PoissonDistribution::isDiscrete() const noexcept {
     return true;
 }
 
-inline double PoissonDistribution::getSupportLowerBound() const noexcept {
+double PoissonDistribution::getSupportLowerBound() const noexcept {
     return 0.0;
 }
 
-inline double PoissonDistribution::getSupportUpperBound() const noexcept {
+double PoissonDistribution::getSupportUpperBound() const noexcept {
     return std::numeric_limits<double>::infinity();
 }
 
@@ -243,7 +255,7 @@ VoidResult PoissonDistribution::trySetParameters(double lambda) noexcept {
     return VoidResult::ok({});
 }
 
-inline VoidResult PoissonDistribution::validateCurrentParameters() const noexcept {
+VoidResult PoissonDistribution::validateCurrentParameters() const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     return validatePoissonParameters(lambda_);
 }
@@ -255,11 +267,10 @@ inline VoidResult PoissonDistribution::validateCurrentParameters() const noexcep
 double PoissonDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-    if (x < detail::ZERO_DOUBLE)
-        return detail::ZERO_DOUBLE;
 
-    int k = roundToNonNegativeInt(x);
-    if (!isValidCount(x))
+    // Rounded before the support test, as its siblings: x in (−½, 0) is the count 0.
+    const int k = roundToNonNegativeInt(x);
+    if (k < 0)
         return detail::ZERO_DOUBLE;
 
     return getProbabilityExact(k);
@@ -268,12 +279,10 @@ double PoissonDistribution::getProbability(double x) const {
 double PoissonDistribution::getLogProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-    if (x < detail::ZERO_DOUBLE)
-        return detail::MIN_LOG_PROBABILITY;
 
-    int k = roundToNonNegativeInt(x);
-    if (!isValidCount(x))
-        return detail::MIN_LOG_PROBABILITY;
+    const int k = roundToNonNegativeInt(x);  // rounded first, as getProbability
+    if (k < 0)
+        return detail::NEGATIVE_INFINITY;
 
     return getLogProbabilityExact(k);
 }
@@ -284,20 +293,39 @@ double PoissonDistribution::getCumulativeProbability(double x) const {
     if (x < detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
-    int k = roundToNonNegativeInt(x);
+    int k = floorToNonNegativeInt(x);
     if (!isValidCount(x))
         return detail::ONE;
 
     return getCumulativeProbabilityExact(k);
 }
 
+double PoissonDistribution::getSurvival(double x) const {
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (x < detail::ZERO_DOUBLE)
+        return detail::ONE;
+
+    const int k = floorToNonNegativeInt(x);
+    if (!isValidCount(x))
+        return detail::ZERO_DOUBLE;
+
+    double lambda;
+    withCacheSnapshot([&] { lambda = lambda_; });
+    return computeSurvival(k, lambda);
+}
+
 double PoissonDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0,1]");
     }
 
     if (p == detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
+    // Q(1) is the smallest k with S(k) = 0, the support's upper end: λ > 0 leaves S(k) > 0 at
+    // every count, so +∞.
     if (p == detail::ONE)
         return std::numeric_limits<double>::infinity();
 
@@ -309,36 +337,20 @@ double PoissonDistribution::getQuantile(double p) const {
         local_lambda = lambda_;
     }
 
-    // Use bracketing search for quantile. MC-4: use a wide integer bound to
-    // avoid overflow while expanding for large lambda.
-    std::int64_t lower = 0;
-    std::int64_t upper = static_cast<std::int64_t>(std::ceil(
-        local_lambda + detail::QUANTILE_UPPER_BOUND_MULTIPLIER * std::sqrt(local_lambda)));
-    upper = std::max<std::int64_t>(upper, 1);
-
-    // Expand upper bound if necessary
-    constexpr std::int64_t kMaxQuantileSearch =
-        static_cast<std::int64_t>(std::numeric_limits<int>::max());
-    while (upper < kMaxQuantileSearch &&
-           getCumulativeProbabilityExact(static_cast<int>(upper)) < p) {
-        lower = upper;
-        upper = std::min(upper * 2, kMaxQuantileSearch);
-    }
-    if (getCumulativeProbabilityExact(static_cast<int>(upper)) < p) {
-        return static_cast<double>(upper);
-    }
-
-    // Binary search
-    while (upper - lower > 1) {
-        const std::int64_t mid = lower + (upper - lower) / detail::TWO_INT;
-        if (getCumulativeProbabilityExact(static_cast<int>(mid)) < p) {
-            lower = mid;
-        } else {
-            upper = mid;
-        }
-    }
-
-    return static_cast<double>(upper);
+    // Smallest k with CDF(k) >= p (p <= 1/2) or S(k) <= 1 - p (p > 1/2), searched outward from
+    // the normal approximation: two or three evaluations. The count is capped at INT_MAX. Both
+    // read the same λ copy as the guess, not the live member.
+    const double stddev = std::sqrt(local_lambda);
+    const std::int64_t k = detail::discrete_quantile_search(
+        [local_lambda](std::int64_t i) {
+            return i < 0 ? detail::ZERO_DOUBLE : computeCDF(static_cast<int>(i), local_lambda);
+        },
+        [local_lambda](std::int64_t i) {
+            return i < 0 ? detail::ONE : computeSurvival(static_cast<int>(i), local_lambda);
+        },
+        p, 0, static_cast<std::int64_t>(std::numeric_limits<int>::max()),
+        detail::discrete_quantile_guess(p, local_lambda, stddev, detail::ONE / stddev));
+    return static_cast<double>(k);
 }
 
 double PoissonDistribution::sample(std::mt19937& rng) const {
@@ -462,6 +474,7 @@ void PoissonDistribution::reset() noexcept {
 
 std::string PoissonDistribution::toString() const {
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     oss << "Poisson(λ=" << lambda_ << ")";
     return oss.str();
@@ -503,23 +516,31 @@ double PoissonDistribution::getProbabilityExact(int k) const {
         return detail::ZERO_DOUBLE;
 
     bool is_small;
-    withCacheSnapshot([&] { is_small = isSmallLambda_; });
-    return is_small ? computePMFSmall(k) : computePMFLarge(k);
+    double lambda, exp_neg_lambda;
+    withCacheSnapshot([&] {
+        is_small = isSmallLambda_;
+        lambda = lambda_;
+        exp_neg_lambda = expNegLambda_;
+    });
+    return is_small ? computePMFSmall(k, lambda, exp_neg_lambda) : computePMFLarge(k, lambda);
 }
 
 double PoissonDistribution::getLogProbabilityExact(int k) const noexcept {
     if (k < 0)
-        return detail::MIN_LOG_PROBABILITY;
+        return detail::NEGATIVE_INFINITY;
 
-    withCacheSnapshot([&] {});  // ensure cache valid; computeLogPMF reads cached members
-    return computeLogPMF(k);
+    double lambda;
+    withCacheSnapshot([&] { lambda = lambda_; });
+    return computeLogPMF(k, lambda);
 }
 
 double PoissonDistribution::getCumulativeProbabilityExact(int k) const {
     if (k < 0)
         return detail::ZERO_DOUBLE;
 
-    return computeCDF(k);
+    double lambda;
+    withCacheSnapshot([&] { lambda = lambda_; });
+    return computeCDF(k, lambda);
 }
 
 bool PoissonDistribution::canUseNormalApproximation() const noexcept {
@@ -529,15 +550,19 @@ bool PoissonDistribution::canUseNormalApproximation() const noexcept {
 }
 
 double PoissonDistribution::getMedian() const {
-    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-    // For Poisson distribution, median ≈ λ + 1/3 - 0.02/λ for large λ
-    // For small λ, use numerical approximation via quantile function
-    if (lambda_ > 10.0) {
-        return lambda_ + (1.0 / 3.0) - (0.02 / lambda_);
-    } else {
-        // Use quantile function for more accurate median calculation for small λ
-        return getQuantile(0.5);
+    double lambda;
+    {
+        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+        lambda = lambda_;
     }
+    // For Poisson distribution, median ≈ λ + 1/3 - 0.02/λ for large λ
+    // For small λ, use numerical approximation via quantile function. getQuantile takes the
+    // shared lock itself: calling it under ours locked the shared_mutex recursively (undefined,
+    // and a deadlock with SRWLOCK once a writer queues in between).
+    if (lambda > 10.0) {
+        return lambda + (1.0 / 3.0) - (0.02 / lambda);
+    }
+    return getQuantile(0.5);
 }
 
 //==============================================================================
@@ -559,115 +584,39 @@ void PoissonDistribution::getProbability(std::span<const double> values, std::sp
             dist.getProbabilityBatchUnsafeImpl(vals, res, count, lam, loglam, enl);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double cached_lambda, cached_log_lambda, cached_exp_neg_lambda;
+            double lam, loglam, enl;
             dist.withCacheSnapshot([&] {
-                cached_lambda = dist.lambda_;
-                cached_log_lambda = dist.logLambda_;
-                cached_exp_neg_lambda = dist.expNegLambda_;
+                lam = dist.lambda_;
+                loglam = dist.logLambda_;
+                enl = dist.expNegLambda_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-
-                    // Compute PMF using cached parameters
-                    if (k == 0) {
-                        res[i] = cached_exp_neg_lambda;
-                    } else if (cached_lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                               k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
-                        res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
-                                 PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-                    } else {
-                        double log_result = k * cached_log_lambda - cached_lambda -
-                                            PoissonDistribution::logFactorial(k);
-                        res[i] = std::exp(log_result);
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       lam, loglam, enl);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-
-                    if (k == 0) {
-                        res[i] = cached_exp_neg_lambda;
-                    } else if (cached_lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                               k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
-                        res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
-                                 PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-                    } else {
-                        double log_result = k * cached_log_lambda - cached_lambda -
-                                            PoissonDistribution::logFactorial(k);
-                        res[i] = std::exp(log_result);
-                    }
-                }
-            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            double cached_lambda, cached_log_lambda, cached_exp_neg_lambda;
+            double lam, loglam, enl;
             dist.withCacheSnapshot([&] {
-                cached_lambda = dist.lambda_;
-                cached_log_lambda = dist.logLambda_;
-                cached_exp_neg_lambda = dist.expNegLambda_;
+                lam = dist.lambda_;
+                loglam = dist.logLambda_;
+                enl = dist.expNegLambda_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                if (k == 0) {
-                    res[i] = cached_exp_neg_lambda;
-                } else if (cached_lambda < detail::SMALL_LAMBDA_THRESHOLD &&
-                           k < static_cast<int>(PoissonDistribution::FACTORIAL_CACHE.size())) {
-                    res[i] = std::pow(cached_lambda, k) * cached_exp_neg_lambda /
-                             PoissonDistribution::FACTORIAL_CACHE[static_cast<std::size_t>(k)];
-                } else {
-                    double log_result = k * cached_log_lambda - cached_lambda -
-                                        PoissonDistribution::logFactorial(k);
-                    res[i] = std::exp(log_result);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   lam, loglam, enl);
             });
         });
 }
@@ -701,24 +650,20 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                                                   cached_log_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double cached_lambda, cached_log_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
+                    if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
+                    }
                     cached_lambda = dist.lambda_;
                     cached_log_lambda = dist.logLambda_;
                 } else {
@@ -726,65 +671,28 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                     cached_log_lambda = dist.logLambda_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::MIN_LOG_PROBABILITY;
-                        return;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::MIN_LOG_PROBABILITY;
-                        return;
-                    }
-
-                    // log P(X = k) = k * log(λ) - λ - log(k!)
-                    res[i] = k * cached_log_lambda - cached_lambda -
-                             PoissonDistribution::logFactorial(k);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, cached_lambda, cached_log_lambda);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::MIN_LOG_PROBABILITY;
-                        continue;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::MIN_LOG_PROBABILITY;
-                        continue;
-                    }
-
-                    // log P(X = k) = k * log(λ) - λ - log(k!)
-                    res[i] = k * cached_log_lambda - cached_lambda -
-                             PoissonDistribution::logFactorial(k);
-                }
-            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double cached_lambda, cached_log_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
+                    if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
+                    }
                     cached_lambda = dist.lambda_;
                     cached_log_lambda = dist.logLambda_;
                 } else {
@@ -792,23 +700,9 @@ void PoissonDistribution::getLogProbability(std::span<const double> values,
                     cached_log_lambda = dist.logLambda_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::MIN_LOG_PROBABILITY;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::MIN_LOG_PROBABILITY;
-                    return;
-                }
-
-                // log P(X = k) = k * log(λ) - λ - log(k!)
-                res[i] =
-                    k * cached_log_lambda - cached_lambda - PoissonDistribution::logFactorial(k);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      cached_lambda, cached_log_lambda);
             });
         });
 }
@@ -840,107 +734,55 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
             dist.getCumulativeProbabilityBatchUnsafeImpl(vals, res, count, cached_lambda);
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double cached_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
+                    if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
+                    }
                     cached_lambda = dist.lambda_;
                 } else {
                     cached_lambda = dist.lambda_;
                 }
             }
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        return;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ONE;
-                        return;
-                    }
-
-                    // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                    res[i] = detail::gamma_q(k + 1, cached_lambda);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, cached_lambda);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (vals[i] < detail::ZERO_DOUBLE) {
-                        res[i] = detail::ZERO_DOUBLE;
-                        continue;
-                    }
-
-                    int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                    if (!PoissonDistribution::isValidCount(vals[i])) {
-                        res[i] = detail::ONE;
-                        continue;
-                    }
-
-                    // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                    res[i] = detail::gamma_q(k + 1, cached_lambda);
-                }
-            }
         },
         [](const PoissonDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
-            // Snapshot parameters under the appropriate lock to avoid TOCTOU.
             double cached_lambda;
             {
                 std::shared_lock<std::shared_mutex> lock(dist.cache_mutex_);
                 if (!dist.cache_valid_) {
                     lock.unlock();
                     std::unique_lock<std::shared_mutex> ulock(dist.cache_mutex_);
-                    if (!dist.cache_valid_)
+                    if (!dist.cache_valid_) {
                         dist.updateCacheUnsafe();
+                    }
                     cached_lambda = dist.lambda_;
                 } else {
                     cached_lambda = dist.lambda_;
                 }
             }
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < detail::ZERO_DOUBLE) {
-                    res[i] = detail::ZERO_DOUBLE;
-                    return;
-                }
-
-                int k = PoissonDistribution::roundToNonNegativeInt(vals[i]);
-                if (!PoissonDistribution::isValidCount(vals[i])) {
-                    res[i] = detail::ONE;
-                    return;
-                }
-
-                // Use regularized incomplete gamma function: P(X ≤ k) = Q(k+1, λ)
-                res[i] = detail::gamma_q(k + 1, cached_lambda);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_lambda);
             });
         });
 }
@@ -954,6 +796,9 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
 //==============================================================================
 
 bool PoissonDistribution::operator==(const PoissonDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
@@ -988,13 +833,15 @@ std::istream& operator>>(std::istream& is, PoissonDistribution& distribution) {
         return is;
     }
 
-    // Extract λ value
-    if (token.find("λ=") == std::string::npos) {
+    // Extract λ value. "λ" is two bytes in UTF-8, so the tag's length is its size(), not 2 (#187).
+    constexpr std::string_view kLambdaTag = "λ=";
+    const size_t tag_pos = token.find(kLambdaTag);
+    if (tag_pos == std::string::npos) {
         is.setstate(std::ios::failbit);
         return is;
     }
 
-    size_t lambda_pos = token.find("λ=") + 2;
+    size_t lambda_pos = tag_pos + kLambdaTag.size();
     size_t close_paren = token.find(")", lambda_pos);
     if (close_paren == std::string::npos) {
         is.setstate(std::ios::failbit);
@@ -1003,7 +850,7 @@ std::istream& operator>>(std::istream& is, PoissonDistribution& distribution) {
 
     try {
         std::string lambda_str = token.substr(lambda_pos, close_paren - lambda_pos);
-        lambda = std::stod(lambda_str);
+        lambda = detail::parse_double(lambda_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -1040,7 +887,7 @@ PoissonDistribution::PoissonDistribution(double lambda, bool /*bypassValidation*
 
 void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                         std::size_t count, double lambda,
-                                                        double log_lambda,
+                                                        [[maybe_unused]] double log_lambda,
                                                         double exp_neg_lambda) const noexcept {
     // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
@@ -1048,13 +895,8 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             results[i] = values[i];
             continue;
         }
-        if (values[i] < detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
-            continue;
-        }
-
-        int k = roundToNonNegativeInt(values[i]);
-        if (!isValidCount(values[i])) {
+        const int k = roundToNonNegativeInt(values[i]);
+        if (k < 0) {
             results[i] = detail::ZERO_DOUBLE;
             continue;
         }
@@ -1066,33 +908,28 @@ void PoissonDistribution::getProbabilityBatchUnsafeImpl(const double* values, do
             results[i] =
                 std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
         } else {
-            double log_result = k * log_lambda - lambda - logFactorial(k);
+            double log_result = detail::poisson_log_pmf(static_cast<double>(k), lambda);
             results[i] = std::exp(log_result);
         }
     }
 }
 
-void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
-                                                           std::size_t count, double lambda,
-                                                           double log_lambda) const noexcept {
+void PoissonDistribution::getLogProbabilityBatchUnsafeImpl(
+    const double* values, double* results, std::size_t count, double lambda,
+    [[maybe_unused]] double log_lambda) const noexcept {
     // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
     for (std::size_t i = 0; i < count; ++i) {
         if (std::isnan(values[i])) {
             results[i] = values[i];
             continue;
         }
-        if (values[i] < detail::ZERO_DOUBLE) {
-            results[i] = detail::MIN_LOG_PROBABILITY;
+        const int k = roundToNonNegativeInt(values[i]);
+        if (k < 0) {
+            results[i] = detail::NEGATIVE_INFINITY;
             continue;
         }
 
-        int k = roundToNonNegativeInt(values[i]);
-        if (!isValidCount(values[i])) {
-            results[i] = detail::MIN_LOG_PROBABILITY;
-            continue;
-        }
-
-        results[i] = k * log_lambda - lambda - logFactorial(k);
+        results[i] = detail::poisson_log_pmf(static_cast<double>(k), lambda);
     }
 }
 
@@ -1111,7 +948,7 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
             continue;
         }
 
-        int k = roundToNonNegativeInt(values[i]);
+        int k = floorToNonNegativeInt(values[i]);
         if (!isValidCount(values[i])) {
             results[i] = detail::ONE;
             continue;
@@ -1134,7 +971,7 @@ void PoissonDistribution::updateCacheUnsafe() const noexcept {
     invLambda_ = detail::ONE / lambda_;
 
     // Stirling's approximation for log(Γ(λ+1)) = log(λ!)
-    logGammaLambdaPlus1_ = std::lgamma(lambda_ + detail::ONE);
+    logGammaLambdaPlus1_ = detail::lgamma(lambda_ + detail::ONE);
 
     // Optimization flags
     isSmallLambda_ = (lambda_ < detail::SMALL_LAMBDA_THRESHOLD);
@@ -1161,39 +998,38 @@ void PoissonDistribution::validateParameters(double lambda) {
     }
 }
 
-double PoissonDistribution::computePMFSmall(int k) const noexcept {
+double PoissonDistribution::computePMFSmall(int k, double lambda, double exp_neg_lambda) noexcept {
     // Direct computation for small lambda
     if (k < static_cast<int>(FACTORIAL_CACHE.size())) {
         // Use cached factorial
-        return std::pow(lambda_, k) * expNegLambda_ / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
+        return std::pow(lambda, k) * exp_neg_lambda / FACTORIAL_CACHE[static_cast<std::size_t>(k)];
     } else {
         // Use log-space computation
-        return std::exp(computeLogPMF(k));
+        return std::exp(computeLogPMF(k, lambda));
     }
 }
 
-double PoissonDistribution::computePMFLarge(int k) const noexcept {
-    // Use Stirling's approximation or normal approximation for large lambda
-    if (isVeryLargeLambda_ && std::abs(k - lambda_) < detail::THREE * sqrtLambda_) {
-        // Normal approximation with continuity correction
-        double z = (k + detail::HALF - lambda_) / sqrtLambda_;
-        return std::exp(detail::NEG_HALF * z * z) / (sqrtLambda_ * detail::SQRT_2PI);
-    } else {
-        // Use log-space computation
-        return std::exp(computeLogPMF(k));
-    }
+double PoissonDistribution::computePMFLarge(int k, double lambda) noexcept {
+    // Log-space, as the batch path computes it. A normal approximation (with continuity correction)
+    // used to stand in within 3σ of a very large λ: 4e-3 relative off at λ = 1e5.
+    return std::exp(computeLogPMF(k, lambda));
 }
 
-double PoissonDistribution::computeLogPMF(int k) const noexcept {
-    // log P(X = k) = k * log(λ) - λ - log(k!)
-    double log_factorial_k = logFactorial(k);
-    return k * logLambda_ - lambda_ - log_factorial_k;
+double PoissonDistribution::computeLogPMF(int k, double lambda) noexcept {
+    // log P(X = k) = k * log(λ) - λ - log(k!), formed without cancellation at large k or λ (#172)
+    return detail::poisson_log_pmf(static_cast<double>(k), lambda);
 }
 
-double PoissonDistribution::computeCDF(int k) const noexcept {
+double PoissonDistribution::computeCDF(int k, double lambda) noexcept {
     // Use regularized incomplete gamma function: P(X <= k) = Q(k+1, λ)
     // where Q(a,x) is the regularized upper incomplete gamma function
-    return detail::gamma_q(k + 1, lambda_);
+    return detail::gamma_q(k + 1, lambda);
+}
+
+double PoissonDistribution::computeSurvival(int k, double lambda) noexcept {
+    // P(X > k) = P(k+1, λ), the regularized lower incomplete gamma: small and formed directly
+    // in the upper tail, so it keeps relative precision where 1 - Q(k+1, λ) would cancel.
+    return detail::gamma_p(static_cast<double>(k) + detail::ONE, lambda);
 }
 
 double PoissonDistribution::factorial(int n) noexcept {
@@ -1225,7 +1061,7 @@ double PoissonDistribution::logFactorial(int n) noexcept {
     }
 
     // Use Stirling's approximation: log(n!) ≈ n*log(n) - n + 0.5*log(2πn)
-    return std::lgamma(n + detail::ONE);
+    return detail::lgamma(n + detail::ONE);
 }
 
 //==========================================================================
@@ -1233,18 +1069,29 @@ double PoissonDistribution::logFactorial(int n) noexcept {
 //==========================================================================
 
 // Static utility methods moved from header for better compile times
-inline int PoissonDistribution::roundToNonNegativeInt(double x) noexcept {
-    // EDGE-1: guard NaN and +inf before casting — static_cast<int>(NaN) is UB.
-    if (!std::isfinite(x) || x < 0.0)
-        return 0;
-    return static_cast<int>(std::round(x));
+int PoissonDistribution::roundToNonNegativeInt(double x) noexcept {
+    // The count nearest x, or −1 when that is not a count: negative, ±∞, NaN, or past the int
+    // range. The rounding comes first, so x in (−½, 0) rounds to −0 and is the count 0, as in
+    // Binomial, NegativeBinomial, Geometric and Bernoulli; testing x < 0 first gave pmf 0 there.
+    // EDGE-1/#167: isValidCount on the rounded value keeps the int cast defined (NaN, ±∞, 1e300).
+    const double rounded = std::round(x);
+    if (!isValidCount(rounded))
+        return -1;
+    return static_cast<int>(rounded);
 }
 
-inline bool PoissonDistribution::isValidCount(double x) noexcept {
-    // EDGE-2: static_cast<double>(INT_MAX) rounds UP to 2^31 = 2147483648.0 in
-    // IEEE 754, so `x <= INT_MAX_as_double` accepts 2147483647.5 whose rounded
-    // value overflows int. Use INT_MAX - 1 = 2147483646 (exactly representable)
-    // as the safe upper bound: round(x) <= 2147483646 < INT_MAX, safe to cast.
+int PoissonDistribution::floorToNonNegativeInt(double x) noexcept {
+    // F(x) = F(⌊x⌋): Poisson(3).cdf(2.6) is F(2), as for Binomial, NegativeBinomial and
+    // Geometric. Rounding it (as the PMF does) returned F(3) from x = 2.5. Same guard as above.
+    if (!isValidCount(x))
+        return 0;
+    return static_cast<int>(std::floor(x));
+}
+
+bool PoissonDistribution::isValidCount(double x) noexcept {
+    // EDGE-2: `x <= INT_MAX` accepts 2147483647.5, which std::round sends to 2^31 and
+    // overflows int. Bound at INT_MAX - 1 = 2147483646 instead: round(x) <= INT_MAX - 1, safe
+    // to cast. (INT_MAX itself is exact in double; the half-up rounding is the hazard.)
     constexpr double kMaxSafeCount = static_cast<double>(std::numeric_limits<int>::max() - 1);
     return (std::isfinite(x) && x >= 0.0 && x <= kMaxSafeCount);
 }

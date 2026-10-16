@@ -30,20 +30,22 @@
 // relative error 1.55e-13 across every (mean, sigma) bucket where
 // F >= 1e-290, worst case in the deep tail near z ~ -35.5 (F ~ 3e-276),
 // exactly where the |ln F|*2^-52 law predicts it; worst law-budget
-// fraction 0.287, i.e. >3.4x headroom. Below the F floor, F itself is
-// dominated by erfc's own underflow behavior and relative error is not a
-// meaningful metric -- see the F-floor gating below. Do not loosen without
+// fraction 0.287, i.e. >3.4x headroom. Below DBL_MIN the gate scores ULP
+// distance in subnormal units instead (see relerr; until 2026-10-11 it was
+// absolute error below F = 1e-290, which hid any error there). Do not loosen without
 // a matching kernel fix; a budget miss here is a kernel bug, not a
 // test-tuning problem.
 
 #include "libstats/distributions/gaussian.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <gtest/gtest.h>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <span>
 #include <utility>
 #include <vector>
@@ -80,11 +82,19 @@ double bitsToF64(std::uint64_t b) {
 inline double law_budget(double f_ref) {
     return 1e-15 * std::max(20.0, -std::log(f_ref));
 }
-// Below this reference-F floor, the oracle's own double-precision inputs
-// (and the tiny reference magnitude itself) make relative error a poor
-// metric -- fall back to an absolute budget there instead.
-constexpr double kFFloor = 1e-290;
-constexpr double kAbsBudgetBelowFloor = 1e-290;
+// Below DBL_MIN the reference is subnormal (or 0) and relative error stops
+// measuring rounding, so the error is the ULP distance in units of the
+// smallest subnormal, mapped onto the relative scale as ulps * 2^-52 (one
+// subnormal ULP scores like one ULP at DBL_MIN; see relerr). The budget there
+// is max(1 ULP, law_budget(F) * F) in those units: deep in the subnormal
+// range the law's absolute error is far below one ULP, so a faithfully
+// rounded result is required. Until 2026-10-11 every reference below 1e-290
+// was scored by ABSOLUTE error against a 1e-290 budget, so a result wrong in
+// every digit there -- 3e-305 for 1e-300, or a subnormal off by 10^4 ULPs --
+// passed.
+constexpr double kDblMin = std::numeric_limits<double>::min();
+constexpr double kDenormMin = std::numeric_limits<double>::denorm_min();
+constexpr double kTwoPowNeg52 = 0x1p-52;
 constexpr double kBudgetSpecials = 0.0;  // -inf/NaN/+inf: exact per contract
 // Batch (span overload, FORCE_VECTORIZED) is allowed to differ from the
 // scalar path only in the -1 <= w < 0 band (F in [0.079, 0.5)), where batch
@@ -100,10 +110,20 @@ constexpr double kBudgetSpecials = 0.0;  // -inf/NaN/+inf: exact per contract
 constexpr double kBudgetBatchVsScalarAbs = 1e-15;
 
 double relerr(double got, double ref) {
-    if (std::fabs(ref) < kFFloor) {
-        return std::fabs(got - ref);  // treat as absolute in this regime
+    if (std::fabs(ref) >= kDblMin) {
+        return std::fabs(got - ref) / std::fabs(ref);
     }
-    return std::fabs(got - ref) / std::fabs(ref);
+    return std::fabs(got - ref) / kDenormMin * kTwoPowNeg52;  // subnormal ULPs, see above
+}
+
+// The per-row budget on relerr's scale: the law above DBL_MIN, max(1 ULP, the
+// law's absolute error) below it.
+double row_budget(double ref) {
+    if (ref >= kDblMin) {
+        return law_budget(ref);
+    }
+    const double law_ulps = ref > 0.0 ? law_budget(ref) * ref / kDenormMin : 0.0;
+    return std::max(1.0, law_ulps) * kTwoPowNeg52;
 }
 
 }  // namespace
@@ -190,7 +210,7 @@ BucketResult run_bucket(double mean, double sigma, const GaussCdfVector* rows, s
     BucketResult r;
     r.n = n;
     for (std::size_t i = 0; i < n; ++i) {
-        const double budget = refs[i] > 0.0 ? law_budget(refs[i]) : kAbsBudgetBelowFloor;
+        const double budget = row_budget(refs[i]);
         const double sre = relerr(scalar_out[i], refs[i]);
         if (sre > r.scalar_max_rel) {
             r.scalar_max_rel = sre;
@@ -309,8 +329,8 @@ TEST(GaussianCdfGates, Specials) {
             batch_max = std::max(batch_max, be);
             EXPECT_EQ(scalar_out[i], refs[i]) << "scalar: F(x=" << xs[i] << ") must equal "
                                               << refs[i] << " exactly, got " << scalar_out[i];
-            EXPECT_EQ(batch_out[i], refs[i]) << "batch: F(x=" << xs[i] << ") must equal "
-                                             << refs[i] << " exactly, got " << batch_out[i];
+            EXPECT_EQ(batch_out[i], refs[i]) << "batch: F(x=" << xs[i] << ") must equal " << refs[i]
+                                             << " exactly, got " << batch_out[i];
         }
     }
     std::cout << std::setprecision(17) << "gausscdf scalar specials max_abs=" << scalar_max << "\n";

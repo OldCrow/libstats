@@ -1,0 +1,3 @@
+05:26:13 load=2.41 top: 9.9%Application 6.4%bzfilelist 4.8%trustd
+05:27:13 load=4.33 top: 315.4%mediaanalysisd 195.2%bench_v2.4.1 90.9%bztransmit
+05:28:13 load=4.85 top: 100.0%bztransmit 66.4%textunderstandingd 27.7%mediaanalysisd

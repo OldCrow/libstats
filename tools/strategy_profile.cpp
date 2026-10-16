@@ -10,15 +10,15 @@
 
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/binomial.h"
+#include "libstats/distributions/cauchy.h"
 #include "libstats/distributions/chi_squared.h"
 #include "libstats/distributions/discrete.h"
 #include "libstats/distributions/exponential.h"
 #include "libstats/distributions/gamma.h"
 #include "libstats/distributions/gaussian.h"
-#include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/geometric.h"
 #include "libstats/distributions/laplace.h"
-#include "libstats/distributions/cauchy.h"
+#include "libstats/distributions/lognormal.h"
 #include "libstats/distributions/negative_binomial.h"
 #include "libstats/distributions/pareto.h"
 #include "libstats/distributions/poisson.h"
@@ -132,14 +132,12 @@ class StrategyProfiler {
         // resolution.  Sizes < 64 are excluded: timing resolution (~0.1-0.2 µs)
         // is too coarse to distinguish strategies at those batch sizes, and
         // the dispatch table clamps all thresholds to a minimum of 64.
-        batch_sizes_ = {
-            // Cache-line-aligned small sizes (8 doubles = 1 cache line)
-            64, 128, 256, 512, 1024, 2048, 4096, 6144, 8192,
-            // Medium/large: dense coverage of the 10k-500k band where most
-            // V→P crossovers actually occur.
-            10000, 25000, 50000, 75000,
-            100000, 150000, 200000, 250000, 300000, 400000, 500000
-        };
+        batch_sizes_ = {// Cache-line-aligned small sizes (8 doubles = 1 cache line)
+                        64, 128, 256, 512, 1024, 2048, 4096, 6144, 8192,
+                        // Medium/large: dense coverage of the 10k-500k band where most
+                        // V→P crossovers actually occur.
+                        10000, 25000, 50000, 75000, 100000, 150000, 200000, 250000, 300000, 400000,
+                        500000};
 
         if (include_large) {
             // Extended range for resolving crossovers that hit the 500k ceiling.
@@ -232,30 +230,35 @@ class StrategyProfiler {
     }
 
     template <typename Distribution>
-    void perform_operation(const Distribution& distribution,
-                           std::span<const double> input_values,
-                           std::span<double> output_values,
-                           ProfileOperation operation,
+    void perform_operation(const Distribution& distribution, std::span<const double> input_values,
+                           std::span<double> output_values, ProfileOperation operation,
                            Strategy strategy) const {
         // Map Strategy -> PerformanceHint::PreferredStrategy (TOOL-1)
         PerformanceHint hint;
         switch (strategy) {
             case Strategy::SCALAR:
-                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_SCALAR; break;
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+                break;
             case Strategy::VECTORIZED:
-                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_VECTORIZED; break;
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+                break;
             case Strategy::PARALLEL:
-                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_PARALLEL; break;
+                hint.strategy = PerformanceHint::PreferredStrategy::FORCE_PARALLEL;
+                break;
             case Strategy::WORK_STEALING:
-                hint.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT; break;
+                hint.strategy = PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT;
+                break;
         }
         switch (operation) {
             case ProfileOperation::PDF:
-                distribution.getProbability(input_values, output_values, hint); break;
+                distribution.getProbability(input_values, output_values, hint);
+                break;
             case ProfileOperation::LOG_PDF:
-                distribution.getLogProbability(input_values, output_values, hint); break;
+                distribution.getLogProbability(input_values, output_values, hint);
+                break;
             case ProfileOperation::CDF:
-                distribution.getCumulativeProbability(input_values, output_values, hint); break;
+                distribution.getCumulativeProbability(input_values, output_values, hint);
+                break;
         }
     }
 

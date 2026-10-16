@@ -1,0 +1,3 @@
+Defined kernel symbols (nm -U) in build-release/libstats.a:
+  vector_*_neon: 10
+system_inspector: System: 8 logical cores, NEON SIMD, 0 KB L3 cache

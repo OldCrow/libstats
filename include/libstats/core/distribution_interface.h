@@ -1,6 +1,7 @@
 #pragma once
 
 #include "libstats/common/distribution_base_common.h"
+#include "libstats/core/distribution_cache.h"  // ThreadSafeCacheManager::readConsistent
 
 #include <string_view>
 
@@ -70,7 +71,7 @@ class DistributionInterface {
     /**
      * @brief Quantile function (inverse CDF)
      * @param p Probability value in [0,1]
-     * @return x such that P(X <= x) = p
+     * @return x such that P(X <= x) = p; NaN when p is NaN (every distribution)
      * @throws std::invalid_argument if p not in [0,1]
      */
     virtual double getQuantile(double p) const = 0;
@@ -236,12 +237,24 @@ inline double getStandardDeviation(const DistributionInterface& distribution) {
 /**
  * @brief Calculate coefficient of variation
  * @param distribution Distribution to query
- * @return CV = σ/μ (if μ ≠ 0)
+ * @return CV = σ/|μ| (if μ ≠ 0), +∞ at μ = 0
+ *
+ * getMean() and getVariance() are two calls, each locked on its own; a concurrent setter
+ * between them gave a value of neither parameter state. For a library distribution (every
+ * class here derives from ThreadSafeCacheManager) both come from one state, through
+ * ThreadSafeCacheManager::readConsistent. Another DistributionInterface implementation is
+ * read call by call, as before: its own synchronisation is outside this function's reach.
+ * Never call this while holding the distribution's cache_mutex_.
  */
 inline double getCoefficientOfVariation(const DistributionInterface& distribution) {
-    double mean = distribution.getMean();
-    return (mean != 0.0) ? getStandardDeviation(distribution) / std::abs(mean)
-                         : std::numeric_limits<double>::infinity();
+    const auto evaluate = [&distribution] {
+        const double mean = distribution.getMean();
+        return (mean != 0.0) ? getStandardDeviation(distribution) / std::abs(mean)
+                             : std::numeric_limits<double>::infinity();
+    };
+    if (const auto* cache = dynamic_cast<const ThreadSafeCacheManager*>(&distribution))
+        return cache->readConsistent(evaluate);
+    return evaluate();
 }
 
 }  // namespace stats

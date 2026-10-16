@@ -1,0 +1,38 @@
+[==========] Running 14 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 14 tests from MathUtilsTest
+[ RUN      ] MathUtilsTest.ErfFunctions
+[       OK ] MathUtilsTest.ErfFunctions (0 ms)
+[ RUN      ] MathUtilsTest.GammaFunctions
+[       OK ] MathUtilsTest.GammaFunctions (0 ms)
+[ RUN      ] MathUtilsTest.BetaFunctions
+[       OK ] MathUtilsTest.BetaFunctions (0 ms)
+[ RUN      ] MathUtilsTest.NormalDistributionFunctions
+[       OK ] MathUtilsTest.NormalDistributionFunctions (0 ms)
+[ RUN      ] MathUtilsTest.VectorizedErf
+[       OK ] MathUtilsTest.VectorizedErf (16 ms)
+[ RUN      ] MathUtilsTest.VectorizedGamma
+[       OK ] MathUtilsTest.VectorizedGamma (0 ms)
+[ RUN      ] MathUtilsTest.VectorizedBeta
+[       OK ] MathUtilsTest.VectorizedBeta (0 ms)
+[ RUN      ] MathUtilsTest.VectorizedThresholds
+[       OK ] MathUtilsTest.VectorizedThresholds (0 ms)
+[ RUN      ] MathUtilsTest.VectorizedEdgeCases
+[       OK ] MathUtilsTest.VectorizedEdgeCases (0 ms)
+[ RUN      ] MathUtilsTest.ErfPerformance
+Erf speedup: 1.22x
+[       OK ] MathUtilsTest.ErfPerformance (1 ms)
+[ RUN      ] MathUtilsTest.GammaPerformance
+Gamma_p speedup: 0.99x
+[       OK ] MathUtilsTest.GammaPerformance (31 ms)
+[ RUN      ] MathUtilsTest.ErfAccuracy
+[       OK ] MathUtilsTest.ErfAccuracy (0 ms)
+[ RUN      ] MathUtilsTest.InverseAccuracy
+[       OK ] MathUtilsTest.InverseAccuracy (0 ms)
+[ RUN      ] MathUtilsTest.CrossValidateFunctions
+[       OK ] MathUtilsTest.CrossValidateFunctions (0 ms)
+[----------] 14 tests from MathUtilsTest (54 ms total)
+
+[----------] Global test environment tear-down
+[==========] 14 tests from 1 test suite ran. (55 ms total)
+[  PASSED  ] 14 tests.

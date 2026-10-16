@@ -1,0 +1,13 @@
+23:29:35 load=2.26 table_ab_prev built against the 580b7f7 header
+23:29:36 load=2.26 clang-format:  1 file changed, 15 insertions(+), 13 deletions(-)
+23:29:52 load=5.33 build exit=0 warnings=0
+23:29:54 load=4.98 table_ab_new built
+23:29:54 load=4.98 prev pass 1 start
+23:30:26 load=3.97 new pass 1 start
+23:30:58 load=5.00 prev pass 2 start
+23:31:30 load=3.95 new pass 2 start
+23:32:03 load=3.86 bench done
+23:32:03 load=3.86 analysis written
+23:33:28 load=3.91 ctest exit=0 : 100% tests passed out of 132
+23:33:32 load=3.76 gates exit=0 : 0.224997 0.212993 0.213938 0.210966 0.213385 0.221306 0.216318 0.220277
+23:33:32 load=3.76 DONE

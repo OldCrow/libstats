@@ -15,13 +15,40 @@ Current release validation targets:
 
 Record new release measurements here after each real-machine validation pass.
 
+## v2.5.0 dispatch table re-derivation (2026-10-14/15)
+
+`scripts/derive_threshold_rows.py` re-derived every row of `kNeon`, `kAvx`,
+`kAvx2` and `kAvx512` from the R8 three-run `strategy_profile --large`
+bundles at code head d1adc95 (`data/profiles/dispatcher/`: K's
+`2026-10-13T*_darwin-x86_64_*`, Z's `2026-10-14T0*_windows-x86_64_*`, M's
+`2026-10-14T04-39-37Z_darwin-arm64_*`). `tools/bench/table_ab_bench.cpp`
+then timed AUTO against forced VECTORIZED and PARALLEL for all 27
+distributions at ten sizes, old table against new, ABAB (M under load, Z
+mostly quiet). AUTO rows more than 1.25× behind their best forced strategy:
+
+| Table | Machine | Before → after | Commits | Evidence |
+|---|---|---|---|---|
+| `kNeon` | M1 | 202 → 24 (580b7f7); 13 → 9 after eight one-step rows (bb9ac0b) | 580b7f7, bb9ac0b | `docs/bench-evidence/2026-10-14-m1-threshold-rows/AB_RESULTS.md` |
+| `kAvx512` | Zen 4 | 208 → 5 (five rounds) | 6c149f1 | `docs/bench-evidence/2026-10-15-zen4-threshold-rows/README.md` |
+| `kAvx2`, `kAvx` | Kaby Lake (AVX2; capped AVX and SSE2 trees) | 158 → 2, 146 → 2, 173 → 17 (three rounds; 15 values on 13 rows) | 4c3a133 | `docs/bench-evidence/2026-10-15-kabylake-threshold-rows/README.md` |
+
+Zen 4's capped builds had checked `kAvx2` and `kAvx` for direction first
+(196 → 46 and 164 → 31; the Zen 4 README). Kaby Lake's AUTO goes
+multi-threaded through WORK_STEALING, which beats PARALLEL below the
+profiled crossover; the rows stay PARALLEL-optimal because the tables serve
+Linux and Windows too (a v3 input; the Kaby Lake README). Two code changes
+underlie the rows:
+PARALLEL below the fork threshold runs the VECTORIZED kernel (ee11e62; Z's
+R8 at that code is in `docs/bench-evidence/2026-10-06-zen4-clangcl-ee11e62-r8/`),
+and every strategy returns VECTORIZED's bits (045acd9, #191).
+
 ## v2.4.0 dispatch recalibration measurements (2026-09-03/04)
 
 Forced-strategy parallel speedup over VECTORIZED at N = 2M
 (median-of-timings ratio VECTORIZED/PARALLEL from `strategy_profile
 --large`, three quiet runs per tier; ranges span the three runs), taken
 during the post-parallelForSlices-repair recalibration (#143 and the
-machine legs). Values below 1.0 mean a real fork LOSES — those rows are
+machine legs). Values below 1.0 mean a real fork LOSES — those rows were
 encoded NEVER. Source bundles under `data/profiles/dispatcher/`
 (2026-09-04T02-36-22Z Kaby Lake, T04-22-28Z M1, T23-51-14Z capped AVX);
 Zen 4 figures are from the PR #143 record (no bundle checked in).
@@ -49,6 +76,12 @@ Two findings these numbers carry:
   `vector_erf` (~2.2 ns/elem) is too fast for 8 cores to beat; the ~5×
   slower x86 `vector_erf` leaves parallel a 1.3–2.1× win. Mechanism
   recorded at the kNeon table row; cross-repo follow-up corvus#37.
+
+Superseded 2026-10-14 (R8): no table encodes these rows NEVER now. Beta
+PDF/LogPDF are 8192/10000 (`kNeon`), 4096/25000 (`kAvx`), 4096/8192
+(`kAvx2`), 8192/8192 (`kAvx512`); von Mises CDF, now a fixed-cost
+quadrature (96b157f), is 2048/4096/4096/8192; HalfNormal CDF on `kNeon` is
+75000.
 
 ## v2.0.2 scipy comparison benchmark
 
@@ -133,7 +166,7 @@ Sweep run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, sc
 
 ### Key finding: L1 cache boundary at N ≈ 5k
 
-M1 L1 data cache is 64KB per performance core. Two-array footprint (input + output doubles) exceeds L1 at N ≈ 4096 elements, producing a systematic throughput trough at N ≈ 5k across all operations regardless of threshold. Operations with `kNeon` threshold=64 (profiler floor) have parallel always active; their N=5k troughs are entirely cache-driven. See `SIMD_OPTIMIZATION_REFERENCE.md §L1 data cache boundary on NEON/M1`.
+M1 L1 data cache is 64KB per performance core. Two-array footprint (input + output doubles) exceeds L1 at N ≈ 4096 elements, producing a systematic throughput trough at N ≈ 5k across all operations regardless of threshold. Operations then at `kNeon` threshold=64 (profiler floor) had parallel always active, so their N=5k troughs were entirely cache-driven; no table holds a value below 2048 since 2026-10-14. See `SIMD_OPTIMIZATION_REFERENCE.md §L1 data cache boundary on NEON/M1`.
 
 ### Threshold corrections
 

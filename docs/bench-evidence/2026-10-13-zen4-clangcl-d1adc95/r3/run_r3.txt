@@ -1,0 +1,42 @@
+2026-10-13 22:35:14 r3 cpu=9.8% waiting
+2026-10-13 22:36:24 r3 cpu=4% ac=True quiet
+2026-10-13 22:36:24 clock[r3] start (set=True ok=True control=1 state=0)
+2026-10-13 22:36:34 clock[r3] rc=0 ms/pass=127.3/127.1 (boost ~128, base ~190)
+2026-10-13 22:36:35 bench_cc_v241 (WARMUP 20) sha=df78931 start (set=True ok=True control=1 state=0)
+2026-10-13 22:38:30 end bench_cc_v241 exit=0 cpu=4.8%
+2026-10-13 22:38:31 bench_cc_v242 (WARMUP 20) start (set=True ok=True control=1 state=0)
+2026-10-13 22:39:52 end bench_cc_v242 exit=0 cpu=5.4%
+2026-10-13 22:39:52 compare exit=0
+2026-10-13 22:40:02 timing cpu=4.2% ac=True quiet
+2026-10-13 22:40:02 clock[timing] start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:12 clock[timing] rc=0 ms/pass=127.4/127.2 (boost ~128, base ~190)
+2026-10-13 22:40:12   test_parallel_batch_gates start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:18   test_parallel_batch_gates exit=0 5.5s
+2026-10-13 22:40:18   test_math_comprehensive_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:18   test_math_comprehensive_timing exit=0 0.1s
+2026-10-13 22:40:18   test_gaussian_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:18   test_gaussian_enhanced_timing exit=0 0.4s
+2026-10-13 22:40:18   test_gamma_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_gamma_enhanced_timing exit=0 0.2s
+2026-10-13 22:40:19   test_discrete_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_discrete_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:19   test_exponential_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_exponential_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:19   test_poisson_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_poisson_enhanced_timing exit=0 0.2s
+2026-10-13 22:40:19   test_uniform_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_uniform_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:19   test_cauchy_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_cauchy_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:19   test_laplace_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_laplace_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:19   test_lognormal_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_lognormal_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:19   test_pareto_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_pareto_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:19   test_rayleigh_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:19   test_rayleigh_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:19   test_weibull_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-10-13 22:40:20   test_weibull_enhanced_timing exit=0 0.1s
+2026-10-13 22:40:20 timing: 14/14 passed 
+2026-10-13 22:40:20 DONE

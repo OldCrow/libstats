@@ -1,0 +1,59 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-10-14T04-39-37Z_darwin-arm64_dev-v2.4.2_sha-d1adc95
+Captured at (UTC): 2026-10-14T04-39-37Z (run 1; runs 2-3 04:46Z and 05:51Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- cross_tier_assessment.py
+- cross_tier_assessment.txt
+- logs/run.txt
+- logs/gate_samples.txt
+- logs/noise_run{1,2,3}.txt
+- logs/system_inspector.txt
+- logs/tier.txt
+
+Capture notes:
+- Native NEON (Release, build-release/, Ninja) on the Mac Mini M1 (8 cores, 4P+4E), macOS 27.0.1,
+  AppleClang 21.0.0, CMake 4.4.4, at the code head d1adc95 (fix-9 round 8d3c9c7, R6a docs d1adc95;
+  CI green 12/12, run 38397309137); the tree was at ea3e4f3 (NEON accuracy block, docs only).
+  Supersedes M's 2026-10-05T04-36-25Z bundle at 2c5230a, which predates the parallel-path fixes
+  (73ecbfe, ee11e62) and every fix round since. Built and R1-checked (0 warnings, 132/132) and
+  R2-checked (0 contract violations) the same evening.
+- Three `strategy_profile --large -o <csv>` runs, 7 min each (16-17 min at 2c5230a), screen
+  locked, from a detached script under caffeinate (docs/bench-evidence/2026-10-13-m1-v242-cost/
+  overnight_m_20261013.sh). The gate is ambient CPU (100 - top's idle %, all 8 cores), not the
+  1-min load, which sits at 4-10 on this machine: two consecutive 10 s windows below 15%,
+  relaxing to 20% after 3 h of waiting. Run 1 started at 7.50% (00:39 local), run 2 at 8.48%,
+  run 3 at 7.23% (logs/run.txt); Backblaze was paused by the user before the batch.
+- NOT quiet throughout. mediaanalysisd (Photos analysis, launches on idle) ran at ~0.9-1.1 cores
+  during runs 2 and 3, and bztransmit returned at 0.7 cores late in run 3 (logs/noise_run*.txt,
+  one sample a minute). Run-to-run spread is 28 rows > 2x (2026-10-05: 9; K's 2026-10-13 tiers:
+  see their bundles), the widest M capture so far.
+- The `--large` grid and the SUSTAINED V->P rule are the 2026-09-04 bundles'.
+  analyze_crossovers.py is a copy of scripts/analyze_crossovers.py at d1adc95 (run with
+  --header pointing at the repo's dispatch_thresholds.h); sustained_crossovers.txt is its
+  `--table kNeon` output: ok=33 DIFF=45 (28 of the DIFF rows carry a table comment).
+- cross_tier_assessment.py/.txt: K's method (candidate = median of three, or the max when the
+  runs spread more than 2x) against the current kNeon table and M's 2026-10-05 bundle.
+- Findings (detail in cross_tier_assessment.txt):
+  - 48 of 81 rows differ from kNeon by more than one grid step; 33 of those moved since
+    2026-10-05, so the remaining 15 are the standing deliberate overrides.
+  - The discrete rows (Bernoulli, Binomial, Geometric, NegBinomial PDF/LogPDF/CDF) and the
+    von Mises and Student-t CDFs went from NEVER to 1k-6k: the #175/#176 per-element-lock and
+    serial-lambda fixes and #191's sliced kernels, measured for the first time on M.
+  - Continuous CDFs cross sooner: Exponential, Rayleigh, Weibull, Pareto 25-50k -> 8192;
+    TruncatedNormal 25k -> 4096; Laplace 25k -> 6144; Cauchy 25k -> 8192. Beta PDF/LogPDF
+    NEVER -> 8192/10k; HalfNormal CDF NEVER -> 75k; Uniform LogPDF NEVER -> 500k.
+  - Gamma and InverseGamma LogPDF 75k -> 25k; Poisson LogPDF 25k -> 1024; FisherF LogPDF
+    4096 -> 256 (table 10k).
+- Before the captures: test_parallel_batch_gates (build-release, Release), quiet: every
+  PARALLEL/VECTORIZED ratio 0.21-0.26 at 1M (limit 0.75); logs in the bench-evidence directory.
+- kNeon is NOT updated from this bundle: the table update follows the three machines'
+  captures and the user's decision (PLAN.md R8).

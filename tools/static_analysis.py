@@ -100,8 +100,7 @@ class StaticAnalyzer:
         common_headers = [
             'common/distribution_common.h',
             'core/essential_constants.h',
-            'common/platform_common.h',
-            'common/distribution_platform_common.h'
+            'common/platform_common.h'
         ]
 
         results = {}

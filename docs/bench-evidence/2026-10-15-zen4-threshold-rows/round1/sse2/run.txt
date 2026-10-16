@@ -1,0 +1,14 @@
+2026-10-15 00:35:40 sse2 cpu=3.2% quiet
+2026-10-15 00:35:40 clock[sse2] start (set=True ok=True control=1 state=0)
+2026-10-15 00:37:16 clock[sse2] end exit=0 rows=18 90s cpu=4%
+2026-10-15 00:37:16 clock[sse2] ms/pass=127.5/127.2/127.3/127.2/127.2/127.4/127.5/127.3/127.5/127.5/127.4/127.5/127.3/127.5/127.2/127.3/127.2/127.3 (boost ~128, base ~190)
+2026-10-15 00:37:38 sse2 warm-up 20s discarded
+2026-10-15 00:37:38 sse2 old pass 1 start (set=True ok=True control=1 state=0)
+2026-10-15 00:38:44 sse2 old pass 1 end exit=0 rows=2431 60s cpu=6.7%
+2026-10-15 00:38:45 sse2 new pass 1 start (set=True ok=True control=1 state=0)
+2026-10-15 00:39:43 sse2 new pass 1 end exit=0 rows=2431 52s cpu=3.7%
+2026-10-15 00:39:43 sse2 old pass 2 start (set=True ok=True control=1 state=0)
+2026-10-15 00:40:49 sse2 old pass 2 end exit=0 rows=2431 60s cpu=5.8%
+2026-10-15 00:40:49 sse2 new pass 2 start (set=True ok=True control=1 state=0)
+2026-10-15 00:41:47 sse2 new pass 2 end exit=0 rows=2431 52s cpu=5.6%
+2026-10-15 00:41:47 sse2 DONE

@@ -1,0 +1,18 @@
+{
+  "captured_at_utc": "2026-10-05T02-26-12Z",
+  "run_id": "2026-10-05T02-26-12Z_windows-x86_64_dev-v2.4.2_sha-2c5230a",
+  "git_branch": "dev/v2.4.2",
+  "git_sha": "2c5230a",
+  "project_root": "C:/Users/gdwol/Development/libstats-v2.4.2",
+  "build_dir": "C:/Users/gdwol/Development/libstats-v2.4.2/build",
+  "build_type": "Release",
+  "cmake_options": "-A x64",
+  "cxx_compiler": "cl.exe (MSVC 19.51.36260.0, Visual Studio 18 2026)",
+  "os": "windows (Windows 11 Pro 10.0.26300)",
+  "arch": "x86_64",
+  "simd_tier_active": "AVX-512",
+  "simd_tier_capped": "",
+  "cpu_brand": "AMD Ryzen 7 7445HS w/ Radeon 740M Graphics",
+  "physical_cores": "6",
+  "logical_cores": "12"
+}

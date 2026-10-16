@@ -1,0 +1,135 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 15 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 11 tests from ExponentialEnhancedTest
+[ RUN      ] ExponentialEnhancedTest.BasicEnhancedFunctionality
+[       OK ] ExponentialEnhancedTest.BasicEnhancedFunctionality (14 ms)
+[ RUN      ] ExponentialEnhancedTest.GoodnessOfFitTests
+
+=== Goodness-of-Fit Tests ===
+  KS test (exponential data): D=0.0535884, p=1, reject=0
+  KS test (non-exponential data): D=0.943547, p=5.56485e-77, reject=1
+  AD test (exponential data): A²=0.622616, p=1, reject=0
+  AD test (non-exponential data): A²=684.197, p=0, reject=1
+[       OK ] ExponentialEnhancedTest.GoodnessOfFitTests (0 ms)
+[ RUN      ] ExponentialEnhancedTest.InformationCriteriaTests
+
+=== Information Criteria Tests ===
+  AIC: 56.7097, BIC: 59.3148, AICc: 56.7505
+  Log-likelihood: -27.3548
+[       OK ] ExponentialEnhancedTest.InformationCriteriaTests (0 ms)
+[ RUN      ] ExponentialEnhancedTest.BootstrapMethods
+
+=== Bootstrap Methods ===
+  Lambda 95% CI: [0.385057, 0.585306]
+  K-fold CV completed with 5 folds
+[       OK ] ExponentialEnhancedTest.BootstrapMethods (1 ms)
+[ RUN      ] ExponentialEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 37.6μs (baseline)
+  Vectorized: 4.8μs (7.83333x speedup)
+  Parallel: 4.8μs (7.83333x speedup)
+  Work Stealing: 4.8μs (7.83333x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 378.4μs (baseline)
+  Vectorized: 49.3μs (7.67546x speedup)
+  Parallel: 67.7μs (5.58936x speedup)
+  Work Stealing: 66.2μs (5.71601x speedup)
+[       OK ] ExponentialEnhancedTest.SIMDAndParallelBatchImplementations (29 ms)
+[ RUN      ] ExponentialEnhancedTest.AdvancedStatisticalMethods
+[       OK ] ExponentialEnhancedTest.AdvancedStatisticalMethods (0 ms)
+[ RUN      ] ExponentialEnhancedTest.CachingSpeedupVerification
+
+=== Caching Speedup Verification ===
+  First getter calls (cache miss): 400ns
+  Second getter calls (cache hit): 0ns
+  Cache speedup: infx
+  After parameter change: 100ns
+[       OK ] ExponentialEnhancedTest.CachingSpeedupVerification (0 ms)
+[ RUN      ] ExponentialEnhancedTest.AutoDispatchAssessment
+
+=== Auto-Dispatch Assessment (Exponential) ===
+Batch size: 5, Expected strategy: SCALAR
+  PDF: 1μs, Correct: ✅
+  LogPDF: 2μs, Correct: ✅
+  CDF: 0μs, Correct: ✅
+Batch size: 50, Expected strategy: SCALAR
+  PDF: 1μs, Correct: ✅
+  LogPDF: 0μs, Correct: ✅
+  CDF: 0μs, Correct: ✅
+Batch size: 500, Expected strategy: VECTORIZED
+  PDF: 0μs, Correct: ✅
+  LogPDF: 0μs, Correct: ✅
+  CDF: 3μs, Correct: ✅
+Batch size: 5000, Expected strategy: VECTORIZED
+  PDF: 5μs, Correct: ✅
+  LogPDF: 1μs, Correct: ✅
+  CDF: 32μs, Correct: ✅
+Batch size: 50000, Expected strategy: PARALLEL
+  PDF: 49μs, Correct: ✅
+  LogPDF: 15μs, Correct: ✅
+  CDF: 323μs, Correct: ✅
+
+=== Auto-Dispatch Assessment Completed (Exponential) ===
+[       OK ] ExponentialEnhancedTest.AutoDispatchAssessment (3 ms)
+[ RUN      ] ExponentialEnhancedTest.ParallelBatchPerformanceBenchmark
+
+=== Exponential Distribution Enhanced Performance Benchmark ===
+Dataset size: 50000 elements
+Hardware threads: 12
+  ✓ PDF batch operations produce correct results
+  ✓ LogPDF batch operations produce correct results
+  ✓ CDF batch operations produce correct results
+
+Benchmark Results:
+ Operation  Baseline  Vectorized    Parallel  Work-Steal   Vec-Speedup Par-Speedup  WS-Speedup
+--------------------------------------------------------------------------------------------------------
+       PDF       389          49          87          77          7.94        4.47        5.05
+    LogPDF       381          14          94          93         27.21        4.05        4.10
+       CDF       658         321         104         105          2.05        6.33        6.27
+
+Performance Analysis:
+  ✓ PDF SIMD shows good speedup
+  ✓ PDF thread pool shows good speedup
+  ✓ LogPDF SIMD shows good speedup
+  ✓ LogPDF thread pool shows good speedup
+  ✓ CDF SIMD shows good speedup
+  ✓ CDF thread pool shows good speedup
+[       OK ] ExponentialEnhancedTest.ParallelBatchPerformanceBenchmark (11 ms)
+[ RUN      ] ExponentialEnhancedTest.ParallelBatchFittingTests
+
+=== Parallel Batch Fitting Tests ===
+  Generated 6 datasets with known parameters
+  ✓ Parallel batch fitting correctness verified
+  Parallel batch fitting: 8μs
+  Sequential individual fits: 7μs
+  Speedup: 0.88x
+  Testing edge cases...
+  ✓ Edge cases handled correctly
+  Testing thread safety...
+  ✓ Thread safety verified
+[       OK ] ExponentialEnhancedTest.ParallelBatchFittingTests (0 ms)
+[ RUN      ] ExponentialEnhancedTest.NumericalStabilityAndEdgeCases
+  ✓ Exponential extreme value handling test passed
+  ✓ Exponential empty batch operations handled gracefully
+[       OK ] ExponentialEnhancedTest.NumericalStabilityAndEdgeCases (0 ms)
+[----------] 11 tests from ExponentialEnhancedTest (65 ms total)
+
+[----------] 4 tests from Exponential/DistributionEnhancedTest/0, where TypeParam = stats::ExponentialDistribution
+[ RUN      ] Exponential/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Exponential/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Exponential/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Exponential/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Exponential/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Exponential/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Exponential/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Exponential/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Exponential/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 15 tests from 2 test suites ran. (67 ms total)
+[  PASSED  ] 15 tests.

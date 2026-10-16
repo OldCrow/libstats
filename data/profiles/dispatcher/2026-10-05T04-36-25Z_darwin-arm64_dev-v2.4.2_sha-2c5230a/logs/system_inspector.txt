@@ -1,0 +1,39 @@
+
+=================================
+  System Inspector - Quick Mode
+=================================
+
+Basic system information and capabilities overview
+
+System: 8 logical cores, NEON SIMD, 0 KB L3 cache
+
+
+--- System Capabilities ---
+Logical Cores:           8
+Physical Cores:          4
+Hyperthreading:          Enabled
+
+
+--- CPU Features ---
+Feature             Support   Description
+------------------------------------------------------------
+AVX-512             No        Foundation instructions
+AVX2                No        Advanced Vector Ext 2
+AVX                 No        Advanced Vector Ext
+SSE2                No        Streaming SIMD Ext 2
+NEON                Yes       ARM SIMD instructions
+FMA                 No        Fused Multiply-Add
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size
+------------------------------------------
+L1             64          64 bytes
+L2             4096        64 bytes
+L3             0           64 bytes
+
+
+Use --constants, --performance, or --full for detailed analysis.
+
+Warning: L2 cache larger than L3 cache - may be normal on some systems
+System inspection completed successfully.

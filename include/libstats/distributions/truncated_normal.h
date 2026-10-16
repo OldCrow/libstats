@@ -19,6 +19,8 @@ namespace stats {
  * - LogPDF: −log σ − log Z − ½ξ² − ½log(2π)  (exact log space), else −∞
  * - CDF:    F(x) = (Φ(ξ) − Φ(α))/Z, clamped to [0,1]; exactly 0 at x ≤ a
  *           and exactly 1 at x ≥ b
+ * - Survival: S(x) = (Φ(β) − Φ(ξ))/Z, the CDF on the reflected window
+ *           TN(−μ, σ, −b, −a) at −x; exactly 1 at x ≤ a and 0 at x ≥ b
  * - Quantile: μ + σ·Φ⁻¹(Φ(α) + p·Z), computed regime-split (see below)
  * - Parameters: μ finite, σ > 0, a < b (a may be −∞, b may be +∞)
  * - Support:  x ∈ [a, b]
@@ -41,6 +43,9 @@ namespace stats {
  *     subtraction is an addition of magnitudes (this branch is mandatory:
  *     the Φ-difference form cancels for narrow windows around μ, e.g.
  *     a = −10⁻⁹, b = 10⁻⁹).
+ *   - a same-tail window narrow enough to lie in the near-bound band
+ *     (w·max(1, |α|) ≤ ¼, w = (b − a)/σ): Z = φ(α)·Σ Tₙ(w, α), the band's
+ *     Hermite series, where the erfc difference loses Q(α)/Z of its terms.
  *   ±∞ bounds collapse correctly through erfc(−∞) = 2, erfc(+∞) = 0,
  *   erf(±∞) = ±1 (verified by test, not assumed).
  * α, β, Z, log Z and the erf/erfc tail pieces are cached at construction and
@@ -94,21 +99,33 @@ namespace stats {
  * - Variance: σ²·(1 + (αφ(α)−βφ(β))/Z − δ²)
  * - Skewness/kurtosis from central moments of the recursion.
  * - Entropy:  ½log(2πe) + log σ + log Z + (αφ(α)−βφ(β))/(2Z)
- * CONDITIONING NOTE: variance/skewness/kurtosis are differences of
- * same-scale moment terms; in deep same-tail windows they lose relative
- * digits proportionally to how far the window sits in the tail (measured:
- * variance relative error ~1e-12 at (a,b) = (8σ,9σ), ~1e-9 at (37σ,38σ)).
- * This is a property of the moment formulas, not of Z.
+ * CONDITIONING NOTE: the closed forms are differences of same-scale
+ * moment terms and lose (max(1, m²)/c2)^(k/2) digits, m and c2 the
+ * standardised mean and variance — everything for a narrow window
+ * (width ≲ 1e-4σ) and 1% of the kurtosis at (36σ, 37σ). They are used
+ * where c2 ≥ 0.05·max(1, m²) for the mean, variance and entropy, and
+ * where c2 ≥ 0.35·max(1, m²) for the skewness and kurtosis; elsewhere the
+ * moments are integrated in central form by segmented Gauss–Legendre
+ * quadrature (a far-tail window cut at α + 50/α). Mean and variance hold
+ * ~1e-13 relative throughout; skewness and kurtosis ~1e-14 absolute (both
+ * cross 0, where no relative bound holds). Where the moments are
+ * integrated, log Z (density and entropy) comes from the same integral:
+ * the erfc difference Q(α) − Q(β) loses 1/(|α|·width) of its arguments'
+ * rounding on a narrow window, 1e-9 at (37σ, 37σ + 1e-6σ). The CDF keeps
+ * the erfc difference, whose errors cancel at the upper bound.
  *
  * @par MLE (fit):
  * SCOPE DECISION (standard formulation): the truncation bounds a, b are
  * treated as KNOWN and kept at their current values; fit() estimates μ and
  * σ only. With fixed bounds the truncated normal is a two-parameter
  * exponential family in (Σx, Σx²), so the MLE equations coincide with
- * matching the first two truncated moments. fit() solves them by the
- * standard fixed-point iteration σ² ← s²/(1 + η − δ²), μ ← x̄ − σδ
- * (Cohen 1959 style), convergence-guarded (relative tolerance 1e-12,
- * max 500 iterations, degenerate-ratio and Z-underflow guards throw).
+ * matching the first two truncated moments. fit() solves them by a damped
+ * Newton iteration on the natural parameters (μ/σ², −1/(2σ²)), where the
+ * log-likelihood is strictly concave with gradient (x̄ − E X, x̄² − E X²) and
+ * Hessian −Cov(X, X²), on data standardised to mean 0 and variance 1;
+ * converged at a moment residual of 1e-10 (sample-sd units), max 200
+ * iterations. Sample moments the window cannot match (a variance above the
+ * uniform limit on a finite window) and a Z underflow throw.
  *
  * @par Batch SIMD:
  * PDF/LogPDF: the Gaussian log-space pipeline plus the −log Z offset;
@@ -240,8 +257,7 @@ class TruncatedNormalDistribution : public DistributionBase {
     /** @brief Set upper bound b. @throws std::invalid_argument (incl. window policy) */
     void setUpperBound(double upperBound);
     /** @brief Set all four parameters atomically. @throws std::invalid_argument */
-    void setParameters(double mean, double standardDeviation, double lowerBound,
-                       double upperBound);
+    void setParameters(double mean, double standardDeviation, double lowerBound, double upperBound);
 
     /** @brief Distribution mean = μ + σ·(φ(α)−φ(β))/Z (truncated moment). */
     [[nodiscard]] double getMean() const override;
@@ -311,6 +327,15 @@ class TruncatedNormalDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = (Φ(β) − Φ(ξ))/Z, formed as the complement itself (AR A11): the CDF
+     * kernel evaluated on the reflected window, S(x) = F_{−μ,σ,−b,−a}(−x), so the upper tail
+     * keeps the CDF's lower-tail regimes (erfc difference, scaled-tail ratio past erfc
+     * underflow, Hermite band at b). Exactly 1 for x ≤ a, 0 for x ≥ b; NaN propagates.
+     * Batch survival has no span API; it goes through this scalar method.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Quantile via the survival-domain regime split (class notes).
      * @throws std::invalid_argument if p not in [0, 1]
      * Q(0) = a, Q(1) = b; never NaN for p ∈ (0,1) (#104).
@@ -336,8 +361,8 @@ class TruncatedNormalDistribution : public DistributionBase {
      *               [a, b]
      * @throws std::invalid_argument on empty/too-small data or values
      *         outside the window
-     * @throws std::runtime_error if the fixed-point iteration fails to
-     *         converge or degenerates
+     * @throws std::runtime_error if the Newton iteration fails to converge
+     *         or the sample moments lie outside what the window admits
      */
     void fit(const std::vector<double>& values) override;
 
@@ -411,27 +436,24 @@ class TruncatedNormalDistribution : public DistributionBase {
     // 18. PRIVATE BATCH IMPLEMENTATION METHODS
     //==========================================================================
 
-    /** @brief SIMD PDF pipeline: shift, square, scale, +logC, exp; fixup
+    /** @brief SIMD PDF pipeline: standardise, square, scale, +logC, exp; fixup
      *  outside [a,b] → 0 (see class-level Batch SIMD notes). */
     void getProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                       double mu, double a, double b,
-                                       double neg_half_inv_sigma2,
+                                       double mu, double a, double b, double sigma,
                                        double log_pdf_norm) const noexcept;
 
-    /** @brief SIMD LogPDF pipeline: shift, square, scale, +logC; fixup −∞. */
+    /** @brief SIMD LogPDF pipeline: standardise, square, scale, +logC; fixup −∞. */
     void getLogProbabilityBatchUnsafeImpl(const double* values, double* results, std::size_t count,
-                                          double mu, double a, double b,
-                                          double neg_half_inv_sigma2,
+                                          double mu, double a, double b, double sigma,
                                           double log_pdf_norm) const noexcept;
 
     /** @brief SIMD CDF: vector_erf chain for straddling windows with
      *  per-lane erfc fixups; whole-scalar for same-tail windows (class notes). */
     void getCumulativeProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                  std::size_t count, double mu, double sigma,
-                                                 double a, double b, double alpha,
-                                                 double beta, double q_alpha, double phi_alpha,
-                                                 double erf_alpha, double inv_z,
-                                                 double half_inv_z,
+                                                 double a, double b, double alpha, double beta,
+                                                 double q_alpha, double phi_alpha, double erf_alpha,
+                                                 double inv_z, double half_inv_z,
                                                  double inv_sigma_sqrt2) const noexcept;
 
     //==========================================================================
@@ -443,14 +465,14 @@ class TruncatedNormalDistribution : public DistributionBase {
     /** @brief Regime-split Z and tail pieces; the single source of truth for
      *  the normalization (used by validation, cache update, and fit). */
     struct NormalizationConstants {
-        double alpha, beta;      // standardized bounds (may be ±∞)
-        double z;                // Φ(β) − Φ(α), regime-split
-        double log_z;            // log(z)
-        double phi_alpha;        // Φ(α)  = ½ erfc(−α/√2)
-        double q_alpha;          // 1−Φ(α) = ½ erfc(α/√2)
-        double q_beta;           // 1−Φ(β)
-        double erf_alpha;        // erf(α/√2)
-        bool valid;              // z > 0 and finite
+        double alpha, beta;  // standardized bounds (may be ±∞)
+        double z;            // Φ(β) − Φ(α), regime-split
+        double log_z;        // log(z)
+        double phi_alpha;    // Φ(α)  = ½ erfc(−α/√2)
+        double q_alpha;      // 1−Φ(α) = ½ erfc(α/√2)
+        double q_beta;       // 1−Φ(β)
+        double erf_alpha;    // erf(α/√2)
+        bool valid;          // z > 0 and finite
     };
     static NormalizationConstants computeNormalization(double mean, double sigma, double a,
                                                        double b) noexcept;
@@ -522,14 +544,16 @@ class TruncatedNormalDistribution : public DistributionBase {
     mutable double qBeta_{detail::ZERO_DOUBLE};
     /** @brief erf(α/√2) — the batch CDF chain's affine offset. */
     mutable double erfAlpha_{-detail::ONE};
+    /** @brief Φ(β) = ½erfc(−β/√2) — the reflected window's Q(α′), for getSurvival. */
+    mutable double phiBeta_{detail::ONE};
+    /** @brief erf(−β/√2) — the reflected window's erf(α′/√2), for getSurvival. */
+    mutable double erfNegBeta_{-detail::ONE};
     /** @brief 1/Z. */
     mutable double invZ_{detail::ONE};
     /** @brief 0.5/Z — the batch CDF chain's affine scale. */
     mutable double halfInvZ_{detail::HALF};
     /** @brief log σ. */
     mutable double logSigma_{detail::ZERO_DOUBLE};
-    /** @brief −1/(2σ²). */
-    mutable double negHalfInvSigmaSquared_{-detail::HALF};
     /** @brief 1/(σ√2). */
     mutable double invSigmaSqrt2_{detail::ZERO_DOUBLE};
     /** @brief −log σ − log Z − ½log(2π) — LogPDF additive constant. */

@@ -1,10 +1,6 @@
 #include "libstats/distributions/discrete.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/parallel_batch_fit.h"
 
 // Core functionality - lightweight headers
@@ -22,6 +18,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <numeric>
 #include <random>
@@ -30,6 +27,11 @@ using stats::detail::validatePositiveParameter;
 #include <stdexcept>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -122,11 +124,17 @@ DiscreteDistribution::DiscreteDistribution(DiscreteDistribution&& other) noexcep
     other.b_ = detail::ONE_INT;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
     // Cache will be updated on first use
 }
 
 DiscreteDistribution& DiscreteDistribution::operator=(DiscreteDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         a_ = other.a_;
         b_ = other.b_;
         other.a_ = detail::ZERO_INT;
@@ -135,7 +143,9 @@ DiscreteDistribution& DiscreteDistribution::operator=(DiscreteDistribution&& oth
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -164,8 +174,10 @@ double DiscreteDistribution::getVariance() const {
 }
 
 void DiscreteDistribution::setLowerBound(int a) {
-    validateParameters(a, b_);
+    // Validate against the other bound and write under one lock: the bound was read with no
+    // lock, so a concurrent setUpperBound could leave a > b and range_ <= 0.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(a, b_);
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -173,8 +185,10 @@ void DiscreteDistribution::setLowerBound(int a) {
 }
 
 void DiscreteDistribution::setUpperBound(int b) {
-    validateParameters(a_, b);
+    // Validate against the other bound and write under one lock: the bound was read with no
+    // lock, so a concurrent setLowerBound could leave a > b and range_ <= 0.
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(a_, b);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -284,19 +298,12 @@ double DiscreteDistribution::getSingleOutcomeProbability() const noexcept {
 //==============================================================================
 
 VoidResult DiscreteDistribution::trySetLowerBound(int a) noexcept {
-    // Copy current upper bound for validation (thread-safe)
-    int currentB;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentB = b_;
-    }
-
-    auto validation = validateDiscreteParameters(a, currentB);
+    // One lock for the validation and the write (see setLowerBound).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateDiscreteParameters(a, b_);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     a_ = a;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -308,19 +315,12 @@ VoidResult DiscreteDistribution::trySetLowerBound(int a) noexcept {
 }
 
 VoidResult DiscreteDistribution::trySetUpperBound(int b) noexcept {
-    // Copy current lower bound for validation (thread-safe)
-    int currentA;
-    {
-        std::shared_lock<std::shared_mutex> lock(cache_mutex_);
-        currentA = a_;
-    }
-
-    auto validation = validateDiscreteParameters(currentA, b);
+    // One lock for the validation and the write (see setUpperBound).
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    auto validation = validateDiscreteParameters(a_, b);
     if (validation.isError()) {
         return validation;
     }
-
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -374,13 +374,11 @@ VoidResult DiscreteDistribution::trySetParameters(int a, int b) noexcept {
 double DiscreteDistribution::getProbability(double x) const {
     if (std::isnan(x))
         return std::numeric_limits<double>::quiet_NaN();
-    // Note: floor(±inf)==±inf so the next check would NOT catch ±inf; guard first.
     if (!std::isfinite(x))
         return detail::ZERO_DOUBLE;  // ±inf → PMF is 0
-    if (std::floor(x) != x)
-        return detail::ZERO_DOUBLE;  // non-integer finite
-
-    const int k = static_cast<int>(x);  // safe: x is finite integer
+    // The pmf rounds x to the nearest integer, as the header states and every sibling does
+    // (Discrete(0, 3).pmf(-1e-300) is pmf(0)); it returned 0 at every non-integer.
+    x = std::round(x);
 
     int a, b;
     bool is_binary;
@@ -391,7 +389,8 @@ double DiscreteDistribution::getProbability(double x) const {
         is_binary = isBinary_;
         prob = probability_;
     });
-    if (k < a || k > b)
+    // #167: compare on the double; casting x (e.g. 1e10, 1e300) to int first is UB.
+    if (x < static_cast<double>(a) || x > static_cast<double>(b))
         return detail::ZERO_DOUBLE;
     if (is_binary)
         return detail::HALF;
@@ -403,10 +402,7 @@ double DiscreteDistribution::getLogProbability(double x) const {
         return std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(x))
         return detail::NEGATIVE_INFINITY;  // ±inf → log PMF is -∞
-    if (std::floor(x) != x)
-        return detail::NEGATIVE_INFINITY;  // non-integer finite
-
-    const int k = static_cast<int>(x);  // safe: x is finite integer
+    x = std::round(x);                     // nearest integer, as getProbability
 
     int a, b;
     bool is_binary;
@@ -417,7 +413,8 @@ double DiscreteDistribution::getLogProbability(double x) const {
         is_binary = isBinary_;
         logprob = logProbability_;
     });
-    if (k < a || k > b)
+    // #167: compare on the double; casting x (e.g. 1e10, 1e300) to int first is UB.
+    if (x < static_cast<double>(a) || x > static_cast<double>(b))
         return detail::NEGATIVE_INFINITY;
     if (is_binary)
         return -detail::LN2;
@@ -448,7 +445,33 @@ double DiscreteDistribution::getCumulativeProbability(double x) const {
     return static_cast<double>(numerator) / static_cast<double>(range);
 }
 
+double DiscreteDistribution::getSurvival(double x) const {
+    // NaN and ±inf before any member reads, as in the CDF (R5-D4).
+    if (!std::isfinite(x)) {
+        if (std::isnan(x))
+            return std::numeric_limits<double>::quiet_NaN();
+        return (x > 0 ? detail::ZERO_DOUBLE : detail::ONE);
+    }
+
+    int a, b, range;
+    withCacheSnapshot([&] {
+        a = a_;
+        b = b_;
+        range = range_;
+    });
+    if (x < static_cast<double>(a))
+        return detail::ONE;
+    if (x >= static_cast<double>(b))
+        return detail::ZERO_DOUBLE;
+    // S(k) = (b − ⌊k⌋)/(b − a + 1): the integer numerator is exact, so one rounding, where
+    // 1 − F carries F's rounding into a small difference.
+    const int k = static_cast<int>(std::floor(x));
+    return static_cast<double>(b - k) / static_cast<double>(range);
+}
+
 double DiscreteDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -458,11 +481,18 @@ double DiscreteDistribution::getQuantile(double p) const {
         range = range_;
         a = a_;
     });
-    // For discrete uniform: quantile(p) = a + ceil(p * (b-a+1)) - 1
-    // But we need to handle edge cases carefully
-    const double scaled = p * static_cast<double>(range);
-    const int k = static_cast<int>(std::ceil(scaled)) - 1;
-    return static_cast<double>(a + std::max(0, std::min(k, range - 1)));
+    // min{k : F(k) >= p} against the CDF as getCumulativeProbability rounds it, F(a + j - 1) =
+    // fl(j/n), ties included (DH D7). ceil(p·n) is within one of that j, and fl(j/n) is monotone
+    // in j, so one step either way settles it; deciding by the exact product instead (the fma
+    // remainder) disagreed with the rounded quotient exactly at the ties.
+    const double n = static_cast<double>(range);
+    const auto cdf = [n](int j) { return static_cast<double>(j) / n; };
+    int j = static_cast<int>(std::min(std::max(std::ceil(p * n), detail::ONE), n));
+    while (j > 1 && cdf(j - 1) >= p)
+        --j;
+    while (j < range && cdf(j) < p)
+        ++j;
+    return static_cast<double>(a + j - 1);
 }
 
 double DiscreteDistribution::sample(std::mt19937& rng) const {
@@ -570,6 +600,7 @@ void DiscreteDistribution::reset() noexcept {
 std::string DiscreteDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "DiscreteUniform(a=" << a_ << ", b=" << b_ << ")";
     return oss.str();
 }
@@ -622,7 +653,7 @@ std::tuple<double, double, bool> DiscreteDistribution::discreteUniformityTest(
     // Degrees of freedom = number of categories - 1
     const int degrees_of_freedom = range - detail::ONE_INT;
     const double p_value =
-        detail::ONE - detail::chi_squared_cdf(chi_squared, static_cast<double>(degrees_of_freedom));
+        detail::gamma_q(detail::HALF * degrees_of_freedom, detail::HALF * chi_squared);
     const bool reject_uniformity = p_value < significance_level;
 
     return std::make_tuple(chi_squared, p_value, reject_uniformity);
@@ -681,7 +712,7 @@ std::tuple<double, double, bool> DiscreteDistribution::chiSquaredGoodnessOfFitTe
     const int degrees_of_freedom = range - detail::ONE_INT;
 
     const double p_value =
-        detail::ONE - detail::chi_squared_cdf(chi_squared, static_cast<double>(degrees_of_freedom));
+        detail::gamma_q(detail::HALF * degrees_of_freedom, detail::HALF * chi_squared);
     const bool reject_null = p_value < alpha;
 
     return std::make_tuple(chi_squared, p_value, reject_null);
@@ -821,14 +852,11 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
             dist.getProbabilityBatchUnsafeImpl(vals, res, count, cached_a, cached_b, cached_prob);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b;
             double cached_prob;
             dist.withCacheSnapshot([&] {
@@ -836,43 +864,19 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                 cached_b = dist.b_;
                 cached_prob = dist.probability_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (std::floor(vals[i]) == vals[i] &&
-                        DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                        const int k = static_cast<int>(vals[i]);
-                        res[i] =
-                            (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::ZERO_DOUBLE;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       cached_a, cached_b, cached_prob);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (std::floor(vals[i]) == vals[i] &&
-                        DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                        const int k = static_cast<int>(vals[i]);
-                        res[i] =
-                            (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
-                    } else {
-                        res[i] = detail::ZERO_DOUBLE;
-                    }
-                }
-            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b;
             double cached_prob;
             dist.withCacheSnapshot([&] {
@@ -880,16 +884,9 @@ void DiscreteDistribution::getProbability(std::span<const double> values, std::s
                 cached_b = dist.b_;
                 cached_prob = dist.probability_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (std::floor(vals[i]) == vals[i] &&
-                    DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                    const int k = static_cast<int>(vals[i]);
-                    res[i] = (k >= cached_a && k <= cached_b) ? cached_prob : detail::ZERO_DOUBLE;
-                } else {
-                    res[i] = detail::ZERO_DOUBLE;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   cached_a, cached_b, cached_prob);
             });
         });
 }
@@ -914,89 +911,41 @@ void DiscreteDistribution::getLogProbability(std::span<const double> values,
                                                   cached_log_prob);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b;
             double cached_log_prob;
-            bool cached_is_binary;
             dist.withCacheSnapshot([&] {
                 cached_a = dist.a_;
                 cached_b = dist.b_;
                 cached_log_prob = dist.logProbability_;
-                cached_is_binary = dist.isBinary_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (std::floor(vals[i]) == vals[i] &&
-                        DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                        const int k = static_cast<int>(vals[i]);
-                        if (k >= cached_a && k <= cached_b) {
-                            res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
-                        } else {
-                            res[i] = detail::NEGATIVE_INFINITY;
-                        }
-                    } else {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, cached_a, cached_b, cached_log_prob);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (std::floor(vals[i]) == vals[i] &&
-                        DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                        const int k = static_cast<int>(vals[i]);
-                        if (k >= cached_a && k <= cached_b) {
-                            res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
-                        } else {
-                            res[i] = detail::NEGATIVE_INFINITY;
-                        }
-                    } else {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    }
-                }
-            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b;
             double cached_log_prob;
-            bool cached_is_binary;
             dist.withCacheSnapshot([&] {
                 cached_a = dist.a_;
                 cached_b = dist.b_;
                 cached_log_prob = dist.logProbability_;
-                cached_is_binary = dist.isBinary_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (std::floor(vals[i]) == vals[i] &&
-                    DiscreteDistribution::isValidIntegerValue(vals[i])) {
-                    const int k = static_cast<int>(vals[i]);
-                    if (k >= cached_a && k <= cached_b) {
-                        res[i] = cached_is_binary ? -detail::LN2 : cached_log_prob;
-                    } else {
-                        res[i] = detail::NEGATIVE_INFINITY;
-                    }
-                } else {
-                    res[i] = detail::NEGATIVE_INFINITY;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                      cached_a, cached_b, cached_log_prob);
             });
         });
 }
@@ -1021,77 +970,43 @@ void DiscreteDistribution::getCumulativeProbability(std::span<const double> valu
                                                          cached_inv_range);
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b, cached_range;
             dist.withCacheSnapshot([&] {
                 cached_a = dist.a_;
                 cached_b = dist.b_;
                 cached_range = dist.range_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (vals[i] < static_cast<double>(cached_a)) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else if (vals[i] >= static_cast<double>(cached_b)) {
-                        res[i] = detail::ONE;
-                    } else {
-                        const int k = static_cast<int>(std::floor(vals[i]));
-                        const int numerator = k - cached_a + detail::ONE_INT;
-                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                    }
+            const double cached_inv_range = detail::ONE / static_cast<double>(cached_range);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                                 res.data() + start, len, cached_a,
+                                                                 cached_b, cached_inv_range);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (vals[i] < static_cast<double>(cached_a)) {
-                        res[i] = detail::ZERO_DOUBLE;
-                    } else if (vals[i] >= static_cast<double>(cached_b)) {
-                        res[i] = detail::ONE;
-                    } else {
-                        const int k = static_cast<int>(std::floor(vals[i]));
-                        const int numerator = k - cached_a + detail::ONE_INT;
-                        res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                    }
-                }
-            }
         },
         [](const DiscreteDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             int cached_a, cached_b, cached_range;
             dist.withCacheSnapshot([&] {
                 cached_a = dist.a_;
                 cached_b = dist.b_;
                 cached_range = dist.range_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (vals[i] < static_cast<double>(cached_a)) {
-                    res[i] = detail::ZERO_DOUBLE;
-                } else if (vals[i] >= static_cast<double>(cached_b)) {
-                    res[i] = detail::ONE;
-                } else {
-                    const int k = static_cast<int>(std::floor(vals[i]));
-                    const int numerator = k - cached_a + detail::ONE_INT;
-                    res[i] = static_cast<double>(numerator) / static_cast<double>(cached_range);
-                }
+            const double cached_inv_range = detail::ONE / static_cast<double>(cached_range);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                             res.data() + start, len, cached_a,
+                                                             cached_b, cached_inv_range);
             });
         });
 }
@@ -1232,13 +1147,13 @@ DiscreteDistribution::DiscreteDistribution(int a, int b, bool /*bypassValidation
 void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                          std::size_t count, int a, int b,
                                                          double probability) const noexcept {
-    // SIMD deferred: integer floor-check and range-test are not amenable to
+    // SIMD deferred: the rounding and range-test are not amenable to
     // vectorization without vector_floor + vector_blend primitives (deferred).
     for (std::size_t i = 0; i < count; ++i) {
         if (std::isnan(values[i])) {
             results[i] = values[i];
-        } else if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
-            const int k = static_cast<int>(values[i]);
+        } else if (const double k = std::round(values[i]); isValidIntegerValue(k)) {
+            // Rounded to the nearest integer, as the scalar method.
             results[i] = (k >= a && k <= b) ? probability : detail::ZERO_DOUBLE;
         } else {
             results[i] = detail::ZERO_DOUBLE;
@@ -1249,13 +1164,13 @@ void DiscreteDistribution::getProbabilityBatchUnsafeImpl(const double* values, d
 void DiscreteDistribution::getLogProbabilityBatchUnsafeImpl(const double* values, double* results,
                                                             std::size_t count, int a, int b,
                                                             double log_probability) const noexcept {
-    // SIMD deferred: integer floor-check and range-test are not amenable to
+    // SIMD deferred: the rounding and range-test are not amenable to
     // vectorization without vector_floor + vector_blend primitives (deferred).
     for (std::size_t i = 0; i < count; ++i) {
         if (std::isnan(values[i])) {
             results[i] = values[i];
-        } else if (std::floor(values[i]) == values[i] && isValidIntegerValue(values[i])) {
-            const int k = static_cast<int>(values[i]);
+        } else if (const double k = std::round(values[i]); isValidIntegerValue(k)) {
+            // Rounded to the nearest integer, as the scalar method.
             results[i] = (k >= a && k <= b) ? log_probability : detail::NEGATIVE_INFINITY;
         } else {
             results[i] = detail::NEGATIVE_INFINITY;
@@ -1337,11 +1252,11 @@ void DiscreteDistribution::validateParameters(int a, int b) {
 //==========================================================================
 
 // Static utility methods moved from header for better compile times
-inline int DiscreteDistribution::roundToInt(double x) noexcept {
+int DiscreteDistribution::roundToInt(double x) noexcept {
     return static_cast<int>(std::round(x));
 }
 
-inline bool DiscreteDistribution::isValidIntegerValue(double x) noexcept {
+bool DiscreteDistribution::isValidIntegerValue(double x) noexcept {
     return (x >= static_cast<double>(INT_MIN) && x <= static_cast<double>(INT_MAX));
 }
 

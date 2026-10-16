@@ -1,16 +1,14 @@
 #include "libstats/distributions/chi_squared.h"
 
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -24,8 +22,10 @@ namespace stats {
 // Helper: validate k and return it, throwing before any member is constructed.
 // Used in the initializer list so that gamma_ is never constructed for invalid k.
 static double requireValidDOF(double k) {
-    if (k <= 0.0 || !std::isfinite(k)) {
-        throw std::invalid_argument("Degrees of freedom k must be a positive finite number");
+    // The same rule as create() and the setters, including the delegate's k/2 > 0 (#227).
+    auto v = validateChiSquaredParameters(k);
+    if (v.isError()) {
+        throw std::invalid_argument(v.message());
     }
     return k;
 }
@@ -67,6 +67,11 @@ ChiSquaredDistribution::ChiSquaredDistribution(ChiSquaredDistribution&& other) n
 
 ChiSquaredDistribution& ChiSquaredDistribution::operator=(ChiSquaredDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         k_ = other.k_;
         gamma_ = std::move(other.gamma_);
         other.k_ = detail::ONE;
@@ -104,10 +109,10 @@ void ChiSquaredDistribution::setK(double k) {
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(k / detail::TWO);
     }
-    // Sync gamma_ outside our lock — same pattern as reset(). gamma_ is private,
-    // so no external thread can acquire its lock while we don't hold ours.
-    (void)gamma_.trySetAlpha(k / detail::TWO);
 }
 
 VoidResult ChiSquaredDistribution::trySetK(double k) noexcept {
@@ -120,8 +125,10 @@ VoidResult ChiSquaredDistribution::trySetK(double k) noexcept {
         k_ = k;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(k / detail::TWO);
     }
-    (void)gamma_.trySetAlpha(k / detail::TWO);
     return VoidResult::ok({});
 }
 
@@ -161,13 +168,16 @@ void ChiSquaredDistribution::reset() noexcept {
         k_ = detail::ONE;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        // Under our lock (ours, then the delegate's, the order updateCacheUnsafe already uses),
+        // so concurrent setters update the delegate in the order they update us.
+        (void)gamma_.trySetAlpha(detail::HALF);  // Gamma(0.5, 0.5) = χ²(1)
     }
-    (void)gamma_.trySetAlpha(detail::HALF);  // Gamma(0.5, 0.5) = χ²(1)
 }
 
 std::string ChiSquaredDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "ChiSquaredDistribution(k=" << k_ << ")";
     return oss.str();
 }
@@ -220,7 +230,7 @@ std::istream& operator>>(std::istream& is, ChiSquaredDistribution& dist) {
     }
 
     try {
-        k = std::stod(token.substr(k_pos + 2, close - k_pos - 2));
+        k = detail::parse_double(token.substr(k_pos + 2, close - k_pos - 2));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;

@@ -183,8 +183,7 @@ TEST_F(GumbelEnhancedTest, KnownCDFValuesAndDoubleExpEndpoints) {
     }
 
     auto g = GumbelDistribution::create(1.5, 2.5).unwrap();
-    expectClose(g.getCumulativeProbability(-3.0), 0.0023586933832932267, 1e-14,
-                "cdf(-3; 1.5,2.5)");
+    expectClose(g.getCumulativeProbability(-3.0), 0.0023586933832932267, 1e-14, "cdf(-3; 1.5,2.5)");
     expectClose(g.getCumulativeProbability(0.0), 0.16168281414512645, 1e-15, "cdf(0; 1.5,2.5)");
     expectClose(g.getCumulativeProbability(10.0), 0.96717747390469231, 1e-15, "cdf(10; 1.5,2.5)");
 }
@@ -402,7 +401,7 @@ TEST_F(GumbelEnhancedTest, Contract104_QuantileNeverNaN) {
     EXPECT_TRUE(std::isinf(sg_.getQuantile(1.0)) && sg_.getQuantile(1.0) > 0.0);
     EXPECT_THROW((void)sg_.getQuantile(-0.1), std::invalid_argument);
     EXPECT_THROW((void)sg_.getQuantile(1.1), std::invalid_argument);
-    EXPECT_THROW((void)sg_.getQuantile(kNaN), std::invalid_argument);
+    EXPECT_TRUE(std::isnan(sg_.getQuantile(kNaN)));  // NaN in, NaN out, as all 27 (AR D3)
     // Strictly increasing across the whole open interval.
     double prev = -kInf;
     for (double p = 1e-6; p < 1.0; p += 0.0125) {

@@ -1,0 +1,1 @@
+05:45:52 load=2.21 top: 38.6%WindowServer 17.2%Claude 14.7%Claude

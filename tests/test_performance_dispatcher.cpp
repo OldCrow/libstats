@@ -22,12 +22,12 @@ class SystemCapabilitiesTest : public ::testing::Test {
 
 TEST_F(SystemCapabilitiesTest, BasicCapabilityDetection) {
     // Test that basic system info is detected
-    EXPECT_GT(capabilities.logical_cores(), 0);
-    EXPECT_GT(capabilities.physical_cores(), 0);
+    EXPECT_GT(capabilities.logical_cores(), 0u);
+    EXPECT_GT(capabilities.physical_cores(), 0u);
     EXPECT_LE(capabilities.physical_cores(), capabilities.logical_cores());
 
     // Cache sizes should be reasonable (non-zero for most systems)
-    EXPECT_GT(capabilities.l1_cache_size(), 0);
+    EXPECT_GT(capabilities.l1_cache_size(), 0u);
 
     // Should have some form of SIMD on modern systems (but fallback gracefully)
     [[maybe_unused]] bool has_any_simd = capabilities.has_sse2() || capabilities.has_avx() ||

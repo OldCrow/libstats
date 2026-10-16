@@ -303,17 +303,17 @@ class CPP20FeaturesInspector {
         print_feature("execution", HAS_EXECUTION, "Execution policy support");
 
 // Test actual execution policies
-        // Each policy is tested individually at compile-time via feature-test macros.
-        // std::execution::seq is a compile-time constant, not something that can throw,
-        // so try/catch detection is both incorrect and misleading.
-        // __cpp_lib_parallel_algorithm covers par and par_unseq;
-        // __cpp_lib_execution covers unseq and seq.
+// Each policy is tested individually at compile-time via feature-test macros.
+// std::execution::seq is a compile-time constant, not something that can throw,
+// so try/catch detection is both incorrect and misleading.
+// __cpp_lib_parallel_algorithm covers par and par_unseq;
+// __cpp_lib_execution covers unseq and seq.
 #if HAS_EXECUTION
     #ifdef __cpp_lib_parallel_algorithm
-        constexpr bool has_par       = true;
+        constexpr bool has_par = true;
         constexpr bool has_par_unseq = true;
     #else
-        constexpr bool has_par       = false;
+        constexpr bool has_par = false;
         constexpr bool has_par_unseq = false;
     #endif
     #ifdef __cpp_lib_execution
@@ -322,9 +322,9 @@ class CPP20FeaturesInspector {
         constexpr bool has_unseq = false;
     #endif
 
-        print_feature("  std::execution::par",       has_par,       "Parallel execution");
+        print_feature("  std::execution::par", has_par, "Parallel execution");
         print_feature("  std::execution::par_unseq", has_par_unseq, "Parallel unsequenced");
-        print_feature("  std::execution::unseq",     has_unseq,     "Unsequenced execution");
+        print_feature("  std::execution::unseq", has_unseq, "Unsequenced execution");
 #endif
 
         print_header("Coroutines");

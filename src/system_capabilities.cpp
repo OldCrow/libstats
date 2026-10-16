@@ -25,7 +25,11 @@ const SystemCapabilities& SystemCapabilities::current() {
 void SystemCapabilities::detectCapabilities() {
     // CPU core detection
     logical_cores_ = std::thread::hardware_concurrency();
-    physical_cores_ = logical_cores_ / 2;  // Simplified assumption (hyperthreading)
+    // Physical cores from the CPU detector (sysctl hw.physicalcpu on macOS, CPUID leaf 0xB
+    // elsewhere on x86). It was logical / 2 on every platform, so every Mac looked SMT and took
+    // WORK_STEALING (#190). Unknown (0) means no SMT is assumed.
+    const std::size_t detected = stats::arch::get_features().topology.physical_cores;
+    physical_cores_ = (detected >= 1 && detected <= logical_cores_) ? detected : logical_cores_;
 
     // Cache sizes (simplified - would need platform-specific detection in production)
     l1_cache_size_ = 32 * 1024;        // 32KB typical L1

@@ -1,0 +1,137 @@
+== 1. per case: worst slowdown / best speedup (new/old)
+gamma(2.5)                   worst   1.06x (pdf n=100000 auto)   best   0.90x (logpdf n=100000 parallel)
+gamma(10)                    worst   1.06x (pdf n=10000 parallel)   best   0.86x (logpdf n=100000 auto)
+gamma(19.9)                  worst   1.03x (pdf n=100000 parallel)   best   0.88x (logpdf n=100000 auto)
+gamma(20)                    worst   1.08x (pdf n=100000 parallel)   best   0.92x (cdf n=1000 auto)
+gamma(1000)                  worst   1.01x (logpdf n=1000 scalar)   best   0.75x (pdf n=100000 parallel)
+gamma(0.01)                  worst   1.02x (pdf n=10000 auto)   best   0.89x (logpdf n=100000 parallel)
+student_t(7)                 worst   1.15x (logpdf n=10000 parallel)   best   0.83x (logpdf n=100000 parallel)
+student_t(30)                worst   1.01x (logpdf n=100000 vectorized)   best   0.92x (logpdf n=100000 parallel)
+student_t(1000)              worst   1.14x (pdf n=100000 auto)   best   0.74x (logpdf n=10000 parallel)
+student_t(1e+06)             worst   1.23x (logpdf n=100000 parallel)   best   0.77x (logpdf n=10000 parallel)
+beta(2;2)                    worst   1.01x (pdf n=1000 parallel)   best   0.30x (pdf n=100000 auto)
+beta(25;25)                  worst   1.02x (pdf n=10000 parallel)   best   0.24x (logpdf n=100000 auto)
+beta(1000;1000)              worst   1.08x (logpdf n=100000 parallel)   best   0.24x (pdf n=100000 auto)
+von_mises(1)                 worst   1.08x (pdf n=10000 parallel)   best   0.20x (cdf n=100000 auto)
+von_mises(30)                worst   1.13x (pdf n=100000 auto)   best   0.22x (cdf n=100000 auto)
+von_mises(300)               worst   1.02x (pdf n=10000 parallel)   best   0.19x (cdf n=100000 auto)
+poisson(12)                  worst   1.28x (pdf n=10000 parallel)   best   0.88x (logpdf n=10000 auto)
+poisson(1000)                worst   1.05x (pdf n=10000 parallel)   best   0.96x (logpdf n=100000 parallel)
+poisson(100000)              worst   1.16x (logpdf n=10000 parallel)   best   0.97x (cdf n=100000 auto)
+binomial(50;0.3)             worst   1.05x (logpdf n=10000 parallel)   best   0.20x (logpdf n=100000 auto)
+binomial(1000;0.3)           worst   1.02x (logpdf n=10000 parallel)   best   0.21x (cdf n=100000 auto)
+binomial(100000;0.3)         worst   1.08x (pdf n=100000 parallel)   best   0.21x (logpdf n=100000 auto)
+negative_binomial(5;0.5)     worst   1.38x (cdf n=100000 parallel)   best   0.22x (cdf n=100000 auto)
+negative_binomial(1000;0.5)  worst   1.09x (logpdf n=1000 auto)   best   0.20x (cdf n=100000 auto)
+
+== 2. rows beyond 1.25x either way (new/old)
+   1.38x  negative_binomial(5;0.5)     cdf          n=100000  parallel        17.3 ->      23.8 ns
+   1.28x  poisson(12)                  pdf          n=10000   parallel        11.2 ->      14.3 ns
+   0.77x  student_t(1e+06)             logpdf       n=10000   parallel         6.5 ->       5.0 ns
+   0.76x  binomial(1000;0.3)           pdf          n=100000  parallel        14.7 ->      11.2 ns
+   0.75x  gamma(1000)                  pdf          n=100000  parallel         3.5 ->       2.6 ns
+   0.75x  beta(2;2)                    logpdf       n=10000   auto             5.3 ->       4.0 ns
+   0.74x  student_t(1000)              logpdf       n=10000   parallel         6.2 ->       4.5 ns
+   0.63x  beta(1000;1000)              logpdf       n=10000   auto            11.8 ->       7.4 ns
+   0.59x  beta(1000;1000)              pdf          n=10000   auto            12.8 ->       7.6 ns
+   0.59x  beta(25;25)                  logpdf       n=10000   auto            13.6 ->       8.0 ns
+   0.54x  beta(25;25)                  pdf          n=10000   auto            14.8 ->       7.9 ns
+   0.34x  binomial(100000;0.3)         logpdf       n=10000   auto            44.8 ->      15.4 ns
+   0.34x  negative_binomial(5;0.5)     logpdf       n=10000   auto            45.7 ->      15.6 ns
+   0.34x  negative_binomial(1000;0.5)  logpdf       n=10000   auto            47.5 ->      16.2 ns
+   0.34x  binomial(1000;0.3)           logpdf       n=10000   auto            44.7 ->      15.1 ns
+   0.34x  negative_binomial(5;0.5)     pdf          n=10000   auto            52.2 ->      17.6 ns
+   0.33x  negative_binomial(5;0.5)     cdf          n=10000   auto            82.9 ->      27.2 ns
+   0.32x  binomial(100000;0.3)         pdf          n=10000   auto            54.6 ->      17.7 ns
+   0.32x  binomial(1000;0.3)           pdf          n=10000   auto            54.7 ->      17.4 ns
+   0.32x  binomial(50;0.3)             logpdf       n=10000   auto            60.7 ->      19.3 ns
+   0.32x  negative_binomial(1000;0.5)  pdf          n=10000   auto            56.4 ->      17.8 ns
+   0.31x  binomial(50;0.3)             pdf          n=10000   auto            66.4 ->      20.7 ns
+   0.30x  beta(2;2)                    logpdf       n=100000  auto             5.3 ->       1.6 ns
+   0.30x  beta(2;2)                    pdf          n=100000  auto             6.3 ->       1.9 ns
+   0.30x  binomial(50;0.3)             cdf          n=10000   auto           152.4 ->      45.2 ns
+   0.30x  von_mises(30)                cdf          n=10000   auto           139.5 ->      41.4 ns
+   0.30x  von_mises(1)                 cdf          n=10000   auto           133.5 ->      39.5 ns
+   0.30x  binomial(1000;0.3)           cdf          n=10000   auto           301.7 ->      89.3 ns
+   0.29x  negative_binomial(1000;0.5)  cdf          n=10000   auto           352.4 ->     103.6 ns
+   0.29x  binomial(100000;0.3)         cdf          n=10000   auto           665.3 ->     192.1 ns
+   0.29x  von_mises(300)               cdf          n=10000   auto           106.2 ->      30.5 ns
+   0.27x  negative_binomial(1000;0.5)  logpdf       n=100000  auto            48.3 ->      12.9 ns
+   0.25x  beta(25;25)                  pdf          n=100000  auto            15.3 ->       3.8 ns
+   0.24x  beta(1000;1000)              logpdf       n=100000  auto            11.7 ->       2.9 ns
+   0.24x  beta(25;25)                  logpdf       n=100000  auto            14.3 ->       3.5 ns
+   0.24x  beta(1000;1000)              pdf          n=100000  auto            12.8 ->       3.1 ns
+   0.24x  negative_binomial(5;0.5)     logpdf       n=100000  auto            45.6 ->      10.8 ns
+   0.23x  negative_binomial(5;0.5)     pdf          n=100000  auto            51.9 ->      12.1 ns
+   0.23x  binomial(50;0.3)             pdf          n=100000  auto            66.2 ->      15.2 ns
+   0.22x  negative_binomial(5;0.5)     cdf          n=100000  auto            82.9 ->      18.4 ns
+   0.22x  von_mises(30)                cdf          n=100000  auto           141.1 ->      30.6 ns
+   0.22x  binomial(100000;0.3)         cdf          n=100000  auto           662.4 ->     142.5 ns
+   0.21x  binomial(100000;0.3)         pdf          n=100000  auto            54.6 ->      11.6 ns
+   0.21x  binomial(100000;0.3)         logpdf       n=100000  auto            44.8 ->       9.4 ns
+   0.21x  binomial(50;0.3)             cdf          n=100000  auto           152.6 ->      32.1 ns
+   0.21x  binomial(1000;0.3)           logpdf       n=100000  auto            44.8 ->       9.4 ns
+   0.21x  binomial(1000;0.3)           pdf          n=100000  auto            54.5 ->      11.4 ns
+   0.21x  binomial(1000;0.3)           cdf          n=100000  auto           302.6 ->      62.3 ns
+   0.21x  negative_binomial(1000;0.5)  pdf          n=100000  auto            58.5 ->      12.0 ns
+   0.20x  binomial(50;0.3)             logpdf       n=100000  auto            61.3 ->      12.5 ns
+   0.20x  negative_binomial(1000;0.5)  cdf          n=100000  auto           346.0 ->      70.2 ns
+   0.20x  von_mises(1)                 cdf          n=100000  auto           133.4 ->      26.9 ns
+   0.19x  von_mises(300)               cdf          n=100000  auto           107.3 ->      20.9 ns
+
+== 3. dispatch: AUTO more than 1.25x slower than the best forced strategy
+OLD  beta(1000;1000)              logpdf n=10000   v2.4.1 auto/best  1.61 (parallel)   v2.4.2 auto/best  0.95 (parallel)
+OLD  beta(1000;1000)              logpdf n=100000  v2.4.1 auto/best  3.76 (parallel)   v2.4.2 auto/best  0.85 (parallel)
+OLD  beta(1000;1000)              pdf    n=10000   v2.4.1 auto/best  1.66 (parallel)   v2.4.2 auto/best  0.97 (parallel)
+OLD  beta(1000;1000)              pdf    n=100000  v2.4.1 auto/best  3.68 (parallel)   v2.4.2 auto/best  0.85 (parallel)
+OLD  beta(25;25)                  logpdf n=10000   v2.4.1 auto/best  1.84 (parallel)   v2.4.2 auto/best  1.12 (parallel)
+OLD  beta(25;25)                  logpdf n=100000  v2.4.1 auto/best  4.07 (parallel)   v2.4.2 auto/best  1.02 (parallel)
+OLD  beta(25;25)                  pdf    n=10000   v2.4.1 auto/best  1.85 (parallel)   v2.4.2 auto/best  0.98 (parallel)
+OLD  beta(25;25)                  pdf    n=100000  v2.4.1 auto/best  3.73 (parallel)   v2.4.2 auto/best  1.01 (parallel)
+OLD  beta(2;2)                    logpdf n=100000  v2.4.1 auto/best  2.97 (parallel)   v2.4.2 auto/best  0.97 (parallel)
+OLD  beta(2;2)                    pdf    n=100000  v2.4.1 auto/best  3.23 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+OLD  binomial(100000;0.3)         cdf    n=10000   v2.4.1 auto/best  3.44 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+OLD  binomial(100000;0.3)         cdf    n=100000  v2.4.1 auto/best  4.67 (parallel)   v2.4.2 auto/best  1.03 (parallel)
+OLD  binomial(100000;0.3)         logpdf n=10000   v2.4.1 auto/best  2.84 (parallel)   v2.4.2 auto/best  1.01 (parallel)
+OLD  binomial(100000;0.3)         logpdf n=100000  v2.4.1 auto/best  4.74 (parallel)   v2.4.2 auto/best  0.93 (parallel)
+OLD  binomial(100000;0.3)         pdf    n=10000   v2.4.1 auto/best  3.11 (parallel)   v2.4.2 auto/best  1.02 (parallel)
+OLD  binomial(100000;0.3)         pdf    n=100000  v2.4.1 auto/best  4.75 (parallel)   v2.4.2 auto/best  0.93 (parallel)
+OLD  binomial(1000;0.3)           cdf    n=10000   v2.4.1 auto/best  3.38 (parallel)   v2.4.2 auto/best  1.01 (parallel)
+OLD  binomial(1000;0.3)           cdf    n=100000  v2.4.1 auto/best  4.46 (parallel)   v2.4.2 auto/best  1.01 (parallel)
+OLD  binomial(1000;0.3)           logpdf n=10000   v2.4.1 auto/best  2.97 (parallel)   v2.4.2 auto/best  0.99 (parallel)
+OLD  binomial(1000;0.3)           logpdf n=100000  v2.4.1 auto/best  3.81 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+OLD  binomial(1000;0.3)           pdf    n=10000   v2.4.1 auto/best  3.11 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+OLD  binomial(1000;0.3)           pdf    n=100000  v2.4.1 auto/best  3.72 (parallel)   v2.4.2 auto/best  1.02 (parallel)
+OLD  binomial(50;0.3)             cdf    n=10000   v2.4.1 auto/best  3.36 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+OLD  binomial(50;0.3)             cdf    n=100000  v2.4.1 auto/best  4.89 (parallel)   v2.4.2 auto/best  1.03 (parallel)
+OLD  binomial(50;0.3)             logpdf n=10000   v2.4.1 auto/best  3.18 (parallel)   v2.4.2 auto/best  0.96 (parallel)
+OLD  binomial(50;0.3)             logpdf n=100000  v2.4.1 auto/best  4.86 (parallel)   v2.4.2 auto/best  0.99 (parallel)
+OLD  binomial(50;0.3)             pdf    n=10000   v2.4.1 auto/best  3.23 (parallel)   v2.4.2 auto/best  1.01 (parallel)
+OLD  binomial(50;0.3)             pdf    n=100000  v2.4.1 auto/best  4.80 (parallel)   v2.4.2 auto/best  1.11 (parallel)
+BOTH gamma(1000)                  logpdf n=10000   v2.4.1 auto/best  1.35 (parallel)   v2.4.2 auto/best  1.31 (parallel)
+BOTH gamma(1000)                  pdf    n=10000   v2.4.1 auto/best  1.35 (parallel)   v2.4.2 auto/best  1.36 (parallel)
+BOTH gamma(20)                    logpdf n=10000   v2.4.1 auto/best  1.89 (parallel)   v2.4.2 auto/best  1.82 (parallel)
+BOTH gamma(20)                    pdf    n=10000   v2.4.1 auto/best  1.92 (parallel)   v2.4.2 auto/best  2.01 (parallel)
+OLD  negative_binomial(1000;0.5)  cdf    n=10000   v2.4.1 auto/best  3.34 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+OLD  negative_binomial(1000;0.5)  cdf    n=100000  v2.4.1 auto/best  4.98 (parallel)   v2.4.2 auto/best  0.98 (parallel)
+OLD  negative_binomial(1000;0.5)  logpdf n=10000   v2.4.1 auto/best  2.74 (parallel)   v2.4.2 auto/best  0.99 (parallel)
+BOTH negative_binomial(1000;0.5)  logpdf n=100000  v2.4.1 auto/best  4.86 (parallel)   v2.4.2 auto/best  1.27 (parallel)
+OLD  negative_binomial(1000;0.5)  pdf    n=10000   v2.4.1 auto/best  2.94 (parallel)   v2.4.2 auto/best  0.98 (parallel)
+OLD  negative_binomial(1000;0.5)  pdf    n=100000  v2.4.1 auto/best  4.93 (parallel)   v2.4.2 auto/best  1.02 (parallel)
+OLD  negative_binomial(5;0.5)     cdf    n=10000   v2.4.1 auto/best  3.25 (parallel)   v2.4.2 auto/best  1.03 (parallel)
+OLD  negative_binomial(5;0.5)     cdf    n=100000  v2.4.1 auto/best  4.80 (parallel)   v2.4.2 auto/best  0.77 (parallel)
+OLD  negative_binomial(5;0.5)     logpdf n=10000   v2.4.1 auto/best  2.90 (parallel)   v2.4.2 auto/best  1.02 (parallel)
+OLD  negative_binomial(5;0.5)     logpdf n=100000  v2.4.1 auto/best  4.75 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+OLD  negative_binomial(5;0.5)     pdf    n=10000   v2.4.1 auto/best  3.00 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+OLD  negative_binomial(5;0.5)     pdf    n=100000  v2.4.1 auto/best  4.67 (parallel)   v2.4.2 auto/best  0.88 (parallel)
+NEW  student_t(1000)              pdf    n=10000   v2.4.1 auto/best  1.18 (parallel)   v2.4.2 auto/best  1.42 (parallel)
+OLD  von_mises(1)                 cdf    n=10000   v2.4.1 auto/best  3.33 (parallel)   v2.4.2 auto/best  1.01 (parallel)
+OLD  von_mises(1)                 cdf    n=100000  v2.4.1 auto/best  4.76 (parallel)   v2.4.2 auto/best  1.01 (parallel)
+BOTH von_mises(1)                 logpdf n=100000  v2.4.1 auto/best  2.86 (parallel)   v2.4.2 auto/best  2.80 (parallel)
+OLD  von_mises(30)                cdf    n=10000   v2.4.1 auto/best  3.33 (parallel)   v2.4.2 auto/best  0.99 (parallel)
+OLD  von_mises(30)                cdf    n=100000  v2.4.1 auto/best  4.57 (parallel)   v2.4.2 auto/best  1.06 (parallel)
+BOTH von_mises(30)                logpdf n=100000  v2.4.1 auto/best  2.93 (parallel)   v2.4.2 auto/best  2.99 (parallel)
+NEW  von_mises(30)                pdf    n=100000  v2.4.1 auto/best  1.06 (parallel)   v2.4.2 auto/best  1.36 (parallel)
+OLD  von_mises(300)               cdf    n=10000   v2.4.1 auto/best  3.28 (parallel)   v2.4.2 auto/best  0.99 (parallel)
+OLD  von_mises(300)               cdf    n=100000  v2.4.1 auto/best  4.78 (parallel)   v2.4.2 auto/best  1.00 (parallel)
+BOTH von_mises(300)               logpdf n=100000  v2.4.1 auto/best  2.96 (parallel)   v2.4.2 auto/best  2.92 (parallel)

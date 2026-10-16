@@ -46,12 +46,25 @@ if(NOT GTEST_FOUND
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG v1.17.0
-        GIT_SHALLOW TRUE)
+        GIT_SHALLOW TRUE
+        SYSTEM)
     # Prevent GTest from overriding the project's CRT choice on Windows.
     set(gtest_force_shared_crt
         ON
         CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
+    # GoogleTest 1.17.0 builds its own sources with -WX under an MSVC-style driver, and its
+    # char8_t printer trips -Wcharacter-conversion, new in Clang 21. Only clang-cl meets both.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+       AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
+       AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 21)
+        foreach(_libstats_gtest_target gtest gtest_main gmock gmock_main)
+            if(TARGET ${_libstats_gtest_target})
+                target_compile_options(${_libstats_gtest_target}
+                                       PRIVATE -Wno-character-conversion)
+            endif()
+        endforeach()
+    endif()
     set(GTEST_FOUND TRUE)
 endif()
 
@@ -103,7 +116,7 @@ endfunction()
 
 # Function to create a test executable linked to dynamic library.
 #
-# On Windows, copy stats.dll next to each dynamic test EXE so runtime loading does not depend on
+# On Windows, copy stats.dll next to the dynamic test EXEs so runtime loading does not depend on
 # PATH. Combined with per-config output directories above, this avoids both STATUS_DLL_NOT_FOUND and
 # stale Debug/Release binary collisions.
 function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
@@ -115,13 +128,21 @@ function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
     # Apply common test settings
     configure_common_test_settings(${TEST_NAME})
 
+    # Every dynamic test shares one output directory, and their parallel POST_BUILD copies of the
+    # same DLL raced ("Permission denied"). The first dynamic test copies; the rest build after it.
     if(WIN32)
-        add_custom_command(
-            TARGET ${TEST_NAME}
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libstats_shared>
-                    $<TARGET_FILE_DIR:${TEST_NAME}>
-            COMMENT "Copying shared libstats runtime next to ${TEST_NAME}")
+        get_property(_runtime_owner GLOBAL PROPERTY LIBSTATS_TEST_RUNTIME_OWNER)
+        if(NOT _runtime_owner)
+            set_property(GLOBAL PROPERTY LIBSTATS_TEST_RUNTIME_OWNER ${TEST_NAME})
+            add_custom_command(
+                TARGET ${TEST_NAME}
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libstats_shared>
+                        $<TARGET_FILE_DIR:${TEST_NAME}>
+                COMMENT "Copying shared libstats runtime next to the dynamic tests")
+        else()
+            add_dependencies(${TEST_NAME} ${_runtime_owner})
+        endif()
     endif()
 endfunction()
 
@@ -144,10 +165,14 @@ function(create_libstats_gtest TEST_NAME SOURCE_FILE)
             # Fallback to manual linking - be more careful about duplicates
             if(GTEST_MAIN_LIBRARIES)
                 target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_MAIN_LIBRARIES})
-                # Only add gtest if it's not already included in main libraries
-                if(GTEST_LIBRARIES AND NOT "${GTEST_MAIN_LIBRARIES}" MATCHES "gtest")
-                    target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_LIBRARIES})
-                endif()
+                # Add each gtest library the main list does not already hold. Matching the
+                # list's text against "gtest" was always true (the path holds gtest_main), so
+                # libgtest.a was never linked on this path.
+                foreach(_libstats_gtest_lib IN LISTS GTEST_LIBRARIES)
+                    if(NOT _libstats_gtest_lib IN_LIST GTEST_MAIN_LIBRARIES)
+                        target_link_libraries(${TEST_NAME} PRIVATE ${_libstats_gtest_lib})
+                    endif()
+                endforeach()
             elseif(GTEST_LIBRARIES)
                 target_link_libraries(${TEST_NAME} PRIVATE ${GTEST_LIBRARIES})
             endif()
@@ -357,6 +382,118 @@ create_libstats_gtest(test_log_special_gates test_log_special_gates.cpp)
 # same reasoning as test_log_special_gates above.
 create_libstats_gtest(test_batch_nan_gates test_batch_nan_gates.cpp)
 
+# #163 guard: copy/move construction and assignment across all 27 distributions must carry the
+# source's parameters and cache, never a validity flag without the cached values behind it.
+create_libstats_gtest(test_copy_move_cache test_copy_move_cache.cpp)
+
+# #161/#164/#165 guard: pdf/logpdf at the support boundary (x = 0 by shape, x = +-inf,
+# out-of-support counts) take their limits, scalar and batch, under every forced strategy.
+create_libstats_gtest(test_support_boundary_gates test_support_boundary_gates.cpp)
+
+# #158 guard: the probit (inverse_normal_cdf, Gaussian and LogNormal quantiles) finite and within
+# budget against mpmath from p = 1e-300 to the centre; the erf_inv(2p - 1) form returned -inf.
+create_libstats_gtest(test_probit_accuracy test_probit_accuracy.cpp)
+
+# #166 guard: CDFs on gamma_p/gamma_q/beta_i at large shape within budget of mpmath, scalar and
+# batch; the 1e-8 series stop and the cancelling gamma prefactor left 1e-9 to 8e-6.
+create_libstats_gtest(test_incomplete_gamma_beta_accuracy test_incomplete_gamma_beta_accuracy.cpp)
+
+# #160 guard: Gamma, Erlang and ChiSquared quantiles and the detail Gamma inverses within budget of
+# mpmath from p = 1e-300 to 1 - 1e-15; the linear-CDF Newton solver was 5e139 relative off.
+create_libstats_gtest(test_gamma_quantile_accuracy test_gamma_quantile_accuracy.cpp)
+
+# #137 guard: Beta quantiles and detail::inverse_beta_i within the accuracy law of mpmath from
+# the smallest subnormal p to 1 - 1e-15, both tails; the absolute-1e-8 Newton solver returned
+# 1e-8 for every p below it and 0.9999999999 for Beta(25, 1000).Q(6.57e-5).
+create_libstats_gtest(test_beta_quantile_accuracy test_beta_quantile_accuracy.cpp)
+
+# #159 guard: Student-t quantile, CDF, pdf and logpdf in the deep tail, at large nu and past
+# |t| ~ 1e154, within the accuracy law of mpmath; scalar and every batch strategy.
+create_libstats_gtest(test_student_t_tails test_student_t_tails.cpp)
+
+# Guard: lbeta and the normalisers built on it (Student-t, Beta, Fisher-F) at large arguments,
+# scalar and every batch strategy; p-values on the small tail, not 1 - CDF.
+create_libstats_gtest(test_log_beta_and_pvalues test_log_beta_and_pvalues.cpp)
+
+# Guard: sweep-found tail and tie defects (Cauchy quantile, Discrete and NegativeBinomial ties,
+# Poisson scalar pmf, log1p/expm1 forms), scalar and, for Pareto's CDF, every batch strategy.
+create_libstats_gtest(test_tail_and_tie_accuracy test_tail_and_tie_accuracy.cpp)
+
+# Guard: Gamma-family densities at large shape (Stirling-form prefactor), scalar and every batch
+# strategy; ChiSquared, Erlang and InverseGamma through their Gamma delegate.
+create_libstats_gtest(test_gamma_density_accuracy test_gamma_density_accuracy.cpp)
+
+# VectorOps::vector_log1p (generic over each tier's vector_log): accuracy against std::log1p,
+# the IEEE edges, in-place calls and block-boundary sizes.
+create_libstats_gtest(test_vector_log1p test_vector_log1p.cpp)
+
+# VectorOps::vector_expm1 (Taylor below |x| = 1/2, vector_exp less 1 above): accuracy against
+# std::expm1, the IEEE edges, in-place calls and block-boundary sizes.
+create_libstats_gtest(test_vector_expm1 test_vector_expm1.cpp)
+
+# Student-t (large nu) and Beta (large shape) batch densities on vector_log1p, every strategy,
+# against mpmath.
+create_libstats_gtest(test_log1p_density_batches test_log1p_density_batches.cpp)
+
+# #172 guard: Poisson, Binomial, NegativeBinomial and Geometric log-pmfs at counts 1e3 to 1e7 within
+# the conditioning budget of mpmath, scalar and every batch strategy.
+create_libstats_gtest(test_discrete_pmf_accuracy test_discrete_pmf_accuracy.cpp)
+
+# Guard: scalar methods racing a setter return one parameter state's value, never a mix or NaN
+# (Binomial pmf/CDF, Poisson pmf, Gamma quantile), and one batch call returns one state under every
+# strategy (#175: Binomial, NegativeBinomial, von Mises). Correctness, not timing: it asserts values
+# only.
+create_libstats_gtest(test_snapshot_consistency test_snapshot_consistency.cpp)
+
+# #175/#176 guard: forced PARALLEL beats forced VECTORIZED at n = 1M where the parallel path took a
+# lock per element or ran serially. Timing assertions: in the "timing" label block below.
+create_libstats_gtest(test_parallel_batch_gates test_parallel_batch_gates.cpp)
+
+# Gates from the 2026-10-06 lock and parallel-path audit: Poisson getMedian's recursive shared
+# lock, Uniform's unlocked copy-assignment, the Uniform/Discrete bound setters' TOCTOU, the
+# delegating setters' order, parallelTransform's repeated chunks, PARALLEL below the fork threshold,
+# self-comparison. Correctness, not timing: it asserts values and progress only.
+create_libstats_gtest(test_concurrency_gates test_concurrency_gates.cpp)
+
+# Contract gates from the 2026-10-07 architecture review and defect hunt: atomic getters after
+# assignment, stream round trips, NaN quantiles, fit validation, survival complements, tiny-kappa
+# von Mises, Geometric closed-form CDF, scale ranges, quantile ties, signgam (#173). Correctness,
+# not timing: deliberately NOT in the "timing" label block below.
+create_libstats_gtest(test_contract_gates test_contract_gates.cpp)
+# getSurvival complement-native overrides: deep-tail S against mpmath, not 1 - F. Correctness.
+create_libstats_gtest(test_survival_tails test_survival_tails.cpp)
+# AR D19: no `inline` member definitions in src/*.cpp (Poisson's overrides, the #189 class).
+add_test(NAME check_inline_member_definitions
+         COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -P
+                 ${CMAKE_CURRENT_SOURCE_DIR}/check_inline_member_definitions.cmake)
+
+# R9 stress test: every distribution's readers raced against writer programs (setters, fit, stream,
+# assignment), two-writer rounds, and a strategy differential. Correctness, not timing: it asserts
+# values and progress only. LIBSTATS_STRESS_SCALE scales its rounds (lower it under TSan).
+create_libstats_gtest(test_concurrency_stress test_concurrency_stress.cpp)
+# Its templated rows exceed COFF's 2^16 sections: MSVC stops with C1128 without /bigobj (clang-cl
+# switches to the big format by itself).
+if(MSVC)
+    target_compile_options(test_concurrency_stress PRIVATE /bigobj)
+endif()
+# Its racing threads need the cores to themselves: under ctest --parallel on a 3-vCPU runner they
+# starved and tripped the 120 s watchdog. Same for the gates, which race the same way.
+foreach(_t test_concurrency_stress test_concurrency_gates)
+    if(TEST ${_t})
+        set_tests_properties(${_t} PROPERTIES RUN_SERIAL TRUE)
+    endif()
+endforeach()
+
+# Oracle-free identities over all 27 distributions (2026-10-07 defect hunt, proposal 1): CDF range
+# and monotonicity, Q(F(x)) and F(Q(p)) round trips, discrete quantile minimality, pdf against
+# dF/dx, logpdf against log(pdf), scalar against vectorised batch, cross-class identities.
+# Correctness, not timing: it asserts values only, so it must stay out of the "timing" label.
+create_libstats_gtest(test_distribution_identities test_distribution_identities.cpp)
+
+# Stream round trip at awkward parameter values and fit on degenerate data (defect hunt, proposal
+# 3). Correctness, not timing.
+create_libstats_gtest(test_io_fit_fuzz test_io_fit_fuzz.cpp)
+
 # #51 guard: absolute-error accuracy gate for VonMisesDistribution::
 # getCumulativeProbability against a direct-quadrature oracle (independent of
 # the Bessel-series/trapezoidal implementation). Deliberately NOT added to
@@ -364,6 +501,10 @@ create_libstats_gtest(test_batch_nan_gates test_batch_nan_gates.cpp)
 # above: this carries no timing assertions, and a regression gate CI never
 # runs guards nothing.
 create_libstats_gtest(test_vonmises_cdf_accuracy test_vonmises_cdf_accuracy.cpp)
+
+# Guard: von Mises CDF in both deep tails (relative, not absolute, accuracy) and the quantile to
+# the accuracy law, including the left end of the support; scalar and every batch strategy.
+create_libstats_gtest(test_von_mises_tails test_von_mises_tails.cpp)
 
 # #49 guard: relative-error accuracy gate for LogNormalDistribution::
 # getCumulativeProbability (scalar + batch span overload) against a
@@ -505,42 +646,73 @@ create_libstats_test_dynamic(test_exponential_basic_dynamic test_exponential_bas
 # on non-existent tests, so guard this block -- unlike DEPENDS which tolerates missing targets.
 if(GTEST_FOUND)
     set_tests_properties(
-        test_math_comprehensive # vectorized math speedup assertions
-        test_gaussian_enhanced
-        test_chi_squared_enhanced
-        test_student_t_enhanced
-        test_beta_enhanced
-        test_lognormal_enhanced
-        test_pareto_enhanced
-        test_weibull_enhanced
-        test_rayleigh_enhanced
-        test_von_mises_enhanced
-        test_binomial_enhanced
-        test_negative_binomial_enhanced
-        test_performance_dispatcher
-        test_system_capabilities
+        test_parallel_batch_gates # #175/#176: PARALLEL beats VECTORIZED at 1M
+        # test_chi_squared_enhanced, test_student_t_enhanced, test_beta_enhanced and
+        # test_performance_dispatcher left this list (AR T1, 2026-10-07): none has a clock, duration
+        # or speedup assertion, so the label only kept their gates (#103 among them) out of CI's
+        # correctness run (-LE "timing|benchmark"), the #97 trap.
         PROPERTIES LABELS "timing")
-    set_tests_properties(
-        test_exponential_enhanced
-        test_uniform_enhanced
-        test_poisson_enhanced
-        test_discrete_enhanced
-        test_gamma_enhanced
-        test_geometric_enhanced
-        test_laplace_enhanced
-        test_cauchy_enhanced
-        # v2.4.0 note: NO new enhanced binary carries the timing label. None of
-        # the eight new distributions' enhanced tests asserts a speedup ratio
-        # (Bernoulli's VectorizedSpeedup only PRINTS the ratio and asserts
-        # parallel==scalar values), and the #103/#104 contract gates live in
-        # these binaries — a timing label would exclude them from CI's
-        # correctness run (-LE "timing|benchmark"), the #97 guard-that-never-
-        # runs trap. test_bernoulli_enhanced/test_erlang_enhanced were labelled
-        # at first landing and unlabelled here for exactly that reason.
-        PROPERTIES LABELS "timing")
+    # #212: the other binaries mix correctness and timing cases. Labelling a whole binary "timing"
+    # kept its correctness cases (#48, #95, #103/#104 gates among them) out of CI's correctness run,
+    # the #97 trap. Each mixed binary is registered twice instead: <name> runs everything except its
+    # timing cases, unlabelled; <name>_timing runs only those, labelled "timing". A case is timing
+    # when it asserts on a duration, speedup or ratio of times; printing one does not count. The
+    # binaries test_binomial_enhanced, test_negative_binomial_enhanced, test_geometric_enhanced,
+    # test_von_mises_enhanced and test_system_capabilities time things but assert none of it, so
+    # they carry no label at all (the #198 pattern). The filter goes through GTEST_FILTER, the
+    # environment form of --gtest_filter, because the test's command is set where it is created.
+    function(libstats_split_timing_cases TEST_NAME)
+        list(JOIN ARGN ":" timing_filter)
+        set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "GTEST_FILTER=-${timing_filter}")
+        add_test(NAME ${TEST_NAME}_timing COMMAND $<TARGET_FILE:${TEST_NAME}>)
+        # A renamed case would select nothing and pass silently; fail on an empty selection.
+        set_tests_properties(
+            ${TEST_NAME}_timing
+            PROPERTIES LABELS
+                       "timing"
+                       ENVIRONMENT
+                       "GTEST_FILTER=${timing_filter}"
+                       WORKING_DIRECTORY
+                       ${CMAKE_BINARY_DIR}
+                       FAIL_REGULAR_EXPRESSION
+                       "Running 0 tests")
+        # One misspelled name among several still selected some tests; check every name. A
+        # correctness test, so CI's run executes it.
+        list(LENGTH ARGN _names)
+        add_test(
+            NAME ${TEST_NAME}_timing_split_names
+            COMMAND
+                ${CMAKE_COMMAND} -DBINARY=$<TARGET_FILE:${TEST_NAME}> -DFILTER=${timing_filter}
+                -DEXPECTED=${_names} -P ${CMAKE_CURRENT_SOURCE_DIR}/check_gtest_filter_count.cmake)
+    endfunction()
+
+    libstats_split_timing_cases(test_math_comprehensive MathUtilsTest.ErfPerformance
+                                MathUtilsTest.GammaPerformance)
+    libstats_split_timing_cases(
+        test_gaussian_enhanced GaussianEnhancedTest.SIMDAndParallelBatchImplementations
+        GaussianEnhancedTest.AutoDispatchAssessment
+        GaussianEnhancedTest.ParallelBatchFittingSpeedup)
+    libstats_split_timing_cases(
+        test_gamma_enhanced GammaEnhancedTest.SIMDAndParallelBatchImplementations
+        GammaEnhancedTest.AutoDispatchAssessment)
+    libstats_split_timing_cases(
+        test_discrete_enhanced DiscreteEnhancedTest.SIMDAndParallelBatchImplementations
+        DiscreteEnhancedTest.CachingSpeedupVerification)
+    libstats_split_timing_cases(test_exponential_enhanced
+                                ExponentialEnhancedTest.SIMDAndParallelBatchImplementations)
+    libstats_split_timing_cases(test_poisson_enhanced
+                                PoissonEnhancedTest.SIMDAndParallelBatchImplementations)
+    libstats_split_timing_cases(test_uniform_enhanced
+                                UniformEnhancedTest.SIMDAndParallelBatchImplementations)
+    libstats_split_timing_cases(test_cauchy_enhanced CauchyEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_laplace_enhanced LaplaceEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_lognormal_enhanced LogNormalEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_pareto_enhanced ParetoEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_rayleigh_enhanced RayleighEnhancedTest.VectorizedSpeedup)
+    libstats_split_timing_cases(test_weibull_enhanced WeibullEnhancedTest.VectorizedSpeedup)
 
     # test_benchmark is a benchmark, not a correctness test. It used to be kept
-    # out of run_tests by name, via "^test_benchmark$" in that target's -E
+    # out of run_tests (now run_tests_correctness) by name, via "^test_benchmark$" in that target's -E
     # regex -- and that literal $ is exactly what made the target unusable
     # under the Ninja generator, which requires it written as $$ and treats the
     # malformed line as invalidating the whole build.ninja. Labelling it
@@ -675,11 +847,17 @@ add_custom_target(
 # label or test name equals. Both filters were therefore inert and this target
 # ran the entire suite (72 tests) rather than the 41 it describes. Verified by
 # comparing `ctest -N` counts for the escaped and plain forms.
+# Named run_tests until v2.5.0: the Visual Studio generator adds its own RUN_TESTS target, and the
+# .slnx solution a fresh VS 2026 configure emits compares project names case-insensitively, so
+# MSBuild rejected the whole solution ("Project name 'run_tests' already exists").
 add_custom_target(
-    run_tests
+    run_tests_correctness
     COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure -LE "timing|benchmark" -E
             "stress|comprehensive|dynamic|_fix|parallel_compilation"
-    COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)")
+    COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)"
+    # VERBATIM quotes the regexes for each generator's shell: without it the Visual Studio
+    # generator wrote them bare into a cmd.exe rule, which read each | as a pipe (exit 255).
+    VERBATIM)
 
 # Timing validation target — runs serially for accurate measurement
 add_custom_target(

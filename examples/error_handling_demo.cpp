@@ -92,8 +92,8 @@ void demonstrate_parameter_validation() {
         std::cout << "❌ ERROR: Should have rejected invalid parameters for Uniform(10.0, 5.0)"
                   << std::endl;
     } else {
-        std::cout << "✅ Correctly rejected invalid parameters: " << invalid_uniform_result.message()
-                  << std::endl;
+        std::cout << "✅ Correctly rejected invalid parameters: "
+                  << invalid_uniform_result.message() << std::endl;
     }
 
     // Test zero rate parameter using factory method

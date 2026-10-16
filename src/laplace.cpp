@@ -1,9 +1,6 @@
 #include "libstats/distributions/laplace.h"
 
 #include "libstats/common/distribution_impl_common.h"
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -12,6 +9,7 @@ using stats::detail::validatePositiveParameter;
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -19,6 +17,11 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 //==============================================================================
 // 1. CONSTRUCTORS AND DESTRUCTOR
@@ -80,6 +83,11 @@ LaplaceDistribution::LaplaceDistribution(LaplaceDistribution&& other) noexcept
 
 LaplaceDistribution& LaplaceDistribution::operator=(LaplaceDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         mu_ = other.mu_;
         b_ = other.b_;
         neg_inv_b_ = other.neg_inv_b_;
@@ -129,8 +137,8 @@ double LaplaceDistribution::getBAtomic() const noexcept {
 }
 
 void LaplaceDistribution::setMu(double mu) {
-    validateParameters(mu, b_);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu, b_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -139,8 +147,8 @@ void LaplaceDistribution::setMu(double mu) {
 }
 
 void LaplaceDistribution::setB(double b) {
-    validateParameters(mu_, b);
     std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+    validateParameters(mu_, b);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -164,10 +172,10 @@ void LaplaceDistribution::setParameters(double mu, double b) {
 //==============================================================================
 
 VoidResult LaplaceDistribution::trySetMu(double mu) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateLaplaceParameters(mu, b_);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     mu_ = mu;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -177,10 +185,10 @@ VoidResult LaplaceDistribution::trySetMu(double mu) noexcept {
 }
 
 VoidResult LaplaceDistribution::trySetB(double b) noexcept {
+    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     auto v = validateLaplaceParameters(mu_, b);
     if (v.isError())
         return v;
-    std::unique_lock<std::shared_mutex> lock(cache_mutex_);
     b_ = b;
     cache_valid_ = false;
     cacheValidAtomic_.store(false, std::memory_order_release);
@@ -258,7 +266,26 @@ double LaplaceDistribution::getCumulativeProbability(double x) const {
                                       : detail::ONE - detail::HALF * std::exp(-d / bv);
 }
 
+double LaplaceDistribution::getSurvival(double x) const {
+    // The CDF's branches mirrored: the exponential is the small side at and above μ.
+    if (std::isnan(x))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (!std::isfinite(x))
+        return (x > 0) ? detail::ZERO_DOUBLE : detail::ONE;
+
+    double m, bv;
+    withCacheSnapshot([&] {
+        m = mu_;
+        bv = b_;
+    });
+    const double d = x - m;
+    return (d >= detail::ZERO_DOUBLE) ? detail::HALF * std::exp(-d / bv)
+                                      : detail::ONE - detail::HALF * std::exp(d / bv);
+}
+
 double LaplaceDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE)
         throw std::invalid_argument("Probability must be in [0, 1]");
     if (p == detail::ZERO_DOUBLE)
@@ -371,7 +398,7 @@ void LaplaceDistribution::reset() noexcept {
 std::string LaplaceDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "LaplaceDistribution(mu=" << mu_ << ",b=" << b_ << ")";
     return oss.str();
 }
@@ -419,36 +446,29 @@ void LaplaceDistribution::getProbability(std::span<const double> values, std::sp
                 nib = d.neg_inv_b_;
                 nlb = d.neg_log2b_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m))
-                                              : detail::ZERO_DOUBLE;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                    nib, nlb);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m))
-                                              : detail::ZERO_DOUBLE;
-                }
-            }
         },
-        // Work-stealing
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, nib, nlb;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 nib = d.neg_inv_b_;
                 nlb = d.neg_log2b_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] =
-                    std::isfinite(x) ? std::exp(nlb + nib * std::fabs(x - m)) : detail::ZERO_DOUBLE;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                nib, nlb);
             });
-            pool.waitForAll();
         });
 }
 
@@ -479,35 +499,29 @@ void LaplaceDistribution::getLogProbability(std::span<const double> values,
                 nib = d.neg_inv_b_;
                 nlb = d.neg_log2b_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] =
-                        std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       m, nib, nlb);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] =
-                        std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
-                }
-            }
         },
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, nib, nlb;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 nib = d.neg_inv_b_;
                 nlb = d.neg_log2b_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] =
-                    std::isfinite(x) ? nlb + nib * std::fabs(x - m) : detail::NEGATIVE_INFINITY;
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, m,
+                                                   nib, nlb);
             });
-            pool.waitForAll();
         });
 }
 
@@ -536,54 +550,28 @@ void LaplaceDistribution::getCumulativeProbability(std::span<const double> value
                 m = d.mu_;
                 hib = d.half_inv_b_;
             });
-            const double inv_b = detail::TWO * hib;
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    if (!std::isfinite(x)) {
-                        res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                        return;
-                    }
-                    const double dv = x - m;
-                    res[i] = (dv <= detail::ZERO_DOUBLE)
-                                 ? detail::HALF * std::exp(dv * inv_b)
-                                 : detail::ONE - detail::HALF * std::exp(-dv * inv_b);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, m, hib);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    if (!std::isfinite(x)) {
-                        res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                        continue;
-                    }
-                    const double dv = x - m;
-                    res[i] = (dv <= detail::ZERO_DOUBLE)
-                                 ? detail::HALF * std::exp(dv * inv_b)
-                                 : detail::ONE - detail::HALF * std::exp(-dv * inv_b);
-                }
-            }
         },
         [](const LaplaceDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double m, hib;
             d.withCacheSnapshot([&] {
                 m = d.mu_;
                 hib = d.half_inv_b_;
             });
-            const double inv_b = detail::TWO * hib;
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                if (!std::isfinite(x)) {
-                    res[i] = (x > 0) ? detail::ONE : detail::ZERO_DOUBLE;
-                    return;
-                }
-                const double dv = x - m;
-                res[i] = (dv <= detail::ZERO_DOUBLE)
-                             ? detail::HALF * std::exp(dv * inv_b)
-                             : detail::ONE - detail::HALF * std::exp(-dv * inv_b);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, m, hib);
             });
-            pool.waitForAll();
         });
 }
 
@@ -633,8 +621,8 @@ std::istream& operator>>(std::istream& is, LaplaceDistribution& dist) {
     }
 
     try {
-        mu = std::stod(token.substr(mu_pos + 3, b_pos - mu_pos - 3));
-        b = std::stod(token.substr(b_pos + 3, close - b_pos - 3));
+        mu = detail::parse_double(token.substr(mu_pos + 3, b_pos - mu_pos - 3));
+        b = detail::parse_double(token.substr(b_pos + 3, close - b_pos - 3));
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -730,7 +718,12 @@ void LaplaceDistribution::getCumulativeProbabilityBatchUnsafeImpl(
 
 void LaplaceDistribution::updateCacheUnsafe() const noexcept {
     neg_inv_b_ = -detail::ONE / b_;
-    neg_log2b_ = -std::log(detail::TWO * b_);
+    // 2b overflows above DBL_MAX/2, where −log(2b) read −inf and the density 0 (Laplace(0, 1e308)
+    // at 0: 5e-309). There the log is split; below, the form is unchanged. b is tested, not 2b:
+    // GCC takes an overflowed 2b to mean b = +inf and folds the split's log b (AGENTS.md).
+    neg_log2b_ = b_ < std::numeric_limits<double>::max() / detail::TWO
+                     ? -std::log(detail::TWO * b_)
+                     : -(detail::LN2 + std::log(b_));
     half_inv_b_ = detail::HALF / b_;
 
     cache_valid_ = true;

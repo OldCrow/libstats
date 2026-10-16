@@ -1,5 +1,7 @@
 #pragma once
 
+#include "math_constants.h"
+
 #include <climits>
 #include <cmath>
 #include <limits>
@@ -182,7 +184,7 @@ inline std::string errorToString(ValidationError error) noexcept {
 /**
  * @brief Validate Gaussian distribution parameters without throwing exceptions
  * @param mean Mean parameter
- * @param stdDev Standard deviation parameter
+ * @param stdDev Standard deviation (in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
  * @return VoidResult indicating success or failure
  */
 inline VoidResult validateGaussianParameters(double mean, double stdDev) noexcept {
@@ -193,6 +195,20 @@ inline VoidResult validateGaussianParameters(double mean, double stdDev) noexcep
     if (std::isnan(stdDev) || std::isinf(stdDev) || stdDev <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidStdDev,
                                      "Standard deviation must be a positive finite number");
+    }
+    // −1/(2σ²) is cached: below √DBL_MIN it is −inf and the density at the mean 0·inf = NaN, the
+    // batch NaN where the scalar path read 0 (Fix7C). HalfNormal's and Rayleigh's lower bound.
+    if (stdDev < detail::MIN_SQUARABLE_SCALE) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Standard deviation is below the range where σ² is a normal "
+                                     "double (MIN_SQUARABLE_SCALE)");
+    }
+    // The single source of the bounds: GaussianDistribution's throwing validator calls this one
+    // (Fix8; create() and trySet* accepted σ > 1e10, which the constructor rejected).
+    if (stdDev > detail::MAX_STANDARD_DEVIATION) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Standard deviation is too large for numerical stability "
+                                     "(MAX_STANDARD_DEVIATION)");
     }
 
     return VoidResult::ok({});
@@ -306,7 +322,7 @@ inline VoidResult validateGammaParameters(double alpha, double beta) noexcept {
 /**
  * @brief Validate Log-Normal distribution parameters without throwing exceptions
  * @param mu Location parameter (log-mean, any finite real)
- * @param sigma Scale parameter (log-stddev, must be positive)
+ * @param sigma Scale parameter (log-stddev, in [MIN_SQUARABLE_SCALE, MAX_STANDARD_DEVIATION])
  * @return VoidResult indicating success or failure
  */
 inline VoidResult validateLogNormalParameters(double mu, double sigma) noexcept {
@@ -317,6 +333,19 @@ inline VoidResult validateLogNormalParameters(double mu, double sigma) noexcept 
     if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidStdDev,
                                      "Sigma (log-stddev) must be a positive finite number");
+    }
+    // −1/(2σ²) is cached, as Gaussian's: the same lower bound (Fix7C), and the same upper bound
+    // (Fix8): above ~1.5e154 the coefficient is subnormal or 0, the quadratic term is lost and
+    // pdf(+inf) was 0·inf = NaN.
+    if (sigma < detail::MIN_SQUARABLE_SCALE) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Sigma (log-stddev) is below the range where σ² is a normal "
+                                     "double (MIN_SQUARABLE_SCALE)");
+    }
+    if (sigma > detail::MAX_STANDARD_DEVIATION) {
+        return VoidResult::makeError(ValidationError::InvalidStdDev,
+                                     "Sigma (log-stddev) is too large for numerical stability "
+                                     "(MAX_STANDARD_DEVIATION)");
     }
     return VoidResult::ok({});
 }
@@ -367,6 +396,11 @@ inline VoidResult validateRayleighParameters(double sigma) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Sigma (σ) must be a positive finite number");
     }
+    // σ² must stay finite and normal (DH D6); the upper bound is Gaussian's.
+    if (sigma < detail::MIN_SQUARABLE_SCALE || sigma > detail::MAX_STANDARD_DEVIATION) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Sigma (σ) is outside the range where σ² is a normal double");
+    }
     return VoidResult::ok({});
 }
 
@@ -379,6 +413,11 @@ inline VoidResult validateHalfNormalParameters(double sigma) noexcept {
     if (std::isnan(sigma) || std::isinf(sigma) || sigma <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Sigma (σ) must be a positive finite number");
+    }
+    // σ² must stay finite and normal (DH D6); the upper bound is Gaussian's.
+    if (sigma < detail::MIN_SQUARABLE_SCALE || sigma > detail::MAX_STANDARD_DEVIATION) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Sigma (σ) is outside the range where σ² is a normal double");
     }
     return VoidResult::ok({});
 }
@@ -503,18 +542,29 @@ inline VoidResult validateChiSquaredParameters(double k) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Degrees of freedom k must be a positive finite number");
     }
+    // The Gamma(k/2, 1/2) delegate must accept k/2: at the smallest subnormal k, k/2 rounds to
+    // zero, and an owner that accepted it would desync from its delegate (#227).
+    if (validateGammaParameters(k * 0.5, 0.5).isError()) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Degrees of freedom k is too small: k/2 underflows to zero");
+    }
     return VoidResult::ok({});
 }
 
 /**
  * @brief Validate Student's t distribution parameters without throwing exceptions
- * @param nu Degrees of freedom ν (must be positive and finite)
+ * @param nu Degrees of freedom ν (must be finite and at least DBL_MIN)
  * @return VoidResult indicating success or failure
+ *
+ * A subnormal ν is rejected, as Cauchy, Laplace, Logistic and Gumbel reject a subnormal scale:
+ * below 1/DBL_MAX, 1/ν overflows and the log-density at t ≠ 0 reads −inf where the true value
+ * is about −714 [user, 2026-10-12: reject rather than carry log ν through the kernel].
  */
 inline VoidResult validateStudentTParameters(double nu) noexcept {
-    if (std::isnan(nu) || std::isinf(nu) || nu <= 0.0) {
-        return VoidResult::makeError(ValidationError::InvalidParameter,
-                                     "Degrees of freedom nu must be a positive finite number");
+    if (std::isnan(nu) || std::isinf(nu) || !(nu >= std::numeric_limits<double>::min())) {
+        return VoidResult::makeError(
+            ValidationError::InvalidParameter,
+            "Degrees of freedom nu must be finite and at least DBL_MIN (2.2250738585072014e-308)");
     }
     return VoidResult::ok({});
 }
@@ -529,13 +579,14 @@ inline VoidResult validateGeometricParameters(double p) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Success probability p must be in (0, 1]");
     }
-    return VoidResult::ok({});
+    // Whatever this accepts, the NegativeBinomial(1, p) delegate must accept too (#227).
+    return validateNegativeBinomialParameters(1.0, p);
 }
 
 /**
  * @brief Validate Laplace distribution parameters without throwing exceptions
  * @param mu Location parameter (must be finite)
- * @param b  Scale parameter (must be positive and finite)
+ * @param b  Scale parameter (finite and at least DBL_MIN)
  * @return VoidResult indicating success or failure
  */
 inline VoidResult validateLaplaceParameters(double mu, double b) noexcept {
@@ -547,13 +598,19 @@ inline VoidResult validateLaplaceParameters(double mu, double b) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter b must be a positive finite number");
     }
+    // −1/b and ½/b are cached: below 1/DBL_MAX they are inf and the density NaN (Laplace(0,
+    // 5e-324).pdf(0)). Cauchy's bound (Fix8).
+    if (b < std::numeric_limits<double>::min()) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter b must be a normal double (>= DBL_MIN)");
+    }
     return VoidResult::ok({});
 }
 
 /**
  * @brief Validate Cauchy distribution parameters without throwing exceptions
  * @param x0    Location parameter (must be finite)
- * @param gamma Scale parameter (must be positive and finite)
+ * @param gamma Scale parameter (must be finite and at least DBL_MIN)
  * @return VoidResult indicating success or failure
  */
 inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
@@ -565,13 +622,19 @@ inline VoidResult validateCauchyParameters(double x0, double gamma) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter gamma must be a positive finite number");
     }
+    // 1/γ is cached and must stay finite and exact to a rounding: a subnormal γ gave 1/γ = inf
+    // below 5.6e-309 and a NaN density everywhere (Cauchy(0, 5e-324).pdf(0)).
+    if (gamma < std::numeric_limits<double>::min()) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter gamma must be a normal double (>= DBL_MIN)");
+    }
     return VoidResult::ok({});
 }
 
 /**
  * @brief Validate Logistic distribution parameters without throwing exceptions
  * @param mu Location parameter (must be finite)
- * @param s  Scale parameter (must be positive and finite)
+ * @param s  Scale parameter (finite and at least DBL_MIN)
  * @return VoidResult indicating success or failure
  */
 inline VoidResult validateLogisticParameters(double mu, double s) noexcept {
@@ -583,13 +646,18 @@ inline VoidResult validateLogisticParameters(double mu, double s) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter s must be a positive finite number");
     }
+    // 1/s is cached: below 1/DBL_MAX it is inf and the density NaN. Cauchy's bound (Fix8).
+    if (s < std::numeric_limits<double>::min()) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter s must be a normal double (>= DBL_MIN)");
+    }
     return VoidResult::ok({});
 }
 
 /**
  * @brief Validate Gumbel distribution parameters without throwing exceptions
  * @param mu   Location parameter (must be finite)
- * @param beta Scale parameter (must be positive and finite)
+ * @param beta Scale parameter (finite and at least DBL_MIN)
  * @return VoidResult indicating success or failure
  */
 inline VoidResult validateGumbelParameters(double mu, double beta) noexcept {
@@ -600,6 +668,11 @@ inline VoidResult validateGumbelParameters(double mu, double beta) noexcept {
     if (std::isnan(beta) || std::isinf(beta) || beta <= 0.0) {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter beta must be a positive finite number");
+    }
+    // 1/β is cached: below 1/DBL_MAX it is inf and the density NaN. Cauchy's bound (Fix8).
+    if (beta < std::numeric_limits<double>::min()) {
+        return VoidResult::makeError(ValidationError::InvalidParameter,
+                                     "Scale parameter beta must be a normal double (>= DBL_MIN)");
     }
     return VoidResult::ok({});
 }
@@ -620,7 +693,8 @@ inline VoidResult validateBernoulliParameters(double p) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Success probability p must be in [0, 1]");
     }
-    return VoidResult::ok({});
+    // Whatever this accepts, the Binomial(1, p) delegate must accept too (#227).
+    return validateBinomialParameters(1, p);
 }
 
 /**
@@ -644,7 +718,8 @@ inline VoidResult validateErlangParameters(int k, double lambda) noexcept {
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Rate parameter lambda must be a positive finite number");
     }
-    return VoidResult::ok({});
+    // Whatever this accepts, the Gamma(k, lambda) delegate must accept too (#227).
+    return validateGammaParameters(static_cast<double>(k), lambda);
 }
 
 /**
@@ -670,6 +745,13 @@ inline VoidResult validateFisherFParameters(double d1, double d2) noexcept {
             ValidationError::InvalidParameter,
             "Denominator degrees of freedom d2 must be a positive finite number");
     }
+    // The Beta(d1/2, d2/2) delegate must accept both halves: at the smallest subnormal, d/2
+    // rounds to zero, and an owner that accepted it would desync from its delegate (#227).
+    if (validateBetaParameters(d1 * 0.5, d2 * 0.5).isError()) {
+        return VoidResult::makeError(
+            ValidationError::InvalidParameter,
+            "Degrees of freedom d1 and d2 are too small: d/2 underflows to zero");
+    }
     return VoidResult::ok({});
 }
 
@@ -692,7 +774,8 @@ inline VoidResult validateInverseGammaParameters(double alpha, double beta) noex
         return VoidResult::makeError(ValidationError::InvalidParameter,
                                      "Scale parameter beta must be a positive finite number");
     }
-    return VoidResult::ok({});
+    // Whatever this accepts, the Gamma(alpha, rate = beta) delegate must accept too (#227).
+    return validateGammaParameters(alpha, beta);
 }
 
 }  // namespace stats

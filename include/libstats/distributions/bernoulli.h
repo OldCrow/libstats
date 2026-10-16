@@ -20,9 +20,17 @@ namespace stats {
  * - CDF:    0 for x<0, 1-p for 0<=x<1, 1 for x>=1
  * - Quantile: right-continuous discrete inverse Q(q) = min{k : F(k) >= q}
  *             (#104 contract): Q(q) = 0 for q <= 1-p, else 1; never NaN for
- *             q in (0,1).
+ *             q in (0,1). For q > 1/2 decided as S(0) = p <= 1-q, 1-q exact.
+ *             Q(1) is the smallest k with S(k) = 0: 1, or 0 at p = 0.
  * - Parameters: p in [0, 1] (success probability)
  * - Support: x in {0, 1}
+ *
+ * @par Non-integer arguments:
+ * The PMF and log-PMF round x to the nearest integer (halves away from zero) and give 0 (-inf)
+ * when that is not 0 or 1: x in (-1/2, 1/2) is the outcome 0, so pmf(-1e-300) = pmf(0) = 1-p,
+ * and x <= -1/2 has mass 0. The CDF and survival floor x instead: F(x) = F(floor(x)), so
+ * F(-1e-300) = 0 and S(-1e-300) = 1. At a non-integer x, pmf(x) is therefore not
+ * F(x) - F(x - 1).
  *
  * @par Moments:
  * - Mean:     p
@@ -58,9 +66,10 @@ namespace stats {
  *
  * @par Thread Safety:
  * All methods are fully thread-safe. BernoulliDistribution's `cache_mutex_`
- * and `binomial_`'s own mutex are independent; the two-phase setter pattern
- * (update `p_` under our lock, then call `binomial_.trySetP()` outside it)
- * avoids holding two mutexes simultaneously.
+ * and `binomial_`'s own mutex are independent. Delegate update under the
+ * owner's lock: setters call `binomial_.trySetP()` while holding our lock
+ * (ours, then the delegate's), so concurrent setters reach the delegate in the
+ * order they reach us; never call a delegate setter outside the lock.
  *
  * @author libstats Development Team
  * @version 2.4.0
@@ -182,25 +191,29 @@ class BernoulliDistribution : public DistributionBase {
     // 5. CORE PROBABILITY METHODS — delegated to binomial_
     //==========================================================================
 
-    /** @brief PMF at x — delegates to BinomialDistribution(n=1). */
+    /** @brief PMF at x rounded to the nearest integer — delegates to Binomial(n=1). */
     [[nodiscard]] double getProbability(double x) const override {
         return binomial_.getProbability(x);
     }
 
-    /** @brief Log-PMF at x — delegates to BinomialDistribution(n=1). */
+    /** @brief Log-PMF at x rounded to the nearest integer — delegates to Binomial(n=1). */
     [[nodiscard]] double getLogProbability(double x) const override {
         return binomial_.getLogProbability(x);
     }
 
-    /** @brief CDF at x — delegates to BinomialDistribution(n=1). */
+    /** @brief CDF at floor(x) — delegates to BinomialDistribution(n=1). */
     [[nodiscard]] double getCumulativeProbability(double x) const override {
         return binomial_.getCumulativeProbability(x);
     }
 
+    /** @brief Survival P(X > x), formed directly — delegates to BinomialDistribution(n=1). */
+    [[nodiscard]] double getSurvival(double x) const override { return binomial_.getSurvival(x); }
+
     /**
      * @brief Quantile: right-continuous discrete inverse Q(q) = min{k : F(k) >= q}
      * (#104 contract) — delegates to BinomialDistribution(n=1), whose own
-     * getQuantile already implements exactly this search over {0,...,n}.
+     * getQuantile already implements exactly this search over {0,...,n}
+     * (on the survival side, S(k) <= 1 - q, for q > 1/2).
      * @throws std::invalid_argument if q not in [0, 1]
      */
     [[nodiscard]] double getQuantile(double q) const override { return binomial_.getQuantile(q); }

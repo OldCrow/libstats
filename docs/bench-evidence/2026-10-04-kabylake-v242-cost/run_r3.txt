@@ -1,0 +1,17 @@
+2026-10-04 21:24:27 load=33.61 waiting for R1/R2 to finish
+2026-10-04 21:35:58 load=2.81 start prep sha=4ceafae
+2026-10-04 21:37:11 load=30.94 v2.4.1 build exit=0
+2026-10-04 21:37:14 load=30.94 bench_v241 build exit=0
+2026-10-04 21:37:17 load=28.94 bench_v242 build exit=0
+2026-10-04 21:38:34 load=28.49 build-cap-avx build exit=0 warnings=0
+2026-10-04 21:39:40 load=17.18 build-cap-sse2 build exit=0 warnings=0
+2026-10-04 21:39:40 load=17.18 R3 waiting for load < 2.0
+2026-10-04 21:43:40 load=1.90 start bench_v241
+2026-10-04 21:45:54 load=6.04 end bench_v241 exit=0; start bench_v242
+2026-10-04 21:48:09 load=4.94 end bench_v242 exit=0
+2026-10-04 21:48:09 load=4.94 compare exit=0; start timing ctest
+2026-10-04 21:48:21 load=4.14 end timing ctest exit=0
+2026-10-04 23:07:26 load=3.28 AVX2 batch done
+2026-10-05 00:26:32 load=3.27 AVX batch done
+2026-10-05 01:48:17 load=3.64 SSE2 batch done
+2026-10-05 01:48:17 load=3.64 DONE

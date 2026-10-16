@@ -1,0 +1,13 @@
+2026-10-05 00:31:25 batch start tier=SSE2 build=C:\Users\gdwol\Development\libstats-v2.4.2\build-sse2 sha=2c5230a runs=1 2 3
+2026-10-05 00:31:25 system_inspector: System: 12 logical cores, SSE2 SIMD, 16384 KB L3 cache
+2026-10-05 00:31:36 run1 cpu=8.7% waiting
+2026-10-05 00:32:46 run1 cpu=3.2% ac=True quiet
+2026-10-05 00:33:12 run1 start (after 25s discarded strategy_profile warm-up) utc=2026-10-05T04-33-12Z
+2026-10-05 00:47:02 run1 end exit=0 rows=7777 cpu=2.8%
+2026-10-05 00:47:12 run2 cpu=3.4% ac=True quiet
+2026-10-05 00:47:37 run2 start (after 25s discarded strategy_profile warm-up) utc=2026-10-05T04-47-37Z
+2026-10-05 01:00:50 run2 end exit=0 rows=7777 cpu=3.3%
+2026-10-05 01:01:00 run3 cpu=2.9% ac=True quiet
+2026-10-05 01:01:25 run3 start (after 25s discarded strategy_profile warm-up) utc=2026-10-05T05-01-25Z
+2026-10-05 01:15:25 run3 end exit=0 rows=7777 cpu=2.7%
+2026-10-05 01:15:25 batch DONE

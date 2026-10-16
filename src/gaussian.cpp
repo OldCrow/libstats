@@ -1,13 +1,9 @@
 #include "libstats/distributions/gaussian.h"
 
+#include "libstats/common/cpu_detection_fwd.h"         // CPU feature queries (lightweight)
 #include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-using stats::detail::validateNonNegativeParameter;
-using stats::detail::validateParameter;
-using stats::detail::validatePositiveParameter;
-
-#include "libstats/common/cpu_detection_fwd.h"       // CPU feature queries (lightweight)
-#include "libstats/common/platform_constants_fwd.h"  // Parallel thresholds (lightweight)
-#include "libstats/common/simd_policy_fwd.h"         // SIMD policy decisions (lightweight)
+#include "libstats/common/platform_constants_fwd.h"    // Parallel thresholds (lightweight)
+#include "libstats/common/simd_policy_fwd.h"           // SIMD policy decisions (lightweight)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
@@ -18,6 +14,8 @@ using stats::detail::validatePositiveParameter;
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
 #include <numeric>
 #include <ranges>
 #include <span>
@@ -25,6 +23,11 @@ using stats::detail::validatePositiveParameter;
 #include <vector>
 
 namespace stats {
+
+namespace {
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
+}  // namespace
 
 //==============================================================================
 // COMPLEX METHODS (Implementation in .cpp per C++20 best practices)
@@ -53,10 +56,8 @@ GaussianDistribution::GaussianDistribution(const GaussianDistribution& other)
     std::shared_lock<std::shared_mutex> lock(other.cache_mutex_);
     mean_ = other.mean_;
     standardDeviation_ = other.standardDeviation_;
-    // Propagate cache validity so the copy does not unnecessarily recompute.
-    cache_valid_ = other.cache_valid_;
-    cacheValidAtomic_.store(other.cacheValidAtomic_.load(std::memory_order_acquire),
-                            std::memory_order_release);
+    // The cache starts invalid and is rebuilt on first read. Propagating other's validity flag
+    // without its cached members is the Gamma defect of #163.
 }
 
 GaussianDistribution& GaussianDistribution::operator=(const GaussianDistribution& other) {
@@ -71,6 +72,7 @@ GaussianDistribution& GaussianDistribution::operator=(const GaussianDistribution
         standardDeviation_ = other.standardDeviation_;
         cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -83,10 +85,16 @@ GaussianDistribution::GaussianDistribution(GaussianDistribution&& other) noexcep
     other.standardDeviation_ = detail::ONE;
     other.cache_valid_ = false;
     other.cacheValidAtomic_.store(false, std::memory_order_release);
+    other.atomicParamsValid_.store(false, std::memory_order_release);
 }
 
 GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         mean_ = other.mean_;
         standardDeviation_ = other.standardDeviation_;
         other.mean_ = detail::ZERO_DOUBLE;
@@ -95,7 +103,9 @@ GaussianDistribution& GaussianDistribution::operator=(GaussianDistribution&& oth
         cache_valid_ = false;
         other.cache_valid_ = false;
         cacheValidAtomic_.store(false, std::memory_order_release);
+        atomicParamsValid_.store(false, std::memory_order_release);
         other.cacheValidAtomic_.store(false, std::memory_order_release);
+        other.atomicParamsValid_.store(false, std::memory_order_release);
     }
     return *this;
 }
@@ -299,7 +309,23 @@ double GaussianDistribution::getCumulativeProbability(double x) const {
     return cdf_from_erf_arg((x - m) / sigma_sqrt2);
 }
 
+double GaussianDistribution::getSurvival(double x) const {
+    // S(x) = Φ(−z): the erfc branch of cdf_from_erf_arg serves the upper tail (AR A11).
+    bool is_std;
+    double m, sigma_sqrt2;
+    withCacheSnapshot([&] {
+        is_std = isStandardNormal_;
+        m = mean_;
+        sigma_sqrt2 = sigmaSqrt2_;
+    });
+    if (is_std)
+        return cdf_from_erf_arg(-x * detail::INV_SQRT_2);
+    return cdf_from_erf_arg(-((x - m) / sigma_sqrt2));
+}
+
 double GaussianDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be between 0 and 1");
     }
@@ -315,13 +341,10 @@ double GaussianDistribution::getQuantile(double p) const {
         return mean_;  // Median equals mean for normal distribution
     }
 
-    // Use inverse error function for standard normal quantile
-    // For standard normal: quantile = sqrt(2) * erfinv(2p - 1)
-    // For general normal: quantile = mean + sigma * sqrt(2) * erfinv(2p - 1)
-
-    const double erf_input = detail::TWO * p - detail::ONE;
-    double z = detail::erf_inv(erf_input);
-    return mean_ + standardDeviation_ * detail::SQRT_2 * z;
+    // The shared probit: survival form in the tails, so the quantile is finite for every
+    // p ∈ (0, 1). The erf_inv(2p − 1) form used here before v2.5.0 returned −inf for p < 2^-54
+    // (#158).
+    return mean_ + standardDeviation_ * detail::inverse_normal_cdf(p);
 }
 
 double GaussianDistribution::sample(std::mt19937& rng) const {
@@ -331,17 +354,8 @@ double GaussianDistribution::sample(std::mt19937& rng) const {
         cached_sigma = standardDeviation_;
     });
 
-    // Optimized Box-Muller transform with enhanced numerical stability
-    static thread_local bool has_spare = false;
-    static thread_local double spare;
-
-    if (has_spare) {
-        has_spare = false;
-        return cached_mean + cached_sigma * spare;
-    }
-
-    has_spare = true;
-
+    // Box-Muller, one draw per call. The sine branch is discarded: a thread_local spare made a
+    // draw depend on the thread's previous call, whatever generator it used (#188).
     // Use high-quality uniform distribution
     std::uniform_real_distribution<double> uniform(std::numeric_limits<double>::min(), detail::ONE);
 
@@ -362,8 +376,7 @@ double GaussianDistribution::sample(std::mt19937& rng) const {
         }
     } while (true);
 
-    spare = magnitude * std::sin(angle);
-    double z = magnitude * std::cos(angle);
+    const double z = magnitude * std::cos(angle);
 
     return cached_mean + cached_sigma * z;
 }
@@ -576,6 +589,7 @@ void GaussianDistribution::reset() noexcept {
 std::string GaussianDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "GaussianDistribution(mean=" << mean_ << ", stddev=" << standardDeviation_ << ")";
     return oss.str();
 }
@@ -620,7 +634,7 @@ bool GaussianDistribution::isUsingStandardNormalOptimization() const {
     return isStandardNormal_;
 }
 
-// Utility methods moved from header for PIMPL optimization - no longer inline
+// Utility methods out-of-line to keep the header light
 
 double GaussianDistribution::getStandardizedValue(double x) const noexcept {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
@@ -685,15 +699,11 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                                                cached_neg_half_inv_var, cached_is_standard_normal);
         },
         [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double cached_mean, cached_norm_constant, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
             dist.withCacheSnapshot([&] {
@@ -702,44 +712,20 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                 cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
                 cached_is_standard_normal = dist.isStandardNormal_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (cached_is_standard_normal) {
-                        const double sq_diff = vals[i] * vals[i];
-                        res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
-                    } else {
-                        const double diff = vals[i] - cached_mean;
-                        const double sq_diff = diff * diff;
-                        res[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, cached_mean,
+                        cached_norm_constant, cached_neg_half_inv_var, cached_is_standard_normal);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (cached_is_standard_normal) {
-                        const double sq_diff = vals[i] * vals[i];
-                        res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
-                    } else {
-                        const double diff = vals[i] - cached_mean;
-                        const double sq_diff = diff * diff;
-                        res[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-                    }
-                }
-            }
         },
         [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double cached_mean, cached_norm_constant, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
             dist.withCacheSnapshot([&] {
@@ -748,19 +734,11 @@ void GaussianDistribution::getProbability(std::span<const double> values, std::s
                 cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
                 cached_is_standard_normal = dist.isStandardNormal_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    const double sq_diff = vals[i] * vals[i];
-                    res[i] = detail::INV_SQRT_2PI * std::exp(detail::NEG_HALF * sq_diff);
-                } else {
-                    const double diff = vals[i] - cached_mean;
-                    const double sq_diff = diff * diff;
-                    res[i] = cached_norm_constant * std::exp(cached_neg_half_inv_var * sq_diff);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_mean, cached_norm_constant,
+                    cached_neg_half_inv_var, cached_is_standard_normal);
             });
-            pool.waitForAll();
         });
 }
 
@@ -788,15 +766,11 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                                                   cached_is_standard_normal);
         },
         [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double cached_mean, cached_log_std, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
             dist.withCacheSnapshot([&] {
@@ -805,46 +779,20 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                 cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
                 cached_is_standard_normal = dist.isStandardNormal_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (cached_is_standard_normal) {
-                        const double sq_diff = vals[i] * vals[i];
-                        res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
-                    } else {
-                        const double diff = vals[i] - cached_mean;
-                        const double sq_diff = diff * diff;
-                        res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
-                                 cached_neg_half_inv_var * sq_diff;
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getLogProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, cached_mean, cached_log_std,
+                        cached_neg_half_inv_var, cached_is_standard_normal);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (cached_is_standard_normal) {
-                        const double sq_diff = vals[i] * vals[i];
-                        res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
-                    } else {
-                        const double diff = vals[i] - cached_mean;
-                        const double sq_diff = diff * diff;
-                        res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
-                                 cached_neg_half_inv_var * sq_diff;
-                    }
-                }
-            }
         },
         [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double cached_mean, cached_log_std, cached_neg_half_inv_var;
             bool cached_is_standard_normal;
             dist.withCacheSnapshot([&] {
@@ -853,20 +801,11 @@ void GaussianDistribution::getLogProbability(std::span<const double> values,
                 cached_neg_half_inv_var = dist.negHalfSigmaSquaredInv_;
                 cached_is_standard_normal = dist.isStandardNormal_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    const double sq_diff = vals[i] * vals[i];
-                    res[i] = detail::NEG_HALF_LN_2PI + detail::NEG_HALF * sq_diff;
-                } else {
-                    const double diff = vals[i] - cached_mean;
-                    const double sq_diff = diff * diff;
-                    res[i] = detail::NEG_HALF_LN_2PI - cached_log_std +
-                             cached_neg_half_inv_var * sq_diff;
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getLogProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_mean, cached_log_std,
+                    cached_neg_half_inv_var, cached_is_standard_normal);
             });
-            pool.waitForAll();
         });
 }
 
@@ -892,15 +831,11 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                 vals, res, count, cached_mean, cached_sigma_sqrt2, cached_is_standard_normal);
         },
         [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res) {
-            // Parallel-SIMD lambda: should use ParallelUtils::parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double cached_mean, cached_sigma_sqrt2;
             bool cached_is_standard_normal;
             dist.withCacheSnapshot([&] {
@@ -908,40 +843,20 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                 cached_sigma_sqrt2 = dist.sigmaSqrt2_;
                 cached_is_standard_normal = dist.isStandardNormal_;
             });
-
-            // Use ParallelUtils::parallelFor for Level 0-3 integration
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    if (cached_is_standard_normal) {
-                        res[i] = cdf_from_erf_arg(vals[i] * detail::INV_SQRT_2);
-                    } else {
-                        const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                        res[i] = cdf_from_erf_arg(normalized);
-                    }
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    dist.getCumulativeProbabilityBatchUnsafeImpl(
+                        vals.data() + start, res.data() + start, len, cached_mean,
+                        cached_sigma_sqrt2, cached_is_standard_normal);
                 });
-            } else {
-                // Serial processing for small datasets
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (cached_is_standard_normal) {
-                        res[i] = cdf_from_erf_arg(vals[i] * detail::INV_SQRT_2);
-                    } else {
-                        const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                        res[i] = cdf_from_erf_arg(normalized);
-                    }
-                }
-            }
         },
         [](const GaussianDistribution& dist, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
-            // Work-Stealing lambda: should use pool.parallelFor
-            if (vals.size() != res.size()) {
+            if (vals.size() != res.size())
                 throw std::invalid_argument("Input and output spans must have the same size");
-            }
-
             const std::size_t count = vals.size();
             if (count == 0)
                 return;
-
             double cached_mean, cached_sigma_sqrt2;
             bool cached_is_standard_normal;
             dist.withCacheSnapshot([&] {
@@ -949,17 +864,11 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
                 cached_sigma_sqrt2 = dist.sigmaSqrt2_;
                 cached_is_standard_normal = dist.isStandardNormal_;
             });
-
-            // Use work-stealing pool for dynamic load balancing
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                if (cached_is_standard_normal) {
-                    res[i] = cdf_from_erf_arg(vals[i] * detail::INV_SQRT_2);
-                } else {
-                    const double normalized = (vals[i] - cached_mean) / cached_sigma_sqrt2;
-                    res[i] = cdf_from_erf_arg(normalized);
-                }
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                dist.getCumulativeProbabilityBatchUnsafeImpl(
+                    vals.data() + start, res.data() + start, len, cached_mean, cached_sigma_sqrt2,
+                    cached_is_standard_normal);
             });
-            pool.waitForAll();
         });
 }
 
@@ -972,6 +881,9 @@ void GaussianDistribution::getCumulativeProbability(std::span<const double> valu
 //==============================================================================
 
 bool GaussianDistribution::operator==(const GaussianDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
@@ -1029,7 +941,7 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
 
     try {
         std::string mean_str = line.substr(mean_pos, comma_pos - mean_pos);
-        mean = std::stod(mean_str);
+        mean = detail::parse_double(mean_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -1050,7 +962,7 @@ std::istream& operator>>(std::istream& is, GaussianDistribution& distribution) {
 
     try {
         std::string stddev_str = line.substr(stddev_pos, close_paren - stddev_pos);
-        stddev = std::stod(stddev_str);
+        stddev = detail::parse_double(stddev_str);
     } catch (...) {
         is.setstate(std::ios::failbit);
         return is;
@@ -1261,8 +1173,8 @@ void GaussianDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     // getCumulativeProbability(x). NaN lanes compare false and keep the
     // vectorized result.
     for (std::size_t i = 0; i < count; ++i) {
-        const double w = is_standard_normal ? values[i] * detail::INV_SQRT_2
-                                            : (values[i] - mean) / sigma_sqrt2;
+        const double w =
+            is_standard_normal ? values[i] * detail::INV_SQRT_2 : (values[i] - mean) / sigma_sqrt2;
         if (w < -detail::ONE) {
             results[i] = detail::HALF * std::erfc(-w);
         }
@@ -1312,15 +1224,10 @@ void GaussianDistribution::updateCacheUnsafe() const noexcept {
 }
 
 void GaussianDistribution::validateParameters(double mean, double stdDev) {
-    if (!std::isfinite(mean)) {
-        throw std::invalid_argument("Mean must be finite");
-    }
-    if (!std::isfinite(stdDev) || stdDev <= detail::ZERO_DOUBLE) {
-        throw std::invalid_argument("Standard deviation must be positive and finite");
-    }
-    if (stdDev > detail::MAX_STANDARD_DEVIATION) {
-        throw std::invalid_argument("Standard deviation is too large for numerical stability");
-    }
+    // validateGaussianParameters holds the bounds, so that every entry point agrees (Fix8).
+    auto v = validateGaussianParameters(mean, stdDev);
+    if (v.isError())
+        throw std::invalid_argument(v.message());
 }
 
 //==========================================================================

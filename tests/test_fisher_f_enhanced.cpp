@@ -9,6 +9,7 @@
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/fisher_f.h"
 
+#include <algorithm>
 #include <cmath>
 #include <gtest/gtest.h>
 #include <limits>
@@ -78,8 +79,8 @@ constexpr double kSf_1e6 = 3.7537030784668575e-28;
 constexpr double kQ_1e_12 = 8.9721396668572137e-6;
 constexpr double kQ_1e_6 = 0.0022591356950394809;
 constexpr double kQ_0_5 = 0.93193316085104795;
-constexpr double kQ_1m1e_6 = 49.356539766593084;    // p = double(1 - 1e-6)
-constexpr double kQ_1m1e_12 = 819.54320819126184;   // p = double(1 - 1e-12)
+constexpr double kQ_1m1e_6 = 49.356539766593084;   // p = double(1 - 1e-6)
+constexpr double kQ_1m1e_12 = 819.54320819126184;  // p = double(1 - 1e-12)
 
 // ---- F(100, 200): large-parameter case ----
 constexpr double kBigPdf_1_0 = 2.2988201089185847;
@@ -305,6 +306,28 @@ TEST_F(FisherFEnhancedTest, MatchesBetaIdentity) {
     }
 }
 
+// #228 through the Beta delegate: F(d1, d2) draws are (d2/d1)·Y/(1 − Y) with Y ~ Beta(d1/2, d2/2),
+// and at small df the delegate returned Y = ½ exactly, so every draw was 1.0. Two-sided: the number
+// of draws in (0.5, 2) must match n·(F(2) − F(0.5)) within five binomial sigmas plus three.
+TEST_F(FisherFEnhancedTest, SmallDfSamplesFollowTheCDF) {
+    constexpr size_t n = 10000;
+    for (double df : {1e-9, 1e-3, 0.5, 2.0, 5.0}) {
+        const auto f = FDistribution::create(df, df).unwrap();
+        std::mt19937 rng(1);
+        const auto draws = f.sample(rng, n);
+        size_t middle = 0;
+        for (double x : draws) {
+            ASSERT_TRUE(x >= 0.0) << "F(" << df << ", " << df << ") drew " << x;
+            middle += (x > 0.5 && x < 2.0);
+        }
+        const double pm = f.getCumulativeProbability(2.0) - f.getCumulativeProbability(0.5);
+        const double expected = static_cast<double>(n) * pm;
+        const double tol = 5.0 * std::sqrt(static_cast<double>(n) * pm * (1.0 - pm)) + 3.0;
+        EXPECT_NEAR(static_cast<double>(middle), expected, tol)
+            << "F(" << df << ", " << df << "): draws in (0.5, 2)";
+    }
+}
+
 //==============================================================================
 // SETTERS PROPAGATE THROUGH THE CACHE AND THE DELEGATE
 //==============================================================================
@@ -476,8 +499,8 @@ TEST_F(FisherFEnhancedTest, QuantileNeverNaN) {
     // Out-of-range p throws rather than returning a sentinel.
     EXPECT_THROW((void)f_.getQuantile(-0.1), std::invalid_argument);
     EXPECT_THROW((void)f_.getQuantile(1.1), std::invalid_argument);
-    EXPECT_THROW((void)f_.getQuantile(std::numeric_limits<double>::quiet_NaN()),
-                 std::invalid_argument);
+    // NaN in, NaN out, as all 27 (AR D3).
+    EXPECT_TRUE(std::isnan(f_.getQuantile(std::numeric_limits<double>::quiet_NaN())));
 
     // Round trip across the whole range, including the tails that
     // detail::inverse_beta_i's absolute stopping rule cannot reach.
@@ -519,13 +542,105 @@ TEST_F(FisherFEnhancedTest, CDFSurvivesDenormalArguments) {
     EXPECT_LT(relErr(f.getCumulativeProbability(1e-310), 0.014092489973099284), 1e-10)
         << "CDF at a many-bit denormal";
     // Complement-native survival must not saturate to 1 there.
-    EXPECT_LT(relErr(f.getSurvivalProbability(2.4209216646221081e-322), 0.98767157384481783),
-              1e-3)
+    EXPECT_LT(relErr(f.getSurvivalProbability(2.4209216646221081e-322), 0.98767157384481783), 1e-3)
         << "SF at a sub-(DBL_TRUE_MIN/d1) denormal";
     // quantile→cdf closes instead of collapsing to zero.
     const double q = f.getQuantile(1e-300);
     ASSERT_TRUE(std::isfinite(q));
     EXPECT_GT(f.getCumulativeProbability(q), 0.0) << "CDF(quantile(1e-300)) collapsed to 0";
+}
+
+// d1·x overflowed at DBL_MAX and the CDF returned 1 ("y is 1 to every bit available"),
+// although ybar = d2/(d1·x) is still representable and, at d2 = 0.001, carries 70% of the
+// mass: F(5, 0.001) has survival 0.6987 at DBL_MAX. The lower-tail mirror: F(0.01, 100) at
+// x = 5e-324 has y below DBL_MIN, where the old form gave 0. References mpmath dps=50.
+TEST_F(FisherFEnhancedTest, CDFAndSurvivalAtTheDoubleRangeEdges) {
+    constexpr double kMax = std::numeric_limits<double>::max();
+    struct Row {
+        double d1, d2, x, sf;
+    };
+    constexpr Row kUpper[] = {
+        {5, 0.001, kMax, 0.69871670070670757807},   {5, 0.01, kMax, 0.028054699228057844935},
+        {5, 0.1, kMax, 3.3846269086526688255e-16},  {5, 2, kMax, 5.5626846462680041005e-309},
+        {1e-3, 1e-3, kMax, 0.35062495674401984083}, {5, 0.001, 1e300, 0.70538867313837891799},
+        {5, 0.01, 1e300, 0.030851706760945188973},
+    };
+    for (const Row& r : kUpper) {
+        const auto f = FDistribution::create(r.d1, r.d2).unwrap();
+        EXPECT_LT(relErr(f.getSurvivalProbability(r.x), r.sf), 1e-12)
+            << "sf F(" << r.d1 << ", " << r.d2 << ") at " << r.x;
+        EXPECT_LE(std::fabs(f.getCumulativeProbability(r.x) - (1.0 - r.sf)), 2e-15)
+            << "cdf F(" << r.d1 << ", " << r.d2 << ") at " << r.x;
+    }
+    constexpr Row kLower[] = {
+        {0.01, 100, 5e-324, 0.023614926359299116738},  // 5e-324 is 2^-1074 as a double
+        {0.01, 100, 1e-310, 0.027524388065881426241},
+        {1e-3, 1e-3, 5e-324, 0.34460142985206034238},
+    };
+    for (const Row& r : kLower) {  // r.sf holds the CDF here
+        const auto f = FDistribution::create(r.d1, r.d2).unwrap();
+        EXPECT_LT(relErr(f.getCumulativeProbability(r.x), r.sf), 1e-12)
+            << "cdf F(" << r.d1 << ", " << r.d2 << ") at " << r.x;
+        EXPECT_LT(relErr(f.getSurvivalProbability(r.x), 1.0 - r.sf), 1e-12)
+            << "sf F(" << r.d1 << ", " << r.d2 << ") at " << r.x;
+    }
+}
+
+// The Beta-delegate transform (d2/d1)·Y/(1 − Y) rounded Y to 1, and the draw to +inf, for 98%
+// of the draws at F(5, 0.001), where the CDF puts 70% of the mass above DBL_MAX; at d2 = 2 it
+// could never draw above (d2/d1)·2^53. Fixed-seed Kolmogorov–Smirnov of the draws (+inf
+// counted at F = 1) against the library CDF, at a per-instance false-alarm rate of 1e-4
+// (critical D·√n = 2.22; n = 20000), and the +inf share against the survival at DBL_MAX to 5σ.
+// No draw may be NaN or negative.
+TEST_F(FisherFEnhancedTest, SamplesFollowTheCDFAtTinyAndOrdinaryDf) {
+    constexpr size_t n = 20000;
+    constexpr double kMax = std::numeric_limits<double>::max();
+    struct Row {
+        double d1, d2;
+        unsigned seed;
+    };
+    constexpr Row kRows[] = {{5, 0.001, 1}, {5, 0.01, 2},  {0.01, 100, 3}, {1e-3, 1e-3, 4},
+                             {0.5, 3, 5},   {1, 1, 6},     {2, 2, 7},      {5, 7, 8},
+                             {1, 0.5, 9},   {100, 100, 10}};
+    for (const Row& r : kRows) {
+        const auto f = FDistribution::create(r.d1, r.d2).unwrap();
+        std::mt19937 rng(r.seed);
+        auto draws = f.sample(rng, n);
+        ASSERT_EQ(draws.size(), n);
+        size_t n_inf = 0;
+        for (double x : draws) {
+            ASSERT_FALSE(std::isnan(x)) << "F(" << r.d1 << ", " << r.d2 << ") drew NaN";
+            ASSERT_GE(x, 0.0) << "F(" << r.d1 << ", " << r.d2 << ") drew " << x;
+            n_inf += std::isinf(x);
+        }
+        std::sort(draws.begin(), draws.end());
+        // Tied blocks are atoms: a draw of +inf stands for (DBL_MAX, ∞), a draw of 0 for
+        // [0, DBL_TRUE_MIN) (the underflowed lower tail), so the block is compared against
+        // the CDF at both ends of the interval it stands for.
+        double D = 0.0;
+        for (size_t i = 0; i < n;) {
+            size_t j = i;
+            while (j < n && draws[j] == draws[i])
+                ++j;
+            const double x = draws[i];
+            const double F_lo = std::isinf(x) ? f.getCumulativeProbability(kMax)
+                                : x == 0.0    ? 0.0
+                                              : f.getCumulativeProbability(x);
+            const double F_hi =
+                std::isinf(x) ? 1.0
+                : x == 0.0 ? f.getCumulativeProbability(std::numeric_limits<double>::denorm_min())
+                           : F_lo;
+            D = std::max({D, std::fabs(F_lo - static_cast<double>(i) / n),
+                          std::fabs(F_hi - static_cast<double>(j) / n)});
+            i = j;
+        }
+        EXPECT_LT(D * std::sqrt(static_cast<double>(n)), 2.22)
+            << "KS of F(" << r.d1 << ", " << r.d2 << ") draws against the CDF";
+        const double p_inf = f.getSurvivalProbability(kMax);
+        const double sd = std::sqrt(n * p_inf * (1.0 - p_inf));
+        EXPECT_NEAR(static_cast<double>(n_inf), n * p_inf, 5.0 * sd + 1.0)
+            << "F(" << r.d1 << ", " << r.d2 << "): +inf draws vs survival at DBL_MAX";
+    }
 }
 
 //==============================================================================
@@ -600,8 +715,7 @@ TEST_F(FisherFEnhancedTest, InvalidParameters) {
     EXPECT_TRUE(FDistribution::create(-1.0, 1.0).isError());
     EXPECT_TRUE(FDistribution::create(1.0, 0.0).isError());
     EXPECT_TRUE(FDistribution::create(1.0, -1.0).isError());
-    EXPECT_TRUE(
-        FDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
+    EXPECT_TRUE(FDistribution::create(std::numeric_limits<double>::quiet_NaN(), 1.0).isError());
     EXPECT_TRUE(FDistribution::create(1.0, std::numeric_limits<double>::infinity()).isError());
 
     auto f = FDistribution::create(5.0, 10.0).unwrap();
@@ -620,9 +734,7 @@ TEST_F(FisherFEnhancedTest, InvalidParameters) {
 //==============================================================================
 template <>
 struct stats::tests::DistTraits<stats::FDistribution> : stats::tests::DistTraitsDefaults {
-    static stats::FDistribution make() {
-        return stats::FDistribution::create(5.0, 10.0).unwrap();
-    }
+    static stats::FDistribution make() { return stats::FDistribution::create(5.0, 10.0).unwrap(); }
     static std::vector<double> domain() { return {0.2, 0.5, 1.0, 2.0, 5.0}; }
     static double batch_lo() { return 0.05; }
     static double batch_hi() { return 6.0; }
@@ -634,8 +746,7 @@ struct stats::tests::DistTraits<stats::FDistribution> : stats::tests::DistTraits
             [] { return stats::FDistribution::create(-1.0, 1.0).isError(); },
             [] { return stats::FDistribution::create(1.0, 0.0).isError(); },
             [] {
-                return stats::FDistribution::create(1.0,
-                                                    std::numeric_limits<double>::quiet_NaN())
+                return stats::FDistribution::create(1.0, std::numeric_limits<double>::quiet_NaN())
                     .isError();
             },
         };

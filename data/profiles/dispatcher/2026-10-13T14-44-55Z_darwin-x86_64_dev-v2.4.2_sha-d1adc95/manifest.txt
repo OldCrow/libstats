@@ -1,0 +1,35 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-10-13T14-44-55Z_darwin-x86_64_dev-v2.4.2_sha-d1adc95
+Captured at (UTC): 2026-10-13T14-44-55Z (run 1; runs 2-3 15:01Z and 15:18Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- analyze_crossovers.py
+- sustained_crossovers.txt
+- logs/run.txt
+- logs/system_inspector.txt
+- logs/tier.txt
+
+Capture notes:
+- SSE2 (SSE2, Release, build-cap-sse2/) on Kaby Lake i7-7820HQ, AppleClang 15, macOS 13.7.8,
+  at the freeze head d1adc95 (fix-9 round 8d3c9c7, R6a docs d1adc95; CI green 12/12,
+  run 38397309137). One of three tier bundles captured 2026-10-13: AVX2 13-11-55Z,
+  AVX 13-58-00Z, SSE2 14-44-55Z. Supersedes K's 2026-10-05 6f86996 bundles, which
+  predate the parallel-path fixes (73ecbfe, ee11e62) and every fix round since.
+- Three `strategy_profile --large -o <csv>` runs from a detached script (new session),
+  each started only once the 1-min load fell below 2.0 (start loads 1.74 1.77 1.81;
+  logs/run.txt). Loads at the end of each run come from the run's own parallel strategies.
+  Runs take ~13 min (25 min at 6f86996).
+- The `--large` grid and the SUSTAINED V->P rule are the 2026-09-04 bundles'.
+  analyze_crossovers.py is a copy of scripts/analyze_crossovers.py at d1adc95;
+  sustained_crossovers.txt is its `--table kAvx` output.
+
+- Before the captures: test_parallel_batch_gates (build/, Dev), quiet: every
+  PARALLEL/VECTORIZED ratio 0.27-0.30 at 1M (limit 0.75).
+- Correctness at d1adc95 on K: 132/132 (Dev), GCC 16 132/132, -mfma 132/132; AVX2 sweep
+  bits identical to 14249cb, 0 contract violations (PLAN.md).

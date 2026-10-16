@@ -1,0 +1,3 @@
+kAvx2    K (Kaby Lake, AppleClang 15): CHANGE 2, CHANGE bench 4, CHANGE taken 4, KEEP ok 68, KEEP override 3; 10 values written; Z direction differs on 0; 10 changed rows carry a comment to re-read; 6 changed rows already overrode the previous capture
+kAvx     K (Kaby Lake, AppleClang 15), AVX-capped tree: CHANGE bench 2, CHANGE fork 2, CHANGE taken 1, KEEP ok 75, KEEP override 1; 5 values written; Z direction differs on 1; 4 changed rows carry a comment to re-read; 4 changed rows already overrode the previous capture
+total values changed: 15

@@ -9,9 +9,6 @@
  *
  * This header is used by:
  * - math_utils.h (mathematical utilities and special functions)
- * - statistical_utilities.h (statistical convenience wrappers)
- * - validation.h (goodness-of-fit testing)
- * - safety.h (numerical safety utilities)
  *
  * Individual headers include their specific mathematical/platform dependencies.
  *

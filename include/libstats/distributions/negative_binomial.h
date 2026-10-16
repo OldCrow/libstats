@@ -16,9 +16,16 @@ namespace stats {
  * - PMF:    P(X = k) = C(k+r−1, k)·p^r·(1−p)^k  for k ∈ {0, 1, 2, …}
  * - LogPMF: lgamma(k+r) − lgamma(k+1) − lgamma(r) + r·log(p) + k·log(1−p)
  * - CDF:    I_p(r, k+1)  via the regularized incomplete beta (detail::beta_i)
- * - Quantile: smallest k ≥ 0 such that CDF(k) ≥ p
+ * - Quantile: smallest k ≥ 0 such that CDF(k) ≥ p (S(k) ≤ 1 − p for p > ½); see getQuantile
  * - Parameters: r > 0 (number of successes, real-valued), p ∈ (0,1] (success probability)
- * - Support: k ∈ {0, 1, 2, …}
+ * - Support: k ∈ {0, 1, 2, …} ({0} at p = 1)
+ *
+ * @par Non-integer arguments:
+ * The PMF and log-PMF round x to the nearest integer (halves away from zero) and give 0 (−∞) when
+ * that is not a count: x in (−½, ½) is the count 0, so pmf(−1e-300) = pmf(0), and x ≤ −½ has
+ * mass 0. The CDF and survival floor x instead: F(x) = F(⌊x⌋), S(x) = S(⌊x⌋), so
+ * F(−1e-300) = 0 and S(−1e-300) = 1. At a non-integer x, pmf(x) is therefore not
+ * F(x) − F(x − 1).
  *
  * @par Moments:
  * - Mean:     r(1−p)/p
@@ -176,25 +183,44 @@ class NegativeBinomialDistribution : public DistributionBase {
     //==========================================================================
 
     /**
-     * @brief PMF at k (rounded to nearest non-negative integer).
-     * Returns 0 for negative or non-finite values.
+     * @brief PMF at x rounded to the nearest integer (see "Non-integer arguments" above).
+     * Returns 0 where that is negative, and for ±∞.
      */
     [[nodiscard]] double getProbability(double x) const override;
 
     /**
-     * @brief Log-PMF at k.
-     * Returns −∞ for negative or non-finite values.
+     * @brief Log-PMF at x rounded to the nearest integer, as getProbability.
+     * Returns −∞ where that is negative, and for ±∞.
      */
     [[nodiscard]] double getLogProbability(double x) const override;
 
     /**
-     * @brief CDF via regularized incomplete beta I_p(r, k+1).
+     * @brief CDF via regularized incomplete beta I_p(r, k+1), k = ⌊x⌋ (0 for x < 0).
      * O(1) computation using existing detail::beta_i.
      */
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
-     * @brief Smallest k ≥ 0 such that CDF(k) ≥ p.
+     * @brief Survival S(x) = P(X > x) = I_{1−p}(k+1, r), k = ⌊x⌋ ((1−p)^(k+1) at r = 1),
+     *        formed as the complement itself (AR A11): relative precision deep in the upper
+     *        tail, where 1 − CDF cancels.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
+     * @brief Smallest k ≥ 0 such that CDF(k) ≥ p, decided as: for p ≤ ½ the smallest k with
+     *        getCumulativeProbability(k) ≥ p; for p > ½ the smallest k with
+     *        getSurvival(k) ≤ 1 − p (1 − p is exact there; F(k) near 1 is not).
+     *
+     * Q(0) = 0. Q(1) is the smallest k with S(k) = 0, the support's upper end: +∞, except 0 at
+     * p = 1, where all the mass is at 0.
+     *
+     * Counts past 2^53: consecutive integers are no longer all doubles there, though every
+     * double ≥ 2^53 is an integer. The result is then the smallest such double k that meets the
+     * same test on getCumulativeProbability or getSurvival: the true integer quantile rounded up
+     * to the next representable count (a relative step of at most 2^-52), to the accuracy of F
+     * and S there. It is +∞ when no finite double qualifies (Geometric(5e-324).Q(½) ≈ 1.4e323).
+     * The search is not capped at 2^53: Geometric(1e-20).Q(½) is 6.931471805599454e19.
      * @throws std::invalid_argument if p not in [0,1]
      */
     [[nodiscard]] double getQuantile(double prob) const override;
@@ -299,15 +325,15 @@ class NegativeBinomialDistribution : public DistributionBase {
      * Until then, PARALLEL is the recommended strategy for large batches.
      */
     void getLogProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                    double cached_r, double cached_logGammaR, double cached_logP,
+                                    double cached_r, double cached_p, double cached_logP,
                                     double cached_log1mP) const noexcept;
 
     void getProbabilityBatchImpl(const double* values, double* results, std::size_t count,
-                                 double cached_r, double cached_logGammaR, double cached_logP,
+                                 double cached_r, double cached_p, double cached_logP,
                                  double cached_log1mP) const noexcept;
 
-    void getCumulativeProbabilityBatchImpl(const double* values, double* results,
-                                           std::size_t count) const noexcept;
+    void getCumulativeProbabilityBatchImpl(const double* values, double* results, std::size_t count,
+                                           double cached_r, double cached_p) const noexcept;
 
     //==========================================================================
     // 19. PRIVATE COMPUTATIONAL METHODS

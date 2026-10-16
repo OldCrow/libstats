@@ -9,6 +9,8 @@
 #include "statistical_constants.h"
 
 #include <array>
+#include <cmath>
+#include <cstdint>
 
 /**
  * @file math_utils.h
@@ -64,18 +66,39 @@ namespace detail {
 /**
  * @brief Regularized incomplete gamma function P(a,x) = γ(a,x)/Γ(a)
  * @param a Shape parameter (a > 0)
- * @param x Input value (x >= 0)
+ * @param x Input value (x >= 0); +inf gives 1 (#224)
  * @return P(a,x)
+ *
+ * Series below x = a + 1, continued fraction above; from a = 1e4 near the median (|η| ≤ 0.6 in
+ * Temme's variable) the uniform asymptotic expansion, which the series and fraction, needing
+ * ~9√a terms there, cannot reach for a beyond ~1e10 (#226).
  */
 [[nodiscard]] double gamma_p(double a, double x) noexcept;
 
 /**
  * @brief Regularized incomplete gamma function Q(a,x) = 1 - P(a,x)
  * @param a Shape parameter (a > 0)
- * @param x Input value (x >= 0)
+ * @param x Input value (x >= 0); +inf gives 0 (#224)
  * @return Q(a,x)
  */
 [[nodiscard]] double gamma_q(double a, double x) noexcept;
+
+/**
+ * @brief P(a, x) from log x, for x below DBL_MIN (#216).
+ *
+ * A caller's argument x·rate or scale/x can leave the normal range while the mass is not
+ * small: Gamma(0.005, 0.5).cdf(5e-324) is 0.024, InverseGamma(0.01, 1e-20).cdf(1e308) is
+ * 0.9995. There P(a, x) = x^a e^{-x} / Γ(a+1) · (1 + x/(a+1) + ...) is exp(a·log x − lgamma(a+1))
+ * to double, the factors in x being below 1e-307. Not for x ≥ DBL_MIN: use gamma_p.
+ * @param a Shape parameter (a > 0)
+ * @param log_x log of the argument, x < DBL_MIN (log_x < −708.4; −inf gives 0)
+ */
+[[nodiscard]] double gamma_p_from_log_x(double a, double log_x) noexcept;
+
+/**
+ * @brief Q(a, x) = 1 − P(a, x) from log x, for x below DBL_MIN (#216). See gamma_p_from_log_x.
+ */
+[[nodiscard]] double gamma_q_from_log_x(double a, double log_x) noexcept;
 
 /**
  * @brief Regularized incomplete beta function I_x(a,b)
@@ -87,18 +110,48 @@ namespace detail {
 [[nodiscard]] double beta_i(double x, double a, double b) noexcept;
 
 /**
- * @brief Regularized incomplete beta function with precomputed log-beta prefix
+ * @brief Regularized incomplete beta function with a precomputed prefactor constant
  *
- * Identical to beta_i(x, a, b) but skips the per-call lgamma(a+b)-lgamma(a)-lgamma(b)
- * computation.  Use in batch loops where a and b are constant across elements.
+ * Identical to beta_i(x, a, b) but skips the per-call shape-only part of the prefactor.
+ * Use in batch loops where a and b are constant across elements.
  *
  * @param x Input value in [0,1]
  * @param a First shape parameter (a > 0)
  * @param b Second shape parameter (b > 0)
- * @param log_beta_prefix Precomputed lgamma(a+b) - lgamma(a) - lgamma(b)
+ * @param log_beta_prefix beta_prefactor_constant(a, b) (symmetric, so the I_{1−x}(b, a)
+ *        reflection takes the same value)
  * @return I_x(a,b)
  */
 [[nodiscard]] double beta_i(double x, double a, double b, double log_beta_prefix) noexcept;
+
+/**
+ * @brief I_x(a, b) from x and its complement y = 1 − x held separately
+ *
+ * For callers that hold 1 − x more exactly than 1 − x re-formed from a rounded x: the
+ * Fisher-F arguments d₁x/(d₁x + d₂) and d₂/(d₁x + d₂), each formed by division, and the
+ * binomial's 1 − p beside an exact p. The smaller of x and y enters its own log and the
+ * other's as log1p(−smaller), so a large shape never multiplies the rounding of a value
+ * next to 1. Like beta_i, it returns the small side directly where I is small (see
+ * kTailIntegralShape in math_utils.cpp).
+ *
+ * @param x Input value in [0, 1]
+ * @param y 1 − x, to relative precision
+ * @param a First shape parameter (a > 0)
+ * @param b Second shape parameter (b > 0)
+ * @param log_beta_prefix beta_prefactor_constant(a, b)
+ * @return I_x(a, b)
+ */
+[[nodiscard]] double beta_i_pair(double x, double y, double a, double b,
+                                 double log_beta_prefix) noexcept;
+
+/**
+ * @brief log(s·B(s, t)) for 0 < s ≤ ½ and t ≥ 1, to relative precision as s → 0
+ *
+ * log s + lbeta(s, t) cancels terms of size |log s| to leave a result of order s; this forms
+ * lgamma(1 + s) and lgamma(t + s) − lgamma(t) by their series instead. Fisher-F's extreme-tail
+ * complement −expm1(s·log z − log(s·B)) reads it.
+ */
+[[nodiscard]] double log_small_shape_beta(double s, double t) noexcept;
 
 /**
  * @brief Natural logarithm of the beta function ln(B(a,b))
@@ -107,6 +160,38 @@ namespace detail {
  * @return ln(B(a,b))
  */
 [[nodiscard]] double lbeta(double a, double b) noexcept;
+
+/**
+ * @brief The shape-only constant beta_i(x, a, b, log_beta_prefix) takes
+ *
+ * −log B(a, b) when either shape is below STIRLING_PREFACTOR_SHAPE; from there the Stirling form's
+ * ½·log(ab / (2π(a + b))) + c(a + b) − c(a) − c(b), c the Stirling remainder (#166). Symmetric in
+ * a and b.
+ */
+[[nodiscard]] double beta_prefactor_constant(double a, double b) noexcept;
+
+/**
+ * @brief log of x^a·(1 − x)^b / B(a, b), the incomplete-beta prefactor (#166)
+ *
+ * Direct below STIRLING_PREFACTOR_SHAPE in either shape; from there in Stirling's form,
+ * a·(log1p(u) − u) + b·(log1p(v) − v) + shape_constant with x₀ = a/(a + b),
+ * u = (x − x₀)/x₀ and v = (x₀ − x)/(1 − x₀), which avoids the lgamma(a + b) − lgamma(a) −
+ * lgamma(b) cancellation. shape_constant = beta_prefactor_constant(a, b). The Beta density is this
+ * less log x and log(1 − x).
+ */
+[[nodiscard]] double log_beta_prefactor(double x, double a, double b,
+                                        double shape_constant) noexcept;
+
+/**
+ * @brief log_beta_prefactor from x, its complement and their logs, as the caller holds them
+ *
+ * For a caller that forms 1 − x and both logs more exactly than from x alone: Fisher-F's
+ * y = r/(1 + r) and ȳ = 1/(1 + r), with logs by log1p of the smaller argument. The Stirling
+ * branch reads x − x₀ from the smaller of x and omx. Below STIRLING_PREFACTOR_SHAPE in either
+ * shape it is shape_constant + a·log_x + b·log_omx.
+ */
+[[nodiscard]] double log_beta_prefactor_logs(double x, double omx, double a, double b, double log_x,
+                                             double log_omx, double shape_constant) noexcept;
 
 /**
  * @brief Digamma function ψ(x) = d/dx ln Γ(x)
@@ -139,9 +224,109 @@ namespace detail {
  *
  * Implements the pattern established by inverse_t_cdf and inverse_chi_squared_cdf:
  * normal-approximation initial estimate refined by Newton-Raphson with
- * clamping to (0, 1). Used by BetaDistribution::getQuantile.
+ * clamping to (0, 1). Used by BetaDistribution::getQuantile. A NaN, non-positive or infinite
+ * shape returns NaN, as beta_i returns NaN for an infinite shape.
  */
 [[nodiscard]] double inverse_beta_i(double p, double a, double b) noexcept;
+
+/**
+ * @brief x with P(a, x) = p: the Gamma(a, 1) quantile
+ * @param a shape (a > 0); NaN otherwise
+ * @param p probability; p <= 0 returns 0, p >= 1 returns +inf, NaN returns NaN
+ *
+ * Solves log P(a, x) = log p below the median and log Q(a, x) = log(1 − p) above it, by Newton
+ * in t = log x (#160). Both residuals are concave in t, so the iteration converges from any
+ * start; they are formed in the log, finite for every p down to the smallest subnormal (#214,
+ * #223). Relative-accurate down to subnormal answers; 0 when the answer underflows. From
+ * a = 1e16 the Wilson-Hilferty value, exact to double there, in constant time (#226).
+ */
+[[nodiscard]] double gamma_p_inv(double a, double p) noexcept;
+
+/**
+ * @brief The shape from which log_gamma_prefactor, the incomplete beta prefactor and the discrete
+ * log-pmfs switch to Stirling's form. Callers that branch on the same switch (the Gamma density)
+ * use this constant, so both sides change bits at the same shape.
+ */
+inline constexpr double STIRLING_PREFACTOR_SHAPE = 20.0;
+
+/**
+ * @brief log of x^a·e^{−x}/Γ(a), the incomplete-gamma prefactor and x times the Gamma(a, 1) density
+ *
+ * Direct below a = STIRLING_PREFACTOR_SHAPE; from there in Stirling's form,
+ * a·(log1p(t) − t) + ½·log(a/2π) − c(a) with t = (x − a)/a, which avoids the a·log x − lgamma(a)
+ * cancellation (#166).
+ */
+[[nodiscard]] double log_gamma_prefactor(double a, double x) noexcept;
+
+/// |t| bound below which log1pmx_series holds its accuracy.
+inline constexpr double LOG1PMX_SERIES_LIMIT = 0.5;
+
+/**
+ * @brief log1p(t) − t for |t| < ½, without the cancellation of the direct difference
+ *
+ * 2·atanh(s) − t with s = t/(2 + t): 2s − t = −t·s exactly, so log1p(t) − t =
+ * −t·s + 2s³·(1/3 + s²/5 + s⁴/7 + …). |s| ≤ ⅓ there, so the odd series' terms fall at least
+ * ninefold and seventeen terms reach s³⁴/35 < 4e-18 relative: one division and a fixed polynomial,
+ * 1.7 ulp worst case (the direct log1p(t) − t is 7 ulp on [¼, ½)). Branch-free, so batch loops
+ * vectorize it; the scalar log1pmx and the Gamma batch density share it.
+ */
+[[nodiscard]] inline double log1pmx_series(double t) noexcept {
+    const double s = t / (2.0 + t);
+    const double s2 = s * s;
+    // 1/(2k + 1) for k = 17 down to 1, in Horner order, written out: MSVC does not vectorize a
+    // caller's loop around an inner loop (C5002, reason 1106), so a coefficient loop here kept the
+    // Beta and Gamma Stirling batches scalar there.
+    double poly = (1.0 / 35);
+    poly = poly * s2 + (1.0 / 33);
+    poly = poly * s2 + (1.0 / 31);
+    poly = poly * s2 + (1.0 / 29);
+    poly = poly * s2 + (1.0 / 27);
+    poly = poly * s2 + (1.0 / 25);
+    poly = poly * s2 + (1.0 / 23);
+    poly = poly * s2 + (1.0 / 21);
+    poly = poly * s2 + (1.0 / 19);
+    poly = poly * s2 + (1.0 / 17);
+    poly = poly * s2 + (1.0 / 15);
+    poly = poly * s2 + (1.0 / 13);
+    poly = poly * s2 + (1.0 / 11);
+    poly = poly * s2 + (1.0 / 9);
+    poly = poly * s2 + (1.0 / 7);
+    poly = poly * s2 + (1.0 / 5);
+    poly = poly * s2 + (1.0 / 3);
+    return -t * s + 2.0 * s * s2 * poly;
+}
+
+/**
+ * @brief ½·log(a/2π) − c(a), the shape-only part of log_gamma_prefactor's Stirling form
+ *
+ * For a ≥ STIRLING_PREFACTOR_SHAPE; batch callers hoist it out of their loops.
+ */
+[[nodiscard]] double log_gamma_prefactor_constant(double a) noexcept;
+
+/**
+ * @brief log_gamma_prefactor(a, x) in Stirling's form with the hoisted
+ * shape_constant = log_gamma_prefactor_constant(a); for a ≥ STIRLING_PREFACTOR_SHAPE
+ */
+[[nodiscard]] double log_gamma_prefactor(double a, double x, double shape_constant) noexcept;
+
+/**
+ * @brief log of the Poisson(λ) pmf at a count k ≥ 0 (#172)
+ *
+ * From k or λ = 20, −D(k, λ) − ½·log(2πk) − c(k), with D the deviance k·log(k/λ) + λ − k and c the
+ * Stirling error, so no terms of size k·log k cancel; directly below. λ = 0 gives 0 at k = 0 and
+ * −∞ above.
+ */
+[[nodiscard]] double poisson_log_pmf(double k, double lambda) noexcept;
+
+/**
+ * @brief log of C(xa + xb, xa)·pa^xa·(1 − pa)^xb for real counts xa, xb ≥ 0 (#172)
+ *
+ * The binomial pmf with xa successes and xb failures; with real xb = r and the extra factor
+ * r/(xa + r) it is the negative-binomial pmf. From xa + xb = 20, Stirling errors and deviances
+ * around the means, carried as double-doubles; directly below. pa = 0 or 1 gives the limits:
+ * 0 where the other count is zero, −∞ otherwise.
+ */
+[[nodiscard]] double binomial_log_pmf(double xa, double xb, double pa) noexcept;
 
 // =============================================================================
 // SIMD VECTORIZED SPECIAL FUNCTIONS
@@ -303,6 +488,11 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
 [[nodiscard]] double t_cdf(double t, double df) noexcept;
 
 /**
+ * @brief t_cdf(t, df) with the hoisted lbeta_a_half = lbeta(df/2, ½); for batch loops
+ */
+[[nodiscard]] double t_cdf(double t, double df, double lbeta_a_half) noexcept;
+
+/**
  * @brief Inverse Student's t-distribution CDF (quantile function)
  * @param p probability value in (0, 1)
  * @param df degrees of freedom (df > 0)
@@ -336,9 +526,143 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
 /**
  * @brief Inverse standard normal distribution CDF (quantile function)
  * @param p probability value in (0, 1)
- * @return z such that P(Z <= z) = p where Z ~ N(0,1)
+ * @return z such that P(Z <= z) = p where Z ~ N(0,1); finite for every p in (0, 1) (#104)
  */
 [[nodiscard]] double inverse_normal_cdf(double p) noexcept;
+
+/**
+ * @brief Inverse of the standard normal survival function Q(u) = ½·erfc(u/√2)
+ * @param s upper-tail probability in (0, ½]; s ≥ ½ returns 0, s = 0 returns +∞
+ * @return u = Φ⁻¹(1 − s) ≥ 0, finite for every s > 0
+ *
+ * Solved in the erfc domain, so no 1 − s is ever formed: accurate to the |ln s|·2⁻⁵²
+ * conditioning law deep into the tail. Serves the tails of inverse_normal_cdf and the
+ * HalfNormal and TruncatedNormal quantiles (#158).
+ */
+[[nodiscard]] double inv_survival_normal(double s) noexcept;
+
+/**
+ * @brief inv_survival_normal with the target given as log s
+ * @param log_s log of the upper-tail probability; −∞ returns +∞, NaN returns NaN
+ * @return u = Φ⁻¹(1 − s) ≥ 0
+ *
+ * The subnormal branch of inv_survival_normal (Newton on log Q(u)), exposed for a target that
+ * is a product or sum formed in log space because the value itself is not representable —
+ * TruncatedNormal's p·Z at p = denorm_min (#225). log_s ≥ log(DBL_MIN) forwards to
+ * inv_survival_normal(exp(log_s)).
+ */
+[[nodiscard]] double inv_survival_normal_log(double log_s) noexcept;
+
+/**
+ * @brief Starting point for a discrete quantile search: the Cornish-Fisher
+ *        normal approximation with the skewness term and a continuity
+ *        correction.
+ * @param p probability in (0, 1)
+ * @return an estimate of the quantile, or `mean` when the moments are
+ *         degenerate. Only a guess: discrete_quantile_search() corrects it.
+ */
+[[nodiscard]] inline double discrete_quantile_guess(double p, double mean, double stddev,
+                                                    double skewness) noexcept {
+    const double z = inverse_normal_cdf(p);
+    const double guess = mean + stddev * (z + skewness * (z * z - 1.0) / 6.0) - 0.5;
+    return std::isfinite(guess) ? std::ceil(guess) : mean;
+}
+
+/**
+ * @brief Smallest integer k in [lo, hi] with qualifies(k), for a predicate that is false up
+ *        to some count and true from it on; hi when no k in the range qualifies.
+ *
+ * Gallops outward from `guess` in doubling steps until the answer is
+ * bracketed, then bisects. A guess within one of the answer costs two
+ * evaluations; a guess off by d costs O(log d). The result does not depend on
+ * the guess.
+ */
+template <typename Pred>
+[[nodiscard]] std::int64_t discrete_first_true(Pred&& qualifies, std::int64_t lo, std::int64_t hi,
+                                               double guess) {
+    std::int64_t g = lo;
+    if (guess >= static_cast<double>(hi))
+        g = hi;
+    else if (guess > static_cast<double>(lo))
+        g = static_cast<std::int64_t>(guess);
+
+    // Invariants once bracketed: !qualifies(below) (or below == lo - 1) and
+    // qualifies(above) (or above == hi, unchecked: hi is the answer of last resort).
+    std::int64_t below, above;
+    if (qualifies(g)) {
+        above = g;
+        below = lo - 1;
+        for (std::int64_t step = 1; above > lo; step *= 2) {
+            const std::int64_t c = (above - lo > step) ? above - step : lo;
+            if (qualifies(c)) {
+                above = c;
+            } else {
+                below = c;
+                break;
+            }
+        }
+    } else {
+        below = g;
+        above = hi;
+        for (std::int64_t step = 1; below < hi; step *= 2) {
+            const std::int64_t c = (hi - below > step) ? below + step : hi;
+            if (c == hi || qualifies(c)) {
+                above = c;
+                break;
+            }
+            below = c;
+        }
+    }
+    while (above - below > 1) {
+        const std::int64_t mid = below + (above - below) / 2;
+        if (qualifies(mid))
+            above = mid;
+        else
+            below = mid;
+    }
+    return above;
+}
+
+/**
+ * @brief Smallest integer k in [lo, hi] with cdf(k) >= p, for a non-decreasing
+ *        cdf; hi when no k in the range qualifies. See discrete_first_true.
+ */
+template <typename Cdf>
+[[nodiscard]] std::int64_t discrete_quantile_search(Cdf&& cdf, double p, std::int64_t lo,
+                                                    std::int64_t hi, double guess) {
+    return discrete_first_true([&](std::int64_t k) { return cdf(k) >= p; }, lo, hi, guess);
+}
+
+/**
+ * @brief The count quantile, decided on the side of the distribution p lies in
+ * @param cdf F(k) = P(X ≤ k), non-decreasing in k
+ * @param sf  S(k) = P(X > k), non-increasing in k, formed as the complement itself
+ * @return for p ≤ ½ the smallest k in [lo, hi] with cdf(k) ≥ p; for p > ½ the smallest k with
+ *         sf(k) ≤ 1 − p, raised to the median count Q(½) if below it; hi when no k in the range
+ *         qualifies.
+ *
+ * For p > ½, 1 − p is exact (Sterbenz) and S(k) carries relative precision, where F(k) is a
+ * double next to 1 that resolves the tail only to ε/(1 − p) relative: at p = 1 − 1e-15 the
+ * CDF-side test accepted counts with S(k) up to 7% above 1 − p. For p ≤ ½ the result is the
+ * cdf search's, unchanged.
+ *
+ * The two rules disagree where F(k) + S(k) misses 1: with F(k) a few ulp below ½ and S(k) a few
+ * ulp below ½ too, Q(½) = k + 1 by the CDF but the survival side gives k just above ½, so the
+ * quantile stepped down across the seam. A survival-side count k with F(k) < ½ lies below the
+ * median count, which is then the answer: Q stays non-decreasing in p (M1 seam probe).
+ */
+template <typename Cdf, typename Sf>
+[[nodiscard]] std::int64_t discrete_quantile_search(Cdf&& cdf, Sf&& sf, double p, std::int64_t lo,
+                                                    std::int64_t hi, double guess) {
+    if (p <= 0.5)
+        return discrete_quantile_search(cdf, p, lo, hi, guess);
+    const double tail = 1.0 - p;  // exact for p in [½, 1]
+    const std::int64_t k =
+        discrete_first_true([&](std::int64_t c) { return sf(c) <= tail; }, lo, hi, guess);
+    if (k >= hi || cdf(k) >= 0.5)
+        return k;
+    return discrete_quantile_search(cdf, 0.5, k + 1, hi, static_cast<double>(k + 1));
+}
 
 // REMOVED in v2.4.0: f_cdf / inverse_f_cdf. They were forward-looking stubs
 // pre-staged for an F distribution; FDistribution (#56) ships its own
@@ -362,13 +686,8 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
  * @param p probability value in (0, 1)
  * @param shape shape parameter (alpha > 0)
  * @param scale scale parameter (beta > 0)
- * @return x such that P(X <= x) = p where X ~ Gamma(shape, scale)
+ * @return x such that P(X <= x) = p where X ~ Gamma(shape, scale); scale * gamma_p_inv(shape, p)
  */
-// DEFERRED: gamma_inverse_cdf
-// Forward-looking stub for an analytic Gamma/ChiSquared quantile path.
-// Currently has no callers — GammaDistribution::getQuantile() uses a
-// numerical inversion. Replace the numerical path with this function once
-// the analytic implementation is validated to be faster and equally accurate.
 [[nodiscard]] double gamma_inverse_cdf(double p, double shape, double scale) noexcept;
 
 // empirical_cdf, calculate_quantiles, sample_moments, validate_fitting_data

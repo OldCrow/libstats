@@ -1,0 +1,88 @@
+kAvx2: rows derived from 2026-10-13T13-11-55Z_darwin-x86_64_dev-v2.4.2_sha-d1adc95 (K (Kaby Lake, AppleClang 15))
+previous capture 2026-10-05T01-50-52Z_darwin-x86_64_dev-v2.4.2_sha-6f86996; fork value 4096, fork zone <= 6144; Z direction from 2026-10-14T03-05-23Z_windows-x86_64_dev-v2.4.2_sha-df78931
+grid: 64 128 256 512 1024 2048 4096 6144 8192 10k 25k 50k 75k 100k 150k 200k 250k 300k 400k 500k 750k 1000k 1500k 2000k
+
+Distribution    Op       table          run1/run2/run3    cand    prev  decision       proposed  cmt  Zdir    note
+Bernoulli       PDF       4096            64/2048/4096    4096   NEVER  KEEP ok            4096  yes  later   
+Bernoulli       LogPDF    4096            512/1024/256    1024   NEVER  KEEP ok            4096  yes  same    candidate in the fork zone; table already at the fork value
+Bernoulli       CDF       4096          1024/4096/4096    4096   NEVER  KEEP ok            4096  yes  later   
+Beta            PDF       4096          6144/6144/8192    6144   NEVER  KEEP ok            4096  yes  later   
+Beta            LogPDF    8192          8192/6144/8192    8192   NEVER  KEEP ok            8192  yes  same    
+Beta            CDF       4096          2048/2048/4096    2048    4096  KEEP ok            4096  yes  later   
+Binomial        PDF       4096          4096/4096/4096    4096   NEVER  KEEP ok            4096  yes  later   
+Binomial        LogPDF    4096          4096/2048/4096    4096   NEVER  KEEP ok            4096  yes  same    
+Binomial        CDF       4096          2048/2048/4096    2048   NEVER  KEEP ok            4096  yes  same    
+Cauchy          PDF        75k             50k/50k/50k     50k      64  KEEP ok             75k  yes  same    
+Cauchy          LogPDF     75k             50k/25k/25k     25k     10k  KEEP override       75k  yes  same    measures as before; table comment stands unless stale
+Cauchy          CDF       8192          6144/8192/6144    6144    6144  KEEP ok            8192  yes  later   
+ChiSquared      PDF        25k             25k/10k/25k     25k     25k  KEEP ok             25k  yes  same    
+ChiSquared      LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same    
+ChiSquared      CDF       4096          4096/4096/4096    4096    4096  KEEP ok            4096  yes  earlier 
+Discrete        PDF        50k             50k/50k/50k     50k     50k  KEEP ok             50k  yes  later   
+Discrete        LogPDF     50k             50k/50k/50k     50k     50k  KEEP ok             50k  yes  later   
+Discrete        CDF        50k             50k/50k/50k     50k     50k  CHANGE bench        25k  yes  later   bench crossover: user 2026-10-15 (K): the profile's 50k measures PARALLEL; K's AUTO goes multi-threaded through WORK_STEALING, which table_ab ABAB 2026-10-15 on K (quiet, load < 2.0) shows 1.7x ahead of VECTORIZED at 25k (1.19 vs 2.05 ns) and behind it at 8192-10k; 25k as the compromise between K and the PARALLEL platforms
+Erlang          PDF        25k             25k/10k/25k     25k     25k  KEEP ok             25k  yes  same    
+Erlang          LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same    
+Erlang          CDF       4096           4096/512/4096    4096    4096  KEEP ok            4096  yes  later   
+Exponential     PDF       120k             50k/50k/50k     50k     50k  CHANGE              50k  yes  earlier override dropped: user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.7-2.2x behind PARALLEL at 50k-100k under both tables; candidate 50k three times; table already overrode the previous capture
+Exponential     LogPDF     25k          100k/100k/100k    100k    100k  KEEP override       25k  yes  later   measures as before; table comment stands unless stale
+Exponential     CDF       100k          1024/6144/8192    8192     10k  CHANGE bench        25k  yes  earlier bench crossover: user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): PARALLEL 1.4-1.5x behind VECTORIZED at 8192-10k, 0.78x at 25k, 0.45x at 50k; the rule's 8192 (max of a 1024/6144/8192 spread) would regress; table already overrode the previous capture
+FisherF         PDF       4096             64/4096/256    4096    2048  KEEP ok            4096  yes  same    
+FisherF         LogPDF    6144          1024/4096/1024    4096    4096  CHANGE taken       4096  yes  same    candidate taken: user 2026-10-15 (K): candidate 4096; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.7-1.8x behind PARALLEL at 4096 under both tables
+FisherF         CDF       4096          1024/2048/4096    4096    4096  KEEP ok            4096  yes  same    
+Gamma           PDF        25k             25k/25k/10k     25k     25k  KEEP ok             25k  yes  earlier 
+Gamma           LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same    
+Gamma           CDF       4096          4096/1024/4096    4096    4096  KEEP ok            4096  yes  later   
+Gaussian        PDF        50k             50k/50k/50k     50k    100k  KEEP ok             50k  yes  same    
+Gaussian        LogPDF     20k          150k/150k/150k    150k    200k  CHANGE bench       100k  yes  later   bench crossover: user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), round 2: at 150k AUTO stays VECTORIZED at 100k, where K's WORK_STEALING is 2.2x faster (0.34 vs 0.76 ns); PARALLEL/VECTORIZED at 100k 1.10 median (0.97-1.20) over eight passes, 0.52 at 200k: break-even for PARALLEL platforms; table already overrode the previous capture
+Gaussian        CDF       4096           2048/128/2048    2048     10k  KEEP ok            4096  yes  later   
+Geometric       PDF       4096            64/4096/4096    4096   NEVER  KEEP ok            4096  yes  earlier 
+Geometric       LogPDF    4096          2048/1024/2048    2048   NEVER  KEEP ok            4096  yes  earlier 
+Geometric       CDF       4096           1024/256/4096    4096   NEVER  KEEP ok            4096  yes  later   
+Gumbel          PDF        50k             25k/25k/25k     25k    300k  CHANGE taken        25k  yes  same    candidate taken: user 2026-10-15 (K): candidate 25k three times; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.5x behind PARALLEL at 25k under both tables; table already overrode the previous capture
+Gumbel          LogPDF     50k             50k/50k/25k     50k     50k  KEEP ok             50k  yes  same    
+Gumbel          CDF        25k             25k/25k/10k     25k     75k  KEEP ok             25k  yes  earlier 
+HalfNormal      PDF        75k             50k/50k/50k     50k     75k  CHANGE taken        50k  yes  earlier candidate taken: user 2026-10-15 (K): candidate 50k three times; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.7x behind PARALLEL at 50k under both tables
+HalfNormal      LogPDF     75k          100k/100k/100k    100k    100k  KEEP ok             75k  yes  same    
+HalfNormal      CDF       4096           6144/6144/10k    6144     25k  KEEP ok            4096  yes  later   
+InverseGamma    PDF        25k             25k/50k/50k     50k     25k  KEEP ok             25k  yes  later   
+InverseGamma    LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  later   
+InverseGamma    CDF       2048          4096/4096/4096    4096    2048  KEEP ok            2048  yes  later   
+Laplace         PDF        25k             25k/50k/25k     25k     25k  KEEP ok             25k  yes  same    
+Laplace         LogPDF     25k             50k/50k/50k     50k     50k  KEEP ok             25k  yes  same    
+Laplace         CDF       8192           512/6144/8192    8192     25k  KEEP ok            8192  yes  later   
+LogNormal       PDF        50k             10k/25k/25k     25k     50k  CHANGE taken        25k  yes  same    candidate taken: user 2026-10-15 (K): candidate 25k; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.4-1.6x behind PARALLEL at 25k under both tables
+LogNormal       LogPDF     50k             25k/25k/25k     25k     50k  KEEP ok             50k  yes  earlier 
+LogNormal       CDF       4096          2048/1024/2048    2048    4096  KEEP ok            4096  yes  same    
+Logistic        PDF       4096          6144/8192/6144    6144    200k  KEEP ok            4096  yes  later   
+Logistic        LogPDF     25k             25k/25k/25k     25k    100k  KEEP ok             25k  yes  earlier 
+Logistic        CDF        50k             25k/50k/50k     50k     50k  KEEP ok             50k  yes  same    
+NegBinomial     PDF       4096          2048/2048/1024    2048   NEVER  KEEP ok            4096  yes  same    
+NegBinomial     LogPDF    4096          4096/4096/4096    4096   NEVER  KEEP ok            4096  yes  same    
+NegBinomial     CDF       4096           2048/512/2048    2048   NEVER  KEEP ok            4096  yes  same    
+Pareto          PDF        25k             25k/25k/25k     25k     75k  KEEP ok             25k  yes  same    
+Pareto          LogPDF     25k             25k/25k/50k     25k     75k  KEEP ok             25k  yes  same    
+Pareto          CDF       4096          4096/4096/2048    4096     10k  KEEP ok            4096  yes  same    
+Poisson         PDF       4096          4096/4096/4096    4096    4096  KEEP ok            4096  yes  later   
+Poisson         LogPDF    4096           4096/4096/512    4096    4096  KEEP ok            4096  yes  earlier 
+Poisson         CDF       4096          4096/2048/2048    2048    4096  KEEP ok            4096  yes  later   
+Rayleigh        PDF        25k             25k/25k/10k     25k     50k  KEEP ok             25k  yes  earlier 
+Rayleigh        LogPDF     25k             50k/25k/25k     25k     50k  KEEP ok             25k  yes  earlier 
+Rayleigh        CDF        25k          8192/6144/6144    6144    6144  KEEP override       25k  yes  same    measures as before; table comment stands unless stale
+StudentT        PDF        25k            10k/10k/8192     10k      64  KEEP ok             25k  yes  earlier 
+StudentT        LogPDF     25k             25k/25k/25k     25k    8192  KEEP ok             25k  yes  same    
+StudentT        CDF       4096          4096/4096/4096    4096   NEVER  KEEP ok            4096  yes  same    
+TruncatedNormal PDF        50k             25k/25k/25k     25k     50k  KEEP ok             50k  -    same    
+TruncatedNormal LogPDF     50k             50k/25k/50k     50k     50k  KEEP ok             50k  -    same    
+TruncatedNormal CDF       4096            256/4096/256    4096    4096  KEEP ok            4096  -    later   
+Uniform         PDF      2000k         200k/2000k/250k   2000k   NEVER  CHANGE bench       250k  yes  later   bench crossover: user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), rounds 1-2, eight passes per tier: PARALLEL/VECTORIZED 0.54-0.57 median at 500k on the AVX2, AVX and SSE2 trees (AUTO 1.9x behind), 0.80-0.88 median at 200k with passes to 1.23, 1.6-2.1 at 100k; the 2000k candidate is the max of a 10x spread (200k/2000k/250k); 250k is the median run; table already overrode the previous capture
+Uniform         LogPDF    200k          200k/200k/200k    200k   NEVER  KEEP ok            200k  yes  later   
+Uniform         CDF      NEVER             25k/25k/25k     25k     25k  CHANGE              25k  yes  earlier override dropped: user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): PARALLEL 0.45-0.65x VECTORIZED from 25k, AUTO 1.5-3.6x behind at 25k-500k under both tables; candidate 25k three times; table already overrode the previous capture
+VonMises        PDF        25k             25k/25k/25k     25k    300k  KEEP ok             25k  yes  same    
+VonMises        LogPDF     25k             25k/25k/25k     25k    400k  KEEP ok             25k  yes  same    
+VonMises        CDF       4096           512/2048/4096    4096   NEVER  KEEP ok            4096  yes  same    
+Weibull         PDF       8192          8192/8192/8192    8192    250k  KEEP ok            8192  yes  same    
+Weibull         LogPDF     10k             25k/25k/10k     25k     50k  KEEP ok             10k  yes  same    
+Weibull         CDF       4096          2048/4096/2048    2048     25k  KEEP ok            4096  yes  later   
+
+CHANGE=2  CHANGE bench=4  CHANGE taken=4  KEEP ok=68  KEEP override=3  total=81

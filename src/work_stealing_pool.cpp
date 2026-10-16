@@ -50,14 +50,15 @@ WorkStealingPool::WorkStealingPool(std::size_t numThreads, bool enableAffinity) 
 
     workers_.resize(numThreads);
 
-    // Create worker threads
+    // Every worker's data first, then the threads: a worker reads its own enableOptimization at
+    // startup and steals from the others' queues, so starting thread i while workers_[j > i] and
+    // its own flag were still being written was a data race.
     for (std::size_t i = 0; i < numThreads; ++i) {
         workers_[i] = std::make_unique<WorkerData>();
-        workers_[i]->worker = std::thread(&WorkStealingPool::workerLoop, this, static_cast<int>(i));
-
-        // Store enableAffinity flag for worker thread to use during initialization
         workers_[i]->enableOptimization = enableAffinity;
     }
+    for (std::size_t i = 0; i < numThreads; ++i)
+        workers_[i]->worker = std::thread(&WorkStealingPool::workerLoop, this, static_cast<int>(i));
 
     // macOS QoS Best Practice: Wait for all threads to be ready before returning
     // This prevents race conditions when QoS/affinity setting takes time

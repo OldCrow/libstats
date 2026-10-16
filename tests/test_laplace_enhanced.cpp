@@ -214,6 +214,26 @@ TEST_F(LaplaceEnhancedTest, VectorizedMatchesScalar) {
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "PDF mismatch at i=" << i;
 }
 
+// ─── Large-batch VECTORIZED vs SCALAR (correctness; runs in CI) ──────────────
+// Same inputs and tolerance as the VectorizedSpeedup timing case, which is excluded from
+// the correctness run.
+
+TEST_F(LaplaceEnhancedTest, VectorizedMatchesScalarLarge) {
+    const size_t N = 50000;
+    vector<double> xs(N), out_vec(N), out_scl(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = -5.0 + 10.0 * static_cast<double>(i + 1) / static_cast<double>(N);
+
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+
+    sl_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    sl_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+    for (size_t i = 0; i < N; ++i)
+        ASSERT_NEAR(out_vec[i], out_scl[i], 1e-10) << "mismatch at i=" << i;
+}
+
 // ─── VectorizedSpeedup (labelled timing) ─────────────────────────────────────
 
 TEST_F(LaplaceEnhancedTest, VectorizedSpeedup) {

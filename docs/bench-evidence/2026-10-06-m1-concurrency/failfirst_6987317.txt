@@ -1,0 +1,442 @@
+# test_concurrency_stress built at 6987317, each test run alone (rc test)
+1 ConcurrencyStress_Gaussian.Readers
+0 ConcurrencyStress_Gaussian.Writers
+1 ConcurrencyStress_Gaussian.StrategyDifferential
+1 ConcurrencyStress_Exponential.Readers
+0 ConcurrencyStress_Exponential.Writers
+1 ConcurrencyStress_Exponential.StrategyDifferential
+0 ConcurrencyStress_Uniform.Readers
+1 ConcurrencyStress_Uniform.Writers
+0 ConcurrencyStress_Uniform.StrategyDifferential
+1 ConcurrencyStress_Discrete.Readers
+1 ConcurrencyStress_Discrete.Writers
+0 ConcurrencyStress_Discrete.StrategyDifferential
+1 ConcurrencyStress_Poisson.Readers
+0 ConcurrencyStress_Poisson.Writers
+0 ConcurrencyStress_Poisson.StrategyDifferential
+1 ConcurrencyStress_Gamma.Readers
+0 ConcurrencyStress_Gamma.Writers
+0 ConcurrencyStress_Gamma.StrategyDifferential
+1 ConcurrencyStress_Bernoulli.Readers
+1 ConcurrencyStress_Bernoulli.Writers
+0 ConcurrencyStress_Bernoulli.StrategyDifferential
+1 ConcurrencyStress_Beta.Readers
+0 ConcurrencyStress_Beta.Writers
+0 ConcurrencyStress_Beta.StrategyDifferential
+1 ConcurrencyStress_Binomial.Readers
+0 ConcurrencyStress_Binomial.Writers
+0 ConcurrencyStress_Binomial.StrategyDifferential
+1 ConcurrencyStress_StudentT.Readers
+0 ConcurrencyStress_StudentT.Writers
+1 ConcurrencyStress_StudentT.StrategyDifferential
+1 ConcurrencyStress_ChiSquared.Readers
+1 ConcurrencyStress_ChiSquared.Writers
+0 ConcurrencyStress_ChiSquared.StrategyDifferential
+1 ConcurrencyStress_VonMises.Readers
+0 ConcurrencyStress_VonMises.Writers
+1 ConcurrencyStress_VonMises.StrategyDifferential
+1 ConcurrencyStress_LogNormal.Readers
+0 ConcurrencyStress_LogNormal.Writers
+1 ConcurrencyStress_LogNormal.StrategyDifferential
+1 ConcurrencyStress_Pareto.Readers
+0 ConcurrencyStress_Pareto.Writers
+1 ConcurrencyStress_Pareto.StrategyDifferential
+1 ConcurrencyStress_Rayleigh.Readers
+0 ConcurrencyStress_Rayleigh.Writers
+1 ConcurrencyStress_Rayleigh.StrategyDifferential
+1 ConcurrencyStress_Weibull.Readers
+0 ConcurrencyStress_Weibull.Writers
+1 ConcurrencyStress_Weibull.StrategyDifferential
+1 ConcurrencyStress_Cauchy.Readers
+0 ConcurrencyStress_Cauchy.Writers
+1 ConcurrencyStress_Cauchy.StrategyDifferential
+1 ConcurrencyStress_Laplace.Readers
+0 ConcurrencyStress_Laplace.Writers
+1 ConcurrencyStress_Laplace.StrategyDifferential
+1 ConcurrencyStress_Logistic.Readers
+0 ConcurrencyStress_Logistic.Writers
+1 ConcurrencyStress_Logistic.StrategyDifferential
+1 ConcurrencyStress_Gumbel.Readers
+0 ConcurrencyStress_Gumbel.Writers
+1 ConcurrencyStress_Gumbel.StrategyDifferential
+1 ConcurrencyStress_HalfNormal.Readers
+0 ConcurrencyStress_HalfNormal.Writers
+1 ConcurrencyStress_HalfNormal.StrategyDifferential
+1 ConcurrencyStress_InverseGamma.Readers
+0 ConcurrencyStress_InverseGamma.Writers
+0 ConcurrencyStress_InverseGamma.StrategyDifferential
+1 ConcurrencyStress_Erlang.Readers
+1 ConcurrencyStress_Erlang.Writers
+0 ConcurrencyStress_Erlang.StrategyDifferential
+1 ConcurrencyStress_FisherF.Readers
+0 ConcurrencyStress_FisherF.Writers
+0 ConcurrencyStress_FisherF.StrategyDifferential
+1 ConcurrencyStress_Geometric.Readers
+1 ConcurrencyStress_Geometric.Writers
+0 ConcurrencyStress_Geometric.StrategyDifferential
+1 ConcurrencyStress_NegativeBinomial.Readers
+0 ConcurrencyStress_NegativeBinomial.Writers
+0 ConcurrencyStress_NegativeBinomial.StrategyDifferential
+1 ConcurrencyStress_TruncatedNormal.Readers
+1 ConcurrencyStress_TruncatedNormal.Writers
+1 ConcurrencyStress_TruncatedNormal.StrategyDifferential
+
+# reader failures excluding move assign (unfixed at both commits)
+ConcurrencyStress_Bernoulli.Readers /  ::  batch pdf PARALLEL: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  batch pdf MAX_THROUGHPUT: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  batch logpdf PARALLEL: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  batch logpdf MAX_THROUGHPUT: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  batch cdf VECTORIZED: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  batch cdf PARALLEL: 15 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  batch cdf MAX_THROUGHPUT: 14 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  batch cdf AUTO: 14 loop, 1 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  copy construct: 1 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers /  ::  copy assign: 5 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  batch pdf PARALLEL: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  batch pdf MAX_THROUGHPUT: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  batch logpdf PARALLEL: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  batch logpdf MAX_THROUGHPUT: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  batch cdf VECTORIZED: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  batch cdf PARALLEL: 15 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  batch cdf MAX_THROUGHPUT: 15 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  batch cdf AUTO: 14 loop, 1 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  copy construct: 9 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / single setters ::  copy assign: 3 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  batch pdf PARALLEL: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  batch pdf MAX_THROUGHPUT: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  batch logpdf PARALLEL: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  batch logpdf MAX_THROUGHPUT: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  batch cdf VECTORIZED: 18 loop, 1 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  batch cdf PARALLEL: 18 loop, 1 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  batch cdf MAX_THROUGHPUT: 17 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  batch cdf AUTO: 16 loop, 6 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  copy construct: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / fit ::  copy assign: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  batch pdf PARALLEL: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  batch pdf MAX_THROUGHPUT: 18 loop, 6 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  batch logpdf PARALLEL: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  batch logpdf MAX_THROUGHPUT: 17 loop, 8 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  batch cdf VECTORIZED: 17 loop, 1 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  batch cdf PARALLEL: 16 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  batch cdf MAX_THROUGHPUT: 16 loop, 5 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  batch cdf AUTO: 16 loop, 7 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  copy construct: 7 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / stream ::  copy assign: 3 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  batch pdf PARALLEL: 19 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  batch pdf MAX_THROUGHPUT: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  batch logpdf PARALLEL: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  batch logpdf MAX_THROUGHPUT: 18 loop, 1 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  batch cdf VECTORIZED: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  batch cdf PARALLEL: 18 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  batch cdf MAX_THROUGHPUT: 18 loop, 2 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  batch cdf AUTO: 18 loop, 2 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  copy construct: 3 loop, 0 round results outside the allowed states
+ConcurrencyStress_Bernoulli.Readers / copy assign ::  copy assign: 5 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers /  ::  batch pdf VECTORIZED: 30 loop, 3 round results outside the allowed states
+ConcurrencyStress_Beta.Readers /  ::  batch pdf PARALLEL: 30 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers /  ::  batch pdf MAX_THROUGHPUT: 29 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers /  ::  batch pdf AUTO: 28 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers /  ::  batch logpdf VECTORIZED: 29 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers /  ::  batch logpdf PARALLEL: 28 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers /  ::  batch logpdf MAX_THROUGHPUT: 29 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers /  ::  batch logpdf AUTO: 28 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / single setters ::  batch pdf VECTORIZED: 38 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / single setters ::  batch pdf PARALLEL: 38 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / single setters ::  batch pdf MAX_THROUGHPUT: 36 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / single setters ::  batch pdf AUTO: 37 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / single setters ::  batch logpdf VECTORIZED: 36 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / single setters ::  batch logpdf PARALLEL: 36 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / single setters ::  batch logpdf MAX_THROUGHPUT: 36 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / single setters ::  batch logpdf AUTO: 34 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / fit ::  batch pdf VECTORIZED: 34 loop, 15 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / fit ::  batch pdf PARALLEL: 44 loop, 15 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / fit ::  batch pdf MAX_THROUGHPUT: 39 loop, 10 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / fit ::  batch pdf AUTO: 27 loop, 15 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / fit ::  batch logpdf VECTORIZED: 24 loop, 15 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / fit ::  batch logpdf PARALLEL: 51 loop, 15 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / fit ::  batch logpdf MAX_THROUGHPUT: 39 loop, 15 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / fit ::  batch logpdf AUTO: 30 loop, 11 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / stream ::  batch pdf VECTORIZED: 33 loop, 1 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / stream ::  batch pdf PARALLEL: 35 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / stream ::  batch pdf MAX_THROUGHPUT: 37 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / stream ::  batch pdf AUTO: 35 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / stream ::  batch logpdf VECTORIZED: 35 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / stream ::  batch logpdf PARALLEL: 38 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / stream ::  batch logpdf MAX_THROUGHPUT: 37 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / stream ::  batch logpdf AUTO: 33 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / copy assign ::  batch pdf VECTORIZED: 32 loop, 1 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / copy assign ::  batch pdf PARALLEL: 31 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / copy assign ::  batch pdf MAX_THROUGHPUT: 30 loop, 1 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / copy assign ::  batch pdf AUTO: 30 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / copy assign ::  batch logpdf VECTORIZED: 29 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / copy assign ::  batch logpdf PARALLEL: 30 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / copy assign ::  batch logpdf MAX_THROUGHPUT: 30 loop, 0 round results outside the allowed states
+ConcurrencyStress_Beta.Readers / copy assign ::  batch logpdf AUTO: 29 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers /  ::  batch pdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers /  ::  batch pdf MAX_THROUGHPUT: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers /  ::  batch logpdf PARALLEL: 7 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers /  ::  batch logpdf MAX_THROUGHPUT: 7 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers /  ::  batch cdf VECTORIZED: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers /  ::  batch cdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers /  ::  batch cdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers /  ::  batch cdf AUTO: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / single setters ::  batch pdf PARALLEL: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / single setters ::  batch pdf MAX_THROUGHPUT: 7 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / single setters ::  batch logpdf PARALLEL: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / single setters ::  batch logpdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / single setters ::  batch cdf VECTORIZED: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / single setters ::  batch cdf PARALLEL: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / single setters ::  batch cdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / single setters ::  batch cdf AUTO: 6 loop, 3 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / fit ::  batch pdf PARALLEL: 9 loop, 1 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / fit ::  batch pdf MAX_THROUGHPUT: 9 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / fit ::  batch logpdf PARALLEL: 9 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / fit ::  batch logpdf MAX_THROUGHPUT: 8 loop, 2 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / fit ::  batch cdf VECTORIZED: 8 loop, 12 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / fit ::  batch cdf PARALLEL: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / fit ::  batch cdf MAX_THROUGHPUT: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / fit ::  batch cdf AUTO: 8 loop, 6 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / stream ::  batch pdf PARALLEL: 8 loop, 2 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / stream ::  batch pdf MAX_THROUGHPUT: 8 loop, 5 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / stream ::  batch logpdf PARALLEL: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / stream ::  batch logpdf MAX_THROUGHPUT: 8 loop, 10 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / stream ::  batch cdf VECTORIZED: 8 loop, 9 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / stream ::  batch cdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / stream ::  batch cdf MAX_THROUGHPUT: 7 loop, 6 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / stream ::  batch cdf AUTO: 6 loop, 13 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / copy assign ::  batch pdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / copy assign ::  batch pdf MAX_THROUGHPUT: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / copy assign ::  batch logpdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / copy assign ::  batch logpdf MAX_THROUGHPUT: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / copy assign ::  batch cdf VECTORIZED: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / copy assign ::  batch cdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / copy assign ::  batch cdf MAX_THROUGHPUT: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Binomial.Readers / copy assign ::  batch cdf AUTO: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers /  ::  copy construct: 29 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers /  ::  copy assign: 17 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers / single setters ::  copy construct: 31 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers / single setters ::  copy assign: 22 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers / fit ::  copy construct: 20 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers / fit ::  copy assign: 21 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers / stream ::  copy construct: 33 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers / stream ::  copy assign: 24 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers / copy assign ::  copy construct: 7 loop, 0 round results outside the allowed states
+ConcurrencyStress_ChiSquared.Readers / copy assign ::  copy assign: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers /  ::  copy construct: 39 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers /  ::  copy assign: 27 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers / single setters ::  copy construct: 51 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers / single setters ::  copy assign: 42 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers / fit ::  copy construct: 23 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers / fit ::  copy assign: 17 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers / stream ::  copy construct: 34 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers / stream ::  copy assign: 25 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers / copy assign ::  copy construct: 21 loop, 0 round results outside the allowed states
+ConcurrencyStress_Erlang.Readers / copy assign ::  copy assign: 10 loop, 0 round results outside the allowed states
+ConcurrencyStress_FisherF.Readers /  ::  sample n: 33 loop, 0 round results outside the allowed states
+ConcurrencyStress_FisherF.Readers / single setters ::  sample n: 38 loop, 0 round results outside the allowed states
+ConcurrencyStress_FisherF.Readers / fit ::  sample n: 38 loop, 0 round results outside the allowed states
+ConcurrencyStress_FisherF.Readers / stream ::  sample n: 52 loop, 1 round results outside the allowed states
+ConcurrencyStress_FisherF.Readers / copy assign ::  sample n: 35 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  batch pdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  batch pdf MAX_THROUGHPUT: 7 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  batch logpdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  batch logpdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  batch cdf VECTORIZED: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  batch cdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  batch cdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  batch cdf AUTO: 6 loop, 2 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  copy construct: 2 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers /  ::  copy assign: 1 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  batch pdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  batch pdf MAX_THROUGHPUT: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  batch logpdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  batch logpdf MAX_THROUGHPUT: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  batch cdf VECTORIZED: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  batch cdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  batch cdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  batch cdf AUTO: 6 loop, 3 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / single setters ::  copy construct: 2 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  batch pdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  batch pdf MAX_THROUGHPUT: 8 loop, 5 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  batch logpdf PARALLEL: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  batch logpdf MAX_THROUGHPUT: 8 loop, 2 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  batch cdf VECTORIZED: 6 loop, 3 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  batch cdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  batch cdf MAX_THROUGHPUT: 6 loop, 5 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  batch cdf AUTO: 6 loop, 8 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / fit ::  copy assign: 2 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  batch pdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  batch pdf MAX_THROUGHPUT: 8 loop, 8 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  batch logpdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  batch logpdf MAX_THROUGHPUT: 8 loop, 6 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  batch cdf VECTORIZED: 7 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  batch cdf PARALLEL: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  batch cdf MAX_THROUGHPUT: 6 loop, 4 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  batch cdf AUTO: 6 loop, 11 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  copy construct: 2 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / stream ::  copy assign: 2 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  batch pdf PARALLEL: 10 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  batch pdf MAX_THROUGHPUT: 10 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  batch logpdf PARALLEL: 10 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  batch logpdf MAX_THROUGHPUT: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  batch cdf VECTORIZED: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  batch cdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  batch cdf MAX_THROUGHPUT: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  batch cdf AUTO: 8 loop, 2 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  copy construct: 2 loop, 0 round results outside the allowed states
+ConcurrencyStress_Geometric.Readers / copy assign ::  copy assign: 1 loop, 0 round results outside the allowed states
+ConcurrencyStress_InverseGamma.Readers /  ::  sample n: 42 loop, 0 round results outside the allowed states
+ConcurrencyStress_InverseGamma.Readers / single setters ::  sample n: 56 loop, 0 round results outside the allowed states
+ConcurrencyStress_InverseGamma.Readers / fit ::  sample n: 32 loop, 11 round results outside the allowed states
+ConcurrencyStress_InverseGamma.Readers / stream ::  sample n: 54 loop, 0 round results outside the allowed states
+ConcurrencyStress_InverseGamma.Readers / copy assign ::  sample n: 40 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers /  ::  batch pdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers /  ::  batch pdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers /  ::  batch logpdf PARALLEL: 6 loop, 2 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers /  ::  batch logpdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers /  ::  batch cdf VECTORIZED: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers /  ::  batch cdf PARALLEL: 5 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers /  ::  batch cdf MAX_THROUGHPUT: 4 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers /  ::  batch cdf AUTO: 4 loop, 3 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / single setters ::  batch pdf PARALLEL: 6 loop, 2 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / single setters ::  batch pdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / single setters ::  batch logpdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / single setters ::  batch logpdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / single setters ::  batch cdf VECTORIZED: 4 loop, 1 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / single setters ::  batch cdf PARALLEL: 4 loop, 1 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / single setters ::  batch cdf MAX_THROUGHPUT: 4 loop, 2 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / single setters ::  batch cdf AUTO: 4 loop, 1 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / fit ::  batch pdf PARALLEL: 18 loop, 15 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / fit ::  batch pdf MAX_THROUGHPUT: 17 loop, 4 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / fit ::  batch logpdf PARALLEL: 18 loop, 16 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / fit ::  batch logpdf MAX_THROUGHPUT: 18 loop, 7 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / fit ::  batch cdf VECTORIZED: 15 loop, 15 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / fit ::  batch cdf PARALLEL: 18 loop, 15 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / fit ::  batch cdf MAX_THROUGHPUT: 18 loop, 7 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / fit ::  batch cdf AUTO: 13 loop, 15 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / stream ::  batch pdf PARALLEL: 6 loop, 2 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / stream ::  batch pdf MAX_THROUGHPUT: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / stream ::  batch logpdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / stream ::  batch logpdf MAX_THROUGHPUT: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / stream ::  batch cdf VECTORIZED: 6 loop, 17 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / stream ::  batch cdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / stream ::  batch cdf MAX_THROUGHPUT: 4 loop, 1 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / stream ::  batch cdf AUTO: 4 loop, 15 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / copy assign ::  batch pdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / copy assign ::  batch pdf MAX_THROUGHPUT: 7 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / copy assign ::  batch logpdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / copy assign ::  batch logpdf MAX_THROUGHPUT: 6 loop, 1 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / copy assign ::  batch cdf VECTORIZED: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / copy assign ::  batch cdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / copy assign ::  batch cdf MAX_THROUGHPUT: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_NegativeBinomial.Readers / copy assign ::  batch cdf AUTO: 6 loop, 2 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers /  ::  batch cdf PARALLEL: 2 loop, 0 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers /  ::  batch cdf MAX_THROUGHPUT: 2 loop, 0 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers / single setters ::  batch cdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers / single setters ::  batch cdf MAX_THROUGHPUT: 8 loop, 1 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers / fit ::  batch cdf PARALLEL: 12 loop, 0 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers / fit ::  batch cdf MAX_THROUGHPUT: 11 loop, 8 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers / stream ::  batch cdf PARALLEL: 6 loop, 0 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers / stream ::  batch cdf MAX_THROUGHPUT: 6 loop, 3 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers / copy assign ::  batch cdf PARALLEL: 8 loop, 0 round results outside the allowed states
+ConcurrencyStress_VonMises.Readers / copy assign ::  batch cdf MAX_THROUGHPUT: 7 loop, 0 round results outside the allowed states
+
+# writers and differential
+Bernoulli / writers setParameters A/B from A: 5 of 3000 rounds ended outside both serial orders
+Bernoulli / writers single setter 0 A/B: 6 of 60000 rounds ended outside both serial orders
+Cauchy pdf n=1000: PARALLEL below the fork threshold is not the batch path
+Cauchy pdf n=1535: PARALLEL below the fork threshold is not the batch path
+Cauchy logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+Cauchy logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+ChiSquared / writers setParameters A/B from A: 10 of 3000 rounds ended outside both serial orders
+ChiSquared / writers single setter 0 A/B: 122 of 60000 rounds ended outside both serial orders
+Erlang / writers single setter 0 A/B: 43 of 60000 rounds ended outside both serial orders
+Erlang / writers single setter 1 A/B: 95 of 60000 rounds ended outside both serial orders
+Exponential pdf n=1000: PARALLEL below the fork threshold is not the batch path
+Exponential pdf n=1535: PARALLEL below the fork threshold is not the batch path
+Exponential logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+Exponential logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+Exponential cdf n=1000: PARALLEL below the fork threshold is not the batch path
+Exponential cdf n=1535: PARALLEL below the fork threshold is not the batch path
+Discrete / writers bounds cross: 2998 of 3000 rounds ended outside both serial orders
+Gaussian cdf n=1000: PARALLEL below the fork threshold is not the batch path
+Gaussian cdf n=1535: PARALLEL below the fork threshold is not the batch path
+HalfNormal pdf n=1000: PARALLEL below the fork threshold is not the batch path
+HalfNormal pdf n=1535: PARALLEL below the fork threshold is not the batch path
+HalfNormal cdf n=4: PARALLEL below the fork threshold is not the batch path
+HalfNormal cdf n=5: PARALLEL below the fork threshold is not the batch path
+HalfNormal cdf n=1000: PARALLEL below the fork threshold is not the batch path
+HalfNormal cdf n=1535: PARALLEL below the fork threshold is not the batch path
+Geometric / writers single setter 0 A/B: 11 of 60000 rounds ended outside both serial orders
+Laplace pdf n=1000: PARALLEL below the fork threshold is not the batch path
+Laplace pdf n=1535: PARALLEL below the fork threshold is not the batch path
+Gumbel pdf n=1000: PARALLEL below the fork threshold is not the batch path
+Gumbel pdf n=1535: PARALLEL below the fork threshold is not the batch path
+Gumbel cdf n=1000: PARALLEL below the fork threshold is not the batch path
+Gumbel cdf n=1535: PARALLEL below the fork threshold is not the batch path
+Logistic pdf n=1000: PARALLEL below the fork threshold is not the batch path
+Logistic pdf n=1535: PARALLEL below the fork threshold is not the batch path
+Logistic logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+Logistic logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+Logistic cdf n=1000: PARALLEL below the fork threshold is not the batch path
+Logistic cdf n=1535: PARALLEL below the fork threshold is not the batch path
+Rayleigh pdf n=4: PARALLEL below the fork threshold is not the batch path
+Rayleigh pdf n=5: PARALLEL below the fork threshold is not the batch path
+Rayleigh pdf n=1000: PARALLEL below the fork threshold is not the batch path
+Rayleigh pdf n=1535: PARALLEL below the fork threshold is not the batch path
+Rayleigh logpdf n=4: PARALLEL below the fork threshold is not the batch path
+Rayleigh logpdf n=5: PARALLEL below the fork threshold is not the batch path
+Rayleigh logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+Rayleigh logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+Rayleigh cdf n=1000: PARALLEL below the fork threshold is not the batch path
+Rayleigh cdf n=1535: PARALLEL below the fork threshold is not the batch path
+Pareto pdf n=1000: PARALLEL below the fork threshold is not the batch path
+Pareto pdf n=1535: PARALLEL below the fork threshold is not the batch path
+Pareto logpdf n=5: PARALLEL below the fork threshold is not the batch path
+Pareto logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+Pareto logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+Pareto cdf n=5: PARALLEL below the fork threshold is not the batch path
+Pareto cdf n=1000: PARALLEL below the fork threshold is not the batch path
+Pareto cdf n=1535: PARALLEL below the fork threshold is not the batch path
+LogNormal pdf n=1000: PARALLEL below the fork threshold is not the batch path
+LogNormal pdf n=1535: PARALLEL below the fork threshold is not the batch path
+LogNormal logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+LogNormal logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+VonMises pdf n=1000: PARALLEL below the fork threshold is not the batch path
+VonMises pdf n=1535: PARALLEL below the fork threshold is not the batch path
+VonMises logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+VonMises logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+StudentT pdf n=4: PARALLEL below the fork threshold is not the batch path
+StudentT pdf n=5: PARALLEL below the fork threshold is not the batch path
+StudentT pdf n=1000: PARALLEL below the fork threshold is not the batch path
+StudentT pdf n=1535: PARALLEL below the fork threshold is not the batch path
+StudentT logpdf n=4: PARALLEL below the fork threshold is not the batch path
+StudentT logpdf n=5: PARALLEL below the fork threshold is not the batch path
+StudentT logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+StudentT logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+TruncatedNormal pdf n=1535: PARALLEL below the fork threshold is not the batch path
+TruncatedNormal cdf n=4: PARALLEL below the fork threshold is not the batch path
+TruncatedNormal cdf n=5: PARALLEL below the fork threshold is not the batch path
+TruncatedNormal cdf n=1000: PARALLEL below the fork threshold is not the batch path
+TruncatedNormal cdf n=1535: PARALLEL below the fork threshold is not the batch path
+Weibull pdf n=4: PARALLEL below the fork threshold is not the batch path
+Weibull pdf n=5: PARALLEL below the fork threshold is not the batch path
+Weibull pdf n=1000: PARALLEL below the fork threshold is not the batch path
+Weibull pdf n=1535: PARALLEL below the fork threshold is not the batch path
+Weibull logpdf n=4: PARALLEL below the fork threshold is not the batch path
+Weibull logpdf n=5: PARALLEL below the fork threshold is not the batch path
+Weibull logpdf n=1000: PARALLEL below the fork threshold is not the batch path
+Weibull logpdf n=1535: PARALLEL below the fork threshold is not the batch path
+Weibull cdf n=1000: PARALLEL below the fork threshold is not the batch path
+Weibull cdf n=1535: PARALLEL below the fork threshold is not the batch path
+TruncatedNormal / writers fit / setParameters B: 2999 of 3000 rounds ended outside both serial orders
+TruncatedNormal / writers fit / single setter 2: 470 of 3000 rounds ended outside both serial orders
+TruncatedNormal / writers fit / single setter 3: 560 of 3000 rounds ended outside both serial orders
+Uniform / writers bounds cross: 198 of 3000 rounds ended outside both serial orders
+
+# deadlock
+[  FAILED  ] Poisson setParameters loops: no progress in 120 s (deadlock)
+             a reader was inside: batch cdf SCALAR
+
+# delegate pairs at 20x scale (before the weight was added), 3000 x 20 rounds
+Geometric single setter 0 A/B: 52 of 60000; Bernoulli: 1-2 of 60000; InverseGamma: 0

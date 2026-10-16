@@ -160,8 +160,8 @@ TEST_F(CauchyEnhancedTest, CDFClosedFormVsMpmath) {
         auto c = CauchyDistribution::create(r.x0, r.gamma).unwrap();
         const double got = c.getCumulativeProbability(r.x);
         EXPECT_LE(std::abs(got - r.expected) / r.expected, 1e-15)
-            << "CDF(" << r.x << "; " << r.x0 << ", " << r.gamma << ") = " << got
-            << ", expected " << r.expected;
+            << "CDF(" << r.x << "; " << r.x0 << ", " << r.gamma << ") = " << got << ", expected "
+            << r.expected;
     }
     // Exact endpoints of the closed form.
     EXPECT_EQ(sc_.getCumulativeProbability(-std::numeric_limits<double>::infinity()), 0.0);
@@ -286,6 +286,26 @@ TEST_F(CauchyEnhancedTest, VectorizedMatchesScalar) {
     sc_.getCumulativeProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
     for (size_t i = 0; i < N; ++i)
         EXPECT_NEAR(out_vec[i], out_scl[i], 1e-10) << "CDF mismatch at i=" << i;
+}
+
+// ─── Large-batch VECTORIZED vs SCALAR (correctness; runs in CI) ──────────────
+// Same inputs and tolerance as the VectorizedSpeedup timing case, which is excluded from
+// the correctness run.
+
+TEST_F(CauchyEnhancedTest, VectorizedMatchesScalarLarge) {
+    const size_t N = 50000;
+    vector<double> xs(N), out_vec(N), out_scl(N);
+    for (size_t i = 0; i < N; ++i)
+        xs[i] = -10.0 + 20.0 * static_cast<double>(i + 1) / static_cast<double>(N);
+
+    detail::PerformanceHint hint_vec, hint_scl;
+    hint_vec.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_VECTORIZED;
+    hint_scl.strategy = detail::PerformanceHint::PreferredStrategy::FORCE_SCALAR;
+
+    sc_.getLogProbability(span<const double>(xs), span<double>(out_vec), hint_vec);
+    sc_.getLogProbability(span<const double>(xs), span<double>(out_scl), hint_scl);
+    for (size_t i = 0; i < N; ++i)
+        ASSERT_NEAR(out_vec[i], out_scl[i], 1e-10) << "mismatch at i=" << i;
 }
 
 // ─── VectorizedSpeedup (labelled timing) ─────────────────────────────────────

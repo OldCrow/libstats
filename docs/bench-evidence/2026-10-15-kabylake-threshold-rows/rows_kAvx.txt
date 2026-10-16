@@ -1,0 +1,88 @@
+kAvx: rows derived from 2026-10-13T13-58-00Z_darwin-x86_64_dev-v2.4.2_sha-d1adc95 (K (Kaby Lake, AppleClang 15), AVX-capped tree)
+previous capture 2026-10-05T03-09-27Z_darwin-x86_64_dev-v2.4.2_sha-6f86996; fork value 4096, fork zone <= 6144; Z direction from 2026-10-14T03-29-48Z_windows-x86_64_dev-v2.4.2_sha-df78931
+grid: 64 128 256 512 1024 2048 4096 6144 8192 10k 25k 50k 75k 100k 150k 200k 250k 300k 400k 500k 750k 1000k 1500k 2000k
+
+Distribution    Op       table          run1/run2/run3    cand    prev  decision       proposed  cmt  Zdir    note
+Bernoulli       PDF       4096           4096/128/4096    4096   NEVER  KEEP ok            4096  yes  same    
+Bernoulli       LogPDF    4096             1024/64/256    1024   NEVER  KEEP ok            4096  yes  same    candidate in the fork zone; table already at the fork value
+Bernoulli       CDF       4096          4096/2048/4096    4096   NEVER  KEEP ok            4096  yes  same    
+Beta            PDF       4096          6144/6144/6144    6144   NEVER  KEEP ok            4096  yes  later   
+Beta            LogPDF     25k            10k/6144/25k     25k   NEVER  KEEP ok             25k  yes  earlier 
+Beta            CDF       4096          4096/1024/4096    4096    4096  KEEP ok            4096  yes  later   
+Binomial        PDF       4096           2048/512/2048    2048   NEVER  KEEP ok            4096  yes  later   
+Binomial        LogPDF    4096          4096/4096/4096    4096   NEVER  KEEP ok            4096  yes  later   
+Binomial        CDF       4096          4096/2048/2048    2048   NEVER  KEEP ok            4096  yes  later   
+Cauchy          PDF        50k             75k/50k/75k     75k     256  KEEP ok             50k  -    same    
+Cauchy          LogPDF     50k             25k/50k/25k     25k     10k  KEEP ok             50k  -    same    
+Cauchy          CDF       6144            6144/256/512    6144    6144  KEEP ok            6144  -    later   
+ChiSquared      PDF        25k            10k/25k/8192     25k    8192  KEEP ok             25k  yes  earlier 
+ChiSquared      LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same    
+ChiSquared      CDF       4096           256/2048/2048    2048    4096  KEEP ok            4096  yes  earlier 
+Discrete        PDF        50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    later   
+Discrete        LogPDF     50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    same    
+Discrete        CDF        50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    same    
+Erlang          PDF       6144          6144/6144/8192    6144    6144  KEEP ok            6144  yes  same    
+Erlang          LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same    
+Erlang          CDF       4096          4096/2048/1024    4096    4096  KEEP ok            4096  yes  earlier 
+Exponential     PDF        25k             50k/25k/50k     50k     25k  KEEP ok             25k  -    same    
+Exponential     LogPDF    100k          100k/100k/100k    100k    100k  KEEP ok            100k  -    same    
+Exponential     CDF        25k           4096/6144/512    6144    6144  KEEP override       25k  -    same    measures as before; no comment on the row
+FisherF         PDF       4096            4096/512/512    4096    4096  KEEP ok            4096  yes  later   
+FisherF         LogPDF    4096            512/512/1024     512    4096  KEEP ok            4096  yes  same    candidate in the fork zone; table already at the fork value
+FisherF         CDF       4096          4096/2048/4096    4096    4096  KEEP ok            4096  yes  same    
+Gamma           PDF       6144          8192/6144/8192    8192    8192  KEEP ok            6144  yes  same    
+Gamma           LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  earlier 
+Gamma           CDF       4096          1024/4096/4096    4096    4096  KEEP ok            4096  yes  later   
+Gaussian        PDF        50k             25k/50k/50k     50k     50k  KEEP ok             50k  -    same    
+Gaussian        LogPDF    150k          150k/150k/150k    150k    150k  KEEP ok            150k  -    same    
+Gaussian        CDF       4096          4096/2048/4096    4096    4096  KEEP ok            4096  -    same    
+Geometric       PDF       4096          1024/2048/1024    1024   NEVER  KEEP ok            4096  yes  later   candidate in the fork zone; table already at the fork value
+Geometric       LogPDF    4096           128/1024/4096    4096   NEVER  KEEP ok            4096  yes  later   
+Geometric       CDF       4096          2048/4096/4096    4096   NEVER  KEEP ok            4096  yes  later   
+Gumbel          PDF       8192          8192/8192/6144    8192     25k  KEEP ok            8192  yes  same    
+Gumbel          LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same    
+Gumbel          CDF        25k            6144/10k/25k     25k     25k  KEEP ok             25k  yes  earlier 
+HalfNormal      PDF        25k             25k/25k/50k     25k     50k  KEEP ok             25k  yes  same    
+HalfNormal      LogPDF    100k          100k/100k/100k    100k     75k  KEEP ok            100k  yes  same    
+HalfNormal      CDF       4096          4096/4096/4096    4096     10k  KEEP ok            4096  yes  later   
+InverseGamma    PDF       200k            200k/25k/25k    200k     25k  KEEP ok            200k  yes  same    
+InverseGamma    LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  later   
+InverseGamma    CDF       2048           4096/512/2048    4096    4096  KEEP ok            2048  yes  earlier 
+Laplace         PDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same    
+Laplace         LogPDF     50k             50k/50k/50k     50k     50k  KEEP ok             50k  yes  same    
+Laplace         CDF       4096          6144/6144/6144    6144     25k  KEEP ok            4096  yes  later   
+LogNormal       PDF        25k            10k/10k/8192     10k     25k  KEEP ok             25k  yes  earlier 
+LogNormal       LogPDF     25k             25k/25k/10k     25k     50k  KEEP ok             25k  yes  earlier 
+LogNormal       CDF       4096          4096/1024/2048    4096    4096  KEEP ok            4096  yes  later   
+Logistic        PDF       4096          6144/1024/6144    6144     25k  KEEP ok            4096  yes  later   
+Logistic        LogPDF    4096           6144/6144/10k    6144     25k  KEEP ok            4096  yes  later   
+Logistic        CDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  same    
+NegBinomial     PDF       4096           2048/2048/128    2048   NEVER  KEEP ok            4096  yes  later   
+NegBinomial     LogPDF    4096          4096/4096/4096    4096   NEVER  KEEP ok            4096  yes  later   
+NegBinomial     CDF       4096          4096/4096/4096    4096   NEVER  KEEP ok            4096  yes  same    
+Pareto          PDF        25k            10k/8192/25k     25k     25k  KEEP ok             25k  -    earlier 
+Pareto          LogPDF     50k             25k/50k/25k     25k     50k  KEEP ok             50k  -    same    
+Pareto          CDF        50k           6144/512/4096    6144    6144  CHANGE fork        4096  -    earlier runs spread 12.0x; max 6144 still clears the table; candidate 6144 in the fork zone: parallel once it forks; table already overrode the previous capture
+Poisson         PDF       4096          1024/1024/4096    4096    4096  KEEP ok            4096  yes  later   
+Poisson         LogPDF    8192          4096/4096/4096    4096    2048  CHANGE fork        4096  yes  same    override dropped: user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), AVX and SSE2 trees: PARALLEL 0.70-0.72x VECTORIZED at 4096; AUTO 1.4x behind at 4096 under both tables; candidate 4096 three times; candidate 4096 in the fork zone: parallel once it forks; Z direction same, DIFFERS; table already overrode the previous capture
+Poisson         CDF       4096           256/4096/4096    4096    4096  KEEP ok            4096  yes  later   
+Rayleigh        PDF       8192           8192/8192/10k    8192     25k  KEEP ok            8192  yes  same    
+Rayleigh        LogPDF     25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  earlier 
+Rayleigh        CDF        50k          1024/1024/6144    6144    6144  CHANGE bench       8192  yes  same    bench crossover: user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): PARALLEL 1.38x (AVX tree) and 1.09x (SSE2 tree) behind VECTORIZED at 4096, 0.71-0.84x at 8192; the fork value 4096 would regress; table already overrode the previous capture
+StudentT        PDF        25k           25k/8192/6144     25k      64  KEEP ok             25k  yes  earlier 
+StudentT        LogPDF     50k             25k/25k/25k     25k    6144  KEEP ok             50k  yes  same    
+StudentT        CDF       4096          4096/4096/1024    4096   NEVER  KEEP ok            4096  yes  same    
+TruncatedNormal PDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  -    same    
+TruncatedNormal LogPDF     50k             50k/50k/50k     50k     50k  KEEP ok             50k  -    same    
+TruncatedNormal CDF       4096           4096/2048/256    4096    4096  KEEP ok            4096  -    same    
+Uniform         PDF      2000k         2000k/250k/200k   2000k   NEVER  CHANGE bench       250k  yes  later   bench crossover: user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), rounds 1-2, eight passes per tier: PARALLEL/VECTORIZED 0.54-0.57 median at 500k on the AVX2, AVX and SSE2 trees (AUTO 1.9x behind), 0.80-0.88 median at 200k with passes to 1.23, 1.6-2.1 at 100k; the 2000k candidate is the max of a 10x spread (2000k/250k/200k); 250k is the median run; table already overrode the previous capture
+Uniform         LogPDF    200k          200k/250k/200k    200k   NEVER  KEEP ok            200k  yes  later   
+Uniform         CDF        25k             25k/25k/50k     25k     25k  KEEP ok             25k  yes  later   
+VonMises        PDF       8192          8192/8192/6144    8192     25k  KEEP ok            8192  yes  same    
+VonMises        LogPDF     50k             25k/25k/10k     25k     75k  CHANGE taken        25k  yes  earlier candidate taken: user 2026-10-15 (K): candidate 25k; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.3x (AVX tree) and 1.8x (SSE2 tree) behind PARALLEL at 25k under both tables
+VonMises        CDF       4096           2048/4096/512    4096   NEVER  KEEP ok            4096  yes  same    
+Weibull         PDF       4096          6144/6144/6144    6144     25k  KEEP ok            4096  yes  later   
+Weibull         LogPDF     25k           25k/8192/8192     25k     25k  KEEP ok             25k  yes  earlier 
+Weibull         CDF       4096          4096/4096/4096    4096     10k  KEEP ok            4096  yes  later   
+
+CHANGE bench=2  CHANGE fork=2  CHANGE taken=1  KEEP ok=75  KEEP override=1  total=81

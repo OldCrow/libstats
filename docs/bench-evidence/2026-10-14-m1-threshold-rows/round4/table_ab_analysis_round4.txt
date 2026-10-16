@@ -1,0 +1,37 @@
+noise floor (forced, same code): median 1.000 p05 0.91 p95 1.08 n=1620
+pass-to-pass (old table, all rows): median 1.018 p05 0.82 p95 1.08
+AUTO rows 810: new/old median 1.000; faster >1.25x 16; slower >1.25x 5
+AUTO > 1.25x behind best forced: old table 13, new table 9
+
+== REGRESSIONS: new AUTO slower than old by > 1.25x
+  Uniform         pdf       2048  old     0.27 new     0.52  new/old  1.91  old a/b 1.06(vect) new a/b 2.06(vect)
+  Uniform         logpdf    2048  old     0.27 new     0.52  new/old  1.91  old a/b 1.06(vect) new a/b 2.02(vect)
+  Uniform         cdf       2048  old     0.84 new     1.56  new/old  1.85  old a/b 1.01(vect) new a/b 1.87(vect)
+  VonMises        logpdf   50000  old     2.11 new     3.15  new/old  1.49  old a/b 0.80(para) new a/b 1.33(para)
+  VonMises        pdf      50000  old     2.50 new     3.68  new/old  1.47  old a/b 0.88(para) new a/b 1.39(para)
+
+== remaining gaps under the NEW table: AUTO > 1.25x behind best forced
+  Uniform         pdf       2048  auto/best 2.06 (best vectorized)  old auto/best 1.06  new/old 1.91
+  Uniform         logpdf    2048  auto/best 2.02 (best vectorized)  old auto/best 1.06  new/old 1.91
+  Uniform         cdf       2048  auto/best 1.87 (best vectorized)  old auto/best 1.01  new/old 1.85
+  VonMises        pdf      50000  auto/best 1.39 (best parallel)  old auto/best 0.88  new/old 1.47
+  VonMises        logpdf   50000  auto/best 1.33 (best parallel)  old auto/best 0.80  new/old 1.49
+  StudentT        pdf      25000  auto/best 1.27 (best parallel)  old auto/best 1.33  new/old 1.00
+  Erlang          pdf      25000  auto/best 1.26 (best parallel)  old auto/best 1.28  new/old 1.01
+  ChiSquared      pdf      25000  auto/best 1.25 (best parallel)  old auto/best 1.24  new/old 1.00
+  Pareto          cdf      50000  auto/best 1.25 (best parallel)  old auto/best 1.05  new/old 1.24
+
+== gaps CLOSED by the new table (old a/b > 1.25, new a/b <= 1.25)
+  Beta            cdf     n:new/old  2048:0.67
+  ChiSquared      cdf     n:new/old  2048:0.76
+  Erlang          cdf     n:new/old  2048:0.78
+  Gamma           cdf     n:new/old  2048:0.75
+  Gaussian        pdf     n:new/old  50000:0.71
+  LogNormal       pdf     n:new/old  25000:0.72
+  Logistic        logpdf  n:new/old  25000:0.68
+  Logistic        pdf     n:new/old  25000:0.62
+  Pareto          pdf     n:new/old  50000:0.71
+  StudentT        pdf     n:new/old  50000:0.73
+  Weibull         logpdf  n:new/old  25000:0.62
+
+== per-row verdict for every changed proposal row would need the table; see rows_kNeon.txt

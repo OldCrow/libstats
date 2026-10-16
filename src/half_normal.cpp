@@ -1,8 +1,7 @@
 #include "libstats/distributions/half_normal.h"
 
-#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
-
 #include "libstats/common/cpu_detection_fwd.h"
+#include "libstats/common/distribution_impl_common.h"  // SIMD + parallel (AQ-7)
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
@@ -11,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -19,53 +19,8 @@
 namespace stats {
 
 namespace {
-
-// Inverse of the standard normal survival function Q(u) = ½·erfc(u/√2) for
-// s ∈ (0, ½], i.e. u = Φ⁻¹(1−s), computed entirely in the erfc/survival
-// domain so no 1−p style cancellation is ever formed (#49 discipline).
-//
-// Seed: Abramowitz & Stegun 26.2.23 rational approximation (|error| < 4.5e-4),
-// then Newton iterations on the survival residual with analytic derivative:
-//   u ← u + (Q(u) − s)/φ(u),  φ(u) = exp(−u²/2)/√(2π)
-// Each step evaluates erfc and exp directly — both full relative precision in
-// the tail — so the iteration converges to the |ln s|·2⁻⁵² conditioning limit
-// of any double formulation (the #49 law). φ underflow (u ≳ 38.6) is guarded
-// by skipping the polish; the seed is already law-limited that deep.
-//
-// Rationale for not delegating to detail::erf_inv here: its extreme-tail
-// branch (|x| ≥ ERF_INV_TAIL_CUTOFF, eps = 1−|x| ≥ ULTRA tolerance) seeds
-// with a Φ⁻¹-domain formula that is off by ~√2 in the erf domain, and its
-// Halley refinement cannot recover once std::erf saturates to 1 — measured
-// during #57 bring-up: erf_inv(1−1e-14) ≈ 7.59 vs the true 5.46 (0.39
-// relative in x), non-monotone across the band. Shared-code finding reported
-// upstream; worked around locally per the #57 scope rules.
-//
-// The same helper is duplicated in src/truncated_normal.cpp (same pattern as
-// the cdf_from_erf_arg duplication between gaussian.cpp and lognormal.cpp).
-inline double inv_survival_normal(double s) noexcept {
-    if (s >= detail::HALF)
-        return detail::ZERO_DOUBLE;
-    if (s < std::numeric_limits<double>::min())
-        s = std::numeric_limits<double>::min();  // best-effort clamp; keeps log(s) finite
-
-    const double t = std::sqrt(-detail::TWO * std::log(s));
-    // AS 26.2.23 coefficients (same set detail::erf_inv uses for its
-    // moderate-tail branch).
-    double u = t - (2.515517 + t * (0.802853 + t * 0.010328)) /
-                       (detail::ONE + t * (1.432788 + t * (0.189269 + t * 0.001308)));
-    for (int i = 0; i < 4; ++i) {
-        const double pdf = detail::INV_SQRT_2PI * std::exp(-detail::HALF * u * u);
-        if (!(pdf > detail::ZERO_DOUBLE))
-            break;  // deeper than φ's underflow: keep the (law-limited) seed
-        const double r = detail::HALF * std::erfc(u * detail::INV_SQRT_2) - s;
-        const double step = r / pdf;
-        u += step;
-        if (std::fabs(step) <= 1e-15 * (detail::ONE + std::fabs(u)))
-            break;
-    }
-    return u;
-}
-
+// PARALLEL and WORK_STEALING run the batch kernel over slices of this many elements (#191).
+constexpr std::size_t kBatchSlice = 1024;
 }  // namespace
 
 //==============================================================================
@@ -132,6 +87,11 @@ HalfNormalDistribution::HalfNormalDistribution(HalfNormalDistribution&& other) n
 
 HalfNormalDistribution& HalfNormalDistribution::operator=(HalfNormalDistribution&& other) noexcept {
     if (this != &other) {
+        // Both locks, as copy-assignment takes, in std::lock order; the source is written, so
+        // exclusively (#184).
+        std::unique_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
+        std::unique_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
+        std::lock(lock1, lock2);
         sigma_ = other.sigma_;
         logSigma_ = other.logSigma_;
         negHalfInvSigmaSquared_ = other.negHalfInvSigmaSquared_;
@@ -288,7 +248,19 @@ double HalfNormalDistribution::getCumulativeProbability(double x) const {
     return std::erf(x * inv);
 }
 
+double HalfNormalDistribution::getSurvival(double x) const {
+    if (x < detail::ZERO_DOUBLE)
+        return detail::ONE;
+
+    double inv;
+    withCacheSnapshot([&] { inv = invSigmaSqrt2_; });
+    // erfc directly: 1 − erf cancels from x ≈ 6σ. erfc(+inf) = 0, erfc(NaN) = NaN.
+    return std::erfc(x * inv);
+}
+
 double HalfNormalDistribution::getQuantile(double p) const {
+    if (std::isnan(p))
+        return std::numeric_limits<double>::quiet_NaN();  // NaN in, NaN out (AR D3)
     if (p < detail::ZERO_DOUBLE || p > detail::ONE) {
         throw std::invalid_argument("Probability must be in [0, 1] for Half-Normal distribution");
     }
@@ -322,10 +294,10 @@ double HalfNormalDistribution::getQuantile(double p) const {
     // (Sterbenz), and F(x) = p ⇔ erfc(x/(σ√2)) = 1−p ⇔ Q(x/σ) = (1−p)/2,
     // so x = σ·Φ⁻¹-complement((1−p)/2) via the erfc-domain solver above.
     // This deliberately bypasses detail::erf_inv's extreme-tail branch (see
-    // inv_survival_normal's banner) and is finite and never NaN for every
+    // detail::inv_survival_normal's banner) and is finite and never NaN for every
     // p ∈ (0,1) (#104), accurate to the |ln(1−p)|·2⁻⁵² conditioning law.
     const double s = detail::HALF * (detail::ONE - p);
-    return s_param * inv_survival_normal(s);
+    return s_param * detail::inv_survival_normal(s);
 }
 
 double HalfNormalDistribution::sample(std::mt19937& rng) const {
@@ -414,7 +386,7 @@ void HalfNormalDistribution::reset() noexcept {
 std::string HalfNormalDistribution::toString() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6);
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10);
     oss << "HalfNormalDistribution(sigma=" << sigma_ << ")";
     return oss.str();
 }
@@ -477,34 +449,28 @@ void HalfNormalDistribution::getProbability(std::span<const double> values,
                 nhis = d.negHalfInvSigmaSquared_;
                 norm = d.normConstant_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                       : norm * std::exp(nhis * (x * x));
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                    nhis, norm);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                       : norm * std::exp(nhis * (x * x));
-                }
-            }
         },
         [](const HalfNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis, norm;
             d.withCacheSnapshot([&] {
                 nhis = d.negHalfInvSigmaSquared_;
                 norm = d.normConstant_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
-                                                   : norm * std::exp(nhis * (x * x));
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len, nhis,
+                                                norm);
             });
-            pool.waitForAll();
         });
 }
 
@@ -533,34 +499,28 @@ void HalfNormalDistribution::getLogProbability(std::span<const double> values,
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                       : lnc + nhis * (x * x);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                       nhis, lnc);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY
-                                                       : lnc + nhis * (x * x);
-                }
-            }
         },
         [](const HalfNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double nhis, lnc;
             d.withCacheSnapshot([&] {
                 nhis = d.negHalfInvSigmaSquared_;
                 lnc = d.logNormConst_;
             });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] =
-                    (x < detail::ZERO_DOUBLE) ? detail::NEGATIVE_INFINITY : lnc + nhis * (x * x);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getLogProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start, len,
+                                                   nhis, lnc);
             });
-            pool.waitForAll();
         });
 }
 
@@ -583,28 +543,25 @@ void HalfNormalDistribution::getCumulativeProbability(std::span<const double> va
                 return;
             double inv;
             d.withCacheSnapshot([&] { inv = d.invSigmaSqrt2_; });
-            if (arch::should_use_parallel(count)) {
-                ParallelUtils::parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : std::erf(x * inv);
+            ParallelUtils::parallelForSlices(
+                count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                    d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start,
+                                                              res.data() + start, len, inv);
                 });
-            } else {
-                for (std::size_t i = 0; i < count; ++i) {
-                    const double x = vals[i];
-                    res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : std::erf(x * inv);
-                }
-            }
         },
         [](const HalfNormalDistribution& d, std::span<const double> vals, std::span<double> res,
            WorkStealingPool& pool) {
+            if (vals.size() != res.size())
+                throw std::invalid_argument("Input and output spans must have the same size");
             const std::size_t count = vals.size();
+            if (count == 0)
+                return;
             double inv;
             d.withCacheSnapshot([&] { inv = d.invSigmaSqrt2_; });
-            pool.parallelFor(std::size_t{0}, count, [&](std::size_t i) {
-                const double x = vals[i];
-                res[i] = (x < detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : std::erf(x * inv);
+            pool.parallelForSlices(count, kBatchSlice, [&](std::size_t start, std::size_t len) {
+                d.getCumulativeProbabilityBatchUnsafeImpl(vals.data() + start, res.data() + start,
+                                                          len, inv);
             });
-            pool.waitForAll();
         });
 }
 
@@ -617,6 +574,9 @@ void HalfNormalDistribution::getCumulativeProbability(std::span<const double> va
 //==============================================================================
 
 bool HalfNormalDistribution::operator==(const HalfNormalDistribution& other) const {
+    // d == d would lock the same shared_mutex twice from one thread (undefined).
+    if (this == &other)
+        return true;
     std::shared_lock<std::shared_mutex> lock1(cache_mutex_, std::defer_lock);
     std::shared_lock<std::shared_mutex> lock2(other.cache_mutex_, std::defer_lock);
     std::lock(lock1, lock2);
@@ -649,7 +609,7 @@ std::istream& operator>>(std::istream& is, HalfNormalDistribution& d) {
         return is;
     }
     try {
-        const double sg = std::stod(token.substr(sg_pos + 6, close - sg_pos - 6));
+        const double sg = detail::parse_double(token.substr(sg_pos + 6, close - sg_pos - 6));
         auto result = d.trySetSigma(sg);
         if (result.isError())
             is.setstate(std::ios::failbit);

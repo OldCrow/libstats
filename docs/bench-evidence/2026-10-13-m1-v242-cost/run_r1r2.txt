@@ -1,0 +1,11 @@
+2026-10-13 23:11:41 load=5.26 start sha=df78931 dirty=0 sandbox_check: 4194304
+2026-10-13 23:11:41 load=5.26 inspector: System: 8 logical cores, NEON SIMD, 0 KB L3 cache L2=4096KB
+2026-10-13 23:11:41 load=5.26 R1 ctest start
+2026-10-13 23:13:03 load=10.40 R1 ctest exit=0 : 100% tests passed out of 132
+2026-10-13 23:13:03 load=10.40 R2 sweep start
+2026-10-13 23:13:03 load=10.40 R2 sweep exit=0 : accuracy_sweep: wrote 26882 rows to /Users/wolfman/Development/libstats-m-20261013/r2/sweep_d1adc95.csv banner: # commit=df78931  isa=NEON  date=2026-10-13
+2026-10-13 23:13:03 load=10.40 R2 diff: base=   26883 new=   26883 changed_lines=626
+2026-10-13 23:13:03 load=10.40 R2 oracle start
+2026-10-13 23:22:54 load=2.88 R2 oracle exit=0 : Running oracle self-checks (mp.dps=50)...   190 self-checks passed. total contract violations: 0
+2026-10-13 23:22:54 load=2.88 doc diff:  1 file changed, 155 insertions(+), 128 deletions(-)
+2026-10-13 23:22:54 load=2.88 DONE

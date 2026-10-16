@@ -1,0 +1,34 @@
+R9 on M (Mac Mini M1, 8 cores 4P+4E, macOS 27.0.1, AppleClang 21.0.0) at code head d1adc95,
+2026-10-14 05:46-05:57 local, from the overnight launcher (docs/bench-evidence/2026-10-13-m1-v242-cost/
+overnight_m_20261013.sh), outside the Claude Code sandbox, ungated (not timing-sensitive).
+
+Build: fresh build-tsan, Ninja, RelWithDebInfo, LIBSTATS_BUILD_TOOLS=OFF,
+  -fsanitize=thread -fno-omit-frame-pointer in CMAKE_CXX_FLAGS and -fsanitize=thread in both
+  linker flag sets; 0 warnings. otool -L shows libclang_rt.tsan_osx_dynamic.dylib on
+  libstats.dylib and on the test binaries.
+TSAN_OPTIONS: log_path=<dir>/tsan_report suppressions=tests/tsan.supp halt_on_error=0
+  second_deadlock_stack=1. tests/tsan.supp holds only the libstdc++ cyl_bessel_i signgam entry
+  (#267), inert on libc++.
+
+Results (every exit 0):
+  test_concurrency_stress, LIBSTATS_STRESS_SCALE=1: 136 tests from 28 suites, 109 passed,
+    27 skipped, 200.8 s. Every skip is <Dist>.WorkStealingCrossWaiting (test_concurrency_stress.cpp:829):
+    WORK_STEALING is unreachable on M since #190, so the C7 probe skips here by design; K runs it.
+    Reach lines for all 27 distributions: logical 8 physical 8, fork 1536, batch n 3109,
+    MAX_THROUGHPUT -> PARALLEL. No [ known ] rows printed: no open-issue skips remain.
+  test_concurrency_gates 7/7, test_snapshot_consistency 8/8, test_thread_pool 13/13,
+    test_work_stealing_pool 12/12, test_parallel_execution_integration 4/4,
+    test_parallel_exception_propagation 14/14.
+  Whole correctness ctest (-LE "timing|benchmark", -j2, LIBSTATS_STRESS_SCALE=0.1): 132/132, 58.7 s.
+  ThreadSanitizer reports: none. No tsan_report.* file was written by any run.
+
+Positive control for the report path (same TSAN_OPTIONS, same compiler): a two-line data race
+  (scratchpad tsanctl/race.cpp) exits 134 and writes one tsan_report.<pid> with
+  "WARNING: ThreadSanitizer: data race". The runbook's expected positive control at head, #183's
+  unlocked validateParameters reads, no longer exists: #183 was fixed on the branch in b0ac2ad
+  (2026-10-08), so a clean run is the expected state at d1adc95.
+
+Class table, M's column at d1adc95: C1 (TSan) no report on the weakly ordered CPU; C2, C4 stress
+  oracle clean; C3 no deadlock (watchdog never fired); C5 strategy differential passed (PARALLEL
+  and MAXIMIZE_THROUGHPUT equal VECTORIZED's bits at every size, #191 + 045acd9); C6 gates passed;
+  C7 skipped on M (K only).

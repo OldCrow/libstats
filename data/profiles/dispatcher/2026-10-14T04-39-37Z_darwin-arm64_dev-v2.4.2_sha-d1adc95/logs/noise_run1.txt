@@ -1,0 +1,7 @@
+00:39:37 load=2.25 top: 15.0%locationd 5.9%com.apple.DriverKit-AppleBCMWLAN 5.4%airportd
+00:40:37 load=5.81 top: 267.2%strategy_profile 13.8%locationd 6.2%backupd
+00:41:38 load=5.96 top: 225.5%strategy_profile 109.2%mediaanalysisd 6.7%locationd
+00:42:38 load=7.93 top: 216.2%strategy_profile 88.5%mediaanalysisd 6.2%locationd
+00:43:38 load=7.18 top: 394.8%strategy_profile 64.7%mediaanalysisd 6.0%com.apple.DriverKit-AppleBCMWLAN
+00:44:38 load=8.61 top: 217.7%strategy_profile 3.7%locationd 2.6%contactsd
+00:45:38 load=7.78 top: 169.3%strategy_profile 104.2%spotlightknowledged.updater 17.7%backupd

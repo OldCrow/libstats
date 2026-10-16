@@ -77,8 +77,7 @@ int main() {
         t.setUpperBound(3.0);
         BasicTestFormatter::printProperty("After bound sets: a", t.getLowerBound());
         t.setParameters(0.0, 1.0, -2.0, 2.0);
-        BasicTestFormatter::printProperty("After setParameters: Z",
-                                          t.getNormalizationConstant());
+        BasicTestFormatter::printProperty("After setParameters: Z", t.getNormalizationConstant());
 
         auto vr = t.trySetSigma(-1.0);
         cout << "trySetSigma(-1) isError: " << (vr.isError() ? "YES" : "NO") << endl;
@@ -113,8 +112,8 @@ int main() {
         const bool bounds_ok = t1.getCumulativeProbability(-2.0) == 0.0 &&
                                t1.getCumulativeProbability(2.0) == 1.0 &&
                                t1.getProbability(-2.5) == 0.0 && t1.getProbability(2.5) == 0.0;
-        cout << "CDF(a)==0, CDF(b)==1 exactly; PDF outside == 0: "
-             << (bounds_ok ? "PASS" : "FAIL") << endl;
+        cout << "CDF(a)==0, CDF(b)==1 exactly; PDF outside == 0: " << (bounds_ok ? "PASS" : "FAIL")
+             << endl;
 
         // LogPDF consistency
         const double lp = t1.getLogProbability(1.5);

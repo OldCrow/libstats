@@ -47,8 +47,9 @@ int main() {
               << "  - Exponential(λ=2.0): Rate parameter controls decay speed\n"
               << std::endl;
 
-    auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();     // Standard normal
-    auto exponential = stats::ExponentialDistribution::create(2.0).unwrap();  // Rate parameter = 2.0
+    auto normal = stats::GaussianDistribution::create(0.0, 1.0).unwrap();  // Standard normal
+    auto exponential =
+        stats::ExponentialDistribution::create(2.0).unwrap();  // Rate parameter = 2.0
 
     std::cout << "✓ Gaussian N(0,1) created" << std::endl;
     std::cout << "✓ Exponential(λ=2.0) created" << std::endl;
@@ -238,8 +239,8 @@ int main() {
     std::cout << std::fixed << std::setprecision(2);
     for (size_t i = 0; i < new_obs.size(); ++i) {
         const char* tag = (log_scores[i] < -6.0) ? "  <- anomaly" : "";
-        std::cout << "     x = " << std::setw(6) << new_obs[i]
-                  << " ms  log P = " << std::setw(7) << log_scores[i] << tag << "\n";
+        std::cout << "     x = " << std::setw(6) << new_obs[i] << " ms  log P = " << std::setw(7)
+                  << log_scores[i] << tag << "\n";
     }
     std::cout << "\n   Values with very low log-probability are candidates for review.\n"
               << "   See logpdf_and_likelihood_demo for a detailed treatment.\n";

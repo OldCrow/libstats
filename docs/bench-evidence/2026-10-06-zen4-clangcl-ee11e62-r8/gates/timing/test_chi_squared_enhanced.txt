@@ -1,0 +1,38 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 13 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 9 tests from ChiSquaredEnhancedTest
+[ RUN      ] ChiSquaredEnhancedTest.DelegationMatchesGamma
+[       OK ] ChiSquaredEnhancedTest.DelegationMatchesGamma (11 ms)
+[ RUN      ] ChiSquaredEnhancedTest.KnownValuesK2
+[       OK ] ChiSquaredEnhancedTest.KnownValuesK2 (0 ms)
+[ RUN      ] ChiSquaredEnhancedTest.MomentProperties
+[       OK ] ChiSquaredEnhancedTest.MomentProperties (0 ms)
+[ RUN      ] ChiSquaredEnhancedTest.SetterPropagates
+[       OK ] ChiSquaredEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] ChiSquaredEnhancedTest.BatchMatchesScalar
+[       OK ] ChiSquaredEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] ChiSquaredEnhancedTest.MLEFit
+[       OK ] ChiSquaredEnhancedTest.MLEFit (0 ms)
+[ RUN      ] ChiSquaredEnhancedTest.InvalidParameters
+[       OK ] ChiSquaredEnhancedTest.InvalidParameters (0 ms)
+[ RUN      ] ChiSquaredEnhancedTest.SupportBoundaries
+[       OK ] ChiSquaredEnhancedTest.SupportBoundaries (0 ms)
+[ RUN      ] ChiSquaredEnhancedTest.InfinityAndNaNInputGates
+[       OK ] ChiSquaredEnhancedTest.InfinityAndNaNInputGates (0 ms)
+[----------] 9 tests from ChiSquaredEnhancedTest (14 ms total)
+
+[----------] 4 tests from ChiSquared/DistributionEnhancedTest/0, where TypeParam = stats::ChiSquaredDistribution
+[ RUN      ] ChiSquared/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] ChiSquared/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] ChiSquared/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] ChiSquared/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] ChiSquared/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] ChiSquared/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] ChiSquared/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] ChiSquared/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from ChiSquared/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 13 tests from 2 test suites ran. (17 ms total)
+[  PASSED  ] 13 tests.

@@ -15,6 +15,11 @@
 #   .\scripts\capture_dispatcher_profile.ps1 -Sleep 0          # disable sleep (quick smoke test)
 #
 # See scripts/PROFILING_METHOD.md for threshold derivation rules.
+#
+# POWER THROTTLING: a locked screen runs the measured processes at base clock (~1.5× slower),
+# which skews crossovers toward PARALLEL. Keep the screen unlocked, or opt each process out
+# (docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1; per process, not
+# inherited). See docs/VALIDATION_HISTORY.md, "Zen 4 timing: power throttling".
 # =============================================================================
 [CmdletBinding()]
 param(

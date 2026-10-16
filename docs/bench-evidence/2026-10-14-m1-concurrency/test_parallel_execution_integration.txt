@@ -1,0 +1,28 @@
+Running main() from /private/tmp/googletest-20260810-2300-tbptpn/googletest-1.18.0/googletest/src/gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from ParallelExecutionIntegration
+[ RUN      ] ParallelExecutionIntegration.HeaderAndThresholds
+Header inclusion - C++20 parallel execution available
+Threshold: 1024, Grain: 384
+[       OK ] ParallelExecutionIntegration.HeaderAndThresholds (0 ms)
+[ RUN      ] ParallelExecutionIntegration.BasicAlgorithms
+  - safe_fill: PASSED
+  - safe_transform: PASSED
+  - safe_reduce: PASSED
+  - safe_for_each: PASSED
+  - safe_sort: PASSED
+[       OK ] ParallelExecutionIntegration.BasicAlgorithms (0 ms)
+[ RUN      ] ParallelExecutionIntegration.ThresholdDecisions
+  - Small (10): serial
+  - Large (10000): parallel
+  - Dist (1000): serial
+[       OK ] ParallelExecutionIntegration.ThresholdDecisions (0 ms)
+[ RUN      ] ParallelExecutionIntegration.EmptyContainerSafety
+  - Empty container handling: PASSED
+[       OK ] ParallelExecutionIntegration.EmptyContainerSafety (0 ms)
+[----------] 4 tests from ParallelExecutionIntegration (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 4 tests.

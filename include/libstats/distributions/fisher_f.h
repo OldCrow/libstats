@@ -311,10 +311,15 @@ class FDistribution : public DistributionBase {
      */
     [[nodiscard]] double getSurvivalProbability(double x) const;
 
+    /** @brief Survival through getSurvivalProbability(), the directly formed complement (AR A11).
+     */
+    [[nodiscard]] double getSurvival(double x) const override { return getSurvivalProbability(x); }
+
     /**
      * @brief Quantile function (inverse CDF).
      * @param p Probability in [0, 1]
-     * @throws std::invalid_argument if p is NaN or outside [0, 1]
+     * @return NaN for NaN p.
+     * @throws std::invalid_argument if p is outside [0, 1]
      * @see the class-level "Quantile accuracy" note for the algorithm and its
      *      measured accuracy.
      */
@@ -498,12 +503,13 @@ class FDistribution : public DistributionBase {
     mutable double b_{detail::HALF};
 
     /**
-     * @brief a ln(d1) + b ln(d2) - ln B(a,b) — the constant part of the log-PDF.
+     * @brief -ln B(a,b) — the constant part of the log-PDF; d1 and d2 enter through
+     *        r = d1 x / d2 in logPdfImpl.
      */
     mutable double logPdfConst_{detail::ZERO_DOUBLE};
 
     /**
-     * @brief lgamma(a+b) - lgamma(a) - lgamma(b), the prefix accepted by
+     * @brief `detail::beta_prefactor_constant(a, b)`, the prefix accepted by
      * `detail::beta_i`'s four-argument overload. Symmetric in (a,b), so the
      * same value serves both the I_y(a,b) and the I_ybar(b,a) branch.
      */

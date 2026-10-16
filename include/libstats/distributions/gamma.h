@@ -52,7 +52,7 @@ namespace stats {
  *
  * @par Performance Features:
  * - Atomic cache validity flags for lock-free fast path access
- * - Extensive caching of computed values (log(Γ(α)), log(β), digamma(α), etc.)
+ * - Extensive caching of computed values (log(Γ(α)), log(β), etc.)
  * - Optimized PDF/CDF computation with precomputed gamma functions
  * - Fast parameter validation with IEEE 754 compliance
  * - Special algorithms for integer α, α < 1, and large α cases
@@ -508,9 +508,19 @@ class GammaDistribution : public DistributionBase {
     [[nodiscard]] double getCumulativeProbability(double x) const override;
 
     /**
+     * @brief Survival S(x) = Q(α, βx), the regularized upper incomplete gamma, formed as the
+     *        complement itself (AR A11): relative precision deep in the upper tail and at huge
+     *        shapes, where 1 − getCumulativeProbability(x) cancels. βx's rounding is carried as
+     *        in the CDF. Exactly 1 for x ≤ 0, 0 at +∞; NaN propagates. Batch survival has no
+     *        span API; it goes through this scalar method.
+     */
+    [[nodiscard]] double getSurvival(double x) const override;
+
+    /**
      * @brief Computes the quantile function (inverse CDF)
      *
-     * For Gamma distribution: F^(-1)(p) computed using Newton-Raphson iteration
+     * For Gamma distribution: F^(-1)(p) by Newton in log x on the smaller of p and 1 − p,
+     * relative-accurate down to subnormal answers (#160)
      *
      * @param p Probability value in [0,1]
      * @return x such that P(X ≤ x) = p
@@ -547,7 +557,8 @@ class GammaDistribution : public DistributionBase {
      * For Gamma distribution, uses method of moments as initial guess, then Newton-Raphson.
      *
      * @param values Vector of observed positive data
-     * @throws std::invalid_argument if values is empty or contains non-positive values
+     * @throws std::invalid_argument if values is empty, contains non-positive values, or has
+     *         fewer than two distinct values
      */
     void fit(const std::vector<double>& values) override;
 
@@ -863,14 +874,8 @@ class GammaDistribution : public DistributionBase {
     /** @brief Compute regularized incomplete gamma function P(a,x) */
     [[nodiscard]] static double regularizedIncompleteGamma(double a, double x) noexcept;
 
-    /** @brief Compute quantile using Newton-Raphson with bracketing */
+    /** @brief Quantile via detail::gamma_p_inv, solved in log x (#160) */
     [[nodiscard]] double computeQuantile(double p) const noexcept;
-
-    /** @brief Sample using Marsaglia-Tsang method for α ≥ 1 */
-    [[nodiscard]] double sampleMarsagliaTsang(std::mt19937& rng) const noexcept;
-
-    /** @brief Sample using Ahrens-Dieter method for α < 1 */
-    [[nodiscard]] double sampleAhrensDieter(std::mt19937& rng) const noexcept;
 
     /** @brief Fit parameters using method of moments */
     void fitMethodOfMoments(const std::vector<double>& values);
@@ -883,7 +888,7 @@ class GammaDistribution : public DistributionBase {
      */
     void updateCacheUnsafe() const noexcept override {
         // Primary calculations - compute once, reuse multiple times
-        logGammaAlpha_ = std::lgamma(alpha_);
+        logGammaAlpha_ = detail::lgamma(alpha_);
         logBeta_ = std::log(beta_);
         alphaLogBeta_ = alpha_ * logBeta_;
         alphaMinusOne_ = alpha_ - detail::ONE;
@@ -894,7 +899,6 @@ class GammaDistribution : public DistributionBase {
         variance_ = mean_ * scale_;
 
         // Advanced functions
-        digammaAlpha_ = detail::digamma(alpha_);
         sqrtAlpha_ = std::sqrt(alpha_);
 
         // Optimization flags
@@ -975,9 +979,6 @@ class GammaDistribution : public DistributionBase {
 
     /** @brief Cached value of α/β² (variance) for efficiency */
     mutable double variance_{detail::ONE};
-
-    /** @brief Cached value of digamma(α) for efficiency in various calculations */
-    mutable double digammaAlpha_{detail::ZERO_DOUBLE};
 
     /** @brief Cached value of √α for efficiency in normal approximation */
     mutable double sqrtAlpha_{detail::ONE};

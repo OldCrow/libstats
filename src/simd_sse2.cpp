@@ -593,21 +593,21 @@ void VectorOps::vector_erf_sse2(const double* input, double* output, std::size_t
         output[i] = std::erf(input[i]);
 }
 
-    // Clean-room quadrant-reduction cos/sin (issue #95), SSE2 plain-arithmetic
-    // form -- ported structurally from libhmm's cos_pd/sin_pd(__m128d) (issue
-    // #74 there), itself ported from this project's own vector_cos_neon. See
-    // docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
-    // the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
-    // self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
-    // No third-party source.
-    #include "trig_cleanroom_data.inc"
+// Clean-room quadrant-reduction cos/sin (issue #95), SSE2 plain-arithmetic
+// form -- ported structurally from libhmm's cos_pd/sin_pd(__m128d) (issue
+// #74 there), itself ported from this project's own vector_cos_neon. See
+// docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
+// the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
+// self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
+// No third-party source.
+#include "trig_cleanroom_data.inc"
 
 // SSE2 blend helper — no _mm_blendv_pd before SSE4.1. Selects trueValue where
 // mask = all-ones, falseValue where mask = all-zeros (distinct from the
 // SSE2_BLEND macro above, which is scoped to vector_log_sse2/vector_erf_sse2
 // and already #undef'd by this point in the file).
 [[nodiscard]] static inline __m128d sse2_blend(__m128d mask, __m128d trueValue,
-                                                __m128d falseValue) noexcept {
+                                               __m128d falseValue) noexcept {
     return _mm_or_pd(_mm_and_pd(mask, trueValue), _mm_andnot_pd(mask, falseValue));
 }
 
@@ -653,8 +653,9 @@ static inline void trig_cores_2pd(__m128d r, __m128d rlo, __m128d& s_core,
         pc = _mm_add_pd(_mm_set1_pd(kTrigCosC[i]), _mm_mul_pd(pc, u));
     const __m128d one_c = _mm_set1_pd(1.0);
     const __m128d half_c = _mm_set1_pd(0.5);
-    const __m128d h = _mm_sub_pd(one_c, _mm_mul_pd(u, half_c));                    // 1 - u/2, exact
-    const __m128d hl = _mm_sub_pd(_mm_sub_pd(one_c, h), _mm_mul_pd(u, half_c));    // (1-h) - u/2, exact
+    const __m128d h = _mm_sub_pd(one_c, _mm_mul_pd(u, half_c));  // 1 - u/2, exact
+    const __m128d hl =
+        _mm_sub_pd(_mm_sub_pd(one_c, h), _mm_mul_pd(u, half_c));  // (1-h) - u/2, exact
     __m128d mc = _mm_add_pd(hl, _mm_mul_pd(_mm_mul_pd(u, u), pc));
     mc = _mm_sub_pd(mc, _mm_mul_pd(r, rlo));  // first-order effect of compensated reduction
     c_core = _mm_add_pd(h, mc);

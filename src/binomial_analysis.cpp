@@ -46,7 +46,7 @@ std::tuple<double, double, bool> proportionZTest(int k, int n, double p0, double
     const double p_hat = static_cast<double>(k) / static_cast<double>(n);
     const double se = std::sqrt(p0 * (1.0 - p0) / static_cast<double>(n));
     const double z = (p_hat - p0) / se;
-    const double p_val = 2.0 * (1.0 - detail::normal_cdf(std::abs(z)));
+    const double p_val = 2.0 * detail::normal_cdf(-std::abs(z));
 
     return {z, p_val, p_val < alpha};
 }
@@ -68,7 +68,7 @@ std::tuple<double, double, bool> twoProportionZTest(int k1, int n1, int k2, int 
         throw std::runtime_error("Standard error is zero (perfect separation or degenerate data)");
 
     const double z = (p1 - p2) / se;
-    const double p_val = 2.0 * (1.0 - detail::normal_cdf(std::abs(z)));
+    const double p_val = 2.0 * detail::normal_cdf(-std::abs(z));
 
     return {z, p_val, p_val < alpha};
 }

@@ -1,0 +1,47 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 17 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 13 tests from WeibullEnhancedTest
+[ RUN      ] WeibullEnhancedTest.ExponentialSpecialCase
+[       OK ] WeibullEnhancedTest.ExponentialSpecialCase (20 ms)
+[ RUN      ] WeibullEnhancedTest.KnownValues
+[       OK ] WeibullEnhancedTest.KnownValues (0 ms)
+[ RUN      ] WeibullEnhancedTest.CDFAtScale
+[       OK ] WeibullEnhancedTest.CDFAtScale (0 ms)
+[ RUN      ] WeibullEnhancedTest.MomentFormulas
+[       OK ] WeibullEnhancedTest.MomentFormulas (0 ms)
+[ RUN      ] WeibullEnhancedTest.LogPDFConsistency
+[       OK ] WeibullEnhancedTest.LogPDFConsistency (0 ms)
+[ RUN      ] WeibullEnhancedTest.OutOfSupport
+[       OK ] WeibullEnhancedTest.OutOfSupport (0 ms)
+[ RUN      ] WeibullEnhancedTest.QuantileRoundTrip
+[       OK ] WeibullEnhancedTest.QuantileRoundTrip (0 ms)
+[ RUN      ] WeibullEnhancedTest.BatchMatchesScalar
+[       OK ] WeibullEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] WeibullEnhancedTest.VectorizedMatchesScalar
+[       OK ] WeibullEnhancedTest.VectorizedMatchesScalar (0 ms)
+[ RUN      ] WeibullEnhancedTest.MLEFit
+[       OK ] WeibullEnhancedTest.MLEFit (0 ms)
+[ RUN      ] WeibullEnhancedTest.SetterPropagates
+[       OK ] WeibullEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] WeibullEnhancedTest.InvalidParameters
+[       OK ] WeibullEnhancedTest.InvalidParameters (0 ms)
+[ RUN      ] WeibullEnhancedTest.VectorizedSpeedup
+Weibull LogPDF VECTORIZED speedup: 4.52049x (VECTORIZED 170.8μs, SCALAR 772.1μs)
+[       OK ] WeibullEnhancedTest.VectorizedSpeedup (14 ms)
+[----------] 13 tests from WeibullEnhancedTest (39 ms total)
+
+[----------] 4 tests from Weibull/DistributionEnhancedTest/0, where TypeParam = stats::WeibullDistribution
+[ RUN      ] Weibull/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Weibull/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Weibull/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Weibull/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Weibull/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Weibull/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Weibull/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Weibull/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Weibull/DistributionEnhancedTest/0 (1 ms total)
+
+[----------] Global test environment tear-down
+[==========] 17 tests from 2 test suites ran. (43 ms total)
+[  PASSED  ] 17 tests.

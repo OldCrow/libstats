@@ -1,0 +1,13 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = ConcurrencyStress_Uniform.Readers
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ConcurrencyStress_Uniform
+[ RUN      ] ConcurrencyStress_Uniform.Readers
+[ reach    ] Uniform: logical 12 physical 6, fork 8192, batch n 16421, MAX_THROUGHPUT -> PARALLEL, scale 0.5
+[       OK ] ConcurrencyStress_Uniform.Readers (762 ms)
+[----------] 1 test from ConcurrencyStress_Uniform (762 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (762 ms total)
+[  PASSED  ] 1 test.

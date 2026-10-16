@@ -1,0 +1,135 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 15 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 11 tests from UniformEnhancedTest
+[ RUN      ] UniformEnhancedTest.BasicEnhancedFunctionality
+[       OK ] UniformEnhancedTest.BasicEnhancedFunctionality (24 ms)
+[ RUN      ] UniformEnhancedTest.GoodnessOfFitTests
+
+=== Goodness-of-Fit Tests ===
+  KS test (uniform data): D=0.0535884, p=1, reject=0
+  KS test (non-uniform data): D=0.99, p=1.48124e-85, reject=1
+  AD test (uniform data): A²=0.622616, p=1, reject=0
+  AD test (non-uniform data): A²=67610.1, p=0, reject=1
+[       OK ] UniformEnhancedTest.GoodnessOfFitTests (0 ms)
+[ RUN      ] UniformEnhancedTest.InformationCriteriaTests
+
+=== Information Criteria Tests ===
+  AIC: 360.631, BIC: 365.841, AICc: 360.755
+  Log-likelihood: -178.316
+[       OK ] UniformEnhancedTest.InformationCriteriaTests (0 ms)
+[ RUN      ] UniformEnhancedTest.BootstrapMethods
+
+=== Bootstrap Methods ===
+  Mean 95% CI: [4.91747, 5.01887]
+  K-fold CV completed with 5 folds
+[       OK ] UniformEnhancedTest.BootstrapMethods (0 ms)
+[ RUN      ] UniformEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 43.2μs (baseline)
+  Vectorized: 1μs (43.2x speedup)
+  Parallel: 1μs (43.2x speedup)
+  Work Stealing: 1μs (43.2x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 290.3μs (baseline)
+  Vectorized: 7.4μs (39.2297x speedup)
+  Parallel: 68.2μs (4.2566x speedup)
+  Work Stealing: 63μs (4.60794x speedup)
+[       OK ] UniformEnhancedTest.SIMDAndParallelBatchImplementations (30 ms)
+[ RUN      ] UniformEnhancedTest.AdvancedStatisticalMethods
+[       OK ] UniformEnhancedTest.AdvancedStatisticalMethods (0 ms)
+[ RUN      ] UniformEnhancedTest.CachingSpeedupVerification
+
+=== Caching Speedup Verification ===
+  First getter calls (cache miss): 300ns
+  Second getter calls (cache hit): 0ns
+  Cache speedup: infx
+  After parameter change: 100ns
+[       OK ] UniformEnhancedTest.CachingSpeedupVerification (0 ms)
+[ RUN      ] UniformEnhancedTest.AutoDispatchAssessment
+
+=== Auto-Dispatch Assessment (Uniform) ===
+Batch size: 5, Expected strategy: SCALAR
+  PDF: 0μs, Correct: ✅
+  LogPDF: 2μs, Correct: ✅
+  CDF: 2μs, Correct: ✅
+Batch size: 50, Expected strategy: SCALAR
+  PDF: 0μs, Correct: ✅
+  LogPDF: 1μs, Correct: ✅
+  CDF: 3μs, Correct: ✅
+Batch size: 500, Expected strategy: VECTORIZED
+  PDF: 0μs, Correct: ✅
+  LogPDF: 0μs, Correct: ✅
+  CDF: 0μs, Correct: ✅
+Batch size: 5000, Expected strategy: VECTORIZED
+  PDF: 0μs, Correct: ✅
+  LogPDF: 0μs, Correct: ✅
+  CDF: 1μs, Correct: ✅
+Batch size: 50000, Expected strategy: PARALLEL
+  PDF: 8μs, Correct: ✅
+  LogPDF: 10μs, Correct: ✅
+  CDF: 16μs, Correct: ✅
+
+=== Auto-Dispatch Assessment Completed (Uniform) ===
+[       OK ] UniformEnhancedTest.AutoDispatchAssessment (2 ms)
+[ RUN      ] UniformEnhancedTest.ParallelBatchPerformanceBenchmark
+
+=== Uniform Distribution Enhanced Performance Benchmark ===
+Dataset size: 50000 elements
+Hardware threads: 12
+  ✓ PDF batch operations produce correct results
+  ✓ LogPDF batch operations produce correct results
+  ✓ CDF batch operations produce correct results
+
+Benchmark Results:
+ Operation  Baseline  Vectorized    Parallel  Work-Steal   Vec-Speedup Par-Speedup  WS-Speedup
+--------------------------------------------------------------------------------------------------------
+       PDF       485          11         197         167         44.09        2.46        2.90
+    LogPDF       624           7         122          80         89.14        5.11        7.80
+       CDF       712          15          92          85         47.47        7.74        8.38
+
+Performance Analysis:
+  ✓ PDF SIMD shows good speedup
+  ✓ PDF thread pool shows good speedup
+  ✓ LogPDF SIMD shows good speedup
+  ✓ LogPDF thread pool shows good speedup
+  ✓ CDF SIMD shows good speedup
+  ✓ CDF thread pool shows good speedup
+[       OK ] UniformEnhancedTest.ParallelBatchPerformanceBenchmark (24 ms)
+[ RUN      ] UniformEnhancedTest.ParallelBatchFittingTests
+
+=== Parallel Batch Fitting Tests ===
+  Generated 6 datasets with known parameters
+  ✓ Parallel batch fitting correctness verified
+  Parallel batch fitting: 4μs
+  Sequential individual fits: 3μs
+  Speedup: 0.75x
+  Testing edge cases...
+  ✓ Edge cases handled correctly
+  Testing thread safety...
+  ✓ Thread safety verified
+[       OK ] UniformEnhancedTest.ParallelBatchFittingTests (0 ms)
+[ RUN      ] UniformEnhancedTest.NumericalStabilityAndEdgeCases
+  ✓ Uniform extreme value handling test passed
+  ✓ Uniform empty batch operations handled gracefully
+[       OK ] UniformEnhancedTest.NumericalStabilityAndEdgeCases (0 ms)
+[----------] 11 tests from UniformEnhancedTest (88 ms total)
+
+[----------] 4 tests from Uniform/DistributionEnhancedTest/0, where TypeParam = stats::UniformDistribution
+[ RUN      ] Uniform/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Uniform/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Uniform/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Uniform/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Uniform/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] Uniform/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Uniform/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Uniform/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Uniform/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 15 tests from 2 test suites ran. (91 ms total)
+[  PASSED  ] 15 tests.

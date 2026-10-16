@@ -2,9 +2,9 @@
 
 ---
 
-### v2.4.1 released
+### v2.5.0 released
 
-**v2.4.1 is the current release.** v1.5.3 was the final v1.x release.
+**v2.5.0 is the current release.** v1.5.3 was the final v1.x release.
 See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade instructions.
 
 v2.4.0 grows the library 19 → 27 distributions — Logistic, Gumbel,
@@ -22,9 +22,20 @@ NegativeBinomial/Geometric counts past INT_MAX (pmf, logpmf, cdf and
 `sample()`), and makes `parallelReduce`/`parallelStatOperation` wait for
 every chunk before rethrowing, as `parallelFor` already did.
 
+v2.5.0 is a correctness and accuracy release — no source API change. Every
+distribution has a complement-native `getSurvival`; an mpmath sweep that
+now covers survival drove fixes to quantiles, deep tails and
+large-parameter densities; batch calls evaluate on one parameter snapshot; and parameter
+validation is one validator per distribution. Some results change: see the
+v2.4 → v2.5 section of [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) and
+[Contracts](#contracts) below. The dispatch-threshold tables were re-derived
+from fresh captures on all three fleet machines and verified by a loaded A/B.
+clang-cl is supported on Windows, and CI adds ThreadSanitizer and
+FMA-contraction legs.
+
 ---
 
-[![Version](https://img.shields.io/badge/version-v2.4.1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.4.1)
+[![Version](https://img.shields.io/badge/version-v2.5.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.5.0)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
@@ -42,7 +53,7 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 ### 🎯 **Complete Statistical Interface**
 - **PDF/CDF/Quantiles**: Full probability density, cumulative distribution, and quantile functions
 - **Statistical Moments**: Mean, variance, skewness, kurtosis with thread-safe access
-- **Random Sampling**: Integration with std:: distributions for high-quality random number generation
+- **Random Sampling**: Takes a caller's `std::mt19937`; most samplers use std:: distributions, some their own transforms (Gaussian: Box–Muller)
 - **Parameter Estimation**: Maximum Likelihood Estimation (MLE) with comprehensive diagnostics
 - **Statistical Validation**: KS and AD Goodness-of-Fit, model selection
 
@@ -50,6 +61,10 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 
 **Symmetric, unbounded continuous**
 - Gaussian (Normal) N(μ, σ²) · Student's t t(ν) · Logistic L(μ, s)
+- Laplace Laplace(μ, b) · Cauchy Cauchy(x₀, γ)
+
+**Asymmetric, unbounded continuous**
+- Gumbel G(μ, β)
 
 **Positive-support continuous** (x ≥ 0)
 - Exponential Exp(λ) · Gamma Γ(α, β) · Chi-squared χ²(ν)
@@ -70,9 +85,6 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - Poisson P(λ) · Discrete (integer range)
 - Binomial B(n, p) · Negative Binomial NB(r, p) · Geometric Geo(p)
 - Bernoulli Bern(p)
-
-**Real-line continuous (asymmetric / heavy-tailed)**
-- Laplace Laplace(μ, b) · Cauchy Cauchy(x₀, γ) · Gumbel G(μ, β)
 
 ### ⚡ **Modern C++20 Design**
 - **Thread-Safe**: Concurrent read access with safe cache management
@@ -100,7 +112,7 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **SIMD Operations**: Vectorized statistical computations with cross-platform detection
 - **Parallel Processing**: Both traditional and work-stealing thread pools
 - **C++20 Parallel Algorithms**: Safe wrappers for `std::execution` policies
-- **Cache Optimization**: Thread-safe caching with lock-free fast paths
+- **Cache Optimization**: Thread-safe caching under a reader-writer lock; batch calls evaluate on one parameter snapshot
 
 **📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/AVX-512/NEON instruction sets with runtime safety verification. Validated on Intel Kaby Lake (AVX2+FMA natively; the AVX tier via a `LIBSTATS_MAX_SIMD_TIER=AVX` capped build), Apple Silicon (M1/NEON), AMD Ryzen Zen 4 (AVX-512), and Linux CI.
 
@@ -122,6 +134,7 @@ ctest --output-on-failure  # Run tests
 ### Basic Usage
 
 ```cpp
+#define LIBSTATS_FULL_INTERFACE  // without it, libstats.h is forward declarations only
 #include "libstats.h"
 #include <iostream>
 #include <numeric>
@@ -182,7 +195,7 @@ libstats/
 
 ### 🎯 **Statistical Completeness**
 - PDF, CDF, quantiles, parameter estimation, and validation
-- 27 distributions across 7 families (symmetric, positive-support, power-law, bounded, circular, discrete, real-line)
+- 27 distributions across 7 families (symmetric, asymmetric unbounded, positive-support, power-law, bounded, circular, discrete)
 - Beyond `std::` distributions with full statistical interfaces
 
 ### ⚡ **High Performance**
@@ -206,13 +219,46 @@ libstats/
 
 | Feature | std:: distributions | libstats |
 |---------|-------------------|----------|
-| **Random Sampling** | ✅ Excellent | ✅ Uses std:: internally |
+| **Random Sampling** | ✅ Excellent | ✅ Mostly via std:: distributions |
 | **PDF Evaluation** | ❌ Not available | ✅ Complete implementation |
 | **CDF Evaluation** | ❌ Not available | ✅ Complete implementation |
 | **Quantile Functions** | ❌ Not available | ✅ Complete implementation |
 | **Parameter Fitting** | ❌ Not available | ✅ MLE with diagnostics |
 | **Statistical Tests** | ❌ Not available | ✅ Comprehensive validation |
 | **Thread Safety** | ⚠️ Limited | ✅ Full concurrent access |
+
+## Contracts
+
+Behaviour the API guarantees and code can rely on. Details in
+[docs/PARALLEL_BATCH_PROCESSING_GUIDE.md](docs/PARALLEL_BATCH_PROCESSING_GUIDE.md)
+and the per-distribution headers.
+
+- **Survival and hazard.** All 27 distributions form `getSurvival(x)`
+  directly, not as `1 − F(x)`, so the upper tail keeps its precision; the
+  `1 − F` default remains only for user-derived classes. `getHazard(x)`
+  reads f and S from one parameter state; for discrete distributions it
+  evaluates both at `floor(x)`.
+- **Discrete quantiles.** For p ≤ ½, the smallest k with F(k) ≥ p; for
+  p > ½, the smallest k with S(k) ≤ 1 − p. Q(0) is the support's lower end
+  and Q(1) its upper end (+∞ for Poisson, NegativeBinomial and Geometric,
+  except Geometric(1), whose Q(1) is 0; n for Binomial; b for Discrete).
+  Past 2^53 the result is the smallest double count that meets the rule
+  (+∞ if none): Geometric(1e-20).Q(½) = 6.93e19.
+- **Discrete pmf vs CDF at non-integers.** The pmf rounds x to the nearest
+  integer (halves away from zero); the CDF and survival floor it. So
+  pmf(x) ≠ F(x) − F(x − 1) at non-integer x.
+- **Parameter ranges.** Constructors, setters, `trySet*`, `create` and
+  `fit` share one validator per distribution. Rejected: a subnormal scale
+  for Cauchy, Laplace, Logistic and Gumbel; Student-t ν < DBL_MIN; Gaussian
+  and LogNormal σ outside [√DBL_MIN, 1e10].
+- **Batch calls.** Input and output spans must have equal sizes and must not
+  overlap. A batch evaluates on one parameter snapshot under every strategy
+  except SCALAR (forced, or AUTO's choice for small counts), which locks per
+  element and can mix states under a concurrent setter. NaN propagates
+  through every scalar and batch method.
+- **Exceptions in parallel batches.** `PARALLEL` waits for every chunk and
+  rethrows the first exception; `WORK_STEALING` swallows chunk exceptions
+  silently.
 
 ## Examples and Tools
 
@@ -222,24 +268,29 @@ libstats/
 - `distribution_families_demo.cpp` - All 27 distributions organized by family: what each models, when to use it, and how to choose within a family
 - `statistical_validation_demo.cpp` - Goodness-of-fit tests, cross-validation, bootstrap CIs, and model selection
 - `parallel_execution_demo.cpp` - Batch-processing and dispatch workflow
+- `performance_dispatch_demo.cpp` - `PerformanceHint` and strategy selection
+- `logpdf_and_likelihood_demo.cpp` - Log-densities and log-likelihoods
+- `error_handling_demo.cpp` - `Result<T>` factories, `trySet*` and exceptions
 
 ### 🔧 **Analysis Tools** (`tools/` directory)
 - `system_inspector` - CPU capabilities and system information
 - `simd_verification` - SIMD correctness and speedup verification
 - `strategy_profile` - Canonical forced-strategy profiler for dispatcher threshold tuning
 - `parallel_batch_fitting_benchmark` - Parallel batch fitting performance analysis
+- `accuracy_sweep` + `accuracy_vs_mpmath.py` - Accuracy sweep (pdf, logpdf, cdf, quantile, survival) against mpmath; see [docs/ACCURACY_CHARACTERIZATION.md](docs/ACCURACY_CHARACTERIZATION.md)
+- `tools/bench/` - Release-to-release per-element cost bench and comparer
 
 
 ## Testing
 
 ```bash
 # Correctness suite — parallel-safe, always reliable
-ctest -LE "timing|benchmark"             # 74 tests; make run_tests runs a further-filtered 67-test subset
+ctest -LE "timing|benchmark"             # 132 tests; make run_tests_correctness runs 122 (no stress/dynamic)
 
 # Timing/speedup tests — run serially for accurate results
 make run_tests_timing                    # or: ctest -j1 -L timing
 
-# Everything (including dynamic linking tests)
+# Everything (148 tests, including dynamic linking tests)
 make run_all_tests
 
 # SIMD correctness and speedup measurement
@@ -291,7 +342,7 @@ High-performance parallel and batch processing:
 - Performance optimization guidelines
 
 ### 🧰 **Windows Support**
-For Windows development environment setup (MSVC activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [AGENTS.md](AGENTS.md).
+clang-cl (Ninja) is the Windows performance build and cl.exe (Visual Studio) the correctness build; both take `/arch:AVX`, `/arch:AVX2` or `/arch:AVX512` from the detected tier. For timing runs, opt the process out of Windows power throttling (see `docs/VALIDATION_HISTORY.md`, "Zen 4 timing: power throttling"). For environment setup (toolchain activation, DLL CRT handling, Smart App Control), see the Windows session setup section in [AGENTS.md](AGENTS.md).
 
 ## Installation and Consumption
 
@@ -345,18 +396,18 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.4.1 is the latest tagged release, a correctness patch over v2.4.0.
-v2.4.0 added eight distributions —
+v2.5.0 is the latest tagged release, a correctness and accuracy release over
+v2.4.1 with no source API change. v2.4.0 added eight distributions —
 Logistic, Gumbel, Half-Normal, Truncated Normal, Bernoulli, Erlang,
 Fisher F, and Inverse-Gamma — with per-tier dispatch thresholds
 recalibrated from native profiling on all three fleet machines.
 v1.5.3 was the final v1.x release.
 
-**27 distributions across 7 families** (symmetric, positive-support, power-law, bounded, circular, discrete, real-line) — each with a complete interface:
-- PDF, log-PDF, CDF, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
+**27 distributions across 7 families** (symmetric, asymmetric unbounded, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
+- PDF, log-PDF, CDF, survival, hazard, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
 - Span-based SIMD batch operations (SSE2/AVX/AVX2+FMA/AVX-512/NEON) with runtime dispatch
 - Profiling-derived architecture-aware parallel dispatch thresholds
-- Thread-safe with reader-writer locks and lock-free atomic fast paths
+- Thread-safe caching under a reader-writer lock; batch calls evaluate on one parameter snapshot
 
 **Validated on four SIMD tiers:** AVX (capped build on Kaby Lake — the Ivy Bridge machine is retired), AVX2+FMA (Kaby Lake), NEON (Apple M1), AVX-512 (AMD Zen 4). 70/70 SIMD verification tests pass on every fleet machine.
 

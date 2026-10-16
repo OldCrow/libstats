@@ -792,24 +792,24 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
         output[i] = std::erf(input[i]);
 }
 
-    // Clean-room quadrant-reduction cos/sin (issue #95), AVX plain-arithmetic
-    // form. UNPROVEN LEG pending the ULP gate: unlike the other three tiers,
-    // this one has no donor implementation (libhmm's "AVX" section actually
-    // requires FMA, i.e. targets AVX2-class hardware) -- it is derived here by
-    // widening the SSE2 plain-arithmetic form (trig_reduce_2pd/trig_cores_2pd
-    // in src/simd_sse2.cpp) to 256-bit. AVX1 has no FMA and no
-    // _mm256_cvtepi32_epi64 (that's AVX2), so both the reduction and the
-    // quadrant-bit widening below use AVX1-only intrinsics.
-    //
-    // The reduction loses nothing versus the FMA tiers: every nf*p_k product
-    // in trig_reduce_4pd is exact by the 30-bit-split construction
-    // (kTrigPio2), so a plain rounded subtract after an exact multiply
-    // commits the identical single rounding step an FMA would (same argument
-    // as SSE2's trig_reduce_2pd). The only accuracy cost is the ordinary
-    // Horner mul+add in trig_cores_4pd (slightly worse rounding per step than
-    // FMA); expect ~1.5 ULP landing here vs ~0.8 for the FMA tiers, measured
-    // by the ULP gate smoke test.
-    #include "trig_cleanroom_data.inc"
+// Clean-room quadrant-reduction cos/sin (issue #95), AVX plain-arithmetic
+// form. UNPROVEN LEG pending the ULP gate: unlike the other three tiers,
+// this one has no donor implementation (libhmm's "AVX" section actually
+// requires FMA, i.e. targets AVX2-class hardware) -- it is derived here by
+// widening the SSE2 plain-arithmetic form (trig_reduce_2pd/trig_cores_2pd
+// in src/simd_sse2.cpp) to 256-bit. AVX1 has no FMA and no
+// _mm256_cvtepi32_epi64 (that's AVX2), so both the reduction and the
+// quadrant-bit widening below use AVX1-only intrinsics.
+//
+// The reduction loses nothing versus the FMA tiers: every nf*p_k product
+// in trig_reduce_4pd is exact by the 30-bit-split construction
+// (kTrigPio2), so a plain rounded subtract after an exact multiply
+// commits the identical single rounding step an FMA would (same argument
+// as SSE2's trig_reduce_2pd). The only accuracy cost is the ordinary
+// Horner mul+add in trig_cores_4pd (slightly worse rounding per step than
+// FMA); expect ~1.5 ULP landing here vs ~0.8 for the FMA tiers, measured
+// by the ULP gate smoke test.
+#include "trig_cleanroom_data.inc"
 
 // Reduction shared by cos_avx/sin_avx: n32 = round-to-nearest-even(x*2/pi)
 // via the cvt round-trip (exact-product lemma holds for |n| <= 5,340,354,
@@ -847,8 +847,9 @@ static inline void trig_cores_4pd(__m256d r, __m256d rlo, __m256d& s_core,
         pc = _mm256_add_pd(_mm256_set1_pd(kTrigCosC[i]), _mm256_mul_pd(pc, u));
     const __m256d one_c = _mm256_set1_pd(1.0);
     const __m256d half_c = _mm256_set1_pd(0.5);
-    const __m256d h = _mm256_sub_pd(one_c, _mm256_mul_pd(u, half_c));                    // 1 - u/2, exact
-    const __m256d hl = _mm256_sub_pd(_mm256_sub_pd(one_c, h), _mm256_mul_pd(u, half_c));  // (1-h) - u/2, exact
+    const __m256d h = _mm256_sub_pd(one_c, _mm256_mul_pd(u, half_c));  // 1 - u/2, exact
+    const __m256d hl =
+        _mm256_sub_pd(_mm256_sub_pd(one_c, h), _mm256_mul_pd(u, half_c));  // (1-h) - u/2, exact
     __m256d mc = _mm256_add_pd(hl, _mm256_mul_pd(_mm256_mul_pd(u, u), pc));
     mc = _mm256_sub_pd(mc, _mm256_mul_pd(r, rlo));  // first-order effect of compensated reduction
     c_core = _mm256_add_pd(h, mc);

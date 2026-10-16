@@ -1,0 +1,36 @@
+Test project /Users/wolfman/Development/libstats/build-release
+      Start  78: test_parallel_batch_gates
+ 1/14 Test  #78: test_parallel_batch_gates ..........   Passed    7.71 sec
+      Start 123: test_math_comprehensive_timing
+ 2/14 Test #123: test_math_comprehensive_timing .....   Passed    0.10 sec
+      Start 125: test_gaussian_enhanced_timing
+ 3/14 Test #125: test_gaussian_enhanced_timing ......   Passed    0.33 sec
+      Start 127: test_gamma_enhanced_timing
+ 4/14 Test #127: test_gamma_enhanced_timing .........   Passed    0.28 sec
+      Start 129: test_discrete_enhanced_timing
+ 5/14 Test #129: test_discrete_enhanced_timing ......   Passed    0.12 sec
+      Start 131: test_exponential_enhanced_timing
+ 6/14 Test #131: test_exponential_enhanced_timing ...   Passed    0.12 sec
+      Start 133: test_poisson_enhanced_timing
+ 7/14 Test #133: test_poisson_enhanced_timing .......   Passed    0.14 sec
+      Start 135: test_uniform_enhanced_timing
+ 8/14 Test #135: test_uniform_enhanced_timing .......   Passed    0.12 sec
+      Start 137: test_cauchy_enhanced_timing
+ 9/14 Test #137: test_cauchy_enhanced_timing ........   Passed    0.11 sec
+      Start 139: test_laplace_enhanced_timing
+10/14 Test #139: test_laplace_enhanced_timing .......   Passed    0.11 sec
+      Start 141: test_lognormal_enhanced_timing
+11/14 Test #141: test_lognormal_enhanced_timing .....   Passed    0.11 sec
+      Start 143: test_pareto_enhanced_timing
+12/14 Test #143: test_pareto_enhanced_timing ........   Passed    0.10 sec
+      Start 145: test_rayleigh_enhanced_timing
+13/14 Test #145: test_rayleigh_enhanced_timing ......   Passed    0.11 sec
+      Start 147: test_weibull_enhanced_timing
+14/14 Test #147: test_weibull_enhanced_timing .......   Passed    0.11 sec
+
+100% tests passed out of 14
+
+Label Time Summary:
+timing    =   9.57 sec*proc (14 tests)
+
+Total Test time (real) =   9.59 sec

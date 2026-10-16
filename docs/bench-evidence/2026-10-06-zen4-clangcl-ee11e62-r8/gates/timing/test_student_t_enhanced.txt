@@ -1,0 +1,38 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 13 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 9 tests from StudentTEnhancedTest
+[ RUN      ] StudentTEnhancedTest.TTableValues
+[       OK ] StudentTEnhancedTest.TTableValues (18 ms)
+[ RUN      ] StudentTEnhancedTest.CDFSymmetry
+[       OK ] StudentTEnhancedTest.CDFSymmetry (0 ms)
+[ RUN      ] StudentTEnhancedTest.CauchyCase
+[       OK ] StudentTEnhancedTest.CauchyCase (0 ms)
+[ RUN      ] StudentTEnhancedTest.MomentProperties
+[       OK ] StudentTEnhancedTest.MomentProperties (0 ms)
+[ RUN      ] StudentTEnhancedTest.LogPDFConsistency
+[       OK ] StudentTEnhancedTest.LogPDFConsistency (0 ms)
+[ RUN      ] StudentTEnhancedTest.BatchMatchesScalar
+[       OK ] StudentTEnhancedTest.BatchMatchesScalar (0 ms)
+[ RUN      ] StudentTEnhancedTest.SetterPropagates
+[       OK ] StudentTEnhancedTest.SetterPropagates (0 ms)
+[ RUN      ] StudentTEnhancedTest.MLEFit
+[       OK ] StudentTEnhancedTest.MLEFit (0 ms)
+[ RUN      ] StudentTEnhancedTest.InvalidParameters
+[       OK ] StudentTEnhancedTest.InvalidParameters (0 ms)
+[----------] 9 tests from StudentTEnhancedTest (22 ms total)
+
+[----------] 4 tests from StudentT/DistributionEnhancedTest/0, where TypeParam = stats::StudentTDistribution
+[ RUN      ] StudentT/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] StudentT/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] StudentT/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] StudentT/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] StudentT/DistributionEnhancedTest/0.QuantileRoundTrip
+[       OK ] StudentT/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] StudentT/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] StudentT/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from StudentT/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 13 tests from 2 test suites ran. (24 ms total)
+[  PASSED  ] 13 tests.

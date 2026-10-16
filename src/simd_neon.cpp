@@ -810,7 +810,8 @@ void VectorOps::vector_sin_neon(const double* input, double* output, std::size_t
         const uint64x2_t swap = vtstq_u64(qu, vdupq_n_u64(1));
         const uint64x2_t sgn_s = vshlq_n_u64(vandq_u64(vshrq_n_u64(qu, 1), vdupq_n_u64(1)), 63);
         const float64x2_t sv = vbslq_f64(swap, c_core, s_core);
-        const float64x2_t result = vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(sv), sgn_s));
+        const float64x2_t result =
+            vreinterpretq_f64_u64(veorq_u64(vreinterpretq_u64_f64(sv), sgn_s));
         // IEEE sign-of-zero: for x = -0 the core computes (-0) + (+0) = +0,
         // dropping the sign; sin(+/-0) must be +/-0 exactly. x == 0 matches
         // both zeros and no other double, so blend x itself back in.

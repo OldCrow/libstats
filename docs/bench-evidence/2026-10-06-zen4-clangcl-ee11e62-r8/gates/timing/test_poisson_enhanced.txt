@@ -1,0 +1,138 @@
+Running main() from C:\Users\gdwol\Development\libstats-v2.4.2\build-clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+[==========] Running 15 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 11 tests from PoissonEnhancedTest
+[ RUN      ] PoissonEnhancedTest.BasicEnhancedFunctionality
+[       OK ] PoissonEnhancedTest.BasicEnhancedFunctionality (18 ms)
+[ RUN      ] PoissonEnhancedTest.GoodnessOfFitTests
+
+=== Goodness-of-Fit Tests ===
+  Chi-square test (Poisson data): χ²=8.29479, p=0.14072, reject=0
+  Chi-square test (non-Poisson data): χ²=169.085, p=1.14358e-34, reject=1
+[       OK ] PoissonEnhancedTest.GoodnessOfFitTests (0 ms)
+[ RUN      ] PoissonEnhancedTest.InformationCriteriaTests
+
+=== Information Criteria Tests ===
+  AIC: 391.493, BIC: 394.098, AICc: 391.534
+  Log-likelihood: -194.746
+[       OK ] PoissonEnhancedTest.InformationCriteriaTests (0 ms)
+[ RUN      ] PoissonEnhancedTest.BootstrapMethods
+
+=== Bootstrap Methods ===
+  Lambda 95% CI: [2.65, 3.34]
+  K-fold CV completed with 5 folds
+[       OK ] PoissonEnhancedTest.BootstrapMethods (0 ms)
+[ RUN      ] PoissonEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 87.6μs (baseline)
+  Vectorized: 51.6μs (1.69767x speedup)
+  Parallel: 51.7μs (1.69439x speedup)
+  Work Stealing: 51.7μs (1.69439x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 947.5μs (baseline)
+  Vectorized: 630.2μs (1.50349x speedup)
+  Parallel: 160.1μs (5.91818x speedup)
+  Work Stealing: 156μs (6.07372x speedup)
+[       OK ] PoissonEnhancedTest.SIMDAndParallelBatchImplementations (46 ms)
+[ RUN      ] PoissonEnhancedTest.AdvancedStatisticalMethods
+[       OK ] PoissonEnhancedTest.AdvancedStatisticalMethods (0 ms)
+[ RUN      ] PoissonEnhancedTest.CachingSpeedupVerification
+
+=== Caching Speedup Verification ===
+  First getter calls (cache miss): 1600ns
+  Second getter calls (cache hit): 0ns
+  Cache speedup: infx
+  After parameter change: 0ns
+[       OK ] PoissonEnhancedTest.CachingSpeedupVerification (0 ms)
+[ RUN      ] PoissonEnhancedTest.AutoDispatchAssessment
+
+=== Auto-Dispatch Assessment (Poisson) ===
+Batch size: 5, Expected strategy: SCALAR
+  PMF: 1μs, Correct: ✅
+  LogPMF: 2μs, Correct: ✅
+  CDF: 2μs, Correct: ✅
+Batch size: 50, Expected strategy: SCALAR
+  PMF: 1μs, Correct: ✅
+  LogPMF: 3μs, Correct: ✅
+  CDF: 4μs, Correct: ✅
+Batch size: 500, Expected strategy: VECTORIZED
+  PMF: 6μs, Correct: ✅
+  LogPMF: 17μs, Correct: ✅
+  CDF: 39μs, Correct: ✅
+Batch size: 5000, Expected strategy: VECTORIZED
+  PMF: 65μs, Correct: ✅
+  LogPMF: 180μs, Correct: ✅
+  CDF: 382μs, Correct: ✅
+Batch size: 50000, Expected strategy: PARALLEL
+  PMF: 196μs, Correct: ✅
+  LogPMF: 357μs, Correct: ✅
+  CDF: 708μs, Correct: ✅
+
+=== Auto-Dispatch Assessment Completed (Poisson) ===
+[       OK ] PoissonEnhancedTest.AutoDispatchAssessment (9 ms)
+[ RUN      ] PoissonEnhancedTest.ParallelBatchPerformanceBenchmark
+
+=== Poisson Distribution Enhanced Performance Benchmark ===
+Dataset size: 50000 elements
+Hardware threads: 12
+  ✓ PMF batch operations completed (verification skipped for unknown operation)
+  ✓ LogPMF batch operations completed (verification skipped for unknown operation)
+  ✓ CDF batch operations produce correct results
+
+Benchmark Results:
+ Operation  Baseline  Vectorized    Parallel  Work-Steal   Vec-Speedup Par-Speedup  WS-Speedup
+--------------------------------------------------------------------------------------------------------
+       PMF      1196         640         182         173          1.87        6.57        6.91
+    LogPMF      2407        2077         403         397          1.16        5.97        6.06
+       CDF      4333        4106         921         759          1.06        4.70        5.71
+
+Performance Analysis:
+  ✓ PMF SIMD shows good speedup
+  ✓ PMF thread pool shows good speedup
+  ⚠ LogPMF SIMD speedup lower than expected
+  ✓ LogPMF thread pool shows good speedup
+  ⚠ CDF SIMD speedup lower than expected
+  ✓ CDF thread pool shows good speedup
+[       OK ] PoissonEnhancedTest.ParallelBatchPerformanceBenchmark (33 ms)
+[ RUN      ] PoissonEnhancedTest.ParallelBatchFittingTests
+
+=== Parallel Batch Fitting Tests ===
+  Generated 6 datasets with known parameters
+  ✓ Parallel batch fitting correctness verified
+  Parallel batch fitting: 7μs
+  Sequential individual fits: 6μs
+  Speedup: 0.86x
+  Testing edge cases...
+  ✓ Edge cases handled correctly
+  Testing thread safety...
+  ✓ Thread safety verified
+[       OK ] PoissonEnhancedTest.ParallelBatchFittingTests (0 ms)
+[ RUN      ] PoissonEnhancedTest.NumericalStabilityAndEdgeCases
+  ✓ Poisson extreme value handling test passed
+  ✓ Poisson empty batch operations handled gracefully
+[       OK ] PoissonEnhancedTest.NumericalStabilityAndEdgeCases (0 ms)
+[----------] 11 tests from PoissonEnhancedTest (114 ms total)
+
+[----------] 4 tests from Poisson/DistributionEnhancedTest/0, where TypeParam = stats::PoissonDistribution
+[ RUN      ] Poisson/DistributionEnhancedTest/0.LogPDFConsistency
+[       OK ] Poisson/DistributionEnhancedTest/0.LogPDFConsistency (0 ms)
+[ RUN      ] Poisson/DistributionEnhancedTest/0.BatchMatchesScalar
+[       OK ] Poisson/DistributionEnhancedTest/0.BatchMatchesScalar (0 ms)
+[ RUN      ] Poisson/DistributionEnhancedTest/0.QuantileRoundTrip
+C:\Users\gdwol\Development\libstats-v2.4.2\tests\include/enhanced_test_suite.h(204): Skipped
+QuantileRoundTrip is undefined for discrete distributions
+
+[  SKIPPED ] Poisson/DistributionEnhancedTest/0.QuantileRoundTrip (0 ms)
+[ RUN      ] Poisson/DistributionEnhancedTest/0.InvalidParameters
+[       OK ] Poisson/DistributionEnhancedTest/0.InvalidParameters (0 ms)
+[----------] 4 tests from Poisson/DistributionEnhancedTest/0 (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 15 tests from 2 test suites ran. (116 ms total)
+[  PASSED  ] 14 tests.
+[  SKIPPED ] 1 test, listed below:
+[  SKIPPED ] Poisson/DistributionEnhancedTest/0.QuantileRoundTrip

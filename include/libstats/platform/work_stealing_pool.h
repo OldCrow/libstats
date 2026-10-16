@@ -75,7 +75,7 @@ class WorkStealingPool {
      * @param grainSize Minimum work per thread (0 = auto-detect)
      *
      * @par Exception contract (#118)
-     * An exception thrown by @p func is logged and swallowed; it does not reach
+     * An exception thrown by @p func is swallowed silently (not logged); it does not reach
      * the caller and the remaining indices of that chunk are skipped. This is
      * required, not incidental: the per-call completion latch has to be
      * decremented on every path or the caller's condition-variable wait
@@ -273,7 +273,10 @@ void WorkStealingPool::parallelForSlices(std::size_t count, std::size_t slice, F
         func(std::size_t{0}, count);  // one full-range slice, single SIMD-kernel call
         return;
     }
-    const std::size_t num_slices = (count + slice - 1) / slice;
+    // A partial final slice is folded into the one before it, as in
+    // ParallelUtils::parallelForSlices: a remainder below a kernel's SIMD
+    // minimum would run its scalar fallback and mix kernels in one call (#191).
+    const std::size_t num_slices = std::max<std::size_t>(1, count / slice);
     // Grain is in SLICE units here; aim for ~4 tasks per worker rather than
     // letting the impl's element-denominated auto-grain lump the whole range
     // into a handful of tasks.
@@ -281,9 +284,9 @@ void WorkStealingPool::parallelForSlices(std::size_t count, std::size_t slice, F
         std::max<std::size_t>(1, num_slices / (std::max<std::size_t>(1, getThreadCount()) * 4));
     parallelForImpl(
         std::size_t{0}, num_slices,
-        [func, slice, count](std::size_t ci) {
+        [func, slice, count, num_slices](std::size_t ci) {
             const std::size_t begin = ci * slice;
-            func(begin, std::min(slice, count - begin));
+            func(begin, ci + 1 == num_slices ? count - begin : slice);
         },
         grain);
 }
@@ -334,16 +337,15 @@ void WorkStealingPool::parallelForImpl(std::size_t start, std::size_t end, Func 
         // Capture shared_ptrs by value so the latch outlives the submission scope.
         submit([func, taskStart, taskEnd, pendingTasks, doneMutex, doneCv]() {
             // Execute function for this range. The latch decrement must happen
-            // unconditionally: if func throws, executeTask() catches the exception
-            // and swallows it, but pendingTasks would never reach zero and
+            // unconditionally: if func throws and nothing here catches it, executeTask()
+            // would log and swallow it, but pendingTasks would never reach zero and
             // doneCv->wait() in the caller would deadlock forever (POOL-1).
             try {
                 for (std::size_t i = taskStart; i < taskEnd; ++i) {
                     func(i);
                 }
             } catch (...) {
-                // Exception already logged by executeTask(); swallow here so
-                // the latch decrement below always runs.
+                // Swallow here (no log) so the latch decrement below always runs.
             }
             // Signal per-call completion unconditionally.
             if (pendingTasks->fetch_sub(1u, std::memory_order_acq_rel) == 1u) {
