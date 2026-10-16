@@ -25,8 +25,9 @@ on merge; the local branch and the Z worktrees `libstats-v2.4.2`,
 `libstats-oldtable`, `libstats-v2.4.1` are gone, as are Z's stale build
 trees). `spike/corvus-bessel` is deleted, archived as the signed tag
 `archive/spike-corvus-bessel` (its tip `d8443b0`). Remaining on origin:
-`dev/v2.5.0-corvus`. Z still carries a libstats 2.0.0 install under
-`C:\Program Files\libstats` that needs an elevated shell to remove.
+`dev/v2.5.0-corvus`. Z's stale libstats 2.0.0 install under
+`C:\Program Files\libstats` is removed (2026-10-16); nothing from the
+v2.5.0 cycle is outstanding on Z.
 
 **v2.5.0 was in progress [DONE 2026-10-16]** on `dev/v2.4.2` (cut from `main` at
 `d8d3388`; milestone #10 "v2.5.0 — Correctness & accuracy", #157–#172, which
