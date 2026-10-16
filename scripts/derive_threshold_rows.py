@@ -90,6 +90,13 @@ DROP_OVERRIDE = {
     ("kAvx512", "Bernoulli", "PDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): pass-through row (dispatch runs under Binomial's); kept consistent with Binomial PDF 8192; candidate 6144",
     ("kAvx512", "Bernoulli", "LogPDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): pass-through row (dispatch runs under Binomial's); AUTO 1.6-4.1x behind from 8192 with Binomial LogPDF at NEVER; candidate 4096",
     ("kAvx512", "Geometric", "PDF"): "table_ab ABAB 2026-10-15 on Z (quiet, boost): dispatches under NegBinomial's row (identical gaps, 2.7-4.2x from 8192 under both tables); kept consistent with NegBinomial PDF 8192; candidate 8192",
+    ("kAvx2", "Uniform", "CDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): PARALLEL 0.45-0.65x VECTORIZED from 25k, AUTO 1.5-3.6x behind at 25k-500k under both tables; candidate 25k three times",
+    ("kAvx2", "Exponential", "PDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.7-2.2x behind PARALLEL at 50k-100k under both tables; candidate 50k three times",
+    ("kAvx2", "Exponential", "CDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.3-2.3x behind PARALLEL at 25k-50k under both tables; the value is BENCH_CROSSOVER's (the rule's 8192 loses)",
+    ("kAvx2", "Gaussian", "LogPDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): with the 20k override AUTO goes multi-threaded at 25k where VECTORIZED is 1.9x faster; PARALLEL 2.2x behind at 50k, even at 100k, 0.51x at 200k; candidate 150k three times",
+    ("kAvx", "Pareto", "CDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), AVX and SSE2 trees: PARALLEL 0.71-0.80x VECTORIZED at 4096, 0.36-0.44x from 25k; AUTO 1.4-2.4x behind at 4096-25k under both tables; candidate 6144 (fork zone)",
+    ("kAvx", "Rayleigh", "CDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), AVX and SSE2 trees: AUTO 1.3-2.1x behind PARALLEL at 8192-25k under both tables; the value is BENCH_CROSSOVER's (the fork value 4096 loses)",
+    ("kAvx", "Poisson", "LogPDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), AVX and SSE2 trees: PARALLEL 0.70-0.72x VECTORIZED at 4096; AUTO 1.4x behind at 4096 under both tables; candidate 4096 three times",
 }
 # Rows kept at their table value by the user's judgment although the rules would change them.
 KEEP_ROW = {
@@ -110,6 +117,11 @@ TAKE_CANDIDATE = {
     ("kAvx512", "Logistic", "LogPDF"): "user 2026-10-15: candidate three times in the d1adc95 capture; table_ab ABAB on Z (quiet, boost) rounds 1-2: PARALLEL 0.57-0.61x VECTORIZED at 25k in both rounds, AUTO 1.65-1.75x behind",
     ("kAvx512", "Gumbel", "CDF"): "user 2026-10-15: candidate three times in the d1adc95 capture; table_ab ABAB on Z (quiet, boost) rounds 1-2: PARALLEL 0.65-0.69x at 25k, AUTO 1.45-1.54x behind",
     ("kAvx512", "TruncatedNormal", "LogPDF"): "user 2026-10-15: candidate three times in the d1adc95 capture; table_ab ABAB on Z (quiet, boost) rounds 1-2: PARALLEL 0.68-0.73x at 50k, AUTO 1.37-1.45x behind",
+    ("kAvx2", "HalfNormal", "PDF"): "user 2026-10-15 (K): candidate 50k three times; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.7x behind PARALLEL at 50k under both tables",
+    ("kAvx2", "LogNormal", "PDF"): "user 2026-10-15 (K): candidate 25k; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.4-1.6x behind PARALLEL at 25k under both tables",
+    ("kAvx2", "Gumbel", "PDF"): "user 2026-10-15 (K): candidate 25k three times; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.5x behind PARALLEL at 25k under both tables",
+    ("kAvx2", "FisherF", "LogPDF"): "user 2026-10-15 (K): candidate 4096; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.7-1.8x behind PARALLEL at 4096 under both tables",
+    ("kAvx", "VonMises", "LogPDF"): "user 2026-10-15 (K): candidate 25k; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.3x (AVX tree) and 1.8x (SSE2 tree) behind PARALLEL at 25k under both tables",
 }
 # Rows whose quiet-profile candidate sits one or two grid steps above the fork value only because the
 # three runs spread past 2x (the rule takes their max), where the loaded A/B shows PARALLEL ahead at the
@@ -120,6 +132,12 @@ BENCH_CROSSOVER = {
     ("kAvx512", "Beta", "LogPDF"): (8192, "user 2026-10-15 (Z): the profile's three runs spread past 2x so the rule took their max (25k); table_ab ABAB on Z, three quiet rounds (1, 2, 4): PARALLEL 0.54-0.74x at 8192 and 0.75-0.84x at 10k in every pass, AUTO 1.25-1.85x behind"),
     ("kAvx512", "Pareto", "CDF"): (8192, "user 2026-10-15 (Z): the profile's three runs spread past 2x so the rule took their max (25k); table_ab ABAB on Z, three quiet rounds (1, 2, 4): PARALLEL 0.57-0.61x at 8192 and 0.67-0.68x at 10k in every pass, AUTO 1.5-1.8x behind"),
     ("kAvx512", "Cauchy", "CDF"): (8192, "user 2026-10-15 (Z): the profile's three runs spread past 2x so the rule took their max (25k); table_ab ABAB on Z, three quiet rounds (1, 2, 4): PARALLEL 0.65-0.66x at 8192 and 0.75x at 10k in every pass (the quiet profile read 25k/10k/25k), AUTO 1.3-1.55x behind"),
+    ("kAvx2", "Discrete", "CDF"): (25000, "user 2026-10-15 (K): the profile's 50k measures PARALLEL; K's AUTO goes multi-threaded through WORK_STEALING, which table_ab ABAB 2026-10-15 on K (quiet, load < 2.0) shows 1.7x ahead of VECTORIZED at 25k (1.19 vs 2.05 ns) and behind it at 8192-10k; 25k as the compromise between K and the PARALLEL platforms"),
+    ("kAvx2", "Exponential", "CDF"): (25000, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): PARALLEL 1.4-1.5x behind VECTORIZED at 8192-10k, 0.78x at 25k, 0.45x at 50k; the rule's 8192 (max of a 1024/6144/8192 spread) would regress"),
+    ("kAvx2", "Gaussian", "LogPDF"): (100000, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), round 2: at 150k AUTO stays VECTORIZED at 100k, where K's WORK_STEALING is 2.2x faster (0.34 vs 0.76 ns); PARALLEL/VECTORIZED at 100k 1.10 median (0.97-1.20) over eight passes, 0.52 at 200k: break-even for PARALLEL platforms"),
+    ("kAvx2", "Uniform", "PDF"): (250000, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), rounds 1-2, eight passes per tier: PARALLEL/VECTORIZED 0.54-0.57 median at 500k on the AVX2, AVX and SSE2 trees (AUTO 1.9x behind), 0.80-0.88 median at 200k with passes to 1.23, 1.6-2.1 at 100k; the 2000k candidate is the max of a 10x spread (200k/2000k/250k); 250k is the median run"),
+    ("kAvx", "Uniform", "PDF"): (250000, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), rounds 1-2, eight passes per tier: PARALLEL/VECTORIZED 0.54-0.57 median at 500k on the AVX2, AVX and SSE2 trees (AUTO 1.9x behind), 0.80-0.88 median at 200k with passes to 1.23, 1.6-2.1 at 100k; the 2000k candidate is the max of a 10x spread (2000k/250k/200k); 250k is the median run"),
+    ("kAvx", "Rayleigh", "CDF"): (8192, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): PARALLEL 1.38x (AVX tree) and 1.09x (SSE2 tree) behind VECTORIZED at 4096, 0.71-0.84x at 8192; the fork value 4096 would regress"),
 }
 REDERIVE_DATE = "2026-10-14"
 
