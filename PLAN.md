@@ -7,8 +7,19 @@ carry (shipped releases, closed milestones, the Resolved log, the
 2026-08-21 defensive review, travel-era records, the corvus spike) is in
 `git show f508b12:PLAN.md`.
 
-## Status [DERIVED] — 2026-10-04
-**v2.5.0 in progress [OPEN]** on `dev/v2.4.2` (cut from `main` at
+## Status [DERIVED] — 2026-10-16
+**v2.5.0 released 2026-10-16.** PR #278 (`dev/v2.4.2` → `main`, merge
+commit `dda07d1`, 158 commits) closed the 75 issues of milestone #10,
+which is closed; CI, CodeQL, the AVX-512 workflows and the docs build
+green on `main`; the CHANGELOG date set in `e24d4ab`; signed tag
+`v2.5.0` on `e24d4ab`; GitHub release from the `[2.5.0]` section. Code
+stays frozen until corvus is integrated (v3.0.0). Left after the
+release: the pylibstats pin bump (Cross-Repo), the corvus session's
+merge note (R7), the standards repo's WINDOWS-TOOLCHAIN note (`/arch:`
+equivalence, the throttling opt-out); `dev/v2.4.2` can be deleted once
+pylibstats has moved.
+
+**v2.5.0 was in progress [DONE 2026-10-16]** on `dev/v2.4.2` (cut from `main` at
 `d8d3388`; milestone #10 "v2.5.0 — Correctness & accuracy", #157–#172, which
 the release PR closes). This line ships as **v2.5.0**, not v2.4.2
 [user, 2026-10-04; Decided]; the branch keeps its name, and "v2.4.2" in
@@ -192,7 +203,7 @@ from the oracle by 3 to 5e4 counts (the contract is the smallest k whose
 library CDF reaches p; #116, #170); logpdf near its zero crossing (a
 relative metric on a near-zero value).
 
-Last release: v2.4.1 (2026-09-19). v2.5.0 (corvus adoption) is in
+Last release: v2.5.0 (2026-10-16); v2.4.1 (2026-09-19) before it. v2.5.0 (corvus adoption) is in
 progress on `dev/v2.5.0-corvus` in its own session; that branch's PLAN.md
 is authoritative for v2.5.0 state.
 
