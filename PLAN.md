@@ -1205,13 +1205,41 @@ is exactly 0 inside a scale-1 window joins the decided near-zero-crossing
 class and is scored on max_abs against the window width, so the AVX-512
 block's TruncatedNormal quantile row stops reading 6.3e291.
 
+Speed/accuracy tradeoffs by band, for VALIDATION_HISTORY's cost section
+and the release notes [DERIVED, K's R3 at `d1adc95`,
+`docs/bench-evidence/2026-10-14-kabylake-v242-cost/`; user, 2026-10-16:
+state them per band, never as "distribution X is slower"]. The cost moves
+in steps at algorithm switch points in the parameters, as corvus's does.
+Kernel cost v2.5.0 / v2.4.1: the median over sizes of the per-call and
+forced-VECTORIZED times; above 1 is slower. Z's ratios run larger (von
+Mises quantile 16–23×, Student-t quantile ~11×) against v2.4.1's very
+cheap lookups there.
+
+| Family | Low band | High band | Inflection |
+|---|---|---|---|
+| Gamma density | shape 2.5–19.9: 1.0 | shape 20: 3.3 (logpdf); 1000: 2.6 | step at shape 20, the Stirling prefactor (`STIRLING_PREFACTOR_SHAPE`; #266, v3) |
+| Gamma CDF | shape 0.01: 2.1; 2.5: 1.5 | shape 10–20: 1.1–1.2; 1000: 1.5 | small-shape `gamma_q` and the rate-product correction |
+| Gamma quantile | shape 0.01: 0.15 | 0.6–0.7 elsewhere | faster everywhere (`solve_concave`) |
+| Beta density | (2,2): 1.0 | (25,25): 3.4; (1000,1000): 3.0 | large shapes take the Stirling/`lbeta` form; CDF 1.1–1.3 throughout |
+| Student-t | ν 7–30: CDF 1.05–1.1, quantile 1.5 | ν ≥ 1e3: CDF 4.4–5.2, quantile 6.5–6.8, pdf 1.9 | large-ν tail paths (BGRAT; log(ν/t²) beyond √ν) |
+| von Mises CDF | κ = 1: 2.1 | κ = 30: 0.81; κ = 300: 0.19 | inverted: fixed-cost quadrature replaced a Bessel series whose cost grew with κ |
+| von Mises quantile | 5.3–6.9, flat in κ | — | fixed cost (Newton on the exact CDF, ~300–400 ns) against v2.4.1's grid lookup |
+| Poisson CDF | λ 12–1000: 1.3–1.6 | λ = 1e5: 0.21 | large λ 5× faster |
+| Discrete densities (Binomial, NegBinomial, Poisson) | 1.3–1.8 | 1.3–1.5 | roughly uniform: the Loader-style log-pmf (#172); slightly dearer at small n or r |
+| Discrete quantiles | 0.04–0.74 | — | faster everywhere |
+
+Not covered: the cost bench sweeps parameter bands at a fixed input range,
+so it does not resolve x-regions (deep tails, near-boundary bands,
+log-space branches). Timing the accuracy grid per x-region is a v3 input.
+
 ### R7 — release
 PR
 `dev/v2.4.2` → `main` closing every issue labelled `fixed-on-branch` (the
-record of truth: `gh issue list --label fixed-on-branch --state open`; 74 at
-`8d3c9c7`, each with a comment naming its fix commit; #173's residual,
-`std::cyl_bessel_i`'s signgam write, is #267 in v3.0.0). #211 (docs) closes
-at R6. The PR body lists them as `Closes #N`; CI
+record of truth: `gh issue list --label fixed-on-branch --state open`; 75 at
+`4c3a133` (#211 labelled 2026-10-16), each with a comment naming its fix commit; #173's residual,
+`std::cyl_bessel_i`'s signgam write, is #267 in v3.0.0). #211 (docs) is
+labelled with them (R6a `d1adc95`, the tools' lists `7da6944`, the #111
+comments `4c3a133`); R6b adds nothing it needs. The PR body lists them as `Closes #N`; CI
 green, including the sanitizer legs; merge; signed tag `v2.5.0`; GitHub
 release from the CHANGELOG section; close milestone #10. Then coordinate
 the pylibstats pin bump (Cross-Repo below), and tell the corvus session
