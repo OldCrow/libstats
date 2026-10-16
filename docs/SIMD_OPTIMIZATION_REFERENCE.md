@@ -27,8 +27,8 @@ Resolved work from v1.4.0 through v2.0.0:
   every strategy returns VECTORIZED's bits (045acd9, #191). On 2026-10-14
   `scripts/derive_threshold_rows.py` re-derived all four tables from the R8
   three-run bundles at code head d1adc95 (`data/profiles/dispatcher/`); a
-  back-to-back A/B with `tools/bench/table_ab_bench.cpp` then settled the kNeon
-  and kAvx512 rows (580b7f7, bb9ac0b, 6c149f1). Evidence and numbers:
+  back-to-back A/B with `tools/bench/table_ab_bench.cpp` then settled the kNeon,
+  kAvx512, kAvx2 and kAvx rows (580b7f7, bb9ac0b, 6c149f1, 4c3a133). Evidence and numbers:
   `SIMD_BENCHMARK_RESULTS.md` §v2.5.0.
 
 Which `simd_*.cpp` files compile for each tier, and how
@@ -103,7 +103,7 @@ Distributions whose per-element SIMD cost is very low (Uniform, Laplace at small
 - The distribution performs arithmetic or a single transcendental per element with no iterative path.
 - The trough-at-threshold depth exceeds 50% throughput loss.
 
-For AVX-512 v2.0.2, Uniform PDF, Uniform LogPDF, and Uniform CDF were all NEVER; the 2026-10-14 `kAvx512` rows are 300k/300k/100k. Of the Uniform rows, only `kNeon` PDF and `kAvx2` CDF remain NEVER.
+For AVX-512 v2.0.2, Uniform PDF, Uniform LogPDF, and Uniform CDF were all NEVER; the 2026-10-14 `kAvx512` rows are 300k/300k/100k. Of the Uniform rows, only `kNeon` PDF remains NEVER (`kAvx2` CDF took 25k in 4c3a133).
 
 ### The secretly-serial parallel path signature (v2.4.0)
 

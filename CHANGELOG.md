@@ -129,19 +129,25 @@ are re-derived from fresh captures and verified by a loaded A/B.
   then verified by a loaded A/B (`tools/bench/table_ab_bench.cpp`, AUTO
   against the forced strategies under the old and new headers): AUTO rows
   more than 1.25× behind their best forced strategy fell 202 → 24 on NEON
-  with the first derivation and 13 → 9 with eight more rows, and 208 → 5
-  on AVX-512. The discrete pmfs, the Student-t and von Mises CDFs and
-  Beta leave NEVER; most continuous CDFs cross to PARALLEL at 8k–25k
-  instead of 25k–2M; the only NEVER cells left are two Uniform rows.
+  with the first derivation and 13 → 9 with eight more rows, 208 → 5 on
+  AVX-512, and 158 → 2 (AVX2), 146 → 2 (AVX) and 173 → 17 (SSE2) on Kaby
+  Lake. The discrete pmfs, the Student-t and von Mises CDFs and Beta
+  leave NEVER; most continuous CDFs cross to PARALLEL at 8k–25k instead
+  of 25k–2M; the only NEVER cell left is kNeon Uniform PDF.
 - Speed work on the accuracy paths: Student-t and Beta densities SIMD at
   every shape; `vector_log1p` and `vector_expm1` where they win; the
   Gamma family's Stirling-form batch density from α = 20; the Binomial
   quantile from a normal guess.
-- Costs of the accuracy fixes, per call against v2.4.1: the von Mises
-  quantile 5–23× (it was an 18 ns grid lookup; now 0.3–0.6 µs, exact),
-  the Student-t quantile at ν ≥ 1e3 7–13×; Gamma α ≥ 20 logpdf forced
-  VECTORIZED 4–8× and Beta at large shapes 3–5× (scalar fall-backs; AUTO
-  takes PARALLEL there). Small-shape rows are unchanged.
+- Costs of the accuracy fixes, against v2.4.1, by parameter band (the
+  cost steps at the algorithm switch points; the full table is in
+  `docs/VALIDATION_HISTORY.md`): Gamma and Beta densities 1.0× at small
+  shapes, 2.6–3.4× from shape 20 (the Stirling prefactor); Student-t at
+  ν ≥ 1e3 CDF 4.4–5.2× and quantile 6.5–13× (the large-ν tail paths);
+  the von Mises quantile 5–23×, flat in κ (a fixed-cost Newton on the
+  exact CDF replaced a grid lookup), while the von Mises CDF is faster
+  above κ = 30 (0.8× at 30, 0.2× at 300); the discrete densities
+  1.3–1.8× (the Loader-style log-pmf); Gamma and discrete quantiles and
+  Poisson CDF at large λ faster everywhere (0.04–0.7×).
 
 ### Known limitations
 - Thresholds are per distribution, not per shape: Gamma(20), Gamma(1000)

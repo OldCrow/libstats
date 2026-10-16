@@ -165,7 +165,7 @@ distribution roster lives in the code and in that guide, not here.
 - Always rebuild after source changes before running tests
 - Use `initialize_performance_systems()` for optimal batch performance
 - SIMD kernels impose no alignment requirement on caller data: every load/store of a caller buffer is unaligned (`loadu`/`storeu`); aligned ops are used only on internal `alignas` locals
-- Parallel execution pays off only above the per-row thresholds in `dispatch_thresholds.h`; only two Uniform entries are `NEVER`
+- Parallel execution pays off only above the per-row thresholds in `dispatch_thresholds.h`; only one entry (`kNeon` Uniform PDF) is `NEVER`
 
 ### Platform-Specific Conventions
 - **macOS**: System AppleClang is the default and only supported v2.x compiler path (Ventura 13+).

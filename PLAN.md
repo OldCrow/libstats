@@ -1181,9 +1181,10 @@ AVX512_TESTING_GUIDE, BUILD_SYSTEM_GUIDE, CI_CD_GUIDE,
 HEADER_ARCHITECTURE_GUIDE, SIMD_BENCHMARK_RESULTS,
 SIMD_OPTIMIZATION_REFERENCE, VALIDATION_HISTORY}, and comments only in
 `dispatch_thresholds.h`, `gen_vonmises_cdf_vectors.py` and
-`v242_cost_bench.cpp`. Left for the tag: the CHANGELOG date, README's
-"released" wording, K's kAvx2/kAvx A/B result in VALIDATION_HISTORY and
-the CHANGELOG's table paragraph, and the cross-repo WINDOWS-TOOLCHAIN note.
+`v242_cost_bench.cpp`. K's kAvx2/kAvx result (`4c3a133`) and the per-band cost
+table folded in 2026-10-16 after the rebase. Left for the tag: the
+CHANGELOG date, README's "released" wording, and the cross-repo
+WINDOWS-TOOLCHAIN note.
 Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
 stale test counts), AGENTS "Current status", PROJECT_CONCEPT. CHANGELOG
 via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs,

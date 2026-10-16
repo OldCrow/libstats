@@ -56,7 +56,7 @@ constexpr std::size_t BATCH_FIT_MIN = 8;
 // 2026-10-14: every SIMD table re-derived from the R8 bundles (code d1adc95) by
 // scripts/derive_threshold_rows.py (note above each table). The smallest value
 // in any table is now 2048 (no 64-element profiler-floor rows remain), and the
-// only NEVER cells left are kNeon Uniform PDF and kAvx2 Uniform CDF. The
+// only NEVER cell left is kNeon Uniform PDF (kAvx2 Uniform CDF took 25k in 4c3a133). The
 // v2.4.0 notes below describe the older tables:
 // GEOMETRIC and BETA PDF/LogPDF were NEVER on all four measured tiers then
 // (BEST=VECTORIZED at 2M, all runs, post-parallelForSlices repair); the June

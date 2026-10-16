@@ -30,9 +30,14 @@ mostly quiet). AUTO rows more than 1.25× behind their best forced strategy:
 |---|---|---|---|---|
 | `kNeon` | M1 | 202 → 24 (580b7f7); 13 → 9 after eight one-step rows (bb9ac0b) | 580b7f7, bb9ac0b | `docs/bench-evidence/2026-10-14-m1-threshold-rows/AB_RESULTS.md` |
 | `kAvx512` | Zen 4 | 208 → 5 (five rounds) | 6c149f1 | `docs/bench-evidence/2026-10-15-zen4-threshold-rows/README.md` |
+| `kAvx2`, `kAvx` | Kaby Lake (AVX2; capped AVX and SSE2 trees) | 158 → 2, 146 → 2, 173 → 17 (three rounds; 15 values on 13 rows) | 4c3a133 | `docs/bench-evidence/2026-10-15-kabylake-threshold-rows/README.md` |
 
-`kAvx2` and `kAvx` were checked for direction only, on Zen 4 capped builds
-(196 → 46 and 164 → 31; same README). Two code changes underlie the rows:
+Zen 4's capped builds had checked `kAvx2` and `kAvx` for direction first
+(196 → 46 and 164 → 31; the Zen 4 README). Kaby Lake's AUTO goes
+multi-threaded through WORK_STEALING, which beats PARALLEL below the
+profiled crossover; the rows stay PARALLEL-optimal because the tables serve
+Linux and Windows too (a v3 input; the Kaby Lake README). Two code changes
+underlie the rows:
 PARALLEL below the fork threshold runs the VECTORIZED kernel (ee11e62; Z's
 R8 at that code is in `docs/bench-evidence/2026-10-06-zen4-clangcl-ee11e62-r8/`),
 and every strategy returns VECTORIZED's bits (045acd9, #191).

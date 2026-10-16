@@ -20,17 +20,37 @@ at its own dispatch-table header (R8, below). Evidence directories are under
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
 | Asus TUF A16 (Windows 11) | AVX-512 | 132/132 ✅ MSVC 14.51 and clang-cl 22.1.3 | 14/14 ✅ (clang-cl, quiet, boost) | Native, 2026-10-13/15. Fresh configures, 0 warnings. R9 stress 109 passed + 27 skipped (the work-stealing probe, unreachable on Windows) under both compilers. `isa=AVX-512` block regenerated from the clang-cl sweep (`85e1350`): 26,882 rows, 190 oracle self-checks, 0 contract violations; the MSVC sweep through the same oracle, 0. R8 four tiers (`2026-10-14T0*_windows-*`), table A/B five rounds (`2026-10-15-zen4-threshold-rows/`), R1 again at the kAvx512 header `6c149f1`: 132/132 both compilers, gates 0.235–0.254. Every timing process opted out of power throttling (below). |
-| Kaby Lake (2017 MBP, macOS 13.7.8) | AVX2+FMA | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 15 Release (`34baa1f`). R9 under ThreadSanitizer: stress 136/136, the whole correctness suite, 0 reports (`2026-10-14-kabylake-r9-tsan/`). `isa=AVX2` block regenerated (`fab7345`): 26,882 rows, 0 contract violations. R8 AVX2, AVX, SSE2 (`2026-10-13T*_darwin-*`); R3 costs (`2026-10-14-kabylake-v242-cost/`). Table A/B for kAvx2/kAvx and the R1 at its header: in progress. |
+| Kaby Lake (2017 MBP, macOS 13.7.8) | AVX2+FMA | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 15 Release (`34baa1f`). R9 under ThreadSanitizer: stress 136/136, the whole correctness suite, 0 reports (`2026-10-14-kabylake-r9-tsan/`). `isa=AVX2` block regenerated (`fab7345`): 26,882 rows, 0 contract violations. R8 AVX2, AVX, SSE2 (`2026-10-13T*_darwin-*`); R3 costs (`2026-10-14-kabylake-v242-cost/`). Table A/B for kAvx2/kAvx three rounds (`2026-10-15-kabylake-threshold-rows/`), R1 at its header `4c3a133`: 0 warnings, 132/132, gates 0.270–0.296, timing 14/14. |
 | Mac Mini M1 (macOS 27.0.1) | NEON | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 21 Release, outside the sandbox (`10a7ff7`). Quiet batch gates 0.21–0.26. R9 under ThreadSanitizer: stress 109 + 27 skipped, 0 reports (`2026-10-14-m1-concurrency/`). `isa=NEON` block regenerated (`ea3e4f3`): 26,882 rows, 0 contract violations. R8 NEON bundle (2026-10-14); table A/B four rounds (`2026-10-14-m1-threshold-rows/`), R1 at the kNeon header `bb9ac0b`: 0 warnings, 132/132, gates 0.21–0.22. |
 
 Costs of the accuracy work (R3, `tools/bench/v242_cost_bench.cpp` against
-v2.4.1, quiet, per call): the von Mises quantile 5.4–6.8× on Kaby Lake,
-6.4–9.5× on the M1, 15.8–22.8× on Zen 4 (v2.4.1 was an 18 ns grid lookup;
-v2.5.0 is 0.3–0.6 µs and exact); the Student-t quantile at ν ≥ 1e3 6.8–8.0×,
-7–9× and 10.6–11.5×; Gamma α ≥ 20 logpdf forced VECTORIZED 3.5–4.9×, 4.3× and
-4.6–8.2× (the scalar fall-back; AUTO takes PARALLEL there). Small-shape rows
-hold at 1.0–1.1×. Each machine's compare.txt lists the AUTO-vs-best gaps
-(Kaby Lake 49, M1 46, Zen 4 45 NEW), the input to R8.
+v2.4.1, quiet, per call and forced VECTORIZED). The cost moves in steps at
+the algorithm switch points in the parameters, so it is stated per band,
+never as "distribution X is slower" [user, 2026-10-16]. Kaby Lake's ratios
+(v2.5.0 / v2.4.1, median over sizes; above 1 is slower):
+
+| Family | Low band | High band | Inflection |
+|---|---|---|---|
+| Gamma density | shape 2.5–19.9: 1.0 | shape 20: 3.3 (logpdf); 1000: 2.6 | step at shape 20, the Stirling prefactor (`STIRLING_PREFACTOR_SHAPE`; #266, v3) |
+| Gamma CDF | shape 0.01: 2.1; 2.5: 1.5 | shape 10–20: 1.1–1.2; 1000: 1.5 | small-shape `gamma_q` and the rate-product correction |
+| Gamma quantile | shape 0.01: 0.15 | 0.6–0.7 elsewhere | faster everywhere (`solve_concave`) |
+| Beta density | (2,2): 1.0 | (25,25): 3.4; (1000,1000): 3.0 | large shapes take the Stirling/`lbeta` form; CDF 1.1–1.3 throughout |
+| Student-t | ν 7–30: CDF 1.05–1.1, quantile 1.5 | ν ≥ 1e3: CDF 4.4–5.2, quantile 6.5–6.8, pdf 1.9 | large-ν tail paths (BGRAT; log(ν/t²) beyond √ν) |
+| von Mises CDF | κ = 1: 2.1 | κ = 30: 0.81; κ = 300: 0.19 | inverted: a fixed-cost quadrature replaced a Bessel series whose cost grew with κ |
+| von Mises quantile | 5.3–6.9, flat in κ | — | fixed cost (Newton on the exact CDF, ~300–400 ns) against v2.4.1's grid lookup |
+| Poisson CDF | λ 12–1000: 1.3–1.6 | λ = 1e5: 0.21 | large λ 5× faster |
+| Discrete densities (Binomial, NegBinomial, Poisson) | 1.3–1.8 | 1.3–1.5 | roughly uniform: the Loader-style log-pmf (#172); slightly dearer at small n or r |
+| Discrete quantiles | 0.04–0.74 | — | faster everywhere |
+
+The M1 tracks Kaby Lake within the noise (von Mises quantile 6.4–9.5×,
+Student-t quantile at ν ≥ 1e3 7–9×). Zen 4's ratios run larger against
+v2.4.1's very cheap lookups there: von Mises quantile 15.8–22.8× (an 18 ns
+grid lookup became 0.3–0.6 µs, exact), Student-t quantile at ν ≥ 1e3
+10.6–11.5×, Gamma shape ≥ 20 logpdf forced VECTORIZED 4.6–8.2×. The bench
+sweeps parameter bands at a fixed input range, so it does not resolve
+x-regions (deep tails, near-boundary bands, log-space branches); timing the
+accuracy grid per x-region is a v3 input. Each machine's compare.txt lists
+the AUTO-vs-best gaps (Kaby Lake 49, M1 46, Zen 4 45 NEW), the input to R8.
 
 Dispatch tables (R8): three quiet `strategy_profile --large` runs per tier on
 every machine at `d1adc95`, re-derived into kAvx512, kAvx2, kAvx and kNeon by
@@ -39,10 +59,14 @@ verified by a loaded A/B (`tools/bench/table_ab_bench.cpp`, AUTO against the
 forced strategies under the old and new headers, ABAB): kNeon (AUTO rows more
 than 1.25× behind their best forced strategy 202 → 24 with `580b7f7`, then
 13 → 9 with the eight rows of `bb9ac0b`), kAvx512 `6c149f1` (21 more rows;
-208 → 5). The discrete pmfs, the Student-t and von Mises CDFs and the Beta
-densities leave NEVER; most continuous CDFs cross to PARALLEL at 8k–25k
-instead of 25k–2M; the only NEVER cells left are kNeon Uniform PDF and kAvx2
-Uniform CDF. kAvx2 and kAvx await Kaby Lake's A/B.
+208 → 5), kAvx2 and kAvx `4c3a133` (15 values on 13 rows; AUTO gaps on the
+AVX2, capped-AVX and capped-SSE2 trees 158 → 2, 146 → 2, 173 → 17). The
+discrete pmfs, the Student-t and von Mises CDFs and the Beta densities
+leave NEVER; most continuous CDFs cross to PARALLEL at 8k–25k instead of
+25k–2M; the only NEVER cell left is kNeon Uniform PDF. Kaby Lake's AUTO
+goes multi-threaded through WORK_STEALING, which beats PARALLEL below the
+profiled crossover; the rows stay PARALLEL-optimal because kAvx2 and kAvx
+serve Linux and Windows too (a v3 input).
 
 ### v2.4.0 and v2.4.1
 
