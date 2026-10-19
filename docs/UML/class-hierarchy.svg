@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 968" width="860" height="968">
-<title>libstats class hierarchy — v2.4.0</title>
+<title>libstats class hierarchy — v2.5.0</title>
 <defs>
  <marker id="inh" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto"><polygon points="1 1,11 6,1 11" fill="#161b23" stroke="#c8a24e" stroke-width="1.4"/></marker>
  <marker id="del" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="#c8a24e" stroke-width="1.6"/></marker>
@@ -7,7 +7,7 @@
 <rect width="860" height="968" fill="#161b23"/>
 <g font-family="system-ui,-apple-system,Helvetica,Arial,sans-serif">
 <text x="20" y="30" font-size="15" fill="#c8a24e" text-anchor="start" font-weight="bold" letter-spacing="0.5">libstats class hierarchy</text>
-<text x="20" y="46" font-size="10.5" fill="#9a9382" text-anchor="start">DistributionInterface → DistributionBase (+ ThreadSafeCacheManager mixin) → 27 concrete distributions in 7 families · v2.4.0</text>
+<text x="20" y="46" font-size="10.5" fill="#9a9382" text-anchor="start">DistributionInterface → DistributionBase (+ ThreadSafeCacheManager mixin) → 27 concrete distributions in 7 families · v2.5.0</text>
 <rect x="300" y="60" width="260" height="62" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="430.0" y="73" font-size="8.5" fill="#6b6455" text-anchor="middle">«interface»</text>
 <text x="430.0" y="87" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold" font-style="italic">DistributionInterface</text>
@@ -21,9 +21,9 @@
 <text x="430" y="168" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">DistributionBase</text>
 <text x="430" y="182" font-size="8.5" fill="#161b23" text-anchor="middle">getSurvival · getHazard · fitWithDiagnostics</text>
 <text x="430" y="194" font-size="8.5" fill="#161b23" text-anchor="middle">shouldUseSIMDBatch · isApproximatelyEqual</text>
-<text x="430" y="211" font-size="8.5" fill="#6b6455" text-anchor="middle">span batch API — (span in, span out, PerformanceHint):</text>
-<text x="430" y="223" font-size="8.5" fill="#6b6455" text-anchor="middle">getProbability · getLogProbability · getCumulativeProbability</text>
-<text x="430" y="235" font-size="8.5" fill="#6b6455" text-anchor="middle">static parallelBatchFit(datasets, results)</text>
+<text x="430" y="211" font-size="8.5" fill="#6b6455" text-anchor="middle">Each concrete distribution declares (not the base):</text>
+<text x="430" y="223" font-size="8.5" fill="#6b6455" text-anchor="middle">span batch API (span in, span out, PerformanceHint)</text>
+<text x="430" y="235" font-size="8.5" fill="#6b6455" text-anchor="middle">and static parallelBatchFit(datasets, results)</text>
 <path d="M430 150 V124" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#inh)"/>
 <path d="M580 190 H705 V124" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#inh)"/>
 <rect x="20" y="254" width="380" height="260" rx="12" fill="#232a36" stroke="#c8a24e" stroke-width="1.5"/>
@@ -152,7 +152,7 @@
 <rect x="741" y="616" width="76" height="58" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="779.0" y="635" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">Cauchy</text>
 <text x="779.0" y="650" font-size="9.5" fill="#161b23" text-anchor="middle">Cauchy(x₀, γ)</text>
-<text x="779.0" y="664" font-size="8.5" fill="#6b6455" text-anchor="middle">PDF delegate</text>
+<text x="779.0" y="664" font-size="8.5" fill="#6b6455" text-anchor="middle">LogPDF delegate</text>
 <path d="M779 616 V552" fill="none" stroke="#c8a24e" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#del)"/>
 <path d="M430 246 V707" fill="none" stroke="#c8a24e" stroke-width="1.6"/>
 <path d="M430 384 H400" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#inh)"/>
@@ -192,11 +192,11 @@
 <text x="798.0" y="829" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">::binomial</text>
 <text x="798.0" y="844" font-size="9.5" fill="#161b23" text-anchor="middle">per-distribution</text>
 <text x="798.0" y="858" font-size="8.5" fill="#6b6455" text-anchor="middle">tests · CIs</text>
-<rect x="20" y="898" width="470" height="44" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+<rect x="20" y="898" width="640" height="44" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <path d="M34 914 H90" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#inh)"/>
 <text x="100" y="918" font-size="8.5" fill="#161b23" text-anchor="start">inherits (solid, hollow head) — a band arrow means every class in the band</text>
 <path d="M34 932 H90" fill="none" stroke="#c8a24e" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#del)"/>
-<text x="100" y="936" font-size="8.5" fill="#161b23" text-anchor="start">delegates internally (dashed, open head) — PDF/CDF forwarded to the target class</text>
-<text x="840" y="958" font-size="9.5" fill="#9a9382" text-anchor="end">libstats v2.4.0  ·  docs/UML/class-hierarchy.svg</text>
+<text x="100" y="936" font-size="8.5" fill="#161b23" text-anchor="start">delegates internally (dashed, open head) — calls forwarded to the target class (Cauchy: LogPDF only)</text>
+<text x="840" y="958" font-size="9.5" fill="#9a9382" text-anchor="end">libstats v2.5.0  ·  docs/UML/class-hierarchy.svg</text>
 </g>
 </svg>

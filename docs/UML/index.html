@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>libstats Architecture Diagrams (v2.4.0)</title>
+<title>libstats Architecture Diagrams (v2.5.0)</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -109,8 +109,8 @@
 <body>
 
 <header>
-  <h1>libstats Architecture Diagrams <small>(v2.4.0)</small></h1>
-  <p>Four structural and process-flow diagrams covering the class hierarchy, batch dispatch pipeline, thread-safety model, and Result&lt;T&gt; factory pattern. Regenerated at v2.4.0: 27 distributions across 7 families, five dispatch-threshold tables (kNeon, kAvx, kAvx2, kAvx512, kNone), and the current measured threshold values.</p>
+  <h1>libstats Architecture Diagrams <small>(v2.5.0)</small></h1>
+  <p>Four structural and process-flow diagrams covering the class hierarchy, batch dispatch pipeline, thread-safety model, and Result&lt;T&gt; factory pattern. Regenerated at v2.5.0: 27 distributions across 7 families, five dispatch-threshold tables (kNeon, kAvx, kAvx2, kAvx512, kNone), and the current measured threshold values.</p>
 </header>
 
 <div class="tabs">
@@ -127,7 +127,7 @@
     <div class="index-card" onclick="show('hier', document.querySelectorAll('.tab')[1])">
       <div class="badge badge-blue">UML class diagram</div>
       <h3>Class hierarchy</h3>
-      <p>Full inheritance tree from <code>DistributionInterface</code> through <code>DistributionBase</code> to all 27 concrete distributions, grouped into 7 family bands, with the internal delegations (ChiSquared/Erlang/InverseGamma → Gamma, Bernoulli → Binomial, Geometric → NegativeBinomial, Cauchy → StudentT) drawn as dashed arrows. Includes the <code>ThreadSafeCacheManager</code> mixin and the <code>stats::analysis</code> namespaces.</p>
+      <p>Full inheritance tree from <code>DistributionInterface</code> through <code>DistributionBase</code> to all 27 concrete distributions, grouped into 7 family bands, with the internal delegations (ChiSquared/Erlang/InverseGamma → Gamma, Bernoulli → Binomial, Geometric → NegativeBinomial, Cauchy → StudentT for LogPDF only) drawn as dashed arrows. Includes the <code>ThreadSafeCacheManager</code> mixin and the <code>stats::analysis</code> namespaces.</p>
     </div>
     <div class="index-card" onclick="show('disp', document.querySelectorAll('.tab')[2])">
       <div class="badge badge-green">Flow diagram</div>
@@ -151,7 +151,7 @@
 <div class="panel" id="hier">
   <div class="diagram-card">
     <h2>Class hierarchy</h2>
-    <p>DistributionInterface (pure abstract) → DistributionBase (+ ThreadSafeCacheManager mixin) → the 27 concrete distributions in 7 family bands. A solid arrow into a band means every class in it inherits DistributionBase; dashed arrows are internal delegations. The span-based batch API and the stats::analysis namespaces are shown as well.</p>
+    <p>DistributionInterface (pure abstract) → DistributionBase (+ ThreadSafeCacheManager mixin) → the 27 concrete distributions in 7 family bands. A solid arrow into a band means every class in it inherits DistributionBase; dashed arrows are internal delegations. The span-based batch API (declared on each concrete distribution) and the stats::analysis namespaces are shown as well.</p>
     <img src="class-hierarchy.svg" alt="libstats class hierarchy diagram">
   </div>
 </div>
@@ -160,7 +160,7 @@
 <div class="panel" id="disp">
   <div class="diagram-card">
     <h2>Batch dispatch pipeline</h2>
-    <p>A call to any span-based batch method flows through DispatchUtils::autoDispatch, which either runs PerformanceDispatcher (AUTO mode: SIMD capability + threshold table lookup) or maps a forced PerformanceHint directly to a strategy. The four execution strategies are SCALAR, VECTORIZED (SIMD via VectorOps), PARALLEL (ParallelUtils::parallelForSlices, #143: element-denominated serial gate with SIMD-slice callbacks, over GCD / std::execution::par / Win32 thread pool), and WORK_STEALING. Threshold tables are architecture-specific — kNeon, kAvx (measured via a capped build), kAvx2, kAvx512, kNone — and SSE2 delegates to kAvx.</p>
+    <p>A call to any span-based batch method flows through DispatchUtils::autoDispatch, which either runs PerformanceDispatcher (AUTO mode: SIMD capability + threshold table lookup) or maps a forced PerformanceHint directly to a strategy. The four execution strategies are SCALAR, VECTORIZED (SIMD via VectorOps), PARALLEL (ParallelUtils::parallelForSlices, #143: element-denominated serial gate with SIMD-slice callbacks, on the library-owned std::thread ThreadPool), and WORK_STEALING. Threshold tables are architecture-specific — kNeon, kAvx (measured via a capped build), kAvx2, kAvx512, kNone — and SSE2 delegates to kAvx.</p>
     <img src="dispatch-pipeline.svg" alt="libstats batch dispatch pipeline diagram">
   </div>
 </div>
@@ -169,7 +169,7 @@
 <div class="panel" id="cache">
   <div class="diagram-card">
     <h2>Thread safety &amp; cache model</h2>
-    <p>Each distribution object holds canonical parameters (guarded by std::shared_mutex), lock-free atomic copies for hot-path reads, a mutable computed cache of derived values, and two validity flags (plain bool + atomic bool). Reads check the atomic flag first (~2–5 ns); on miss they fall through to shared_lock and lazy cache rebuild. Writes acquire unique_lock, update the parameter, and invalidate both flags. Move operations use std::lock() with defer_lock to prevent deadlock.</p>
+    <p>Each distribution object holds canonical parameters (guarded by std::shared_mutex), lock-free atomic copies for hot-path reads, a mutable computed cache of derived values, and two validity flags (plain bool + atomic bool). Reads check the atomic flag first (~2–5 ns); on miss they fall through to shared_lock and lazy cache rebuild. Writes acquire unique_lock, validate, update the parameter, and clear all three flags (cache_valid_, cacheValidAtomic_, atomicParamsValid_). Copy and move assignment lock both objects with std::lock() and defer_lock to prevent deadlock.</p>
     <img src="thread-safety-cache.svg" alt="libstats thread safety and cache model diagram">
   </div>
 </div>
@@ -183,7 +183,7 @@
   </div>
 </div>
 
-<footer>libstats v2.4.0 · docs/UML/ · regenerated 2026-09-17 (corvid-cartography style)</footer>
+<footer>libstats v2.5.0 · docs/UML/ · regenerated 2026-10-19 (corvid-cartography style)</footer>
 
 <script>
 function show(id, tabEl) {

@@ -1625,11 +1625,6 @@ For corvus adoption (v3.0.0) and later:
   Z has 19.1.7, and CI only reports format (clang-format-17, `|| true`).
   The older drift in `fisher_f.cpp` and `beta.cpp` was cleared in
   `b5a47df`.
-- `docs/UML/` still stamps v2.4.0 (four SVG footers, `index.html`,
-  `STYLE.md`); regenerate via `gen_*.py` at the next release-docs pass.
-  The layer overview `docs/architecture-layers.svg` (2026-10-19, corvus
-  band style) carries no version stamp, by design.
-
 ## Cross-Repo Dependencies [OPEN]
 - **pylibstats** pins this repo by a `find_package` floor and a
   FetchContent `GIT_TAG` in `pylibstats/CMakeLists.txt`, which is the

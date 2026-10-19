@@ -16,7 +16,7 @@ Never introduce other hues. White text is NOT used; gold or parchment carries em
 - viewBox width 860 (matches existing four), height as needed; rx=0 canvas rect fill #161b23.
 - font-family="system-ui,-apple-system,Helvetica,Arial,sans-serif" on the root <g>.
 - Title (top-left, gold, 15px bold, letter-spacing 0.5) + one-line subtitle (#9a9382, 10.5px).
-- Footer bottom-right: "libstats v2.4.0  ·  docs/UML/<file>.svg" in #9a9382 9.5px.
+- Footer bottom-right: "libstats v2.5.0  ·  docs/UML/<file>.svg" in #9a9382 9.5px.
 
 ## Boxes
 - Card: rect fill #e7e0cf, stroke #c8a24e 1.2, rx 7. Title 11px bold ink; detail lines 9.5px ink; tag line 8.5px #6b6455.
@@ -40,7 +40,7 @@ Legend box (parchment card, bottom-left) on every diagram that uses ≥2 arrow k
 
 ## Text rules
 - ABC: accurate, brief, clear. No marketing words.
-- Every number in a diagram must come from the current tree (v2.4.0 / main): dispatch_thresholds.h for thresholds, HEADER_ARCHITECTURE_GUIDE.md for the roster, CHANGELOG for #143 wording.
+- Every number in a diagram must come from the current tree (v2.5.0 / main): dispatch_thresholds.h for thresholds, HEADER_ARCHITECTURE_GUIDE.md for the roster, CHANGELOG for #143 wording.
 - Use ≥ 8.5px text; nothing smaller.
 
 ## Decision outputs (added 2026-09-17 after review)

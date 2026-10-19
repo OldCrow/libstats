@@ -26,7 +26,7 @@ def dele(d): out.append(f'<path d="{d}" fill="none" stroke="{GOLD}" stroke-width
 
 # ---- header ----
 t(20, 30, "libstats class hierarchy", 15, GOLD, "bold", "start", ' letter-spacing="0.5"')
-t(20, 46, "DistributionInterface → DistributionBase (+ ThreadSafeCacheManager mixin) → 27 concrete distributions in 7 families · v2.4.0", 10.5, MUTED_I, None, "start")
+t(20, 46, "DistributionInterface → DistributionBase (+ ThreadSafeCacheManager mixin) → 27 concrete distributions in 7 families · v2.5.0", 10.5, MUTED_I, None, "start")
 
 # ---- top classes ----
 card(300, 60, "DistributionInterface", "", "", w=260, h=62, italic=True, stereo="«interface»")
@@ -38,9 +38,9 @@ out.append(f'<rect x="280" y="150" width="300" height="96" rx="7" fill="{CARD}" 
 t(430, 168, "DistributionBase", 11, INK, "bold")
 t(430, 182, "getSurvival · getHazard · fitWithDiagnostics", 8.5, INK)
 t(430, 194, "shouldUseSIMDBatch · isApproximatelyEqual", 8.5, INK)
-t(430, 211, "span batch API — (span in, span out, PerformanceHint):", 8.5, MUTED_C)
-t(430, 223, "getProbability · getLogProbability · getCumulativeProbability", 8.5, MUTED_C)
-t(430, 235, "static parallelBatchFit(datasets, results)", 8.5, MUTED_C)
+t(430, 211, "Each concrete distribution declares (not the base):", 8.5, MUTED_C)
+t(430, 223, "span batch API (span in, span out, PerformanceHint)", 8.5, MUTED_C)
+t(430, 235, "and static parallelBatchFit(datasets, results)", 8.5, MUTED_C)
 inh("M430 150 V124")                 # Base -> Interface
 inh("M580 190 H705 V124")            # Base -> mixin
 
@@ -91,7 +91,7 @@ SY_BOT = SY_Y+CH+44
 # Real-line asymmetric (right)
 RL_Y = SY_BOT+20; rc = RL_Y+30
 band(RX, RL_Y, BW, CH+44, "REAL-LINE, ASYMMETRIC")
-card(RC[1], rc, "Laplace", "Laplace(μ, b)", "continuous"); card(RC[2], rc, "Gumbel", "G(μ, β)", "max-stable"); card(RC[3], rc, "Cauchy", "Cauchy(x₀, γ)", "PDF delegate")
+card(RC[1], rc, "Laplace", "Laplace(μ, b)", "continuous"); card(RC[2], rc, "Gumbel", "G(μ, β)", "max-stable"); card(RC[3], rc, "Cauchy", "Cauchy(x₀, γ)", "LogPDF delegate")
 RL_BOT = RL_Y+CH+44
 dele(f"M{RC[3]+38} {rc} V{sc+CH}")   # Cauchy -> StudentT (through the inter-band gap)
 
@@ -115,14 +115,14 @@ AN_BOT = AN_Y+CH+44
 
 # ---- legend + footer ----
 LG_Y = AN_BOT+16
-out.append(f'<rect x="{LX}" y="{LG_Y}" width="470" height="44" rx="7" fill="{CARD}" stroke="{GOLD}" stroke-width="1.2"/>')
+out.append(f'<rect x="{LX}" y="{LG_Y}" width="640" height="44" rx="7" fill="{CARD}" stroke="{GOLD}" stroke-width="1.2"/>')
 inh(f"M{LX+14} {LG_Y+16} H{LX+70}"); t(LX+80, LG_Y+20, "inherits (solid, hollow head) — a band arrow means every class in the band", 8.5, INK, None, "start")
-dele(f"M{LX+14} {LG_Y+34} H{LX+70}"); t(LX+80, LG_Y+38, "delegates internally (dashed, open head) — PDF/CDF forwarded to the target class", 8.5, INK, None, "start")
+dele(f"M{LX+14} {LG_Y+34} H{LX+70}"); t(LX+80, LG_Y+38, "delegates internally (dashed, open head) — calls forwarded to the target class (Cauchy: LogPDF only)", 8.5, INK, None, "start")
 H = LG_Y+44+26
-t(W-20, H-10, "libstats v2.4.0  ·  docs/UML/class-hierarchy.svg", 9.5, MUTED_I, None, "end")
+t(W-20, H-10, "libstats v2.5.0  ·  docs/UML/class-hierarchy.svg", 9.5, MUTED_I, None, "end")
 
 svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
-<title>libstats class hierarchy — v2.4.0</title>
+<title>libstats class hierarchy — v2.5.0</title>
 <defs>
  <marker id="inh" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto"><polygon points="1 1,11 6,1 11" fill="{INK}" stroke="{GOLD}" stroke-width="1.4"/></marker>
  <marker id="del" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="{GOLD}" stroke-width="1.6"/></marker>
@@ -133,4 +133,4 @@ svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{
 </g>
 </svg>
 '''
-open(__import__("os").path.join(__import__("os").path.dirname(__file__), "class-hierarchy.svg"),"w").write(svg); print("height", H)
+open(__import__("os").path.join(__import__("os").path.dirname(__file__), "class-hierarchy.svg"),"w",encoding="utf-8",newline="\n").write(svg); print("height", H)

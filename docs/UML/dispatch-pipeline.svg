@@ -1,23 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 1028" width="860" height="1028">
-<title>libstats batch dispatch pipeline — v2.4.0</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 1042" width="860" height="1042">
+<title>libstats batch dispatch pipeline — v2.5.0</title>
 <defs>
  <marker id="flow" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><polygon points="1 1,9 5,1 9" fill="#c8a24e"/></marker>
  <marker id="flow_ok" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><polygon points="1 1,9 5,1 9" fill="#6f9a5a"/></marker>
  <marker id="flow_err" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><polygon points="1 1,9 5,1 9" fill="#c0563f"/></marker>
  <marker id="del" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="#c8a24e" stroke-width="1.6"/></marker>
 </defs>
-<rect width="860" height="1028" fill="#161b23"/>
+<rect width="860" height="1042" fill="#161b23"/>
 <g font-family="system-ui,-apple-system,Helvetica,Arial,sans-serif">
 <text x="20" y="30" font-size="15" fill="#c8a24e" text-anchor="start" font-weight="bold" letter-spacing="0.5">libstats batch dispatch pipeline</text>
-<text x="20" y="46" font-size="10.5" fill="#9a9382" text-anchor="start">span-based batch call → DispatchUtils::autoDispatch → strategy selection → execution · five threshold tables · v2.4.0</text>
-<rect x="230" y="60" width="400" height="46" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+<text x="20" y="46" font-size="10.5" fill="#9a9382" text-anchor="start">span-based batch call → DispatchUtils::autoDispatch → strategy selection → execution · five threshold tables · v2.5.0</text>
+<rect x="170" y="60" width="520" height="46" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="430.0" y="77" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">User call — span-based batch API</text>
 <text x="430.0" y="91" font-size="8.5" fill="#161b23" text-anchor="middle">dist.getProbability(span&lt;const double&gt; values, span&lt;double&gt; results, PerformanceHint hint)</text>
 <path d="M430 106 V136" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
-<rect x="230" y="138" width="400" height="58" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+<rect x="170" y="138" width="520" height="58" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="430.0" y="155" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">DispatchUtils::autoDispatch&lt;D&gt;</text>
-<text x="430.0" y="169" font-size="8.5" fill="#161b23" text-anchor="middle">validate spans (size mismatch throws · no-aliasing contract, #112) · count == 0 → early exit</text>
-<text x="430.0" y="181" font-size="8.5" fill="#161b23" text-anchor="middle">selectStrategy(hint, count)</text>
+<text x="430.0" y="169" font-size="8.5" fill="#161b23" text-anchor="middle">validate: size mismatch throws · no-aliasing contract (#112) · count == 0 → return</text>
+<text x="430.0" y="181" font-size="8.5" fill="#161b23" text-anchor="middle">count == 1 → scalar_func · AUTO → PerformanceDispatcher::selectStrategy(count, …)</text>
+<text x="430.0" y="193" font-size="8.5" fill="#161b23" text-anchor="middle">forced hint → DispatchUtils::mapHintToStrategy(hint, count)</text>
 <path d="M430 196 V224" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
 <polygon points="430,226 505,258 430,290 355,258" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="430" y="255" font-size="8.5" fill="#161b23" text-anchor="middle" font-weight="bold">hint.strategy</text>
@@ -30,19 +31,21 @@
 <text x="575" y="252" font-size="8.5" fill="#c0563f" text-anchor="middle">NO — forced hint</text>
 <rect x="40" y="320" width="390" height="116" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="235.0" y="337" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">PerformanceDispatcher  (AUTO)</text>
-<text x="235.0" y="351" font-size="8.5" fill="#161b23" text-anchor="middle">SIMDPolicy::getBestLevel() → table: kNeon · kAvx · kAvx2 · kAvx512 · kNone</text>
-<text x="235.0" y="363" font-size="8.5" fill="#161b23" text-anchor="middle">SSE2 delegates to kAvx (matching 128-bit width)</text>
-<text x="235.0" y="375" font-size="8.5" fill="#161b23" text-anchor="middle">threshold[dist][op] from dispatch_thresholds.h (dashed arrow → tables below)</text>
-<text x="235.0" y="387" font-size="8.5" fill="#161b23" text-anchor="middle">count ≥ threshold → PARALLEL, else VECTORIZED</text>
+<text x="235.0" y="351" font-size="8.5" fill="#161b23" text-anchor="middle">level → table: kNeon · kAvx · kAvx2 · kAvx512 · kNone (SSE2 → kAvx)</text>
+<text x="235.0" y="363" font-size="8.5" fill="#161b23" text-anchor="middle">count &lt; getMinThreshold() → SCALAR (8 AVX/AVX2/AVX-512 · 4 SSE2/NEON)</text>
+<text x="235.0" y="375" font-size="8.5" fill="#161b23" text-anchor="middle">count &lt; threshold[dist][op] (dispatch_thresholds.h) → VECTORIZED</text>
+<text x="235.0" y="387" font-size="8.5" fill="#161b23" text-anchor="middle">else → PARALLEL; WORK_STEALING on hyper-threaded macOS only</text>
 <text x="235.0" y="399" font-size="8.5" fill="#161b23" text-anchor="middle">NEVER sentinel → VECTORIZED at every size (SIMD dominates, or fork loses)</text>
-<text x="235.0" y="411" font-size="8.5" fill="#6b6455" text-anchor="middle">thresholds measured per machine — never compare across architectures</text>
+<text x="235.0" y="411" font-size="8.5" fill="#161b23" text-anchor="middle">no SIMD: min threshold is SIZE_MAX → SCALAR, kNone not consulted</text>
+<text x="235.0" y="423" font-size="8.5" fill="#6b6455" text-anchor="middle">thresholds measured per machine — never compare across architectures</text>
 <rect x="470" y="320" width="350" height="116" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="645.0" y="337" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">mapHintToStrategy  (forced)</text>
 <text x="645.0" y="351" font-size="8.5" fill="#161b23" text-anchor="middle">FORCE_SCALAR → SCALAR</text>
 <text x="645.0" y="363" font-size="8.5" fill="#161b23" text-anchor="middle">FORCE_VECTORIZED → VECTORIZED</text>
-<text x="645.0" y="375" font-size="8.5" fill="#161b23" text-anchor="middle">MINIMIZE_LATENCY → size check, small N stays serial</text>
-<text x="645.0" y="387" font-size="8.5" fill="#161b23" text-anchor="middle">MAXIMIZE_THROUGHPUT → OS-aware parallel choice</text>
-<text x="645.0" y="399" font-size="8.5" fill="#6b6455" text-anchor="middle">bypasses the threshold tables entirely</text>
+<text x="645.0" y="375" font-size="8.5" fill="#161b23" text-anchor="middle">FORCE_PARALLEL → PARALLEL</text>
+<text x="645.0" y="387" font-size="8.5" fill="#161b23" text-anchor="middle">MINIMIZE_LATENCY → count ≤ min threshold ? SCALAR : VECTORIZED</text>
+<text x="645.0" y="399" font-size="8.5" fill="#161b23" text-anchor="middle">MAXIMIZE_THROUGHPUT → OS-aware PARALLEL / WORK_STEALING</text>
+<text x="645.0" y="411" font-size="8.5" fill="#6b6455" text-anchor="middle">bypasses the threshold tables entirely</text>
 <path d="M235.0 436 V458 H418" fill="none" stroke="#c8a24e" stroke-width="1.6"/>
 <path d="M418 458 V484" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
 <path d="M645.0 436 V458 H442" fill="none" stroke="#c8a24e" stroke-width="1.6"/>
@@ -51,89 +54,91 @@
 <text x="430.0" y="503" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">executeStrategy(strategy, dist, values, results)</text>
 <text x="430.0" y="517" font-size="8.5" fill="#161b23" text-anchor="middle">branch on the Strategy enum value</text>
 <path d="M430 530 V546" fill="none" stroke="#c8a24e" stroke-width="1.6"/>
-<path d="M158.0 546 H722.0" fill="none" stroke="#c8a24e" stroke-width="1.6"/>
-<path d="M158.0 546 V574" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
-<path d="M346.0 546 V574" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
-<path d="M534.0 546 V574" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
-<path d="M722.0 546 V574" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
-<rect x="70" y="576" width="176" height="104" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
-<text x="158.0" y="593" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">SCALAR</text>
-<text x="158.0" y="607" font-size="8.5" fill="#161b23" text-anchor="middle">for i in 0..count:</text>
-<text x="158.0" y="619" font-size="8.5" fill="#161b23" text-anchor="middle">results[i] = scalar_func(dist, values[i])</text>
-<text x="158.0" y="631" font-size="8.5" fill="#161b23" text-anchor="middle"></text>
-<text x="158.0" y="643" font-size="8.5" fill="#6b6455" text-anchor="middle">per-element libm path</text>
-<text x="158.0" y="655" font-size="8.5" fill="#6b6455" text-anchor="middle">~2–5 ns/elem</text>
-<rect x="258" y="576" width="176" height="104" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
-<text x="346.0" y="593" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">VECTORIZED</text>
-<text x="346.0" y="607" font-size="8.5" fill="#161b23" text-anchor="middle">batch_func(dist, values, results)</text>
-<text x="346.0" y="619" font-size="8.5" fill="#161b23" text-anchor="middle">→ *BatchUnsafeImpl → VectorOps</text>
-<text x="346.0" y="631" font-size="8.5" fill="#161b23" text-anchor="middle">lane width: 8d AVX-512 · 4d AVX2/AVX</text>
-<text x="346.0" y="643" font-size="8.5" fill="#161b23" text-anchor="middle">2d NEON/SSE2 · 1d scalar fallback</text>
-<text x="346.0" y="655" font-size="8.5" fill="#6b6455" text-anchor="middle">fastest for moderate N</text>
-<rect x="446" y="576" width="176" height="104" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
-<text x="534.0" y="593" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">PARALLEL</text>
-<text x="534.0" y="607" font-size="8.5" fill="#161b23" text-anchor="middle">parallel_func(dist, values, results)</text>
-<text x="534.0" y="619" font-size="8.5" fill="#161b23" text-anchor="middle">ParallelUtils::parallelForSlices (#143)</text>
-<text x="534.0" y="631" font-size="8.5" fill="#161b23" text-anchor="middle">element-denominated serial gate,</text>
-<text x="534.0" y="643" font-size="8.5" fill="#161b23" text-anchor="middle">SIMD-slice callbacks</text>
-<text x="534.0" y="655" font-size="8.5" fill="#6b6455" text-anchor="middle">GCD · std::execution::par · Win32 pool</text>
-<rect x="634" y="576" width="176" height="104" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
-<text x="722.0" y="593" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">WORK_STEALING</text>
-<text x="722.0" y="607" font-size="8.5" fill="#161b23" text-anchor="middle">work_stealing_func(…)</text>
-<text x="722.0" y="619" font-size="8.5" fill="#161b23" text-anchor="middle">GlobalWorkStealingPool::getInstance()</text>
-<text x="722.0" y="631" font-size="8.5" fill="#161b23" text-anchor="middle">→ WorkStealingPool::parallelForSlices</text>
-<text x="722.0" y="643" font-size="8.5" fill="#161b23" text-anchor="middle"></text>
-<text x="722.0" y="655" font-size="8.5" fill="#6b6455" text-anchor="middle">irregular / uneven per-element cost</text>
-<rect x="20" y="736" width="790" height="172" rx="12" fill="#232a36" stroke="#c8a24e" stroke-width="1.5"/>
+<path d="M120.0 546 H738.0" fill="none" stroke="#c8a24e" stroke-width="1.6"/>
+<path d="M120.0 546 V574" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
+<path d="M326.0 546 V574" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
+<path d="M532.0 546 V574" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
+<path d="M738.0 546 V574" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
+<rect x="20" y="576" width="200" height="116" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+<text x="120.0" y="593" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">SCALAR</text>
+<text x="120.0" y="607" font-size="8.5" fill="#161b23" text-anchor="middle">for i in 0..count:</text>
+<text x="120.0" y="619" font-size="8.5" fill="#161b23" text-anchor="middle">results[i] = scalar_func(dist, v[i])</text>
+<text x="120.0" y="631" font-size="8.5" fill="#6b6455" text-anchor="middle">per-element libm path</text>
+<text x="120.0" y="643" font-size="8.5" fill="#6b6455" text-anchor="middle">takes the lock per element</text>
+<text x="120.0" y="655" font-size="8.5" fill="#6b6455" text-anchor="middle">~2–5 ns/elem</text>
+<rect x="226" y="576" width="200" height="116" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+<text x="326.0" y="593" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">VECTORIZED</text>
+<text x="326.0" y="607" font-size="8.5" fill="#161b23" text-anchor="middle">batch_func(dist, values, results)</text>
+<text x="326.0" y="619" font-size="8.5" fill="#161b23" text-anchor="middle">→ *BatchUnsafeImpl → VectorOps</text>
+<text x="326.0" y="631" font-size="8.5" fill="#161b23" text-anchor="middle">lane width: 8d AVX-512 · 4d AVX2/AVX</text>
+<text x="326.0" y="643" font-size="8.5" fill="#161b23" text-anchor="middle">2d NEON/SSE2 · 1d scalar fallback</text>
+<text x="326.0" y="655" font-size="8.5" fill="#6b6455" text-anchor="middle">fastest for moderate N</text>
+<rect x="432" y="576" width="200" height="116" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+<text x="532.0" y="593" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">PARALLEL</text>
+<text x="532.0" y="607" font-size="8.5" fill="#161b23" text-anchor="middle">parallel_func(dist, values, results)</text>
+<text x="532.0" y="619" font-size="8.5" fill="#161b23" text-anchor="middle">ParallelUtils::parallelForSlices</text>
+<text x="532.0" y="631" font-size="8.5" fill="#161b23" text-anchor="middle">(#143) element-denominated gate;</text>
+<text x="532.0" y="643" font-size="8.5" fill="#161b23" text-anchor="middle">1024-element slices run the</text>
+<text x="532.0" y="655" font-size="8.5" fill="#161b23" text-anchor="middle">VECTORIZED kernel (#191)</text>
+<text x="532.0" y="667" font-size="8.5" fill="#6b6455" text-anchor="middle">library-owned std::thread ThreadPool</text>
+<rect x="638" y="576" width="200" height="116" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+<text x="738.0" y="593" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">WORK_STEALING</text>
+<text x="738.0" y="607" font-size="8.5" fill="#161b23" text-anchor="middle">work_stealing_func(…)</text>
+<text x="738.0" y="619" font-size="8.5" fill="#161b23" text-anchor="middle">GlobalWorkStealingPool::getInstance()</text>
+<text x="738.0" y="631" font-size="8.5" fill="#161b23" text-anchor="middle">→ WorkStealingPool::parallelForSlices</text>
+<text x="738.0" y="643" font-size="8.5" fill="#161b23" text-anchor="middle">same 1024-slice kernel (#191)</text>
+<text x="738.0" y="655" font-size="8.5" fill="#6b6455" text-anchor="middle">irregular / uneven per-element cost</text>
+<rect x="20" y="736" width="790" height="186" rx="12" fill="#232a36" stroke="#c8a24e" stroke-width="1.5"/>
 <text x="34" y="754" font-size="11.5" fill="#c8a24e" text-anchor="start" font-weight="bold" letter-spacing="0.5">THRESHOLD TABLES — dispatch_thresholds.h · Gaussian row shown: {PDF, LogPDF, CDF} · count ≥ value → PARALLEL</text>
 <rect x="43" y="766" width="142" height="108" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="114" y="783" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">kNeon</text>
 <text x="114" y="796" font-size="8.5" fill="#6b6455" text-anchor="middle">Apple M1 · NEON</text>
-<text x="114" y="814" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">PDF      50 000</text>
-<text x="114" y="827" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">LogPDF     64</text>
-<text x="114" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF     NEVER</text>
-<text x="114" y="864" font-size="8.5" fill="#6b6455" text-anchor="middle">measured 2026-09-04</text>
+<text x="114" y="814" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">PDF      75 000</text>
+<text x="114" y="827" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">LogPDF  200 000</text>
+<text x="114" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF      10 000</text>
+<text x="114" y="864" font-size="8.5" fill="#6b6455" text-anchor="middle">R8 re-derived 2026-10-14</text>
 <rect x="195" y="766" width="142" height="108" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="266" y="783" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">kAvx</text>
 <text x="266" y="796" font-size="8.5" fill="#6b6455" text-anchor="middle">Kaby Lake, capped build</text>
 <text x="266" y="814" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">PDF      50 000</text>
 <text x="266" y="827" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">LogPDF  150 000</text>
-<text x="266" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF      4 096</text>
+<text x="266" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF       4 096</text>
 <text x="266" y="864" font-size="8.5" fill="#6b6455" text-anchor="middle">LIBSTATS_MAX_SIMD_TIER=AVX</text>
 <rect x="347" y="766" width="142" height="108" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="418" y="783" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">kAvx2</text>
 <text x="418" y="796" font-size="8.5" fill="#6b6455" text-anchor="middle">Kaby Lake i7-7820HQ</text>
-<text x="418" y="814" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">PDF     130 000</text>
-<text x="418" y="827" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">LogPDF   20 000</text>
-<text x="418" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF      8 192</text>
+<text x="418" y="814" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">PDF      50 000</text>
+<text x="418" y="827" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">LogPDF  100 000</text>
+<text x="418" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF       4 096</text>
 <text x="418" y="864" font-size="8.5" fill="#6b6455" text-anchor="middle">AVX2+FMA · 4P/8T</text>
 <rect x="499" y="766" width="142" height="108" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="570" y="783" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">kAvx512</text>
 <text x="570" y="796" font-size="8.5" fill="#6b6455" text-anchor="middle">Ryzen 7445HS Zen 4</text>
-<text x="570" y="814" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">PDF   1 000 000</text>
-<text x="570" y="827" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">LogPDF  400 000</text>
-<text x="570" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF     25 000</text>
-<text x="570" y="864" font-size="8.5" fill="#6b6455" text-anchor="middle">AVX-512 · 6P/12T · MSVC</text>
+<text x="570" y="814" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">PDF      50 000</text>
+<text x="570" y="827" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">LogPDF  150 000</text>
+<text x="570" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF       8 192</text>
+<text x="570" y="864" font-size="8.5" fill="#6b6455" text-anchor="middle">AVX-512 6P/12T clang-cl</text>
 <rect x="651" y="766" width="142" height="108" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
 <text x="722" y="783" font-size="11" fill="#161b23" text-anchor="middle" font-weight="bold">kNone</text>
-<text x="722" y="796" font-size="8.5" fill="#6b6455" text-anchor="middle">no SIMD · scalar loop</text>
+<text x="722" y="796" font-size="8.5" fill="#6b6455" text-anchor="middle">no SIMD (T2: exp+erf)</text>
 <text x="722" y="814" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">PDF       8 192</text>
 <text x="722" y="827" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">LogPDF    8 192</text>
 <text x="722" y="840" font-size="9.5" fill="#161b23" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">CDF       8 192</text>
-<text x="722" y="864" font-size="8.5" fill="#6b6455" text-anchor="middle">T2 class: exp + erf</text>
-<text x="34" y="896" font-size="8.5" fill="#9a9382" text-anchor="start">SSE2 → kAvx · NEVER = VECTORIZED always · values are per-machine measurements (three quiet --large runs); kNone is an unprofiled placeholder</text>
-<path d="M52 436 V734" fill="none" stroke="#c8a24e" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#del)"/>
+<text x="722" y="864" font-size="8.5" fill="#6b6455" text-anchor="middle">not used by AUTO</text>
+<text x="34" y="896" font-size="8.5" fill="#9a9382" text-anchor="start">SSE2 → kAvx · NEVER = VECTORIZED always · SIMD rows re-derived 2026-10-14 from the R8 bundles (three --large runs per machine).</text>
+<text x="34" y="910" font-size="8.5" fill="#9a9382" text-anchor="start">kNone is an unprofiled placeholder: with no SIMD, AUTO returns SCALAR below getMinThreshold() (SIZE_MAX) before any table lookup.</text>
+<path d="M52 436 V564 H10 V706 H52 V734" fill="none" stroke="#c8a24e" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#del)"/>
 <rect x="62" y="717" width="81.6" height="12" fill="#161b23"/>
 <text x="62" y="726" font-size="8.5" fill="#9a9382" text-anchor="start">threshold lookup</text>
-<rect x="20" y="924" width="330" height="78" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
-<path d="M34 940 H90" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
-<text x="100" y="944" font-size="8.5" fill="#161b23" text-anchor="start">control / data flow</text>
-<path d="M34 957 H90" fill="none" stroke="#6f9a5a" stroke-width="1.6" marker-end="url(#flow_ok)"/>
-<text x="100" y="961" font-size="8.5" fill="#161b23" text-anchor="start">decision: affirmative branch</text>
-<path d="M34 974 H90" fill="none" stroke="#c0563f" stroke-width="1.6" marker-end="url(#flow_err)"/>
-<text x="100" y="978" font-size="8.5" fill="#161b23" text-anchor="start">decision: negative branch</text>
-<path d="M34 991 H90" fill="none" stroke="#c8a24e" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#del)"/>
-<text x="100" y="995" font-size="8.5" fill="#161b23" text-anchor="start">reads the threshold tables (dashed, open head)</text>
-<text x="840" y="1018" font-size="9.5" fill="#9a9382" text-anchor="end">libstats v2.4.0  ·  docs/UML/dispatch-pipeline.svg</text>
+<rect x="20" y="938" width="330" height="78" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+<path d="M34 954 H90" fill="none" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
+<text x="100" y="958" font-size="8.5" fill="#161b23" text-anchor="start">control / data flow</text>
+<path d="M34 971 H90" fill="none" stroke="#6f9a5a" stroke-width="1.6" marker-end="url(#flow_ok)"/>
+<text x="100" y="975" font-size="8.5" fill="#161b23" text-anchor="start">decision: affirmative branch</text>
+<path d="M34 988 H90" fill="none" stroke="#c0563f" stroke-width="1.6" marker-end="url(#flow_err)"/>
+<text x="100" y="992" font-size="8.5" fill="#161b23" text-anchor="start">decision: negative branch</text>
+<path d="M34 1005 H90" fill="none" stroke="#c8a24e" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#del)"/>
+<text x="100" y="1009" font-size="8.5" fill="#161b23" text-anchor="start">reads the threshold tables (dashed, open head)</text>
+<text x="840" y="1032" font-size="9.5" fill="#9a9382" text-anchor="end">libstats v2.5.0  ·  docs/UML/dispatch-pipeline.svg</text>
 </g>
 </svg>

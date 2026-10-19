@@ -14,13 +14,13 @@
   <rect x="556" y="44" width="284" height="138" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
   <text x="698" y="62" text-anchor="middle" font-size="11" font-weight="bold" fill="#161b23">Result&lt;T&gt; template</text>
   <line x1="564" y1="70" x2="832" y2="70" stroke="#c8a24e" stroke-width="0.75"/>
-  <text x="570" y="86" font-size="9.5" fill="#161b23">T              value</text>
-  <text x="570" y="101" font-size="9.5" fill="#161b23">ValidationError   error_code</text>
-  <text x="570" y="116" font-size="9.5" fill="#161b23">std::string    message</text>
+  <text x="570" y="86" font-size="9.5" fill="#161b23">variant&lt;T, ErrorInfo&gt;  data_</text>
+  <text x="570" y="101" font-size="9.5" fill="#161b23">ErrorInfo:  ValidationError code</text>
+  <text x="570" y="116" font-size="9.5" fill="#161b23">                    std::string message</text>
   <line x1="564" y1="123" x2="832" y2="123" stroke="#c8a24e" stroke-width="0.75"/>
-  <text x="570" y="138" font-size="9.5" fill="#6b6455">bool isOk() / isError()</text>
-  <text x="570" y="153" font-size="9.5" fill="#6b6455">static Result ok(T val)</text>
-  <text x="570" y="168" font-size="9.5" fill="#6b6455">static Result makeError(code, msg)</text>
+  <text x="570" y="138" font-size="9.5" fill="#6b6455">isOk() / isError() · *r / unwrap()</text>
+  <text x="570" y="153" font-size="9.5" fill="#6b6455">errorCode() / message() · static ok(T val)</text>
+  <text x="570" y="168" font-size="9.5" fill="#6b6455">static makeError(code, msg) — T never built</text>
 
   <!-- ValidationError enum -->
   <rect x="556" y="194" width="284" height="100" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
@@ -43,8 +43,8 @@
   <rect x="20" y="150" width="224" height="92" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
   <text x="132" y="168" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#161b23">② Result-based factory ★ preferred</text>
   <text x="28" y="185" font-size="9.5" fill="#161b23">auto r = Gaussian::create(0.0, 1.0);</text>
-  <text x="28" y="199" font-size="9.5" fill="#161b23">if (r.isOk()) use(r.value);</text>
-  <text x="28" y="213" font-size="9.5" fill="#161b23">else log(r.message);</text>
+  <text x="28" y="199" font-size="9.5" fill="#161b23">if (r.isOk()) use(*r);</text>
+  <text x="28" y="213" font-size="9.5" fill="#161b23">else log(r.message());</text>
   <text x="28" y="230" font-size="8.5" fill="#6b6455">no-throw; preferred for library APIs</text>
 
   <rect x="20" y="254" width="224" height="74" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
@@ -67,10 +67,10 @@
   <text x="90" y="492" text-anchor="middle" font-size="11" font-weight="bold" fill="#161b23">caller</text>
   <text x="90" y="506" text-anchor="middle" font-size="9.5" fill="#161b23">Gaussian::create(μ, σ)</text>
 
-  <line x1="160" y1="496" x2="200" y2="496" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
+  <line x1="160" y1="496" x2="190" y2="496" stroke="#c8a24e" stroke-width="1.6" marker-end="url(#flow)"/>
 
-  <rect x="200" y="476" width="190" height="40" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
-  <text x="295" y="492" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#161b23">validateGaussianParams(μ, σ)</text>
+  <rect x="190" y="476" width="210" height="40" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
+  <text x="295" y="492" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#161b23">validateGaussianParameters(μ, σ)</text>
   <text x="295" y="506" text-anchor="middle" font-size="9.5" fill="#161b23">returns VoidResult</text>
 
   <!-- error branch -->
@@ -80,11 +80,11 @@
   <line x1="150" y1="530" x2="150" y2="560" stroke="#c0563f" stroke-width="1.6" marker-end="url(#flow-err)"/>
   <rect x="20" y="560" width="260" height="40" rx="7" fill="#e7e0cf" stroke="#c0563f" stroke-width="1.2"/>
   <text x="150" y="576" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#161b23">Result::makeError(code, msg)</text>
-  <text x="150" y="590" text-anchor="middle" font-size="9.5" fill="#161b23">isError()=true · value unset</text>
+  <text x="150" y="590" text-anchor="middle" font-size="9.5" fill="#161b23">isError()=true · holds ErrorInfo</text>
 
   <!-- ok branch -->
   <text x="405" y="490" font-size="8.5" fill="#6f9a5a">ok</text>
-  <line x1="390" y1="496" x2="430" y2="496" stroke="#6f9a5a" stroke-width="1.6" marker-end="url(#flow-ok)"/>
+  <line x1="400" y1="496" x2="430" y2="496" stroke="#6f9a5a" stroke-width="1.6" marker-end="url(#flow-ok)"/>
 
   <rect x="430" y="476" width="210" height="40" rx="7" fill="#e7e0cf" stroke="#6f9a5a" stroke-width="1.2"/>
   <text x="535" y="492" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#161b23">createUnchecked(μ, σ)</text>
@@ -97,8 +97,9 @@
   <text x="755" y="506" text-anchor="middle" font-size="9.5" fill="#161b23">isOk()=true · value ready</text>
 
   <!-- trySet family note -->
-  <rect x="20" y="616" width="820" height="20" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2" stroke-dasharray="3 2"/>
-  <text x="430" y="630" text-anchor="middle" font-size="8.5" fill="#6b6455">Post-construction mutation: trySetMean(v) / trySetStdDev(v) / trySetParameters(μ,σ)  →  VoidResult  (no-throw).  Throwing setMean(v) / setStdDev(v) also available.</text>
+  <rect x="20" y="612" width="820" height="36" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <text x="430" y="627" text-anchor="middle" font-size="8.5" fill="#6b6455">Post-construction mutation: trySetMean(v) / trySetStandardDeviation(v) / trySetParameters(μ,σ)  →  VoidResult  (no-throw).</text>
+  <text x="430" y="640" text-anchor="middle" font-size="8.5" fill="#6b6455">Throwing setMean(v) / setStandardDeviation(v) / setParameters(μ,σ) also available.</text>
 
   <!-- Legend -->
   <rect x="20" y="656" width="250" height="54" rx="7" fill="#e7e0cf" stroke="#c8a24e" stroke-width="1.2"/>
@@ -109,6 +110,6 @@
   <line x1="34" y1="698" x2="74" y2="698" stroke="#c0563f" stroke-width="1.6" marker-end="url(#flow-err)"/>
   <text x="82" y="702" font-size="8.5" fill="#161b23">error path</text>
 
-  <text x="840" y="702" text-anchor="end" font-size="9.5" fill="#9a9382">libstats v2.4.0  ·  docs/UML/result-factory-flow.svg</text>
+  <text x="840" y="702" text-anchor="end" font-size="9.5" fill="#9a9382">libstats v2.5.0  ·  docs/UML/result-factory-flow.svg</text>
 </g>
 </svg>
