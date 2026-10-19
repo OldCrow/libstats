@@ -189,7 +189,11 @@ libstats/
 └── scripts/          # Build and development scripts
 ```
 
-**📖 For detailed header organization and dependency management**, see [docs/HEADER_ARCHITECTURE_GUIDE.md](docs/HEADER_ARCHITECTURE_GUIDE.md).
+Headers depend strictly downward through six layers; `stats/analysis/` sits beside the stack:
+
+![libstats header layering](docs/architecture-layers.svg)
+
+**📖 For detailed header organization and dependency management**, see [docs/HEADER_ARCHITECTURE_GUIDE.md](docs/HEADER_ARCHITECTURE_GUIDE.md). Process-level diagrams: [class hierarchy](docs/UML/class-hierarchy.svg), [batch dispatch pipeline](docs/UML/dispatch-pipeline.svg), [thread-safety cache](docs/UML/thread-safety-cache.svg), [Result&lt;T&gt; factory flow](docs/UML/result-factory-flow.svg).
 
 ## Key Features Summary
 

@@ -2,6 +2,14 @@
 
 This guide describes the v2.x public header layout.
 
+![libstats header layering](architecture-layers.svg)
+
+Adjacency is the relationship: each band rests on the one below it.
+`stats/analysis/` sits beside the stack because it consumes distributions
+without being part of `libstats.h`. Process-level detail (class hierarchy,
+batch dispatch, thread-safety cache, `Result<T>` factories) is in the four
+diagrams under [`UML/`](UML/).
+
 ## Public include styles
 
 Single-header include:

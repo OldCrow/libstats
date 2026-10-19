@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="740" height="586" viewBox="0 0 740 586">
+  <title>libstats header layering</title>
+  <g font-family="Helvetica, Arial, sans-serif" text-anchor="middle">
+
+    <!-- Layer 6: complete library interface -->
+    <rect x="12" y="12" width="716" height="52" rx="14"
+          fill="#1b4d8f" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="370" y="34" font-size="15" font-weight="bold" fill="#ffffff">Layer 6 — libstats.h, complete library interface</text>
+    <text x="370" y="52" font-size="11" fill="#ffffff">forward declarations + simd.h by default &#183; #define LIBSTATS_FULL_INTERFACE for every distribution and the infrastructure below</text>
+
+    <!-- Layer 5: concrete distributions -->
+    <rect x="12" y="72" width="476" height="120" rx="14"
+          fill="#5b2d8f" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="250" y="93" font-size="15" font-weight="bold" fill="#ffffff">Layer 5 — distributions/, 27 in 7 families</text>
+    <rect x="24" y="102" width="452" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="250" y="117" font-size="10" font-weight="bold" fill="#000000">standalone — Gaussian &#183; Gamma &#183; Beta &#183; Student t &#183; Weibull &#183; Von Mises &#183; &#8230;</text>
+    <rect x="24" y="130" width="452" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="250" y="145" font-size="10" font-weight="bold" fill="#000000">delegation — Chi-squared and Erlang over Gamma &#183; Geometric &#183; Bernoulli</text>
+    <rect x="24" y="158" width="452" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="250" y="173" font-size="10" font-weight="bold" fill="#000000">transform — InverseGamma (1/x) &#183; HalfNormal &#183; TruncatedNormal</text>
+
+    <!-- Layer 4: distribution framework -->
+    <rect x="12" y="200" width="476" height="52" rx="14"
+          fill="#2e6fca" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="250" y="222" font-size="15" font-weight="bold" fill="#ffffff">Layer 4 — distribution framework (core/)</text>
+    <text x="250" y="240" font-size="11" fill="#ffffff">DistributionInterface &#8594; DistributionBase &#183; concepts &#183; Result&lt;T&gt; factories</text>
+
+    <!-- Layer 3: caching and performance framework -->
+    <rect x="12" y="260" width="476" height="52" rx="14"
+          fill="#0b6e75" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="250" y="282" font-size="15" font-weight="bold" fill="#ffffff">Layer 3 — caching &amp; performance framework</text>
+    <text x="250" y="300" font-size="11" fill="#ffffff">distribution_cache &#183; performance_dispatcher &#183; dispatch_utils &#183; thresholds</text>
+
+    <!-- Alongside: stats::analysis -->
+    <rect x="500" y="72" width="228" height="240" rx="14"
+          fill="#d08c00" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="614" y="90" font-size="15" font-weight="bold" fill="#ffffff">stats/analysis/</text>
+    <text x="614" y="106" font-size="11" fill="#ffffff">&lt;dist&gt;_analysis.h: explicit include only</text>
+
+    <rect x="512" y="114" width="204" height="88" rx="10"
+          fill="#f0c060" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="614" y="133" font-size="12.5" font-weight="bold" fill="#000000">generic — analysis.h</text>
+    <rect x="520" y="142" width="188" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="614" y="157" font-size="10" font-weight="bold" fill="#000000">goodness_of_fit &#183; info criteria</text>
+    <rect x="520" y="170" width="188" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="614" y="185" font-size="10" font-weight="bold" fill="#000000">cross_validation &#183; bootstrap</text>
+
+    <rect x="512" y="210" width="204" height="92" rx="10"
+          fill="#f0c060" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="614" y="229" font-size="12.5" font-weight="bold" fill="#000000">&lt;dist&gt;_analysis.h</text>
+    <rect x="520" y="238" width="188" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="614" y="253" font-size="10" font-weight="bold" fill="#000000">gaussian &#183; poisson &#183; exponential</text>
+    <rect x="520" y="266" width="188" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="614" y="281" font-size="10" font-weight="bold" fill="#000000">gamma &#183; binomial &#183; discrete</text>
+
+    <!-- Layer 2: core utilities + platform -->
+    <rect x="12" y="320" width="716" height="134" rx="14"
+          fill="#44546a" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="370" y="341" font-size="15" font-weight="bold" fill="#ffffff">Layer 2 — core utilities + platform</text>
+
+    <rect x="24" y="350" width="346" height="92" rx="10"
+          fill="#a9b6c8" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="197" y="369" font-size="12.5" font-weight="bold" fill="#000000">core/</text>
+    <rect x="34" y="378" width="326" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="197" y="393" font-size="10" font-weight="bold" fill="#000000">math_utils &#183; log_space_ops &#183; bessel</text>
+    <rect x="34" y="406" width="326" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="197" y="421" font-size="10" font-weight="bold" fill="#000000">safety &#183; distribution_validation &#183; error_handling</text>
+
+    <rect x="382" y="350" width="334" height="92" rx="10"
+          fill="#c9d3e0" stroke="#1a1a1a" stroke-width="2.5"/>
+    <text x="549" y="369" font-size="12.5" font-weight="bold" fill="#000000">platform/</text>
+    <rect x="392" y="378" width="314" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="549" y="393" font-size="10" font-weight="bold" fill="#000000">simd.h VectorOps — SSE2 &#183; AVX &#183; AVX2 &#183; AVX-512 &#183; NEON</text>
+    <rect x="392" y="406" width="314" height="22" rx="6" fill="#f9f8ff" stroke="#1a1a1a" stroke-width="2"/>
+    <text x="549" y="421" font-size="10" font-weight="bold" fill="#000000">simd_policy &#183; thread_pool &#183; work_stealing_pool</text>
+
+    <!-- Layer 1: foundation -->
+    <rect x="12" y="462" width="716" height="52" rx="14"
+          fill="#2f3b4a" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="370" y="484" font-size="15" font-weight="bold" fill="#ffffff">Layer 1 — foundation</text>
+    <text x="370" y="502" font-size="11" fill="#ffffff">constants &#183; cpu_detection &#183; platform_constants &#183; common/ forward declarations</text>
+
+    <!-- Standard library and OS threading -->
+    <rect x="12" y="522" width="716" height="52" rx="14"
+          fill="#00784f" stroke="#1a1a1a" stroke-width="3"/>
+    <text x="370" y="544" font-size="15" font-weight="bold" fill="#ffffff">C++20 standard library only — zero external dependencies</text>
+    <text x="370" y="562" font-size="11" fill="#ffffff">batch PARALLEL / WORK_STEALING on the library's own std::thread pools &#183; safe_* wrappers pick std::execution, GCD or the OS pool</text>
+
+  </g>
+</svg>

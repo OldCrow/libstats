@@ -299,6 +299,10 @@ and `docs/CI_CD_GUIDE.md`.
 ## Reading map — load on demand, not preemptively
 
 - Header layout, include styles, namespace hygiene → `docs/HEADER_ARCHITECTURE_GUIDE.md`
+- Orienting on where a change belongs → `docs/architecture-layers.svg` (band
+  diagram, VISUAL REFERENCE ONLY: restates the Architecture section and adds
+  no constraint; update it when a header directory is added, removed, or
+  changes layer). Process detail: `docs/UML/` (four diagrams, `STYLE.md`).
 - Build options, build types, build-system internals → `docs/BUILD_SYSTEM_GUIDE.md`,
   `docs/HEADER_TOOLS_GUIDE.md`
 - SIMD tiers, kernel design, threshold miscalibration → `docs/SIMD_OPTIMIZATION_REFERENCE.md`
