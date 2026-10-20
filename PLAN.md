@@ -1650,6 +1650,8 @@ For corvus adoption (v3.0.0) and later:
   For pylibstats v0.8.0 (pylibstats #20): the Windows wheel (raise the
   timeout and accept corvus's AVX2 cap, or clang-cl), NOTICE and
   Apache-2.0 text in the wheel, and pylibstats' missing LICENSE file. For
-  corvus v1.1.0: Linux aarch64 (GCC) NEON is unvalidated.
+  the corvus pin bump: Linux aarch64 (GCC) NEON is unvalidated. That bump
+  targets corvus v1.2.0, the throughput release; corvus v1.1.0 ships
+  correctness fixes only [corvus, user, 2026-10-20; #156 retargeted].
 - **libhmm** shares rules and reference kernels: libhmm#103 (`errorf_inv`
   saturation class), libhmm#108 (Codecov port after #152).
