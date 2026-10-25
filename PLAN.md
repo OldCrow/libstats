@@ -22,7 +22,21 @@ bench tooling and evidence, and the docs. Dropped as superseded: `45000c6`
 pin bump regenerates anyway) and every `docs(plan)` / `docs(bench)` plan note
 (their state is this section). The old branch is kept on origin until the user
 confirms its archive tag (`archive/dev-v2.5.0-corvus`, like the spike) and
-deletion. ctest here after the fixes below: **132/132** (`ctest -LE "timing|benchmark"`,
+deletion. Branch commits, oldest first (signed 2026-10-25, pushed; the plan
+commit that carries this list follows them):
+
+```
+30479d9 feat(corvus): corvus is the special-function engine, rebuilt on v2.5.0
+1ba43bf ci(sanitizers): 60-minute budget and SSE-only corvus targets — the leg now compiles co
+91c3755 build(corvus): warn when a fetched corvus is compiled by cl.exe; plan state for the libs
+fc03129 build(corvus): the cl.exe warning names a clang-cl build as the first remedy; plan state
+da00ad8 build(windows): clang-cl presets; the Strict build type compiles under clang-cl
+03f2af4 ci: a Windows clang-cl leg through the preset; docs for the two Windows compilers
+6df2275 docs(agents): list the windows-clang-cl presets under the CMake-standard deviations
+39e27c5 docs(bench): Zen 4 and Kaby Lake comparatives, v2.4.1 vs the adoption branch
+```
+
+ctest here after the fixes below: **132/132** (`ctest -LE "timing|benchmark"`,
 Release, NEON, 150 s), build warning-clean.
 
 **Resolution rules applied (42 files changed on both sides).** `main`'s code
