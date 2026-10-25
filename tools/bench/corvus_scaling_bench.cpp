@@ -2,6 +2,7 @@
 #include <chrono>
 #include <corvus/corvus.h>
 #include <cstdio>
+#include <cstdlib>
 #include <random>
 #include <span>
 #include <vector>
@@ -20,7 +21,23 @@ double ns_per_elem(std::size_t n, std::size_t reps, F&& f) {
     }
     return best;
 }
+// LIBSTATS_BENCH_WARMUP_SECONDS=N: spin N seconds before the first measurement, so every row is
+// taken in the sustained-frequency regime. Off by default. Needed on the Zen 4 box, where boost
+// steps down ~1.5x some 8-15 s into a run and lands on different rows of the two binaries.
+static void warmup() {
+    const char* s = std::getenv("LIBSTATS_BENCH_WARMUP_SECONDS");
+    const double secs = s ? std::atof(s) : 0.0;
+    if (secs <= 0.0)
+        return;
+    volatile double x = 1.0;
+    const auto end = clk::now() + std::chrono::duration<double>(secs);
+    while (clk::now() < end)
+        for (int i = 0; i < 1000; ++i)
+            x = x * 1.0000001 + 1e-9;
+    std::printf("(warm-up %.0f s)\n", secs);
+}
 int main() {
+    warmup();
     std::printf("corvus %s\n", corvus::active_target());
     std::mt19937_64 rng(7);
     std::uniform_real_distribution<double> ux(0.05, 20.0), ub(0.01, 0.99), up(0.001, 0.999);
