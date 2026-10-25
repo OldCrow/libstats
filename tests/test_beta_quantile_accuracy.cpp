@@ -534,7 +534,10 @@ TEST(BetaQuantileAccuracy, BudgetUsage) {
     // Runs after the row tests (gtest keeps definition order within a suite): how much of the
     // allowance the worst row used, so a platform that lands near the edge is visible.
     std::printf("worst row used %.3f of its allowance\n", g_worst_usage);
-    EXPECT_GT(g_worst_usage, 0.0);
+    // 0 is a legitimate reading since v3.0.0: corvus beta_p_inv lands within an ulp of every row's
+    // reference, so no row spends any allowance. The printed figure is the signal; the gate only
+    // guards the accumulator against a negative (mis-signed) usage.
+    EXPECT_GE(g_worst_usage, 0.0);
 }
 
 TEST(BetaQuantileAccuracy, FisherFDelegateConsistent) {

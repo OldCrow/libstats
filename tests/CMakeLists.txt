@@ -200,8 +200,8 @@ create_libstats_gtest(test_simd_policy test_simd_policy.cpp)
 
 # #117 guard: the CPUID gates behind tier selection -- AVX-512 requires DQ and XCR0[7:5], AVX2
 # requires FMA. Reads CPUID/XCR0 independently and requires the dispatcher to agree. Deliberately
-# NOT added to the "timing" label block below -- same reasoning as test_bessel_tier: it carries no
-# timing assertions, and a regression gate CI never runs guards nothing.
+# NOT added to the "timing" label block below -- same reasoning as test_bessel: it carries no timing
+# assertions, and a regression gate CI never runs guards nothing.
 create_libstats_gtest(test_simd_dispatch_gates test_simd_dispatch_gates.cpp)
 
 # NEON vector_exp accuracy regression (Issue #33 Q1) -- guards the table+poly kernel's <1 ULP floor.
@@ -354,32 +354,28 @@ create_libstats_gtest(test_rayleigh_enhanced test_rayleigh_enhanced.cpp)
 create_libstats_test(test_von_mises_basic test_von_mises_basic.cpp)
 create_libstats_gtest(test_von_mises_enhanced test_von_mises_enhanced.cpp)
 
-# #97 guards: which Bessel tier a TU compiles, and that both tiers agree on the
-# negative axis. Deliberately NOT added to the "timing" label block below --
-# these carry no timing assertions, and CI's correctness run excludes that
-# label, so labelling them would silently stop them running where they matter
-# most (the libstdc++ std::domain_error path is Linux-only).
-create_libstats_gtest(test_bessel_tier test_bessel_tier.cpp)
+# #97 guards: which Bessel tier a TU compiles, and that both tiers agree on the negative axis.
+# Deliberately NOT added to the "timing" label block below -- these carry no timing assertions, and
+# CI's correctness run excludes that label, so labelling them would silently stop them running where
+# they matter most (the libstdc++ std::domain_error path is Linux-only).
+create_libstats_gtest(test_bessel test_bessel.cpp)
 
-# #95 guard: per-tier ULP gate for the x86 vector_cos_<tier> kernels
-# (vector_sin_<tier> staged in behind LIBSTATS_TRIG_GATES_HAVE_SIN until it
-# lands). Deliberately NOT added to the "timing" label block below -- same
-# reasoning as test_bessel_tier above: this carries no timing assertions,
-# and a regression gate CI never runs guards nothing.
+# #95 guard: per-tier ULP gate for the x86 vector_cos_<tier> kernels (vector_sin_<tier> staged in
+# behind LIBSTATS_TRIG_GATES_HAVE_SIN until it lands). Deliberately NOT added to the "timing" label
+# block below -- same reasoning as test_bessel above: this carries no timing assertions, and a
+# regression gate CI never runs guards nothing.
 create_libstats_gtest(test_trig_ulp_gates test_trig_ulp_gates.cpp)
 
-# #105 guard: per-tier special-value gate for the x86 vector_log_<tier>
-# kernels (NaN/-1/0/+inf/denorm_min in the vector body and the scalar tail,
-# specials-first), plus the LogNormal batch NaN consequence through the
-# public span API. Deliberately NOT added to the "timing" label block below
-# -- same reasoning as test_trig_ulp_gates above: this carries no timing
+# #105 guard: per-tier special-value gate for the x86 vector_log_<tier> kernels
+# (NaN/-1/0/+inf/denorm_min in the vector body and the scalar tail, specials-first), plus the
+# LogNormal batch NaN consequence through the public span API. Deliberately NOT added to the
+# "timing" label block below -- same reasoning as test_trig_ulp_gates above: this carries no timing
 # assertions, and a regression gate CI never runs guards nothing.
 create_libstats_gtest(test_log_special_gates test_log_special_gates.cpp)
 
-# #102 guard: batch-path NaN propagation across all 19 distributions
-# (pdf/logpdf/cdf span overloads, FORCE_VECTORIZED, NaN in vector body and
-# scalar tail). Deliberately NOT added to the "timing" label block below --
-# same reasoning as test_log_special_gates above.
+# #102 guard: batch-path NaN propagation across all 19 distributions (pdf/logpdf/cdf span overloads,
+# FORCE_VECTORIZED, NaN in vector body and scalar tail). Deliberately NOT added to the "timing"
+# label block below -- same reasoning as test_log_special_gates above.
 create_libstats_gtest(test_batch_nan_gates test_batch_nan_gates.cpp)
 
 # #163 guard: copy/move construction and assignment across all 27 distributions must carry the
@@ -514,20 +510,17 @@ create_libstats_gtest(test_von_mises_tails test_von_mises_tails.cpp)
 # nothing.
 create_libstats_gtest(test_lognormal_cdf_accuracy test_lognormal_cdf_accuracy.cpp)
 
-# #49-pattern guard for Gaussian: GaussianDistribution's CDF paths never
-# routed through detail::normal_cdf and reproduced the same erf cancellation
-# bug; same gate structure as test_lognormal_cdf_accuracy above, closed-form
-# erfc oracle. Deliberately NOT added to the "timing" label block below --
-# same reasoning: this carries no timing assertions, and a regression gate
-# CI never runs guards nothing.
+# #49-pattern guard for Gaussian: GaussianDistribution's CDF paths never routed through
+# detail::normal_cdf and reproduced the same erf cancellation bug; same gate structure as
+# test_lognormal_cdf_accuracy above, closed-form erfc oracle. Deliberately NOT added to the "timing"
+# label block below -- same reasoning: this carries no timing assertions, and a regression gate CI
+# never runs guards nothing.
 create_libstats_gtest(test_gaussian_cdf_accuracy test_gaussian_cdf_accuracy.cpp)
 
-# #118 guard: ParallelUtils::parallelFor propagates a chunk's exception, and
-# only after every chunk has finished (the naive wait()->get() fix unwinds the
-# caller while siblings still hold references into its frame). Deliberately NOT
-# added to the "timing" label block below -- the sleeps here are ordering
-# scaffolding, not speedup assertions, and a regression gate CI never runs
-# guards nothing.
+# #118 guard: ParallelUtils::parallelFor propagates a chunk's exception, and only after every chunk
+# has finished (the naive wait()->get() fix unwinds the caller while siblings still hold references
+# into its frame). Deliberately NOT added to the "timing" label block below -- the sleeps here are
+# ordering scaffolding, not speedup assertions, and a regression gate CI never runs guards nothing.
 create_libstats_gtest(test_parallel_exception_propagation test_parallel_exception_propagation.cpp)
 
 # binomial.h - Binomial distribution (discrete, lgamma log-space PMF, beta_i CDF)
@@ -542,12 +535,11 @@ create_libstats_gtest(test_negative_binomial_enhanced test_negative_binomial_enh
 create_libstats_test(test_geometric_basic test_geometric_basic.cpp)
 create_libstats_gtest(test_geometric_enhanced test_geometric_enhanced.cpp)
 
-# #116 guard: NegativeBinomial/Geometric getQuantile search bound past INT_MAX.
-# A separate binary rather than cases in test_negative_binomial_enhanced /
-# test_geometric_enhanced because BOTH of those carry the "timing" label below,
-# and the correctness run is -LE "timing|benchmark" -- a guard added there would
-# compile and never run. Deliberately NOT added to the "timing" label block:
-# same reasoning as test_bessel_tier and the three CDF accuracy gates above.
+# #116 guard: NegativeBinomial/Geometric getQuantile search bound past INT_MAX. A separate binary
+# rather than cases in test_negative_binomial_enhanced / test_geometric_enhanced because BOTH of
+# those carry the "timing" label below, and the correctness run is -LE "timing|benchmark" -- a guard
+# added there would compile and never run. Deliberately NOT added to the "timing" label block: same
+# reasoning as test_bessel and the three CDF accuracy gates above.
 create_libstats_gtest(test_discrete_quantile_bounds test_discrete_quantile_bounds.cpp)
 
 # laplace.h - Laplace distribution (double-exponential, standalone, median/MAD MLE)
@@ -558,17 +550,16 @@ create_libstats_gtest(test_laplace_enhanced test_laplace_enhanced.cpp)
 create_libstats_test(test_cauchy_basic test_cauchy_basic.cpp)
 create_libstats_gtest(test_cauchy_enhanced test_cauchy_enhanced.cpp)
 
-# half_normal.h - Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline) (#57)
-# Deliberately NOT in the "timing" label block: the enhanced binary carries the
-# Born-compliant edge contracts (#103/#104) and mpmath accuracy gates but no
-# speedup assertions, and CI's correctness run is -LE "timing|benchmark".
+# half_normal.h - Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline) (#57) Deliberately NOT
+# in the "timing" label block: the enhanced binary carries the Born-compliant edge contracts
+# (#103/#104) and mpmath accuracy gates but no speedup assertions, and CI's correctness run is -LE
+# "timing|benchmark".
 create_libstats_test(test_half_normal_basic test_half_normal_basic.cpp)
 create_libstats_gtest(test_half_normal_enhanced test_half_normal_enhanced.cpp)
 
-# truncated_normal.h - Truncated Normal (regime-split erf/erfc normalization) (#57)
-# Same reasoning as test_half_normal_*: no speedup assertions, so NOT
-# timing-labelled — the same-tail cancellation gates must run in CI's
-# correctness pass.
+# truncated_normal.h - Truncated Normal (regime-split erf/erfc normalization) (#57) Same reasoning
+# as test_half_normal_*: no speedup assertions, so NOT timing-labelled — the same-tail cancellation
+# gates must run in CI's correctness pass.
 create_libstats_test(test_truncated_normal_basic test_truncated_normal_basic.cpp)
 create_libstats_gtest(test_truncated_normal_enhanced test_truncated_normal_enhanced.cpp)
 
@@ -588,10 +579,9 @@ create_libstats_gtest(test_fisher_f_enhanced test_fisher_f_enhanced.cpp)
 create_libstats_test(test_inverse_gamma_basic test_inverse_gamma_basic.cpp)
 create_libstats_gtest(test_inverse_gamma_enhanced test_inverse_gamma_enhanced.cpp)
 
-# logistic.h - Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline,
-# conditional-MLE scale via safeguarded Newton).
-# Deliberately NOT added to the "timing" label block below: the enhanced binary
-# carries no speedup assertion, only a FORCE_VECTORIZED-vs-FORCE_SCALAR equality
+# logistic.h - Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline, conditional-MLE
+# scale via safeguarded Newton). Deliberately NOT added to the "timing" label block below: the
+# enhanced binary carries no speedup assertion, only a FORCE_VECTORIZED-vs-FORCE_SCALAR equality
 # check, so it must run in the correctness suite (-LE "timing|benchmark").
 create_libstats_test(test_logistic_basic test_logistic_basic.cpp)
 create_libstats_gtest(test_logistic_enhanced test_logistic_enhanced.cpp)
@@ -741,7 +731,7 @@ add_custom_target(
             test_simd_neon_exp_accuracy
             test_simd_neon_log_accuracy
             test_simd_neon_cos_accuracy
-            test_bessel_tier
+            test_bessel
             test_trig_ulp_gates
             test_vonmises_cdf_accuracy
             test_lognormal_cdf_accuracy

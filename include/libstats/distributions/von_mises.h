@@ -52,10 +52,9 @@ namespace stats {
  *
  * @par Bessel Functions:
  * The implementation requires modified Bessel functions I₀ and I₁.
- * These are provided by include/libstats/core/bessel.h via two tiers:
- *   Tier 1 (LIBSTATS_HAS_CXX17_BESSEL): std::cyl_bessel_i (GCC, MSVC).
- *   Tier 2 (fallback): A&S §9.8.1–9.8.4 polynomial, error < 1.6×10⁻⁷.
- *   AppleClang / macOS libc++ always uses Tier 2.
+ * These come from include/libstats/core/bessel.h, backed by corvus i0/i1/i0e/i1e
+ * (max 1 ULP on every SIMD tier) since v3.0.0; the two-tier std::cyl_bessel_i /
+ * A&S arrangement of v2.x is gone.
  *
  * @par Batch operations and SIMD:
  * The VECTORIZED strategy evaluates log f = −2κ·sin²(t/2) − log(2π·I₀(κ)e^−κ), t = x − μ,

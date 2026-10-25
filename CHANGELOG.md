@@ -5,6 +5,77 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - Unreleased
+
+corvus adoption (milestone #6; was v2.5.0's scope until the renumbering of
+2026-10-04). corvus becomes the special-function engine: every local
+special-function core is retired, and the installed package depends on
+corvus. API additive over v2.5.0; the major bump is the new dependency
+(`find_dependency(corvus 1.0 CONFIG)` under `SameMajorVersion`).
+
+The branch was rebuilt on the v2.5.0 release on 2026-10-24: v2.5.0's
+correctness fixes, concurrency fixes and re-derived dispatch tables are all
+kept; where the two sides had rewritten the same path, v2.5.0's code stands
+and only its special-function calls were re-pointed at corvus.
+
+### Changed
+- Every `detail::` special function — erf/erfc/erf_inv, lgamma/lbeta,
+  digamma/trigamma, gamma_p/gamma_q, beta_i (all three forms),
+  inverse_beta_i and the Bessel I₀/I₁ helpers — is a corvus call;
+  `gamma_p_inv` follows at the pin bump (corvus v1.0.1's inverse fails the
+  #160 gates; see PLAN.md). The pre-adoption edge contracts (NaN in, NaN out; out-of-domain
+  reads 0 or 1 as before; the I_½(a, a) = ½ tie) are kept as guards around
+  the call. `beta_i_pair(x, 1 − x, …)` takes whichever side is small, as
+  `beta_p(a, b, x)` or `beta_q(b, a, 1 − x)`.
+- The `vector_*` adapters hand corvus whole spans, filling constant
+  arguments per 256-lane block. Beta and Poisson CDF batch paths run on
+  them; Gamma and Student-t keep v2.5.0's per-element loops (the rate-product
+  correction, #216, and the deep-tail kernel, #159, live there) on the
+  corvus-backed scalars.
+- The probit (`inverse_normal_cdf`, `inv_survival_normal`) is
+  −√2·erfc⁻¹(2p) on the small side; the A&S-seeded Newton solver of v2.5.0
+  remains only for subnormal targets (`inv_survival_normal_log`, #225).
+- `lgamma` no longer needs the `lgamma_r` detour (#173): corvus writes no
+  `signgam`.
+- `vector_erf` is corvus on x86 (1.3× AVX2 to 2.7× AVX-512 faster than the
+  retired kernels). `vector_exp/log/cos/sin/pow` stay libstats' own tier
+  kernels: routing them through corvus was tried on the adoption branch and
+  reverted for throughput (2026-10-03).
+- `install` is supported only with a system corvus
+  (`cmake/FindOrFetchCorvus.cmake`); the package config carries
+  `find_dependency(corvus)`.
+- Windows: clang-cl presets (`windows-clang-cl`, `-strict`), the Strict
+  build type under clang-cl, and a CI leg through the preset; a configure
+  warning when a fetched corvus was compiled by cl.exe.
+
+### Added
+- `detail::erfc_inv`, `gamma_q_inv`, `beta_q_inv`, `log_bessel_i0_scaled`
+  as a corvus call, and a span-first-argument `vector_gamma_q` for Poisson.
+- `cmake/FindOrFetchCorvus.cmake` (find_package first, FetchContent pinned
+  to v1.0.1 until the v1.2.0 pin bump); the `corvus-pin-currency` CI canary;
+  the CI install-contract leg installs Highway and corvus into its prefix;
+  the sanitizer leg compiles corvus and Highway under ASan/UBSan.
+- `tools/bench/`: `elementary_bench`, `distributions_bench`,
+  `corvus_scaling_bench` and the Zen 4 / Kaby Lake comparatives under
+  `docs/bench-evidence/`.
+
+### Removed
+- The local special-function cores (series, continued fractions, Temme
+  tails, the logit-Newton beta inverse; the gamma inverse's closure stays
+  until the pin bump), the Bessel tiers (`std::cyl_bessel_i` / A&S) with
+  `LIBSTATS_HAS_CXX17_BESSEL` and the generated `libstats_config.h` (#97),
+  the x86 erf kernels in the SIMD TUs. `test_bessel_tier` → `test_bessel`.
+
+### Fixed
+- Poisson batch CDF floored its count like the scalar path only in the
+  scalar strategy; the corvus block path rounded it (DH3 P1).
+
+### Pending before release
+- Pin bump to corvus v1.2.0 (the v1.1.0 correctness fixes and the throughput
+  release), then: regenerate `docs/ACCURACY_CHARACTERIZATION.md` on all
+  three ISAs, re-derive the dispatch tables (R8 → derive script → A/B), the
+  native M1 / Kaby Lake / Zen 4 record legs, and the pylibstats pin.
+
 ## [2.5.0] - 2026-10-16
 
 Correctness and accuracy release — no source API change; the public API

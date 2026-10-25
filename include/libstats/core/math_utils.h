@@ -327,6 +327,18 @@ inline constexpr double LOG1PMX_SERIES_LIMIT = 0.5;
  * 0 where the other count is zero, −∞ otherwise.
  */
 [[nodiscard]] double binomial_log_pmf(double xa, double xb, double pa) noexcept;
+// v3.0.0 additions, in corvus argument order (parameters first, probability
+// last). Each solves against whichever of p and 1 - p is the smaller, so a
+// single call is accurate on both sides of the median; see corvus.h.
+
+/// Inverse complementary error function: erfc(erfc_inv(y)) = y, y in [0, 2].
+/// The probit route with no cancellation: Phi^-1(p) = -sqrt(2) * erfc_inv(2p).
+[[nodiscard]] double erfc_inv(double y) noexcept;
+/// x with Q(a, x) = q: the Gamma(a, 1) upper-tail quantile.
+[[nodiscard]] double gamma_q_inv(double a, double q) noexcept;
+/// x with 1 - I_x(a, b) = q. Also 1 - x of the Beta(b, a) quantile at full
+/// relative precision (the swap identity), which is how t quantiles use it.
+[[nodiscard]] double beta_q_inv(double a, double b, double q) noexcept;
 
 // =============================================================================
 // SIMD VECTORIZED SPECIAL FUNCTIONS
@@ -347,33 +359,24 @@ void vector_erf(std::span<const double> input, std::span<double> output) noexcep
 // (see gaussian.cpp getCumulativeProbabilityBatchUnsafeImpl). No distribution
 // batch path calls erfc, so a SIMD erfc primitive has no hot-path target.
 
-// DEFERRED: vector_gamma_p / vector_gamma_q
-// Target: Gamma/ChiSquared/Poisson CDF batch SIMD acceleration.
-// Prerequisite: SIMD series expansion for the regularized incomplete gamma
-//   function — requires branch-free iteration or a lookup table approach
-//   for the alternating series (hard to vectorize with early exit).
-// Estimated impact: moderate; Gamma CDF is already fast at 64 per scalar.
-void vector_gamma_p(double a, std::span<const double> x_values, std::span<double> output) noexcept;
-void vector_gamma_q(double a, std::span<const double> x_values, std::span<double> output) noexcept;
+// Batch special functions (v3.0.0: corvus-backed). Each hands corvus whole
+// spans; where one argument is a constant, the adapter fills it per block on
+// the stack (see math_utils.cpp). Sizes must match; mismatched spans are a
+// no-op. Hot loops in the distributions call these rather than the scalar
+// functions above.
 
-// DEFERRED: vector_beta_i
-// Target: Beta/Binomial-CDF/Student-t CDF SIMD batch acceleration.
-// Prerequisite: SIMD continued fraction for the regularized incomplete beta;
-//   Lentz's algorithm is sequential by nature. A table/polynomial substitute
-//   is needed for batched evaluation.
-// Estimated impact: high for Beta and StudentT CDF paths.
+/// out[i] = P(a, x[i]) — Gamma/ChiSquared/Erlang CDF shape.
+void vector_gamma_p(double a, std::span<const double> x_values, std::span<double> output) noexcept;
+/// out[i] = Q(a, x[i]).
+void vector_gamma_q(double a, std::span<const double> x_values, std::span<double> output) noexcept;
+/// out[i] = Q(a[i], x) — Poisson CDF shape, P(X <= k) = Q(k + 1, λ).
+void vector_gamma_q(std::span<const double> a_values, double x, std::span<double> output) noexcept;
+/// out[i] = I_{x[i]}(a, b) — Beta/Binomial/Student-t CDF shape.
 void vector_beta_i(std::span<const double> x_values, double a, double b,
                    std::span<double> output) noexcept;
-
-// DEFERRED: vector_lgamma — indefinitely deferred (see AGENTS.md Deferred Items).
-// Too complex to implement correctly as a SIMD primitive; low immediate
-// distribution impact given the existing scalar batch speeds.
+/// out[i] = lgamma(in[i]).
 void vector_lgamma(std::span<const double> input, std::span<double> output) noexcept;
-
-// DEFERRED: vector_lbeta
-// Target: NegativeBinomial PMF/CDF SIMD batch (lbeta appears in the lgamma-based PMF).
-// Prerequisite: vector_lgamma (itself indefinitely deferred; see above).
-//   Once vector_lgamma is available, vector_lbeta is a trivial wrapper.
+/// out[i] = lbeta(a[i], b[i]).
 void vector_lbeta(std::span<const double> a_values, std::span<const double> b_values,
                   std::span<double> output) noexcept;
 

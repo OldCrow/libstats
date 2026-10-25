@@ -1095,21 +1095,16 @@ void BetaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* val
                                                                double* results, std::size_t count,
                                                                double alpha,
                                                                double beta) const noexcept {
-    // Scalar per element. See section 18 header for why beta_i cannot be
-    // vectorized without replacing it with a fixed-iteration approximation.
-    // Hoist the lgamma prefix: lgamma(a+b) - lgamma(a) - lgamma(b) is constant
-    // for fixed (alpha, beta), saving 3 lgamma calls per element.
-    const double log_prefix = detail::beta_prefactor_constant(alpha, beta);
+    // Clamp x into [0, 1] (NaN passes through), then corvus evaluates
+    // I_x(alpha, beta) in place: I_0 = 0 and I_1 = 1 are its specials.
     for (std::size_t i = 0; i < count; ++i) {
         const double x = values[i];
-        if (x <= detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
-        } else if (x >= detail::ONE) {
-            results[i] = detail::ONE;
-        } else {
-            results[i] = detail::beta_i(x, alpha, beta, log_prefix);
-        }
+        results[i] = (x <= detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE
+                     : (x >= detail::ONE)       ? detail::ONE
+                                                : x;
     }
+    detail::vector_beta_i(std::span<const double>{results, count}, alpha, beta,
+                          std::span<double>{results, count});
 }
 
 //==============================================================================

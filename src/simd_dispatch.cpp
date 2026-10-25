@@ -14,14 +14,27 @@
 
 #include <algorithm>
 #include <cmath>
+#include <corvus/corvus.h>
 #include <cstdint>  // uintptr_t (required explicitly on libstdc++)
 #include <cstring>
 #include <limits>
+#include <span>
 #include <string>
 
 namespace stats {
 namespace simd {
 namespace ops {
+
+namespace {
+// erf on every x86 tier is corvus (v3.0.0): 1.3x (AVX2) to 2.7x (AVX-512) faster than the retired
+// musl-derived tier kernels (docs/bench-evidence/). corvus picks its tier from its own CPUID, so
+// LIBSTATS_MAX_SIMD_TIER does not cap this entry. NEON keeps vector_erf_neon, which is faster
+// than corvus there.
+[[maybe_unused]] void vector_erf_corvus(const double* values, double* results,
+                                        std::size_t size) noexcept {
+    corvus::erf(std::span<const double>{values, size}, std::span<double>{results, size});
+}
+}  // namespace
 
 //==============================================================================
 // makeDispatchTable — selects the best available SIMD tier at process startup.
@@ -85,7 +98,7 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_log = vector_log_sse2;
         t.vector_pow = vector_pow_sse2;
         t.vector_pow_elementwise = vector_pow_elementwise_sse2;
-        t.vector_erf = vector_erf_sse2;
+        t.vector_erf = vector_erf_corvus;  // SSE2 and every tier above it
         t.vector_cos = vector_cos_sse2;
         t.vector_sin = vector_sin_sse2;
     }
@@ -103,7 +116,6 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_log = vector_log_avx;
         t.vector_pow = vector_pow_avx;
         t.vector_pow_elementwise = vector_pow_elementwise_avx;
-        t.vector_erf = vector_erf_avx;
         t.vector_cos = vector_cos_avx;
         t.vector_sin = vector_sin_avx;
     }
@@ -122,7 +134,6 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_log = vector_log_avx2;
         t.vector_pow = vector_pow_avx2;
         t.vector_pow_elementwise = vector_pow_elementwise_avx2;
-        t.vector_erf = vector_erf_avx2;
         t.vector_cos = vector_cos_avx2;
         t.vector_sin = vector_sin_avx2;
     }
@@ -142,7 +153,6 @@ VectorOps::DispatchTable VectorOps::makeDispatchTable() noexcept {
         t.vector_log = vector_log_avx512;
         t.vector_pow = vector_pow_avx512;
         t.vector_pow_elementwise = vector_pow_elementwise_avx512;
-        t.vector_erf = vector_erf_avx512;
         t.vector_cos = vector_cos_avx512;
         t.vector_sin = vector_sin_avx512;
     }

@@ -181,14 +181,20 @@ The L2 boundary is architecture-specific and must not be assumed to hold on AVX2
 
 ## Cross-architecture accuracy differences
 
-### Bessel function tier selection
+### Bessel functions and the special-function engine
 
-`include/libstats/core/bessel.h` provides two tiers for `bessel_i0`, `bessel_i1`, and `log_bessel_i0`:
-
-- **Tier 1** (MSVC/GCC/Clang with `LIBSTATS_HAS_CXX17_BESSEL`): delegates to `std::cyl_bessel_i` (C++17 §29.9.3). Achieves <1 ULP against scipy for κ=2.
-- **Tier 2** (AppleClang/macOS, `LIBSTATS_HAS_CXX17_BESSEL` not defined): A&S §9.8.1–9.8.4 polynomial approximation. Documented precision: <1.6×10⁻⁷.
-
-The tier selection is automatic: CMakeLists.txt probes for `std::cyl_bessel_i` and records `LIBSTATS_HAS_CXX17_BESSEL` in the generated `libstats_config.h` (#97), so the library, tests and consumers compile the same tier. AppleClang's libc++ does not implement the C++17 special functions, so macOS builds take Tier 2. Since 8d3c9c7, Tier 1 `bessel_i0` returns 1 below 1e-8 (libstdc++'s `std::cyl_bessel_i(0, 5e-324)` is NaN), and `log_bessel_i0` and the tier-independent `log_bessel_i0_scaled` split log(2πx) past DBL_MAX/2π instead of returning −inf. The tier-independent A(κ) = I₁/I₀ ratio helpers build on whichever tier is active.
+Since v3.0.0 every special function — the Bessel I₀/I₁ pair behind von Mises,
+erf and its inverses, lgamma/lbeta, digamma/trigamma, the incomplete
+gamma/beta functions and their inverses — is a corvus kernel (max 1 ULP on
+every SIMD tier, corvus `docs/ACCURACY.md`). corvus dispatches on its own
+CPUID, so these no longer differ between compilers or between libstats' SIMD
+tiers. The two-tier `std::cyl_bessel_i` / A&S arrangement of
+`include/libstats/core/bessel.h` and `LIBSTATS_HAS_CXX17_BESSEL` are gone; the
+helpers that header declares are defined in `src/math_utils.cpp` over corvus.
+`vector_erf` is corvus on x86; `vector_exp`, `vector_log`, `vector_cos` and
+`vector_sin` stay libstats' own tier kernels (the corvus routing of the
+elementary family was tried on the adoption branch and reverted for
+throughput, see `CHANGELOG.md`).
 
 ### Implication for VonMises accuracy
 
@@ -270,10 +276,6 @@ are in Microsoft's "Vectorizer and parallelizer messages" page.
 ### vector_floor and vector_blend
 
 Deferred. These primitives would enable branchless Discrete CDF and some Uniform paths, but existing batch-path amortisation already gives large speedups. The expected benefit does not justify a new cross-backend primitive pass before v2.x releases.
-
-### vector_lgamma
-
-Deferred. A correct vectorised log-gamma is complex and has limited immediate distribution impact compared with exp/log/erf/cos.
 
 ### SVE
 

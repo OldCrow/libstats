@@ -784,6 +784,7 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                 dist.getCumulativeProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_lambda);
             });
+            pool.waitForAll();
         });
 }
 
@@ -937,25 +938,25 @@ void PoissonDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* 
                                                                   double* results,
                                                                   std::size_t count,
                                                                   double lambda) const noexcept {
-    // SIMD deferred: lgamma prevents vectorization of the PMF kernel.
+    // P(X <= k) = Q(k + 1, lambda), k = floor(x) (DH3 P1: a non-integer x floors, as the scalar
+    // path does): the varying argument is the first one. One pass writes the shape k + 1 into
+    // results, in double (no int cast, #114 S6), then corvus evaluates Q(., lambda) in place. The
+    // scalar path's guards map onto documented corvus specials: x < 0 -> shape 0 -> Q(0, lambda)
+    // = 0; a count past the scalar path's int range -> shape +inf -> Q(+inf, lambda) = 1; NaN
+    // propagates.
+    constexpr double kMaxSafeCount = static_cast<double>(std::numeric_limits<int>::max() - 1);
     for (std::size_t i = 0; i < count; ++i) {
-        if (std::isnan(values[i])) {
-            results[i] = values[i];
-            continue;
-        }
-        if (values[i] < detail::ZERO_DOUBLE) {
+        const double x = values[i];
+        if (x < detail::ZERO_DOUBLE) {
             results[i] = detail::ZERO_DOUBLE;
-            continue;
+        } else if (x > kMaxSafeCount) {
+            results[i] = std::numeric_limits<double>::infinity();
+        } else {
+            results[i] = std::floor(x) + detail::ONE;  // NaN stays NaN
         }
-
-        int k = floorToNonNegativeInt(values[i]);
-        if (!isValidCount(values[i])) {
-            results[i] = detail::ONE;
-            continue;
-        }
-
-        results[i] = detail::gamma_q(k + 1, lambda);
     }
+    detail::vector_gamma_q(std::span<const double>{results, count}, lambda,
+                           std::span<double>{results, count});
 }
 
 //==============================================================================

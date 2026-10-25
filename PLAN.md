@@ -7,6 +7,97 @@ carry (shipped releases, closed milestones, the Resolved log, the
 2026-08-21 defensive review, travel-era records, the corvus spike) is in
 `git show f508b12:PLAN.md`.
 
+## v3.0.0 corvus adoption — `dev/v3.0.0-corvus-adoption` [DERIVED, 2026-10-24, M1]
+
+**The adoption branch was rebuilt on the v2.5.0 release.** `dev/v2.5.0-corvus`
+(tip `72f9195`: 32 commits on `d8d3388`, 175 behind `main`) was not rebased in
+place. Its content was ported onto `main` (`c42fc4e`) as a new branch,
+`dev/v3.0.0-corvus-adoption`, in logical commits: the engine swap (the six
+corvus commits `d9afe31`…`e62a616` squashed, so the elementary-family swap and
+its revert net to "erf is corvus on x86"), the CI and clang-cl commits, the
+bench tooling and evidence, and the docs. Dropped as superseded: `45000c6`
+(normal-guess discrete quantiles and the Student-t one-inverse-call quantile;
+`main` has both, with the later accuracy fixes on top), `420eaf1` (already on
+`main` as `6245e4e`), `a036ffb` (an AVX-512 characterization block that the
+pin bump regenerates anyway) and every `docs(plan)` / `docs(bench)` plan note
+(their state is this section). The old branch is kept on origin until the user
+confirms its archive tag (`archive/dev-v2.5.0-corvus`, like the spike) and
+deletion. ctest here after the fixes below: **132/132** (`ctest -LE "timing|benchmark"`,
+Release, NEON, 150 s), build warning-clean.
+
+**Resolution rules applied (42 files changed on both sides).** `main`'s code
+stands in every overlapping file; the adoption re-points its special-function
+calls at corvus rather than replacing `main`'s rewritten paths:
+- `src/math_utils.cpp`: `lgamma`, `gamma_p/q`, `beta_i` (three forms),
+  `lbeta`, `digamma`, `trigamma`, `inverse_beta_i`,
+  `inverse_normal_cdf` and `inv_survival_normal` are corvus calls behind
+  `main`'s edge guards (NaN propagation, the 0/1 out-of-domain reads, the
+  I_½(a, a) = ½ tie, infinite shapes); `erfc_inv`, `gamma_q_inv`, `beta_q_inv`
+  and the Bessel helpers (`log_bessel_i0_scaled` included, which `main`'s von
+  Mises normaliser needs) are defined there. `beta_i_pair(x, 1 − x)` takes the
+  small side as `beta_p(a, b, x)` or `beta_q(b, a, 1 − x)`. The retired local
+  cores (series, continued fractions, Temme tails, BGRAT's shape-specific
+  helpers, the logit-Newton beta inverse, the log-x Newton gamma inverse,
+  `lgamma1p_small`, `gamma_q_small_shape`) are deleted: 3158 → 1544 lines,
+  found by the unused-function warnings and a reachability pass.
+- Kept as `main` wrote them, now on corvus-backed scalars: `gamma.cpp` (the
+  rate-product correction #216 and `gammaPAtRateProduct` loop; the branch's
+  `vector_gamma_p` block path is dropped), `student_t.cpp` (the #159 kernel,
+  `t_cdf(t, df, lbeta)` per element; the branch's `vector_beta_i` block path is
+  dropped), `truncated_normal.cpp`, `gaussian.cpp`, `half_normal.cpp`,
+  `von_mises.{h,cpp}` (quadrature), `dispatch_thresholds.h`, the three
+  helper deletions (fix-9), `tests/CMakeLists.txt` and `ci.yml` (union).
+- On corvus spans as the branch wrote them: `beta.cpp` and `poisson.cpp` batch
+  CDFs; the x86 erf kernels are gone from `simd_{sse2,avx2,avx512}.cpp`.
+- Docs: the adoption's own lines retitled v2.5.0 → v3.0.0; CHANGELOG `[3.0.0]`
+  rewritten to the ported state; `docs/ACCURACY_CHARACTERIZATION.md` is
+  `main`'s v2.5.0 copy, every block stale against corvus until the pin bump.
+
+**First ctest on the port (M1, 2026-10-24): 127/132, then three port fixes and
+one deferral.** Port fixes: the Poisson batch CDF rounded the count where the
+scalar path floors it (DH3 P1; `test_poisson_enhanced`, `test_contract_gates`);
+`log_bessel_i0` returned 5e-324 at 5e-324 (|x| + log i0e(|x|) cancels once
+e^-|x| rounds to 1; now x²/4 below 1e-8; fix-9 gate); the Beta quantile
+`BudgetUsage` gate asserted usage > 0, which a correctly rounded engine leaves
+at exactly 0 (now ≥ 0, the printed figure is the signal). **Deferral:
+`gamma_p_inv` stays on v2.5.0's log-x Newton solver (#160) with its helper
+closure restored from `main` (`log_gamma_tail`, the Temme zone, the series and
+continued fraction, `gamma_q_small_shape`, `kWilsonHilfertyExactShape`; marked
+`>>> restored from main` in the file).** corvus v1.0.1's `gamma_p_inv` fails
+`test_gamma_quantile_accuracy` and the Gamma/Erlang/ChiSquared identities
+grossly — Gamma(0.001).Q(0.9999) = 3.3e47 for 1.50, Gamma(20).Q(5e-324) = 0.02
+— which are corvus #48 (small-shape upper tail, fixed in v1.1.0 row 7) and #72
+(deep-subnormal targets, v1.1.0 row 12f, still open), plus the a ≥ 1e16
+Wilson-Hilferty exactness of #226 that corvus does not promise. The swap of the
+gamma inverse is the first item of the pin bump, gated by those two tests.
+
+**Still local, not corvus (decide per item before release):** `t_tails`
+(Student-t deep tail: `beta_continued_fraction`, `beta_i_large_a_half` BGRAT,
+`lgamma_ratio_excess`'s successors) and `inverse_t_cdf`'s `solve_concave`;
+`log_gamma_prefactor`, `beta_prefactor_constant`, the `log1pmx` family and
+`stirling_remainder` (density prefactors, #166/#266); `gamma_p_inv` and its
+closure (above); `inv_survival_normal_log`
+(subnormal probit targets, #225); `gamma_p_from_log_x` / `gamma_q_from_log_x`.
+Each is either a corvus swap-identity call away or a density kernel that is
+not corvus's business; the sweep at the pin bump decides.
+
+**Owed before v3.0.0 (unchanged from the workplan):** pin bump to corvus
+v1.2.0 (an intermediate v1.1.0 bump for its correctness fixes and scalar entry
+points is worth a ctest-only pass; `corvus_scalar` stays until then); then
+the characterization regeneration on all three ISAs, the dispatch-table
+re-derivation (R8 → `derive_threshold_rows.py` → `table_ab_bench` A/B), the
+record legs, pylibstats #20/#26. CI has not run on this branch yet (nothing
+pushed). Tooling: the `cmake-format` pre-commit hook crashes under its
+Python 3.15 venv (`re.Scanner` capturing groups, cmakelang 0.6.13); the C++
+hooks and the include-order check pass; CMake files were not re-formatted.
+
+**Local machine state, M1 (2026-10-24):** the only libstats build tree here is
+`build-m1-gg-v3/` (this branch, Release preset, AppleClang 21, corvus v1.0.1
+fetched, Highway 1.4.0 system). The 2026-10-02 note's `build-m1-gg/` and
+`build-m1-gg-corvus/` are gone. `../libstats-main` is the `main` worktree
+(`c42fc4e`). A stale 2.0.2 install remains under `~/.local/lib` and
+`~/.local/lib/cmake/libstats` (Z's equivalent was removed 2026-10-16).
+
 ## Status [DERIVED] — 2026-10-16
 **v2.5.0 released 2026-10-16.** PR #278 (`dev/v2.4.2` → `main`, merge
 commit `dda07d1`, 158 commits) closed the 75 issues of milestone #10,

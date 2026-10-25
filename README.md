@@ -44,7 +44,7 @@ FMA-contraction legs.
 [![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#-safety--numerical-stability)
 [![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#-performance-features)
 
-A modern C++20 statistical distributions library demonstrating how to build statistical software correctly — with genuine SIMD vectorization, parallel dispatch, thread safety, and zero external dependencies.
+A modern C++20 statistical distributions library demonstrating how to build statistical software correctly — with genuine SIMD vectorization, parallel dispatch, thread safety, and one deliberate dependency: [corvus](https://github.com/OldCrow/corvus) for the special functions.
 
 **📖 Complete Documentation:** For detailed information about building, architecture, parallel processing, and platform support, see the [comprehensive guides](#documentation) below.
 
@@ -215,7 +215,7 @@ Headers depend strictly downward through six layers; `stats/analysis/` sits besi
 - Numerical stability with log-space arithmetic
 
 ### 🔧 **Modern C++20 Design**
-- Zero external dependencies (standard library only)
+- One dependency: [corvus](https://github.com/OldCrow/corvus) (special and elementary functions, MIT) with Google Highway (Apache-2.0) beneath it — found or fetched at configure time, pinned to a release
 - C++20 concepts, `std::span`, and execution policies
 - Cross-platform: Windows, macOS, Linux with automatic optimization
 

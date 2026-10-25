@@ -276,18 +276,9 @@ double HalfNormalDistribution::getQuantile(double p) const {
     });
 
     if (p <= detail::HALF) {
-        // Central region: Q(p) = σ√2·erf⁻¹(p), then a Newton polish on the
-        // erf residual. The polish removes detail::erf_inv's small-argument
-        // relative floor (its Halley loop stops at an ABSOLUTE 1e-12
-        // tolerance, ~1.4e-8 relative at p = 1e-10, measured during #57
-        // bring-up). g(u) = erf(u) − p is perfectly conditioned here:
-        // u ≤ erf⁻¹(½) ≈ 0.477, so exp(u²) ≤ 1.26.
-        double u = detail::erf_inv(p);
-        for (int i = 0; i < 2; ++i) {
-            const double r = std::erf(u) - p;
-            u -= r * (detail::SQRT_PI * detail::HALF) * std::exp(u * u);
-        }
-        return ss2 * u;
+        // Central region: Q(p) = σ√2·erf⁻¹(p). corvus erfinv is relative-
+        // accurate at small arguments, so the former Newton polish is gone.
+        return ss2 * detail::erf_inv(p);
     }
 
     // Upper tail: work in the survival domain. 1−p is EXACT for p ≥ ½

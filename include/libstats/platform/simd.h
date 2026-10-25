@@ -628,9 +628,10 @@ class VectorOps {
     /// @param values Input vector
     /// @param results Output vector (erf(values))
     /// @param size Number of elements
-    /// @note x86 tiers use the musl-derived four-region rational polynomial
-    ///       (< 1 ULP); NEON uses the clean-room table kernel (Issue #67).
-    ///       Below the SIMD threshold, falls back to std::erf.
+    /// @note x86 tiers call corvus::erf (max 1 ULP), which dispatches on its
+    ///       own CPUID — LIBSTATS_MAX_SIMD_TIER does not cap it; NEON uses the
+    ///       clean-room table kernel (Issue #67). Below the SIMD threshold,
+    ///       falls back to std::erf.
     static void vector_erf(const double* values, double* results, std::size_t size) noexcept;
 
     /// Vectorized cosine computation
@@ -767,7 +768,6 @@ class VectorOps {
                                   std::size_t size) noexcept;
     static void vector_pow_elementwise_avx512(const double* base, const double* exponent,
                                               double* results, std::size_t size) noexcept;
-    static void vector_erf_avx512(const double* values, double* results, std::size_t size) noexcept;
 
    public:
     // Exposed directly for the per-tier ULP accuracy gate (issue #95,
@@ -802,7 +802,6 @@ class VectorOps {
                                std::size_t size) noexcept;
     static void vector_pow_elementwise_avx(const double* base, const double* exponent,
                                            double* results, std::size_t size) noexcept;
-    static void vector_erf_avx(const double* values, double* results, std::size_t size) noexcept;
 
    public:
     // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
@@ -833,7 +832,6 @@ class VectorOps {
                                 std::size_t size) noexcept;
     static void vector_pow_elementwise_avx2(const double* base, const double* exponent,
                                             double* results, std::size_t size) noexcept;
-    static void vector_erf_avx2(const double* values, double* results, std::size_t size) noexcept;
 
    public:
     // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
@@ -864,7 +862,6 @@ class VectorOps {
                                 std::size_t size) noexcept;
     static void vector_pow_elementwise_sse2(const double* base, const double* exponent,
                                             double* results, std::size_t size) noexcept;
-    static void vector_erf_sse2(const double* values, double* results, std::size_t size) noexcept;
 
    public:
     // Exposed directly for the per-tier ULP accuracy gate -- see the AVX-512
