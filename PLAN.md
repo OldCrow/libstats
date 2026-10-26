@@ -85,6 +85,36 @@ grossly — Gamma(0.001).Q(0.9999) = 3.3e47 for 1.50, Gamma(20).Q(5e-324) = 0.02
 Wilson-Hilferty exactness of #226 that corvus does not promise. The swap of the
 gamma inverse is the first item of the pin bump, gated by those two tests.
 
+**First CI run on the branch (40243853108, dispatched 2026-10-25; ci.yml has no
+push trigger for dev branches).** 11 of 14 jobs green on the first try,
+including Windows clang-cl, macOS, GCC 14, Clang 17, TSan, FMA-contraction and
+the install-contract leg. Three timed out, all one cause: a fetched corvus
+inherited the leg's flags. Coverage (Debug + gcov, 20 min) was still inside
+`test_snapshot_consistency`'s 50,000-call loops at the cut; the ASan leg's
+build step alone passed 50 minutes (main: 11); MSVC's build went 7.9 → 20.9
+minutes with cl.exe compiling every Highway tier, and its test step was at 8.2
+minutes (main: 1.7) when the 30-minute cap hit. Local M1 Debug baseline with
+corvus at -O0: `test_concurrency_stress` FAILED on its starvation watchdog
+("Poisson move assign loops: no progress in 120 s"); Release passes it.
+**DECIDED [user, 2026-10-25]: a fetched corvus builds as Release and
+uninstrumented regardless of libstats' configuration** (corvus's own 2026-10-25
+sanitizer decision, f72a128, generalised: instrumenting the dependency is
+noise). Done in `cmake/FindOrFetchCorvus.cmake` (function scope around
+`FetchContent_MakeAvailable`: Release per-config flags, gcov and sanitizer
+compile flags stripped; the runtime library and `$<CONFIG>` stay the build's).
+Comparator on the M1 (Debug libstats; seconds, Release reference first):
+`test_snapshot_consistency` 29.8 / 33.6 with corvus Release / >1500 with corvus
+-O0 (stopped); `test_concurrency_stress` 116.9 / 140.3 / FAILED at 348 on the
+watchdog; `test_contract_gates` 3.0 / 3.2; `test_student_t_enhanced` 0.5 / 1.3.
+Debug with a Release corvus runs within ~20% of Release; the "deadlock" was
+starvation. The Release tree's flags are byte-identical before and after.
+The MSVC leg is a different mechanism (already Release; cl.exe compile time and
+3–19× slower kernels — `test_snapshot_consistency` alone took 393 s there, vs
+1.5 min for the whole step on #391, the last pre-corvus run): its remedy —
+budget, tier trim, `-E` on the two concurrency tests, or compile-only with
+clang-cl as the Windows test build — is open [user]. Coverage was already
+marginal before corvus: #391 hit its 20-minute cap with no corvus at all.
+
 **Still local, not corvus (decide per item before release):** `t_tails`
 (Student-t deep tail: `beta_continued_fraction`, `beta_i_large_a_half` BGRAT,
 `lgamma_ratio_excess`'s successors) and `inverse_t_cdf`'s `solve_concave`;

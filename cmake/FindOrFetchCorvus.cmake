@@ -35,7 +35,31 @@ else()
         GIT_TAG v1.0.1
         GIT_SHALLOW TRUE
         SYSTEM)
-    FetchContent_MakeAvailable(corvus)
+
+    # A fetched corvus is a dependency, not the code under test, so it compiles as Release whatever
+    # libstats' own configuration or instrumentation [user, 2026-10-25]. Highway kernels do not
+    # inline at -O0: the coverage leg (Debug, gcov) timed out at 20 minutes on the first adoption
+    # run with test_snapshot_consistency still in its 50,000-call loops, and corvus's own sanitizer
+    # leg measured 722 s -> 25 s from -O0 to -O1 (corvus f72a128). Instrumenting corvus also only
+    # adds noise to libstats' coverage and sanitizer reports. The function scope hands the
+    # subdirectory (and the Highway it fetches) Release's per-config flags with the gcov and
+    # sanitizer compile flags removed, then discards the edits; libstats' own flags are untouched.
+    # The runtime library and $<CONFIG> stay the build's own, so a Debug libstats still links a
+    # /MDd corvus under MSVC.
+    function(_libstats_fetch_corvus)
+        foreach(_lang C CXX)
+            foreach(_flag "--coverage" "-fprofile-arcs" "-ftest-coverage" "-fprofile-update=[^ ]*"
+                          "-fsanitize=[^ ]*" "-fsanitize-recover=[^ ]*" "-fno-sanitize=[^ ]*")
+                string(REGEX REPLACE "(^| )${_flag}( |$)" " " CMAKE_${_lang}_FLAGS
+                                     "${CMAKE_${_lang}_FLAGS}")
+            endforeach()
+            foreach(_cfg DEBUG RELWITHDEBINFO MINSIZEREL STRICT)
+                set(CMAKE_${_lang}_FLAGS_${_cfg} "${CMAKE_${_lang}_FLAGS_RELEASE}")
+            endforeach()
+        endforeach()
+        FetchContent_MakeAvailable(corvus)
+    endfunction()
+    _libstats_fetch_corvus()
     set(LIBSTATS_CORVUS_PROVIDER "fetched")
     message(STATUS "libstats: fetched corvus v1.0.1 via FetchContent; 'install' target disabled")
 

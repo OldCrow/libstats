@@ -43,7 +43,10 @@ and only its special-function calls were re-pointed at corvus.
   reverted for throughput (2026-10-03).
 - `install` is supported only with a system corvus
   (`cmake/FindOrFetchCorvus.cmake`); the package config carries
-  `find_dependency(corvus)`.
+  `find_dependency(corvus)`. A fetched corvus (and the Highway it fetches)
+  compiles as Release with no gcov or sanitizer instrumentation whatever
+  libstats' own configuration: it is a dependency, not the code under test,
+  and Highway kernels at -O0 made the coverage leg time out.
 - Windows: clang-cl presets (`windows-clang-cl`, `-strict`), the Strict
   build type under clang-cl, and a CI leg through the preset; a configure
   warning when a fetched corvus was compiled by cl.exe.

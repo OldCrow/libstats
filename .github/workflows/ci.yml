@@ -251,10 +251,13 @@ jobs:
   sanitizers:
     name: Sanitizers (ASan/UBSan, Linux)
     runs-on: ubuntu-latest
-    # 60, not 30: since v2.5.0 this leg also compiles corvus and a fetched
-    # Highway under the sanitizers (62 of 149 objects), and hit 30 minutes at
-    # 57% twice. CORVUS_DISABLED_TARGETS below trims corvus to its SSE tiers
-    # here — the leg sanitizes libstats, not corvus's per-target dispatch.
+    # 60, not 30: on the adoption branch this leg compiled corvus and a fetched
+    # Highway under the sanitizers (62 of 149 objects) and hit 30 minutes at
+    # 57% twice. Since 2026-10-25 a fetched corvus is built as Release and
+    # uninstrumented whatever this leg passes (cmake/FindOrFetchCorvus.cmake),
+    # so the sanitizers see libstats only; CORVUS_DISABLED_TARGETS below still
+    # trims corvus to its SSE tiers to keep its compile short. The budget stays
+    # until a green run on the new arrangement says what it needs.
     timeout-minutes: 60
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
