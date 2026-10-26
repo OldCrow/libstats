@@ -115,6 +115,45 @@ budget, tier trim, `-E` on the two concurrency tests, or compile-only with
 clang-cl as the Windows test build — is open [user]. Coverage was already
 marginal before corvus: #391 hit its 20-minute cap with no corvus at all.
 
+**Second CI run (40247472881, with the Release-corvus fix): 12/14 green.** The
+ASan leg passed in 25 of its 60 minutes (build 15.5, test 9.2; main 10.8 and
+4.5; first run: build alone > 50). Coverage: build 4.9 min (first run 6.2, main
+3.8), tests cut at 14.7 min (main 8.6). MSVC: build 21 min, tests cut at 8.
+Cancelled jobs keep no retrievable log. **Same-machine, same-flags comparator
+(M1, Debug + gcov, corvus Release; `build-m1-gg-v3-cov` vs
+`libstats-main/build-m1-cov`):** branch 292 s vs main 220 s over 132 tests, all
+passing; the difference is `test_concurrency_stress` 185 vs 138 and
+`test_snapshot_consistency` 62 vs 47, everything else within seconds. Per gtest
+case the regression is confined to the discrete and beta families
+(NegativeBinomial writers 15.1 vs 4.4 s, Binomial batches 24.6 vs 16.7,
+Bernoulli, Geometric, FisherF, Beta); the corvus-span cases are unchanged (Beta
+boundary batch +0.1 s, von Mises batch identical). Those families call
+`lgamma`, `lbeta`, `beta_i`/`beta_i_pair` per element: on the branch each is a
+span-of-one `corvus_scalar` hop (span construction at -O0 plus corvus's
+dynamic-dispatch kernel over one lane) where main called libm's `lgamma_r` and
+its inline cores. In Release this is invisible (the suite runs in 150 s); under
+-O0 instrumentation it is +33% on the suite and, on the 4-vCPU runner, enough to
+push coverage past 20 minutes. It is exactly corvus #42 lever 1's target (the
+≤ 250 ns single-call cost) and what the v1.1.0 scalar entry points replace the
+deducing wrapper with, so it shrinks at the pin bump. [DERIVED, 2026-10-26]
+
+**DECIDED [user, 2026-10-26]: the two budgets.** Coverage: 30 minutes, suite
+whole (20 was marginal before the adoption; the ~6-minute overrun is the
+scalar hop, which the v1.2.0 pin removes). MSVC: 40 minutes; the cl.exe leg
+skips `test_snapshot_consistency` and `test_concurrency_stress` (both still run
+on the windows-latest clang-cl leg, same OS and thread pool, and on every other
+leg; the leg's own value, UCRT libm and no FP contraction, is covered by the
+other 130 tests); `CORVUS_DISABLED_TARGETS="HWY_SSSE3|HWY_SSE4"` trims two of
+the four tiers cl.exe compiles (corvus is fetched before the global
+`/arch:AVX2`, so SSE2 is Highway's baseline there and stays). Rejected: 60
+minutes for MSVC (Windows minutes bill 2×) and a compile-only cl.exe leg (it
+is a distinct numerical environment). Re-measure both at the v1.2.0 pin; the
+exclusion and the trim are the first things to lift. **The adoption pins corvus
+v1.2.0, not v1.1.0 [user, 2026-10-26]**: v1.1.0 (released 2026-10-26, verified
+on the M1) is the accuracy leg; the performance leg is pending. Its scalar entry
+points cut single-call cost 2–19× on the M1 indicative bench, which is exactly
+the hop above.
+
 **Still local, not corvus (decide per item before release):** `t_tails`
 (Student-t deep tail: `beta_continued_fraction`, `beta_i_large_a_half` BGRAT,
 `lgamma_ratio_excess`'s successors) and `inverse_t_cdf`'s `solve_concave`;
