@@ -213,11 +213,17 @@ from the oracle by 3 to 5e4 counts (the contract is the smallest k whose
 library CDF reaches p; #116, #170); logpdf near its zero crossing (a
 relative metric on a near-zero value).
 
-Last release: v2.5.0 (2026-10-16); v2.4.1 (2026-09-19) before it. v2.5.0 (corvus adoption) is in
-progress on `dev/v2.5.0-corvus` in its own session; that branch's PLAN.md
-is authoritative for v2.5.0 state.
+Last release: v2.5.0 (2026-10-16); v2.4.1 (2026-09-19) before it. v3.0.0 (corvus adoption) is in
+progress on `dev/v3.0.0-corvus-adoption`, rebuilt on v2.5.0; that
+branch's PLAN.md is authoritative for v3.0.0 state. `dev/v2.5.0-corvus`
+was deleted from origin on 2026-10-26 and archived as the tag
+`archive/dev-v2.5.0-corvus`.
 
-## v2.5.0 release runbook (branch `dev/v2.4.2`) [OPEN]
+## v2.5.0 release runbook (branch `dev/v2.4.2`) [DONE 2026-10-16]
+Historical record of the v2.5.0 cycle; every step ran on every machine
+before the release (Status). Kept for its procedures, which the next
+release reuses.
+
 Machines: **Z** = Zen 4 (Windows 11, MSVC, AVX-512), **K** = Kaby Lake
 (macOS Ventura, AppleClang, AVX2), **M** = Mac Mini M1 (macOS 27,
 AppleClang, NEON).
@@ -785,7 +791,12 @@ v2.4.0 precedent: a `LIBSTATS_MAX_SIMD_TIER` build, correctness and
 sweep. R8 builds the same capped trees on Z; run R5's correctness and
 sweep on them before their profiles if wanted.
 
-### R8 — dispatch-threshold captures (Z, M) [OPEN]
+### R8 — dispatch-threshold captures (Z, M) [DONE 2026-10-15]
+Outcome: all four tables re-derived by script (`580b7f7`), then settled
+by per-machine table A/B: kNeon `bb9ac0b`, kAvx512 `6c149f1`/`31d3ec3`,
+kAvx2 and kAvx `4c3a133`/`af7a088`; shipped in v2.5.0. It closed #144
+(2026-10-26). No kSse2 table yet: the SSE2-vs-AVX rows are a v3 input.
+
 Decided [user, 2026-10-03/04]: capture `strategy_profile` for every tier
 natively, compare across machines, and only then update
 `dispatch_thresholds.h`. No table edits yet. Z: AVX-512, AVX2, AVX,
@@ -941,7 +952,7 @@ verified kNeon, then one R1:
    commit the header, the script and the evidence with the user.
 M's A/B on kNeon: `2026-10-14-m1-threshold-rows/AB_RESULTS.md`.
 
-### R9 — mechanical concurrency checks (M writes; M, K, Z run) [OPEN]
+### R9 — mechanical concurrency checks (M writes; M, K, Z run) [DONE 2026-10-16]
 Goal [user, 2026-10-06]: catch mechanically, before the v3 refactor
 redesigns locking, the defect classes that so far only code review has
 found, so later fixes stop triggering unplanned bugfix rounds. Review
@@ -1307,6 +1318,28 @@ Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
   along with the `using` lines in each `src/*.cpp`.
 
 ## Decided [DERIVED]
+- **Freeze and the accuracy patch [user, 2026-10-26]** (replaces the
+  2026-10-07 freeze policy's "until corvus is integrated" and #8's "ships
+  after v3.0.0"). `main`'s code stays frozen until the adoption starts.
+  The adoption has started (`dev/v3.0.0-corvus-adoption`). From then on,
+  only the #8 issues the adoption needs are worked, on the adoption branch
+  and inside v3.0.0. The rest close as "overtaken by corvus adoption".
+  Triage of #8 against the branch (2026-10-26):
+  - 22 issues touch nothing the branch changes.
+  - #262 and #271 are superseded by the swap (re-measure after it).
+  - 10 edit the files the branch edits: #152, #179, #214, #217–#219,
+    #248, #249, #251, #272.
+  - #103, #104 and #114 wait on the post-swap sweep.
+  Disposition [user, 2026-10-26]:
+  - The 15 coupled issues move to v3.0.0, together with two tooling
+    issues, #213 and #258, as verification support for the swap. That is
+    17 in total.
+  - The other 20 stay on #8 as a patch after v3.0.0. Close none of them
+    as overtaken, since they are real defects.
+  - If the adoption runs quickly and smoothly, reassess pulling
+    accuracy-first issues from #8 forward.
+  - #262 and #271 close as "overtaken by corvus adoption" only when the
+    post-swap sweep shows the defect gone.
 - **Windows performance build is clang-cl [user, 2026-10-05]**, with
   cl.exe's `/arch:` flags (`/arch:AVX2` = AVX2 + FMA, F16C, BMI1/2,
   LZCNT, MOVBE; `/arch:AVX512` adds AVX-512 F, CD, BW, DQ, VL), so both
@@ -1411,7 +1444,7 @@ not sort in version order (two title renumberings, 2026-07-21 and
 
 Release order [user, 2026-10-04]: v3.0.0 corvus (#6) → v3.1.0 New
 Distributions (#3) → Architecture Refactor (#4, post-v3). The accuracy
-patch (#8) ships after v3.0.0. Retitled 2026-10-04 [user], each
+patch (#8) ships after v3.0.0 (re-scoped 2026-10-26; Decided). Retitled 2026-10-04 [user], each
 description carrying a dated renumbering note: #10 "v2.5.0 — Correctness
 & accuracy", #6 "v3.0.0 — corvus adoption", #3 "v3.1.0 — New
 Distributions (Extended)", #4 "Post-v3 — Architecture Refactor"; #8 note
@@ -1429,30 +1462,34 @@ only.
   (von Mises entropy via Bessel), #266 (prefactor and density forms below
   shape 20). Corvus is pinned at v1.0.1. State and design: that branch's
   PLAN.md.
-- **#8 Accuracy, contracts & kernel hygiene patch** (open, 38; 7 closed):
-  ships after v3.0.0. Closed since 2026-10-06: #180 and #183 (with
-  v2.5.0), #257 and #265 (2026-10-12); #146 and #111 closed 2026-10-05.
-  - Contracts: #103 (±inf inputs) is partly overtaken, because the
-    support-boundary rule (#161, #165) covers x = 0 and out-of-support;
-    check its +inf cases before closing or narrowing it. #104 (quantile
-    at extreme p) is likely overtaken by v2.5.0's deep-tail fixes (#159,
-    #160); re-check its listed cases, then close.
-  - Thresholds and speed: #144 (von Mises CDF thresholds, waits for
-    R8's table update), #178 (InverseGamma's serial passes).
-  - Lock and parallel-path audit, 2026-10-06: #179, #181, #182.
-  - Architecture-review cleanups, 2026-10-07: #217, #218, #219.
-  - Quality, CI and oracle tooling: #114, #152, #213, #258, #259, #260,
-    #261.
-  - Accuracy findings: #214, #215, #243–#246, #248–#251, #262, #263,
-    #271–#273, #277.
-  - API defects: #253 (document), #268, #269.
-  - Fleet-structure survey of the parallel layer, 2026-10-26: #283
+  Moved from #8 on 2026-10-26 [user; Decided, "Freeze and the accuracy
+  patch"], 17 issues, each with a reason comment:
+  - Same files as the branch: #152, #179, #214, #217, #218, #219, #248,
+    #249, #251, #272.
+  - Superseded by the swap: #262 and #271. Re-measure them, then close
+    as overtaken.
+  - Post-swap sweep: #103 (enforced in v2.5.0; re-run its guards), #104
+    (v2.5.0's #159 and #160; confirm), #114 (one pass after the swap).
+  - Verification support: #213 (off-grid and adversarial sweep), #258
+    (per-row budgets, and a row diff against v2.5.0).
+  Open now: 35.
+- **#8 Accuracy, contracts & kernel hygiene patch** (open, 20; 8 closed):
+  a patch after v3.0.0, independent of the adoption. Closed since
+  2026-10-06: #180 and #183 (with v2.5.0), #257 and #265 (2026-10-12),
+  #144 (2026-10-26; R8 corrected its kAvx512 cell for v2.5.0). #146 and
+  #111 closed 2026-10-05.
+  - Accuracy: #215, #243, #244, #245, #246, #250, #263, #273, #277.
+    #245 may already be fixed (`cd9a2ab`); check it before working it.
+    #244's "exact path" premise looks wrong (a Stirling path above
+    λ = 20).
+  - Oracle and test tooling: #259, #260, #261.
+  - Concurrency: #181, #182.
+  - API defects and docs: #253 (document), #268, #269.
+  - Speed: #178 (InverseGamma's serial passes).
+  - Parallel layer, from the 2026-10-26 fleet-structure survey: #283
     (Gaussian `fit()` partition follows the platform grain, so bits
     differ across machines); #284 (deprecate the unused
     thread-count-dependent reduction helpers; remove at the next major).
-  Buckets [user, 2026-09-29]: re-scope #103, #104 and #144 after the
-  post-swap sweep and timing; give #114 one pass after the swap; #152
-  is independent of adoption.
 - **#3 v3.1.0 — New Distributions (Extended)** (open, 5): #58 GEV, #59
   LogLogistic, #60 Triangular, #61 Wald, #62 Hypergeometric +
   BetaBinomial + Zipf. Settle #62's Zipf CDF design (summation or the
