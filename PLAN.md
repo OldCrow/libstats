@@ -154,6 +154,14 @@ on the M1) is the accuracy leg; the performance leg is pending. Its scalar entry
 points cut single-call cost 2–19× on the M1 indicative bench, which is exactly
 the hop above.
 
+**Third CI run (40401273278, with the budgets): 13/14 green; the one failure is
+the pin-currency canary, by design** (find_package floor 1.0, FetchContent tag
+v1.0.1, corvus latest v1.1.0; it runs only on schedule and dispatch and will
+read red until the pin moves). Coverage with the suite whole: build 7.8, tests
+10.7 (main 8.6), job ~20 of 30 — the old cap was a coin toss. MSVC: build 16.4
+(was 20.9; the SSSE3/SSE4 trim), test 0.8 under the exclusion, 18 of 40. ASan
+and every build and sanitizer leg green. [DERIVED, 2026-10-26]
+
 **Still local, not corvus (decide per item before release):** `t_tails`
 (Student-t deep tail: `beta_continued_fraction`, `beta_i_large_a_half` BGRAT,
 `lgamma_ratio_excess`'s successors) and `inverse_t_cdf`'s `solve_concave`;
