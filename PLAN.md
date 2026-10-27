@@ -1393,9 +1393,8 @@ Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
   code (`a1c71d6`). It is not merged; keep it.
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-10-06 (milestones and
-open issues below; no open issue without a milestone; one open PR,
-#174, a Dependabot bump of reviewdog/action-actionlint).
+Last reconciled against live GitHub state: 2026-10-26 (milestones and
+open issues below; no open issue without a milestone; no open PRs).
 - GitHub is the collaborator-facing source for issues and milestones;
   this file is the agent-facing state. Keep both in sync: when creating,
   closing, retitling or moving an issue or milestone, update this section
@@ -1406,60 +1405,66 @@ open issues below; no open issue without a milestone; one open PR,
 
 ## GitHub Milestones [DERIVED]
 Closed: #1 v2.2.0 (5), #5 v2.3.0 (5), #7 v2.3.1 (13), #2 v2.4.0 (6), #9
-v2.4.1 (3). Milestone numbers do not sort in version order (two title
-renumberings, 2026-07-21 and 2026-08-16).
+v2.4.1 (3), #10 v2.5.0 (75, released 2026-10-16). Milestone numbers do
+not sort in version order (two title renumberings, 2026-07-21 and
+2026-08-16).
 
-Release order [user, 2026-10-04]: v2.5.0 (milestone #10, `dev/v2.4.2`)
-→ v3.0.0 corvus (#6) → v3.1.0 New Distributions (#3) → Architecture
-Refactor (#4, post-v3). The accuracy patch (#8) is under review below.
-Retitled 2026-10-04 [user], each description carrying a dated
-renumbering note: #10 "v2.5.0 — Correctness & accuracy", #6 "v3.0.0 —
-corvus adoption", #3 "v3.1.0 — New Distributions (Extended)", #4
-"Post-v3 — Architecture Refactor"; #8 note only.
+Release order [user, 2026-10-04]: v3.0.0 corvus (#6) → v3.1.0 New
+Distributions (#3) → Architecture Refactor (#4, post-v3). The accuracy
+patch (#8) ships after v3.0.0. Retitled 2026-10-04 [user], each
+description carrying a dated renumbering note: #10 "v2.5.0 — Correctness
+& accuracy", #6 "v3.0.0 — corvus adoption", #3 "v3.1.0 — New
+Distributions (Extended)", #4 "Post-v3 — Architecture Refactor"; #8 note
+only.
 
-#8 against this release [DERIVED, 2026-10-04; verify before moving
-anything]:
-- Likely overtaken: #104 (quantile contract at extreme p): its Decided
-  contract stands and v2.5.0 fixed the deep-tail quantiles (#159, #160,
-  the log1p quantiles; 0 contract violations on AVX-512 and AVX2).
-  Re-check its listed cases, then close.
-- Partly overtaken: #103 (±inf inputs): the support-boundary rule
-  (#161, #165) covers x = 0 and out-of-support; check the +inf cases it
-  lists before closing or narrowing.
-- Done by the speed work and R8's tooling, closed 2026-10-05: #146
-  (`scripts/analyze_crossovers.py`, `3e9fde3`), #111 (the von Mises
-  batch CDF, `96b157f`). #144 (von Mises CDF thresholds) waits for R8's
-  table update.
-- Unaffected: #152 (Codecov measurement), #114 (review backlog). If the
-  above go, #8 is these two; fold them into a post-v3 patch or close #8.
-- **#10 v2.5.0 — Correctness & accuracy** (open, 17): #157–#167, #170–#172,
-  #175–#177 (filed 2026-10-06: #175 per-element lock in PARALLEL lambdas,
-  #176 Student-t CDF serial PARALLEL, #177 single-shot timing test).
-  Closed by the release PR.
-- **#6 v3.0.0 — corvus adoption** (open, 13): #47, #52, #107, #108, #110,
-  #113, #126, #136, #137, #138, #141, #156, #173. Full swap [user,
-  2026-09-17]: every `detail::` special function corvus covers. #126 and
-  #141 are absorbed, measured against corvus v1.0.0. Corvus is pinned at
-  v1.0.1. State and design: that branch's PLAN.md.
-- **#8 Accuracy, contracts & kernel hygiene patch** (open, 11): ships after
-  corvus (v3.0.0); under review, see above. #178–#183 filed 2026-10-06
-  from the lock and parallel-path audit, not fixed for v2.5.0 [user]:
-  #178 InverseGamma's serial passes, #179 `parallel_execution.h`'s
-  include-order backend choice (Linux), #180 the global `waitForAll()`
-  after a latched `parallelFor`, #181 the batch-fit fallback racing
-  submitted tasks, #182 FisherF `sample()` mixing a snapshot with the
-  resynced delegate, #183 unlocked validation reads and dead helpers.
-  Bucketed [user, 2026-09-29]:
-  - A, independent of adoption: #152 (Codecov measurement); #146 closed.
-  - B, re-scope after the post-swap sweep and timing: #103, #104, #144;
-    #111 closed.
-  - C, one pass after the swap: #114.
+- **#6 v3.0.0 — corvus adoption** (open, 18): #47, #52, #107, #108, #110,
+  #113, #126, #136, #138, #141, #156, #220, #221, #247, #252, #266, #267,
+  #270. Full swap [user, 2026-09-17]: every `detail::` special function
+  corvus covers. #126 and #141 are absorbed, measured against corvus
+  v1.0.0. #137 and #173 closed with v2.5.0; #267 is #173's residual.
+  #156 gates the release on corvus v1.2.0 throughput. Added since
+  2026-10-06: #220 public-contracts design and #221 (retire the
+  NR-shaped beta continued fraction and per-tier coefficient copies),
+  both from the 2026-10-07 architecture review; #247, #270 (beta), #252
+  (von Mises entropy via Bessel), #266 (prefactor and density forms below
+  shape 20). Corvus is pinned at v1.0.1. State and design: that branch's
+  PLAN.md.
+- **#8 Accuracy, contracts & kernel hygiene patch** (open, 38; 7 closed):
+  ships after v3.0.0. Closed since 2026-10-06: #180 and #183 (with
+  v2.5.0), #257 and #265 (2026-10-12); #146 and #111 closed 2026-10-05.
+  - Contracts: #103 (±inf inputs) is partly overtaken, because the
+    support-boundary rule (#161, #165) covers x = 0 and out-of-support;
+    check its +inf cases before closing or narrowing it. #104 (quantile
+    at extreme p) is likely overtaken by v2.5.0's deep-tail fixes (#159,
+    #160); re-check its listed cases, then close.
+  - Thresholds and speed: #144 (von Mises CDF thresholds, waits for
+    R8's table update), #178 (InverseGamma's serial passes).
+  - Lock and parallel-path audit, 2026-10-06: #179, #181, #182.
+  - Architecture-review cleanups, 2026-10-07: #217, #218, #219.
+  - Quality, CI and oracle tooling: #114, #152, #213, #258, #259, #260,
+    #261.
+  - Accuracy findings: #214, #215, #243–#246, #248–#251, #262, #263,
+    #271–#273, #277.
+  - API defects: #253 (document), #268, #269.
+  - Fleet-structure survey of the parallel layer, 2026-10-26: #283
+    (Gaussian `fit()` partition follows the platform grain, so bits
+    differ across machines); #284 (deprecate the unused
+    thread-count-dependent reduction helpers; remove at the next major).
+  Buckets [user, 2026-09-29]: re-scope #103, #104 and #144 after the
+  post-swap sweep and timing; give #114 one pass after the swap; #152
+  is independent of adoption.
 - **#3 v3.1.0 — New Distributions (Extended)** (open, 5): #58 GEV, #59
   LogLogistic, #60 Triangular, #61 Wald, #62 Hypergeometric +
   BetaBinomial + Zipf. Settle #62's Zipf CDF design (summation or the
   Hurwitz-zeta closed form) before planning; it scopes corvus work.
-- **#4 Post-v3 — Architecture Refactor** (open, 5): #40, #41, #42, #43,
-  #128.
+- **#4 Post-v3 — Architecture Refactor** (open, 8): #40, #41, #42, #43,
+  #128, #222, #282, #285. #222 (layering: GoF statistics out of L1
+  `math_utils`) came from the 2026-10-07 architecture review. #282 (one slice callable per batch site behind
+  one internal scheduling seam) is the first step of #43 and is wanted
+  whatever the threading direction [user, 2026-10-26]. #285 (caller-supplied
+  executor) is gated on a fleet executor concept. #42 is on hold: the
+  direction [OPEN] under discussion moves the pools to an optional fleet
+  library and deletes the `safe_*` backends.
 
 ## Trends from the v2.5.0 captures [OPEN, 2026-10-05; tested 2026-10-06]
 First extracted from K's three tiers, M's NEON and Z's throttled
