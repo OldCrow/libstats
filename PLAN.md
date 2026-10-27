@@ -182,6 +182,29 @@ pushed). Tooling: the `cmake-format` pre-commit hook crashes under its
 Python 3.15 venv (`re.Scanner` capturing groups, cmakelang 0.6.13); the C++
 hooks and the include-order check pass; CMake files were not re-formatted.
 
+**Moved into v3.0.0 from the accuracy patch (#8) [user, 2026-10-26].**
+`main` stays frozen. On this branch, work only the #8 issues the adoption
+needs. Each moved issue has a reason comment. Rationale and the triage are
+in `main`'s PLAN.md, Decided, "Freeze and the accuracy patch". The issues:
+- **Edit files this branch edits:** #152 (`ci.yml` coverage job), #179
+  (needs a `libstats_config.h` fact; this branch deletes the template),
+  #214 (`gamma_p_inv`: fix or retire it with the pin-bump swap), #217,
+  #218, #219, #248 and #249 (`t_tails`/`t_cdf`), #251
+  (`gamma_p_from_log_x`), #272 (the Beta case via
+  `beta_prefactor_constant`).
+- **Superseded by the swap:** #262 (`beta_i` dyadic ties) and #271 (Gamma
+  CDF at tiny shape). Re-measure on the post-swap sweep; close as
+  "overtaken by corvus adoption" only if the defect is gone.
+- **Post-swap sweep:** #103 and #104 (enforced in v2.5.0; re-run the
+  guards, then close) and #114 (one pass after the swap).
+- **Verification support:** #213 (off-grid and adversarial sweep) and #258
+  (per-row budgets, and a row diff against v2.5.0). Land them before the
+  characterization regeneration.
+
+The 20 issues left on #8 are independent of the adoption and ship as a
+patch after v3.0.0. If the adoption runs quickly, reassess pulling
+accuracy-first issues forward.
+
 **Local machine state, M1 (2026-10-24):** the only libstats build tree here is
 `build-m1-gg-v3/` (this branch, Release preset, AppleClang 21, corvus v1.0.1
 fetched, Highway 1.4.0 system). The 2026-10-02 note's `build-m1-gg/` and
