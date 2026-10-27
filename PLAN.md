@@ -20,9 +20,9 @@ bench tooling and evidence, and the docs. Dropped as superseded: `45000c6`
 `main` has both, with the later accuracy fixes on top), `420eaf1` (already on
 `main` as `6245e4e`), `a036ffb` (an AVX-512 characterization block that the
 pin bump regenerates anyway) and every `docs(plan)` / `docs(bench)` plan note
-(their state is this section). The old branch is kept on origin until the user
-confirms its archive tag (`archive/dev-v2.5.0-corvus`, like the spike) and
-deletion. Branch commits, oldest first (signed 2026-10-25, pushed; the plan
+(their state is this section). The old branch is archived as the signed tag
+`archive/dev-v2.5.0-corvus` (`72f9195`, like the spike) and was deleted from
+origin 2026-10-26 [user]. Branch commits, oldest first (signed 2026-10-25, pushed; the plan
 commit that carries this list follows them):
 
 ```
@@ -395,9 +395,10 @@ from the oracle by 3 to 5e4 counts (the contract is the smallest k whose
 library CDF reaches p; #116, #170); logpdf near its zero crossing (a
 relative metric on a near-zero value).
 
-Last release: v2.5.0 (2026-10-16); v2.4.1 (2026-09-19) before it. v2.5.0 (corvus adoption) is in
-progress on `dev/v2.5.0-corvus` in its own session; that branch's PLAN.md
-is authoritative for v2.5.0 state.
+Last release: v2.5.0 (2026-10-16); v2.4.1 (2026-09-19) before it. v3.0.0
+(corvus adoption) is in progress on this branch,
+`dev/v3.0.0-corvus-adoption`, targeting the corvus v1.2.0 pin; the section
+at the top of this file is authoritative for its state.
 
 ## v2.5.0 release runbook (branch `dev/v2.4.2`) [OPEN]
 Machines: **Z** = Zen 4 (Windows 11, MSVC, AVX-512), **K** = Kaby Lake
