@@ -7,7 +7,27 @@ carry (shipped releases, closed milestones, the Resolved log, the
 2026-08-21 defensive review, travel-era records, the corvus spike) is in
 `git show f508b12:PLAN.md`.
 
-## Status [DERIVED] — 2026-10-16
+## Status [DERIVED] — 2026-11-02
+**corvus v1.2.0 released 2026-11-02 — bump owed [OPEN].** Signed tag
+`v1.2.0` on corvus `691db43`; release notes on corvus's GitHub release.
+It is the release the v3.0.0 adoption targets, so the next libstats
+session moves `dev/v3.0.0-corvus-adoption`'s corvus pin to `v1.2.0`
+(standards workplan task 2). What the bump carries:
+- **Wrapper change:** since corvus v1.1.0, `gamma_p`, `gamma_q`, `beta_p`,
+  `beta_q` and their four inverses have scalar overloads, so each name is
+  an overload set and the deducing `corvus_scalar` wrapper no longer
+  compiles. Call the scalar overloads directly.
+- **New exports:** span `expm1` and `log1pmx` (corvus #45, from this
+  repo's v2.5.0 work), both correctly rounded.
+- **Throughput:** corvus #42 lever 1 (beta and its inverses up to 1.9×
+  faster) and #31 (lgamma table band, single reflection log).
+- **Gates, libstats' decision (#156):** #42's NEON targets (`gamma_p` ≤ 40,
+  `beta_p` ≤ 30 ns/el) are out of reach under corvus's accuracy contract;
+  the M1 reads 272 and 823 ns/el. The log speedup gate needs exempting or
+  re-baselining: corvus `log` runs 0.44–0.66× of Apple's libm (1.5× UCRT).
+- **Same release in libhmm** (fleet coherence rule, libhmm #106).
+- **On the swap:** #107 and #108 close, citing corvus #32.
+
 **v2.5.0 released 2026-10-16.** PR #278 (`dev/v2.4.2` → `main`, merge
 commit `dda07d1`, 158 commits) closed the 75 issues of milestone #10,
 which is closed; CI, CodeQL, the AVX-512 workflows and the docs build
