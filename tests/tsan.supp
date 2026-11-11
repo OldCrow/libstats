@@ -5,3 +5,11 @@
 # the libstdc++ series frame, so a direct std::lgamma call in libstats (#173) still reports.
 # Remove with the Bessel tier in v3.0.0.
 race:std::__detail::__cyl_bessel_ij_series
+
+# False positive on a rethrown task exception (test_parallel_exception_propagation, first seen on
+# ubuntu-26.04 / libstdc++ 15). The caller reads e.what() while it holds a reference; a pool worker
+# later drops the packaged_task's last std::exception_ptr reference and frees the object. The
+# reference count that orders the two is an atomic inside the uninstrumented libstdc++.so, so TSan
+# sees no happens-before. Scoped to the exception's own destructor; a race on anything else a task
+# owns still reports.
+race:std::runtime_error::~runtime_error
