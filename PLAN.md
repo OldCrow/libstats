@@ -1643,6 +1643,15 @@ For corvus adoption (v3.0.0) and later:
   worse than the v2.5.0 block, on every ISA.
 
 ## Known Gaps [OPEN]
+- **CI on ubuntu-26.04** [OPEN, 2026-11-11]: the jobs that install versioned
+  tools are pinned to `ubuntu-24.04` (#294, CI House Style §1). Moving that
+  pin needs two things first, both seen on #293's runs:
+  - Coverage: lcov 2.4 fails with `inconsistent` ("mismatched end line" in
+    `tests/test_discrete_quantile_bounds.cpp:57`) under `gcov-13`. The
+    `path` error from orphan CMakeTmp `.gcda` files is already fixed.
+  - TSan: the `std::runtime_error::~runtime_error` suppression in
+    `tests/tsan.supp` passed once on libstdc++ 15; the race it covers
+    depends on timing, so one pass is weak evidence.
 - **R9 findings on M** [DERIVED, 2026-10-06; filed 2026-10-07 as
   #184–#191 (F1–F8 in order), milestone "Accuracy, contracts & kernel
   hygiene patch"; detail in
