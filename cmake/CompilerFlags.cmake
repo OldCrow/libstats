@@ -48,7 +48,8 @@ set(LIBSTATS_CLANG_STRICT_WARNINGS
     -Wno-unused-parameter # Common in template/callback code
     -Wno-padded # Not practical for cross-platform development
     -Wno-c++98-compat # We're using C++20
-    -Wno-c++98-compat-pedantic)
+    -Wno-c++98-compat-pedantic
+)
 
 # clang-cl (Clang with the MSVC-style driver) reads -Wall as cl.exe's /Wall, i.e. -Weverything.
 # /W4 is its spelling of -Wall -Wextra.
@@ -204,7 +205,10 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
     if(NOT CMAKE_CXX_FLAGS_DEV)
         set(CMAKE_CXX_FLAGS_DEV
             "-O1 -g"
-            CACHE STRING "Flags used by the CXX compiler during Dev builds." FORCE)
+            CACHE STRING
+            "Flags used by the CXX compiler during Dev builds."
+            FORCE
+        )
     endif()
     # Strict has never carried optimization/debug-info flags -- it exists solely to enable strict
     # warnings + -Werror/-WX (see libstats_apply_warnings below). Preserve that: empty string. (The
@@ -215,18 +219,27 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
     if(NOT CMAKE_CXX_FLAGS_STRICT)
         set(CMAKE_CXX_FLAGS_STRICT
             ""
-            CACHE STRING "Flags used by the CXX compiler during Strict builds." FORCE)
+            CACHE STRING
+            "Flags used by the CXX compiler during Strict builds."
+            FORCE
+        )
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     if(NOT CMAKE_CXX_FLAGS_DEV)
         set(CMAKE_CXX_FLAGS_DEV
             "/O1 /Zi /MD"
-            CACHE STRING "Flags used by the CXX compiler during Dev builds." FORCE)
+            CACHE STRING
+            "Flags used by the CXX compiler during Dev builds."
+            FORCE
+        )
     endif()
     if(NOT CMAKE_CXX_FLAGS_STRICT)
         set(CMAKE_CXX_FLAGS_STRICT
             ""
-            CACHE STRING "Flags used by the CXX compiler during Strict builds." FORCE)
+            CACHE STRING
+            "Flags used by the CXX compiler during Strict builds."
+            FORCE
+        )
     endif()
 endif()
 
@@ -256,8 +269,10 @@ endif()
 # proven problematic with complex nested conditions
 
 # MSVC-specific compiler definitions (Windows compatibility)
-add_compile_definitions($<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
-                        $<$<CXX_COMPILER_ID:MSVC>:_CRT_NONSTDC_NO_DEPRECATE>)
+add_compile_definitions(
+    $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
+    $<$<CXX_COMPILER_ID:MSVC>:_CRT_NONSTDC_NO_DEPRECATE>
+)
 
 # Apply build type and compiler-specific flags using traditional CMake approach This maintains
 # reliability while ensuring cross-compiler compatibility
@@ -286,7 +301,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
     # accumulate across reconfigures); the warning part of that same original branch moved into
     # libstats_apply_warnings' own else-branch.
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
-
     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 
     elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
@@ -299,7 +313,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC: same restructuring as Clang/AppleClang above.
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
-
     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 
     elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
@@ -361,8 +374,10 @@ function(libstats_apply_warnings target)
         elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
             target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX})
         elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
-            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX}
-                                                     -Wno-deprecated-declarations)
+            target_compile_options(
+                ${target}
+                PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations
+            )
         elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
             target_compile_options(${target} PRIVATE ${LIBSTATS_CLANG_STRICT_WARNINGS} -Werror)
         else()
@@ -374,8 +389,10 @@ function(libstats_apply_warnings target)
         elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
             target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX})
         elseif(CMAKE_BUILD_TYPE STREQUAL "Dev")
-            target_compile_options(${target} PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX}
-                                                     -Wno-deprecated-declarations)
+            target_compile_options(
+                ${target}
+                PRIVATE ${LIBSTATS_COMMON_WARNINGS_UNIX} -Wno-deprecated-declarations
+            )
         elseif(CMAKE_BUILD_TYPE STREQUAL "Strict")
             target_compile_options(${target} PRIVATE ${LIBSTATS_GCC_STRICT_WARNINGS} -Werror)
         else()

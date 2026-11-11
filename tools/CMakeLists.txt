@@ -4,13 +4,16 @@
 option(
     LIBSTATS_BUILD_SIMD_DEV_TOOLS
     "Build opt-in SIMD experimentation/dev tools for Issue #33 (requires LIBSTATS_BUILD_TOOLS=ON)"
-    OFF)
+    OFF
+)
 # Helper function to create tool executables with consistent configuration
 function(add_libstats_tool tool_name source_file)
     add_executable(${tool_name} ${source_file})
     target_link_libraries(${tool_name} PRIVATE libstats_static)
-    target_include_directories(${tool_name} PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS}
-                                                    ${CMAKE_SOURCE_DIR}/src)
+    target_include_directories(
+        ${tool_name}
+        PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/src
+    )
     libstats_apply_warnings(${tool_name}) # Phase 3B/B5
 
     # Link to SIMD interface target for modern CMake approach
@@ -18,8 +21,10 @@ function(add_libstats_tool tool_name source_file)
         target_link_libraries(${tool_name} PRIVATE libstats::simd)
     endif()
 
-    set_target_properties(${tool_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
-                                                  ${CMAKE_BINARY_DIR}/tools)
+    set_target_properties(
+        ${tool_name}
+        PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tools
+    )
 endfunction()
 
 # Helper function for standalone tools that don't need libstats
@@ -30,8 +35,10 @@ function(add_standalone_tool tool_name source_file)
     target_include_directories(${tool_name} PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
     libstats_apply_warnings(${tool_name}) # Phase 3B/B5
 
-    set_target_properties(${tool_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
-                                                  ${CMAKE_BINARY_DIR}/tools)
+    set_target_properties(
+        ${tool_name}
+        PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tools
+    )
 endfunction()
 
 # System Information & Diagnostics Tools
@@ -65,8 +72,10 @@ if(LIBSTATS_BUILD_SIMD_DEV_TOOLS)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
             target_compile_options(gather_throughput_probe PRIVATE /arch:AVX512)
         else()
-            target_compile_options(gather_throughput_probe PRIVATE -mavx512f -mavx512dq -mavx2
-                                                                   -mfma)
+            target_compile_options(
+                gather_throughput_probe
+                PRIVATE -mavx512f -mavx512dq -mavx2 -mfma
+            )
         endif()
     elseif(LIBSTATS_HAS_AVX2)
         if(MSVC OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32))
@@ -85,11 +94,11 @@ if(LIBSTATS_BUILD_SIMD_DEV_TOOLS)
     message(STATUS "SIMD dev tools enabled:")
     message(
         STATUS
-            "  - gather_throughput_probe: Issue #33 Stage 1-2 first kill-gate -- AVX2/AVX-512 gather vs FMA-only throughput (warm/cold/interleave)"
+        "  - gather_throughput_probe: Issue #33 Stage 1-2 first kill-gate -- AVX2/AVX-512 gather vs FMA-only throughput (warm/cold/interleave)"
     )
     message(
         STATUS
-            "  - neon_table_transcendental_probe: Issue #33 Q1 -- NEON table-gather exp/log vs current SLEEF polynomials (accuracy + throughput gates)"
+        "  - neon_table_transcendental_probe: Issue #33 Q1 -- NEON table-gather exp/log vs current SLEEF polynomials (accuracy + throughput gates)"
     )
 elseif(DEFINED LIBSTATS_BUILD_SIMD_DEV_TOOLS)
     message(STATUS "SIMD dev tools disabled (LIBSTATS_BUILD_SIMD_DEV_TOOLS=OFF)")
@@ -98,37 +107,37 @@ endif()
 message(STATUS "Tools enabled:")
 message(
     STATUS
-        "  - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)"
+    "  - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)"
 )
 message(
     STATUS
-        "  - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests"
+    "  - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests"
 )
 message(
     STATUS
-        "  - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing"
+    "  - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing"
 )
 message(
     STATUS
-        "  - strategy_profile: Canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes"
+    "  - strategy_profile: Canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes"
 )
 message(
     STATUS
-        "  - simd_verification: Architecture-agnostic SIMD operations correctness verification across all distributions and edge cases"
+    "  - simd_verification: Architecture-agnostic SIMD operations correctness verification across all distributions and edge cases"
 )
 message(
     STATUS
-        "  - parallel_correctness_verification: Platform-aware parallel execution correctness validation across different threading systems (GCD, OpenMP, ThreadPool)"
+    "  - parallel_correctness_verification: Platform-aware parallel execution correctness validation across different threading systems (GCD, OpenMP, ThreadPool)"
 )
 message(
     STATUS
-        "  - toctou_validator: Concurrent writer/reader race stress test for TOCTOU cache inconsistency detection across all 19 distributions"
+    "  - toctou_validator: Concurrent writer/reader race stress test for TOCTOU cache inconsistency detection across all 19 distributions"
 )
 message(
     STATUS
-        "  - copy_move_stress: Concurrent copy/move throughput stress test across all 19 distributions (replaces test_copy_move_stress)"
+    "  - copy_move_stress: Concurrent copy/move throughput stress test across all 19 distributions (replaces test_copy_move_stress)"
 )
 message(
     STATUS
-        "  - accuracy_sweep: Issue #46 deterministic bit-exact scalar/batch pdf/logpdf/cdf/quantile sweep across all 27 distributions for the mpmath oracle comparison"
+    "  - accuracy_sweep: Issue #46 deterministic bit-exact scalar/batch pdf/logpdf/cdf/quantile sweep across all 27 distributions for the mpmath oracle comparison"
 )

@@ -7,10 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 
 # Fetch libstats from GitHub (or use a local path for development)
-FetchContent_Declare(
-    libstats
-    GIT_REPOSITORY https://github.com/OldCrow/libstats.git
-    GIT_TAG main)
+FetchContent_Declare(libstats GIT_REPOSITORY https://github.com/OldCrow/libstats.git GIT_TAG main)
 
 # To use a local checkout instead of fetching from GitHub, replace the FetchContent_Declare above
 # with: FetchContent_Declare(libstats SOURCE_DIR /path/to/libstats)
