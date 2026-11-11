@@ -22,7 +22,7 @@ jobs:
     name: AVX-512 Build and Test
     # Use self-hosted runner with AVX-512 support
     # runs-on: self-hosted-avx512
-    runs-on: ubuntu-latest  # Fallback for now
+    runs-on: ubuntu-24.04  # Fallback for now; pinned: installs gcc-13
     timeout-minutes: 20
     if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'avx512-test'))
 

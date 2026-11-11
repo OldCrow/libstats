@@ -25,7 +25,7 @@ concurrency:
 jobs:
   avx512-compile:
     name: AVX-512 Compilation Test (Syntax Only)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned compilers
     timeout-minutes: 20
 
     strategy:
