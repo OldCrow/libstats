@@ -42,13 +42,14 @@ Runs on pull requests to `main` and pushes to `main`, `develop`,
 `release/*` and `v*` (doc-only changes are skipped via
 `paths-ignore: ['**.md', 'docs/**', 'LICENSE']` — note that on
 pull_request events the filter applies to the PR's full changed-file set),
-plus a monthly scheduled canary that catches runner-image/toolchain drift.
+plus a weekly scheduled canary that catches runner-image/toolchain drift.
 Pushes to `dev/*` branches do not trigger it; run it on such a branch by
 manual dispatch (`gh workflow run ci.yml --ref <branch>`). The AVX-512
 workflows have no manual dispatch.
 
-Beyond the build matrix and correctness suite it runs: code-quality checks,
-Strict warnings (Linux, `-Werror`), Sanitizers (ASan/UBSan), a Ninja
+Beyond the build matrix and correctness suite it runs: pre-commit (the
+`.pre-commit-config.yaml` hooks on all files, enforced), code-quality checks
+(clang-tidy and cppcheck, report only), Strict warnings (Linux, `-Werror`), Sanitizers (ASan/UBSan), a Ninja
 generator configure, an export-stability-across-reconfigure job (the #90
 class), and coverage (GCC 13). The gcc-14 matrix leg also installs to a
 prefix, builds and runs `consumer_example` against it, and smoke-tests
@@ -109,9 +110,9 @@ the pin has not fallen behind corvus's newest release.
 The AVX-512 workflow checks that AVX-512 sources compile with toolchains that support AVX-512 flags. GitHub-hosted runners do not guarantee AVX-512 hardware, so this workflow is a compile-time validation, not a runtime performance validation.
 
 It triggers on pushes to `main` and `release/*`, PRs to `main` (doc-only
-changes excluded via paths-ignore), and a monthly scheduled canary. A
+changes excluded via paths-ignore), and a weekly scheduled canary. A
 separate runtime workflow (`avx512-testing.yml`) builds AND runs the suite
-on the same pushes as `ci.yml` and the monthly canary, and on a pull
+on the same pushes as `ci.yml` and the weekly canary, and on a pull
 request only when it carries the `avx512-test` label; it runs on
 `ubuntu-latest` and, when the runner has no `avx512f`, skips the build and
 tests with a notice. `docs.yml` builds documentation and
@@ -147,6 +148,14 @@ v2.x uses one compiler-agnostic strict build type:
 ```bash
 cmake -B build-strict -DCMAKE_BUILD_TYPE=Strict
 cmake --build build-strict --parallel
+```
+
+### Pre-commit hooks
+
+```bash
+python -m pip install pre-commit==4.7.0
+python -m pre_commit install          # run the hooks on every commit
+python -m pre_commit run --all-files  # what the `precommit` CI job runs
 ```
 
 ## macOS notes

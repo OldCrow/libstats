@@ -4,3 +4,6 @@
 
 # style: clang-format 20.1.8 over the repository (formatting only), 2026-10-12
 e73f39fb269ed731c1b0896c4183c31d75719d81
+
+# style: gersemi over the CMake files; LF for 24 profile CSVs (2026-11-11)
+39e8402b9be1228d2f2a9e55d18f5ad01502d977

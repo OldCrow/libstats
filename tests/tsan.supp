@@ -5,3 +5,19 @@
 # the libstdc++ series frame, so a direct std::lgamma call in libstats (#173) still reports.
 # Remove with the Bessel tier in v3.0.0.
 race:std::__detail::__cyl_bessel_ij_series
+
+# False positive on a rethrown task exception (test_parallel_exception_propagation). The caller
+# reads the caught exception (e.what()) while it holds a reference; a pool worker later drops the
+# packaged_task's last std::exception_ptr reference and frees the object. The reference count that
+# orders the two is an atomic inside the uninstrumented libstdc++.so, so TSan sees no
+# happens-before. It depends on timing: most runs do not report it.
+#
+# The freeing stack differs by libstdc++ version, so both frames are listed:
+#   libstdc++ 14 (ubuntu-24.04):  free <- std::__exception_ptr::exception_ptr::_M_release()
+#       seen on main, CI run 419, 2026-11-11
+#   libstdc++ 15 (ubuntu-26.04):  operator delete <- std::runtime_error::~runtime_error()
+#       seen on PR 292, 2026-11-08; there the release is inlined and has no frame of its own
+# Both are scoped to the exception object's release; a race on anything else a task owns still
+# reports.
+race:std::__exception_ptr::exception_ptr::_M_release
+race:std::runtime_error::~runtime_error

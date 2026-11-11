@@ -51,8 +51,8 @@ repos:
     hooks:
       - id: check-pragma-once
         name: Check for #pragma once in headers
-        entry: scripts/check-pragma-once.sh
-        language: script
+        entry: python scripts/check_pragma_once.py
+        language: python
         files: \.(h|hpp|hxx)$
         pass_filenames: true
 

@@ -7,11 +7,11 @@ on:
   pull_request:
     branches: [ main ]
     paths-ignore: ['**.md', 'docs/**', 'LICENSE']
-  # Monthly canary: catches drift with no code change to trigger it (runner
+  # Weekly canary: catches drift with no code change to trigger it (runner
   # image rolls, toolchain updates) instead of discovering breakage at the
   # next real push.
   schedule:
-    - cron: '30 3 1 * *'
+    - cron: '30 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +34,11 @@ jobs:
   # Ninja. That path has its own driver quirks (-Wall is -Weverything, both
   # _MSC_VER and __clang__ defined) and failed to compile unnoticed until
   # v2.4.2; nothing else in the matrix reaches it.
+  #
+  # Runner labels follow CI House Style §1: a leg that installs a versioned
+  # tool (gcc-14, clang-17) pins its image, so the image and the tool move
+  # together in one deliberate commit; the macOS and Windows legs take the
+  # image's own compiler and float.
   build:
     name: Build ${{ matrix.os }} ${{ matrix.compiler.name }} ${{ matrix.build_type }}
     runs-on: ${{ matrix.os }}
@@ -45,9 +50,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, compiler: { name: gcc-14,  cc: gcc-14,  cxx: g++-14  }, build_type: Release }
-          - { os: ubuntu-latest, compiler: { name: clang-17, cc: clang-17, cxx: clang++-17 }, build_type: Release }
-          - { os: macos-15,      compiler: { name: AppleClang, cc: clang, cxx: clang++ }, build_type: Release }
+          - { os: ubuntu-24.04, compiler: { name: gcc-14,  cc: gcc-14,  cxx: g++-14  }, build_type: Release }
+          - { os: ubuntu-24.04, compiler: { name: clang-17, cc: clang-17, cxx: clang++-17 }, build_type: Release }
+          - { os: macos-latest,  compiler: { name: AppleClang, cc: clang, cxx: clang++ }, build_type: Release }
           - { os: windows-latest, compiler: { name: msvc, cc: cl, cxx: cl }, build_type: Release }
           - { os: windows-latest, compiler: { name: clang-cl, cc: clang-cl, cxx: clang-cl }, build_type: Release }
 
@@ -355,7 +360,7 @@ jobs:
   # are checked on SMT Macs (R9), not here.
   thread-sanitizer:
     name: ThreadSanitizer (Linux, clang-17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned tools
     timeout-minutes: 45
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -403,7 +408,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # FMA contraction (Linux, clang-17, -mfma -ffp-contract=on). The x86 legs build
   # the generic sources without FMA, so a contracted a*b + c is only ever seen on
-  # the macos-15 runner (AArch64, where AppleClang contracts by default) — that
+  # the macOS runner (AArch64, where AppleClang contracts by default) — that
   # is where 08d48aa's Gamma batch double-counted its rate-product rounding.
   # This leg reproduces AppleClang-AArch64 and clang-cl-with-FMA contraction on
   # Linux, so the defect class fails here too, with a readable log. Correctness
@@ -411,7 +416,7 @@ jobs:
   # ---------------------------------------------------------------------------
   fma-contraction:
     name: FMA contraction (Linux, clang-17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned tools
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -570,7 +575,7 @@ jobs:
 
   lint:
     name: Code Quality Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned tools
     timeout-minutes: 15
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -579,15 +584,7 @@ jobs:
     - name: Install tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang-format-17 clang-tidy-17 cppcheck
-
-    - name: Check formatting
-      run: |
-        # Report violations but do not fail: the codebase uses clang-format-18+
-        # features; clang-format-17 (used here for compatibility checking) produces
-        # minor differences that are version-specific, not style regressions.
-        find include src tests \( -name '*.h' -o -name '*.cpp' \) -print0 | xargs -0 clang-format-17 --dry-run --Werror || true
-        echo "Note: clang-format-17 check configured but not enforced (version mismatch with developer toolchain)"
+        sudo apt-get install -y clang-tidy-17 cppcheck
 
     - name: Run clang-tidy
       run: |
@@ -607,9 +604,29 @@ jobs:
                  -I include src 2>&1 | tee cppcheck.log
         echo "Note: cppcheck configured but not enforced yet"
 
+  # Runs the same hooks as the local pre-commit hook (CI House Style §6): the
+  # local hook is opt-in per clone, so this job is the gate.
+  precommit:
+    name: Pre-commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: "3.12"
+    # No actions/cache for the hook environments: zizmor (cache-poisoning)
+    # rejects a cache in this workflow. The hooks reinstall on each run.
+    - name: Install pre-commit
+      run: python -m pip install pre-commit==4.7.0
+    - name: Run all hooks on all files
+      run: pre-commit run --all-files --show-diff-on-failure --color=always
+
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned tools
     # 30, not 20 [user, 2026-10-26]: 20 was marginal before the adoption (run #391 hit it with no
     # corvus; main's typical job is 13.5 min), and under -O0 gcov instrumentation the adoption's
     # span-of-one corvus_scalar calls in the discrete and beta families add about six minutes to the
@@ -672,9 +689,12 @@ jobs:
     - name: Generate coverage report
       run: |
         # Explicitly use gcov-13 for coverage collection
-        # --ignore-errors gcov suppresses missing .gcno errors for CMakeTmp probe
-        # artifacts generated during configure-time SIMD detection; those files
-        # have no corresponding .gcno because CMakeTmp is cleaned up after cmake.
+        # Configure-time SIMD detection runs probe binaries that leave .gcda
+        # files under CMakeTmp with no .gcno beside them (CMake cleans the
+        # directory). lcov 1.x reported that as a `gcov` error, ignored below;
+        # lcov 2.x (ubuntu-26.04) reports a fatal `path` error instead. Delete
+        # the orphans so no lcov version has to be told to ignore them.
+        find build/CMakeFiles/CMakeTmp -name '*.gcda' -delete 2>/dev/null || true
         lcov --gcov-tool gcov-13 --directory build --capture --output-file coverage.info --ignore-errors gcov,mismatch
         lcov --remove coverage.info '/usr/*' '*/tests/*' '*/examples/*' --output-file coverage.info --ignore-errors unused
         lcov --list coverage.info
@@ -688,7 +708,7 @@ jobs:
         fail_ci_if_error: false
 
   # ---------------------------------------------------------------------------
-  # corvus-pin-currency — canary-only (monthly cron / manual dispatch). Asks
+  # corvus-pin-currency — canary-only (weekly cron / manual dispatch). Asks
   # "is the corvus pin still the RIGHT version?" — distinct from "does the
   # pinned version still build?", which every FetchContent leg answers. Two
   # coupled strings in cmake/FindOrFetchCorvus.cmake must agree with each
@@ -738,3 +758,32 @@ jobs:
             rc=1
           fi
           exit "${rc}"
+
+  # Canary failure report (CI House Style section 8). GitHub notifies only
+  # whoever last edited the cron line when a scheduled run fails, so this
+  # opens an issue instead, or comments on the one already open. It never
+  # runs on push or pull_request.
+  canary-report:
+    name: Canary failure report
+    needs: [build, sanitizers, strict-warnings, thread-sanitizer, fma-contraction, ninja-generator, reconfigure-export, lint, precommit, coverage, corvus-pin-currency]
+    if: always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the canary issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Canary failed: ${WORKFLOW}"
+          body="The scheduled run of ${WORKFLOW} failed with no push to trigger it: ${RUN_URL}"
+          number=$(gh issue list --repo "$REPO" --state open --search "\"${title}\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "$title" --body "$body"
+          fi

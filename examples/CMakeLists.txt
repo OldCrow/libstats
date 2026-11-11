@@ -8,8 +8,10 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     target_link_libraries(${EXAMPLE_NAME} PRIVATE libstats_static)
 
     # Add include directories
-    target_include_directories(${EXAMPLE_NAME} PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS}
-                                                       ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+    target_include_directories(
+        ${EXAMPLE_NAME}
+        PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    )
 
     # Phase 3B/B5: previously inherited the project's warning flags via directory-scope
     # add_compile_options() propagation from the top-level CompilerFlags.cmake chain (examples/ is
@@ -41,8 +43,10 @@ function(create_example EXAMPLE_NAME SOURCE_FILE)
     endif()
 
     # Set output directory
-    set_target_properties(${EXAMPLE_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
-                                                     ${CMAKE_CURRENT_BINARY_DIR})
+    set_target_properties(
+        ${EXAMPLE_NAME}
+        PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
 endfunction()
 
 # Quick start and core usage examples

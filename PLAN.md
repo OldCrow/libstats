@@ -212,7 +212,72 @@ fetched, Highway 1.4.0 system). The 2026-10-02 note's `build-m1-gg/` and
 (`c42fc4e`). A stale 2.0.2 install remains under `~/.local/lib` and
 `~/.local/lib/cmake/libstats` (Z's equivalent was removed 2026-10-16).
 
-## Status [DERIVED] — 2026-10-16
+## Status [DERIVED] — 2026-11-02
+**corvus v1.2.0 released 2026-11-02 — bump owed [OPEN].** Signed tag
+`v1.2.0` on corvus `691db43`; release notes on corvus's GitHub release.
+It is the release the v3.0.0 adoption targets, so the next libstats
+session moves `dev/v3.0.0-corvus-adoption`'s corvus pin to `v1.2.0`
+(standards workplan task 2). What the bump carries:
+- **Wrapper change:** since corvus v1.1.0, `gamma_p`, `gamma_q`, `beta_p`,
+  `beta_q` and their four inverses have scalar overloads, so each name is
+  an overload set and the deducing `corvus_scalar` wrapper no longer
+  compiles. Call the scalar overloads directly.
+- **New exports:** span `expm1` and `log1pmx` (corvus #45, from this
+  repo's v2.5.0 work), both correctly rounded.
+- **Throughput:** corvus #42 lever 1 (beta and its inverses up to 1.9×
+  faster) and #31 (lgamma table band, single reflection log).
+- **Gates, libstats' decision (#156):** #42's NEON targets (`gamma_p` ≤ 40,
+  `beta_p` ≤ 30 ns/el) are out of reach under corvus's accuracy contract;
+  the M1 reads 272 and 823 ns/el. The log speedup gate needs exempting or
+  re-baselining: corvus `log` runs 0.44–0.66× of Apple's libm (1.5× UCRT).
+- **Same release in libhmm** (fleet coherence rule, libhmm #106).
+- **On the swap:** #107 and #108 close, citing corvus #32.
+
+**Fourth fleet machine: Ivy Bridge on Linux — 2026-11-11.** MacBook Pro
+9,1 (i7-3820QM: AVX, no AVX2, no FMA), Linux Mint 22.3, glibc 2.39, GCC
+13.3 and clang 17/18 installed. Source: corvus #101 and corvus
+`PLAN.md`. This note was written on the Zen 4 box from a source read;
+nothing below was built or run on the machine. It does not block the
+v1.2.0 pin bump.
+
+Read from source [DERIVED]:
+- `src/simd_avx.cpp` is a 256-bit AVX1 tier compiled `-mavx` only, with
+  no FMA. The three machines in AGENTS.md's fleet table all have AVX2 or
+  better, so none of them selects it by CPUID; it is reachable there
+  only through `LIBSTATS_MAX_SIMD_TIER=AVX`.
+- Its cos/sin block (#95) is commented "UNPROVEN LEG pending the ULP
+  gate" and expects about 1.5 ULP against about 0.8 on the FMA tiers.
+  That expectation covers cos/sin only, and the comment may be stale.
+- corvus dispatches its 128-bit `SSE4` target on this CPU (Highway has
+  no AVX1 target) and takes the Dekker `TwoProd` path there. Measured on
+  the machine (corvus #101, GCC, one pass, indicative): corvus `log`
+  0.56×, `log1p` 0.39×, `expm1` 0.50× of glibc; `erf` 3.56×.
+
+Inferred, verify on the Linux machine [OPEN]:
+- That this CPU dispatches the AVX tier at runtime. Check with
+  `tools/system_inspector` before trusting any result as an AVX-tier
+  result.
+- That no capped run has already gated the AVX tier. If one has, the
+  native run is a confirmation; if not, it is the tier's first
+  validation. Check `docs/VALIDATION_HISTORY.md`, then run the test
+  suite and ULP gates natively and record the cos/sin figure.
+- That the corvus swap reads worst here: 4-lane AVX loops hand off to
+  2-lane corvus kernels that also pay the Dekker cost. No libstats
+  kernel has been timed on this machine, so the size of the step is
+  unknown. Bench `dev/v3.0.0-corvus-adoption` against `main` here and
+  state the result on #156; it is a number to report, not a regression
+  to fix, under corvus's accuracy contract.
+- That mixing libstats' VEX AVX code with corvus's non-VEX SSE4 code
+  costs nothing. Sandy/Ivy Bridge charge a state-transition penalty when
+  legacy SSE runs with dirty upper YMM halves. GCC and clang emit
+  `vzeroupper` at function exit by default, so a clean result is
+  expected, not shown. Check the disassembly at a corvus call site or
+  count `other_assists.avx_to_sse` with `perf stat`.
+- That the dispatch thresholds in `performance_dispatcher.h` suit a
+  4-core non-FMA part. Untested; look only if the bench reads oddly.
+- [OPEN] Add the machine to AGENTS.md's fleet table once the first
+  native run is recorded.
+
 **v2.5.0 released 2026-10-16.** PR #278 (`dev/v2.4.2` → `main`, merge
 commit `dda07d1`, 158 commits) closed the 75 issues of milestone #10,
 which is closed; CI, CodeQL, the AVX-512 workflows and the docs build
@@ -421,9 +486,15 @@ relative metric on a near-zero value).
 Last release: v2.5.0 (2026-10-16); v2.4.1 (2026-09-19) before it. v3.0.0
 (corvus adoption) is in progress on this branch,
 `dev/v3.0.0-corvus-adoption`, targeting the corvus v1.2.0 pin; the section
-at the top of this file is authoritative for its state.
+at the top of this file is authoritative for its state. `dev/v2.5.0-corvus`
+was deleted from origin on 2026-10-26 and archived as the tag
+`archive/dev-v2.5.0-corvus`.
 
-## v2.5.0 release runbook (branch `dev/v2.4.2`) [OPEN]
+## v2.5.0 release runbook (branch `dev/v2.4.2`) [DONE 2026-10-16]
+Historical record of the v2.5.0 cycle; every step ran on every machine
+before the release (Status). Kept for its procedures, which the next
+release reuses.
+
 Machines: **Z** = Zen 4 (Windows 11, MSVC, AVX-512), **K** = Kaby Lake
 (macOS Ventura, AppleClang, AVX2), **M** = Mac Mini M1 (macOS 27,
 AppleClang, NEON).
@@ -991,7 +1062,12 @@ v2.4.0 precedent: a `LIBSTATS_MAX_SIMD_TIER` build, correctness and
 sweep. R8 builds the same capped trees on Z; run R5's correctness and
 sweep on them before their profiles if wanted.
 
-### R8 — dispatch-threshold captures (Z, M) [OPEN]
+### R8 — dispatch-threshold captures (Z, M) [DONE 2026-10-15]
+Outcome: all four tables re-derived by script (`580b7f7`), then settled
+by per-machine table A/B: kNeon `bb9ac0b`, kAvx512 `6c149f1`/`31d3ec3`,
+kAvx2 and kAvx `4c3a133`/`af7a088`; shipped in v2.5.0. It closed #144
+(2026-10-26). No kSse2 table yet: the SSE2-vs-AVX rows are a v3 input.
+
 Decided [user, 2026-10-03/04]: capture `strategy_profile` for every tier
 natively, compare across machines, and only then update
 `dispatch_thresholds.h`. No table edits yet. Z: AVX-512, AVX2, AVX,
@@ -1147,7 +1223,7 @@ verified kNeon, then one R1:
    commit the header, the script and the evidence with the user.
 M's A/B on kNeon: `2026-10-14-m1-threshold-rows/AB_RESULTS.md`.
 
-### R9 — mechanical concurrency checks (M writes; M, K, Z run) [OPEN]
+### R9 — mechanical concurrency checks (M writes; M, K, Z run) [DONE 2026-10-16]
 Goal [user, 2026-10-06]: catch mechanically, before the v3 refactor
 redesigns locking, the defect classes that so far only code review has
 found, so later fixes stop triggering unplanned bugfix rounds. Review
@@ -1513,6 +1589,28 @@ Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
   along with the `using` lines in each `src/*.cpp`.
 
 ## Decided [DERIVED]
+- **Freeze and the accuracy patch [user, 2026-10-26]** (replaces the
+  2026-10-07 freeze policy's "until corvus is integrated" and #8's "ships
+  after v3.0.0"). `main`'s code stays frozen until the adoption starts.
+  The adoption has started (`dev/v3.0.0-corvus-adoption`). From then on,
+  only the #8 issues the adoption needs are worked, on the adoption branch
+  and inside v3.0.0. The rest close as "overtaken by corvus adoption".
+  Triage of #8 against the branch (2026-10-26):
+  - 22 issues touch nothing the branch changes.
+  - #262 and #271 are superseded by the swap (re-measure after it).
+  - 10 edit the files the branch edits: #152, #179, #214, #217–#219,
+    #248, #249, #251, #272.
+  - #103, #104 and #114 wait on the post-swap sweep.
+  Disposition [user, 2026-10-26]:
+  - The 15 coupled issues move to v3.0.0, together with two tooling
+    issues, #213 and #258, as verification support for the swap. That is
+    17 in total.
+  - The other 20 stay on #8 as a patch after v3.0.0. Close none of them
+    as overtaken, since they are real defects.
+  - If the adoption runs quickly and smoothly, reassess pulling
+    accuracy-first issues from #8 forward.
+  - #262 and #271 close as "overtaken by corvus adoption" only when the
+    post-swap sweep shows the defect gone.
 - **Windows performance build is clang-cl [user, 2026-10-05]**, with
   cl.exe's `/arch:` flags (`/arch:AVX2` = AVX2 + FMA, F16C, BMI1/2,
   LZCNT, MOVBE; `/arch:AVX512` adds AVX-512 F, CD, BW, DQ, VL), so both
@@ -1597,11 +1695,34 @@ Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
   Z is set (2026-10-03).
 - **`origin/spike/corvus-bessel`** holds the only Tier 0 corvus Bessel
   code (`a1c71d6`). It is not merged; keep it.
+- **CI and tooling [2026-11-11]** (rules and incidents: CI House Style §1,
+  §6, §8).
+  - Runner labels: jobs that install a versioned tool (gcc-13, gcc-14,
+    clang-17, clang-tidy-17) are pinned to `ubuntu-24.04`, so image and
+    tool move in one commit; everything else floats, macOS included
+    (#294). What moving that pin needs: Known Gaps, "CI on ubuntu-26.04".
+  - The canary runs weekly (Monday, 03:25–03:40 UTC across the four
+    workflows; `docs.yml` gained a schedule). A `canary-report` job opens
+    a "Canary failed" issue, or comments on the open one (#295).
+  - Pre-commit is enforced (#296): the `precommit` job runs every hook on
+    all files. Before this the config existed and nothing ran it.
+  - Project hooks are Python and both can fail: `check_pragma_once.py`
+    and `check_no_debug.py` (debug markers; `std::cout` in library code
+    outside a DEBUG-gated block). The copyright hook (no file carried a
+    header) and the include-order hook (clang-format owns include order)
+    were removed. Each hook was shown to fail on a planted case.
+  - gersemi replaces cmake-format; clang-format hook is v23.1.5 (#297).
+    Formatter output of #296 is `39e8402`, in `.git-blame-ignore-revs`.
+  - `docs/bench-evidence/` is excluded from the fixers, clang-format and
+    shellcheck: it is captured output, and two files hold lone CRs.
+  - `tests/tsan.supp` suppresses the exception-release false positive on
+    two frames, one per libstdc++ version (#294, #298).
+  - No `actions/cache` in the `precommit` job (zizmor `cache-poisoning`).
+  - `reviewdog/action-actionlint` stays at v1.83.0 or newer (#292).
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-10-06 (milestones and
-open issues below; no open issue without a milestone; one open PR,
-#174, a Dependabot bump of reviewdog/action-actionlint).
+Last reconciled against live GitHub state: 2026-10-26 (milestones and
+open issues below; no open issue without a milestone; no open PRs).
 - GitHub is the collaborator-facing source for issues and milestones;
   this file is the agent-facing state. Keep both in sync: when creating,
   closing, retitling or moving an issue or milestone, update this section
@@ -1612,60 +1733,70 @@ open issues below; no open issue without a milestone; one open PR,
 
 ## GitHub Milestones [DERIVED]
 Closed: #1 v2.2.0 (5), #5 v2.3.0 (5), #7 v2.3.1 (13), #2 v2.4.0 (6), #9
-v2.4.1 (3). Milestone numbers do not sort in version order (two title
-renumberings, 2026-07-21 and 2026-08-16).
+v2.4.1 (3), #10 v2.5.0 (75, released 2026-10-16). Milestone numbers do
+not sort in version order (two title renumberings, 2026-07-21 and
+2026-08-16).
 
-Release order [user, 2026-10-04]: v2.5.0 (milestone #10, `dev/v2.4.2`)
-→ v3.0.0 corvus (#6) → v3.1.0 New Distributions (#3) → Architecture
-Refactor (#4, post-v3). The accuracy patch (#8) is under review below.
-Retitled 2026-10-04 [user], each description carrying a dated
-renumbering note: #10 "v2.5.0 — Correctness & accuracy", #6 "v3.0.0 —
-corvus adoption", #3 "v3.1.0 — New Distributions (Extended)", #4
-"Post-v3 — Architecture Refactor"; #8 note only.
+Release order [user, 2026-10-04]: v3.0.0 corvus (#6) → v3.1.0 New
+Distributions (#3) → Architecture Refactor (#4, post-v3). The accuracy
+patch (#8) ships after v3.0.0 (re-scoped 2026-10-26; Decided). Retitled 2026-10-04 [user], each
+description carrying a dated renumbering note: #10 "v2.5.0 — Correctness
+& accuracy", #6 "v3.0.0 — corvus adoption", #3 "v3.1.0 — New
+Distributions (Extended)", #4 "Post-v3 — Architecture Refactor"; #8 note
+only.
 
-#8 against this release [DERIVED, 2026-10-04; verify before moving
-anything]:
-- Likely overtaken: #104 (quantile contract at extreme p): its Decided
-  contract stands and v2.5.0 fixed the deep-tail quantiles (#159, #160,
-  the log1p quantiles; 0 contract violations on AVX-512 and AVX2).
-  Re-check its listed cases, then close.
-- Partly overtaken: #103 (±inf inputs): the support-boundary rule
-  (#161, #165) covers x = 0 and out-of-support; check the +inf cases it
-  lists before closing or narrowing.
-- Done by the speed work and R8's tooling, closed 2026-10-05: #146
-  (`scripts/analyze_crossovers.py`, `3e9fde3`), #111 (the von Mises
-  batch CDF, `96b157f`). #144 (von Mises CDF thresholds) waits for R8's
-  table update.
-- Unaffected: #152 (Codecov measurement), #114 (review backlog). If the
-  above go, #8 is these two; fold them into a post-v3 patch or close #8.
-- **#10 v2.5.0 — Correctness & accuracy** (open, 17): #157–#167, #170–#172,
-  #175–#177 (filed 2026-10-06: #175 per-element lock in PARALLEL lambdas,
-  #176 Student-t CDF serial PARALLEL, #177 single-shot timing test).
-  Closed by the release PR.
-- **#6 v3.0.0 — corvus adoption** (open, 13): #47, #52, #107, #108, #110,
-  #113, #126, #136, #137, #138, #141, #156, #173. Full swap [user,
-  2026-09-17]: every `detail::` special function corvus covers. #126 and
-  #141 are absorbed, measured against corvus v1.0.0. Corvus is pinned at
-  v1.0.1. State and design: that branch's PLAN.md.
-- **#8 Accuracy, contracts & kernel hygiene patch** (open, 11): ships after
-  corvus (v3.0.0); under review, see above. #178–#183 filed 2026-10-06
-  from the lock and parallel-path audit, not fixed for v2.5.0 [user]:
-  #178 InverseGamma's serial passes, #179 `parallel_execution.h`'s
-  include-order backend choice (Linux), #180 the global `waitForAll()`
-  after a latched `parallelFor`, #181 the batch-fit fallback racing
-  submitted tasks, #182 FisherF `sample()` mixing a snapshot with the
-  resynced delegate, #183 unlocked validation reads and dead helpers.
-  Bucketed [user, 2026-09-29]:
-  - A, independent of adoption: #152 (Codecov measurement); #146 closed.
-  - B, re-scope after the post-swap sweep and timing: #103, #104, #144;
-    #111 closed.
-  - C, one pass after the swap: #114.
+- **#6 v3.0.0 — corvus adoption** (open, 18): #47, #52, #107, #108, #110,
+  #113, #126, #136, #138, #141, #156, #220, #221, #247, #252, #266, #267,
+  #270. Full swap [user, 2026-09-17]: every `detail::` special function
+  corvus covers. #126 and #141 are absorbed, measured against corvus
+  v1.0.0. #137 and #173 closed with v2.5.0; #267 is #173's residual.
+  #156 gates the release on corvus v1.2.0 throughput. Added since
+  2026-10-06: #220 public-contracts design and #221 (retire the
+  NR-shaped beta continued fraction and per-tier coefficient copies),
+  both from the 2026-10-07 architecture review; #247, #270 (beta), #252
+  (von Mises entropy via Bessel), #266 (prefactor and density forms below
+  shape 20). Corvus is pinned at v1.0.1. State and design: that branch's
+  PLAN.md.
+  Moved from #8 on 2026-10-26 [user; Decided, "Freeze and the accuracy
+  patch"], 17 issues, each with a reason comment:
+  - Same files as the branch: #152, #179, #214, #217, #218, #219, #248,
+    #249, #251, #272.
+  - Superseded by the swap: #262 and #271. Re-measure them, then close
+    as overtaken.
+  - Post-swap sweep: #103 (enforced in v2.5.0; re-run its guards), #104
+    (v2.5.0's #159 and #160; confirm), #114 (one pass after the swap).
+  - Verification support: #213 (off-grid and adversarial sweep), #258
+    (per-row budgets, and a row diff against v2.5.0).
+  Open now: 35.
+- **#8 Accuracy, contracts & kernel hygiene patch** (open, 20; 8 closed):
+  a patch after v3.0.0, independent of the adoption. Closed since
+  2026-10-06: #180 and #183 (with v2.5.0), #257 and #265 (2026-10-12),
+  #144 (2026-10-26; R8 corrected its kAvx512 cell for v2.5.0). #146 and
+  #111 closed 2026-10-05.
+  - Accuracy: #215, #243, #244, #245, #246, #250, #263, #273, #277.
+    #245 may already be fixed (`cd9a2ab`); check it before working it.
+    #244's "exact path" premise looks wrong (a Stirling path above
+    λ = 20).
+  - Oracle and test tooling: #259, #260, #261.
+  - Concurrency: #181, #182.
+  - API defects and docs: #253 (document), #268, #269.
+  - Speed: #178 (InverseGamma's serial passes).
+  - Parallel layer, from the 2026-10-26 fleet-structure survey: #283
+    (Gaussian `fit()` partition follows the platform grain, so bits
+    differ across machines); #284 (deprecate the unused
+    thread-count-dependent reduction helpers; remove at the next major).
 - **#3 v3.1.0 — New Distributions (Extended)** (open, 5): #58 GEV, #59
   LogLogistic, #60 Triangular, #61 Wald, #62 Hypergeometric +
   BetaBinomial + Zipf. Settle #62's Zipf CDF design (summation or the
   Hurwitz-zeta closed form) before planning; it scopes corvus work.
-- **#4 Post-v3 — Architecture Refactor** (open, 5): #40, #41, #42, #43,
-  #128.
+- **#4 Post-v3 — Architecture Refactor** (open, 8): #40, #41, #42, #43,
+  #128, #222, #282, #285. #222 (layering: GoF statistics out of L1
+  `math_utils`) came from the 2026-10-07 architecture review. #282 (one slice callable per batch site behind
+  one internal scheduling seam) is the first step of #43 and is wanted
+  whatever the threading direction [user, 2026-10-26]. #285 (caller-supplied
+  executor) is gated on a fleet executor concept. #42 is on hold: the
+  direction [OPEN] under discussion moves the pools to an optional fleet
+  library and deletes the `safe_*` backends.
 
 ## Trends from the v2.5.0 captures [OPEN, 2026-10-05; tested 2026-10-06]
 First extracted from K's three tiers, M's NEON and Z's throttled
@@ -1742,6 +1873,18 @@ For corvus adoption (v3.0.0) and later:
   worse than the v2.5.0 block, on every ISA.
 
 ## Known Gaps [OPEN]
+- **CI on ubuntu-26.04** [OPEN, 2026-11-11]: the jobs that install versioned
+  tools are pinned to `ubuntu-24.04` (#294, CI House Style §1). Moving that
+  pin needs two things first, both seen on #293's runs:
+  - Coverage: lcov 2.4 fails with `inconsistent` ("mismatched end line" in
+    `tests/test_discrete_quantile_bounds.cpp:57`) under `gcov-13`. The
+    `path` error from orphan CMakeTmp `.gcda` files is already fixed.
+  - TSan: the exception-release false positive in
+    `test_parallel_exception_propagation` is suppressed on two frames in
+    `tests/tsan.supp`, because the freeing stack differs between
+    libstdc++ 14 and 15. It depends on timing (it fired on main in CI run
+    419 on ubuntu-24.04, after many clean runs), so a pass proves little;
+    re-read the report's frames if it fires again after an image move.
 - **R9 findings on M** [DERIVED, 2026-10-06; filed 2026-10-07 as
   #184–#191 (F1–F8 in order), milestone "Accuracy, contracts & kernel
   hygiene patch"; detail in
@@ -1827,8 +1970,12 @@ For corvus adoption (v3.0.0) and later:
   return doubles. Only a double-double complement export would.
 - The past-INT_MAX CDF guard tolerance (2e-4) comes from `beta_i`'s
   lgamma floor. Tighten it when the v2.5.0 incomplete-beta core lands.
-- The pinned clang-format is 20.1.8; the cached pre-commit environment on
-  Z has 19.1.7, and CI only reports format (clang-format-17, `|| true`).
+- The pinned clang-format is 23.1.5 (#297, 2026-11-11; it formats the
+  tree identically to 20.1.8, so no reformat), and CI enforces it:
+  the `precommit` job runs every hook on all files. Every hook
+  can fail and none repeats another: the warn-only copyright and
+  include-order checks are gone (no file carried a copyright header;
+  clang-format owns include order), and `no-debug-code` now fails.
   The older drift in `fisher_f.cpp` and `beta.cpp` was cleared in
   `b5a47df`.
 ## Cross-Repo Dependencies [OPEN]

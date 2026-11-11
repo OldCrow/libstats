@@ -7,7 +7,8 @@ cmake_minimum_required(VERSION 3.25)
 execute_process(
     COMMAND "${BINARY}" --gtest_list_tests "--gtest_filter=${FILTER}"
     OUTPUT_VARIABLE _out
-    RESULT_VARIABLE _rc)
+    RESULT_VARIABLE _rc
+)
 if(NOT _rc EQUAL 0)
     message(FATAL_ERROR "${BINARY} --gtest_list_tests failed (${_rc})")
 endif()

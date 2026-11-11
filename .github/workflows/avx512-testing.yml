@@ -9,9 +9,9 @@ on:
   pull_request:
     branches: [ main ]
     paths-ignore: ['**.md', 'docs/**', 'LICENSE']
-  # Monthly canary: catches drift with no code change to trigger it.
+  # Weekly canary: catches drift with no code change to trigger it.
   schedule:
-    - cron: '40 3 1 * *'
+    - cron: '40 3 * * 1'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -22,7 +22,7 @@ jobs:
     name: AVX-512 Build and Test
     # Use self-hosted runner with AVX-512 support
     # runs-on: self-hosted-avx512
-    runs-on: ubuntu-latest  # Fallback for now
+    runs-on: ubuntu-24.04  # Fallback for now; pinned: installs gcc-13
     timeout-minutes: 20
     if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'avx512-test'))
 
@@ -107,3 +107,32 @@ jobs:
       if: env.AVX512_SUPPORTED != 'true'
       run: |
         echo "::notice title=AVX-512 Testing Skipped::This runner does not support AVX-512. Consider using a self-hosted runner with AVX-512 support for complete testing."
+
+  # Canary failure report (CI House Style section 8). GitHub notifies only
+  # whoever last edited the cron line when a scheduled run fails, so this
+  # opens an issue instead, or comments on the one already open. It never
+  # runs on push or pull_request.
+  canary-report:
+    name: Canary failure report
+    needs: [avx512-test]
+    if: always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the canary issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Canary failed: ${WORKFLOW}"
+          body="The scheduled run of ${WORKFLOW} failed with no push to trigger it: ${RUN_URL}"
+          number=$(gh issue list --repo "$REPO" --state open --search "\"${title}\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "$title" --body "$body"
+          fi

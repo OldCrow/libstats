@@ -16,10 +16,8 @@ These are part of the normal development workflow and are expected to be used re
   validate the repository's *emulated* warning profiles, not real GCC or MSVC front ends.
   Real compiler validation still requires native GCC or MSVC runs.
 
-- `check-pragma-once.sh` — verify all headers use `#pragma once`
-- `check-copyright.sh` — verify copyright headers are present
-- `check-no-debug.sh` — detect leftover debug output (`std::cout`-based DEBUG prints, `printf.*DEBUG`, `#define DEBUG`)
-- `validate-includes.sh` — check for common include hygiene issues
+- `check_pragma_once.py` — verify all headers use `#pragma once`
+- `check_no_debug.py` — fail on leftover debug markers (`DO NOT COMMIT`, `HACK:`, DEBUG prints, `#define DEBUG`) and on `std::cout` in library code outside a DEBUG-gated block
 - `capture_dispatcher_profile.sh` / `capture_dispatcher_profile.ps1` — run
   `tools/strategy_profile` with the current build and bundle the CSV output
   under `build/profiles/dispatcher/`, then copy it to

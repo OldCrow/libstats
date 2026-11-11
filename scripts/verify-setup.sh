@@ -104,7 +104,7 @@ main() {
     echo "Checking utility scripts..."
     check_file "scripts/run-iwyu.sh" "IWYU analysis script" || all_good=false
     check_file "scripts/setup-pre-commit.sh" "Pre-commit setup script" || all_good=false
-    check_file "scripts/check-pragma-once.sh" "Pragma once checker" || all_good=false
+    check_file "scripts/check_pragma_once.py" "Pragma once checker" || all_good=false
 
     echo ""
 

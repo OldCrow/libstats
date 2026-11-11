@@ -1,0 +1,6 @@
+# gersemi configuration (replaces .cmake-format.yaml)
+line_length: 100
+indent: 4
+# Files that define the repo's own functions/macros, so gersemi knows their
+# argument keywords instead of warning about unknown commands.
+definitions: [CMakeLists.txt, cmake, tests, tools, examples]
