@@ -13,10 +13,10 @@ on:
   pull_request:
     branches: [ main ]
     paths-ignore: ['**.md', 'docs/**', 'LICENSE']
-  # Monthly canary: catches compiler/toolchain drift with no code change to
+  # Weekly canary: catches compiler/toolchain drift with no code change to
   # trigger it.
   schedule:
-    - cron: '35 3 1 * *'
+    - cron: '35 3 * * 1'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -144,3 +144,32 @@ jobs:
         echo "✅ Project builds successfully with AVX-512 flags enabled"
         echo ""
         echo "Note: This tests compilation only. Runtime testing requires AVX-512 capable hardware."
+
+  # Canary failure report (CI House Style section 8). GitHub notifies only
+  # whoever last edited the cron line when a scheduled run fails, so this
+  # opens an issue instead, or comments on the one already open. It never
+  # runs on push or pull_request.
+  canary-report:
+    name: Canary failure report
+    needs: [avx512-compile]
+    if: always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the canary issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Canary failed: ${WORKFLOW}"
+          body="The scheduled run of ${WORKFLOW} failed with no push to trigger it: ${RUN_URL}"
+          number=$(gh issue list --repo "$REPO" --state open --search "\"${title}\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "$title" --body "$body"
+          fi
