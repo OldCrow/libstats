@@ -47,8 +47,9 @@ Pushes to `dev/*` branches do not trigger it; run it on such a branch by
 manual dispatch (`gh workflow run ci.yml --ref <branch>`). The AVX-512
 workflows have no manual dispatch.
 
-Beyond the build matrix and correctness suite it runs: code-quality checks,
-Strict warnings (Linux, `-Werror`), Sanitizers (ASan/UBSan), a Ninja
+Beyond the build matrix and correctness suite it runs: pre-commit (the
+`.pre-commit-config.yaml` hooks on all files, enforced), code-quality checks
+(clang-tidy and cppcheck, report only), Strict warnings (Linux, `-Werror`), Sanitizers (ASan/UBSan), a Ninja
 generator configure, an export-stability-across-reconfigure job (the #90
 class), and coverage (GCC 13). The gcc-14 matrix leg also installs to a
 prefix, builds and runs `consumer_example` against it, and smoke-tests
@@ -130,6 +131,14 @@ v2.x uses one compiler-agnostic strict build type:
 ```bash
 cmake -B build-strict -DCMAKE_BUILD_TYPE=Strict
 cmake --build build-strict --parallel
+```
+
+### Pre-commit hooks
+
+```bash
+python -m pip install pre-commit==4.7.0
+python -m pre_commit install          # run the hooks on every commit
+python -m pre_commit run --all-files  # what the `precommit` CI job runs
 ```
 
 ## macOS notes

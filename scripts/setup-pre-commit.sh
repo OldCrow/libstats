@@ -104,12 +104,12 @@ install_additional_tools() {
         print_info "shellcheck found: $(shellcheck --version | grep version:)"
     fi
 
-    # Check for cmake-format
-    if ! command -v cmake-format &> /dev/null; then
-        print_warning "cmake-format is not installed"
-        echo "  Install with: pip install cmake-format"
+    # Check for gersemi
+    if ! command -v gersemi &> /dev/null; then
+        print_warning "gersemi is not installed"
+        echo "  Install with: pip install gersemi"
     else
-        print_info "cmake-format found"
+        print_info "gersemi found"
     fi
 }
 

@@ -481,15 +481,7 @@ jobs:
     - name: Install tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang-format-17 clang-tidy-17 cppcheck
-
-    - name: Check formatting
-      run: |
-        # Report violations but do not fail: the codebase uses clang-format-18+
-        # features; clang-format-17 (used here for compatibility checking) produces
-        # minor differences that are version-specific, not style regressions.
-        find include src tests \( -name '*.h' -o -name '*.cpp' \) -print0 | xargs -0 clang-format-17 --dry-run --Werror || true
-        echo "Note: clang-format-17 check configured but not enforced (version mismatch with developer toolchain)"
+        sudo apt-get install -y clang-tidy-17 cppcheck
 
     - name: Run clang-tidy
       run: |
@@ -508,6 +500,26 @@ jobs:
                  --inline-suppr \
                  -I include src 2>&1 | tee cppcheck.log
         echo "Note: cppcheck configured but not enforced yet"
+
+  # Runs the same hooks as the local pre-commit hook (CI House Style §6): the
+  # local hook is opt-in per clone, so this job is the gate.
+  precommit:
+    name: Pre-commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: "3.12"
+    # No actions/cache for the hook environments: zizmor (cache-poisoning)
+    # rejects a cache in this workflow. The hooks reinstall on each run.
+    - name: Install pre-commit
+      run: python -m pip install pre-commit==4.7.0
+    - name: Run all hooks on all files
+      run: pre-commit run --all-files --show-diff-on-failure --color=always
 
   coverage:
     name: Code Coverage
@@ -593,7 +605,7 @@ jobs:
   # runs on push or pull_request.
   canary-report:
     name: Canary failure report
-    needs: [build, sanitizers, strict-warnings, thread-sanitizer, fma-contraction, ninja-generator, reconfigure-export, lint, coverage]
+    needs: [build, sanitizers, strict-warnings, thread-sanitizer, fma-contraction, ninja-generator, reconfigure-export, lint, precommit, coverage]
     if: always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
