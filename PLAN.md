@@ -1737,7 +1737,8 @@ For corvus adoption (v3.0.0) and later:
   return doubles. Only a double-double complement export would.
 - The past-INT_MAX CDF guard tolerance (2e-4) comes from `beta_i`'s
   lgamma floor. Tighten it when the v2.5.0 incomplete-beta core lands.
-- The pinned clang-format is 20.1.8, and since 2026-11-11 CI enforces it:
+- The pinned clang-format is 23.1.5 (#297, 2026-11-11; it formats the
+  tree identically to 20.1.8, so no reformat), and CI enforces it:
   the `precommit` job runs every hook on all files. Every hook
   can fail and none repeats another: the warn-only copyright and
   include-order checks are gone (no file carried a copyright header;
