@@ -1489,6 +1489,30 @@ Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
   Z is set (2026-10-03).
 - **`origin/spike/corvus-bessel`** holds the only Tier 0 corvus Bessel
   code (`a1c71d6`). It is not merged; keep it.
+- **CI and tooling [2026-11-11]** (rules and incidents: CI House Style §1,
+  §6, §8).
+  - Runner labels: jobs that install a versioned tool (gcc-13, gcc-14,
+    clang-17, clang-tidy-17) are pinned to `ubuntu-24.04`, so image and
+    tool move in one commit; everything else floats, macOS included
+    (#294). What moving that pin needs: Known Gaps, "CI on ubuntu-26.04".
+  - The canary runs weekly (Monday, 03:25–03:40 UTC across the four
+    workflows; `docs.yml` gained a schedule). A `canary-report` job opens
+    a "Canary failed" issue, or comments on the open one (#295).
+  - Pre-commit is enforced (#296): the `precommit` job runs every hook on
+    all files. Before this the config existed and nothing ran it.
+  - Project hooks are Python and both can fail: `check_pragma_once.py`
+    and `check_no_debug.py` (debug markers; `std::cout` in library code
+    outside a DEBUG-gated block). The copyright hook (no file carried a
+    header) and the include-order hook (clang-format owns include order)
+    were removed. Each hook was shown to fail on a planted case.
+  - gersemi replaces cmake-format; clang-format hook is v23.1.5 (#297).
+    Formatter output of #296 is `39e8402`, in `.git-blame-ignore-revs`.
+  - `docs/bench-evidence/` is excluded from the fixers, clang-format and
+    shellcheck: it is captured output, and two files hold lone CRs.
+  - `tests/tsan.supp` suppresses the exception-release false positive on
+    two frames, one per libstdc++ version (#294, #298).
+  - No `actions/cache` in the `precommit` job (zizmor `cache-poisoning`).
+  - `reviewdog/action-actionlint` stays at v1.83.0 or newer (#292).
 
 ## GitHub Synchronization [DERIVED]
 Last reconciled against live GitHub state: 2026-10-26 (milestones and
