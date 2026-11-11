@@ -16,17 +16,22 @@ option(LIBSTATS_VERBOSE_BUILD "Enable verbose build messages for debugging" OFF)
 option(
     LIBSTATS_PORTABLE
     "Skip global /arch: SIMD flag on Windows builds (safe for distributable wheels; OFF by default)"
-    OFF)
+    OFF
+)
 
 # Threading system preference control
-option(LIBSTATS_FORCE_TBB
-       "Force TBB usage even on platforms with native threading (e.g., GCD on macOS)" OFF)
+option(
+    LIBSTATS_FORCE_TBB
+    "Force TBB usage even on platforms with native threading (e.g., GCD on macOS)"
+    OFF
+)
 option(
     LIBSTATS_PREFER_PLATFORM_THREADING
     "Disable OpenMP when a platform-native threading system (GCD on macOS, Windows Thread Pool \
 on Windows) is available, preventing over-subscription from two independent thread pools. \
 Default OFF preserves the existing behaviour."
-    OFF)
+    OFF
+)
 
 # Automatic parallel job detection for optimal build performance
 include(ProcessorCount)
@@ -47,9 +52,7 @@ endif()
 
 # Set parallel options for CMake build command (for use with cmake --build)
 if(NOT DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
-    set(CMAKE_BUILD_PARALLEL_LEVEL
-        ${CPU_COUNT}
-        CACHE STRING "Number of parallel build jobs")
+    set(CMAKE_BUILD_PARALLEL_LEVEL ${CPU_COUNT} CACHE STRING "Number of parallel build jobs")
 endif()
 if(LIBSTATS_VERBOSE_BUILD)
     message(STATUS "Set CMAKE_BUILD_PARALLEL_LEVEL=${CPU_COUNT} for cmake --build")
@@ -66,22 +69,26 @@ if(APPLE)
         if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET)
             message(
                 FATAL_ERROR
-                    "libstats v2.x requires CMAKE_OSX_DEPLOYMENT_TARGET >= "
-                    "${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET}; got ${CMAKE_OSX_DEPLOYMENT_TARGET}")
+                "libstats v2.x requires CMAKE_OSX_DEPLOYMENT_TARGET >= "
+                "${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET}; got ${CMAKE_OSX_DEPLOYMENT_TARGET}"
+            )
         endif()
-        message(STATUS "macOS deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET} "
-                       "(minimum supported: ${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET})")
+        message(
+            STATUS
+            "macOS deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET} "
+            "(minimum supported: ${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET})"
+        )
     else()
-        message(STATUS "macOS deployment target: compiler default "
-                       "(minimum supported: ${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET}; "
-                       "set -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 for Ventura-compatible binaries)")
+        message(
+            STATUS
+            "macOS deployment target: compiler default "
+            "(minimum supported: ${LIBSTATS_MIN_MACOS_DEPLOYMENT_TARGET}; "
+            "set -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 for Ventura-compatible binaries)"
+        )
     endif()
 endif()
 
-project(
-    libstats
-    VERSION 2.5.0
-    LANGUAGES CXX)
+project(libstats VERSION 2.5.0 LANGUAGES CXX)
 
 # GNUInstallDirs gives platform-correct, packager-overridable destinations (e.g. lib64 on some Linux
 # distros) instead of hardcoded lib/bin/include. Included here (rather than down by the install()
@@ -121,12 +128,12 @@ option(LIBSTATS_BUILD_EXAMPLES "Build examples" ${LIBSTATS_BUILD_EXAMPLES_DEFAUL
 # Set default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to 'Dev' as none was specified.")
-    set(CMAKE_BUILD_TYPE
-        Dev
-        CACHE STRING "Choose the type of build." FORCE)
+    set(CMAKE_BUILD_TYPE Dev CACHE STRING "Choose the type of build." FORCE)
     # Set the possible values of build type for cmake-gui
-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "Dev"
-                                                 "Strict")
+    set_property(
+        CACHE CMAKE_BUILD_TYPE
+        PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "Dev" "Strict"
+    )
 endif()
 
 # C++20 requirement
@@ -149,7 +156,8 @@ elseif(UNIX AND NOT APPLE)
     # -fPIC is required for shared library compilation on Linux.
     add_compile_options(-fPIC)
     set(CMAKE_SHARED_LINKER_FLAGS
-        "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-soname,libstats.so.${PROJECT_VERSION_MAJOR}")
+        "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-soname,libstats.so.${PROJECT_VERSION_MAJOR}"
+    )
 elseif(WIN32)
     # Windows compatibility macros (LP-3: add_compile_definitions, not add_definitions)
     add_compile_definitions(NOMINMAX _USE_MATH_DEFINES)
@@ -181,24 +189,28 @@ option(LIBSTATS_ENABLE_RUNTIME_CHECKS "Enable runtime CPU checks even when cross
 # no cap). Honoured by detect_simd_features() -> apply_simd_tier_cap() in SIMDDetection.cmake.
 set(LIBSTATS_MAX_SIMD_TIER
     ""
-    CACHE STRING "Cap the highest compiled x86 SIMD tier (SSE2|AVX|AVX2|AVX512; empty = no cap)")
-set_property(CACHE LIBSTATS_MAX_SIMD_TIER PROPERTY STRINGS "" SSE2 AVX AVX2 AVX512)
+    CACHE STRING
+    "Cap the highest compiled x86 SIMD tier (SSE2|AVX|AVX2|AVX512; empty = no cap)"
+)
+set_property(
+    CACHE LIBSTATS_MAX_SIMD_TIER
+    PROPERTY STRINGS "" SSE2 AVX AVX2 AVX512
+)
 # Perform comprehensive SIMD detection
 detect_simd_features()
 
 # Execute unified TBB detection with platform preference On macOS, prefer GCD over TBB for better
 # integration with the platform unless explicitly overridden by LIBSTATS_FORCE_TBB
-if(APPLE
-   AND LIBSTATS_HAS_GCD
-   AND NOT LIBSTATS_FORCE_TBB)
+if(APPLE AND LIBSTATS_HAS_GCD AND NOT LIBSTATS_FORCE_TBB)
     message(STATUS "macOS detected with GCD available - TBB detection skipped (GCD preferred)")
     message(STATUS "  To force TBB usage on macOS, set -DLIBSTATS_FORCE_TBB=ON")
-    set(LIBSTATS_HAS_TBB
-        FALSE
-        CACHE BOOL "TBB disabled in favor of GCD on macOS" FORCE)
+    set(LIBSTATS_HAS_TBB FALSE CACHE BOOL "TBB disabled in favor of GCD on macOS" FORCE)
     set(LIBSTATS_TBB_DETECTION_COMPLETE
         TRUE
-        CACHE BOOL "TBB detection skipped for GCD preference" FORCE)
+        CACHE BOOL
+        "TBB detection skipped for GCD preference"
+        FORCE
+    )
 else()
     if(LIBSTATS_FORCE_TBB AND APPLE)
         message(STATUS "LIBSTATS_FORCE_TBB=ON - forcing TBB detection even on macOS with GCD")
@@ -233,8 +245,13 @@ if(NOT LIBSTATS_PORTABLE)
     # clang-cl takes the same /arch: flags as cl.exe, so both build the same ISA: /arch:AVX2 is AVX2
     # with FMA, F16C, BMI1/2, LZCNT and MOVBE, and /arch:AVX512 adds AVX-512 F, CD, BW, DQ and VL.
     # clang-cl's -mavx2 is AVX2 alone (no FMA) and -mavx512f is F alone.
-    if((CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-       AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    if(
+        (
+            CMAKE_CXX_COMPILER_ID STREQUAL "MSVC"
+            OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
+        )
+        AND CMAKE_SIZEOF_VOID_P EQUAL 8
+    )
         if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
             set(_libstats_win_compiler "MSVC")
         else()
@@ -250,14 +267,13 @@ if(NOT LIBSTATS_PORTABLE)
             add_compile_options(/arch:AVX)
             message(STATUS "Applied ${_libstats_win_compiler} x64 SIMD flags: /arch:AVX")
         else()
-            message(STATUS
-                    "Applied ${_libstats_win_compiler} x64 SIMD flags: none (SSE2 is the x64 baseline)")
+            message(
+                STATUS
+                "Applied ${_libstats_win_compiler} x64 SIMD flags: none (SSE2 is the x64 baseline)"
+            )
         endif()
         unset(_libstats_win_compiler)
-    elseif(
-        CMAKE_CXX_COMPILER_ID MATCHES "Clang"
-        AND WIN32
-        AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
         # Clang with the GNU-style driver on Windows (not clang-cl); unvalidated.
         if(LIBSTATS_HAS_AVX512)
             add_compile_options(-mavx512f)
@@ -273,8 +289,11 @@ if(NOT LIBSTATS_PORTABLE)
         endif()
     endif()
 else()
-    message(STATUS "LIBSTATS_PORTABLE=ON: skipping global Windows /arch: flag "
-                   "(SIMD kernel TUs still use per-file flags from SIMDDetection.cmake)")
+    message(
+        STATUS
+        "LIBSTATS_PORTABLE=ON: skipping global Windows /arch: flag "
+        "(SIMD kernel TUs still use per-file flags from SIMDDetection.cmake)"
+    )
 endif()
 
 # IMPORTANT: SIMD compile definitions are handled by cmake/SIMDDetection.cmake That system detects
@@ -309,10 +328,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     else()
         message(STATUS "SIMD: SSE2 enabled (MSVC x64)")
     endif()
-elseif(
-    CMAKE_CXX_COMPILER_ID MATCHES "Clang"
-    AND WIN32
-    AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     if(LIBSTATS_HAS_AVX512)
         message(STATUS "SIMD: AVX-512/AVX2/AVX/SSE2 enabled (ClangCL x64)")
     elseif(LIBSTATS_HAS_AVX2)
@@ -372,8 +388,9 @@ set(LIBSTATS_CORE_UTILITIES_SOURCES
 )
 
 # Level 2: Platform Capabilities (Depends on Level 0-1)
-set(LIBSTATS_PLATFORM_SOURCES src/thread_pool.cpp # Thread pool implementation
-                              src/work_stealing_pool.cpp # Advanced work-stealing thread pool
+set(LIBSTATS_PLATFORM_SOURCES
+    src/thread_pool.cpp # Thread pool implementation
+    src/work_stealing_pool.cpp # Advanced work-stealing thread pool
 )
 
 # Level 3: Advanced Infrastructure (Depends on Level 0-2)
@@ -386,7 +403,8 @@ set(LIBSTATS_INFRASTRUCTURE_SOURCES
 )
 
 # Level 4: Distribution Framework (Depends on Level 0-3)
-set(LIBSTATS_FRAMEWORK_SOURCES src/distribution_base.cpp # Complete distribution base framework
+set(LIBSTATS_FRAMEWORK_SOURCES
+    src/distribution_base.cpp # Complete distribution base framework
 )
 
 # Level 5: Distribution Implementations (Depends on Level 0-4)
@@ -412,14 +430,14 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/logistic.cpp # Logistic distribution (sigmoid CDF, symmetric vector_exp pipeline)
     src/gumbel.cpp # Gumbel distribution (Type I extreme value, max-stable; double-exp CDF)
     src/negative_binomial.cpp # Negative Binomial distribution (discrete, Newton-Raphson MLE,
-                              # Gamma-Poisson sampling)
+    # Gamma-Poisson sampling)
     src/bernoulli.cpp # Bernoulli distribution (discrete delegation wrapper over Binomial(n=1))
     src/erlang.cpp # Erlang distribution (delegation wrapper over Gamma(k, lambda), integer shape)
     src/fisher_f.cpp # F (Fisher-Snedecor) distribution (Beta(d1/2,d2/2) transform wrapper; steered
-                     # incomplete-beta tails)
+    # incomplete-beta tails)
     src/half_normal.cpp # Half-Normal distribution (|N(0,sigma)|, erf CDF pipeline)
     src/inverse_gamma.cpp # Inverse Gamma distribution (reciprocal-transform wrapper over
-                          # Gamma(alpha, RATE beta); upper-incomplete-gamma CDF)
+    # Gamma(alpha, RATE beta); upper-incomplete-gamma CDF)
     src/truncated_normal.cpp # Truncated Normal distribution (regime-split erf/erfc normalization)
     src/gaussian_analysis.cpp # Gaussian-specific analysis
     src/poisson_analysis.cpp # Poisson-specific analysis
@@ -439,11 +457,15 @@ set(_libstats_no_contract_sources src/gamma.cpp src/inverse_gamma.cpp)
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # cl.exe: /fp:precise does not contract unless /fp:contract is given.
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32)
-    set_source_files_properties(${_libstats_no_contract_sources}
-                                PROPERTIES COMPILE_OPTIONS "/clang:-ffp-contract=off")
+    set_source_files_properties(
+        ${_libstats_no_contract_sources}
+        PROPERTIES COMPILE_OPTIONS "/clang:-ffp-contract=off"
+    )
 else()
-    set_source_files_properties(${_libstats_no_contract_sources}
-                                PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+    set_source_files_properties(
+        ${_libstats_no_contract_sources}
+        PROPERTIES COMPILE_OPTIONS "-ffp-contract=off"
+    )
 endif()
 
 # SIMD sources are added separately by the SIMD detection system These compile with specific
@@ -457,13 +479,18 @@ endif()
 # installed package's dual INSTALL_INTERFACE contract below. Since the source tree now mirrors the
 # install tree directly (include/libstats/...), no shim/symlink/copy step is needed on any platform.
 set(LIBSTATS_BUILD_INCLUDE_DIRS
-    "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/include/libstats"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/libstats"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated"
+)
 
 # NEW-BS-1: Generate version header from CMake project() metadata so the runtime constants always
 # match the version in CMakeLists.txt.
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_version.h.in"
-               "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h" @ONLY)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_version.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h"
+    @ONLY
+)
 
 # =============================================================================
 # CREATE OBJECT LIBRARIES FOR PARALLEL COMPILATION
@@ -529,27 +556,32 @@ set(LIBSTATS_ALL_OBJECTS
     $<TARGET_OBJECTS:libstats_infrastructure_obj>
     $<TARGET_OBJECTS:libstats_framework_obj>
     $<TARGET_OBJECTS:libstats_distributions_obj>
-    $<TARGET_OBJECTS:libstats_simd_obj>)
+    $<TARGET_OBJECTS:libstats_simd_obj>
+)
 
 # Header-only library (for header-only components)
 add_library(libstats_headers INTERFACE)
 target_include_directories(
     libstats_headers
-    INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
-              $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
-              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
+    INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>
+)
 
 # Static library using object libraries for better build performance
 add_library(libstats_static STATIC ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
     libstats_static
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
-           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
-           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>
+)
 # Phase 3B/B5: has no compiled sources of its own (only $<TARGET_OBJECTS:...> from the object
 # libraries above, which already carry their own warnings) -- applied for structural completeness /
 # consistency per the design; observably a no-op today.
@@ -567,19 +599,20 @@ endif()
 add_library(libstats_shared SHARED ${LIBSTATS_ALL_OBJECTS})
 target_include_directories(
     libstats_shared
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
-           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
-           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>)
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/libstats>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/libstats>
+)
 # Phase 3B/B5: see libstats_static above -- no compiled sources of its own, applied for structural
 # completeness; observably a no-op today.
 libstats_apply_warnings(libstats_shared)
 set_target_properties(
     libstats_shared
-    PROPERTIES OUTPUT_NAME "stats"
-               VERSION ${PROJECT_VERSION}
-               SOVERSION ${PROJECT_VERSION_MAJOR})
+    PROPERTIES OUTPUT_NAME "stats" VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR}
+)
 
 # Platform-specific shared library properties
 if(APPLE)
@@ -643,9 +676,10 @@ if(TARGET Threads::Threads)
 elseif(LIBSTATS_HAS_PTHREADS)
     message(
         FATAL_ERROR
-            "Threading detection reports pthreads available, but the imported target "
-            "Threads::Threads does not exist in this configure pass. Continuing would omit it "
-            "from the PUBLIC link and from the installed export without any diagnostic — see #90.")
+        "Threading detection reports pthreads available, but the imported target "
+        "Threads::Threads does not exist in this configure pass. Continuing would omit it "
+        "from the PUBLIC link and from the installed export without any diagnostic — see #90."
+    )
 endif()
 
 # Platform-specific library linking: rpath and signing are handled per-target above. -stdlib=libc++
@@ -665,13 +699,17 @@ if(LIBSTATS_HAS_TBB)
             target_include_directories(libstats_static PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
             target_include_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL})
         endif()
-        if(DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
-           AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}" STREQUAL "")
+        if(
+            DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
+            AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}" STREQUAL ""
+        )
             target_link_directories(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
             target_link_directories(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
         endif()
-        if(DEFINED LIBSTATS_TBB_LIBRARIES_INTERNAL AND NOT "${LIBSTATS_TBB_LIBRARIES_INTERNAL}"
-                                                       STREQUAL "")
+        if(
+            DEFINED LIBSTATS_TBB_LIBRARIES_INTERNAL
+            AND NOT "${LIBSTATS_TBB_LIBRARIES_INTERNAL}" STREQUAL ""
+        )
             target_link_libraries(libstats_static PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
             target_link_libraries(libstats_shared PUBLIC ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
         else()
@@ -682,9 +720,10 @@ if(LIBSTATS_HAS_TBB)
             # arrive here legitimately.
             message(
                 WARNING
-                    "LIBSTATS_HAS_TBB is set, but this configure pass produced neither the "
-                    "TBB::tbb target nor pkg-config results — TBB will not be linked. Delete the "
-                    "build directory's cache to re-detect. See #90.")
+                "LIBSTATS_HAS_TBB is set, but this configure pass produced neither the "
+                "TBB::tbb target nor pkg-config results — TBB will not be linked. Delete the "
+                "build directory's cache to re-detect. See #90."
+            )
         endif()
     endif()
 
@@ -705,8 +744,12 @@ add_library(libstats::shared ALIAS libstats_shared)
 # the library targets need the link. PRIVATE on the static library lands corvus in
 # INTERFACE_LINK_LIBRARIES as $<LINK_ONLY:corvus::corvus>, which is what in-tree consumers and the
 # installed package (system corvus only — see cmake/FindOrFetchCorvus.cmake) both need.
-foreach(_libstats_corvus_obj libstats_core_utilities_obj libstats_distributions_obj
-                             libstats_simd_obj)
+foreach(
+    _libstats_corvus_obj
+    libstats_core_utilities_obj
+    libstats_distributions_obj
+    libstats_simd_obj
+)
     target_link_libraries(${_libstats_corvus_obj} PRIVATE corvus::corvus)
 endforeach()
 target_link_libraries(libstats_static PRIVATE corvus::corvus)
@@ -751,8 +794,8 @@ if(LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        INCLUDES
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
 
     # Install headers (exclude editor artifacts and macOS metadata). Note: no trailing slash on
     # "include/libstats" -- DIRECTORY installs the libstats/ directory itself into DESTINATION,
@@ -767,22 +810,26 @@ if(LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
         PATTERN ".DS_Store" EXCLUDE
         PATTERN "*.bak" EXCLUDE
         PATTERN "*.bak2" EXCLUDE
-        PATTERN ".gitkeep" EXCLUDE)
+        PATTERN ".gitkeep" EXCLUDE
+    )
 
     # libstats.h #includes "libstats_version.h" (bare, unnamespaced), generated at configure time
     # into ${CMAKE_CURRENT_BINARY_DIR}/generated (see NEW-BS-1 above) and reachable at build time
     # via $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>. Without this, an installed
     # find_package(libstats) consumer fails to compile: the generated header was never part of the
     # installed tree.
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h"
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats)
+    install(
+        FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats
+    )
 
     # Install CMake config files for find_package support
     install(
         EXPORT libstats-targets
         FILE libstats-targets.cmake
         NAMESPACE libstats::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats)
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats
+    )
 
     # Create and install config file
     include(CMakePackageConfigHelpers)
@@ -790,20 +837,27 @@ if(LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
     write_basic_package_version_file(
         "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
         VERSION ${PROJECT_VERSION}
-        COMPATIBILITY SameMajorVersion)
+        COMPATIBILITY SameMajorVersion
+    )
 
     configure_package_config_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats-config.cmake.in"
         "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
         INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats
-        PATH_VARS INCLUDE_INSTALL_DIR)
+        PATH_VARS INCLUDE_INSTALL_DIR
+    )
 
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
-                  "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats)
+    install(
+        FILES
+            "${CMAKE_CURRENT_BINARY_DIR}/libstats-config.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/libstats-config-version.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libstats
+    )
 else()
     message(
-        STATUS "libstats: 'install' target disabled — corvus was fetched, not found as a package")
+        STATUS
+        "libstats: 'install' target disabled — corvus was fetched, not found as a package"
+    )
 endif()
 
 # ===============================================================================
@@ -817,8 +871,11 @@ if(BUILD_DOCS)
         message(STATUS "Doxygen found: ${DOXYGEN_VERSION}")
 
         # Configure Doxyfile with project variables
-        configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in"
-                       "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile" @ONLY)
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in"
+            "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
+            @ONLY
+        )
 
         # Add documentation target
         add_custom_target(
@@ -826,7 +883,8 @@ if(BUILD_DOCS)
             COMMAND ${DOXYGEN_EXECUTABLE} "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
             COMMENT "Generating API documentation with Doxygen"
-            VERBATIM)
+            VERBATIM
+        )
 
         message(STATUS "Documentation target 'docs' configured")
         message(STATUS "  Build with: cmake --build . --target docs")
@@ -841,8 +899,12 @@ endif()
 # ===============================================================================
 # Path from <prefix>/<libdir>/pkgconfig back to <prefix> (usually ../..; handles multiarch libdirs
 # too). Consumed by cmake/libstats.pc.in.
-file(RELATIVE_PATH LIBSTATS_PC_PREFIX_REL "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig"
-     "${CMAKE_INSTALL_PREFIX}")
+file(
+    RELATIVE_PATH
+    LIBSTATS_PC_PREFIX_REL
+    "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig"
+    "${CMAKE_INSTALL_PREFIX}"
+)
 string(REGEX REPLACE "/$" "" LIBSTATS_PC_PREFIX_REL "${LIBSTATS_PC_PREFIX_REL}")
 if(NOT LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
     # No install without a system corvus (see above); no .pc either.
@@ -851,11 +913,16 @@ elseif(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
     if(LIBSTATS_HAS_TBB)
         string(APPEND LIBSTATS_PC_LIBS_PRIVATE " -ltbb")
     endif()
-    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
-                   "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc" @ONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
+        @ONLY
+    )
 
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+    install(
+        FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+    )
 
     message(STATUS "pkg-config file will be installed to ${CMAKE_INSTALL_LIBDIR}/pkgconfig/")
 elseif(APPLE)
@@ -864,11 +931,16 @@ elseif(APPLE)
     if(LIBSTATS_HAS_TBB)
         string(APPEND LIBSTATS_PC_LIBS_PRIVATE " -ltbb")
     endif()
-    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
-                   "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc" @ONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
+        @ONLY
+    )
 
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+    install(
+        FILES "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+    )
 endif()
 
 # Print summary

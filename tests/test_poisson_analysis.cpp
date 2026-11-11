@@ -117,7 +117,8 @@ TEST(PoissonAnalysis, RateStabilityTestStableData) {
 }
 
 TEST(PoissonAnalysis, RateStabilityTestTooFewThrows) {
-    EXPECT_THROW((void)stats::analysis::poisson::rateStabilityTest({1.0, 2.0}), std::invalid_argument);
+    EXPECT_THROW((void)stats::analysis::poisson::rateStabilityTest({1.0, 2.0}),
+                 std::invalid_argument);
 }
 
 // ── Chi-square GoF test ──────────────────────────────────────────────────────

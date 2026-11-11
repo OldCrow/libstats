@@ -25,8 +25,10 @@ if(NOT GTEST_FOUND AND APPLE)
         if(GTest_FOUND OR TARGET GTest::gtest)
             set(GTEST_FOUND TRUE)
             message(STATUS "GTest found via Homebrew at ${GTEST_ROOT}")
-        elseif(EXISTS "${GTEST_ROOT}/lib/libgtest.a" AND EXISTS
-                                                         "${GTEST_ROOT}/include/gtest/gtest.h")
+        elseif(
+            EXISTS "${GTEST_ROOT}/lib/libgtest.a"
+            AND EXISTS "${GTEST_ROOT}/include/gtest/gtest.h"
+        )
             set(GTEST_FOUND TRUE)
             set(GTEST_INCLUDE_DIRS "${GTEST_ROOT}/include")
             set(GTEST_LIBRARIES "${GTEST_ROOT}/lib/libgtest.a")
@@ -37,9 +39,7 @@ if(NOT GTEST_FOUND AND APPLE)
 endif()
 
 # Step 3: FetchContent fallback — self-contained for CI and machines without a system GTest.
-if(NOT GTEST_FOUND
-   AND NOT TARGET GTest::gtest
-   AND NOT TARGET gtest)
+if(NOT GTEST_FOUND AND NOT TARGET GTest::gtest AND NOT TARGET gtest)
     message(STATUS "GTest not found locally - fetching via FetchContent")
     include(FetchContent)
     FetchContent_Declare(
@@ -47,21 +47,21 @@ if(NOT GTEST_FOUND
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG v1.17.0
         GIT_SHALLOW TRUE
-        SYSTEM)
+        SYSTEM
+    )
     # Prevent GTest from overriding the project's CRT choice on Windows.
-    set(gtest_force_shared_crt
-        ON
-        CACHE BOOL "" FORCE)
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     # GoogleTest 1.17.0 builds its own sources with -WX under an MSVC-style driver, and its
     # char8_t printer trips -Wcharacter-conversion, new in Clang 21. Only clang-cl meets both.
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
-       AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
-       AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 21)
+    if(
+        CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+        AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"
+        AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 21
+    )
         foreach(_libstats_gtest_target gtest gtest_main gmock gmock_main)
             if(TARGET ${_libstats_gtest_target})
-                target_compile_options(${_libstats_gtest_target}
-                                       PRIVATE -Wno-character-conversion)
+                target_compile_options(${_libstats_gtest_target} PRIVATE -Wno-character-conversion)
             endif()
         endforeach()
     endif()
@@ -73,18 +73,25 @@ function(configure_common_test_settings TEST_NAME)
     # Set output directory to build/tests
     set_target_properties(
         ${TEST_NAME}
-        PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
-                   RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/tests/Debug
-                   RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/tests/Release
-                   RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR}/tests/RelWithDebInfo
-                   RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR}/tests/MinSizeRel)
+        PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/tests/Debug
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/tests/Release
+            RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR}/tests/RelWithDebInfo
+            RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR}/tests/MinSizeRel
+    )
 
     # Add include directories
     target_include_directories(
-        ${TEST_NAME} PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/src
-                             ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        ${TEST_NAME}
+        PRIVATE
+            ${LIBSTATS_BUILD_INCLUDE_DIRS}
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
     libstats_apply_warnings(${TEST_NAME}) # Phase 3B/B5 -- single insertion point for every test
-                                          # target
+    # target
 
     # Platform-specific rpath is inherited from libstats_static/shared via PUBLIC link options. No
     # per-target rpath needed here (adding it causes duplicate -rpath linker warnings).
@@ -137,9 +144,11 @@ function(create_libstats_test_dynamic TEST_NAME SOURCE_FILE)
             add_custom_command(
                 TARGET ${TEST_NAME}
                 POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libstats_shared>
-                        $<TARGET_FILE_DIR:${TEST_NAME}>
-                COMMENT "Copying shared libstats runtime next to the dynamic tests")
+                COMMAND
+                    ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:libstats_shared>
+                    $<TARGET_FILE_DIR:${TEST_NAME}>
+                COMMENT "Copying shared libstats runtime next to the dynamic tests"
+            )
         else()
             add_dependencies(${TEST_NAME} ${_runtime_owner})
         endif()
@@ -260,8 +269,10 @@ set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST TRUE)
 
 # parallel_execution.h - C++20 parallel execution with automatic fallback
 create_libstats_gtest(test_parallel_execution_integration test_parallel_execution_integration.cpp)
-create_libstats_gtest(test_parallel_execution_comprehensive
-                      test_parallel_execution_comprehensive.cpp)
+create_libstats_gtest(
+    test_parallel_execution_comprehensive
+    test_parallel_execution_comprehensive.cpp
+)
 
 # benchmark.h - Performance measurement utilities
 create_libstats_test(test_benchmark_basic test_benchmark_basic.cpp)
@@ -459,9 +470,12 @@ create_libstats_gtest(test_contract_gates test_contract_gates.cpp)
 # getSurvival complement-native overrides: deep-tail S against mpmath, not 1 - F. Correctness.
 create_libstats_gtest(test_survival_tails test_survival_tails.cpp)
 # AR D19: no `inline` member definitions in src/*.cpp (Poisson's overrides, the #189 class).
-add_test(NAME check_inline_member_definitions
-         COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -P
-                 ${CMAKE_CURRENT_SOURCE_DIR}/check_inline_member_definitions.cmake)
+add_test(
+    NAME check_inline_member_definitions
+    COMMAND
+        ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/check_inline_member_definitions.cmake
+)
 
 # R9 stress test: every distribution's readers raced against writer programs (setters, fit, stream,
 # assignment), two-writer rounds, and a strategy differential. Correctness, not timing: it asserts
@@ -641,7 +655,8 @@ if(GTEST_FOUND)
         # test_performance_dispatcher left this list (AR T1, 2026-10-07): none has a clock, duration
         # or speedup assertion, so the label only kept their gates (#103 among them) out of CI's
         # correctness run (-LE "timing|benchmark"), the #97 trap.
-        PROPERTIES LABELS "timing")
+        PROPERTIES LABELS "timing"
+    )
     # #212: the other binaries mix correctness and timing cases. Labelling a whole binary "timing"
     # kept its correctness cases (#48, #95, #103/#104 gates among them) out of CI's correctness run,
     # the #97 trap. Each mixed binary is registered twice instead: <name> runs everything except its
@@ -658,14 +673,12 @@ if(GTEST_FOUND)
         # A renamed case would select nothing and pass silently; fail on an empty selection.
         set_tests_properties(
             ${TEST_NAME}_timing
-            PROPERTIES LABELS
-                       "timing"
-                       ENVIRONMENT
-                       "GTEST_FILTER=${timing_filter}"
-                       WORKING_DIRECTORY
-                       ${CMAKE_BINARY_DIR}
-                       FAIL_REGULAR_EXPRESSION
-                       "Running 0 tests")
+            PROPERTIES
+                LABELS "timing"
+                ENVIRONMENT "GTEST_FILTER=${timing_filter}"
+                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                FAIL_REGULAR_EXPRESSION "Running 0 tests"
+        )
         # One misspelled name among several still selected some tests; check every name. A
         # correctness test, so CI's run executes it.
         list(LENGTH ARGN _names)
@@ -673,27 +686,43 @@ if(GTEST_FOUND)
             NAME ${TEST_NAME}_timing_split_names
             COMMAND
                 ${CMAKE_COMMAND} -DBINARY=$<TARGET_FILE:${TEST_NAME}> -DFILTER=${timing_filter}
-                -DEXPECTED=${_names} -P ${CMAKE_CURRENT_SOURCE_DIR}/check_gtest_filter_count.cmake)
+                -DEXPECTED=${_names} -P ${CMAKE_CURRENT_SOURCE_DIR}/check_gtest_filter_count.cmake
+        )
     endfunction()
 
-    libstats_split_timing_cases(test_math_comprehensive MathUtilsTest.ErfPerformance
-                                MathUtilsTest.GammaPerformance)
     libstats_split_timing_cases(
-        test_gaussian_enhanced GaussianEnhancedTest.SIMDAndParallelBatchImplementations
+        test_math_comprehensive
+        MathUtilsTest.ErfPerformance
+        MathUtilsTest.GammaPerformance
+    )
+    libstats_split_timing_cases(
+        test_gaussian_enhanced
+        GaussianEnhancedTest.SIMDAndParallelBatchImplementations
         GaussianEnhancedTest.AutoDispatchAssessment
-        GaussianEnhancedTest.ParallelBatchFittingSpeedup)
+        GaussianEnhancedTest.ParallelBatchFittingSpeedup
+    )
     libstats_split_timing_cases(
-        test_gamma_enhanced GammaEnhancedTest.SIMDAndParallelBatchImplementations
-        GammaEnhancedTest.AutoDispatchAssessment)
+        test_gamma_enhanced
+        GammaEnhancedTest.SIMDAndParallelBatchImplementations
+        GammaEnhancedTest.AutoDispatchAssessment
+    )
     libstats_split_timing_cases(
-        test_discrete_enhanced DiscreteEnhancedTest.SIMDAndParallelBatchImplementations
-        DiscreteEnhancedTest.CachingSpeedupVerification)
-    libstats_split_timing_cases(test_exponential_enhanced
-                                ExponentialEnhancedTest.SIMDAndParallelBatchImplementations)
-    libstats_split_timing_cases(test_poisson_enhanced
-                                PoissonEnhancedTest.SIMDAndParallelBatchImplementations)
-    libstats_split_timing_cases(test_uniform_enhanced
-                                UniformEnhancedTest.SIMDAndParallelBatchImplementations)
+        test_discrete_enhanced
+        DiscreteEnhancedTest.SIMDAndParallelBatchImplementations
+        DiscreteEnhancedTest.CachingSpeedupVerification
+    )
+    libstats_split_timing_cases(
+        test_exponential_enhanced
+        ExponentialEnhancedTest.SIMDAndParallelBatchImplementations
+    )
+    libstats_split_timing_cases(
+        test_poisson_enhanced
+        PoissonEnhancedTest.SIMDAndParallelBatchImplementations
+    )
+    libstats_split_timing_cases(
+        test_uniform_enhanced
+        UniformEnhancedTest.SIMDAndParallelBatchImplementations
+    )
     libstats_split_timing_cases(test_cauchy_enhanced CauchyEnhancedTest.VectorizedSpeedup)
     libstats_split_timing_cases(test_laplace_enhanced LaplaceEnhancedTest.VectorizedSpeedup)
     libstats_split_timing_cases(test_lognormal_enhanced LogNormalEnhancedTest.VectorizedSpeedup)
@@ -722,111 +751,112 @@ add_custom_target(
     # without it CTest sees no tests and label filters are inert (review 2026-08-21).
     COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
     DEPENDS # Level 0: Foundational tests (most critical)
-            test_constants
-            test_cpu_detection
-            test_simd_comprehensive
-            test_platform_optimizations
-            test_simd_policy
-            test_simd_dispatch_gates
-            test_simd_neon_exp_accuracy
-            test_simd_neon_log_accuracy
-            test_simd_neon_cos_accuracy
-            test_bessel
-            test_trig_ulp_gates
-            test_vonmises_cdf_accuracy
-            test_lognormal_cdf_accuracy
-            test_gaussian_cdf_accuracy
-            test_log_special_gates
-            test_batch_nan_gates
-            # Level 1: Core infrastructure tests
-            test_error_handling_comprehensive
-            test_numerical_safety
-            test_math_comprehensive
-            # Level 2: Statistical infrastructure
-            test_goodness_of_fit
-            test_gaussian_analysis
-            test_poisson_analysis
-            test_distribution_analysis
-            test_batch_math_regressions
-            # Level 3: Parallel infrastructure tests
-            test_thread_pool
-            test_parallel_exception_propagation
-            $<$<BOOL:${LIBSTATS_HAS_WORK_STEALING_POOL_TEST}>:test_work_stealing_pool>
-            test_parallel_execution_integration
-            test_benchmark_basic
-            # Level 4: Performance framework tests
-            test_performance_dispatcher
-            test_system_capabilities
-            test_performance_initialization
-            # Level 5: Basic distribution tests
-            test_gaussian_basic
-            test_exponential_basic
-            test_uniform_basic
-            test_poisson_basic
-            test_discrete_basic
-            test_gamma_basic
-            test_chi_squared_basic
-            test_student_t_basic
-            test_beta_basic
-            test_lognormal_basic
-            test_pareto_basic
-            test_weibull_basic
-            test_rayleigh_basic
-            test_von_mises_basic
-            test_binomial_basic
-            test_negative_binomial_basic
-            test_atomic_parameters
-            # Level 6: Enhanced distribution tests
-            test_gaussian_enhanced
-            test_exponential_enhanced
-            test_uniform_enhanced
-            test_poisson_enhanced
-            test_discrete_enhanced
-            test_gamma_enhanced
-            test_student_t_enhanced
-            test_beta_enhanced
-            test_chi_squared_enhanced
-            test_lognormal_enhanced
-            test_pareto_enhanced
-            test_weibull_enhanced
-            test_rayleigh_enhanced
-            test_von_mises_enhanced
-            test_binomial_enhanced
-            test_negative_binomial_enhanced
-            test_geometric_basic
-            test_geometric_enhanced
-            test_discrete_quantile_bounds
-            test_laplace_basic
-            test_laplace_enhanced
-            test_cauchy_basic
-            test_cauchy_enhanced
-            test_bernoulli_basic
-            test_bernoulli_enhanced
-            test_erlang_basic
-            test_erlang_enhanced
-            test_logistic_basic
-            test_logistic_enhanced
-            test_gumbel_basic
-            test_gumbel_enhanced
-            test_half_normal_basic
-            test_half_normal_enhanced
-            test_truncated_normal_basic
-            test_truncated_normal_enhanced
-            test_fisher_f_basic
-            test_fisher_f_enhanced
-            test_inverse_gamma_basic
-            test_inverse_gamma_enhanced
-            # Level 6: Integration tests
-            test_dynamic_linking
-            test_integration_workflow
-            # On-demand tests (stress, diagnostic, redundant)
-            test_parallel_execution_comprehensive
-            test_benchmark
-            test_gaussian_basic_dynamic
-            test_exponential_basic_dynamic
-            $<$<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
-            $<$<BOOL:${HAS_PARALLEL_COMPILATION}>:test_parallel_compilation>
-    COMMENT "Running ALL libstats tests in dependency order (Levels 0-7 + on-demand)")
+        test_constants
+        test_cpu_detection
+        test_simd_comprehensive
+        test_platform_optimizations
+        test_simd_policy
+        test_simd_dispatch_gates
+        test_simd_neon_exp_accuracy
+        test_simd_neon_log_accuracy
+        test_simd_neon_cos_accuracy
+        test_bessel
+        test_trig_ulp_gates
+        test_vonmises_cdf_accuracy
+        test_lognormal_cdf_accuracy
+        test_gaussian_cdf_accuracy
+        test_log_special_gates
+        test_batch_nan_gates
+        # Level 1: Core infrastructure tests
+        test_error_handling_comprehensive
+        test_numerical_safety
+        test_math_comprehensive
+        # Level 2: Statistical infrastructure
+        test_goodness_of_fit
+        test_gaussian_analysis
+        test_poisson_analysis
+        test_distribution_analysis
+        test_batch_math_regressions
+        # Level 3: Parallel infrastructure tests
+        test_thread_pool
+        test_parallel_exception_propagation
+        $<$<BOOL:${LIBSTATS_HAS_WORK_STEALING_POOL_TEST}>:test_work_stealing_pool>
+        test_parallel_execution_integration
+        test_benchmark_basic
+        # Level 4: Performance framework tests
+        test_performance_dispatcher
+        test_system_capabilities
+        test_performance_initialization
+        # Level 5: Basic distribution tests
+        test_gaussian_basic
+        test_exponential_basic
+        test_uniform_basic
+        test_poisson_basic
+        test_discrete_basic
+        test_gamma_basic
+        test_chi_squared_basic
+        test_student_t_basic
+        test_beta_basic
+        test_lognormal_basic
+        test_pareto_basic
+        test_weibull_basic
+        test_rayleigh_basic
+        test_von_mises_basic
+        test_binomial_basic
+        test_negative_binomial_basic
+        test_atomic_parameters
+        # Level 6: Enhanced distribution tests
+        test_gaussian_enhanced
+        test_exponential_enhanced
+        test_uniform_enhanced
+        test_poisson_enhanced
+        test_discrete_enhanced
+        test_gamma_enhanced
+        test_student_t_enhanced
+        test_beta_enhanced
+        test_chi_squared_enhanced
+        test_lognormal_enhanced
+        test_pareto_enhanced
+        test_weibull_enhanced
+        test_rayleigh_enhanced
+        test_von_mises_enhanced
+        test_binomial_enhanced
+        test_negative_binomial_enhanced
+        test_geometric_basic
+        test_geometric_enhanced
+        test_discrete_quantile_bounds
+        test_laplace_basic
+        test_laplace_enhanced
+        test_cauchy_basic
+        test_cauchy_enhanced
+        test_bernoulli_basic
+        test_bernoulli_enhanced
+        test_erlang_basic
+        test_erlang_enhanced
+        test_logistic_basic
+        test_logistic_enhanced
+        test_gumbel_basic
+        test_gumbel_enhanced
+        test_half_normal_basic
+        test_half_normal_enhanced
+        test_truncated_normal_basic
+        test_truncated_normal_enhanced
+        test_fisher_f_basic
+        test_fisher_f_enhanced
+        test_inverse_gamma_basic
+        test_inverse_gamma_enhanced
+        # Level 6: Integration tests
+        test_dynamic_linking
+        test_integration_workflow
+        # On-demand tests (stress, diagnostic, redundant)
+        test_parallel_execution_comprehensive
+        test_benchmark
+        test_gaussian_basic_dynamic
+        test_exponential_basic_dynamic
+        $<$<BOOL:${HAS_COPY_MOVE_FIX}>:test_copy_move_fix>
+        $<$<BOOL:${HAS_PARALLEL_COMPILATION}>:test_parallel_compilation>
+    COMMENT "Running ALL libstats tests in dependency order (Levels 0-7 + on-demand)"
+)
 
 # Separate target for standard test suite (correctness only, parallel-safe) Excludes: on-demand
 # tests, timing-labelled tests, benchmarks Use 'make run_tests_timing' to validate performance
@@ -842,24 +872,25 @@ add_custom_target(
 # MSBuild rejected the whole solution ("Project name 'run_tests' already exists").
 add_custom_target(
     run_tests_correctness
-    COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure -LE "timing|benchmark" -E
-            "stress|comprehensive|dynamic|_fix|parallel_compilation"
+    COMMAND
+        ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure -LE "timing|benchmark" -E
+        "stress|comprehensive|dynamic|_fix|parallel_compilation"
     COMMENT "Running standard libstats test suite (correctness only, timing tests excluded)"
     # VERBATIM quotes the regexes for each generator's shell: without it the Visual Studio
     # generator wrote them bare into a cmd.exe rule, which read each | as a pipe (exit 255).
-    VERBATIM)
+    VERBATIM
+)
 
 # Timing validation target — runs serially for accurate measurement
 add_custom_target(
     run_tests_timing
     COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure -j1 -L timing --no-tests=error
-    COMMENT "Running timing-sensitive tests serially (requires a quiet machine)")
+    COMMENT "Running timing-sensitive tests serially (requires a quiet machine)"
+)
 
 # Phase 3B/B3: propagate to the top-level scope for the "libstats Configuration Summary" print
 # (CMakeLists.txt, "GTest: Available"/"Not found"), which reads GTEST_FOUND after this
 # add_subdirectory(tests) call returns. Normal (non-cache) variables set in a subdirectory do not
 # escape it automatically -- this PARENT_SCOPE propagation is required for that top-level message to
 # stay correct; it has no other behavioral effect.
-set(GTEST_FOUND
-    ${GTEST_FOUND}
-    PARENT_SCOPE)
+set(GTEST_FOUND ${GTEST_FOUND} PARENT_SCOPE)

@@ -21,12 +21,8 @@ if(corvus_FOUND)
     message(STATUS "libstats: using system corvus ${corvus_VERSION}")
 else()
     include(FetchContent)
-    set(CORVUS_BUILD_TESTS
-        OFF
-        CACHE BOOL "" FORCE)
-    set(CORVUS_BUILD_EXAMPLES
-        OFF
-        CACHE BOOL "" FORCE)
+    set(CORVUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(CORVUS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
     # SYSTEM: fetched headers must not trip libstats' own warning set.
     FetchContent_Declare(
@@ -34,7 +30,8 @@ else()
         GIT_REPOSITORY https://github.com/OldCrow/corvus.git
         GIT_TAG v1.0.1
         GIT_SHALLOW TRUE
-        SYSTEM)
+        SYSTEM
+    )
 
     # A fetched corvus is a dependency, not the code under test, so it compiles as Release whatever
     # libstats' own configuration or instrumentation [user, 2026-10-25]. Highway kernels do not
@@ -48,10 +45,22 @@ else()
     # /MDd corvus under MSVC.
     function(_libstats_fetch_corvus)
         foreach(_lang C CXX)
-            foreach(_flag "--coverage" "-fprofile-arcs" "-ftest-coverage" "-fprofile-update=[^ ]*"
-                          "-fsanitize=[^ ]*" "-fsanitize-recover=[^ ]*" "-fno-sanitize=[^ ]*")
-                string(REGEX REPLACE "(^| )${_flag}( |$)" " " CMAKE_${_lang}_FLAGS
-                                     "${CMAKE_${_lang}_FLAGS}")
+            foreach(
+                _flag
+                "--coverage"
+                "-fprofile-arcs"
+                "-ftest-coverage"
+                "-fprofile-update=[^ ]*"
+                "-fsanitize=[^ ]*"
+                "-fsanitize-recover=[^ ]*"
+                "-fno-sanitize=[^ ]*"
+            )
+                string(
+                    REGEX REPLACE "(^| )${_flag}( |$)"
+                    " "
+                    CMAKE_${_lang}_FLAGS
+                    "${CMAKE_${_lang}_FLAGS}"
+                )
             endforeach()
             foreach(_cfg DEBUG RELWITHDEBINFO MINSIZEREL STRICT)
                 set(CMAKE_${_lang}_FLAGS_${_cfg} "${CMAKE_${_lang}_FLAGS_RELEASE}")
@@ -72,11 +81,12 @@ else()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         message(
             WARNING
-                "libstats: corvus is being compiled by MSVC (cl.exe): its kernels are capped at "
-                "AVX2 and run 3-19x slower than a clang-cl build. For full speed, configure "
-                "with clang-cl (-G Ninja -DCMAKE_C_COMPILER=clang-cl "
-                "-DCMAKE_CXX_COMPILER=clang-cl), or install corvus and Highway built with "
-                "clang-cl and point CMAKE_PREFIX_PATH at them (tools/bench/README.md, "
-                "\"Windows\").")
+            "libstats: corvus is being compiled by MSVC (cl.exe): its kernels are capped at "
+            "AVX2 and run 3-19x slower than a clang-cl build. For full speed, configure "
+            "with clang-cl (-G Ninja -DCMAKE_C_COMPILER=clang-cl "
+            "-DCMAKE_CXX_COMPILER=clang-cl), or install corvus and Highway built with "
+            "clang-cl and point CMAKE_PREFIX_PATH at them (tools/bench/README.md, "
+            "\"Windows\")."
+        )
     endif()
 endif()
