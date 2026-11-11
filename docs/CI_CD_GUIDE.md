@@ -42,7 +42,7 @@ Runs on pull requests to `main` and pushes to `main`, `develop`,
 `release/*` and `v*` (doc-only changes are skipped via
 `paths-ignore: ['**.md', 'docs/**', 'LICENSE']` — note that on
 pull_request events the filter applies to the PR's full changed-file set),
-plus a monthly scheduled canary that catches runner-image/toolchain drift.
+plus a weekly scheduled canary that catches runner-image/toolchain drift.
 Pushes to `dev/*` branches do not trigger it; run it on such a branch by
 manual dispatch (`gh workflow run ci.yml --ref <branch>`). The AVX-512
 workflows have no manual dispatch.
@@ -92,9 +92,9 @@ ctest --test-dir build --output-on-failure -LE "timing|benchmark"
 The AVX-512 workflow checks that AVX-512 sources compile with toolchains that support AVX-512 flags. GitHub-hosted runners do not guarantee AVX-512 hardware, so this workflow is a compile-time validation, not a runtime performance validation.
 
 It triggers on pushes to `main` and `release/*`, PRs to `main` (doc-only
-changes excluded via paths-ignore), and a monthly scheduled canary. A
+changes excluded via paths-ignore), and a weekly scheduled canary. A
 separate runtime workflow (`avx512-testing.yml`) builds AND runs the suite
-on the same pushes as `ci.yml` and the monthly canary, and on a pull
+on the same pushes as `ci.yml` and the weekly canary, and on a pull
 request only when it carries the `avx512-test` label; it runs on
 `ubuntu-latest` and, when the runner has no `avx512f`, skips the build and
 tests with a notice. `docs.yml` builds documentation and
