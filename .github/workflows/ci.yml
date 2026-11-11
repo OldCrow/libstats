@@ -26,6 +26,11 @@ jobs:
   # duplicated Release coverage without gating on warnings); the
   # strict-warnings job below uses the existing Strict build type (-Werror)
   # to catch what Debug builds never actually enforced.
+  #
+  # Runner labels follow CI House Style §1: a leg that installs a versioned
+  # tool (gcc-14, clang-17) pins its image, so the image and the tool move
+  # together in one deliberate commit; the macOS and Windows legs take the
+  # image's own compiler and float.
   build:
     name: Build ${{ matrix.os }} ${{ matrix.compiler.name }} ${{ matrix.build_type }}
     runs-on: ${{ matrix.os }}
@@ -34,9 +39,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, compiler: { name: gcc-14,  cc: gcc-14,  cxx: g++-14  }, build_type: Release }
-          - { os: ubuntu-latest, compiler: { name: clang-17, cc: clang-17, cxx: clang++-17 }, build_type: Release }
-          - { os: macos-15,      compiler: { name: AppleClang, cc: clang, cxx: clang++ }, build_type: Release }
+          - { os: ubuntu-24.04, compiler: { name: gcc-14,  cc: gcc-14,  cxx: g++-14  }, build_type: Release }
+          - { os: ubuntu-24.04, compiler: { name: clang-17, cc: clang-17, cxx: clang++-17 }, build_type: Release }
+          - { os: macos-latest,  compiler: { name: AppleClang, cc: clang, cxx: clang++ }, build_type: Release }
           - { os: windows-latest, compiler: { name: msvc, cc: cl, cxx: cl }, build_type: Release }
 
     steps:
@@ -275,7 +280,7 @@ jobs:
   # are checked on SMT Macs (R9), not here.
   thread-sanitizer:
     name: ThreadSanitizer (Linux, clang-17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned tools
     timeout-minutes: 45
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -323,7 +328,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # FMA contraction (Linux, clang-17, -mfma -ffp-contract=on). The x86 legs build
   # the generic sources without FMA, so a contracted a*b + c is only ever seen on
-  # the macos-15 runner (AArch64, where AppleClang contracts by default) — that
+  # the macOS runner (AArch64, where AppleClang contracts by default) — that
   # is where 08d48aa's Gamma batch double-counted its rate-product rounding.
   # This leg reproduces AppleClang-AArch64 and clang-cl-with-FMA contraction on
   # Linux, so the defect class fails here too, with a readable log. Correctness
@@ -331,7 +336,7 @@ jobs:
   # ---------------------------------------------------------------------------
   fma-contraction:
     name: FMA contraction (Linux, clang-17)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned tools
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -467,7 +472,7 @@ jobs:
 
   lint:
     name: Code Quality Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned tools
     timeout-minutes: 15
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -506,7 +511,7 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: installs versioned tools
     timeout-minutes: 20
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
