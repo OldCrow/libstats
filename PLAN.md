@@ -28,6 +28,51 @@ session moves `dev/v3.0.0-corvus-adoption`'s corvus pin to `v1.2.0`
 - **Same release in libhmm** (fleet coherence rule, libhmm #106).
 - **On the swap:** #107 and #108 close, citing corvus #32.
 
+**Fourth fleet machine: Ivy Bridge on Linux — 2026-11-11.** MacBook Pro
+9,1 (i7-3820QM: AVX, no AVX2, no FMA), Linux Mint 22.3, glibc 2.39, GCC
+13.3 and clang 17/18 installed. Source: corvus #101 and corvus
+`PLAN.md`. This note was written on the Zen 4 box from a source read;
+nothing below was built or run on the machine. It does not block the
+v1.2.0 pin bump.
+
+Read from source [DERIVED]:
+- `src/simd_avx.cpp` is a 256-bit AVX1 tier compiled `-mavx` only, with
+  no FMA. The three machines in AGENTS.md's fleet table all have AVX2 or
+  better, so none of them selects it by CPUID; it is reachable there
+  only through `LIBSTATS_MAX_SIMD_TIER=AVX`.
+- Its cos/sin block (#95) is commented "UNPROVEN LEG pending the ULP
+  gate" and expects about 1.5 ULP against about 0.8 on the FMA tiers.
+  That expectation covers cos/sin only, and the comment may be stale.
+- corvus dispatches its 128-bit `SSE4` target on this CPU (Highway has
+  no AVX1 target) and takes the Dekker `TwoProd` path there. Measured on
+  the machine (corvus #101, GCC, one pass, indicative): corvus `log`
+  0.56×, `log1p` 0.39×, `expm1` 0.50× of glibc; `erf` 3.56×.
+
+Inferred, verify on the Linux machine [OPEN]:
+- That this CPU dispatches the AVX tier at runtime. Check with
+  `tools/system_inspector` before trusting any result as an AVX-tier
+  result.
+- That no capped run has already gated the AVX tier. If one has, the
+  native run is a confirmation; if not, it is the tier's first
+  validation. Check `docs/VALIDATION_HISTORY.md`, then run the test
+  suite and ULP gates natively and record the cos/sin figure.
+- That the corvus swap reads worst here: 4-lane AVX loops hand off to
+  2-lane corvus kernels that also pay the Dekker cost. No libstats
+  kernel has been timed on this machine, so the size of the step is
+  unknown. Bench `dev/v3.0.0-corvus-adoption` against `main` here and
+  state the result on #156; it is a number to report, not a regression
+  to fix, under corvus's accuracy contract.
+- That mixing libstats' VEX AVX code with corvus's non-VEX SSE4 code
+  costs nothing. Sandy/Ivy Bridge charge a state-transition penalty when
+  legacy SSE runs with dirty upper YMM halves. GCC and clang emit
+  `vzeroupper` at function exit by default, so a clean result is
+  expected, not shown. Check the disassembly at a corvus call site or
+  count `other_assists.avx_to_sse` with `perf stat`.
+- That the dispatch thresholds in `performance_dispatcher.h` suit a
+  4-core non-FMA part. Untested; look only if the bench reads oddly.
+- [OPEN] Add the machine to AGENTS.md's fleet table once the first
+  native run is recorded.
+
 **v2.5.0 released 2026-10-16.** PR #278 (`dev/v2.4.2` → `main`, merge
 commit `dda07d1`, 158 commits) closed the 75 issues of milestone #10,
 which is closed; CI, CodeQL, the AVX-512 workflows and the docs build
