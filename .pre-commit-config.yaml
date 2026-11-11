@@ -43,9 +43,6 @@ repos:
         name: Check executables have shebangs
       - id: check-shebang-scripts-are-executable
         name: Check scripts with shebangs are executable
-        # Parked: 6 scripts/gen_*.py, 2 docs/bench-evidence and 27 data/profiles scripts carry a shebang
-        # at mode 644; fix with `git update-index --chmod=+x`, then drop this.
-        stages: [manual]
 
   # C++ formatting with clang-format (the hook passes -i itself)
   - repo: https://github.com/pre-commit/mirrors-clang-format
@@ -121,6 +118,8 @@ repos:
         entry: python scripts/validate_includes.py
         language: python
         types_or: [c++, c]
+        # Same scope as clang-format, whose include order this mirrors.
+        exclude: ^docs/bench-evidence/
         pass_filenames: true
 
 # Configuration for specific hooks
