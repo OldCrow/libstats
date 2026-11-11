@@ -1738,9 +1738,10 @@ For corvus adoption (v3.0.0) and later:
 - The past-INT_MAX CDF guard tolerance (2e-4) comes from `beta_i`'s
   lgamma floor. Tighten it when the v2.5.0 incomplete-beta core lands.
 - The pinned clang-format is 20.1.8, and since 2026-11-11 CI enforces it:
-  the `precommit` job runs every hook on all files. `validate-includes`
-  now checks the order `.clang-format` enforces (own header, project
-  headers, then `<...>`); it still only warns.
+  the `precommit` job runs every hook on all files. Every hook
+  can fail and none repeats another: the warn-only copyright and
+  include-order checks are gone (no file carried a copyright header;
+  clang-format owns include order), and `no-debug-code` now fails.
   The older drift in `fisher_f.cpp` and `beta.cpp` was cleared in
   `b5a47df`.
 ## Cross-Repo Dependencies [OPEN]

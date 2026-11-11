@@ -89,7 +89,9 @@ repos:
         args: ['--baseline', '.secrets.baseline']
         additional_dependencies: ['detect-secrets']
 
-  # Custom local hooks for libstats-specific checks
+  # libstats-specific checks. Each one can fail; none repeats another hook.
+  # Include order is clang-format's job (IncludeBlocks: Regroup), so there is
+  # no separate include check.
   - repo: local
     hooks:
       - id: check-pragma-once
@@ -99,26 +101,12 @@ repos:
         files: \.(h|hpp|hxx)$
         pass_filenames: true
 
-      - id: check-copyright
-        name: Check copyright headers
-        entry: python scripts/check_copyright.py
-        language: python
-        types: [text]
-        exclude: ^(\.git/|build/|third_party/|docs/archive/)
-
       - id: no-debug-code
         name: Check for debug code
         entry: python scripts/check_no_debug.py
         language: python
         types_or: [c++, c]
-        pass_filenames: true
-
-      - id: validate-includes
-        name: Validate include order
-        entry: python scripts/validate_includes.py
-        language: python
-        types_or: [c++, c]
-        # Same scope as clang-format, whose include order this mirrors.
+        # Captured probes in bench evidence print by design.
         exclude: ^docs/bench-evidence/
         pass_filenames: true
 

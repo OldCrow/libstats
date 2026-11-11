@@ -162,9 +162,10 @@ distribution roster lives in the code and in that guide, not here.
 - **Error Handling**: Dual API (Result<T> for factories, exceptions for setters)
 - **Hooks**: `.pre-commit-config.yaml` runs clang-format (`.clang-format`),
   gersemi (`.gersemirc`), whitespace and LF line-ending fixers, shellcheck,
-  detect-secrets and four project checks (`scripts/check_*.py`,
-  `scripts/validate_includes.py`; only `#pragma once` fails a commit). Enable
-  locally with `python -m pre_commit install`. The `precommit` CI job runs the
+  detect-secrets and two project checks that both fail a commit
+  (`scripts/check_pragma_once.py`, `scripts/check_no_debug.py`: leftover
+  debug markers, and `std::cout` in library code outside a DEBUG-gated
+  block). clang-format owns include order. Enable locally with `python -m pre_commit install`. The `precommit` CI job runs the
   same config on all files and is the gate. Text is LF (`.gitattributes`).
 
 ### Performance Considerations
