@@ -1649,9 +1649,12 @@ For corvus adoption (v3.0.0) and later:
   - Coverage: lcov 2.4 fails with `inconsistent` ("mismatched end line" in
     `tests/test_discrete_quantile_bounds.cpp:57`) under `gcov-13`. The
     `path` error from orphan CMakeTmp `.gcda` files is already fixed.
-  - TSan: the `std::runtime_error::~runtime_error` suppression in
-    `tests/tsan.supp` passed once on libstdc++ 15; the race it covers
-    depends on timing, so one pass is weak evidence.
+  - TSan: the exception-release false positive in
+    `test_parallel_exception_propagation` is suppressed on two frames in
+    `tests/tsan.supp`, because the freeing stack differs between
+    libstdc++ 14 and 15. It depends on timing (it fired on main in CI run
+    419 on ubuntu-24.04, after many clean runs), so a pass proves little;
+    re-read the report's frames if it fires again after an image move.
 - **R9 findings on M** [DERIVED, 2026-10-06; filed 2026-10-07 as
   #184–#191 (F1–F8 in order), milestone "Accuracy, contracts & kernel
   hygiene patch"; detail in
