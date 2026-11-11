@@ -1,6 +1,8 @@
-# Pre-commit hooks configuration for libstats
-# Run: pre-commit install to set up the git hook scripts
-# Then pre-commit will run automatically on git commit
+# Pre-commit hooks for libstats.
+# Enable locally:  python -m pre_commit install
+# Run by hand:     python -m pre_commit run --all-files
+# The `precommit` job in .github/workflows/ci.yml runs this same config on
+# all files; the local hook is opt-in per clone, so that job is the gate.
 
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
@@ -15,47 +17,53 @@ repos:
     hooks:
       - id: trailing-whitespace
         name: Fix trailing whitespace
+        # Captured tool output and bench evidence must keep its bytes.
+        exclude: ^(data/profiles/|docs/bench-evidence/)
       - id: end-of-file-fixer
         name: Fix missing newline at end of file
+      - id: mixed-line-ending
+        name: Fix line endings to LF
+        args: ['--fix=lf']
+        # Two evidence files hold lone CRs (progress output) that must survive.
+        exclude: ^docs/bench-evidence/
       - id: check-yaml
         name: Check YAML syntax
       - id: check-json
         name: Check JSON syntax
-      - id: check-added-large-files
-        name: Check for large files
-        args: ['--maxkb=1000']
       - id: check-merge-conflict
         name: Check for merge conflicts
       - id: check-case-conflict
         name: Check for case conflicts
-      - id: mixed-line-ending
-        name: Check line endings
-        args: ['--fix=lf']
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=1000']
       - id: check-symlinks
         name: Check for broken symlinks
       - id: check-executables-have-shebangs
         name: Check executables have shebangs
       - id: check-shebang-scripts-are-executable
         name: Check scripts with shebangs are executable
+        # Parked: 6 scripts/gen_*.py, 2 docs/bench-evidence and 27 data/profiles scripts carry a shebang
+        # at mode 644; fix with `git update-index --chmod=+x`, then drop this.
+        stages: [manual]
 
-  # C++ formatting with clang-format
+  # C++ formatting with clang-format (the hook passes -i itself)
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v20.1.8
     hooks:
       - id: clang-format
         name: Format C++ code with clang-format
         types_or: [c++, c]
-        args: ['-i', '--style=file']
+        args: ['--style=file']
         files: \.(cpp|cc|cxx|hpp|h|hxx)$
+        exclude: ^docs/bench-evidence/
 
-  # CMake formatting and linting
-  - repo: https://github.com/cheshirekow/cmake-format-precommit
-    rev: v0.6.13
+  # CMake formatting with gersemi (configured in .gersemirc)
+  - repo: https://github.com/BlankSpruce/gersemi-pre-commit
+    rev: 0.29.2
     hooks:
-      - id: cmake-format
+      - id: gersemi
         name: Format CMake files
-        args: ['--config=.cmake-format.yaml', '--in-place']
-        additional_dependencies: ["pyyaml"]
 
   # Shell script checks
   - repo: https://github.com/shellcheck-py/shellcheck-py
@@ -64,6 +72,8 @@ repos:
       - id: shellcheck
         name: Check shell scripts
         args: ['--severity=warning']
+        # Frozen bench evidence: 7 captured run scripts fail (e.g. SC2164, SC2079).
+        exclude: ^docs/bench-evidence/
 
   # Markdown formatting (Ruby-based for better compatibility)
 #  - repo: https://github.com/markdownlint/markdownlint
@@ -87,29 +97,29 @@ repos:
     hooks:
       - id: check-pragma-once
         name: Check for #pragma once in headers
-        entry: scripts/check-pragma-once.sh
-        language: script
+        entry: python scripts/check_pragma_once.py
+        language: python
         files: \.(h|hpp|hxx)$
         pass_filenames: true
 
       - id: check-copyright
         name: Check copyright headers
-        entry: scripts/check-copyright.sh
-        language: script
+        entry: python scripts/check_copyright.py
+        language: python
         types: [text]
         exclude: ^(\.git/|build/|third_party/|docs/archive/)
 
       - id: no-debug-code
         name: Check for debug code
-        entry: scripts/check-no-debug.sh
-        language: script
+        entry: python scripts/check_no_debug.py
+        language: python
         types_or: [c++, c]
         pass_filenames: true
 
       - id: validate-includes
         name: Validate include order
-        entry: scripts/validate-includes.sh
-        language: script
+        entry: python scripts/validate_includes.py
+        language: python
         types_or: [c++, c]
         pass_filenames: true
 
@@ -117,6 +127,7 @@ repos:
 exclude: |
   (?x)^(
     build/.*|
+    build-[^/]+/.*|
     third_party/.*|
     docs/archive/.*|
     .*\.min\.js|

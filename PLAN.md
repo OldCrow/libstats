@@ -1737,8 +1737,10 @@ For corvus adoption (v3.0.0) and later:
   return doubles. Only a double-double complement export would.
 - The past-INT_MAX CDF guard tolerance (2e-4) comes from `beta_i`'s
   lgamma floor. Tighten it when the v2.5.0 incomplete-beta core lands.
-- The pinned clang-format is 20.1.8; the cached pre-commit environment on
-  Z has 19.1.7, and CI only reports format (clang-format-17, `|| true`).
+- The pinned clang-format is 20.1.8, and since 2026-11-11 CI enforces it:
+  the `precommit` job runs every hook on all files. The one hook parked
+  as `stages: [manual]` is `check-shebang-scripts-are-executable` (39
+  scripts carry a shebang at mode 644; `git update-index --chmod=+x`).
   The older drift in `fisher_f.cpp` and `beta.cpp` was cleared in
   `b5a47df`.
 ## Cross-Repo Dependencies [OPEN]

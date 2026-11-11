@@ -1,0 +1,7 @@
+# Normalise text to LF in the repository and in working trees. The
+# pre-commit mixed-line-ending hook enforces the same.
+* text=auto eol=lf
+
+# Binary files: never touch bytes.
+*.png binary
+*.ico binary

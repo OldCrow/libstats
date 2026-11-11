@@ -160,6 +160,12 @@ distribution roster lives in the code and in that guide, not here.
 - **Naming**: CamelCase classes, snake_case functions/variables
 - **Memory Management**: Smart pointers, RAII, no raw pointers
 - **Error Handling**: Dual API (Result<T> for factories, exceptions for setters)
+- **Hooks**: `.pre-commit-config.yaml` runs clang-format (`.clang-format`),
+  gersemi (`.gersemirc`), whitespace and LF line-ending fixers, shellcheck,
+  detect-secrets and four project checks (`scripts/check_*.py`,
+  `scripts/validate_includes.py`; only `#pragma once` fails a commit). Enable
+  locally with `python -m pre_commit install`. The `precommit` CI job runs the
+  same config on all files and is the gate. Text is LF (`.gitattributes`).
 
 ### Performance Considerations
 - Always rebuild after source changes before running tests
