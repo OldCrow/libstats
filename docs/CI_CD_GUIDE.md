@@ -103,7 +103,7 @@ Every build leg resolves corvus through `cmake/FindOrFetchCorvus.cmake`. On
 the hosted runners no corvus package exists, so the FetchContent path runs —
 the path pylibstats wheels use. The one exception is the install-contract leg
 (Linux, gcc-14, Release): it builds and installs Highway 1.4.0 and corvus
-v1.0.1 into `$GITHUB_WORKSPACE/_install` first, because libstats' `install`
+v1.2.0 into `$GITHUB_WORKSPACE/_install` first, because libstats' `install`
 target is supported only with a system corvus (`docs/BUILD_SYSTEM_GUIDE.md`,
 "Dependencies"); `consumer_example` and the pkg-config smoke test then run
 against that prefix. The `reconfigure-export` guard (#90) installs the same

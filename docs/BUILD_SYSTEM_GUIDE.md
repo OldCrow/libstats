@@ -21,9 +21,9 @@ libstats has one library dependency: [corvus](https://github.com/OldCrow/corvus)
 (special and elementary functions, MIT), which itself uses Google Highway
 (Apache-2.0). `cmake/FindOrFetchCorvus.cmake` resolves it at configure time:
 
-- `find_package(corvus 1.0 CONFIG)` first — a system corvus, which in turn
+- `find_package(corvus 1.2 CONFIG)` first — a system corvus, which in turn
   needs a system Highway ≥ 1.4 (corvus's own find-or-fetch rule).
-- Otherwise `FetchContent`, pinned to a release tag (`v1.0.1`). The pin is an
+- Otherwise `FetchContent`, pinned to a release tag (`v1.2.0`). The pin is an
   accuracy pin as much as an API pin: bump it only with a
   characterization-sweep regeneration (`docs/ACCURACY_CHARACTERIZATION.md`);
   the `corvus-pin-currency` CI canary flags drift.

@@ -356,6 +356,11 @@ double binomial_log_pmf(double xa, double xb, double pa) noexcept {
 // =============================================================================
 namespace {
 
+// One value through a corvus span function. Only for the functions corvus exports as spans alone
+// (the erf family, lgamma, lbeta, digamma, trigamma, the Bessel functions). gamma_p, gamma_q,
+// beta_p, beta_q and their four inverses have scalar entry points since corvus v1.1.0, called
+// directly below: each name is an overload set, which Fn cannot deduce, and the scalar entry
+// returns the same bits as a length-1 span without this hop.
 template <class Fn>
 [[nodiscard]] inline double corvus_scalar(Fn fn, double x) noexcept {
     double out;
@@ -367,14 +372,6 @@ template <class Fn>
 [[nodiscard]] inline double corvus_scalar(Fn fn, double a, double b) noexcept {
     double out;
     fn(std::span<const double>{&a, 1}, std::span<const double>{&b, 1}, std::span<double>{&out, 1});
-    return out;
-}
-
-template <class Fn>
-[[nodiscard]] inline double corvus_scalar(Fn fn, double a, double b, double c) noexcept {
-    double out;
-    fn(std::span<const double>{&a, 1}, std::span<const double>{&b, 1},
-       std::span<const double>{&c, 1}, std::span<double>{&out, 1});
     return out;
 }
 
@@ -438,7 +435,7 @@ double gamma_p(double a, double x) noexcept {
         return detail::ZERO_DOUBLE;
     if (x == std::numeric_limits<double>::infinity())
         return detail::ONE;
-    return corvus_scalar(corvus::gamma_p, a, x);
+    return corvus::gamma_p(a, x);
 }
 
 double gamma_p_from_log_x(double a, double log_x) noexcept {
@@ -468,7 +465,7 @@ double gamma_q(double a, double x) noexcept {
         return detail::ONE;
     if (x == std::numeric_limits<double>::infinity())
         return detail::ZERO_DOUBLE;  // #224
-    return corvus_scalar(corvus::gamma_q, a, x);
+    return corvus::gamma_q(a, x);
 }
 
 // Newton on a residual f(t) that is monotone and concave in t, from any start in (lo, hi) (#160,
@@ -952,7 +949,7 @@ double beta_i(double x, double a, double b) noexcept {
     // tie (NegativeBinomial(5, ½) at p = ½ gave 5, not 4).
     if (a == b && x == detail::HALF)
         return detail::HALF;
-    return corvus_scalar(corvus::beta_p, a, b, x);
+    return corvus::beta_p(a, b, x);
 }
 
 double beta_i(double x, double a, double b, double /*log_beta_prefix*/) noexcept {
@@ -973,7 +970,7 @@ double beta_i_pair(double x, double y, double a, double b, double /*log_beta_pre
         return detail::ONE;
     if (a == b && (x == y || x == detail::HALF))
         return detail::HALF;  // by symmetry; see beta_i
-    return x <= y ? corvus_scalar(corvus::beta_p, a, b, x) : corvus_scalar(corvus::beta_q, b, a, y);
+    return x <= y ? corvus::beta_p(a, b, x) : corvus::beta_q(b, a, y);
 }
 
 // Helper function for beta incomplete function continued fraction
@@ -1140,7 +1137,7 @@ double inverse_beta_i(double p, double a, double b) noexcept {
         return detail::ONE;
     if (a == b && p == detail::HALF)
         return detail::HALF;  // by symmetry; beta_i returns ½ at that point too
-    return corvus_scalar(corvus::beta_p_inv, a, b, p);
+    return corvus::beta_p_inv(a, b, p);
 }
 
 // The corvus-order inverses added with the adoption (v3.0.0): parameters first, probability last.
@@ -1151,11 +1148,11 @@ double erfc_inv(double y) noexcept {
 }
 
 double gamma_q_inv(double a, double q) noexcept {
-    return corvus_scalar(corvus::gamma_q_inv, a, q);
+    return corvus::gamma_q_inv(a, q);
 }
 
 double beta_q_inv(double a, double b, double q) noexcept {
-    return corvus_scalar(corvus::beta_q_inv, a, b, q);
+    return corvus::beta_q_inv(a, b, q);
 }
 
 // =============================================================================

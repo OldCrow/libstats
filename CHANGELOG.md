@@ -11,7 +11,7 @@ corvus adoption (milestone #6; was v2.5.0's scope until the renumbering of
 2026-10-04). corvus becomes the special-function engine: every local
 special-function core is retired, and the installed package depends on
 corvus. API additive over v2.5.0; the major bump is the new dependency
-(`find_dependency(corvus 1.0 CONFIG)` under `SameMajorVersion`).
+(`find_dependency(corvus 1.2 CONFIG)` under `SameMajorVersion`).
 
 The branch was rebuilt on the v2.5.0 release on 2026-10-24: v2.5.0's
 correctness fixes, concurrency fixes and re-derived dispatch tables are all
@@ -54,8 +54,8 @@ and only its special-function calls were re-pointed at corvus.
 ### Added
 - `detail::erfc_inv`, `gamma_q_inv`, `beta_q_inv`, `log_bessel_i0_scaled`
   as a corvus call, and a span-first-argument `vector_gamma_q` for Poisson.
-- `cmake/FindOrFetchCorvus.cmake` (find_package first, FetchContent pinned
-  to v1.0.1 until the v1.2.0 pin bump); the `corvus-pin-currency` CI canary;
+- `cmake/FindOrFetchCorvus.cmake` (find_package first with a 1.2 floor,
+  FetchContent pinned to v1.2.0); the `corvus-pin-currency` CI canary;
   the CI install-contract leg installs Highway and corvus into its prefix;
   the sanitizer leg compiles corvus and Highway under ASan/UBSan.
 - `tools/bench/`: `elementary_bench`, `distributions_bench`,

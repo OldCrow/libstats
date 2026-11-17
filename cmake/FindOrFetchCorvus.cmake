@@ -14,7 +14,7 @@
 # — the same rule corvus applies to Highway — and the wheel path (pylibstats FetchContent → libstats
 # → corvus → Highway) never installs, so it never trips it.
 
-find_package(corvus 1.0 CONFIG QUIET)
+find_package(corvus 1.2 CONFIG QUIET)
 
 if(corvus_FOUND)
     set(LIBSTATS_CORVUS_PROVIDER "system")
@@ -28,7 +28,7 @@ else()
     FetchContent_Declare(
         corvus
         GIT_REPOSITORY https://github.com/OldCrow/corvus.git
-        GIT_TAG v1.0.1
+        GIT_TAG v1.2.0
         GIT_SHALLOW TRUE
         SYSTEM
     )
@@ -70,7 +70,7 @@ else()
     endfunction()
     _libstats_fetch_corvus()
     set(LIBSTATS_CORVUS_PROVIDER "fetched")
-    message(STATUS "libstats: fetched corvus v1.0.1 via FetchContent; 'install' target disabled")
+    message(STATUS "libstats: fetched corvus v1.2.0 via FetchContent; 'install' target disabled")
 
     # A fetched corvus is compiled by this build's compiler. Under cl.exe that costs twice: Highway
     # blocklists AVX-512, so corvus stops at AVX2, and the kernels come out 3-19x slower than
