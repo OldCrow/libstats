@@ -1,0 +1,55 @@
+Running main() from /home/wolfman/Development/libstats/build-ivb-clang/_deps/googletest-src/googletest/src/gtest_main.cc
+[==========] Running 14 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 6 tests from TrigUlpErrorSelfTest
+[ RUN      ] TrigUlpErrorSelfTest.AdjacentDoublesAreOneUlp
+[       OK ] TrigUlpErrorSelfTest.AdjacentDoublesAreOneUlp (0 ms)
+[ RUN      ] TrigUlpErrorSelfTest.EqualIsZero
+[       OK ] TrigUlpErrorSelfTest.EqualIsZero (0 ms)
+[ RUN      ] TrigUlpErrorSelfTest.CrossZeroChargedFullWeight
+[       OK ] TrigUlpErrorSelfTest.CrossZeroChargedFullWeight (0 ms)
+[ RUN      ] TrigUlpErrorSelfTest.NanVsNumberIsHuge
+[       OK ] TrigUlpErrorSelfTest.NanVsNumberIsHuge (0 ms)
+[ RUN      ] TrigUlpErrorSelfTest.InfVsNumberIsHuge
+[       OK ] TrigUlpErrorSelfTest.InfVsNumberIsHuge (0 ms)
+[ RUN      ] TrigUlpErrorSelfTest.NanVsNanIsZero
+[       OK ] TrigUlpErrorSelfTest.NanVsNanIsZero (0 ms)
+[----------] 6 tests from TrigUlpErrorSelfTest (0 ms total)
+
+[----------] 6 tests from TrigUlpGates
+[ RUN      ] TrigUlpGates.MainVectorsRespectDomainBound
+[       OK ] TrigUlpGates.MainVectorsRespectDomainBound (0 ms)
+[ RUN      ] TrigUlpGates.Sse2
+cos sse2 main max_ulp=1 mean_ulp=0.027799999999999998 worst_x=-0.79349573698159315
+sin sse2 main max_ulp=1 mean_ulp=0.024799999999999999 worst_x=2.3333500529225191
+[       OK ] TrigUlpGates.Sse2 (10 ms)
+[ RUN      ] TrigUlpGates.Avx
+cos avx main max_ulp=1 mean_ulp=0.027799999999999998 worst_x=-0.79349573698159315
+sin avx main max_ulp=1 mean_ulp=0.024799999999999999 worst_x=2.3333500529225191
+[       OK ] TrigUlpGates.Avx (0 ms)
+[ RUN      ] TrigUlpGates.SubSpanNonLaneMultipleTailPath
+cos sse2-subspan subspan_4999 max_ulp=1 mean_ulp=0.027805561112222446 worst_x=-0.79349573698159315
+sin sse2-subspan subspan_4999 max_ulp=1 mean_ulp=0.024804960992198439 worst_x=2.3333500529225191
+[       OK ] TrigUlpGates.SubSpanNonLaneMultipleTailPath (0 ms)
+[ RUN      ] TrigUlpGates.DispatchedEntryPoints
+cos dispatched main_4999 max_ulp=1 mean_ulp=0.027805561112222446 worst_x=-0.79349573698159315
+sin dispatched main_4999 max_ulp=1 mean_ulp=0.024804960992198439 worst_x=2.3333500529225191
+[       OK ] TrigUlpGates.DispatchedEntryPoints (0 ms)
+[ RUN      ] TrigUlpGates.InPlaceAliasingMatchesOutOfPlace
+[       OK ] TrigUlpGates.InPlaceAliasingMatchesOutOfPlace (0 ms)
+[----------] 6 tests from TrigUlpGates (11 ms total)
+
+[----------] 2 tests from TrigUlpSpecialsGates
+[ RUN      ] TrigUlpSpecialsGates.Sse2
+cos sse2 specials max_ulp=0 mean_ulp=0
+sin sse2 specials max_ulp=0 mean_ulp=0
+[       OK ] TrigUlpSpecialsGates.Sse2 (0 ms)
+[ RUN      ] TrigUlpSpecialsGates.Avx
+cos avx specials max_ulp=0 mean_ulp=0
+sin avx specials max_ulp=0 mean_ulp=0
+[       OK ] TrigUlpSpecialsGates.Avx (0 ms)
+[----------] 2 tests from TrigUlpSpecialsGates (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 14 tests from 3 test suites ran. (11 ms total)
+[  PASSED  ] 14 tests.
