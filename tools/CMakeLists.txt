@@ -35,6 +35,36 @@ function(add_standalone_tool tool_name source_file)
     target_include_directories(${tool_name} PRIVATE ${LIBSTATS_BUILD_INCLUDE_DIRS})
     libstats_apply_warnings(${tool_name}) # Phase 3B/B5
 
+    # "Standard library only" still means TBB on libstdc++: its parallel algorithms (<execution>)
+    # take the TBB backend whenever TBB's headers are found at compile time, so a tool that
+    # instantiates one needs TBB at link time. The libstats tools get it transitively (the library
+    # links TBB PUBLIC); a standalone tool got nothing and cpp20_features_inspector failed to link
+    # wherever libtbb-dev was installed (#290). Same two paths as the library in CMakeLists.txt.
+    if(LIBSTATS_HAS_TBB)
+        if(TARGET TBB::tbb)
+            target_link_libraries(${tool_name} PRIVATE TBB::tbb)
+        else()
+            if(DEFINED LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL)
+                target_include_directories(
+                    ${tool_name}
+                    PRIVATE ${LIBSTATS_TBB_INCLUDE_DIRS_INTERNAL}
+                )
+            endif()
+            if(
+                DEFINED LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL
+                AND NOT "${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL}" STREQUAL ""
+            )
+                target_link_directories(${tool_name} PRIVATE ${LIBSTATS_TBB_LIBRARY_DIRS_INTERNAL})
+            endif()
+            if(
+                DEFINED LIBSTATS_TBB_LIBRARIES_INTERNAL
+                AND NOT "${LIBSTATS_TBB_LIBRARIES_INTERNAL}" STREQUAL ""
+            )
+                target_link_libraries(${tool_name} PRIVATE ${LIBSTATS_TBB_LIBRARIES_INTERNAL})
+            endif()
+        endif()
+    endif()
+
     set_target_properties(
         ${tool_name}
         PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tools
