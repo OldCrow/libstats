@@ -166,16 +166,14 @@ and every build and sanitizer leg green. [DERIVED, 2026-10-26]
 (Student-t deep tail: `beta_continued_fraction`, `beta_i_large_a_half` BGRAT,
 `lgamma_ratio_excess`'s successors) and `inverse_t_cdf`'s `solve_concave`;
 `log_gamma_prefactor`, `beta_prefactor_constant`, the `log1pmx` family and
-`stirling_remainder` (density prefactors, #166/#266); `gamma_p_inv` and its
-closure (above); `inv_survival_normal_log`
+`stirling_remainder` (density prefactors, #166/#266); `inv_survival_normal_log`
 (subnormal probit targets, #225); `gamma_p_from_log_x` / `gamma_q_from_log_x`.
 Each is either a corvus swap-identity call away or a density kernel that is
 not corvus's business; the sweep at the pin bump decides.
 
-**Owed before v3.0.0 (unchanged from the workplan):** pin bump to corvus
-v1.2.0 (an intermediate v1.1.0 bump for its correctness fixes and scalar entry
-points is worth a ctest-only pass; `corvus_scalar` stays until then); then
-the characterization regeneration on all three ISAs, the dispatch-table
+**Owed before v3.0.0 (unchanged from the workplan):** ~~pin bump to corvus
+v1.2.0~~ (done 2026-11-17, Status below; `gamma_p_inv` went to corvus with
+it); then the characterization regeneration on the other three ISAs, the dispatch-table
 re-derivation (R8 → `derive_threshold_rows.py` → `table_ab_bench` A/B), the
 record legs, pylibstats #20/#26. CI has not run on this branch yet (nothing
 pushed). Tooling: the `cmake-format` pre-commit hook crashes under its
@@ -212,12 +210,48 @@ fetched, Highway 1.4.0 system). The 2026-10-02 note's `build-m1-gg/` and
 (`c42fc4e`). A stale 2.0.2 install remains under `~/.local/lib` and
 `~/.local/lib/cmake/libstats` (Z's equivalent was removed 2026-10-16).
 
-## Status [DERIVED] — 2026-11-02
-**corvus v1.2.0 released 2026-11-02 — bump owed [OPEN].** Signed tag
-`v1.2.0` on corvus `691db43`; release notes on corvus's GitHub release.
-It is the release the v3.0.0 adoption targets, so the next libstats
-session moves `dev/v3.0.0-corvus-adoption`'s corvus pin to `v1.2.0`
-(standards workplan task 2). What the bump carries:
+## Status [DERIVED] — 2026-11-17
+**corvus pin moved to v1.2.0 on 2026-11-17 (Ivy Bridge); the other three
+machines owe their legs [OPEN].** Workplan task 2, authored on the Linux
+machine: `33e4aef` (pin, `find_package` and `find_dependency` floors at 1.2,
+the eight scalar entry-point calls) and `b766e45` (`gamma_p_inv` on corvus;
+v2.5.0's solver and its 300-line closure removed). `main` is merged in
+(#288's test fix, #290, the coverage leg's stress scale).
+
+Measured there [DERIVED] (AVX tier, GCC 13.3 and Clang 18.1.3, Release;
+evidence in `docs/bench-evidence/2026-11-17-ivybridge-avx-corvus-v120/`):
+- 0 new warnings, every target builds, correctness 132/132 under both;
+  trig ULP gate 14/14, `simd_verification` 140/0.
+- Sweep at `b766e45`: 26,882 rows, 190 oracle self-checks, 0 contract
+  violations. Against `main`'s block from the same machine (2026-11-16):
+  no row more than 2× worse, 37 of 216 more than 2× better (the incomplete
+  gamma and beta CDFs about 1e-13 → 1e-16; quantiles gamma 2.4e-13 →
+  1.5e-16, chi-squared 1.4e-13 → 9.7e-17, Erlang 2.4e-14 → 1.8e-16). The
+  `isa=AVX` block is regenerated; the AVX-512, AVX2 and NEON blocks are
+  still `main`'s v2.5.0 copies.
+- `GammaQuantileAccuracy.LargeShape` expected the shape itself at shape
+  1e32 for p = 0.1 and 0.9; those quantiles lie 0.711 ulp away and corvus
+  rounds them correctly. The expectation was the #226 shortcut's output and
+  is corrected in `b766e45`.
+- Suite time, indicative (machine in use): 340 s against 126 s on `main`,
+  nearly all of it `test_concurrency_stress` (289 s against 106 s). The
+  scalar entry points did not remove that cost. A number for #156 and for
+  the CI budgets, not yet a timing record.
+
+Owed [OPEN]:
+- Kaby Lake, Zen 4 and M1 legs: correctness suite, sweep, block
+  regeneration. Then the quiet timing passes (task 3).
+- A CI dispatch on the branch (no push trigger): the pin canary should
+  read green; re-measure the coverage and MSVC budgets, and lift the
+  cl.exe exclusion and tier trim if they allow [user, 2026-10-26].
+- [user] `expm1`/`log1pmx`: not adopted in this bump. corvus exports them
+  as spans only and libstats' uses are scalar density prefactors.
+- [user] #156's gates, once the post-bump numbers exist on all machines.
+- #107/#108: verify that the branch removed the duplicated trig tables
+  before closing either.
+
+What the bump carried, as written on 2026-11-02 (corvus `v1.2.0`, signed
+tag on corvus `691db43`):
 - **Wrapper change:** since corvus v1.1.0, `gamma_p`, `gamma_q`, `beta_p`,
   `beta_q` and their four inverses have scalar overloads, so each name is
   an overload set and the deducing `corvus_scalar` wrapper no longer
@@ -233,7 +267,8 @@ session moves `dev/v3.0.0-corvus-adoption`'s corvus pin to `v1.2.0`
 - **Same release in libhmm** (fleet coherence rule, libhmm #106).
 - **On the swap:** #107 and #108 close, citing corvus #32.
 
-**Fourth fleet machine: Ivy Bridge on Linux — baseline run 2026-11-16.**
+**Fourth fleet machine: Ivy Bridge on Linux — baseline run 2026-11-16
+(on `main`; the adoption's own run is in Status above).**
 MacBook Pro 9,1 (i7-3820QM: AVX, no AVX2, no FMA), Linux Mint 22.3, glibc
 2.39, GCC 13.3 and clang 17/18. Source: corvus #101 and corvus `PLAN.md`.
 Now in AGENTS.md's fleet table. The 2026-11-11 note here was a source read
@@ -265,7 +300,10 @@ Raised by the run, the user's decision [OPEN]:
 - Scalar Beta `pdf`/`logpdf` at x = NaN returns NaN with a
   compiler-dependent sign bit. Inside the contract (NaN in, NaN out);
   recorded, not filed.
-- #288, #289 and #290 all reproduce at `321bb98` under both compilers.
+- #288, #289 and #290 all reproduced at `321bb98` under both compilers.
+  Since then: #288's test passes an explicit grain (#302; its default-grain
+  item is still open, a `src/` change) and #290's link failure is fixed
+  (#304). #289 is untouched.
 
 Still inferred, verify on the Linux machine [OPEN]:
 - That the corvus swap reads worst here: 4-lane AVX loops hand off to
