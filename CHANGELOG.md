@@ -21,9 +21,14 @@ and only its special-function calls were re-pointed at corvus.
 ### Changed
 - Every `detail::` special function — erf/erfc/erf_inv, lgamma/lbeta,
   digamma/trigamma, gamma_p/gamma_q, beta_i (all three forms),
-  inverse_beta_i and the Bessel I₀/I₁ helpers — is a corvus call;
-  `gamma_p_inv` follows at the pin bump (corvus v1.0.1's inverse fails the
-  #160 gates; see PLAN.md). The pre-adoption edge contracts (NaN in, NaN out; out-of-domain
+  inverse_beta_i, `gamma_p_inv` and the Bessel I₀/I₁ helpers — is a corvus
+  call. `gamma_p_inv` moved at the v1.2.0 pin: v2.5.0's log-x Newton solver
+  (#160) and its closure are gone, and with them the Wilson-Hilferty
+  shortcut for shape ≥ 1e16 (#226), which returned the shape itself at 1e32
+  where the p = 0.1 and 0.9 quantiles lie 0.711 ulp away; corvus rounds
+  them correctly and `GammaQuantileAccuracy.LargeShape` now expects that.
+  `gamma_p`, `gamma_q`, `beta_p`, `beta_q` and their inverses go through
+  corvus's scalar entry points, not a length-1 span. The pre-adoption edge contracts (NaN in, NaN out; out-of-domain
   reads 0 or 1 as before; the I_½(a, a) = ½ tie) are kept as guards around
   the call. `beta_i_pair(x, 1 − x, …)` takes whichever side is small, as
   `beta_p(a, b, x)` or `beta_q(b, a, 1 − x)`.

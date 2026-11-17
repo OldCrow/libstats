@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdio>
 #include <gtest/gtest.h>
+#include <limits>
 #include <string>
 
 using namespace stats;
@@ -313,15 +314,26 @@ TEST(GammaQuantileAccuracy, LargeShape) {
         expectQuantile(caseLabel("Gamma", r.alpha, r.p), d.getQuantile(r.p), r.x,
                        lawBudget(r.alpha, r.p, r.x));
     }
-    // Beyond ~1e32 the central quantiles round to alpha itself (x = alpha(1 + z/sqrt(alpha))),
-    // and the CDF resolves nothing finer; unfixed, 1e100 gave 1.0000000000000111e100 and 1e299
+    // From ~1e32 the quantile is alpha or one of its neighbours: x = alpha + z·sqrt(alpha), and
+    // sqrt(alpha) is below one ulp of alpha. At 1e32 it is still 0.555 ulp, so the p = 0.1 and
+    // p = 0.9 quantiles (z = ∓1.2816) lie 0.711 ulp from alpha and round to its neighbours; the
+    // median, and every p here at 1e100 and 1e299, rounds to alpha. Until the corvus v1.2.0 pin
+    // the 1e32 rows expected alpha at all three p: v2.5.0's Wilson-Hilferty shortcut returned
+    // it, 0.711 ulp off. Unfixed (before #226), 1e100 gave 1.0000000000000111e100 and 1e299
     // gave alpha/e after 4.6 s. 300 calls bound the time: they take microseconds here.
+    constexpr double kInf = std::numeric_limits<double>::infinity();
     const auto t0 = std::chrono::steady_clock::now();
     for (double alpha : {1e32, 1e100, 1e299}) {
         const auto d = GammaDistribution::create(alpha, 1.0).unwrap();
-        for (double p : {0.1, 0.5, 0.9})
+        const bool neighbours = alpha == 1e32;
+        const double expected[] = {neighbours ? std::nextafter(alpha, 0.0) : alpha, alpha,
+                                   neighbours ? std::nextafter(alpha, kInf) : alpha};
+        int k = 0;
+        for (double p : {0.1, 0.5, 0.9}) {
             for (int i = 0; i < 100 / 3; ++i)
-                EXPECT_EQ(d.getQuantile(p), alpha) << "alpha = " << alpha << ", p = " << p;
+                EXPECT_EQ(d.getQuantile(p), expected[k]) << "alpha = " << alpha << ", p = " << p;
+            ++k;
+        }
     }
     const double seconds =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
