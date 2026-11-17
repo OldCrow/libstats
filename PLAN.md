@@ -233,40 +233,50 @@ session moves `dev/v3.0.0-corvus-adoption`'s corvus pin to `v1.2.0`
 - **Same release in libhmm** (fleet coherence rule, libhmm #106).
 - **On the swap:** #107 and #108 close, citing corvus #32.
 
-**Fourth fleet machine: Ivy Bridge on Linux — 2026-11-11.** MacBook Pro
-9,1 (i7-3820QM: AVX, no AVX2, no FMA), Linux Mint 22.3, glibc 2.39, GCC
-13.3 and clang 17/18 installed. Source: corvus #101 and corvus
-`PLAN.md`. This note was written on the Zen 4 box from a source read;
-nothing below was built or run on the machine. It does not block the
-v1.2.0 pin bump.
+**Fourth fleet machine: Ivy Bridge on Linux — baseline run 2026-11-16.**
+MacBook Pro 9,1 (i7-3820QM: AVX, no AVX2, no FMA), Linux Mint 22.3, glibc
+2.39, GCC 13.3 and clang 17/18. Source: corvus #101 and corvus `PLAN.md`.
+Now in AGENTS.md's fleet table. The 2026-11-11 note here was a source read
+from the Zen 4 box; the native run below replaces its first two inferences.
+None of this blocks the v1.2.0 pin bump.
 
-Read from source [DERIVED]:
-- `src/simd_avx.cpp` is a 256-bit AVX1 tier compiled `-mavx` only, with
-  no FMA. The three machines in AGENTS.md's fleet table all have AVX2 or
-  better, so none of them selects it by CPUID; it is reachable there
-  only through `LIBSTATS_MAX_SIMD_TIER=AVX`.
-- Its cos/sin block (#95) is commented "UNPROVEN LEG pending the ULP
-  gate" and expects about 1.5 ULP against about 0.8 on the FMA tiers.
-  That expectation covers cos/sin only, and the comment may be stale.
-- corvus dispatches its 128-bit `SSE4` target on this CPU (Highway has
-  no AVX1 target) and takes the Dekker `TwoProd` path there. Measured on
-  the machine (corvus #101, GCC, one pass, indicative): corvus `log`
-  0.56×, `log1p` 0.39×, `expm1` 0.50× of glibc; `erf` 3.56×.
+Measured on the machine [DERIVED] (2026-11-16, `main` `321bb98`, GCC 13.3
+and Clang 18.1.3 Release; matrix row in `docs/VALIDATION_HISTORY.md`,
+evidence in `docs/bench-evidence/2026-11-16-ivybridge-avx-baseline/`):
+- The CPU dispatches the AVX tier at runtime (`system_inspector --quick`).
+- Correctness 131/132 under both compilers; the failure is #288. Trig ULP
+  gate 14/14 with AVX cos/sin at max 1 ULP, the SSE2 figures exactly.
+  `simd_verification` 140/0. The native run is a confirmation:
+  `TrigUlpGates.Avx` ran the same `-mavx` kernels on Kaby Lake and Zen 4
+  at v2.5.0.
+- Accuracy sweep: 26,882 rows, 0 contract violations, new `isa=AVX` block
+  in `docs/ACCURACY_CHARACTERIZATION.md` ("Fourth machine"). GCC and Clang
+  agree bit for bit except the NaN sign on four Beta rows. This block is
+  the same-machine reference for the post-swap sweep here.
+- Not measured: anything timed. The machine was in normal use.
 
-Inferred, verify on the Linux machine [OPEN]:
-- That this CPU dispatches the AVX tier at runtime. Check with
-  `tools/system_inspector` before trusting any result as an AVX-tier
-  result.
-- That no capped run has already gated the AVX tier. If one has, the
-  native run is a confirmation; if not, it is the tier's first
-  validation. Check `docs/VALIDATION_HISTORY.md`, then run the test
-  suite and ULP gates natively and record the cos/sin figure.
+Raised by the run, the user's decision [OPEN]:
+- `src/simd_avx.cpp`'s cos/sin comment still reads "UNPROVEN LEG pending
+  the ULP gate" and expects about 1.5 ULP. The gate reads 1 ULP here. Retiring the comment is a `src/` edit, so it waits
+  for the freeze to lift.
+- Clang without an FMA tier warns that `kBudgetTight` is unused
+  (`tests/test_trig_ulp_gates.cpp:151`; `kBudgetLoose` beside it already
+  carries `[[maybe_unused]]`). Not filed.
+- Scalar Beta `pdf`/`logpdf` at x = NaN returns NaN with a
+  compiler-dependent sign bit. Inside the contract (NaN in, NaN out);
+  recorded, not filed.
+- #288, #289 and #290 all reproduce at `321bb98` under both compilers.
+
+Still inferred, verify on the Linux machine [OPEN]:
 - That the corvus swap reads worst here: 4-lane AVX loops hand off to
-  2-lane corvus kernels that also pay the Dekker cost. No libstats
-  kernel has been timed on this machine, so the size of the step is
-  unknown. Bench `dev/v3.0.0-corvus-adoption` against `main` here and
-  state the result on #156; it is a number to report, not a regression
-  to fix, under corvus's accuracy contract.
+  2-lane corvus kernels (corvus dispatches its 128-bit `SSE4` target on
+  this CPU; Highway has no AVX1 target) that also pay the Dekker
+  `TwoProd` cost. corvus #101 measured corvus `log` 0.56×, `log1p` 0.39×,
+  `expm1` 0.50× of glibc and `erf` 3.56× (GCC, one pass, indicative). No
+  libstats kernel has been timed on this machine. Bench
+  `dev/v3.0.0-corvus-adoption` against `main` here, quiet, and state the
+  result on #156; it is a number to report, not a regression to fix,
+  under corvus's accuracy contract.
 - That mixing libstats' VEX AVX code with corvus's non-VEX SSE4 code
   costs nothing. Sandy/Ivy Bridge charge a state-transition penalty when
   legacy SSE runs with dirty upper YMM halves. GCC and clang emit
@@ -275,8 +285,7 @@ Inferred, verify on the Linux machine [OPEN]:
   count `other_assists.avx_to_sse` with `perf stat`.
 - That the dispatch thresholds in `performance_dispatcher.h` suit a
   4-core non-FMA part. Untested; look only if the bench reads oddly.
-- [OPEN] Add the machine to AGENTS.md's fleet table once the first
-  native run is recorded.
+- The 14 timing tests and the batch speed gates on a quiet machine.
 
 **v2.5.0 released 2026-10-16.** PR #278 (`dev/v2.4.2` → `main`, merge
 commit `dda07d1`, 158 commits) closed the 75 issues of milestone #10,

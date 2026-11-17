@@ -680,6 +680,13 @@ jobs:
         cmake --build build --parallel "${JOBS}"
 
     - name: Run tests
+      env:
+        # test_concurrency_stress is most of this step: 361-688 s at full scale under Debug + gcov,
+        # and past the job's 20 minutes on the slower hosted runners (three runs, 2026-11-16/17,
+        # each cut inside it after ~855 s). The scale cuts its rounds, not its code paths, so line
+        # coverage is the same. 0.1 as on the TSan leg: about 3.3x faster in a Release build
+        # (0.25 gave 2.4x; the test has fixed costs). Every other leg runs it at full scale.
+        LIBSTATS_STRESS_SCALE: "0.1"
       run: |
         cd build
         # Run tests sequentially for coverage to avoid profile data corruption

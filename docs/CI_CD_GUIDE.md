@@ -82,6 +82,15 @@ the spin-then-yield barriers, not a regression. The headroom is ctest's
 1,500 s default timeout and the stress test's 120 s per-race watchdog. If
 macOS nears half the limit, lower `LIBSTATS_STRESS_SCALE` for that job.
 
+The `coverage` job runs the stress test at `LIBSTATS_STRESS_SCALE=0.1`, as
+the TSan leg does.
+Under Debug and gcov, serially, it took 361–688 s at full scale on unchanged
+code and was most of the job; on the slower hosted runners (three runs on
+2026-11-16/17, every other heavy test 2–2.7× slower too) it was cut after
+about 855 s by the job's 20-minute limit. The scale cuts rounds, not code
+paths, so line coverage does not depend on it. The test has fixed costs: in
+a Release build 0.1 ran it 3.3× faster and 0.25 only 2.4×.
+
 Correctness tests should exclude timing-sensitive labels:
 
 ```bash

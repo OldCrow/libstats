@@ -117,6 +117,7 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
 | MacBook Pro 14,1 (2017) | macOS Ventura | Intel Kaby Lake | SSE2+AVX+AVX2+FMA | AVX2/FMA validation |
 | Mac Mini M1 | macOS 27 Golden Gate | Apple Silicon M1 | NEON only | ARM/NEON path validation |
 | Asus TUF A16 (2025) | Windows 11 Pro | Ryzen 7 7445 (Zen 4) | +**AVX-512** | Windows (clang-cl performance, MSVC correctness), only AVX-512 machine |
+| MacBook Pro 9,1 (2012) | Linux Mint 22.3 | Intel Ivy Bridge (i7-3820QM) | SSE2+AVX, no AVX2, no FMA | Linux (GCC, Clang, glibc), only machine that selects the AVX tier natively |
 
 macOS requires Ventura 13+. On the Zen 4 box a locked screen puts running
 processes under Windows power throttling, which reads like a dispatch-threshold
