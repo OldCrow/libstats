@@ -9,6 +9,25 @@ git-cliff). For SIMD methodology, see `docs/SIMD_OPTIMIZATION_REFERENCE.md` and
 
 ## Validation matrices by release
 
+### Post-v2.5.0 — Ivy Bridge AVX baseline on Linux (2026-11-16)
+
+Fourth fleet machine, at `main` `321bb98` (`src/` and `include/` identical
+to the `v2.5.0` tag). Pre-swap baseline for the corvus adoption (v3.0.0),
+not a release matrix. Machine in normal use, so no timing column: the 14
+timing tests and every bench are owed on a quiet machine.
+
+| Machine | SIMD | Correctness | Timing | Notes |
+|---|---|---|---|---|
+| MacBook Pro 9,1 (2012), Linux Mint 22.3, glibc 2.39 | AVX (no FMA) | 131/132 under GCC 13.3 and Clang 18.1.3 | not run | Native, fresh Ninja Release configures, tier confirmed AVX by `system_inspector --quick` (dispatch gates 3/3). The one failure under both compilers is `WorkStealingPool.ParallelForDoesNotDeadlockOnTaskException` (#288, open); `getOptimalThreadCount()` reads 16 on this 4c/8t part (#289, open). Trig ULP gate 14/14: AVX cos max 1 ULP, mean 0.0278; sin max 1 ULP, mean 0.0248, the SSE2 figures exactly. `simd_verification` 140 pass, 0 fail. `isa=AVX` block generated: 26,882 rows, 190 oracle self-checks, 0 contract violations; the Clang sweep is bit-identical but for the NaN sign on four Beta rows. GCC build 0 warnings; Clang 1 (`kBudgetTight` unused in `tests/test_trig_ulp_gates.cpp` when no FMA tier is compiled). `tools/cpp20_features_inspector` fails to link under both (#290, open). Evidence: `docs/bench-evidence/2026-11-16-ivybridge-avx-baseline/`. |
+
+This is the AVX tier's first run on a CPU that selects it by CPUID since
+v1.5.2, and its first on Linux. It is a confirmation, not a first
+validation: `TrigUlpGates.Avx` gates the same `-mavx` kernels on any CPU
+with AVX, so Kaby Lake and Zen 4 ran it at v2.5.0. The capped
+`LIBSTATS_MAX_SIMD_TIER=AVX` trees there were timed (R8), not gated, so the
+suite, `simd_verification` and the accuracy sweep through the AVX tier are
+new here.
+
 ### v2.5.0 — validation matrix
 
 Correctness column = `ctest -LE "timing|benchmark"` (132 registered at v2.5.0;
