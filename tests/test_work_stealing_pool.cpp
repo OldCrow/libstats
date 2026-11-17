@@ -4,6 +4,7 @@
  */
 #include "libstats/platform/work_stealing_pool.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -209,28 +210,39 @@ TEST(WorkStealingPool, CPUDetectionIntegration) {
 TEST(WorkStealingPool, ParallelForDoesNotDeadlockOnTaskException) {
     WorkStealingPool pool(2);
 
-    std::atomic<int> completed{0};
+    std::atomic<std::size_t> completed{0};
     // Use a range larger than get_min_elements_for_parallel() (typically 4096)
     // so that parallelFor takes the multi-task parallel path and the per-call
     // latch is actually exercised. The sequential fast path propagates exceptions
     // directly and has no latch to deadlock.
     const std::size_t kTasks = arch::get_min_elements_for_parallel() * 2;
 
-    // One task mid-range throws; all others increment completed.
-    // The pool swallows the exception in executeTask(); parallelFor must
-    // return without deadlocking and the majority of work must still run.
-    const std::size_t kThrowAt = kTasks / 2;
-    pool.parallelFor(std::size_t{0}, kTasks, [&completed, kThrowAt](std::size_t i) {
-        if (i == kThrowAt)
-            throw std::runtime_error("intentional test exception");
-        completed.fetch_add(1, std::memory_order_relaxed);
-    });
+    // An explicit grain, so the task count does not depend on the platform's
+    // default grain. With grainSize == 0 the pool uses get_default_grain_size(),
+    // which on CpuTier::Intel_Legacy (32768) exceeds this whole range: the call
+    // collapsed into one task and the count below read exactly kTasks / 2 (#288).
+    const std::size_t kGrain = 64;
+    ASSERT_GT(kTasks / kGrain, std::size_t{2}) << "the range must span several grains";
 
-    // At least most tasks should have completed (the throwing task's whole
-    // grain is aborted, but all other grains run normally).
-    EXPECT_GT(completed.load(), static_cast<int>(kTasks / 2));
+    // One index throws part-way through its grain; every other index counts.
+    const std::size_t kThrowAt = kTasks / 2 + kGrain / 2;
+    pool.parallelFor(
+        std::size_t{0}, kTasks,
+        [&completed, kThrowAt](std::size_t i) {
+            if (i == kThrowAt)
+                throw std::runtime_error("intentional test exception");
+            completed.fetch_add(1, std::memory_order_relaxed);
+        },
+        kGrain);
+
+    // The throw aborts the rest of its own grain and nothing else: the indices
+    // of that grain before kThrowAt ran, and every other grain ran in full.
+    const std::size_t grainEnd = std::min((kThrowAt / kGrain + 1) * kGrain, kTasks);
+    const std::size_t expected = kTasks - (grainEnd - kThrowAt);
+    EXPECT_EQ(completed.load(), expected);
     std::cout << "  parallelFor returned after task exception at index " << kThrowAt << " ("
-              << completed.load() << "/" << (kTasks - 1) << " non-throwing tasks ran)\n";
+              << completed.load() << "/" << (kTasks - 1) << " non-throwing indices ran, grain "
+              << kGrain << ")\n";
 }
 
 // TEST-7a: getOptimalThreadCount() must be capped at 32.
