@@ -58,7 +58,7 @@ added in v2.5.0:
 
 - **`fma-contraction`** (Linux, clang-17, `-mfma -ffp-contract=on`, Release,
   correctness suite only). The other x86 legs build the generic sources
-  without FMA, so a contracted `a*b + c` was seen only on the macos-15
+  without FMA, so a contracted `a*b + c` was seen only on the macOS
   runner (AArch64, where AppleClang contracts by default); that is where
   08d48aa's Gamma rate-product correction was counted twice (fixed, and
   this leg added, in ac72e9a). This leg
@@ -76,7 +76,8 @@ added in v2.5.0:
   `WORK_STEALING`, so the work-stealing lambdas are race-checked only on the
   SMT Macs, locally.
 
-`test_concurrency_stress` runtime on the macos-15 runner varies 97–372 s on
+`test_concurrency_stress` runtime on the macOS runner (`macos-latest`: the
+macos-15 image when measured, macOS 26 since) varies 97–372 s on
 unchanged code (six runs, 00d1597–d7e9dbd), against 68–102 s on Linux and Windows: shared ARM VMs and
 the spin-then-yield barriers, not a regression. The headroom is ctest's
 1,500 s default timeout and the stress test's 120 s per-race watchdog. If
