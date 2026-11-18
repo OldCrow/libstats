@@ -344,6 +344,13 @@ void detect_topology_info(Features& features) {
     const unsigned os_logical = std::thread::hardware_concurrency();
     if (os_logical > 0 && features.topology.logical_cores > os_logical)
         features.topology.logical_cores = os_logical;
+
+    // The bound above can leave fewer logical processors than the cores CPUID counted: a hosted
+    // 4-vCPU runner reports its host's 8 cores and 16 threads. Callers size thread pools from
+    // physical_cores and assume it never exceeds logical_cores, so it takes the same bound. The
+    // SMT fields stay as CPUID gave them: how the guest's CPUs map to cores is not knowable here.
+    if (features.topology.physical_cores > features.topology.logical_cores)
+        features.topology.physical_cores = features.topology.logical_cores;
 }
     #endif  // !defined(__APPLE__)
 
