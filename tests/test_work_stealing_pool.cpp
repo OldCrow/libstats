@@ -199,6 +199,14 @@ TEST(WorkStealingPool, CPUDetectionIntegration) {
         EXPECT_LE(optimalThreads, features.topology.logical_cores);
     }
 
+    // The detected logical count is checked against an independent source, not only against
+    // itself: on a 4-core/8-thread Ivy Bridge it read 16 (CPUID leaf 1's addressable-ID field)
+    // and the check above passed with both values wrong, oversubscribing the pool 2x (#289).
+    const unsigned hw = std::thread::hardware_concurrency();
+    if (hw > 0) {
+        EXPECT_LE(features.topology.logical_cores, hw);
+    }
+
     std::cout << "  Physical: " << features.topology.physical_cores
               << ", Logical: " << features.topology.logical_cores << ", Optimal: " << optimalThreads
               << "\n";

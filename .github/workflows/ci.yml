@@ -92,11 +92,26 @@ jobs:
 
     - name: Configure CMake (Windows MSVC)
       if: runner.os == 'Windows' && matrix.compiler.name == 'msvc'
-      # CORVUS_DISABLED_TARGETS: corvus is fetched before CMakeLists.txt's global /arch:AVX2, so under
-      # cl.exe Highway's baseline is SSE2 and it compiles SSE2, SSSE3, SSE4 and AVX2 kernels for
-      # dynamic dispatch. The runner dispatches AVX2; SSSE3 and SSE4 are compile time for nothing here
-      # (SSE2 is the baseline and cannot be dropped). libstats' own tiers are unaffected.
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20 -A x64 -DCORVUS_DISABLED_TARGETS="HWY_SSSE3|HWY_SSE4"
+      # No CORVUS_DISABLED_TARGETS here: corvus is fetched before CMakeLists.txt's global /arch:AVX2, so
+      # under cl.exe Highway's baseline is SSE2 and it compiles SSE2, SSSE3, SSE4 and AVX2 kernels for
+      # dynamic dispatch. Trimming SSSE3 and SSE4 saved about 1 minute of an 11-minute build at the
+      # corvus v1.2.0 pin (2026-11-18), which is not worth the cl.exe compile coverage it gave up.
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_CXX_STANDARD=20 -A x64
+
+    # The clang-cl that ships inside Visual Studio, not the image's standalone LLVM. MSVC's standard
+    # library rejects a Clang older than the one its toolset was released with: on the
+    # windows-2025-vs2026 image of 2026-11-16 (MSVC 14.52) the standalone clang-cl 20.1.8 stops at
+    # "STL1000: Unexpected compiler version, expected Clang 22 or newer", which surfaced as Highway's
+    # FindAtomics failing at configure. The bundled copy (22.1.3 there) moves with the toolset, and
+    # it is the compiler the fleet's Windows machine builds with (standards WINDOWS-TOOLCHAIN.md).
+    - name: Put the Visual Studio clang-cl first on PATH
+      if: runner.os == 'Windows' && matrix.compiler.name == 'clang-cl'
+      shell: bash
+      run: |
+        set -euo pipefail
+        llvm_bin="${VCINSTALLDIR}Tools\\Llvm\\x64\\bin"
+        test -x "$(cygpath -u "$llvm_bin")/clang-cl.exe"
+        echo "$llvm_bin" >> "$GITHUB_PATH"
 
     # The preset pins Ninja and clang-cl for C and C++; -B only redirects its build-clangcl/ to
     # the build/ the shared steps below use.
@@ -114,7 +129,9 @@ jobs:
         id_file=$(ls build/CMakeFiles/*/CMakeCXXCompiler.cmake)
         grep -q 'set(CMAKE_CXX_COMPILER_ID "Clang")' "$id_file"
         grep -q 'set(CMAKE_CXX_COMPILER_FRONTEND_VARIANT "MSVC")' "$id_file"
-        grep -E 'CMAKE_CXX_COMPILER_(ID|VERSION|FRONTEND_VARIANT) ' "$id_file"
+        # ... and that it is the Visual Studio copy (the step above), not the standalone LLVM.
+        grep -q 'set(CMAKE_CXX_COMPILER ".*/VC/Tools/Llvm/x64/bin/clang-cl.exe")' "$id_file"
+        grep -E 'CMAKE_CXX_COMPILER(_ID|_VERSION|_FRONTEND_VARIANT)? ' "$id_file"
 
     # Install-contract leg only: libstats' install target needs a SYSTEM corvus
     # (a fetched corvus is a build-tree target outside the export set —
@@ -218,13 +235,12 @@ jobs:
         # dedicated machine and serial execution. Run them locally with -j1 -L timing.
         extra=()
         if [ "${{ matrix.compiler.name }}" == "msvc" ]; then
-          # The cl.exe leg skips the two concurrency tests [user, 2026-10-26]: on cl.exe-built corvus
-          # kernels test_snapshot_consistency alone took 393 s and the step passed 8 min before its
-          # cut (2026-10-25), against 1.5 min for the whole step before the adoption. Both still run
-          # on the windows-latest clang-cl leg (same OS, same thread pool) and on every other leg;
-          # what this leg is for, the UCRT libm and no FP contraction, is covered by the other 130
-          # tests. Revisit at the corvus v1.2.0 pin.
-          extra=(-E "test_snapshot_consistency|test_concurrency_stress")
+          # The cl.exe leg skips test_concurrency_stress: on cl.exe-built corvus kernels its Beta
+          # setParameters loops starve past the test's 120 s no-progress watchdog (failed at 327 s,
+          # 2026-11-18, corvus v1.2.0). It still runs on the windows-latest clang-cl leg (same OS, same
+          # thread pool) and on every other leg. test_snapshot_consistency was skipped here too from
+          # 2026-10-26 (393 s before the pin) and is back: 194 s at the v1.2.0 pin, one run.
+          extra=(-E "test_concurrency_stress")
         fi
         ctest -C ${{ matrix.build_type }} --output-on-failure --parallel -LE "timing|benchmark" "${extra[@]}"
 
