@@ -793,8 +793,10 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
 }
 
 // Clean-room quadrant-reduction cos/sin (issue #95), AVX plain-arithmetic
-// form. UNPROVEN LEG pending the ULP gate: unlike the other three tiers,
-// this one has no donor implementation (libhmm's "AVX" section actually
+// form. Gated natively since 2026-11-16 (TrigUlpGates.Avx on an Ivy Bridge
+// i7-3820QM, the one fleet CPU that selects this tier): cos and sin max
+// 1 ULP, means 0.0278 and 0.0248, the SSE2 figures exactly. Unlike the
+// other three tiers, this one has no donor implementation (libhmm's "AVX" section actually
 // requires FMA, i.e. targets AVX2-class hardware) -- it is derived here by
 // widening the SSE2 plain-arithmetic form (trig_reduce_2pd/trig_cores_2pd
 // in src/simd_sse2.cpp) to 256-bit. AVX1 has no FMA and no
@@ -807,8 +809,8 @@ void VectorOps::vector_erf_avx(const double* input, double* output, std::size_t 
 // commits the identical single rounding step an FMA would (same argument
 // as SSE2's trig_reduce_2pd). The only accuracy cost is the ordinary
 // Horner mul+add in trig_cores_4pd (slightly worse rounding per step than
-// FMA); expect ~1.5 ULP landing here vs ~0.8 for the FMA tiers, measured
-// by the ULP gate smoke test.
+// FMA). The estimate written before the gate ran was ~1.5 ULP against ~0.8
+// for the FMA tiers; the gate measures a maximum of 1 ULP (above).
 #include "trig_cleanroom_data.inc"
 
 // Reduction shared by cos_avx/sin_avx: n32 = round-to-nearest-even(x*2/pi)
@@ -895,8 +897,8 @@ void VectorOps::vector_cos_avx(const double* input, double* output, std::size_t 
     // cos(x) for |x| <= kTrigDMax (2^23); scalar fixup beyond (and for inf;
     // NaN self-propagates through the polynomial path, see trig_reduce_4pd).
     // Quadrant table: q=0:+c 1:-s 2:-c 3:+s -> swap core on bit0, sign on
-    // bit1 XOR bit0. UNPROVEN LEG -- see the derivation comment above
-    // trig_reduce_4pd; expect ~1.5 ULP, verified by the ULP gate smoke test.
+    // bit1 XOR bit0. Derivation and the measured 1 ULP: the comment above
+    // trig_reduce_4pd.
     constexpr std::size_t W = arch::simd::AVX_DOUBLES;
     const std::size_t simd_end = (size / W) * W;
     const __m256d domain_bound = _mm256_set1_pd(kTrigDMax);
