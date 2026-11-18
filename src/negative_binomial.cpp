@@ -123,6 +123,85 @@ namespace {
     return detail::binomial_log_pmf(r, k, p) - log_ratio;
 }
 
+// PROTOTYPE: the log-pmf of a whole batch, or the pmf where as_pmf. nbLogPmf asks corvus for
+// lgamma(r + 1) and lgamma(k + r + 1) wherever those arguments are below
+// STIRLING_PREFACTOR_SHAPE, one length-1 span each per element. Here lgamma(r + 1) is taken once
+// for the batch and the lgamma(k + r + 1) of a block of 256 go through one corvus span;
+// lgamma(k + 1) is an integer argument, which detail::lgamma reads from its table. Same bits as
+// the per-element form: binomial_log_pmf's five-argument overload reads the supplied values
+// exactly where the three-argument one calls detail::lgamma.
+void nbLogPmfBatch(const double* values, double* results, std::size_t count, double r, double p,
+                   bool p_is_one, bool as_pmf) noexcept {
+    constexpr double kShape = detail::STIRLING_PREFACTOR_SHAPE;
+    const double log_zero = as_pmf ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
+    const double log_one = as_pmf ? detail::ONE : detail::ZERO_DOUBLE;
+    const double lgamma_r1 = r < kShape ? detail::lgamma(r + detail::ONE) : detail::ZERO_DOUBLE;
+
+    constexpr std::size_t kBlock = 256;
+    std::array<double, kBlock> counts;     // k of each live element
+    std::array<double, kBlock> lgamma_n1;  // lgamma(k + r + 1) where it is read
+    std::array<double, kBlock> queued;     // the k + r + 1 that go to the span
+    std::array<double, kBlock> queued_out;
+    std::array<std::size_t, kBlock> index;        // live element -> position in the batch
+    std::array<std::size_t, kBlock> queued_slot;  // queued value -> live element
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t len = std::min(kBlock, count - start);
+        std::size_t live = 0;
+        std::size_t n_queued = 0;
+        for (std::size_t j = 0; j < len; ++j) {
+            const std::size_t i = start + j;
+            const double x = values[i];
+            if (!std::isfinite(x)) {
+                results[i] = std::isnan(x) ? x : log_zero;
+                continue;
+            }
+            const double k = roundedCount(x);
+            if (k < 0) {
+                results[i] = log_zero;
+                continue;
+            }
+            if (p_is_one) {
+                results[i] = (k == detail::ZERO_DOUBLE) ? log_one : log_zero;
+                continue;
+            }
+            // binomial_log_pmf(r, k, p) reads lgamma(n + 1), n = fl(r + k), only for k > 0 and
+            // n below the Stirling shape. An integer n + 1 is a table read; the rest are queued.
+            lgamma_n1[live] = detail::ZERO_DOUBLE;
+            const double n = r + k;
+            if (k > detail::ZERO_DOUBLE && n < kShape) {
+                const double n1 = n + detail::ONE;
+                if (n1 == std::floor(n1)) {
+                    lgamma_n1[live] = detail::lgamma(n1);
+                } else {
+                    queued[n_queued] = n1;
+                    queued_slot[n_queued] = live;
+                    ++n_queued;
+                }
+            }
+            counts[live] = k;
+            index[live] = i;
+            ++live;
+        }
+        if (n_queued > 0) {
+            detail::vector_lgamma(std::span<const double>{queued.data(), n_queued},
+                                  std::span<double>{queued_out.data(), n_queued});
+            for (std::size_t q = 0; q < n_queued; ++q)
+                lgamma_n1[queued_slot[q]] = queued_out[q];
+        }
+        for (std::size_t j = 0; j < live; ++j) {
+            const double k = counts[j];
+            const double ratio = k / r;
+            const double log_ratio = (ratio <= std::numeric_limits<double>::max())
+                                         ? std::log1p(ratio)
+                                         : std::log(k) - std::log(r);
+            const double lp =
+                detail::binomial_log_pmf(r, k, p, lgamma_r1, lgamma_n1[j]) - log_ratio;
+            results[index[j]] =
+                as_pmf ? std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE) : lp;
+        }
+    }
+}
+
 // PARALLEL and WORK_STEALING take one snapshot and run the lock-free batch kernels over slices
 // of this many elements, as Beta does. Calling the scalar methods per element took
 // withCacheSnapshot's shared_lock on every element from every thread (#175).
@@ -902,26 +981,8 @@ void NegativeBinomialDistribution::getLogProbabilityBatchImpl(const double* valu
                                                               double cached_p,
                                                               [[maybe_unused]] double cached_logP,
                                                               double cached_log1mP) const noexcept {
-    // cached_log1mP == -inf when p=1; guard k*(-inf) = 0*(-inf) = NaN
-    const bool p_is_one = !std::isfinite(cached_log1mP);
-    for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (!std::isfinite(x)) {
-            results[i] = std::isnan(x) ? x : detail::NEGATIVE_INFINITY;
-            continue;
-        }
-        const double k = roundedCount(x);
-        if (k < 0) {
-            results[i] = detail::NEGATIVE_INFINITY;
-            continue;
-        }
-        if (p_is_one) {
-            results[i] =
-                (k == detail::ZERO_DOUBLE) ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
-            continue;
-        }
-        results[i] = nbLogPmf(k, cached_r, cached_p);
-    }
+    // cached_log1mP == -inf when p = 1, where every count but 0 has probability 0.
+    nbLogPmfBatch(values, results, count, cached_r, cached_p, !std::isfinite(cached_log1mP), false);
 }
 
 void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values, double* results,
@@ -929,26 +990,8 @@ void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values,
                                                            double cached_p,
                                                            [[maybe_unused]] double cached_logP,
                                                            double cached_log1mP) const noexcept {
-    const bool p_is_one = !std::isfinite(cached_log1mP);
-    for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        if (!std::isfinite(x)) {
-            results[i] = std::isnan(x) ? x : detail::ZERO_DOUBLE;
-            continue;
-        }
-        const double k = roundedCount(x);
-        if (k < 0) {
-            results[i] = detail::ZERO_DOUBLE;
-            continue;
-        }
-        if (p_is_one) {
-            results[i] = (k == detail::ZERO_DOUBLE) ? detail::ONE : detail::ZERO_DOUBLE;
-            continue;
-        }
-        const double lp = nbLogPmf(k, cached_r, cached_p);
-
-        results[i] = std::clamp(std::exp(lp), detail::ZERO_DOUBLE, detail::ONE);
-    }
+    // cached_log1mP == -inf when p = 1, where every count but 0 has probability 0.
+    nbLogPmfBatch(values, results, count, cached_r, cached_p, !std::isfinite(cached_log1mP), true);
 }
 
 void NegativeBinomialDistribution::getCumulativeProbabilityBatchImpl(

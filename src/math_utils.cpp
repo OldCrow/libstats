@@ -246,11 +246,17 @@ namespace {
 // Stirling error c(m) = lgamma(m + 1) − [(m + ½)·log m − m + ½·log 2π] for real m > 0, which is
 // stirling_remainder(m): the series from m = 20, the direct difference below, where its terms
 // are small.
-double stirling_error(double m) noexcept {
+// lgamma_m1() is lgamma(m + 1), asked for only below the series: a caller that holds the value
+// (a batch's fixed count) supplies it, everyone else passes the call.
+template <class LgammaM1>
+double stirling_error_with(double m, LgammaM1&& lgamma_m1) noexcept {
     if (m >= kStirlingPrefactorShape)
         return stirling_remainder(m);
-    return detail::lgamma(m + detail::ONE) -
-           ((m + detail::HALF) * std::log(m) - m + detail::HALF * detail::LN_2PI);
+    return lgamma_m1() - ((m + detail::HALF) * std::log(m) - m + detail::HALF * detail::LN_2PI);
+}
+
+double stirling_error(double m) noexcept {
+    return stirling_error_with(m, [m]() noexcept { return detail::lgamma(m + detail::ONE); });
 }
 
 // The deviance x·log(x/M) + M − x ≥ 0. Within M/2 of M it is M·[(1 + t)·log1pmx(t) + t²] with
@@ -321,7 +327,14 @@ double poisson_log_pmf(double k, double lambda) noexcept {
     return -deviance(k, lambda) - detail::HALF * (std::log(k) + detail::LN_2PI) - stirling_error(k);
 }
 
-double binomial_log_pmf(double xa, double xb, double pa) noexcept {
+namespace {
+// binomial_log_pmf with its two parameter-dependent lgamma values behind callables: lgamma_xa1()
+// is lgamma(xa + 1) and lgamma_n1() is lgamma(fl(xa + xb) + 1). Each is called at most once and
+// only where the three-argument form calls detail::lgamma on that argument, so supplying the
+// same values gives the same bits.
+template <class LgammaXa1, class LgammaN1>
+double binomial_log_pmf_with(double xa, double xb, double pa, LgammaXa1&& lgamma_xa1,
+                             LgammaN1&& lgamma_n1) noexcept {
     // pa = 0 or 1 zeroes a mean below, and its low-part term would be 0·∞; the limits instead.
     if (pa <= detail::ZERO_DOUBLE)
         return xa == detail::ZERO_DOUBLE ? detail::ZERO_DOUBLE : detail::NEGATIVE_INFINITY;
@@ -333,8 +346,8 @@ double binomial_log_pmf(double xa, double xb, double pa) noexcept {
         return xa * std::log(pa);
     const DoubleDouble n = two_sum(xa, xb);
     if (n.hi < kStirlingPrefactorShape)
-        return detail::lgamma(n.hi + detail::ONE) - detail::lgamma(xa + detail::ONE) -
-               detail::lgamma(xb + detail::ONE) + xa * std::log(pa) + xb * std::log1p(-pa);
+        return lgamma_n1() - lgamma_xa1() - detail::lgamma(xb + detail::ONE) + xa * std::log(pa) +
+               xb * std::log1p(-pa);
 
     // The means Ma = n·pa and Mb = n − Ma as double-doubles, so Ma + Mb = xa + xb to ~ε²·n. Then
     //   log pmf = c(n) − c(xa) − c(xb) + ½·log(n/(2π·xa·xb)) − D(xa, Ma) − D(xb, Mb)
@@ -345,10 +358,24 @@ double binomial_log_pmf(double xa, double xb, double pa) noexcept {
     const DoubleDouble ma = two_sum(pa_n.hi, pa_n.lo + n.lo * pa);
     const DoubleDouble rest = two_sum(n.hi, -ma.hi);
     const DoubleDouble mb = two_sum(rest.hi, rest.lo + (n.lo - ma.lo));
-    return stirling_error(n.hi) - stirling_error(xa) - stirling_error(xb) +
+    return stirling_error(n.hi) - stirling_error_with(xa, lgamma_xa1) - stirling_error(xb) +
            detail::HALF * (log_ratio3(n.hi, xa, xb) - detail::LN_2PI) - deviance(xa, ma.hi) -
            deviance(xb, mb.hi) + ma.lo * (xa / ma.hi - detail::ONE) +
            mb.lo * (xb / mb.hi - detail::ONE);
+}
+}  // namespace
+
+double binomial_log_pmf(double xa, double xb, double pa) noexcept {
+    return binomial_log_pmf_with(
+        xa, xb, pa, [xa]() noexcept { return detail::lgamma(xa + detail::ONE); },
+        [xa, xb]() noexcept { return detail::lgamma((xa + xb) + detail::ONE); });
+}
+
+double binomial_log_pmf(double xa, double xb, double pa, double lgamma_xa_plus_1,
+                        double lgamma_n_plus_1) noexcept {
+    return binomial_log_pmf_with(
+        xa, xb, pa, [lgamma_xa_plus_1]() noexcept { return lgamma_xa_plus_1; },
+        [lgamma_n_plus_1]() noexcept { return lgamma_n_plus_1; });
 }
 
 // =============================================================================
@@ -391,7 +418,35 @@ double erf_inv(double x) noexcept {
 
 // log Γ(x) from corvus (v3.0.0). #173's signgam race is moot here: corvus::lgamma writes no
 // global, so the lgamma_r detour of v2.5.0 is gone with it.
+//
+// PROTOTYPE: integer arguments 1..kLgammaTableSize come from a table. The discrete log-pmfs below
+// ask for lgamma(k + 1) at counts under STIRLING_PREFACTOR_SHAPE, one to four times per element of
+// a Poisson, Binomial or NegativeBinomial batch and on every scalar call, and corvus v1.2.0 has
+// no scalar lgamma entry (corvus #110): each call is a length-1 span, about 140 ns on a 2-lane
+// tier against 2 ns for the lookup. The table is filled once, on first use, by the same length-1
+// span call, so every entry is the value that call returns in this process (corvus's dispatch
+// target is fixed per process): bit-identical by construction, on every tier.
+namespace {
+constexpr int kLgammaTableSize = 32;
+
+const std::array<double, kLgammaTableSize + 1>& lgamma_integer_table() noexcept {
+    static const std::array<double, kLgammaTableSize + 1> table = [] {
+        std::array<double, kLgammaTableSize + 1> t{};
+        for (int i = 1; i <= kLgammaTableSize; ++i)
+            t[static_cast<std::size_t>(i)] = corvus_scalar(corvus::lgamma, static_cast<double>(i));
+        return t;
+    }();
+    return table;
+}
+}  // namespace
+
 double lgamma(double x) noexcept {
+    // NaN fails both comparisons; a non-integer fails the round trip through int.
+    if (x >= detail::ONE && x <= static_cast<double>(kLgammaTableSize)) {
+        const int i = static_cast<int>(x);
+        if (static_cast<double>(i) == x)
+            return lgamma_integer_table()[static_cast<std::size_t>(i)];
+    }
     return corvus_scalar(corvus::lgamma, x);
 }
 
