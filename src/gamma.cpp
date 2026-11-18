@@ -16,6 +16,7 @@
 // Note: parallel_execution.h is transitively included via dispatch_utils.h
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <iomanip>
@@ -310,9 +311,10 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
 
 // P(α, y) for y = fl(βx) ≥ DBL_MIN, corrected to βx as withRateProductRounding corrects the
 // density: P·(1 + rateProductIncrement), the increment's own integral exact to second order.
-[[nodiscard]] inline double gammaPAtRateProduct(double alpha, double beta, double x,
-                                                double y) noexcept {
-    const double p = detail::gamma_p(alpha, y);
+// The correction alone, applied to p = P(α, y): split from gammaPAtRateProduct so the batch
+// path can take p from a corvus span and still correct each element exactly as the scalar does.
+[[nodiscard]] inline double gammaPCorrected(double p, double alpha, double beta, double x,
+                                            double y) noexcept {
     // p > 0, not p >= DBL_MIN: a subnormal p still carries ~47 bits at 1e-309, and skipping the
     // correction there left P at fl(βx), 1.9e-7 off at Gamma(1e16, 3) (M1 survival sweep).
     if (alpha < kStirlingDensityShape || !(p > detail::ZERO_DOUBLE) ||
@@ -323,6 +325,11 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
         return p;
     return std::clamp(std::fma(p, rateProductIncrement(alpha, y, e / y, p), p), detail::ZERO_DOUBLE,
                       detail::ONE);
+}
+
+[[nodiscard]] inline double gammaPAtRateProduct(double alpha, double beta, double x,
+                                                double y) noexcept {
+    return gammaPCorrected(detail::gamma_p(alpha, y), alpha, beta, x, y);
 }
 
 // F(x) = P(α, βx) for x > 0 finite. Once βx is below DBL_MIN (a subnormal x at a rate below
@@ -1434,21 +1441,44 @@ void GammaDistribution::getCumulativeProbabilityBatchUnsafeImpl(const double* va
     // Step 1: Compute beta * values using SIMD
     arch::simd::VectorOps::scalar_multiply(values, beta, scaled_values.data(), count);
 
-    // Step 2: Evaluate gamma_p per element — inherently scalar.
-    // gamma_p uses a continued fraction or series whose iteration count varies
-    // per input; no uniform SIMD sequence can express this. See section 18
-    // header for the full explanation.
-    for (std::size_t i = 0; i < count; ++i) {
-        if (std::isnan(values[i])) {
-            results[i] = values[i];
-        } else if (values[i] <= detail::ZERO_DOUBLE) {
-            results[i] = detail::ZERO_DOUBLE;
-        } else if (values[i] == std::numeric_limits<double>::infinity()) {
-            results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
-        } else if (scaled_values[i] < std::numeric_limits<double>::min()) {
-            results[i] = gammaCdfCore(alpha, beta, values[i]);  // log-space argument (#216)
-        } else {
-            results[i] = gammaPAtRateProduct(alpha, beta, values[i], scaled_values[i]);
+    // Step 2: P(α, βx) from corvus as spans, a block at a time, then the rate-product correction
+    // per element. Only the elements detail::gamma_p would hand to corvus::gamma_p are queued:
+    // edges and the log-space band are written directly, and an overflowed βx reads 1 as
+    // gamma_p's guard does (the correction is skipped there). So the bits match the scalar path.
+    constexpr std::size_t kBlock = 256;
+    std::array<double, kBlock> yq;
+    std::array<double, kBlock> pq;
+    std::array<std::size_t, kBlock> index;
+    const bool spans = alpha > detail::ZERO_DOUBLE;  // false for NaN: gamma_p's guards decide
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t len = std::min(kBlock, count - start);
+        std::size_t live = 0;
+        for (std::size_t j = 0; j < len; ++j) {
+            const std::size_t i = start + j;
+            if (std::isnan(values[i])) {
+                results[i] = values[i];
+            } else if (values[i] <= detail::ZERO_DOUBLE) {
+                results[i] = detail::ZERO_DOUBLE;
+            } else if (values[i] == std::numeric_limits<double>::infinity()) {
+                results[i] = detail::ONE;  // gamma_p(alpha, +inf) is NaN (#103)
+            } else if (scaled_values[i] < std::numeric_limits<double>::min()) {
+                results[i] = gammaCdfCore(alpha, beta, values[i]);  // log-space argument (#216)
+            } else if (!spans || std::isnan(scaled_values[i]) ||
+                       scaled_values[i] == std::numeric_limits<double>::infinity()) {
+                results[i] = gammaPAtRateProduct(alpha, beta, values[i], scaled_values[i]);
+            } else {
+                yq[live] = scaled_values[i];
+                index[live] = i;
+                ++live;
+            }
+        }
+        if (live == 0)
+            continue;
+        detail::vector_gamma_p(alpha, std::span<const double>{yq.data(), live},
+                               std::span<double>{pq.data(), live});
+        for (std::size_t j = 0; j < live; ++j) {
+            const std::size_t i = index[j];
+            results[i] = gammaPCorrected(pq[j], alpha, beta, values[i], yq[j]);
         }
     }
 }

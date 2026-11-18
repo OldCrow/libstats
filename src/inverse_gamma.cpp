@@ -6,6 +6,7 @@
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -721,8 +722,39 @@ void InverseGammaDistribution::getProbability(std::span<const double> values,
 
 void InverseGammaDistribution::cdfKernel(const double* values, double* results, std::size_t count,
                                          double alpha, double beta) noexcept {
-    for (std::size_t i = 0; i < count; ++i)
-        results[i] = cdfImpl(values[i], alpha, beta);
+    // cdfImpl's branches a block at a time, with Q(α, β/x) taken from corvus as a span and the
+    // rate-quotient correction applied per element. Only the elements detail::gamma_q would hand
+    // to corvus::gamma_q are queued, so the bits match the scalar path.
+    constexpr std::size_t kBlock = 256;
+    std::array<double, kBlock> tq;
+    std::array<double, kBlock> qq;
+    std::array<std::size_t, kBlock> index;
+    const bool spans = alpha > detail::ZERO_DOUBLE;  // false for NaN: gamma_q's guards decide
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t len = std::min(kBlock, count - start);
+        std::size_t live = 0;
+        for (std::size_t j = 0; j < len; ++j) {
+            const std::size_t i = start + j;
+            const double x = values[i];
+            const double t = beta / x;
+            if (!spans || !(x > detail::ZERO_DOUBLE) || x == kInf || !std::isfinite(t) ||
+                t < std::numeric_limits<double>::min()) {
+                results[i] = cdfImpl(x, alpha, beta);  // an edge, or the log-space band
+            } else {
+                tq[live] = t;
+                index[live] = i;
+                ++live;
+            }
+        }
+        if (live == 0)
+            continue;
+        detail::vector_gamma_q(alpha, std::span<const double>{tq.data(), live},
+                               std::span<double>{qq.data(), live});
+        for (std::size_t j = 0; j < live; ++j) {
+            const std::size_t i = index[j];
+            results[i] = correctedIncompleteGamma(qq[j], true, alpha, beta, values[i], tq[j]);
+        }
+    }
 }
 
 void InverseGammaDistribution::getCumulativeProbability(std::span<const double> values,
