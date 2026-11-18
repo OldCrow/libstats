@@ -238,6 +238,61 @@ evidence in `docs/bench-evidence/2026-11-17-ivybridge-avx-corvus-v120/`):
   scalar entry points did not remove that cost. A number for #156 and for
   the CI budgets, not yet a timing record.
 
+**Decided [user, 2026-11-18], after the Ivy Bridge leg and its profile:**
+- **Per-call cost does not block v3.0.0.** v3.0.0 ships on corvus v1.2.0
+  for the accuracy; speed is recovered later on a v3.1.0 pinned to corvus
+  v1.3.0. Speedups that need no corvus change may be scoped into v3.0.0
+  where they are reasonable (`proto/batch-cdf-spans`, below).
+- **No PR for this branch** until at least one other machine has run its
+  leg; work stays on the branch.
+- **`expm1`/`log1pmx` stay out of this bump** (leaning; rationale below).
+- **The cl.exe leg's exclusion and tier trim get a CI trial**
+  (`ci/msvc-lift-trial`, measurement only).
+- #156's gates: in due course, once every machine has post-bump numbers.
+- The corvus side (OldCrow/corvus#110 scalar entry points for `lgamma`
+  and `lbeta`, #111 the `LgammaDiffDd` kernel cost) runs in its own session.
+
+**Where the adoption's time goes** [DERIVED, 2026-11-17, Ivy Bridge, `perf`
+`cycles:u` and callgrind]: the two concurrency tests are 2.7× and 3.6×
+slower than `main` here (3× and 7–9× on hosted Linux x86, CI run
+44184913469 against 44168257104). corvus is 88–93% of the time in the
+Bernoulli, negative binomial, Beta and Fisher-F races, and 31–48% is
+`LgammaDiffDd`, reached from `lbeta` and from the beta kernel's prefactor.
+Single calls against v2.5.0's kernels on this machine: `lgamma(2)` 18 →
+144 ns, `lbeta` 76 → 1,742, `gamma_p` 112 → 1,358, `beta_i` 342 → 3,531.
+This CPU is corvus's worst case in the fleet (two lanes, Dekker products).
+
+**`proto/batch-cdf-spans`** [DERIVED, 2026-11-17/18; two commits pushed,
+`f2c17f2` and `eb6b47d`, not merged here]: batch CDFs
+that looped one scalar corvus call per element now hand corvus spans a
+block of 256 at a time, edges written directly, the scalar path's guards
+in its order. Binomial, negative binomial, Fisher-F, then Gamma (which
+ChiSquared and Erlang share) and InverseGamma with their rounding
+corrections kept per element. It also drops `beta_prefactor_constant`
+calls whose result `beta_i_pair` has ignored since the adoption.
+Bit-identical: the 26,882-row sweep and 5.3 million randomized values
+against `b766e45`. Batch CDF per element here: 1.5–2.0× faster (Binomial
+6,410 → 3,270 ns, Gamma(3.5) 986 → 535). `test_snapshot_consistency` 57
+→ 31 s (`main` 16); `test_concurrency_stress` 278 → 230 s (`main` 107),
+since its readers are mostly scalar calls. Two lanes predict about 2×;
+wider tiers are unmeasured. Still per element: Student-t (its deep-tail
+kernel is libstats' own) and every scalar path.
+
+**Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
+Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
+read 1.3e-16 to 2.4e-16 (exponential, Rayleigh, geometric, Pareto `cdf`),
+so a correctly rounded kernel moves the last bit at most; the 1e-13 rows
+left in those families are conditioning, not the kernel. (2) corvus
+exports both as spans only: a single call costs 56 ns for `expm1` and
+105 ns for `log1pmx` against glibc's 13 ns `expm1`, and libstats' uses
+are mostly scalar. (3) On spans `expm1` is about level with glibc (22.5
+against 19.2 ns per element), so the batch loops in Exponential and
+Rayleigh could take it for correct rounding at no real cost. That is a
+bit-changing edit on four machines for a last-bit gain: a candidate for
+v3.1.0, not for the pin bump. (4) libstats' own `log1pmx` family feeds
+density prefactors and the Gamma batch density inline; replacing it buys
+nothing the sweep asks for.
+
 Owed [OPEN]:
 - Kaby Lake, Zen 4 and M1 legs: correctness suite, sweep, block
   regeneration. Then the quiet timing passes (task 3).
