@@ -227,6 +227,10 @@ void test_parallel_constants() {
     EXPECT_TRUE(stats::arch::get_simple_operation_grain_size() <=
                 stats::arch::get_default_grain_size());
     EXPECT_TRUE(stats::arch::get_monte_carlo_grain_size() <= stats::arch::get_max_grain_size());
+    // #288: the default grain is a default, not a tier's maximum. Intel_Legacy returned its 32768
+    // MAX_GRAIN_SIZE here against a 4096 get_max_grain_size(), so a grain-0 parallelFor over fewer
+    // than 32768 items was one task.
+    EXPECT_LE(stats::arch::get_default_grain_size(), stats::arch::get_max_grain_size());
 
     // Test SSE parallel constants
     EXPECT_TRUE(sse::MIN_ELEMENTS_FOR_PARALLEL == 2048);

@@ -100,8 +100,11 @@ std::size_t get_default_grain_size() {
         case stats::arch::CpuTier::Apple_Silicon:
             return stats::arch::cpu::apple_silicon::DEFAULT_GRAIN_SIZE;
         case stats::arch::CpuTier::Intel_Legacy:
-            // Sandy/Ivy Bridge benefits from larger grain (no FMA throughput)
-            return stats::arch::cpu::intel::legacy::MAX_GRAIN_SIZE;
+            // No legacy-specific default, as for the simple and complex grains below. This
+            // returned legacy::MAX_GRAIN_SIZE (32768) until #288: a maximum is not a default, it
+            // was 8x get_max_grain_size() on the tier, and it made every grain-0 parallelFor
+            // under 32768 items a single task. The "larger grain" it stood for was never
+            // measured: no Sandy/Ivy Bridge machine existed in the fleet when it was written.
         case stats::arch::CpuTier::Intel_Modern:
             return stats::arch::cpu::intel::modern::DEFAULT_GRAIN_SIZE;
         case stats::arch::CpuTier::AMD_Zen:
