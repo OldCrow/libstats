@@ -446,7 +446,9 @@ double BetaDistribution::getSurvival(double x) const {
     // S(x) = I_{1−x}(β, α). beta_i_pair takes x itself as the complement of 1 − x, so the
     // reflection adds no rounding to the small side wherever x is, and the small side is
     // returned directly rather than as 1 − I_x(α, β).
-    return detail::beta_i_pair(detail::ONE - x, x, b, a, detail::beta_prefactor_constant(b, a));
+    // The prefix argument is unused since the corvus adoption (beta_i_pair ignores it), and
+    // beta_prefactor_constant is an lbeta-class call: computing it here cost more than the CDF.
+    return detail::beta_i_pair(detail::ONE - x, x, b, a, detail::ZERO_DOUBLE);
 }
 
 double BetaDistribution::getQuantile(double p) const {

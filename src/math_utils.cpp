@@ -1147,6 +1147,54 @@ void vector_beta_i(std::span<const double> x_values, double a, double b,
     }
 }
 
+void vector_beta_q_x(std::span<const double> x_values, double a, double b,
+                     std::span<double> output) noexcept {
+    if (x_values.size() != output.size()) {
+        return;
+    }
+    std::array<double, kCorvusBlock> a_fill;
+    std::array<double, kCorvusBlock> b_fill;
+    a_fill.fill(a);
+    b_fill.fill(b);
+    const std::size_t n = x_values.size();
+    for (std::size_t i = 0; i < n; i += kCorvusBlock) {
+        const std::size_t len = std::min(kCorvusBlock, n - i);
+        corvus::beta_q(std::span<const double>{a_fill.data(), len},
+                       std::span<const double>{b_fill.data(), len}, x_values.subspan(i, len),
+                       output.subspan(i, len));
+    }
+}
+
+void vector_beta_p_shapes(std::span<const double> a_values, std::span<const double> b_values,
+                          double x, std::span<double> output) noexcept {
+    if (a_values.size() != output.size() || b_values.size() != output.size()) {
+        return;
+    }
+    std::array<double, kCorvusBlock> x_fill;
+    x_fill.fill(x);
+    const std::size_t n = output.size();
+    for (std::size_t i = 0; i < n; i += kCorvusBlock) {
+        const std::size_t len = std::min(kCorvusBlock, n - i);
+        corvus::beta_p(a_values.subspan(i, len), b_values.subspan(i, len),
+                       std::span<const double>{x_fill.data(), len}, output.subspan(i, len));
+    }
+}
+
+void vector_beta_q_shapes(std::span<const double> a_values, std::span<const double> b_values,
+                          double x, std::span<double> output) noexcept {
+    if (a_values.size() != output.size() || b_values.size() != output.size()) {
+        return;
+    }
+    std::array<double, kCorvusBlock> x_fill;
+    x_fill.fill(x);
+    const std::size_t n = output.size();
+    for (std::size_t i = 0; i < n; i += kCorvusBlock) {
+        const std::size_t len = std::min(kCorvusBlock, n - i);
+        corvus::beta_q(a_values.subspan(i, len), b_values.subspan(i, len),
+                       std::span<const double>{x_fill.data(), len}, output.subspan(i, len));
+    }
+}
+
 void vector_lgamma(std::span<const double> input, std::span<double> output) noexcept {
     if (input.size() != output.size()) {
         return;

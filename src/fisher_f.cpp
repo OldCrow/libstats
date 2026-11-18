@@ -6,6 +6,7 @@
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -857,10 +858,108 @@ void FDistribution::logPdfKernel(const double* values, double* results, std::siz
         results[i] = logPdfImpl(values[i], a, b, d1, d2, log_pdf_const);
 }
 
+namespace {
+
+// A block of deferred detail::beta_i_pair(x, y, A, B) evaluations with one (A, B): the guards are
+// applied per element, exactly beta_i_pair's and in its order, and the two corvus forms it chooses
+// between -- beta_p(A, B, x) for x <= y, beta_q(B, A, y) otherwise -- are queued and evaluated as
+// two spans. So the bits are those of the scalar call, at a span's cost per element.
+struct BetaPairBlock {
+    static constexpr std::size_t kBlock = 256;
+    std::array<double, kBlock> px, qx, pout, qout;
+    std::array<std::size_t, kBlock> pidx, qidx;
+    std::size_t np = 0, nq = 0;
+
+    // Writes value[slot] now when a guard decides it; queues the kernel call otherwise.
+    void add(double x, double y, double shape_a, double shape_b, std::size_t slot,
+             double* value) noexcept {
+        if (std::isnan(x) || std::isnan(y) || std::isnan(shape_a) || std::isnan(shape_b)) {
+            value[slot] = std::numeric_limits<double>::quiet_NaN();
+        } else if (shape_a <= detail::ZERO_DOUBLE || shape_b <= detail::ZERO_DOUBLE ||
+                   x <= detail::ZERO_DOUBLE) {
+            value[slot] = detail::ZERO_DOUBLE;
+        } else if (y <= detail::ZERO_DOUBLE) {
+            value[slot] = detail::ONE;
+        } else if (shape_a == shape_b && (x == y || x == detail::HALF)) {
+            value[slot] = detail::HALF;
+        } else if (x <= y) {
+            px[np] = x;
+            pidx[np++] = slot;
+        } else {
+            qx[nq] = y;
+            qidx[nq++] = slot;
+        }
+    }
+
+    void run(double shape_a, double shape_b, double* value) noexcept {
+        if (np != 0) {
+            detail::vector_beta_i(std::span<const double>{px.data(), np}, shape_a, shape_b,
+                                  std::span<double>{pout.data(), np});
+            for (std::size_t j = 0; j < np; ++j)
+                value[pidx[j]] = pout[j];
+        }
+        if (nq != 0) {
+            detail::vector_beta_q_x(std::span<const double>{qx.data(), nq}, shape_b, shape_a,
+                                    std::span<double>{qout.data(), nq});
+            for (std::size_t j = 0; j < nq; ++j)
+                value[qidx[j]] = qout[j];
+        }
+        np = nq = 0;
+    }
+};
+
+}  // namespace
+
 void FDistribution::cdfKernel(const double* values, double* results, std::size_t count, double a,
-                              double b, double d1, double d2, double log_beta_prefix) noexcept {
-    for (std::size_t i = 0; i < count; ++i)
-        results[i] = cdfImpl(values[i], a, b, d1, d2, log_beta_prefix);
+                              double b, double d1, double d2, double /*log_beta_prefix*/) noexcept {
+    // cdfImpl's branches, a block at a time, with the incomplete-beta calls handed to corvus as
+    // spans. Two rounds: the forms each element needs first, then the survival-side form for the
+    // elements cdfImpl would re-evaluate (a < 1 and the first value above 1/2).
+    constexpr std::size_t kBlock = BetaPairBlock::kBlock;
+    enum : unsigned char { kDone, kDirect, kComplement };
+    std::array<FBetaArgs, kBlock> args;
+    std::array<unsigned char, kBlock> form;
+    std::array<double, kBlock> value;
+    BetaPairBlock direct;      // beta_i_pair(y, ybar, a, b)
+    BetaPairBlock complement;  // beta_i_pair(ybar, y, b, a)
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t len = std::min(kBlock, count - start);
+        for (std::size_t j = 0; j < len; ++j) {
+            const double x = values[start + j];
+            form[j] = kDone;
+            if (std::isnan(x)) {
+                value[j] = kNaN;
+            } else if (x <= detail::ZERO_DOUBLE) {
+                value[j] = detail::ZERO_DOUBLE;  // includes -inf
+            } else if (x == kInf) {
+                value[j] = detail::ONE;
+            } else {
+                args[j] = f_beta_args(x, d1, d2);
+                if (args[j].extreme) {
+                    value[j] = f_extreme_tails(args[j].log_r, x, a, b).cdf;
+                } else if (f_y_below_switch(args[j], a, b) || b < detail::ONE) {
+                    form[j] = kDirect;
+                    direct.add(args[j].y, args[j].ybar, a, b, j, value.data());
+                } else {
+                    form[j] = kComplement;
+                    complement.add(args[j].ybar, args[j].y, b, a, j, value.data());
+                }
+            }
+        }
+        direct.run(a, b, value.data());
+        // The survival is the small side: cdfImpl's second call for those elements.
+        if (a < detail::ONE) {
+            for (std::size_t j = 0; j < len; ++j) {
+                if (form[j] == kDirect && value[j] > detail::HALF) {
+                    form[j] = kComplement;
+                    complement.add(args[j].ybar, args[j].y, b, a, j, value.data());
+                }
+            }
+        }
+        complement.run(b, a, value.data());
+        for (std::size_t j = 0; j < len; ++j)
+            results[start + j] = form[j] == kComplement ? detail::ONE - value[j] : value[j];
+    }
 }
 
 void FDistribution::getProbability(std::span<const double> values, std::span<double> results,
@@ -1111,10 +1210,10 @@ void FDistribution::updateCacheUnsafe() const noexcept {
 
     // The incomplete beta's hoisted prefactor constant; symmetric in (a, b), so both
     // incomplete-beta branches in cdfImpl/sfImpl reuse this one value.
-    logBetaPrefix_ = detail::beta_prefactor_constant(a_, b_);
     // logPdfImpl's shape constant: −log B(a, b) below shape 20, the Stirling form's above (M1 seam
-    // hunt). d1 and d2 enter through r.
+    // hunt). d1 and d2 enter through r. The same call with the same arguments, so it is made once.
     logPdfConst_ = detail::beta_prefactor_constant(a_, b_);
+    logBetaPrefix_ = logPdfConst_;
 
     // Keep the Beta delegate in sync (used by sample()). beta_ owns its own
     // mutex, independent of ours; it is private so no external thread can be

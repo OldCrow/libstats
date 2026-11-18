@@ -374,6 +374,16 @@ void vector_gamma_q(std::span<const double> a_values, double x, std::span<double
 /// out[i] = I_{x[i]}(a, b) — Beta/Binomial/Student-t CDF shape.
 void vector_beta_i(std::span<const double> x_values, double a, double b,
                    std::span<double> output) noexcept;
+/// out[i] = 1 − I_{x[i]}(a, b); raw corvus::beta_q, the complement of vector_beta_i's kernel.
+void vector_beta_q_x(std::span<const double> x_values, double a, double b,
+                     std::span<double> output) noexcept;
+/// out[i] = I_x(a[i], b[i]) with one x — the discrete CDF shape (Binomial, NegativeBinomial),
+/// where the count moves the shapes. Raw corvus::beta_p: the caller applies the edge contract.
+void vector_beta_p_shapes(std::span<const double> a_values, std::span<const double> b_values,
+                          double x, std::span<double> output) noexcept;
+/// out[i] = 1 − I_x(a[i], b[i]) with one x; raw corvus::beta_q.
+void vector_beta_q_shapes(std::span<const double> a_values, std::span<const double> b_values,
+                          double x, std::span<double> output) noexcept;
 /// out[i] = lgamma(in[i]).
 void vector_lgamma(std::span<const double> input, std::span<double> output) noexcept;
 /// out[i] = lbeta(a[i], b[i]).

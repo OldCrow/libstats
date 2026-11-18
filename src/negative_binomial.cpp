@@ -8,6 +8,7 @@
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cmath>
 #include <cstdint>
@@ -61,7 +62,9 @@ inline double sfAtCount(double k, double r, double p) noexcept {
         return std::exp((k + detail::ONE) * std::log1p(-p));
     }
     const double a = k + detail::ONE;
-    return detail::beta_i_pair(detail::ONE - p, p, a, r, detail::beta_prefactor_constant(a, r));
+    // The prefix argument is unused since the corvus adoption (beta_i_pair ignores it), and
+    // beta_prefactor_constant is an lbeta-class call: computing it here cost more than the CDF.
+    return detail::beta_i_pair(detail::ONE - p, p, a, r, detail::ZERO_DOUBLE);
 }
 
 // Search indices for the quantile, so it can return counts past 2^53. Every double from 2^53 up is
@@ -951,16 +954,50 @@ void NegativeBinomialDistribution::getProbabilityBatchImpl(const double* values,
 void NegativeBinomialDistribution::getCumulativeProbabilityBatchImpl(
     const double* values, double* results, std::size_t count, double cached_r,
     double cached_p) const noexcept {
-    for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
-        if (!std::isfinite(x)) {
-            results[i] = std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
-                                       : ((x < 0) ? detail::ZERO_DOUBLE : detail::ONE);
-            continue;
+    // The beta form handed to corvus as spans, a block at a time, where it would be corvus::beta_p
+    // itself: I_p(r, k + 1) with p strictly inside (0, 1), r > 0 and not the Geometric closed
+    // form. Every other case (r = 1, p at an end, NaN parameters) keeps cdfAtCount per element,
+    // whose guards (detail::beta_i's) these conditions mirror, so the bits match the scalar path.
+    const bool spans = cached_r != detail::ONE && cached_r > detail::ZERO_DOUBLE &&
+                       cached_p > detail::ZERO_DOUBLE && cached_p < detail::ONE;
+    constexpr std::size_t kBlock = 256;
+    std::array<double, kBlock> shape_a;
+    std::array<double, kBlock> shape_b;
+    std::array<double, kBlock> out;
+    std::array<std::size_t, kBlock> index;
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t len = std::min(kBlock, count - start);
+        std::size_t live = 0;
+        for (std::size_t j = 0; j < len; ++j) {
+            const std::size_t i = start + j;
+            const double x = values[i];
+            // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
+            if (!std::isfinite(x)) {
+                results[i] = std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
+                                           : ((x < 0) ? detail::ZERO_DOUBLE : detail::ONE);
+                continue;
+            }
+            const double k = flooredCount(x);
+            if (k < 0) {
+                results[i] = detail::ZERO_DOUBLE;
+            } else if (!spans) {
+                results[i] = cdfAtCount(k, cached_r, cached_p);
+            } else if (cached_r == k + detail::ONE && cached_p == detail::HALF) {
+                results[i] = detail::HALF;  // I_1/2(a, a), by symmetry (detail::beta_i)
+            } else {
+                shape_a[live] = cached_r;
+                shape_b[live] = k + detail::ONE;
+                index[live] = i;
+                ++live;
+            }
         }
-        const double k = flooredCount(x);
-        results[i] = (k < 0) ? detail::ZERO_DOUBLE : cdfAtCount(k, cached_r, cached_p);
+        if (live == 0)
+            continue;
+        detail::vector_beta_p_shapes(std::span<const double>{shape_a.data(), live},
+                                     std::span<const double>{shape_b.data(), live}, cached_p,
+                                     std::span<double>{out.data(), live});
+        for (std::size_t j = 0; j < live; ++j)
+            results[index[j]] = out[j];
     }
 }
 

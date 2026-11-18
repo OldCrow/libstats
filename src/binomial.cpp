@@ -8,6 +8,7 @@
 #include "libstats/core/parallel_batch_fit.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -32,7 +33,9 @@ double binomialCdf(int k, int n, double p) noexcept {
         return detail::ZERO_DOUBLE;
     const double a = static_cast<double>(n - k);
     const double b = static_cast<double>(k + 1);
-    return detail::beta_i_pair(detail::ONE - p, p, a, b, detail::beta_prefactor_constant(a, b));
+    // The prefix argument is unused since the corvus adoption (beta_i_pair ignores it), and
+    // beta_prefactor_constant is an lbeta-class call: computing it here cost more than the CDF.
+    return detail::beta_i_pair(detail::ONE - p, p, a, b, detail::ZERO_DOUBLE);
 }
 
 // P(X > k) for 0 ≤ k < n, the complement of binomialCdf formed directly: I_p(k + 1, n − k), the
@@ -47,7 +50,7 @@ double binomialSf(int k, int n, double p) noexcept {
         return detail::ONE;
     const double a = static_cast<double>(k + 1);
     const double b = static_cast<double>(n - k);
-    return detail::beta_i_pair(p, detail::ONE - p, a, b, detail::beta_prefactor_constant(a, b));
+    return detail::beta_i_pair(p, detail::ONE - p, a, b, detail::ZERO_DOUBLE);  // as binomialCdf
 }
 
 // PARALLEL and WORK_STEALING take one snapshot and run the lock-free batch kernels over slices
@@ -877,22 +880,67 @@ void BinomialDistribution::getProbabilityBatchImpl(const double* values, double*
 void BinomialDistribution::getCumulativeProbabilityBatchImpl(const double* values, double* results,
                                                              std::size_t count, int cached_n,
                                                              double cached_p) const noexcept {
-    for (std::size_t i = 0; i < count; ++i) {
-        const double x = values[i];
-        // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
-        if (!std::isfinite(x)) {
-            results[i] = std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
-                                       : ((x < 0) ? detail::ZERO_DOUBLE : detail::ONE);
-            continue;
+    // The interior counts go to corvus as spans, a block at a time, not one scalar call each:
+    // P(X <= k) = I_{1-p}(n - k, k + 1), and with p fixed for the batch every element takes the
+    // same side of beta_i_pair's choice (x <= y), so one beta_p or one beta_q call serves the
+    // block. Edge elements are written directly and never reach corvus. The guards are
+    // binomialCdf's and beta_i_pair's, in the same order, so the bits match the scalar path.
+    constexpr std::size_t kBlock = 256;
+    std::array<double, kBlock> first;
+    std::array<double, kBlock> second;
+    std::array<double, kBlock> out;
+    std::array<std::size_t, kBlock> index;
+    const double x_side = detail::ONE - cached_p;  // beta_i_pair's x
+    const bool use_p_form = x_side <= cached_p;    // x <= y: beta_p(a, b, x)
+    const bool tie = x_side == cached_p || x_side == detail::HALF;
+    for (std::size_t start = 0; start < count; start += kBlock) {
+        const std::size_t len = std::min(kBlock, count - start);
+        std::size_t live = 0;
+        for (std::size_t j = 0; j < len; ++j) {
+            const std::size_t i = start + j;
+            const double x = values[i];
+            // EDGE-3: CDF(-inf) must be 0, not 1. Three-way branch on non-finite inputs.
+            if (!std::isfinite(x)) {
+                results[i] = std::isnan(x) ? std::numeric_limits<double>::quiet_NaN()
+                                           : ((x < 0) ? detail::ZERO_DOUBLE : detail::ONE);
+                continue;
+            }
+            // #167: range-check the floored double before the int cast.
+            const double floored = std::floor(x);
+            if (floored < detail::ZERO_DOUBLE) {
+                results[i] = detail::ZERO_DOUBLE;
+            } else if (floored >= static_cast<double>(cached_n)) {
+                results[i] = detail::ONE;
+            } else if (cached_p == detail::ZERO_DOUBLE) {
+                results[i] = detail::ONE;
+            } else if (cached_p == detail::ONE) {
+                results[i] = detail::ZERO_DOUBLE;
+            } else {
+                const int k = static_cast<int>(floored);
+                const double a = static_cast<double>(cached_n - k);
+                const double b = static_cast<double>(k + 1);
+                if (a == b && tie) {
+                    results[i] = detail::HALF;  // I_1/2(a, a), by symmetry (beta_i_pair)
+                    continue;
+                }
+                // beta_p(a, b, x) or, by the swap identity, beta_q(b, a, y).
+                first[live] = use_p_form ? a : b;
+                second[live] = use_p_form ? b : a;
+                index[live] = i;
+                ++live;
+            }
         }
-        // #167: range-check the floored double before the int cast.
-        const double floored = std::floor(x);
-        if (floored < detail::ZERO_DOUBLE)
-            results[i] = detail::ZERO_DOUBLE;
-        else if (floored >= static_cast<double>(cached_n))
-            results[i] = detail::ONE;
+        if (live == 0)
+            continue;
+        const std::span<const double> fs{first.data(), live};
+        const std::span<const double> ss{second.data(), live};
+        const std::span<double> os{out.data(), live};
+        if (use_p_form)
+            detail::vector_beta_p_shapes(fs, ss, x_side, os);
         else
-            results[i] = binomialCdf(static_cast<int>(floored), cached_n, cached_p);
+            detail::vector_beta_q_shapes(fs, ss, cached_p, os);
+        for (std::size_t j = 0; j < live; ++j)
+            results[index[j]] = out[j];
     }
 }
 
