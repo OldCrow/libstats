@@ -154,6 +154,18 @@ on the M1) is the accuracy leg; the performance leg is pending. Its scalar entry
 points cut single-call cost 2–19× on the M1 indicative bench, which is exactly
 the hop above.
 
+**Re-measured at the v1.2.0 pin [user, 2026-11-18]: trim lifted, snapshot test
+back, stress test stays out.** One trial run on the cl.exe leg with all four
+tiers and both tests (run 44347225426, image 20261103.298.1): the build took
+11.0 min, about 1 min more than with the trim; `test_snapshot_consistency`
+passed in 194 s (393 s before the pin); `test_concurrency_stress` FAILED at
+327 s on its 120 s no-progress watchdog in the Beta `setParameters` loops, the
+reader inside a SCALAR batch CDF, which is starvation at cl.exe-built corvus
+speed. So `CORVUS_DISABLED_TARGETS` is gone from the cl.exe leg and only
+`test_concurrency_stress` is excluded there. One run is not a distribution: if
+a slow runner pushes the leg at its 40-minute budget, the snapshot test is the
+first thing to take out again.
+
 **Third CI run (40401273278, with the budgets): 13/14 green; the one failure is
 the pin-currency canary, by design** (find_package floor 1.0, FetchContent tag
 v1.0.1, corvus latest v1.1.0; it runs only on schedule and dispatch and will
