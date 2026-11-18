@@ -327,6 +327,17 @@ inline constexpr double LOG1PMX_SERIES_LIMIT = 0.5;
  * 0 where the other count is zero, −∞ otherwise.
  */
 [[nodiscard]] double binomial_log_pmf(double xa, double xb, double pa) noexcept;
+/**
+ * @brief binomial_log_pmf with lgamma(xa + 1) and lgamma(fl(xa + xb) + 1) supplied (PROTOTYPE)
+ *
+ * For a batch whose xa is fixed: the first is hoisted, the second can come from one
+ * vector_lgamma call over the batch. lgamma_xa_plus_1 is read only where
+ * xa < STIRLING_PREFACTOR_SHAPE and lgamma_n_plus_1 only where fl(xa + xb) is; a value that is
+ * not read may be anything. Same bits as the three-argument form when the supplied values are
+ * detail::lgamma's.
+ */
+[[nodiscard]] double binomial_log_pmf(double xa, double xb, double pa, double lgamma_xa_plus_1,
+                                      double lgamma_n_plus_1) noexcept;
 // v3.0.0 additions, in corvus argument order (parameters first, probability
 // last). Each solves against whichever of p and 1 - p is the smaller, so a
 // single call is accurate on both sides of the median; see corvus.h.
@@ -374,6 +385,16 @@ void vector_gamma_q(std::span<const double> a_values, double x, std::span<double
 /// out[i] = I_{x[i]}(a, b) — Beta/Binomial/Student-t CDF shape.
 void vector_beta_i(std::span<const double> x_values, double a, double b,
                    std::span<double> output) noexcept;
+/// out[i] = 1 − I_{x[i]}(a, b); raw corvus::beta_q, the complement of vector_beta_i's kernel.
+void vector_beta_q_x(std::span<const double> x_values, double a, double b,
+                     std::span<double> output) noexcept;
+/// out[i] = I_x(a[i], b[i]) with one x — the discrete CDF shape (Binomial, NegativeBinomial),
+/// where the count moves the shapes. Raw corvus::beta_p: the caller applies the edge contract.
+void vector_beta_p_shapes(std::span<const double> a_values, std::span<const double> b_values,
+                          double x, std::span<double> output) noexcept;
+/// out[i] = 1 − I_x(a[i], b[i]) with one x; raw corvus::beta_q.
+void vector_beta_q_shapes(std::span<const double> a_values, std::span<const double> b_values,
+                          double x, std::span<double> output) noexcept;
 /// out[i] = lgamma(in[i]).
 void vector_lgamma(std::span<const double> input, std::span<double> output) noexcept;
 /// out[i] = lbeta(a[i], b[i]).
