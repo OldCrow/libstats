@@ -533,8 +533,10 @@ void GaussianDistribution::fit(const std::vector<double>& values) {
                 running_mean +=
                     delta * static_cast<double>(chunk_counts[i]) / static_cast<double>(new_count);
 
-                const double delta2 = chunk_means[i] - running_mean;
-                combined_m2 += chunk_m2s[i] + delta * delta2 * static_cast<double>(combined_count) *
+                // Chan: M2 = M2_a + M2_b + delta^2 * n_a * n_b / (n_a + n_b), delta the difference
+                // of the two means before the update. Welford's delta * delta2 belongs to the
+                // one-element update; here it under-counted this term by n_a / n.
+                combined_m2 += chunk_m2s[i] + delta * delta * static_cast<double>(combined_count) *
                                                   static_cast<double>(chunk_counts[i]) /
                                                   static_cast<double>(new_count);
 
