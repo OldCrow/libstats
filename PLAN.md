@@ -274,8 +274,8 @@ Single calls against v2.5.0's kernels on this machine: `lgamma(2)` 18 →
 144 ns, `lbeta` 76 → 1,742, `gamma_p` 112 → 1,358, `beta_i` 342 → 3,531.
 This CPU is corvus's worst case in the fleet (two lanes, Dekker products).
 
-**`proto/batch-cdf-spans`** [DERIVED, 2026-11-17/18; two commits pushed,
-`f2c17f2` and `eb6b47d`, not merged here]: batch CDFs
+**`proto/batch-cdf-spans`** [DERIVED, 2026-11-17/18; `f2c17f2` and
+`eb6b47d`]: batch CDFs
 that looped one scalar corvus call per element now hand corvus spans a
 block of 256 at a time, edges written directly, the scalar path's guards
 in its order. Binomial, negative binomial, Fisher-F, then Gamma (which
@@ -287,8 +287,26 @@ against `b766e45`. Batch CDF per element here: 1.5–2.0× faster (Binomial
 6,410 → 3,270 ns, Gamma(3.5) 986 → 535). `test_snapshot_consistency` 57
 → 31 s (`main` 16); `test_concurrency_stress` 278 → 230 s (`main` 107),
 since its readers are mostly scalar calls. Two lanes predict about 2×;
-wider tiers are unmeasured. Still per element: Student-t (its deep-tail
-kernel is libstats' own) and every scalar path.
+wider tiers are unmeasured.
+
+**Extended and promoted onto this branch [user, 2026-11-18]** (`23f6fb3`,
+merge `90d1bef`). An inventory of every batch kernel found one corvus call
+still made per element: `lgamma` in the Poisson, Binomial and
+NegativeBinomial PMF and LogPMF kernels at counts under 20. Student-t's
+batch CDF needed nothing (its `lbeta` is hoisted, its tail kernels are
+libstats' own). `detail::lgamma` now reads integers 1..32 from a table it
+fills from corvus on first use, which helps scalar calls too;
+NegativeBinomial hoists `lgamma(r + 1)` and sends the non-integer
+`lgamma(k + r + 1)` through one span per block. Bit-identical: 5.7 million
+values hash the same and the sweep matches `b766e45` row for row; 132/132
+on GCC and Clang. Indicative batch ns per element here, PMF: Poisson(15)
+132 → 33, Binomial(15, 0.3) 303 → 64, NegativeBinomial(2.5, 0.4) 276 →
+127; Binomial(100, 0.3) 285 → 256, where the cost is the Stirling
+arithmetic, not corvus. `test_concurrency_stress` 230 → 220 s,
+`test_snapshot_consistency` 31 → 30 s. What remains per call is every
+scalar method (corvus #110, #111). The other three machines owe the
+bit-identity check and timings on their tiers; the `PROTOTYPE` comment
+tags stay until they report.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
