@@ -148,9 +148,11 @@ namespace {
 // values back into the design doc -- do not loosen without a kernel fix;
 // see the file banner.
 // =========================================================================
-constexpr double kBudgetTight = 1.0;  // avx2 / avx512 / neon
-// [[maybe_unused]]: on a NEON-only (no x86 tier) build this constant has no
-// reader, which trips -Wunused-const-variable under GCC/Clang -Wall.
+// [[maybe_unused]] on both: each has no reader on some build, which trips
+// -Wunused-const-variable under Clang -Wall. kBudgetTight where no FMA tier
+// is compiled (an AVX-only CPU such as Ivy Bridge), kBudgetLoose on a
+// NEON-only build.
+[[maybe_unused]] constexpr double kBudgetTight = 1.0;  // avx2 / avx512 / neon
 [[maybe_unused]] constexpr double kBudgetLoose = 2.0;  // sse2 / avx (no guaranteed FMA)
 constexpr double kBudgetSpecials = 4.0;                // libm fixup path, every tier
 
