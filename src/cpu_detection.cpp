@@ -285,7 +285,10 @@ void detect_cache_info(Features& features) {
 void detect_topology_info(Features& features) {
     uint32_t eax, ebx, ecx, edx;
 
-    // Get logical processor count from CPUID leaf 1
+    // CPUID leaf 1 EBX[23:16] is the number of addressable logical-processor IDs in the package,
+    // rounded up to a power of two: an upper bound on the logical count, not the count (16 on a
+    // 4-core/8-thread Ivy Bridge, #289). It is the starting value, replaced from leaf 0xB below
+    // where that leaf exists and bounded by the OS at the end.
     safe_cpuid(1, 0, eax, ebx, ecx, edx);
     uint32_t logical_processors = (ebx >> 16) & 0xFF;
 
@@ -310,6 +313,9 @@ void detect_topology_info(Features& features) {
         if (((ecx >> 8) & 0xFF) == 2) {  // Core level
             core_mask_width = eax & 0x1F;
             const uint32_t logical_per_package = ebx & 0xFFFF;
+            // The same field is the logical count itself (#289); leaf 1's is only its bound.
+            if (logical_per_package > 0)
+                features.topology.logical_cores = logical_per_package;
             const uint32_t threads = features.topology.threads_per_core;
             features.topology.physical_cores =
                 threads > 1 ? logical_per_package / threads : logical_per_package;
@@ -331,6 +337,20 @@ void detect_topology_info(Features& features) {
             features.topology.threads_per_core = detail::TWO_INT;
         }
     }
+
+    // Never more logical processors than the OS will schedule on: it bounds the leaf 1 fallback,
+    // whose field is an upper bound, and a virtual machine or container given fewer CPUs than the
+    // topology it reports (#289). hardware_concurrency() may return 0, which bounds nothing.
+    const unsigned os_logical = std::thread::hardware_concurrency();
+    if (os_logical > 0 && features.topology.logical_cores > os_logical)
+        features.topology.logical_cores = os_logical;
+
+    // The bound above can leave fewer logical processors than the cores CPUID counted: a hosted
+    // 4-vCPU runner reports its host's 8 cores and 16 threads. Callers size thread pools from
+    // physical_cores and assume it never exceeds logical_cores, so it takes the same bound. The
+    // SMT fields stay as CPUID gave them: how the guest's CPUs map to cores is not knowable here.
+    if (features.topology.physical_cores > features.topology.logical_cores)
+        features.topology.physical_cores = features.topology.logical_cores;
 }
     #endif  // !defined(__APPLE__)
 
