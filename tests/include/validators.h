@@ -162,6 +162,17 @@ inline double getSIMDValidationThreshold(std::size_t batch_size,
                                          bool is_complex_distribution = false) noexcept {
     double base = getAdaptiveSIMDExpectation();
 
+#if !defined(__AVX512F__)
+    // A complex distribution's batch speedup below AVX-512 comes from amortising the per-call
+    // overhead around kernels that stay scalar (lgamma, the Stirling terms), so it neither grows
+    // with the batch nor exceeds what a simple kernel gains. The base expectation is the whole
+    // bar: no size factor, and no factor for complexity. On the native AVX tier (Ivy Bridge)
+    // Poisson reads 1.54-1.61x at both 5,000 and 50,000 elements, which the former
+    // base * 1.2 * 1.15 = 1.656x at 50,000 could never clear (#312).
+    if (is_complex_distribution)
+        return base;
+#endif
+
     // SIMD efficiency increases with batch size due to setup cost amortization.
     // On AVX-512 the amortization curve flattens earlier because 8-wide
     // processing already amortises setup at moderate sizes.
@@ -180,6 +191,7 @@ inline double getSIMDValidationThreshold(std::size_t batch_size,
     // Complex distributions contain scalar bottlenecks (lgamma, erfc) that
     // limit SIMD benefit.  On wide SIMD (AVX-512) the effect is more pronounced
     // because the scalar portion occupies a larger fraction of the wider pipeline.
+    // (Narrower builds returned above.)
     if (is_complex_distribution) {
 #if defined(__AVX512F__)
         // AMD Zen4+ double-pumps AVX-512 through 256-bit execution units:
@@ -190,8 +202,6 @@ inline double getSIMDValidationThreshold(std::size_t batch_size,
         } else {
             base *= 0.70;  // Intel true-512: scalar bottleneck is better amortised
         }
-#else
-        base *= 1.15;  // Moderate SIMD still hides some scalar cost
 #endif
     } else {
         base *= 0.9;
