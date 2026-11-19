@@ -465,9 +465,9 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
     attribution paragraph), #138 (two stale comments), #267 (`tsan.supp`
     line, dead `lgamma_r` declaration), #103 and #104 (other ISAs; the
     Cauchy gate vectors).
-- **#311 implemented [2026-11-19]** on `feat/311-portable-fma`
-  (`31c93e0`, off `c0f8c3b`; CI run 44611652707 dispatched, not read; not
-  merged here). `detail::fma_portable` replaces `std::fma` at all 30 sites:
+- **#311 implemented and merged here [2026-11-19]** (`31c93e0`, merge
+  `827abea`; CI #449 green on the feature branch, 134/134 on the merged
+  tree; issue labelled `fixed-on-branch`). `detail::fma_portable` replaces `std::fma` at all 30 sites:
   `std::fma` inline where the file is compiled for FMA hardware, otherwise
   a runtime choice between `std::fma` and `detail::fma_software`. The
   software routine is a correctly rounded fma (Boldo–Melquiond, round to
@@ -482,6 +482,27 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
   from PARALLEL: the serial fixup loop is #178. FMA-hardware paths are
   unrun; they are `std::fma` as before by construction. After it merges,
   the InverseGamma kAvx rows need re-measuring (#291).
+- **#251 fixed [2026-11-19]** (`7152e4a`). Below `DBL_MIN` of the argument
+  the incomplete gamma takes a mantissa and a binary exponent
+  (`gamma_p_from_scaled`, `gamma_q_from_scaled`; the `_from_log_x` pair is
+  gone). Gamma CDF there 570 ulp → 1.4, InverseGamma survival 1067 → 1.2,
+  and no step down at `DBL_MIN` (was 42 ulp at shape 0.5). Two guards in
+  `test_contract_gates.cpp`, both red against the unfixed library. Sweep:
+  one row changed, 3.7 ulp off → 0.3. AVX tier and GCC only so far.
+- **kAvx takes this machine's native values [user, 2026-11-19].** The
+  table is keyed by tier and this is the only silicon whose native tier is
+  AVX; a capped build on FMA hardware (and `kSse2`, which delegates) gets
+  them too. **Schedule [DERIVED; the user left the timing to me]:** do not
+  write rows from the 2026-11-18 bundle. #311 has since cut InverseGamma,
+  Binomial, VonMises and TruncatedNormal costs 1.5–4× here, and cheaper
+  kernels cross to PARALLEL later, so those rows are stale. One pass,
+  after the remaining v3.0.0 `src/` work on this machine has landed (#110
+  and the cleanups): a fresh three-run quiet capture with
+  `build-ivb-adopt/quiet_run.sh` (about four hours, screen locked), then
+  derive with the fork rule corrected for this machine (a candidate of
+  6144 stays 6144 where PARALLEL is behind at 4096), write the table, run
+  the `table_ab_bench` A/B, and commit bundle and table together. The
+  documentation column #291 asks for is written from the same capture.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
