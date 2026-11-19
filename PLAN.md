@@ -333,7 +333,7 @@ its result was not read.
   loop (#311). Clean changes: Gaussian LogPDF 150k → 50k, Exponential and
   HalfNormal LogPDF 100k → 50k, Discrete PDF and LogPDF 50k → 8192,
   Uniform LogPDF 200k → 75k. Below 4096 PARALLEL does not fork (#307).
-- **#311, software `fma`** [OPEN, no milestone]: `std::fma` is glibc's
+- **#311, software `fma`** [OPEN, v3.0.0 milestone, user 2026-11-18]: `std::fma` is glibc's
   software routine on a CPU without FMA, 175 ns per call here. Two calls
   per element are the whole 350 ns of InverseGamma PDF and LogPDF, in the
   serial fixup loop, so PARALLEL gains 1.03×. Binomial PDF (254 ns; the
@@ -341,9 +341,10 @@ its result was not read.
   CDFs are attributed by reading, not profiled. Proposed: one `detail`
   helper, hardware FMA or a Dekker split product, after classifying each
   site (exact residual, general addend, fusion spelled only to pin
-  results). Does not need corvus unfrozen, so it can be scoped into v3.0.0
-  [user to decide].
-- **#312, `test_poisson_enhanced_timing`** [OPEN, no milestone]: fails
+  results). Does not need corvus unfrozen, so it is in v3.0.0. Land it
+  before the other machines run their legs, so each validates once; here
+  it must leave the sweep bit-identical or account for every changed row.
+- **#312, `test_poisson_enhanced_timing`** [OPEN, v3.0.0 milestone, user 2026-11-18]: fails
   here deterministically (1.54–1.61× against 1.656× at 50,000), on `main`
   from before the adoption too. `getSIMDValidationThreshold` raises the
   bar for a complex distribution on non-AVX-512 builds. Fix: the base
