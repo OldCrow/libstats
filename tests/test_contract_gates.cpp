@@ -1167,12 +1167,12 @@ TEST(ContractGates, DH2_M1_VonMisesEntropy) {
     struct Row {
         double kappa, h, tol;
     };
-    // Tolerance: the Tier 2 (A&S 9.8) Bessel polynomials carry ~2e-7 relative in I0 and I1,
-    // so log I0 and kappa * A(kappa) inherit it below the asymptotic cut (kappa < 50); from
-    // the cut the scaled asymptotic series are accurate to double on both tiers.
+    // Tolerance: below the asymptotic cut (kappa < 50) these stood at 1e-6 and 5e-6 for the
+    // Tier 2 (A&S 9.8) Bessel polynomials, which the corvus adoption retired (#47, #252); I0
+    // and I1 are corvus's on every platform now and the entropy reads within 1e-15 here.
     for (const Row& r :
-         {Row{0.01, 1.8378520668780868, 1e-6}, Row{0.5, 1.7781769793044258, 1e-6},
-          Row{1.0, 1.6274014590199896, 1e-6}, Row{10.0, 0.29485088997958145, 5e-6},
+         {Row{0.01, 1.8378520668780868, 1e-13}, Row{0.5, 1.7781769793044258, 1e-13},
+          Row{1.0, 1.6274014590199896, 1e-13}, Row{10.0, 0.29485088997958145, 1e-13},
           Row{100.0, -0.88112754416494736, 1e-9}, Row{700.0, -1.8562441080454707, 1e-9},
           Row{1e4, -3.1862066509081582, 1e-9}, Row{1e6, -5.4888164957772768, 1e-9},
           Row{1e8, -7.7914018362715100, 1e-9}}) {

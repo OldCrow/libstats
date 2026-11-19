@@ -397,6 +397,10 @@ create_libstats_gtest(test_copy_move_cache test_copy_move_cache.cpp)
 # out-of-support counts) take their limits, scalar and batch, under every forced strategy.
 create_libstats_gtest(test_support_boundary_gates test_support_boundary_gates.cpp)
 
+# Guards for defects the corvus adoption removed (#126, #136, #214, #247, #248, #262, #266, #270,
+# #271): each case fails against a v2.5.0 build.
+create_libstats_gtest(test_corvus_adoption_guards test_corvus_adoption_guards.cpp)
+
 # #158 guard: the probit (inverse_normal_cdf, Gaussian and LogNormal quantiles) finite and within
 # budget against mpmath from p = 1e-300 to the centre; the erf_inv(2p - 1) form returned -inf.
 create_libstats_gtest(test_probit_accuracy test_probit_accuracy.cpp)

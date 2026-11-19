@@ -125,18 +125,10 @@ TEST(DiscreteQuantileBounds, SmallParametersUnchanged) {
     for (int k = 0; k <= 10; ++k) {
         const double cdf = nb.getCumulativeProbability(static_cast<double>(k));
         const double q = nb.getQuantile(cdf);
-        if (cdf <= 0.5) {
-            EXPECT_EQ(q, static_cast<double>(k)) << "at k=" << k;
-            continue;
-        }
-        // Above ½ the quantile is decided on getSurvival, not on the CDF it is handed: Q(F(k))
-        // is k or, where getSurvival(k) rounds above 1 − F(k), k + 1. NB(2, ½) has the dyadic
-        // S(k) = (k + 3)/2^(k+2), so 1 − F(k) is an exact tie and S's last ulps decide it
-        // (k + 1 at k = 4, 7, 8 on AppleClang/x86-64).
-        EXPECT_GE(q, static_cast<double>(k)) << "at k=" << k;
-        EXPECT_LE(q, static_cast<double>(k + 1)) << "at k=" << k;
-        EXPECT_LE(nb.getSurvival(q), 1.0 - cdf) << "at k=" << k;
-        EXPECT_GT(nb.getSurvival(q - 1.0), 1.0 - cdf) << "at k=" << k;
+        // NB(2, ½) has the dyadic S(k) = (k + 3)/2^(k+2), so above ½ the tail 1 − F(k) is an
+        // exact tie. v2.5.0's beta_i rounded the survival up there and Q(F(k)) could read k + 1
+        // (#262); corvus's is exact, so the quantile is k.
+        EXPECT_EQ(q, static_cast<double>(k)) << "at k=" << k;
     }
 
     auto g = stats::GeometricDistribution::create(0.5).unwrap();
@@ -175,14 +167,11 @@ double geometricCdf(double p, double k) {
     return -std::expm1((k + 1.0) * std::log1p(-p));
 }
 
-// Absolute CDF tolerance past INT_MAX. Derived, not measured: beta_i's
-// log-beta prefix differences lgamma values of ~1e11 (k ~ 4.6e9) to ~4.5e11
-// (r = k = 1e10), where one ulp is 1.5e-5 to 6e-5, and that error passes
-// through exp() onto a CDF of order 1. How much of it shows depends on the
-// libm's lgamma rounding: Apple's stays under 1e-5 at every point here, glibc
-// reaches 1.2e-5 at NB(1e10, 0.5), q = 0.5. This is #126, absorbed by the
-// v2.5.0 incomplete-beta core; tighten then. The #125 defect misses by >= 0.5.
-constexpr double kCdfTolBeyondIntMax = 2e-4;
+// Absolute CDF tolerance past INT_MAX. F(Q(q)) is the first CDF value at or above q, so it
+// exceeds q by at most one pmf: 2.8e-6 at NB(1e10, 0.5), q = 0.5, the largest here. The 2e-4
+// this stood at allowed for #126's lgamma cancellation in beta_i's log-beta prefix; the v2.5.0
+// incomplete-beta core removed that. The #125 defect misses by >= 0.5.
+constexpr double kCdfTolBeyondIntMax = 3e-6;
 
 }  // namespace
 

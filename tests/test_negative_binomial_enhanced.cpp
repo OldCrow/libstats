@@ -102,17 +102,9 @@ TEST_F(NegativeBinomialEnhancedTest, QuantileRoundTrip) {
     for (int k = 0; k <= 10; ++k) {
         const double cdf = nb2_05_.getCumulativeProbability(static_cast<double>(k));
         const double q = nb2_05_.getQuantile(cdf);
-        if (cdf <= 0.5) {
-            EXPECT_EQ(q, static_cast<double>(k)) << "at k=" << k;
-            continue;
-        }
-        // Above ½ the quantile is the smallest k with getSurvival(k) ≤ 1 − p. With p = ½ the
-        // tail 1 − F(k) is dyadic, an exact tie, so getSurvival's last ulp decides between k
-        // and k + 1.
-        EXPECT_GE(q, static_cast<double>(k)) << "at k=" << k;
-        EXPECT_LE(q, static_cast<double>(k + 1)) << "at k=" << k;
-        EXPECT_LE(nb2_05_.getSurvival(q), 1.0 - cdf) << "at k=" << k;
-        EXPECT_GT(nb2_05_.getSurvival(q - 1.0), 1.0 - cdf) << "at k=" << k;
+        // With p = ½ the tail 1 − F(k) is dyadic, an exact tie above ½. v2.5.0's survival
+        // rounded up there and Q(F(k)) could read k + 1 (#262); it is exact now.
+        EXPECT_EQ(q, static_cast<double>(k)) << "at k=" << k;
     }
     EXPECT_DOUBLE_EQ(nb2_05_.getQuantile(0.0), 0.0);
 }
