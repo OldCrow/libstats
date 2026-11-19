@@ -1375,6 +1375,59 @@ TEST(ContractGates, DH2_Issue216_CdfArgumentUnderOverflow) {
 }
 
 //==============================================================================
+// #251: below DBL_MIN of the argument the #216 path formed exp(a * log x - lgamma(a + 1)), and
+// |a * log x| reaches 745 there, so one rounding in the exponent is hundreds of eps in the
+// result: up to 570 eps in the Gamma CDF and 1067 in InverseGamma's survival (Ivy Bridge, AVX
+// tier, before the fix). With corvus exact on the other side of DBL_MIN the CDF also stepped
+// DOWN there, by 42 ulps at shape 0.5 and 67 at 0.25 (436 at 0.75 on v2.5.0). The argument now
+// goes in as a mantissa and a binary exponent. References: mpmath, dps 60.
+//==============================================================================
+
+TEST(ContractGates, Issue251_GammaCdfBelowDblMinOfTheArgument) {
+    const auto errEps = [](double value, double ref) {
+        return std::fabs(value - ref) / (std::numeric_limits<double>::epsilon() * ref);
+    };
+    struct Row {
+        double shape, second, x, ref;
+    };
+    // Gamma(shape, rate).cdf(x) with rate * x below DBL_MIN.
+    for (const Row& r : {Row{0.5, 1.0, 1e-310, 1.1283791670955108e-155},
+                         Row{0.75, 1.0, 1e-310, 3.4407644396193834e-233},
+                         Row{0.25, 0.5, 3e-308, 1.2209608288974107e-77},
+                         Row{0.75, 1e-10, 1e-300, 3.4407644396193915e-233}}) {
+        const GammaDistribution g(r.shape, r.second);
+        EXPECT_LE(errEps(g.getCumulativeProbability(r.x), r.ref), 8.0)
+            << "Gamma(" << r.shape << ", " << r.second << ").cdf(" << r.x << ")";
+    }
+    // InverseGamma(shape, scale).survival(x) with scale / x below DBL_MIN: the mirror.
+    for (const Row& r : {Row{0.5, 1e-20, 1e300, 1.1283791670955126e-160},
+                         Row{0.75, 1.0, 1.7e308, 7.308331697200609e-232},
+                         Row{0.25, 3e-160, 1e150, 4.59154906968893e-78}}) {
+        const InverseGammaDistribution ig(r.shape, r.second);
+        EXPECT_LE(errEps(ig.getSurvival(r.x), r.ref), 8.0)
+            << "InverseGamma(" << r.shape << ", " << r.second << ").survival(" << r.x << ")";
+    }
+}
+
+TEST(ContractGates, Issue251_GammaCdfDoesNotStepDownAtDblMin) {
+    constexpr double kMin = std::numeric_limits<double>::min();
+    for (double shape : {0.25, 0.5, 0.75}) {
+        const GammaDistribution g(shape, 1.0);
+        double x = kMin;
+        for (int i = 0; i < 20; ++i)
+            x = std::nextafter(x, 0.0);
+        double previous = g.getCumulativeProbability(x);
+        for (int i = 0; i < 40; ++i) {
+            x = std::nextafter(x, 1.0);
+            const double here = g.getCumulativeProbability(x);
+            EXPECT_GE(here, previous)
+                << "shape " << shape << ", " << (i - 19) << " doubles from DBL_MIN";
+            previous = here;
+        }
+    }
+}
+
+//==============================================================================
 // DH3 contract round, 2026-10-10. References: mpmath, dps 50-120 (the truncated-normal moments
 // by tn_moments in the hunt oracle). Each gate failed on the unfixed code, as noted per block.
 //==============================================================================

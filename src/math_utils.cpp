@@ -491,21 +491,56 @@ double gamma_p(double a, double x) noexcept {
     return corvus::gamma_p(a, x);
 }
 
-double gamma_p_from_log_x(double a, double log_x) noexcept {
-    // x < DBL_MIN: the series P = x^a e^{-x} Σ x^n / Γ(a+n+1) is its n = 0 term to double.
-    if (std::isnan(a) || std::isnan(log_x))
-        return std::numeric_limits<double>::quiet_NaN();
-    if (a <= detail::ZERO_DOUBLE || log_x == -std::numeric_limits<double>::infinity())
-        return detail::ZERO_DOUBLE;
-    return std::exp(a * log_x - detail::lgamma(a + detail::ONE));
+namespace {
+
+// x^a / Γ(a+1) for x = m·2^k below DBL_MIN, with its natural log; the first term of the series
+// P(a, x) = x^a e^{-x} Σ x^n / Γ(a+n+1), which is P to double there.
+//
+// exp(a·log x − lgamma(a+1)) cannot hold this: |a·log x| reaches 745, so a rounding in log x or
+// in the product is hundreds of ε in the result (#251: 433 ε, and a 42-ulp step down at
+// DBL_MIN once the other side was corvus's). Here a·k is carried exactly as p + e, its integer
+// part n goes to ldexp, and only the fraction f, at most a half, and m^a pass through
+// transcendentals: x^a = m^a · 2^f · 2^n.
+struct TinyPower {
+    double value;  // x^a / Γ(a+1), 0 where it underflows
+    double log;    // its natural log, good to a few ε relative
+};
+
+[[nodiscard]] TinyPower tinyPowerOverGamma(double a, double m, int k) noexcept {
+    const double lg = detail::lgamma(a + detail::ONE);
+    const double kd = static_cast<double>(k);
+    const double log_value = a * (std::log(m) + kd * detail::LN2) - lg;
+    const double p = a * kd;
+    if (!(p > -4400.0))  // below 2^-2200 after m^a <= 1 and 1/Γ(a+1) <= 1.13: underflows
+        return {detail::ZERO_DOUBLE, log_value};
+    const double e = detail::fma_portable(a, kd, -p);
+    const double n = std::nearbyint(p);
+    const double f = (p - n) + e;
+    const double v = std::pow(m, a) * std::exp2(f) * std::exp(-lg);
+    return {std::ldexp(v, static_cast<int>(n)), log_value};
 }
 
-double gamma_q_from_log_x(double a, double log_x) noexcept {
-    if (std::isnan(a) || std::isnan(log_x))
+}  // namespace
+
+double gamma_p_from_scaled(double a, double m, int k) noexcept {
+    if (std::isnan(a) || std::isnan(m))
         return std::numeric_limits<double>::quiet_NaN();
-    if (a <= detail::ZERO_DOUBLE || log_x == -std::numeric_limits<double>::infinity())
+    if (a <= detail::ZERO_DOUBLE || !(m > detail::ZERO_DOUBLE))
+        return detail::ZERO_DOUBLE;
+    return std::min(tinyPowerOverGamma(a, m, k).value, detail::ONE);
+}
+
+double gamma_q_from_scaled(double a, double m, int k) noexcept {
+    if (std::isnan(a) || std::isnan(m))
+        return std::numeric_limits<double>::quiet_NaN();
+    if (a <= detail::ZERO_DOUBLE || !(m > detail::ZERO_DOUBLE))
         return detail::ONE;
-    return -std::expm1(a * log_x - detail::lgamma(a + detail::ONE));
+    // Where P is at most a half, 1 − P is exact to rounding. Above that the shape is tiny, the
+    // exponent is small, and −expm1 of it keeps the relative accuracy 1 − P would lose.
+    const TinyPower t = tinyPowerOverGamma(a, m, k);
+    if (t.value <= detail::HALF)
+        return detail::ONE - t.value;
+    return std::max(-std::expm1(t.log), detail::ZERO_DOUBLE);
 }
 
 double gamma_q(double a, double x) noexcept {

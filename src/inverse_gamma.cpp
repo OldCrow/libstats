@@ -450,7 +450,12 @@ double InverseGammaDistribution::cdfImpl(double x, double alpha, double beta) no
     if (!std::isfinite(t))
         return detail::ZERO_DOUBLE;              // x subnormal-tiny: Q(alpha, +inf) = 0
     if (t < std::numeric_limits<double>::min())  // β/x below DBL_MIN: log space (#216)
-        return detail::gamma_q_from_log_x(alpha, std::log(beta) - std::log(x));
+    {
+        int kb = 0, kx = 0;
+        const double mb = std::frexp(beta, &kb);
+        const double mx = std::frexp(x, &kx);
+        return detail::gamma_q_from_scaled(alpha, mb / mx, kb - kx);
+    }
     return correctedIncompleteGamma(detail::gamma_q(alpha, t), true, alpha, beta, x, t);
 }
 
@@ -470,7 +475,12 @@ double InverseGammaDistribution::sfImpl(double x, double alpha, double beta) noe
     if (!std::isfinite(t))
         return detail::ONE;
     if (t < std::numeric_limits<double>::min())  // β/x below DBL_MIN: log space (#216)
-        return detail::gamma_p_from_log_x(alpha, std::log(beta) - std::log(x));
+    {
+        int kb = 0, kx = 0;
+        const double mb = std::frexp(beta, &kb);
+        const double mx = std::frexp(x, &kx);
+        return detail::gamma_p_from_scaled(alpha, mb / mx, kb - kx);
+    }
     return correctedIncompleteGamma(detail::gamma_p(alpha, t), false, alpha, beta, x, t);
 }
 

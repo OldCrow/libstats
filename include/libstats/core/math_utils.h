@@ -84,21 +84,24 @@ namespace detail {
 [[nodiscard]] double gamma_q(double a, double x) noexcept;
 
 /**
- * @brief P(a, x) from log x, for x below DBL_MIN (#216).
+ * @brief P(a, x) for x = m·2^k below DBL_MIN (#216, #251).
  *
  * A caller's argument x·rate or scale/x can leave the normal range while the mass is not
  * small: Gamma(0.005, 0.5).cdf(5e-324) is 0.024, InverseGamma(0.01, 1e-20).cdf(1e308) is
- * 0.9995. There P(a, x) = x^a e^{-x} / Γ(a+1) · (1 + x/(a+1) + ...) is exp(a·log x − lgamma(a+1))
- * to double, the factors in x being below 1e-307. Not for x ≥ DBL_MIN: use gamma_p.
+ * 0.9995. There P(a, x) = x^a e^{-x} / Γ(a+1) · (1 + x/(a+1) + ...) is x^a / Γ(a+1) to double,
+ * the factors in x being below 1e-307. The argument is passed as a mantissa and a binary
+ * exponent because it has no double of its own, and because forming exp(a·log x) loses
+ * hundreds of ε (#251). Not for x ≥ DBL_MIN: use gamma_p.
  * @param a Shape parameter (a > 0)
- * @param log_x log of the argument, x < DBL_MIN (log_x < −708.4; −inf gives 0)
+ * @param m Mantissa of the argument, in (0, 2): a product or quotient of two frexp mantissas
+ * @param k Binary exponent of the argument, so that x = m·2^k < DBL_MIN
  */
-[[nodiscard]] double gamma_p_from_log_x(double a, double log_x) noexcept;
+[[nodiscard]] double gamma_p_from_scaled(double a, double m, int k) noexcept;
 
 /**
- * @brief Q(a, x) = 1 − P(a, x) from log x, for x below DBL_MIN (#216). See gamma_p_from_log_x.
+ * @brief Q(a, x) = 1 − P(a, x) for x = m·2^k below DBL_MIN. See gamma_p_from_scaled.
  */
-[[nodiscard]] double gamma_q_from_log_x(double a, double log_x) noexcept;
+[[nodiscard]] double gamma_q_from_scaled(double a, double m, int k) noexcept;
 
 /**
  * @brief Regularized incomplete beta function I_x(a,b)

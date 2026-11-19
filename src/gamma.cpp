@@ -339,8 +339,12 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
 // as 0).
 [[nodiscard]] inline double gammaCdfCore(double alpha, double beta, double x) noexcept {
     const double y = beta * x;
-    if (y < std::numeric_limits<double>::min())
-        return detail::gamma_p_from_log_x(alpha, std::log(beta) + std::log(x));
+    if (y < std::numeric_limits<double>::min()) {
+        int kb = 0, kx = 0;
+        const double mb = std::frexp(beta, &kb);
+        const double mx = std::frexp(x, &kx);
+        return detail::gamma_p_from_scaled(alpha, mb * mx, kb + kx);
+    }
     return gammaPAtRateProduct(alpha, beta, x, y);
 }
 
@@ -366,8 +370,12 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
 // of βx from log x (#216), and Q(α, +inf) = 0 where the product overflows.
 [[nodiscard]] inline double gammaSfCore(double alpha, double beta, double x) noexcept {
     const double y = beta * x;
-    if (y < std::numeric_limits<double>::min())
-        return detail::gamma_q_from_log_x(alpha, std::log(beta) + std::log(x));
+    if (y < std::numeric_limits<double>::min()) {
+        int kb = 0, kx = 0;
+        const double mb = std::frexp(beta, &kb);
+        const double mx = std::frexp(x, &kx);
+        return detail::gamma_q_from_scaled(alpha, mb * mx, kb + kx);
+    }
     return gammaQAtRateProduct(alpha, beta, x, y);
 }
 
