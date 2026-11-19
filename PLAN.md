@@ -528,6 +528,22 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
   tools, before the other machines regenerate), #179, #287, #290, #156's
   gates, the #107/#108 decision, and the one kAvx capture for #291 after
   the `src/` work above settles.
+- **Session end, 2026-11-19 [DERIVED].** Tip `07cfb19` plus this note; CI
+  #451 green on `e2b3259` (every leg, ThreadSanitizer without the
+  suppression), so #267 is labelled too: thirteen v3.0.0 issues carry
+  `fixed-on-branch`. v3.0.0 stands at 32 open and 1 closed. An interim
+  sweep and oracle run at `07cfb19` (26,882 rows, 190 self-checks, 0
+  contract violations) and an indicative dev-against-v2.5.0 timing pass
+  were reported in conversation only [user]; nothing from them is recorded
+  as a result. The per-distribution table is unchanged from the pin bump
+  except InverseGamma survival (5.1e-16 → 1.8e-16, #251), so the AVX block
+  in `docs/ACCURACY_CHARACTERIZATION.md` (banner `b766e45`) is stale by
+  that one row and by today's commits; regenerate it with the other ISAs.
+  Tooling note: `accuracy_vs_mpmath.py --out` rewrites an existing doc in
+  place and fails on a new path. **Resume with** the open list above:
+  #213 and #258 first (they should precede the other machines'
+  regeneration), then #179, #287, #290; #156's gates and the #107/#108
+  and #221 decisions are the user's; the kAvx capture comes last.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
