@@ -187,8 +187,8 @@ not corvus's business; the sweep at the pin bump decides.
 v1.2.0~~ (done 2026-11-17, Status below; `gamma_p_inv` went to corvus with
 it); then the characterization regeneration on the other three ISAs, the dispatch-table
 re-derivation (R8 → `derive_threshold_rows.py` → `table_ab_bench` A/B), the
-record legs, pylibstats #20/#26. CI has not run on this branch yet (nothing
-pushed). Tooling: the `cmake-format` pre-commit hook crashes under its
+record legs, pylibstats #20/#26. (CI has since run on this branch; see the
+later entries.) Tooling: the `cmake-format` pre-commit hook crashes under its
 Python 3.15 venv (`re.Scanner` capturing groups, cmakelang 0.6.13); the C++
 hooks and the include-order check pass; CMake files were not re-formatted.
 
@@ -344,7 +344,7 @@ its result was not read.
   results). Does not need corvus unfrozen, so it is in v3.0.0. Land it
   before the other machines run their legs, so each validates once; here
   it must leave the sweep bit-identical or account for every changed row.
-- **#312, `test_poisson_enhanced_timing`** [OPEN, v3.0.0 milestone, user 2026-11-18]: fails
+- **#312, `test_poisson_enhanced_timing`** [DONE 2026-11-19, PR 313]: fails
   here deterministically (1.54–1.61× against 1.656× at 50,000), on `main`
   from before the adoption too. `getSIMDValidationThreshold` raises the
   bar for a complex distribution on non-AVX-512 builds. Fix: the base
@@ -356,6 +356,82 @@ its result was not read.
   name against `NEGATIVE_BINOMIAL`); the derive script reads both.
 - **Still owed:** the Kaby Lake, Zen 4 and M1 legs (they gate this
   branch's PR); a dev-versus-`main` Release comparison for #156.
+
+**v3.0.0 milestone audit and disposition [DERIVED, 2026-11-19, Ivy
+Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
+- **Placement.** No fix on this branch is missing from `main`: every fix
+  since v2.5.0 went to `main` first and was merged in (PRs 302, 304, 305,
+  306, 309, 310, 313). The only dev-only work that is not corvus-specific is
+  the clang-cl group (`da00ad8`, `03f2af4`, `ca6f527`); it ships with
+  v3.0.0 and is not back-ported [user: clang-cl is needed only because of
+  corvus and Highway under MSVC].
+- **Housekeeping done today.** #312 fixed (PR 313, `99f2175`) and closed.
+  #287, #290 (re-scoped to the TBB install-contract checks) and #291 moved
+  into v3.0.0; comments on #178, #283, #291, #52. The patch milestone's
+  description leads with its current state (ships after v3.0.0, likely
+  v3.0.1). No unmilestoned issue is left.
+- **Disposition of the 39 open v3.0.0 issues.** Measured on this machine
+  only (AVX tier, GCC 13.3; mpmath at 50–60 digits), dev against a build
+  of `main`. Only the AVX characterization block is regenerated. No test
+  on the branch gained a guard for any of these, so none has the
+  fail-against-the-unfixed-state evidence AGENTS.md requires.
+
+  *Defect gone, measured; guard or cleanup owed before closing (16):*
+
+  | Issue | Measured on dev | Still owed |
+  |---|---|---|
+  | #47 | von Mises pdf/logpdf ≤ 1.7 ulp; Bessel tiers gone | AppleClang validation (this machine was Tier 1); Tier-2 tolerances in `test_contract_gates.cpp:1170-1178` |
+  | #252 | entropy error ≤ 1.2e-14; step at κ = 50 is 1.5e-14 (was 3.2e-5) | tightened guard |
+  | #267 | `std::cyl_bessel_i` gone (by grep; no TSan run read) | `tests/tsan.supp:3-7` line; dead `lgamma_r` declaration, `math_utils.cpp:22-25` |
+  | #126 | issue's gate ≤ 0.49 ulp (was 1e-6 absolute) | `kCdfTolBeyondIntMax = 2e-4` still in `test_discrete_quantile_bounds.cpp:185`; Geometric pin |
+  | #136 | `erf_inv` ≤ 0.42 ulp, monotone over the tail band | the fail-first gate the issue asks for |
+  | #138 | digamma ≤ 0.47 ulp | two stale test comments |
+  | #141 | `gamma_p`/`gamma_q` ≤ 0.48 ulp at a = 1e3–1e5 | other ISAs |
+  | #113 | Student-t(30) 0.52 ulp; ChiSq(1e5) ≤ 0.27 ulp | unused `MAX_BETA_ITERATIONS`/`MAX_GAMMA_SERIES_ITERATIONS`; attribution paragraph in the characterization doc |
+  | #247 | 0 decreases over 144,000 adjacent pairs | adjacent-double guard |
+  | #262 | survival exact at 1,420 dyadic ties | tests still accept k or k + 1 |
+  | #270 | NB(3, 1e-20) ≤ 0.49 ulp | nothing |
+  | #271 | ≤ 0.23 ε; F + S − 1 = 0.19 ε | nothing |
+  | #214 | monotone to p = 5e-324; F(Q(p))/p = 1.000 | sweep grid stops at 1e-300; guard near p = ½ |
+  | #248 | 15–22 ε (was 112–353 on `main`) | guard; mechanism (corvus `lbeta`) inferred, K(a) form not implemented |
+  | #103 | guards pass; 0 deviations in the sweep | other three ISAs |
+  | #104 | 0 NaN in 2,655 quantile rows; guards pass | other three ISAs; the Cauchy gate vectors are in no test |
+
+  *Partly (8):*
+
+  | Issue | Done | Still owed |
+  |---|---|---|
+  | #266 | CDF side ≤ 0.65 ulp, no jump at shape 20 | density prefactors still switch at shape 20 (Gamma pdf 24–53 ulp, Beta pdf up to 280); Student-t CDF up to 66 ulp |
+  | #272 | Beta and NegBinomial CDF NaNs cleared (71 → 52 NaN rows) | Pareto, Weibull, Beta pdf, NegBinomial pmf, Gumbel logpdf |
+  | #52 | batch CDF on spans; PMF off per-element `lgamma` | scipy before/after; dispatch rows; other ISAs |
+  | #221 | `erf_inv`'s NR body gone | NR continued fraction still live for Student-t tails; `THIRD_PARTY_NOTICES.md:58-76` names functions that no longer exist; exp/log coefficient copies kept by decision |
+  | #114 | `vector_gamma_q`/`vector_beta_i` now live; `gamma_inverse_cdf` is a test-only wrapper | lint job cannot fail; unused public functions; write-only flags; the rest |
+  | #218 | three items, all already gone on `main` | everything else |
+  | #219 | ACKLAM constants gone | everything else |
+  | #220 | survival/hazard and part of serialization stated (on `main`) | sampler stream, fit domain, atomic getters, `detail` enums; no decision per item recorded |
+
+  *Not addressed (15):*
+
+  | Issue | State on dev |
+  |---|---|
+  | #107, #108 | both trig tables, both generators and every per-tier trig kernel remain; no `corvus::cos`/`sin` call. The plan's "close on the swap" does not hold |
+  | #110 | the three erfc tail shapes remain, and now sit on two implementations: `normal_cdf` on `corvus::erfc`, Gaussian and LogNormal on `std::erfc` |
+  | #251 | below `DBL_MIN` unchanged (+43 ulp); at and above it dev is now exact (−0.1 ulp, was +32). So the CDF steps **down 42 ulp** at `DBL_MIN`, against about 10 on `main`: no value got worse, but the non-monotone step is wider. Verified directly |
+  | #249 | bit-for-bit as `main`: 56.9 ε max, 317 of 1,501 rows above 16 ε |
+  | #213, #258 | no tool, no runbook step; the plan says to land them before the characterization regeneration, and the AVX block is already regenerated |
+  | #152 | coverage job differs from `main` only in its timeout |
+  | #179 | unchanged; `cmake/libstats_config.h.in` is deleted here, so the fix needs it back. AGENTS.md and BUILD_SYSTEM_GUIDE still describe it as existing |
+  | #217 | 43 double-checked locks, identical per file to `main` |
+  | #156 | gates undecided; no post-bump timing record on any machine |
+  | #287, #290, #291, #311 | open as filed or re-scoped |
+
+- **Recommendation [DERIVED; user decides].** The milestone holds far more
+  than the swap. Keep in v3.0.0 what the release's own claims rest on:
+  guards for the sixteen measured rows, #251, #110, #213 and #258 (before
+  the other three ISAs regenerate), #267 and #221's stale suppression and
+  notices, #179, #287, #290, #291, #311, #156's gates, and a recorded
+  decision for #107/#108. Candidates to return to the patch: #114, #152,
+  #217, #218, #219, #220, #249, and the remainders of #266 and #272.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
@@ -399,7 +475,8 @@ tag on corvus `691db43`):
   the M1 reads 272 and 823 ns/el. The log speedup gate needs exempting or
   re-baselining: corvus `log` runs 0.44–0.66× of Apple's libm (1.5× UCRT).
 - **Same release in libhmm** (fleet coherence rule, libhmm #106).
-- **On the swap:** #107 and #108 close, citing corvus #32.
+- **On the swap:** #107 and #108 were to close, citing corvus #32. They do
+  not: the trig kernels were kept (2026-11-19 disposition table above).
 
 **Fourth fleet machine: Ivy Bridge on Linux — baseline run 2026-11-16
 (on `main`; the adoption's own run is in Status above).**
