@@ -551,6 +551,25 @@ LIBSTATS_CONSTRAINED_NODISCARD double golden_section_search(
 [[nodiscard]] double normal_cdf(double z) noexcept;
 
 /**
+ * @brief Standard normal CDF from the pre-scaled erf argument w = z/√2.
+ *
+ * The one place the #49 tail branch lives (#110): ½·erfc(−w) for w < 0, ½·(1 + erf(w))
+ * otherwise, on the C library's erf and erfc (why: math_utils.cpp). normal_cdf(z) is this at
+ * z·INV_SQRT_2; a caller that already holds w (Gaussian's (x − μ)/(σ√2), LogNormal's (log x −
+ * μ)/(σ√2)) calls it directly so that no second scaling rounds.
+ */
+[[nodiscard]] double normal_cdf_from_erf_arg(double w) noexcept;
+
+/**
+ * @brief The left-tail arm of normal_cdf_from_erf_arg alone: ½·erfc(−w).
+ *
+ * For the batch fixups, which take the vectorized ½·(1 + erf(w)) everywhere and then replace
+ * the lanes below their own threshold (w < −1) with this, bit for bit what the scalar path
+ * returns there.
+ */
+[[nodiscard]] double normal_cdf_left_tail(double w) noexcept;
+
+/**
  * @brief Inverse standard normal distribution CDF (quantile function)
  * @param p probability value in (0, 1)
  * @return z such that P(Z <= z) = p where Z ~ N(0,1); finite for every p in (0, 1) (#104)

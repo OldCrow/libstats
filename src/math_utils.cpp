@@ -1315,22 +1315,33 @@ std::size_t vectorized_math_threshold() noexcept {
 // STATISTICAL DISTRIBUTION FUNCTIONS
 // =============================================================================
 
-double normal_cdf(double z) noexcept {
-    // Standard normal CDF using error function, tail-branched (#49).
+// std::erfc and std::erf, not this file's corvus-backed erfc and erf (#110, measured on the
+// Ivy Bridge AVX tier, 2026-11-19): the CDF's error is the rounding of w, amplified by up to
+// ~2w^2 in the left tail (78 ulp at z = -8 with either implementation), so corvus's 0.93-ulp
+// erfc against glibc's 2.19 does not show; and a single corvus call is a length-1 span
+// (corvus #110), which made Gaussian's scalar CDF 53 -> 63 ns. Every other scalar erf site in
+// the library (HalfNormal, TruncatedNormal, von Mises, the Student-t tails) is the C library's
+// too. When corvus has scalar entry points, this is the one place to switch.
+double normal_cdf_left_tail(double w) noexcept {
+    return detail::HALF * std::erfc(-w);
+}
+
+double normal_cdf_from_erf_arg(double w) noexcept {
+    // Standard normal CDF from w = z/sqrt(2), tail-branched (#49).
     //
-    // The naive cancellation form 0.5*(1+erf(z/sqrt(2))) has an absolute
-    // error floor of ~ulp(1)/2 ~= 1.1e-16 for z < 0 regardless of erf's own
-    // quality (1+erf(negative-near-1) cancels most of erf's precision), and
-    // once z <~ -8.3, std::erf(z/sqrt(2)) returns exactly -1 so the whole
-    // expression collapses to exactly 0 -- true relative error there is
-    // 1.0, not the tiny value a naive metric reports. Using erfc for the
-    // left tail avoids the cancellation entirely: 0.5*erfc(-z/sqrt(2))
-    // stays accurate (full relative precision) all the way down to erfc's
-    // own underflow floor (~1e-308), instead of pinning to a fixed
-    // absolute floor.  Right tail (z >= 0) keeps the original form, which
-    // is already well-conditioned there.
-    return z < detail::ZERO_DOUBLE ? detail::HALF * erfc(-z * detail::INV_SQRT_2)
-                                   : detail::HALF * (detail::ONE + erf(z * detail::INV_SQRT_2));
+    // The naive cancellation form 0.5*(1+erf(w)) has an absolute error floor of ~ulp(1)/2 ~=
+    // 1.1e-16 for w < 0 regardless of erf's own quality (1+erf(negative-near-1) cancels most of
+    // erf's precision), and once w <~ -5.9 erf returns exactly -1, so the whole expression
+    // collapses to exactly 0 -- true relative error there is 1.0, not the tiny value a naive
+    // metric reports. erfc for the left tail avoids the cancellation entirely: 0.5*erfc(-w)
+    // keeps full relative precision down to erfc's own underflow floor (~1e-308). The right
+    // tail (w >= 0) keeps the erf form, which is well-conditioned there.
+    return w < detail::ZERO_DOUBLE ? normal_cdf_left_tail(w)
+                                   : detail::HALF * (detail::ONE + std::erf(w));
+}
+
+double normal_cdf(double z) noexcept {
+    return normal_cdf_from_erf_arg(z * detail::INV_SQRT_2);
 }
 
 double inverse_normal_cdf(double p) noexcept {

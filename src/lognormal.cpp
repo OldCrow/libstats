@@ -314,28 +314,30 @@ double LogNormalDistribution::getCumulativeProbability(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::ZERO_DOUBLE;
 
-    double mu, sigma;
+    double mu, inv_sigma_sqrt2;
     withCacheSnapshot([&] {
         mu = mu_;
-        sigma = sigma_;
+        inv_sigma_sqrt2 = invSigmaSqrt2_;
     });
-    return detail::normal_cdf((std::log(x) - mu) / sigma);
+    // The erf argument as the batch path forms it (#110), so the two agree bit for bit
+    // wherever the batch takes its scalar loop.
+    return detail::normal_cdf_from_erf_arg((std::log(x) - mu) * inv_sigma_sqrt2);
 }
 
 double LogNormalDistribution::getSurvival(double x) const {
     if (x <= detail::ZERO_DOUBLE)
         return detail::ONE;
 
-    double mu, sigma;
+    double mu, inv_sigma_sqrt2;
     withCacheSnapshot([&] {
         mu = mu_;
-        sigma = sigma_;
+        inv_sigma_sqrt2 = invSigmaSqrt2_;
     });
-    // Φ(−z) = ½erfc(z/√2) for z > 0 through normal_cdf's erfc branch; log(+inf) gives 0.
-    const double z = (std::log(x) - mu) / sigma;
-    const double s = detail::normal_cdf(-z);
-    if (s < std::numeric_limits<double>::min() && std::isfinite(z))
-        return half_erfc_subnormal(z * detail::INV_SQRT_2);  // the same erfc argument
+    // Φ(−z) = ½erfc(w), w = z/√2 > 0, through the shared erfc branch; log(+inf) gives 0.
+    const double w = (std::log(x) - mu) * inv_sigma_sqrt2;
+    const double s = detail::normal_cdf_from_erf_arg(-w);
+    if (s < std::numeric_limits<double>::min() && std::isfinite(w))
+        return half_erfc_subnormal(w);  // the same erfc argument
     return s;
 }
 
@@ -821,13 +823,8 @@ void LogNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
             } else {
                 // erf argument: (log(x) − μ) / (σ√2) = (log(x) − μ) * inv_sigma_sqrt2
                 const double z = (std::log(x) - cached_mu) * cached_inv_sigma_sqrt2;
-                // Tail-branched to avoid the 1+erf(negative) cancellation
-                // floor (#49) — same rationale as detail::normal_cdf in
-                // math_utils.cpp. z here already carries the /sqrt(2)
-                // factor via cached_inv_sigma_sqrt2, so erfc(-z) is the
-                // direct left-tail form (no extra INV_SQRT_2 needed).
-                results[i] = z < detail::ZERO_DOUBLE ? detail::HALF * std::erfc(-z)
-                                                     : detail::HALF * (detail::ONE + std::erf(z));
+                // z already carries the 1/sqrt(2) factor via cached_inv_sigma_sqrt2.
+                results[i] = detail::normal_cdf_from_erf_arg(z);
             }
         }
         return;
@@ -863,7 +860,7 @@ void LogNormalDistribution::getCumulativeProbabilityBatchUnsafeImpl(
     for (std::size_t i = 0; i < count; ++i) {
         const double w = temp[i];
         if (w < -detail::ONE) {
-            results[i] = detail::HALF * std::erfc(-w);
+            results[i] = detail::normal_cdf_left_tail(w);
         }
     }
 

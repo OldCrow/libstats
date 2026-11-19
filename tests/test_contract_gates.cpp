@@ -8,6 +8,7 @@
 #include "libstats/libstats.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
 #include <chrono>
@@ -1425,6 +1426,53 @@ TEST(ContractGates, Issue251_GammaCdfDoesNotStepDownAtDblMin) {
             previous = here;
         }
     }
+}
+
+//==============================================================================
+// #110: the tail-branched normal CDF lived in three shapes with two argument conventions. The
+// LogNormal scalar method formed (log x - mu) / sigma and scaled by 1/sqrt(2) inside
+// normal_cdf, on corvus's erfc; its batch path formed (log x - mu) * 1/(sigma sqrt 2) and
+// called the C library's. So a batch too short for SIMD, which runs the batch's scalar loop,
+// disagreed with the scalar method in 10% of values (6006 of 60000 on the Ivy Bridge AVX
+// tier). Both now call detail::normal_cdf_from_erf_arg on the same argument. Three elements
+// is below the SIMD threshold on every tier.
+//==============================================================================
+
+TEST(ContractGates, Issue110_NormalCdfScalarAndShortBatchAgreeBitForBit) {
+    using PS = detail::PerformanceHint::PreferredStrategy;
+    detail::PerformanceHint hint;
+    hint.strategy = PS::FORCE_VECTORIZED;
+    const auto sameBits = [](double a, double b) { return std::memcmp(&a, &b, sizeof a) == 0; };
+
+    std::mt19937_64 gen(110);
+    std::uniform_real_distribution<double> positive(1e-6, 30.0);
+    std::uniform_real_distribution<double> real(-12.0, 15.0);
+    const LogNormalDistribution lognormal(0.3, 1.2);
+    const GaussianDistribution gaussian(1.5, 2.5);
+    const GaussianDistribution standard(0.0, 1.0);
+
+    int lognormal_differ = 0;
+    int gaussian_differ = 0;
+    for (int rep = 0; rep < 5000; ++rep) {
+        std::array<double, 3> x{};
+        std::array<double, 3> out{};
+        for (double& v : x)
+            v = positive(gen);
+        lognormal.getCumulativeProbability(std::span<const double>(x), std::span<double>(out),
+                                           hint);
+        for (std::size_t i = 0; i < x.size(); ++i)
+            lognormal_differ += sameBits(out[i], lognormal.getCumulativeProbability(x[i])) ? 0 : 1;
+
+        for (double& v : x)
+            v = real(gen);
+        for (const GaussianDistribution* g : {&gaussian, &standard}) {
+            g->getCumulativeProbability(std::span<const double>(x), std::span<double>(out), hint);
+            for (std::size_t i = 0; i < x.size(); ++i)
+                gaussian_differ += sameBits(out[i], g->getCumulativeProbability(x[i])) ? 0 : 1;
+        }
+    }
+    EXPECT_EQ(lognormal_differ, 0) << "of 15000";
+    EXPECT_EQ(gaussian_differ, 0) << "of 30000";
 }
 
 //==============================================================================
