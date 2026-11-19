@@ -432,6 +432,14 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
   notices, #179, #287, #290, #291, #311, #156's gates, and a recorded
   decision for #107/#108. Candidates to return to the patch: #114, #152,
   #217, #218, #219, #220, #249, and the remainders of #266 and #272.
+- **Moved [user, 2026-11-19].** #114, #152, #217, #218, #219, #220 and
+  #249 are back in the patch milestone, each with a note. The remainders
+  of #266 and #272 are split out as #314 (density prefactors, Student-t
+  CDF) and #315 (density NaNs) in the patch; #266 and #272 stay in v3.0.0
+  for their resolved halves. Counts after the moves: v3.0.0 32 open and 1
+  closed, the patch 29 open. Still to decide: the remaining v3.0.0 items
+  in the recommendation above, and when the sixteen measured fixes get
+  their guards. #311 has not been started.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
