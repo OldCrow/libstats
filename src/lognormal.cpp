@@ -6,6 +6,7 @@
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
+#include "portable_fma.h"
 
 #include <algorithm>
 #include <cmath>
@@ -36,7 +37,7 @@ constexpr std::size_t kBatchSlice = 1024;
     if (a > 28.0)
         return detail::ZERO_DOUBLE;  // ½erfc(28) = 3.3e-343, below half the smallest subnormal
     const double a2 = a * a;
-    const double a2_lo = std::fma(a, a, -a2);
+    const double a2_lo = detail::fma_portable(a, a, -a2);
     const double u = detail::ONE / (detail::TWO * a2);
     double term = detail::ONE;
     double series = detail::ONE;

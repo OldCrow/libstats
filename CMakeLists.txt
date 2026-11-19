@@ -415,6 +415,7 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
     src/poisson.cpp # Poisson distribution implementation
     src/discrete.cpp # Discrete distribution implementation
     src/gamma.cpp # Gamma distribution implementation
+    src/portable_fma.cpp # fma without the C library's software routine on non-FMA CPUs (#311)
     src/chi_squared.cpp # Chi-squared distribution (delegation wrapper over Gamma)
     src/student_t.cpp # Student's t distribution (full real-line, log-space SIMD)
     src/beta.cpp # Beta distribution (bounded support [0,1], two-log SIMD pipeline)
@@ -453,7 +454,8 @@ set(LIBSTATS_DISTRIBUTIONS_SOURCES
 # −1.5e-7 at Gamma(1e16, 3) on AArch64 (CI on 08d48aa). Splitting the statement protects
 # Clang's per-expression `on`; GCC's `fast` fuses across statements, so contraction is off for
 # these two files. cl.exe does not contract by default; clang-cl takes the flag via /clang:.
-set(_libstats_no_contract_sources src/gamma.cpp src/inverse_gamma.cpp)
+# portable_fma.cpp is the third: its error-free transforms (#311) need every product rounded.
+set(_libstats_no_contract_sources src/gamma.cpp src/inverse_gamma.cpp src/portable_fma.cpp)
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # cl.exe: /fp:precise does not contract unless /fp:contract is given.
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND WIN32)
