@@ -440,6 +440,48 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
   closed, the patch 29 open. Still to decide: the remaining v3.0.0 items
   in the recommendation above, and when the sixteen measured fixes get
   their guards. #311 has not been started.
+- **Guards landed [2026-11-19]** (`c0f8c3b`; CI #448 green on every leg,
+  the first run of these tests under Clang, AppleClang, clang-cl and
+  cl.exe). `tests/test_corvus_adoption_guards.cpp` has eleven cases for
+  #126, #136, #214, #247, #248, #262, #266 (CDF half), #270 and #271; each
+  was run against a v2.5.0 build here and fails there. Margins on v2.5.0,
+  in ε: NegativeBinomial(3, 1e-20) CDF 48.6, Student-t just below ν = 40
+  333, Gamma(19) CDF 31.5, Beta(19, 1e15) CDF 58.5, Gamma CDF at shape
+  1e-4 9.5; the rest fail outright. The dyadic-tie tests now require k
+  (v2.5.0 returns k + 1 at k = 6..9); `kCdfTolBeyondIntMax` 2e-4 → 3e-6;
+  von Mises entropy below κ = 50 1e-6 → 1e-13 (passes on the macOS leg; not
+  shown to fail on a v2.5.0 AppleClang build).
+  - **#141 and #113 were already fixed in v2.5.0** at the points tried
+    (within 5 ε on this machine), so no guard for them could fail; the
+    existing `test_incomplete_gamma_beta_accuracy` is their guard. Geometric
+    at tiny p likewise.
+  - **None closes yet:** the fixes are not on `main`, and each acceptance
+    asks for the other three ISAs. Ready to close when this branch merges,
+    with nothing else owed: #136, #247, #262, #270, #271, #248, #252.
+    Close at merge after a small remainder: #126 (the NegBinomial logpmf
+    cancellation is unmeasured), #214 (sweep grid below p = 1e-300), #47
+    (a v2.5.0 AppleClang run of the tightened entropy test), #266 (CDF
+    half; the rest is #314), #141 and #113 (unused iteration constants, the
+    attribution paragraph), #138 (two stale comments), #267 (`tsan.supp`
+    line, dead `lgamma_r` declaration), #103 and #104 (other ISAs; the
+    Cauchy gate vectors).
+- **#311 implemented [2026-11-19]** on `feat/311-portable-fma`
+  (`31c93e0`, off `c0f8c3b`; CI run 44611652707 dispatched, not read; not
+  merged here). `detail::fma_portable` replaces `std::fma` at all 30 sites:
+  `std::fma` inline where the file is compiled for FMA hardware, otherwise
+  a runtime choice between `std::fma` and `detail::fma_software`. The
+  software routine is a correctly rounded fma (Boldo–Melquiond, round to
+  odd), so no site needed classifying, superseding the per-site plan above.
+  Here: 0 mismatches against glibc's fma in 352 million cases; sweep rows
+  identical; 134/134. Indicative ns per element (machine under load),
+  VECTORIZED at 1M: InverseGamma PDF 373 → 90, LogPDF 363 → 79,
+  Binomial(100, 0.3) PDF 282 → 160, VonMises CDF 643 → 440, TruncatedNormal
+  CDF 116 → 52, InverseGamma CDF 1154 → 861. **Gamma CDF did not move
+  (800):** fma is not on its hot path, so the attribution in the issue and
+  above was wrong for that row. InverseGamma PDF still gains only 1.3×
+  from PARALLEL: the serial fixup loop is #178. FMA-hardware paths are
+  unrun; they are `std::fma` as before by construction. After it merges,
+  the InverseGamma kAvx rows need re-measuring (#291).
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
