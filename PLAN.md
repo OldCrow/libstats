@@ -308,6 +308,54 @@ scalar method (corvus #110, #111). The other three machines owe the
 bit-identity check and timings on their tiers; the `PROTOTYPE` comment
 tags stay until they report.
 
+**Quiet Ivy Bridge leg and where to resume [DERIVED, 2026-11-18, Ivy
+Bridge; session ended here].** Branch tip `c04c338` plus this note: `main`
+(`da7a43e`) is merged in, so #308/#309 (Gaussian `fit()` variance) and
+#288/#310 (Intel_Legacy default grain) are here; 132/132 on the merged
+tree (GCC, Release). CI on `c04c338` was dispatched (run 44461285297) and
+its result was not read.
+- **Bundle** `data/profiles/dispatcher/2026-11-18T21-29-12Z_linux-x86_64_…_sha-6278ddd`
+  (`9724475`): three quiet `--large` runs, 76 min each, the first capture
+  on silicon whose native tier is AVX. Its manifest carries the conditions
+  and the spread (serial strategies 1%, parallel 8–14% between runs).
+- **kAvx (#291), nothing applied.** 41 rows agree, 34 differ, every one
+  with the table above the measured crossover.
+  `scripts/derive_threshold_rows.py` with this bundle as `new` and
+  `2026-10-13T13-58-00Z_…` as `prev` proposes 32 values (run through a
+  driver that overrides `TABLES["kAvx"]`; output was in the gitignored
+  `build-ivb-adopt/derive-kavx/`, regenerate it). Two corrections before
+  any row is written [OPEN, user decides]: the fork-zone rule (candidate
+  ≤ 6144 encodes 4096) is the capped Kaby Lake build's, and here PARALLEL
+  is behind at 4096 and ahead at 6144 for ten of those rows (Cauchy,
+  ChiSquared, Erlang, Gamma, LogNormal LogPDF; Logistic, Gumbel CDF;
+  LogNormal, Pareto, TruncatedNormal PDF), which should read 6144; and
+  InverseGamma PDF and LogPDF should be held, since they measure a serial
+  loop (#311). Clean changes: Gaussian LogPDF 150k → 50k, Exponential and
+  HalfNormal LogPDF 100k → 50k, Discrete PDF and LogPDF 50k → 8192,
+  Uniform LogPDF 200k → 75k. Below 4096 PARALLEL does not fork (#307).
+- **#311, software `fma`** [OPEN, no milestone]: `std::fma` is glibc's
+  software routine on a CPU without FMA, 175 ns per call here. Two calls
+  per element are the whole 350 ns of InverseGamma PDF and LogPDF, in the
+  serial fixup loop, so PARALLEL gains 1.03×. Binomial PDF (254 ns; the
+  "Stirling arithmetic" above), VonMises CDF (623 ns) and the Gamma-family
+  CDFs are attributed by reading, not profiled. Proposed: one `detail`
+  helper, hardware FMA or a Dekker split product, after classifying each
+  site (exact residual, general addend, fusion spelled only to pin
+  results). Does not need corvus unfrozen, so it can be scoped into v3.0.0
+  [user to decide].
+- **#312, `test_poisson_enhanced_timing`** [OPEN, no milestone]: fails
+  here deterministically (1.54–1.61× against 1.656× at 50,000), on `main`
+  from before the adoption too. `getSIMDValidationThreshold` raises the
+  bar for a complex distribution on non-AVX-512 builds. Fix: the base
+  1.2× flat for that case, `tests/` only. Branch
+  `fix/312-poisson-simd-expectation` exists locally at `da7a43e`, empty
+  and unpushed. The other 13 timing tests and `simd_verification` passed.
+- **Small, unfiled:** `scripts/analyze_crossovers.py` reports Uniform and
+  NegBinomial as "not in table" (a row wrapped over two lines; the CSV
+  name against `NEGATIVE_BINOMIAL`); the derive script reads both.
+- **Still owed:** the Kaby Lake, Zen 4 and M1 legs (they gate this
+  branch's PR); a dev-versus-`main` Release comparison for #156.
+
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
 read 1.3e-16 to 2.4e-16 (exponential, Rayleigh, geometric, Pareto `cdf`),
