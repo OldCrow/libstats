@@ -60,20 +60,22 @@ file, and the derivations in `docs/NEON_*_DERIVATION.md` /
 **Reference**: Press, W.H. et al., *Numerical Recipes in C++*, Cambridge
 University Press, 3rd edition 2007.
 
-**Usage**: The following functions in `src/math_utils.cpp` use the same
-standard numerical methods described in Numerical Recipes:
-- `erf_inv` — rational approximation for the inverse error function
-  (Moro/Acklam method, also described in NR)
+**Usage**: One function in `src/math_utils.cpp` uses a standard numerical
+method described in Numerical Recipes:
 - `beta_continued_fraction` — Lentz modified continued-fraction evaluation
-  of the regularized incomplete beta function
-- `gamma_p_series` — power-series expansion of the regularized incomplete
-  gamma function
+  of the regularized incomplete beta function, kept for the Student-t tail
+  kernels
 
-These algorithms are classical results (Lentz 1976; series predating NR)
-and are described in many references. The implementations in this library
-are original code written independently; no code was copied from the NR
-publication. NR is listed here as an acknowledgment of the algorithmic
-references consulted during development.
+Through v2.5.0 this entry also named `erf_inv` (rational approximation,
+Moro/Acklam) and `gamma_p_series` (power series of the regularized
+incomplete gamma function). v3.0.0 removed both: those functions are
+corvus's now (see the corvus entry).
+
+The algorithm is a classical result (Lentz 1976) and is described in many
+references. The implementation in this library is original code written
+independently; no code was copied from the NR publication. NR is listed
+here as an acknowledgment of the algorithmic references consulted during
+development.
 
 ---
 

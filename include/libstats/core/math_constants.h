@@ -225,8 +225,6 @@ inline constexpr std::size_t MAX_NEWTON_ITERATIONS = 100;
 inline constexpr std::size_t MAX_BISECTION_ITERATIONS = 1000;
 inline constexpr std::size_t MAX_GRADIENT_DESCENT_ITERATIONS = 10000;
 inline constexpr std::size_t MAX_CONJUGATE_GRADIENT_ITERATIONS = 1000;
-inline constexpr std::size_t MAX_BETA_ITERATIONS = 100;
-inline constexpr std::size_t MAX_GAMMA_SERIES_ITERATIONS = 1000;
 inline constexpr std::size_t MAX_CONTINUED_FRACTION_ITERATIONS = 1000;
 
 // =============================================================================

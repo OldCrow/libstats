@@ -253,10 +253,10 @@ TEST_F(FisherFEnhancedTest, MomentProperties) {
     EXPECT_EQ(f_.getSupportLowerBound(), 0.0);
     EXPECT_EQ(f_.getSupportUpperBound(), std::numeric_limits<double>::infinity());
 
-    // Entropy vs. numerical quadrature (mpmath, 40 dps): H(F(5,10)) = 1.1307598049091
-    // detail::digamma's asymptotic series is the binding constraint here;
-    // measured error 1.3e-8 absolute. Gated to the law, not to 1e-12.
-    EXPECT_NEAR(f_.getEntropy(), 1.1307598049091, 1e-6);
+    // Entropy vs. the closed form (mpmath, 40 dps): H(F(5,10)) = 1.1307598049090604.
+    // This stood at 1e-6 while detail::digamma's asymptotic series was 1.3e-8 absolute (#138);
+    // digamma is corvus's since v3.0.0.
+    EXPECT_NEAR(f_.getEntropy(), 1.1307598049090604, 1e-12);
 
     // Undefined-moment regimes must be NaN rather than a plausible-looking number.
     auto f_d2_2 = FDistribution::create(5.0, 2.0).unwrap();

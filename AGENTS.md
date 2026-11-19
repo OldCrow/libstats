@@ -94,8 +94,10 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
   copied into other repos.
 - **A configure-time fact that a public header branches on goes in the
   generated `libstats_config.h`, never in `target_compile_definitions`.**
-  Template `cmake/libstats_config.h.in`, installed beside the hand-written
-  headers, the same mechanism as `libstats_version.h`. Fleet rule:
+  The template is `cmake/libstats_config.h.in`, installed beside the hand-written
+  headers by the same mechanism as `libstats_version.h`. v3.0.0 has no such fact
+  (the Bessel tiers were its only one), so the template is absent; recreate it for
+  the next one (#179 needs it). Fleet rule:
   [CMake House Style §7](https://github.com/OldCrow/standards/blob/main/CMAKE-HOUSE-STYLE.md#7-install-contract-libhmm-libstats-corvus).
   The #97 export incident that prompted it: `docs/BUILD_SYSTEM_GUIDE.md`.
 - Install contract conforms: GNUInstallDirs, `libstats-targets` export

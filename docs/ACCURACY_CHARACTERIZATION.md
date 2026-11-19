@@ -633,6 +633,12 @@ items were fixed in v2.4.0 (#130, the `fix(gamma)` pass); the remaining
   relative **at the mean**; chi-squared `k = 1e5` by `8.3e-6`; beta
   `(1e4, 1e4)` by `4.1e-9`. The corvus adoption line items (#47/#52,
   incomplete gamma/beta cores) are the planned remedy for this class.
+  *Corrected 2026-11-19 (#113):* the cause was the iteration caps (1000
+  and 100) and the `1e-8` Lentz tolerance in libstats' own kernels, and
+  v2.5.0 removed that before the adoption: on a v2.5.0 build (Ivy Bridge,
+  AVX tier) chi-squared `k = 1e5` at the mean and Gamma shape `1e4` read
+  within one epsilon. The adoption then replaced the kernels; it was not
+  what fixed these rows.
 
 ## Consistency with the existing accuracy gates
 

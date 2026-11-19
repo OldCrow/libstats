@@ -20,11 +20,6 @@
 #include <stdexcept>
 #include <utility>
 
-#if defined(__APPLE__) && !defined(_REENTRANT)
-// POSIX lgamma_r: in libSystem, declared by Apple's <math.h> only under _REENTRANT.
-extern "C" double lgamma_r(double, int*);
-#endif
-
 namespace stats {
 namespace detail {
 

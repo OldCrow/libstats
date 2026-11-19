@@ -148,11 +148,13 @@ ALL-target refresh on Windows).
 The build tree carries the same dual include contract as the installed
 package: `<src>/include` (for `#include "libstats/core/foo.h"`),
 `<src>/include/libstats` (for the bare `#include "libstats.h"`), and
-`<build>/generated` (for the configure-time-generated `libstats_version.h` and
-`libstats_config.h`). `libstats_config.h` (template
-`cmake/libstats_config.h.in`) records configure-time facts that public
-headers branch on, such as `LIBSTATS_HAS_CXX17_BESSEL`; it is installed
-beside the hand-written headers so every consumer sees the same values.
+`<build>/generated` (for the configure-time-generated `libstats_version.h`).
+A second generated header, `libstats_config.h` (template
+`cmake/libstats_config.h.in`), is the place for configure-time facts that
+public headers branch on, installed beside the hand-written headers so every
+consumer sees the same values. v3.0.0 has none (its one fact,
+`LIBSTATS_HAS_CXX17_BESSEL`, went with the Bessel tiers), so neither the
+template nor the header exists at present.
 
 ## SIMD detection
 
@@ -252,7 +254,7 @@ Built tools live in `build/tools/`:
 
 For direct ad hoc compilation outside CMake, add both source include roots
 and the configured build tree's generated directory, which holds
-`libstats_version.h` and `libstats_config.h` (see "Include layout"):
+`libstats_version.h` (see "Include layout"):
 
 ```bash
 -I./include -I./include/libstats -I<build>/generated

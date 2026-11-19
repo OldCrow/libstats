@@ -73,7 +73,7 @@ constexpr double kQ_0_5 = 0.7479262863802243;
 constexpr double kQ_1m1e_6 = 109.56332845305316;  // p = double(1 - 1e-6)
 constexpr double kQ_1m1e_12 = 11006.00531543801;  // p = double(1 - 1e-12)
 
-constexpr double kEntropy_3_2 = 0.695157020726;  // 40-dps quadrature cross-check
+constexpr double kEntropy_3_2 = 0.6951570207260221;  // mpmath, 40 dps, closed form
 
 // ---- InvGamma(alpha=50, scale beta=3): large-shape case ----
 constexpr double kBigPdf_0_06 = 46.937505270992355;
@@ -307,9 +307,9 @@ TEST_F(InverseGammaEnhancedTest, MomentProperties) {
     EXPECT_EQ(ig_.getSupportLowerBound(), 0.0);
     EXPECT_EQ(ig_.getSupportUpperBound(), std::numeric_limits<double>::infinity());
 
-    // detail::digamma's asymptotic series is the binding constraint on entropy;
-    // gated to the law rather than to full double precision.
-    EXPECT_NEAR(ig_.getEntropy(), ref::kEntropy_3_2, 1e-6);
+    // This stood at 1e-6 while detail::digamma's asymptotic series was 1.3e-8 absolute (#138);
+    // digamma is corvus's since v3.0.0.
+    EXPECT_NEAR(ig_.getEntropy(), ref::kEntropy_3_2, 1e-12);
 
     // Undefined-moment regimes must be NaN.
     auto a1 = InverseGammaDistribution::create(1.0, 1.0).unwrap();
