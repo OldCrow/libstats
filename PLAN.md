@@ -503,6 +503,31 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
   6144 stays 6144 where PARALLEL is behind at 4096), write the table, run
   the `table_ab_bench` A/B, and commit bundle and table together. The
   documentation column #291 asks for is written from the same capture.
+- **#110 done [2026-11-19]** (`f873711`). One helper,
+  `detail::normal_cdf_from_erf_arg(w)`, with `normal_cdf_left_tail(w)` for
+  the batch fixups; the three scalar sites and both fixups call it.
+  **On `std::erf`/`std::erfc`, by measurement:** corvus `erfc` is more
+  accurate alone (0.93 ulp worst against glibc's 2.19), but the CDF's error
+  is the rounding of `w` amplified by ~2w² (78 ulp at z = −8 either way),
+  and a corvus single call made Gaussian's scalar CDF 53 → 63 ns. Switch at
+  the helper when corvus has scalar entry points (corvus #110). LogNormal's
+  scalar CDF and survival now form their argument as the batch does: 6006
+  of 60000 short-batch values differed before, none now; guard in
+  `test_contract_gates.cpp`, red before. Sweep: 72 LogNormal rows change,
+  41 better and 31 worse, no net change. Gaussian unchanged.
+- **Cleanups done [2026-11-19]** (`e2b3259`): #267's suppression and dead
+  declaration, #113's unused constants and doc correction, #138's entropy
+  tolerances (1e-6 → 1e-12), #221's notices, and the `libstats_config.h.in`
+  wording in AGENTS.md and the build guide. CI run 44627161062 on this
+  commit is the first without the TSan suppression; **not read**. Labelled
+  `fixed-on-branch` today: #110, #113, #138, #251, #311 (with #136, #247,
+  #248, #252, #262, #270, #271 earlier). #267 gets the label when the
+  sanitizer leg confirms. #221 stays partly open: the Student-t continued
+  fraction and the exp/log coefficient copies need a decision, not code.
+- **v3.0.0 work still open on this machine:** #213 and #258 (verification
+  tools, before the other machines regenerate), #179, #287, #290, #156's
+  gates, the #107/#108 decision, and the one kAvx capture for #291 after
+  the `src/` work above settles.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
