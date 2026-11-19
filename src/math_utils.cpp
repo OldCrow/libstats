@@ -9,6 +9,7 @@
 #include "libstats/core/safety.h"
 #include "libstats/core/statistical_constants.h"
 #include "libstats/stats/analysis/statistical_utilities.h"
+#include "portable_fma.h"
 
 #include <algorithm>
 #include <array>
@@ -173,7 +174,7 @@ double log_beta_prefactor_logs(double x, double omx, double a, double b, double 
         // round the same real number; from 1 − x where that is the smaller, which the caller may
         // hold more exactly than x.
         const double d = x <= omx ? x - x0 : one_minus_x0 - omx;
-        const double lin_num = std::fma(-sum, x0, a) - sum_err * x0;
+        const double lin_num = detail::fma_portable(-sum, x0, a) - sum_err * x0;
         const double linear = d * (lin_num / (x0 * one_minus_x0));
         const double u = d / x0;
         const double v = -d / one_minus_x0;
@@ -209,14 +210,14 @@ double log_beta_prefactor_logs(double x, double omx, double a, double b, double 
         x0 = a / sum;
         one_minus_x0 = detail::ONE - x0;
         d = x - x0;
-        num = std::fma(-sum, x0, a) - sum_err * x0;
+        num = detail::fma_portable(-sum, x0, a) - sum_err * x0;
         lu_far = std::log(x / x0);
         lv_far = log_omx - std::log1p(-x0);
     } else {
         one_minus_x0 = b / sum;
         x0 = detail::ONE - one_minus_x0;
         d = one_minus_x0 - omx;
-        num = sum_err * one_minus_x0 - std::fma(-sum, one_minus_x0, b);
+        num = sum_err * one_minus_x0 - detail::fma_portable(-sum, one_minus_x0, b);
         lu_far = log_x - std::log1p(-one_minus_x0);
         lv_far = std::log(omx / one_minus_x0);
     }
@@ -314,7 +315,7 @@ DoubleDouble two_sum(double a, double b) noexcept {
 
 DoubleDouble two_prod(double a, double b) noexcept {
     const double p = a * b;
-    return {p, std::fma(a, b, -p)};
+    return {p, detail::fma_portable(a, b, -p)};
 }
 }  // namespace
 
@@ -731,9 +732,9 @@ static double beta_continued_fraction_unscaled(double x, double y, double a, dou
     const double e = (a - (s - bv)) + (b - bv);
     double lambda;
     if (x <= y)
-        lambda = std::fma(-s, x, a) - e * x;
+        lambda = detail::fma_portable(-s, x, a) - e * x;
     else
-        lambda = std::fma(s, y, -b) + e * y;
+        lambda = detail::fma_portable(s, y, -b) + e * y;
 
     // Past a shape of 1e100 the products of two shape-sized factors below — (a + m)·(a + b + m),
     // (a + m)·λ, (a + 2m)(a + 2m + 1) — overflow, to inf/inf = NaN (F(2, 1e308).cdf(1.5) =

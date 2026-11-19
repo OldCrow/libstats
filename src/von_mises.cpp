@@ -7,6 +7,7 @@
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
+#include "portable_fma.h"
 
 #include <algorithm>
 #include <cmath>
@@ -86,7 +87,7 @@ struct DoubleDouble {
 
 [[nodiscard]] DoubleDouble dd_mul(DoubleDouble a, DoubleDouble b) noexcept {
     const double p = a.hi * b.hi;
-    const double e = std::fma(a.hi, b.hi, -p);
+    const double e = detail::fma_portable(a.hi, b.hi, -p);
     return dd_fast_two_sum(p, e + (a.hi * b.lo + a.lo * b.hi));
 }
 
@@ -136,7 +137,7 @@ struct DoubleDouble {
         const double t = detail::ONE / kappa;
         double s = detail::ZERO_DOUBLE;
         for (std::size_t i = std::size(kCoef); i-- > 0;)
-            s = std::fma(s, t, kCoef[i]);
+            s = detail::fma_portable(s, t, kCoef[i]);
         return s * t;
     }
     const DoubleDouble x{kappa, 0.0};
@@ -511,7 +512,7 @@ template <typename F>
 // exp(rB^2) erfc(rB), with rB^2 kept to two doubles so that the two factors see one argument.
 [[nodiscard]] bool tail_j_mode_series(double rB, double two_kappa, double& j) noexcept {
     const double B = rB * rB;
-    const double B_lo = std::fma(rB, rB, -B);
+    const double B_lo = detail::fma_portable(rB, rB, -B);
     const double z = detail::ONE / two_kappa;
     double term = kSqrtPi * std::exp(B) * (detail::ONE + B_lo) * std::erfc(rB);  // c_0 Q_0
     double power = rB;  // c_k z^k B^{k+1/2}
@@ -636,9 +637,10 @@ template <typename F>
     add(detail::ONE);
     // D = 2 pi (sum + comp) = p + e, with p = TWO_PI * sum and e its correction.
     const double p = detail::TWO_PI * sum;
-    const double e = std::fma(detail::TWO_PI, sum, -p) + kTwoPiLo * sum + detail::TWO_PI * comp;
+    const double e =
+        detail::fma_portable(detail::TWO_PI, sum, -p) + kTwoPiLo * sum + detail::TWO_PI * comp;
     const double q = n / p;
-    return q + (std::fma(-q, p, n) - q * e) / p;
+    return q + (detail::fma_portable(-q, p, n) - q * e) / p;
 }
 
 // Which methods for J the tail may use: the series are 3-6 times cheaper than the quadratures
@@ -686,8 +688,8 @@ struct LeftTail {
 
     // sqrt(2 kappa) c to about an ulp: the root carried to two doubles.
     const double root = std::sqrt(two_kappa);
-    const double root_lo = std::fma(-root, root, two_kappa) / (detail::TWO * root);
-    auto times_root = [&](double c) { return std::fma(root, c, root_lo * c); };
+    const double root_lo = detail::fma_portable(-root, root, two_kappa) / (detail::TWO * root);
+    auto times_root = [&](double c) { return detail::fma_portable(root, c, root_lo * c); };
     const double bma = two_kappa * (cB - cA) * (cB + cA);  // B - A = -2 kappa cos t
     // (AB)^{-1/2} = 1 / (kappa |sin t|), from one sine: 2 kappa cA cB rounds four times.
     const double a0 = detail::ONE / (kappa * (near_edge ? std::sin(d) : std::sin(-t)));

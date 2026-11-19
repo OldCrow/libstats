@@ -397,6 +397,10 @@ create_libstats_gtest(test_copy_move_cache test_copy_move_cache.cpp)
 # out-of-support counts) take their limits, scalar and batch, under every forced strategy.
 create_libstats_gtest(test_support_boundary_gates test_support_boundary_gates.cpp)
 
+# #311 guard: the software fma used on CPUs without FMA returns std::fma's bits, on the input
+# classes a wrong emulation gets wrong.
+create_libstats_gtest(test_portable_fma test_portable_fma.cpp)
+
 # Guards for defects the corvus adoption removed (#126, #136, #214, #247, #248, #262, #266, #270,
 # #271): each case fails against a v2.5.0 build.
 create_libstats_gtest(test_corvus_adoption_guards test_corvus_adoption_guards.cpp)

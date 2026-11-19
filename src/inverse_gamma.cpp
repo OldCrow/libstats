@@ -4,6 +4,7 @@
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
+#include "portable_fma.h"
 
 #include <algorithm>
 #include <array>
@@ -56,10 +57,10 @@ constexpr int kBisectIterations = 80;
     const double y = beta * inv_x;
     if (!(y >= std::numeric_limits<double>::min()) || !std::isfinite(y))
         return detail::ZERO_DOUBLE;  // the delegate's own edge handling stands
-    const double e = std::fma(-inv_x, x, detail::ONE);
+    const double e = detail::fma_portable(-inv_x, x, detail::ONE);
     if (alpha < detail::STIRLING_PREFACTOR_SHAPE)
-        return (alpha - detail::ONE) * e - std::fma(-y, x, beta) / x;
-    const double e_p = std::fma(beta, inv_x, -y);
+        return (alpha - detail::ONE) * e - detail::fma_portable(-y, x, beta) / x;
+    const double e_p = detail::fma_portable(beta, inv_x, -y);
     return e * (((alpha - y) - detail::ONE) + e * (detail::HALF * (alpha - detail::ONE) - y) - e_p);
 }
 
@@ -72,7 +73,7 @@ constexpr int kBisectIterations = 80;
 // keeps it.
 [[nodiscard]] double correctedIncompleteGamma(double value, bool upper, double alpha, double beta,
                                               double x, double t) noexcept {
-    const double r = std::fma(-t, x, beta);
+    const double r = detail::fma_portable(-t, x, beta);
     // value > 0, not >= DBL_MIN: a subnormal P or Q keeps ~47 bits near 1e-309, and skipping the
     // correction there left it 1.8e-7 off at InverseGamma(1e16, 3) (M1 survival sweep).
     if (r == detail::ZERO_DOUBLE || !(value > detail::ZERO_DOUBLE))
@@ -85,8 +86,8 @@ constexpr int kBisectIterations = 80;
     const double phi = u == detail::ZERO_DOUBLE ? detail::ONE : std::expm1(u) / u;
     const double increment = rel * ratio * (phi - (alpha - detail::ONE) * rel * rel / 6.0);
     // Clamped as gamma.cpp's callers clamp (the expansion fails from α ~ 1e32).
-    return std::clamp(std::fma(upper ? -value : value, increment, value), detail::ZERO_DOUBLE,
-                      detail::ONE);
+    return std::clamp(detail::fma_portable(upper ? -value : value, increment, value),
+                      detail::ZERO_DOUBLE, detail::ONE);
 }
 
 // log f(x) where 1/x overflows (0 < x < 1/DBL_MAX, ~5.6e-309), from t = β/x, which is finite
@@ -98,10 +99,10 @@ constexpr int kBisectIterations = 80;
     const double t = beta / x;
     if (!(t <= std::numeric_limits<double>::max()))
         return detail::NEGATIVE_INFINITY;
-    const double r = std::fma(-t, x, beta);
+    const double r = detail::fma_portable(-t, x, beta);
     const double rel = r / (beta - r);
     const double log_value = detail::log_gamma_prefactor(alpha, t) - std::log(x);
-    return std::fma(rel, alpha - t, log_value - detail::HALF * alpha * rel * rel);
+    return detail::fma_portable(rel, alpha - t, log_value - detail::HALF * alpha * rel * rel);
 }
 
 }  // namespace

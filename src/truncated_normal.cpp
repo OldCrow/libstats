@@ -6,6 +6,7 @@
 #include "libstats/core/dispatch_utils.h"
 #include "libstats/core/math_utils.h"
 #include "libstats/core/parallel_batch_fit.h"
+#include "portable_fma.h"
 
 #include <algorithm>
 #include <cmath>
@@ -324,7 +325,7 @@ struct SplitArg {
 // u/√2 = hi + lo to ~2^-104 relative: the residual of the product spelled as an fma.
 inline SplitArg div_sqrt2(double u) noexcept {
     const double hi = u * kInvSqrt2Hi;
-    return {hi, std::fma(u, kInvSqrt2Hi, -hi) + u * kInvSqrt2Lo};
+    return {hi, detail::fma_portable(u, kInvSqrt2Hi, -hi) + u * kInvSqrt2Lo};
 }
 
 // Q(u) = ½·erfc(u/√2), from erfc(hi + lo) = erfc(hi) − lo·(2/√π)·e^{−hi²} (the next term is
@@ -345,7 +346,7 @@ inline double normal_q(double u) noexcept {
 inline double erfcx_split(SplitArg z) noexcept {
     if (z.hi < 26.0) {
         const double p = z.hi * z.hi;
-        const double p_lo = std::fma(z.hi, z.hi, -p);
+        const double p_lo = detail::fma_portable(z.hi, z.hi, -p);
         const double e = std::erfc(z.hi) * std::exp(p) * (detail::ONE + p_lo);
         return e + z.lo * (detail::TWO * z.hi * e - kTwoOverSqrtPi);
     }
@@ -378,7 +379,7 @@ inline double normal_q_ratio(double u, double v, double w) noexcept {
 // α²/2·ε relative, 5e-14 at α = 30.
 inline double truncnorm_band_scale(double alpha, double inv_z) noexcept {
     const double p = alpha * alpha;
-    const double p_lo = std::fma(alpha, alpha, -p);
+    const double p_lo = detail::fma_portable(alpha, alpha, -p);
     return detail::INV_SQRT_2PI *
            (std::exp(-detail::HALF * p) * (detail::ONE - detail::HALF * p_lo)) * inv_z;
 }

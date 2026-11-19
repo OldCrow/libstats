@@ -13,6 +13,7 @@
 
 // Platform headers - use forward declarations where available
 #include "libstats/common/cpu_detection_fwd.h"  // Lightweight CPU detection
+#include "portable_fma.h"
 // Note: parallel_execution.h is transitively included via dispatch_utils.h
 // Note: thread_pool.h and work_stealing_pool.h are transitively included via dispatch_utils.h
 #include <algorithm>
@@ -277,11 +278,11 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
                                                     double x, double y) noexcept {
     if (!(y >= std::numeric_limits<double>::min()) || !(y <= std::numeric_limits<double>::max()))
         return log_value;
-    const double e = std::fma(beta, x, -y);
+    const double e = detail::fma_portable(beta, x, -y);
     if (e == detail::ZERO_DOUBLE || !std::isfinite(log_value))
         return log_value;
     const double rel = e / y;
-    return std::fma(rel, alpha - y, log_value - detail::HALF * alpha * rel * rel);
+    return detail::fma_portable(rel, alpha - y, log_value - detail::HALF * alpha * rel * rel);
 }
 
 // (P(α, y + e) − P(α, y))/value for the rounding e of y = fl(βx) (relative rel = e/y) and value
@@ -320,11 +321,11 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
     if (alpha < kStirlingDensityShape || !(p > detail::ZERO_DOUBLE) ||
         !(y <= std::numeric_limits<double>::max()))
         return p;
-    const double e = std::fma(beta, x, -y);
+    const double e = detail::fma_portable(beta, x, -y);
     if (e == detail::ZERO_DOUBLE)
         return p;
-    return std::clamp(std::fma(p, rateProductIncrement(alpha, y, e / y, p), p), detail::ZERO_DOUBLE,
-                      detail::ONE);
+    return std::clamp(detail::fma_portable(p, rateProductIncrement(alpha, y, e / y, p), p),
+                      detail::ZERO_DOUBLE, detail::ONE);
 }
 
 [[nodiscard]] inline double gammaPAtRateProduct(double alpha, double beta, double x,
@@ -354,10 +355,10 @@ constexpr double kStirlingDensityShape = detail::STIRLING_PREFACTOR_SHAPE;
     if (alpha < kStirlingDensityShape || !(q > detail::ZERO_DOUBLE) ||
         !(y <= std::numeric_limits<double>::max()))
         return q;
-    const double e = std::fma(beta, x, -y);
+    const double e = detail::fma_portable(beta, x, -y);
     if (e == detail::ZERO_DOUBLE)
         return q;
-    return std::clamp(std::fma(-q, rateProductIncrement(alpha, y, e / y, q), q),
+    return std::clamp(detail::fma_portable(-q, rateProductIncrement(alpha, y, e / y, q), q),
                       detail::ZERO_DOUBLE, detail::ONE);
 }
 
