@@ -1,0 +1,43 @@
+Results: /home/wolfman/Development/libstats/build-ivb-adopt/quiet-2026-11-18T21-29-12Z_sha-6278ddd
+== build
+== waiting for 1-minute load <= 0.30 (up to 15 min)
+
+   load 0.31
+   load 0.50
+   load 0.42
+   load 0.36
+timing:start load=0.30 1.24 2.22 21:29:52Z
+ctest timing exit: 8
+The following tests FAILED:
+	133 - test_poisson_enhanced_timing (Failed)             timing
+Errors while running CTest
+ctest timing exit: 8
+timing:end load=1.26 1.35 2.20 21:30:38Z
+simd_verification:start load=1.26 1.35 2.20 21:30:38Z
+simd_verification exit: 0
+simd_verification:end load=1.26 1.35 2.20 21:30:38Z
+strategy_profile run1:start load=1.26 1.35 2.20 21:30:38Z
+strategy_profile run1 exit: 0
+strategy_profile run1:end load=3.64 3.39 3.45 22:46:25Z
+strategy_profile run2:start load=3.64 3.39 3.45 22:46:25Z
+strategy_profile run2 exit: 0
+strategy_profile run2:end load=4.31 3.61 3.65 00:02:10Z
+strategy_profile run3:start load=4.31 3.61 3.65 00:02:10Z
+strategy_profile run3 exit: 0
+strategy_profile run3:end load=3.86 3.49 3.53 01:18:09Z
+
+Done. Results in: /home/wolfman/Development/libstats/build-ivb-adopt/quiet-2026-11-18T21-29-12Z_sha-6278ddd
+total 1476
+drwxrwx---  2 wolfman wolfman   4096 Nov 18 20:18 .
+drwxrwx--- 12 wolfman wolfman   4096 Nov 18 16:29 ..
+-rw-rw----  1 wolfman wolfman     31 Nov 18 16:29 build.txt
+-rw-rw----  1 wolfman wolfman   3566 Nov 18 16:30 ctest_timing.txt
+-rw-rw----  1 wolfman wolfman   1535 Nov 18 16:29 environment.txt
+-rw-rw----  1 wolfman wolfman    532 Nov 18 20:18 load_marks.txt
+-rw-rw----  1 wolfman wolfman  12166 Nov 18 16:30 simd_verification.txt
+-rw-rw----  1 wolfman wolfman 324823 Nov 18 17:46 strategy_profile_run1.csv
+-rw-rw----  1 wolfman wolfman 157742 Nov 18 17:46 strategy_profile_run1.txt
+-rw-rw----  1 wolfman wolfman 324808 Nov 18 19:02 strategy_profile_run2.csv
+-rw-rw----  1 wolfman wolfman 157742 Nov 18 19:02 strategy_profile_run2.txt
+-rw-rw----  1 wolfman wolfman 324810 Nov 18 20:18 strategy_profile_run3.csv
+-rw-rw----  1 wolfman wolfman 157742 Nov 18 20:18 strategy_profile_run3.txt

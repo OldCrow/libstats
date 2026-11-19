@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Quiet-machine measurement leg for the Ivy Bridge (AVX tier) machine.
+#
+# Run from a text console or over SSH with the desktop apps closed:
+#     ~/Development/libstats/build-ivb-adopt/quiet_run.sh
+#
+# What it does, in order:
+#   1. checks the branch and working tree, rebuilds the Release tree so the
+#      binaries match HEAD, records the environment;
+#   2. waits for the load average to settle;
+#   3. timing tests:        ctest -j1 -L timing
+#   4. SIMD verification:   tools/simd_verification
+#   5. threshold bundle:    three runs of tools/strategy_profile --large
+#
+# Nothing is committed or pushed. Results land in
+#     build-ivb-adopt/quiet-<UTC timestamp>_sha-<sha>/
+# Options (environment):
+#     SKIP_TIMING=1   skip step 3        SKIP_PROFILE=1  skip step 5
+#     MAX_LOAD=0.30   load ceiling       WAIT_MIN=15     minutes to wait for it
+#     EXPECT_BRANCH=dev/v3.0.0-corvus-adoption
+
+set -u
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUILD="$REPO/build-ivb-adopt"
+EXPECT_BRANCH="${EXPECT_BRANCH:-dev/v3.0.0-corvus-adoption}"
+MAX_LOAD="${MAX_LOAD:-0.30}"
+WAIT_MIN="${WAIT_MIN:-15}"
+
+cd "$REPO" || exit 1
+
+branch="$(git branch --show-current)"
+if [ "$branch" != "$EXPECT_BRANCH" ]; then
+    echo "On branch '$branch', expected '$EXPECT_BRANCH'. Set EXPECT_BRANCH to override." >&2
+    exit 1
+fi
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "Working tree has uncommitted changes; measurements would not match a commit." >&2
+    exit 1
+fi
+
+sha="$(git rev-parse --short HEAD)"
+stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+OUT="$BUILD/quiet-${stamp}_sha-${sha}"
+mkdir -p "$OUT"
+echo "Results: $OUT"
+
+echo "== build" | tee "$OUT/build.txt"
+if ! cmake --build "$BUILD" --parallel 8 >>"$OUT/build.txt" 2>&1; then
+    echo "Build failed; see $OUT/build.txt" >&2
+    exit 1
+fi
+
+{
+    echo "date_utc:   $stamp"
+    echo "commit:     $(git rev-parse HEAD)"
+    echo "branch:     $branch"
+    echo "kernel:     $(uname -srm)"
+    echo "cpu:        $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | sed 's/^ //')"
+    echo "compiler:   $(grep -m1 'CMAKE_CXX_COMPILER:' "$BUILD/CMakeCache.txt" | cut -d= -f2)"
+    echo "build_type: $(grep -m1 'CMAKE_BUILD_TYPE:' "$BUILD/CMakeCache.txt" | cut -d= -f2)"
+    echo "governor:   $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo unknown)"
+    echo "no_turbo:   $(cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null || echo unknown)"
+    echo "on_ac:      $(cat /sys/class/power_supply/A*/online 2>/dev/null | head -1 || echo unknown)"
+    echo "session:    ${XDG_SESSION_TYPE:-none} tty=$(tty 2>/dev/null || echo none)"
+    echo
+    "$BUILD/tools/system_inspector" --quick
+} >"$OUT/environment.txt" 2>&1
+
+echo "== waiting for 1-minute load <= $MAX_LOAD (up to $WAIT_MIN min)"
+settled=0
+for _ in $(seq 1 $((WAIT_MIN * 6))); do
+    load="$(cut -d' ' -f1 /proc/loadavg)"
+    if awk -v l="$load" -v m="$MAX_LOAD" 'BEGIN { exit !(l <= m) }'; then
+        settled=1
+        break
+    fi
+    printf '\r   load %s ' "$load"
+    sleep 10
+done
+echo
+if [ "$settled" -ne 1 ]; then
+    echo "Load did not settle (now $(cut -d' ' -f1 /proc/loadavg)). Not measuring: these would not be records." >&2
+    echo "Top CPU users:" >&2
+    ps -eo pcpu,comm --sort=-pcpu | head -6 >&2
+    echo "load_not_settled: $(cat /proc/loadavg)" >>"$OUT/environment.txt"
+    exit 2
+fi
+
+mark() { echo "$1 load=$(cut -d' ' -f1-3 /proc/loadavg) $(date -u +%H:%M:%SZ)" | tee -a "$OUT/load_marks.txt"; }
+
+if [ "${SKIP_TIMING:-0}" != 1 ]; then
+    mark "timing:start"
+    ctest --test-dir "$BUILD" -j1 -L timing --output-on-failure >"$OUT/ctest_timing.txt" 2>&1
+    echo "ctest timing exit: $?" | tee -a "$OUT/ctest_timing.txt"
+    tail -4 "$OUT/ctest_timing.txt"
+    mark "timing:end"
+fi
+
+mark "simd_verification:start"
+"$BUILD/tools/simd_verification" >"$OUT/simd_verification.txt" 2>&1
+echo "simd_verification exit: $?" | tee -a "$OUT/simd_verification.txt"
+mark "simd_verification:end"
+
+if [ "${SKIP_PROFILE:-0}" != 1 ]; then
+    for run in 1 2 3; do
+        mark "strategy_profile run$run:start"
+        "$BUILD/tools/strategy_profile" --large -o "$OUT/strategy_profile_run$run.csv" \
+            >"$OUT/strategy_profile_run$run.txt" 2>&1
+        echo "strategy_profile run$run exit: $?" | tee -a "$OUT/strategy_profile_run$run.txt"
+        mark "strategy_profile run$run:end"
+    done
+fi
+
+echo
+echo "Done. Results in: $OUT"
+ls -la "$OUT"

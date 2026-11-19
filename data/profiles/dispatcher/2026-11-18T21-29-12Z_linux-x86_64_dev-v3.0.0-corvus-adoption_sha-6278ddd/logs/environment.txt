@@ -1,0 +1,50 @@
+date_utc:   2026-11-18T21-29-12Z
+commit:     6278dddcbf65fa348ab378fe1c72af8467d137f3
+branch:     dev/v3.0.0-corvus-adoption
+kernel:     Linux 7.0.0-43-generic x86_64
+cpu:        Intel(R) Core(TM) i7-3820QM CPU @ 2.70GHz
+compiler:   /usr/bin/c++
+build_type: Release
+governor:   schedutil
+no_turbo:   0
+on_ac:      1
+session:    x11 tty=/dev/pts/3
+
+
+=================================
+  System Inspector - Quick Mode
+=================================
+
+Basic system information and capabilities overview
+
+System: 8 logical cores, AVX SIMD, 8192 KB L3 cache
+
+
+--- System Capabilities ---
+Logical Cores:           8
+Physical Cores:          4
+Hyperthreading:          Enabled
+
+
+--- CPU Features ---
+Feature             Support   Description                   
+------------------------------------------------------------
+AVX-512             No        Foundation instructions       
+AVX2                No        Advanced Vector Ext 2         
+AVX                 Yes       Advanced Vector Ext           
+SSE2                Yes       Streaming SIMD Ext 2          
+NEON                No        ARM SIMD instructions         
+FMA                 No        Fused Multiply-Add            
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size      
+------------------------------------------
+L1             32          64 bytes       
+L2             256         64 bytes       
+L3             8192        64 bytes       
+
+
+Use --constants, --performance, or --full for detailed analysis.
+
+System inspection completed successfully.

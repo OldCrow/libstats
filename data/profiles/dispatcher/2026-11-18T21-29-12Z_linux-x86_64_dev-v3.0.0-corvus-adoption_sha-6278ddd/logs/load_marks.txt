@@ -1,0 +1,10 @@
+timing:start load=0.30 1.24 2.22 21:29:52Z
+timing:end load=1.26 1.35 2.20 21:30:38Z
+simd_verification:start load=1.26 1.35 2.20 21:30:38Z
+simd_verification:end load=1.26 1.35 2.20 21:30:38Z
+strategy_profile run1:start load=1.26 1.35 2.20 21:30:38Z
+strategy_profile run1:end load=3.64 3.39 3.45 22:46:25Z
+strategy_profile run2:start load=3.64 3.39 3.45 22:46:25Z
+strategy_profile run2:end load=4.31 3.61 3.65 00:02:10Z
+strategy_profile run3:start load=4.31 3.61 3.65 00:02:10Z
+strategy_profile run3:end load=3.86 3.49 3.53 01:18:09Z

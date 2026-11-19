@@ -1,0 +1,76 @@
+Test project /home/wolfman/Development/libstats/build-ivb-adopt
+      Start  78: test_parallel_batch_gates
+ 1/14 Test  #78: test_parallel_batch_gates ..........   Passed   43.48 sec
+      Start 123: test_math_comprehensive_timing
+ 2/14 Test #123: test_math_comprehensive_timing .....   Passed    0.32 sec
+      Start 125: test_gaussian_enhanced_timing
+ 3/14 Test #125: test_gaussian_enhanced_timing ......   Passed    0.31 sec
+      Start 127: test_gamma_enhanced_timing
+ 4/14 Test #127: test_gamma_enhanced_timing .........   Passed    0.22 sec
+      Start 129: test_discrete_enhanced_timing
+ 5/14 Test #129: test_discrete_enhanced_timing ......   Passed    0.05 sec
+      Start 131: test_exponential_enhanced_timing
+ 6/14 Test #131: test_exponential_enhanced_timing ...   Passed    0.06 sec
+      Start 133: test_poisson_enhanced_timing
+ 7/14 Test #133: test_poisson_enhanced_timing .......***Failed    0.12 sec
+Running main() from /home/wolfman/Development/libstats/build-ivb-adopt/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = PoissonEnhancedTest.SIMDAndParallelBatchImplementations
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from PoissonEnhancedTest
+[ RUN      ] PoissonEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 292.634μs (baseline)
+  Vectorized: 188.372μs (1.55349x speedup)
+  Parallel: 97.503μs (3.00128x speedup)
+  Work Stealing: 106.898μs (2.73751x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 2945.9μs (baseline)
+  Vectorized: 1907.09μs (1.54471x speedup)
+  Parallel: 555.343μs (5.30465x speedup)
+  Work Stealing: 552.083μs (5.33597x speedup)
+/home/wolfman/Development/libstats/tests/test_poisson_enhanced.cpp:367: Failure
+Expected: (simd_speedup) > (simd_threshold), actual: 1.5447094788394886 vs 1.656
+SIMD speedup 1.5447094788394886x should exceed adaptive threshold 1.6559999999999999x for batch size 50000
+
+[  FAILED  ] PoissonEnhancedTest.SIMDAndParallelBatchImplementations (119 ms)
+[----------] 1 test from PoissonEnhancedTest (119 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (119 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] PoissonEnhancedTest.SIMDAndParallelBatchImplementations
+
+ 1 FAILED TEST
+
+      Start 135: test_uniform_enhanced_timing
+ 8/14 Test #135: test_uniform_enhanced_timing .......   Passed    0.04 sec
+      Start 137: test_cauchy_enhanced_timing
+ 9/14 Test #137: test_cauchy_enhanced_timing ........   Passed    0.05 sec
+      Start 139: test_laplace_enhanced_timing
+10/14 Test #139: test_laplace_enhanced_timing .......   Passed    0.06 sec
+      Start 141: test_lognormal_enhanced_timing
+11/14 Test #141: test_lognormal_enhanced_timing .....   Passed    0.05 sec
+      Start 143: test_pareto_enhanced_timing
+12/14 Test #143: test_pareto_enhanced_timing ........   Passed    0.05 sec
+      Start 145: test_rayleigh_enhanced_timing
+13/14 Test #145: test_rayleigh_enhanced_timing ......   Passed    0.05 sec
+      Start 147: test_weibull_enhanced_timing
+14/14 Test #147: test_weibull_enhanced_timing .......   Passed    0.06 sec
+
+93% tests passed, 1 tests failed out of 14
+
+Label Time Summary:
+timing    =  44.94 sec*proc (14 tests)
+
+Total Test time (real) =  44.95 sec
+
+The following tests FAILED:
+	133 - test_poisson_enhanced_timing (Failed)             timing
+Errors while running CTest
+ctest timing exit: 8

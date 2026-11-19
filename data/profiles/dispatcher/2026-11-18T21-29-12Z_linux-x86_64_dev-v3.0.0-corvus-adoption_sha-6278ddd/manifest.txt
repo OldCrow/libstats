@@ -1,0 +1,56 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-11-18T21-29-12Z_linux-x86_64_dev-v3.0.0-corvus-adoption_sha-6278ddd
+Captured at (UTC): 2026-11-18T21-29-12Z (script start; runs 1-3 began 21:30Z, 22:46Z and 00:02Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- sustained_crossovers.txt
+- logs/run.txt
+- logs/load_marks.txt
+- logs/environment.txt
+- logs/ctest_timing.txt
+- logs/simd_verification.txt
+- logs/quiet_run.sh.txt
+
+Capture notes:
+- Native AVX (Release, build-ivb-adopt/, Ninja, GCC 13.3) on the MacBook Pro 9,1, Ivy Bridge
+  i7-3820QM (4 cores, 8 threads; AVX, no AVX2, no FMA), Linux Mint 22.3, glibc 2.39, at 6278ddd on
+  dev/v3.0.0-corvus-adoption (corvus v1.2.0; corvus' active Highway target here is 128-bit SSE4).
+  The first capture of the AVX tier on silicon whose native tier it is: the kAvx table it is
+  compared against came from a Kaby Lake build capped with LIBSTATS_MAX_SIMD_TIER=AVX
+  (2026-10-13T13-58-00Z_...), which has FMA and AVX2 hardware under the cap. See #291.
+- Three `strategy_profile --large -o <csv>` runs, 76 min each, from logs/quiet_run.sh.txt started
+  in a terminal with the desktop session (X11) left up and the screen locked, on AC power,
+  governor schedutil, turbo enabled.
+- Load: the script waited for a 1-minute load of 0.30 before the timing tests. Load marks during
+  the profile runs read 3.4-4.3 (logs/load_marks.txt); the profiler's own pools run 4 and 8
+  threads, so its share of that cannot be separated afterwards. Run-to-run spread (max/min of the
+  three medians per cell): SCALAR and VECTORIZED 1% median (p90 5-11%) at 4096 elements and up;
+  PARALLEL and WORK_STEALING 8-14% median (p90 24-29%). Below 4096 the p90 is 24-54% for every
+  strategy (short timings).
+- sustained_crossovers.txt is `scripts/analyze_crossovers.py --bundle <this> --table kAvx`:
+  41 ok, 34 DIFF, every DIFF with the table above the candidate. Its "not in table" for Uniform
+  and NegBinomial is that tool's table parser (a row wrapped over two lines; the CSV name
+  NegBinomial against NEGATIVE_BINOMIAL), not a missing row: scripts/derive_threshold_rows.py
+  reads both.
+- Below 4096 elements PARALLEL does not fork (the fixed gate in parallelForSlices, #307), so
+  PARALLEL equals VECTORIZED there and a candidate under 4096 is not a measured crossover.
+- InverseGamma PDF and LogPDF read about 350 ns/element under every strategy and PARALLEL gains
+  1.03x at 1M elements: the serial fixup loop after the Gamma delegate calls std::fma per element
+  (reciprocalArgumentCorrection), which is glibc's software routine on a CPU without FMA. Their
+  crossover rows measure that loop, not the dispatch decision.
+- logs/ctest_timing.txt: `ctest -j1 -L timing`, 13 of 14 passed. test_poisson_enhanced_timing
+  failed (VECTORIZED 1.54x over the scalar loop at 50,000 against an expectation of 1.656x); a
+  build of main from before the corvus adoption gives the same times and the same failure.
+- logs/simd_verification.txt: every operation passed.
+- Row derivation (not applied): scripts/derive_threshold_rows.py with this bundle as kAvx's new
+  capture and 2026-10-13T13-58-00Z_... as its previous one proposes 32 changed values, every one
+  earlier than the table. Its fork-zone rule (candidate <= 6144 encodes 4096) is the capped Kaby
+  Lake build's and does not hold here for every row: PARALLEL/VECTORIZED at 4096 in the three runs
+  is behind for Cauchy, ChiSquared, Erlang, Gamma and LogNormal LogPDF, Logistic and Gumbel CDF,
+  and LogNormal, Pareto and TruncatedNormal PDF (0.71-0.99x), and ahead at 6144.
