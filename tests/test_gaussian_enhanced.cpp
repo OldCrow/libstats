@@ -811,6 +811,38 @@ TEST_F(GaussianEnhancedTest, NumericalStabilityAndEdgeCases) {
 // PARALLEL BATCH FITTING TESTS
 //==============================================================================
 
+// fit() against a two-pass long double reference, at sizes that take the chunked parallel path.
+// The chunk combine weighted the between-chunk term by delta * delta2 (delta2 the distance to the
+// updated mean) where Chan's formula has delta squared, which under-counts it by n_a / n: the
+// standard deviation came out 3e-4 low at n = 5000 in 512-element chunks, on every tier whose
+// default grain splits the data. A single chunk is exact, so the sizes straddle every tier's
+// grain: 100000 and 300000 are several chunks even at Intel_Legacy's former 32768.
+TEST_F(GaussianEnhancedTest, FitMatchesTwoPassReference) {
+    for (const std::size_t n :
+         {std::size_t{5000}, std::size_t{20000}, std::size_t{100000}, std::size_t{300000}}) {
+        std::mt19937_64 rng(9);
+        std::normal_distribution<double> source(3.0, 2.0);
+        std::vector<double> data(n);
+        for (double& v : data)
+            v = source(rng);
+
+        long double mean = 0.0L;
+        for (const double v : data)
+            mean += v;
+        mean /= static_cast<long double>(n);
+        long double m2 = 0.0L;
+        for (const double v : data)
+            m2 += (v - mean) * (v - mean);
+        const double ref_mean = static_cast<double>(mean);
+        const double ref_sd = static_cast<double>(std::sqrt(m2 / static_cast<long double>(n - 1)));
+
+        auto dist = stats::GaussianDistribution::create(0.0, 1.0).unwrap();
+        dist.fit(data);
+        EXPECT_NEAR(dist.getMean(), ref_mean, 1e-12 * std::fabs(ref_mean)) << "n = " << n;
+        EXPECT_NEAR(dist.getStandardDeviation(), ref_sd, 1e-12 * ref_sd) << "n = " << n;
+    }
+}
+
 TEST_F(GaussianEnhancedTest, ParallelBatchFittingTests) {
     std::cout << "\n=== Parallel Batch Fitting Tests ===\n";
 
