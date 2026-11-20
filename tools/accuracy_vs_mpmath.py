@@ -2357,6 +2357,12 @@ def _betainc_sf(a: "mp.mpf", b: "mp.mpf", x: "mp.mpf", xc: "mp.mpf") -> "mp.mpf"
     F = _betainc_reg(a, b, x)
     if F <= mp.mpf("0.5"):
         return _sf_complement(F)
+    if xc >= 1:
+        # x is below the working precision, so xc = 1 - x read 1 and I_xc(b, a) would return 1:
+        # Beta(0.0044, 962.5) at x = 4.5e-60 has I_x = 0.565 and scored the library's correct
+        # 0.4348 against a reference of 1 (off-grid sweep, 2026-11-20). With x that small and
+        # I_x above 1/2 the survival is not small, so the plain complement is exact enough.
+        return 1 - F
     return _betainc_reg(b, a, xc)
 
 
@@ -3306,6 +3312,13 @@ def _survival_self_checks(check) -> None:
 
     # --- incomplete beta, complementary side ---
     sf_check("beta.complementary_betainc", "beta", 1.0, 50.0, 0.99, (1 - mp.mpf(0.99)) ** 50)
+    # x below the working precision with I_x above 1/2: the reference was 1 (2026-11-20).
+    with mp.workdps(120):
+        _a, _b, _x = mp.mpf(0.004416155306459437), mp.mpf(962.5264458586803), mp.mpf(4.4501267523030075e-60)
+        _sf_hi = 1 - mp.betainc(_a, _b, 0, _x, regularized=True)
+    check("beta.survival_at_x_below_working_precision",
+          abs(_sf_beta(0.004416155306459437, 962.5264458586803, 4.4501267523030075e-60) - _sf_hi)
+          < mp.mpf("1e-30"))
     sf_check("fisher_f.complementary_betainc", "fisher_f", 2.0, 10.0, 1e30,
              (1 + 2 * mp.mpf(1e30) / 10) ** -5)
     _t = mp.mpf(1e30)
@@ -3583,6 +3596,8 @@ def _overflow_correct(ref, got: float) -> bool:
 #                               fraction of the achievable |ln F| 2^-52 law;
 #         = relerr / 2^-52      otherwise, i.e. the relative error in eps
 #                               (subnormal references on relerr's ULP scale).
+#         = |F(got) - p|        for quantile rows at a subnormal p, in subnormal
+#                               units (see subnormal_quantile_score).
 #
 # A row is over budget when its score exceeds --budget. It fails the run when
 # it is over budget AND worse than the same row in the --baseline file beyond
@@ -3632,6 +3647,39 @@ def row_key(row) -> tuple:
     return (row.dist, row.method, f64_to_bits(row.p1), f64_to_bits(row.p2), f64_to_bits(row.x))
 
 
+def subnormal_quantile_score(row, got: float) -> "float | None":
+    """Score of a quantile row at a subnormal p, taken in CDF space; None if it does not apply.
+
+    Below DBL_MIN a CDF value has few bits, and at the smallest subnormal one: every x whose
+    exact F(x) rounds to p is a correct inverse of the double p. The distance from the exact
+    real quantile is then the wrong measure: Student-t(18418) at p = 5e-324 returns an x whose
+    exact CDF is 0.88 subnormal units, which rounds to p, yet sits 1e-4 relative from the
+    real-valued quantile and scored 4e11 eps. So: the score is |F(got) - p| in subnormal
+    units, where at most 1/2 is a correctly rounded inverse. The caller takes the smaller of
+    this and the ordinary distance in x, because the other limit also occurs: Uniform(a, b) at
+    p = 1e-310 correctly returns a itself, where F is 0, since a + (b - a) p has no double. For a discrete distribution got is
+    right when F(got) rounds to at least p and F(got - 1) rounds below it; that scores 0."""
+    if row.method != "quantile" or not (0.0 < row.x < 2.2250738585072014e-308):
+        return None
+    if not math.isfinite(got):
+        return None
+    cdf = getattr(REFS.get(row.dist), "cdf", None)
+    if cdf is None:
+        return None
+    try:
+        units = lambda v: cdf(row.p1, row.p2, v) / _DENORM_MIN  # noqa: E731
+        p_units = mp.mpf(row.x) / _DENORM_MIN
+        if row.dist in DISCRETE_DISTS:
+            at = mp.floor(units(got) + mp.mpf("0.5"))
+            below = mp.floor(units(got - 1.0) + mp.mpf("0.5")) if got >= 1.0 else mp.mpf(-1)
+            if at >= p_units and below < p_units:
+                return 0.0
+            return float(abs(units(got) - p_units))
+        return float(abs(units(got) - p_units))
+    except Exception:  # noqa: BLE001 - the reference CDF cannot reach this point; fall back
+        return None
+
+
 def row_score(got: "mp.mpf", ref: "mp.mpf", is_cdf_tail: bool) -> float:
     return float(law_frac(got, ref) if is_cdf_tail else relerr(got, ref) / TWO_POW_NEG52)
 
@@ -3644,20 +3692,38 @@ def _parse_key(parts: list) -> tuple:
     return (parts[0], parts[1], int(parts[2], 16), int(parts[3], 16), int(parts[4], 16))
 
 
+# Bump when a reference function changes, so a cache written before the change is refused: the
+# 2026-11-20 Beta survival fix was first rescored against a cache that still held the wrong 1.
+ORACLE_REFS_VERSION = 2
+REF_SKIPPED: dict = {}  # key -> reason, rows the oracle gave up on (timeout or gap)
+
+
 def write_refs(path: str) -> None:
     with open(path, "w", encoding="utf-8") as f:
-        f.write("# accuracy_vs_mpmath references v1: dist,method,p1_bits,p2_bits,x_bits,ref\n")
+        f.write(f"# accuracy_vs_mpmath references v{ORACLE_REFS_VERSION}: "
+                "dist,method,p1_bits,p2_bits,x_bits,ref\n")
         for key, ref in REF_COMPUTED.items():
             f.write(f"{_key_fields(key)},{mp.nstr(ref, 45)}\n")
+        # Remembered so that a second pass does not spend the timeout on each again.
+        for key, reason in REF_SKIPPED.items():
+            f.write(f"{_key_fields(key)},SKIP {reason.replace(',', ';')}\n")
 
 
 def load_refs(path: str) -> int:
     with open(path, encoding="utf-8") as f:
+        header = f.readline()
+        if f"references v{ORACLE_REFS_VERSION}:" not in header:
+            raise SystemExit(f"{path}: not a references file of version {ORACLE_REFS_VERSION} "
+                             "(the oracle's reference functions changed since it was written); "
+                             "regenerate it with --refs-out")
         for line in f:
             if line.startswith("#") or not line.strip():
                 continue
-            parts = line.strip().split(",")
-            REF_CACHE[_parse_key(parts)] = mp.mpf(parts[5])
+            parts = line.strip().split(",", 5)
+            if parts[5].startswith("SKIP "):
+                REF_SKIPPED[_parse_key(parts)] = parts[5][5:]
+            else:
+                REF_CACHE[_parse_key(parts)] = mp.mpf(parts[5])
     return len(REF_CACHE)
 
 
@@ -3818,13 +3884,17 @@ def compare(rows: list) -> "tuple[dict, list]":
                 _t0 = time.perf_counter()
                 _key = row_key(row)
                 ref = REF_CACHE.get(_key)
+                if ref is None and _key in REF_SKIPPED:
+                    skipped.append((row.lineno, REF_SKIPPED[_key]))
+                    continue
                 if ref is None:
                     try:
                         ref = _call_with_timeout(fn, row.p1, row.p2, row.x)
                     except _RowTimeout:
-                        skipped.append((row.lineno,
-                                        f"oracle exceeded --row-timeout on {row.dist}/{row.method} "
-                                        f"p1={row.p1!r} p2={row.p2!r} x={row.x!r}"))
+                        REF_SKIPPED[_key] = (f"oracle exceeded --row-timeout on "
+                                             f"{row.dist}/{row.method} p1={row.p1!r} "
+                                             f"p2={row.p2!r} x={row.x!r}")
+                        skipped.append((row.lineno, REF_SKIPPED[_key]))
                         continue
                     except Exception as exc:  # noqa: BLE001
                         # The fixed grid is one the oracle is known to cover, so a reference it
@@ -3833,10 +3903,10 @@ def compare(rows: list) -> "tuple[dict, list]":
                         # dps 50; those rows are listed, not fatal (#213).
                         if not TOLERATE_ORACLE_GAPS:
                             raise
-                        skipped.append((row.lineno,
-                                        f"oracle gap on {row.dist}/{row.method} p1={row.p1!r} "
-                                        f"p2={row.p2!r} x={row.x!r}: {type(exc).__name__}: "
-                                        f"{str(exc)[:80]}"))
+                        REF_SKIPPED[_key] = (f"oracle gap on {row.dist}/{row.method} "
+                                             f"p1={row.p1!r} p2={row.p2!r} x={row.x!r}: "
+                                             f"{type(exc).__name__}: {str(exc)[:80]}")
+                        skipped.append((row.lineno, REF_SKIPPED[_key]))
                         continue
                 REF_COMPUTED[_key] = ref
                 _dt = time.perf_counter() - _t0
@@ -3922,8 +3992,13 @@ def compare(rows: list) -> "tuple[dict, list]":
         g.scalar.observe(mp.mpf(row.scalar), ref, row.x, is_cdf_tail)
         _batch_score = (row_score(mp.mpf(row.batch), ref, is_cdf_tail)
                         if row.batch is not None and math.isfinite(row.batch) else None)
-        ROW_RESULTS.append((row_key(row), row_score(mp.mpf(row.scalar), ref, is_cdf_tail),
-                            _batch_score))
+        _scalar_score = row_score(mp.mpf(row.scalar), ref, is_cdf_tail)
+        if _scalar_score > 1.0:
+            # A subnormal-p quantile is right if it is close in x OR its CDF rounds to p.
+            _in_cdf_space = subnormal_quantile_score(row, row.scalar)
+            if _in_cdf_space is not None:
+                _scalar_score = min(_scalar_score, _in_cdf_space)
+        ROW_RESULTS.append((row_key(row), _scalar_score, _batch_score))
 
         if row.batch is not None and not math.isfinite(row.batch):
             g.violations.append(
@@ -4179,7 +4254,8 @@ def main(argv=None) -> int:
 
     if args.refs_out:
         write_refs(args.refs_out)
-        print(f"\nWrote {len(REF_COMPUTED)} references to {args.refs_out}")
+        print(f"\nWrote {len(REF_COMPUTED)} references and {len(REF_SKIPPED)} remembered "
+              f"skips to {args.refs_out}")
     if args.rows_out:
         print(f"Wrote {write_rows(args.rows_out)} rows to {args.rows_out}")
     if args.allow_out:
