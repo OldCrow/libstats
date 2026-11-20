@@ -38,13 +38,17 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <numbers>
+#include <optional>
+#include <random>
 #include <span>
 #include <sstream>
 #include <string>
@@ -192,6 +196,95 @@ class Sink {
     std::vector<std::pair<std::string, int>> survivalCounts_;
     std::vector<std::pair<std::string, int>> skips_;
 };
+
+//==============================================================================
+// Replay grid (#258): `accuracy_sweep <out.csv> --grid-from <previous.csv>`.
+//
+// The x grid of an instance is built from the library's own quantile, so two
+// builds whose quantiles differ in the last bits sweep neighbouring doubles,
+// not the same ones: 3,888 of 26,882 rows between v2.5.0 and the corvus
+// adoption. A density's error at large shape depends on the low bits of x
+// (Gamma(9999, 1) pdf reads 164 eps at x = 7401.315457024926 and 834 one
+// double away, with identical code), so a row-by-row comparison of two such
+// sweeps reports the grid, not the library. With --grid-from every x comes
+// from the previous CSV instead: this build is evaluated at exactly the
+// inputs the previous one was, in the same order.
+//
+// The previous file's rows are consumed in order, per (dist, method): each
+// instance takes the next run of rows carrying its (p1, p2).
+//==============================================================================
+
+std::uint64_t parseBits(const std::string& field) {
+    return std::strtoull(field.c_str(), nullptr, 16);
+}
+
+double doubleOf(std::uint64_t bits) {
+    double v;
+    std::memcpy(&v, &bits, sizeof v);
+    return v;
+}
+
+class ReplayGrid {
+   public:
+    bool active() const { return active_; }
+
+    bool load(const std::string& path) {
+        std::ifstream in(path);
+        if (!in)
+            return false;
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty() || line[0] == '#' || line.rfind("dist,", 0) == 0)
+                continue;
+            std::vector<std::string> f;
+            std::stringstream ss(line);
+            for (std::string tok; std::getline(ss, tok, ',');)
+                f.push_back(tok);
+            if (f.size() != 7)
+                continue;
+            rows_[f[0] + "/" + f[1]].push_back(
+                Entry{parseBits(f[2]), parseBits(f[3]), doubleOf(parseBits(f[4]))});
+        }
+        active_ = true;
+        return true;
+    }
+
+    // The next run of x for this instance under `method`; empty if the previous sweep had none.
+    std::vector<double> take(const std::string& dist, const std::string& method, double p1,
+                             double p2, bool hasP2) {
+        const std::string key = dist + "/" + method;
+        const auto& rows = rows_[key];
+        std::size_t& at = cursor_[key];
+        const std::uint64_t b1 = bitsOf(p1);
+        const std::uint64_t b2 = hasP2 ? bitsOf(p2) : 0;
+        std::vector<double> xs;
+        while (at < rows.size() && rows[at].p1 == b1 && rows[at].p2 == b2) {
+            xs.push_back(rows[at].x);
+            ++at;
+        }
+        if (xs.empty())
+            ++unmatched_;
+        return xs;
+    }
+
+    int unmatched() const { return unmatched_; }
+
+   private:
+    struct Entry {
+        std::uint64_t p1;
+        std::uint64_t p2;
+        double x;
+    };
+    bool active_ = false;
+    int unmatched_ = 0;
+    std::map<std::string, std::vector<Entry>> rows_;
+    std::map<std::string, std::size_t> cursor_;
+};
+
+ReplayGrid& replayGrid() {
+    static ReplayGrid grid;
+    return grid;
+}
 
 //==============================================================================
 // Deterministic grids (no randomness anywhere)
@@ -365,6 +458,11 @@ std::vector<double> buildDiscreteKGrid(Dist& dist) {
 template <typename Dist>
 void emitPdfLogpdfCdfRows(Dist& dist, const std::string& distName, double p1, double p2, bool hasP2,
                           std::vector<double> xs, bool includeSpecials, Sink& sink) {
+    if (replayGrid().active()) {
+        // The previous sweep's inputs, specials included, in its order.
+        xs = replayGrid().take(distName, "pdf", p1, p2, hasP2);
+        includeSpecials = false;
+    }
     if (includeSpecials) {
         // At the FRONT, not the back: the batch kernels process floor(n/W)*W lanes in
         // the vector body and hand the remainder to scalar libm. With 43 finite x the
@@ -538,6 +636,13 @@ std::vector<double> upperTailPoints(Dist& dist, const std::vector<double>& xs) {
 template <typename Dist>
 void emitSurvivalRows(Dist& dist, const std::string& distName, double p1, double p2, bool hasP2,
                       std::vector<double> xs, bool includeSpecials, Sink& sink) {
+    if (replayGrid().active()) {
+        for (double x : replayGrid().take(distName, "survival", p1, p2, hasP2)) {
+            sink.addSurvivalRow(makeRow(distName, "survival", p1, p2, hasP2, x, dist.getSurvival(x),
+                                        0.0, /*hasBatch=*/false));
+        }
+        return;
+    }
     const std::vector<double> tail = upperTailPoints(dist, xs);
     xs.insert(xs.end(), tail.begin(), tail.end());
     std::sort(xs.begin(), xs.end());
@@ -1166,6 +1271,307 @@ void sweepAll(Sink& sink) {
 // Environment metadata (commit / isa / date)
 //==============================================================================
 
+//==============================================================================
+// Off-grid sweep (#213): `accuracy_sweep <out.csv> --offgrid [--seed N] [--instances N]`.
+//
+// The fixed grid above has three parameter instances per distribution (plus the
+// switch bands) and 15 quantile probabilities, so a defect between them is
+// invisible to it. The 2026-10-07 defect hunt found five that way with a
+// throwaway tool: the Geometric CDF's true size, the Fisher-F/Beta shape-ratio
+// error (#126), the Rayleigh/HalfNormal range defect, a Fisher-F subnormal
+// case and a Beta quantile (#137). This mode is that sweep, kept: random
+// parameter instances, log-uniform over wide valid ranges with shape ratios
+// past 1e5, each scored at random points and at the range extremes.
+//
+// - It replaces the fixed-grid rows instead of adding to them, so the default
+//   CSV keeps every row's bytes and line number.
+// - Deterministic for a seed on every platform: the generator is mt19937_64
+//   read raw, never through a <random> distribution, whose output is
+//   implementation-defined. A reference file written on one machine therefore
+//   serves the same seed on another (tools/accuracy_vs_mpmath.py --refs).
+// - Integer parameters (Erlang k, Binomial n, Discrete bounds) are drawn as
+//   integers, so the CSV records the value the constructor received.
+// - Quantile rows never include p = 0 or p = 1, and add the probabilities
+//   below the fixed grid's floor, 1e-301 down to the smallest subnormal.
+// - x includes denorm_min and DBL_MIN where the support holds them.
+// - TruncatedNormal's window travels in `# tn_window` comment lines: the CSV
+//   has two parameter columns and the oracle's fixed table cannot know a
+//   random instance.
+// - von Mises quantile rows are capped: each costs the oracle 10-30 s.
+// The oracle reports these per row (--budget / --rows-out), not per group.
+//==============================================================================
+
+struct OffGridOptions {
+    std::uint64_t seed = 213;
+    int instances = 5;
+};
+
+std::vector<std::string>& sidecarLines() {
+    static std::vector<std::string> lines;
+    return lines;
+}
+
+class OffGridRng {
+   public:
+    explicit OffGridRng(std::uint64_t seed) : gen_(seed) {}
+    // [0, 1) from the top 53 bits: the same double on every standard library.
+    double unit() { return static_cast<double>(gen_() >> 11) * 0x1p-53; }
+    double uniform(double lo, double hi) { return lo + (hi - lo) * unit(); }
+    double logUniform(double lo, double hi) {
+        return std::exp(uniform(std::log(lo), std::log(hi)));
+    }
+    // Log-uniform over the integers lo..hi, returned as the double the CSV records.
+    double integer(double lo, double hi) {
+        return std::min(hi, std::floor(logUniform(lo, hi + 1.0)));
+    }
+    bool coin(double p = 0.5) { return unit() < p; }
+
+   private:
+    std::mt19937_64 gen_;
+};
+
+template <typename Dist>
+std::vector<double> offGridXs(Dist& dist, OffGridRng& rng, bool discrete) {
+    std::vector<double> ps;
+    for (int i = 0; i < 5; ++i)
+        ps.push_back(rng.logUniform(1e-300, 0.5));
+    for (int i = 0; i < 5; ++i)
+        ps.push_back(1.0 - rng.logUniform(1e-16, 0.5));
+    for (int i = 0; i < 4; ++i)
+        ps.push_back(rng.uniform(0.01, 0.99));
+
+    std::vector<double> xs;
+    for (double p : ps) {
+        try {
+            const double x = dist.getQuantile(p);
+            if (std::isfinite(x))
+                xs.push_back(discrete ? std::floor(x) : x);
+        } catch (...) {
+        }
+    }
+    if (!discrete) {
+        for (double x :
+             {std::numeric_limits<double>::denorm_min(), std::numeric_limits<double>::min()}) {
+            if (x >= dist.getSupportLowerBound() && x <= dist.getSupportUpperBound())
+                xs.push_back(x);
+        }
+    }
+    std::sort(xs.begin(), xs.end());
+    xs.erase(std::unique(xs.begin(), xs.end()), xs.end());
+    return xs;
+}
+
+template <typename Dist>
+void emitOffGridQuantileRows(Dist& dist, const std::string& distName, double p1, double p2,
+                             bool hasP2, OffGridRng& rng, std::size_t cap, Sink& sink) {
+    std::vector<double> ps;
+    for (int i = 0; i < 6; ++i)
+        ps.push_back(rng.logUniform(1e-300, 0.5));
+    for (int i = 0; i < 4; ++i)
+        ps.push_back(1.0 - rng.logUniform(1e-16, 0.5));
+    for (double p : {1e-301, 1e-305, 1e-310, 1e-320, 5e-324})
+        ps.push_back(p);
+    if (cap > 0 && ps.size() > cap)
+        ps.resize(cap);
+    for (double p : ps) {
+        if (!(p > 0.0 && p < 1.0))
+            continue;
+        try {
+            const double q = dist.getQuantile(p);
+            sink.addRow(
+                makeRow(distName, "quantile", p1, p2, hasP2, p, q, 0.0, /*hasBatch=*/false));
+        } catch (...) {
+            sink.addSkip(distName);
+        }
+    }
+}
+
+template <typename Dist>
+void emitOffGridInstance(Dist& dist, const std::string& distName, double p1, double p2, bool hasP2,
+                         bool discrete, std::size_t quantileCap, OffGridRng& rng, Sink& sink) {
+    const std::vector<double> xs = offGridXs(dist, rng, discrete);
+    if (xs.empty())
+        return;
+    emitPdfLogpdfCdfRows(dist, distName, p1, p2, hasP2, xs, /*includeSpecials=*/false, sink);
+    emitOffGridQuantileRows(dist, distName, p1, p2, hasP2, rng, quantileCap, sink);
+    emitSurvivalRows(dist, distName, p1, p2, hasP2, xs, /*includeSpecials=*/false, sink);
+}
+
+// One distribution: `draw` returns (p1, p2) inside the valid range, `factory` builds from it.
+// Each distribution has its own stream, so adding one does not move another's instances.
+template <typename Dist, typename Factory, typename Draw>
+void offGrid(const std::string& distName, Factory factory, Draw draw, bool hasP2, bool discrete,
+             std::size_t quantileCap, const OffGridOptions& opt, Sink& sink) {
+    std::uint64_t salt = 0;
+    for (std::size_t i = 0; i < kDistNames.size(); ++i) {
+        if (distName == kDistNames[i])
+            salt = i + 1;
+    }
+    OffGridRng rng(opt.seed * 1000003ULL + salt);
+    for (int i = 0; i < opt.instances; ++i) {
+        const std::pair<double, double> params = draw(rng);
+        std::optional<Dist> dist;
+        try {
+            dist.emplace(factory(params.first, params.second));
+        } catch (...) {
+            sink.addSkip(distName);
+            continue;
+        }
+        emitOffGridInstance(*dist, distName, params.first, params.second, hasP2, discrete,
+                            quantileCap, rng, sink);
+    }
+}
+
+void sweepOffGrid(const OffGridOptions& opt, Sink& sink) {
+    using namespace stats;
+    using P = std::pair<double, double>;
+    using R = OffGridRng;
+    constexpr double kPi = std::numbers::pi;
+    constexpr std::size_t kAll = 0;  // no quantile cap
+
+    // A probability parameter, log-uniform toward 0 or mirrored toward 1.
+    const auto probability = [](R& r, double lo) {
+        const double p = r.logUniform(lo, 0.5);
+        return r.coin() ? p : 1.0 - p;
+    };
+
+    offGrid<GaussianDistribution>(
+        "gaussian", [](double a, double b) { return GaussianDistribution(a, b); },
+        [](R& r) { return P{r.uniform(-1e3, 1e3), r.logUniform(1e-3, 1e3)}; }, true, false, kAll,
+        opt, sink);
+    offGrid<LogNormalDistribution>(
+        "lognormal", [](double a, double b) { return LogNormalDistribution(a, b); },
+        [](R& r) { return P{r.uniform(-5.0, 5.0), r.logUniform(1e-2, 5.0)}; }, true, false, kAll,
+        opt, sink);
+    offGrid<ExponentialDistribution>(
+        "exponential", [](double a, double) { return ExponentialDistribution(a); },
+        [](R& r) { return P{r.logUniform(1e-6, 1e6), 0.0}; }, false, false, kAll, opt, sink);
+    offGrid<UniformDistribution>(
+        "uniform", [](double a, double b) { return UniformDistribution(a, b); },
+        [](R& r) {
+            const double a = r.uniform(-1e3, 1e3);
+            return P{a, a + r.logUniform(1e-3, 1e3)};
+        },
+        true, false, kAll, opt, sink);
+    offGrid<PoissonDistribution>(
+        "poisson", [](double a, double) { return PoissonDistribution(a); },
+        [](R& r) { return P{r.logUniform(1e-3, 1e5), 0.0}; }, false, true, kAll, opt, sink);
+    offGrid<GammaDistribution>(
+        "gamma", [](double a, double b) { return GammaDistribution(a, b); },
+        [](R& r) { return P{r.logUniform(1e-3, 1e5), r.logUniform(1e-3, 1e3)}; }, true, false, kAll,
+        opt, sink);
+    offGrid<DiscreteDistribution>(
+        "discrete",
+        [](double a, double b) {
+            return DiscreteDistribution(static_cast<int>(a), static_cast<int>(b));
+        },
+        [](R& r) {
+            const double a = std::floor(r.uniform(-50.0, 51.0));
+            return P{a, a + r.integer(1.0, 1e4)};
+        },
+        true, true, kAll, opt, sink);
+    offGrid<StudentTDistribution>(
+        "student_t", [](double a, double) { return StudentTDistribution(a); },
+        [](R& r) { return P{r.logUniform(0.1, 1e6), 0.0}; }, false, false, kAll, opt, sink);
+    offGrid<CauchyDistribution>(
+        "cauchy", [](double a, double b) { return CauchyDistribution(a, b); },
+        [](R& r) { return P{r.uniform(-100.0, 100.0), r.logUniform(1e-3, 1e3)}; }, true, false,
+        kAll, opt, sink);
+    offGrid<VonMisesDistribution>(
+        "von_mises", [](double a, double b) { return VonMisesDistribution(a, b); },
+        [kPi](R& r) { return P{r.uniform(-kPi, kPi), r.logUniform(1e-3, 1e3)}; }, true, false,
+        /*quantileCap=*/4, opt, sink);
+    offGrid<BinomialDistribution>(
+        "binomial", [](double a, double b) { return BinomialDistribution(static_cast<int>(a), b); },
+        [&](R& r) { return P{r.integer(1.0, 1e6), probability(r, 1e-6)}; }, true, true, kAll, opt,
+        sink);
+    offGrid<NegativeBinomialDistribution>(
+        "negative_binomial", [](double a, double b) { return NegativeBinomialDistribution(a, b); },
+        [&](R& r) { return P{r.logUniform(1e-2, 1e4), probability(r, 1e-6)}; }, true, true, kAll,
+        opt, sink);
+    offGrid<GeometricDistribution>(
+        "geometric", [](double a, double) { return GeometricDistribution(a); },
+        [&](R& r) { return P{probability(r, 1e-9), 0.0}; }, false, true, kAll, opt, sink);
+    offGrid<BetaDistribution>(
+        "beta", [](double a, double b) { return BetaDistribution(a, b); },
+        [](R& r) { return P{r.logUniform(1e-3, 1e5), r.logUniform(1e-3, 1e5)}; }, true, false, kAll,
+        opt, sink);
+    offGrid<ChiSquaredDistribution>(
+        "chi_squared", [](double a, double) { return ChiSquaredDistribution(a); },
+        [](R& r) { return P{r.logUniform(1e-2, 1e5), 0.0}; }, false, false, kAll, opt, sink);
+    offGrid<LaplaceDistribution>(
+        "laplace", [](double a, double b) { return LaplaceDistribution(a, b); },
+        [](R& r) { return P{r.uniform(-100.0, 100.0), r.logUniform(1e-3, 1e3)}; }, true, false,
+        kAll, opt, sink);
+    offGrid<ParetoDistribution>(
+        "pareto", [](double a, double b) { return ParetoDistribution(a, b); },
+        [](R& r) { return P{r.logUniform(1e-3, 1e3), r.logUniform(1e-2, 1e3)}; }, true, false, kAll,
+        opt, sink);
+    offGrid<RayleighDistribution>(
+        "rayleigh", [](double a, double) { return RayleighDistribution(a); },
+        [](R& r) { return P{r.logUniform(1e-100, 1e100), 0.0}; }, false, false, kAll, opt, sink);
+    offGrid<WeibullDistribution>(
+        "weibull", [](double a, double b) { return WeibullDistribution(a, b); },
+        [](R& r) { return P{r.logUniform(0.05, 50.0), r.logUniform(1e-3, 1e3)}; }, true, false,
+        kAll, opt, sink);
+    offGrid<LogisticDistribution>(
+        "logistic", [](double a, double b) { return LogisticDistribution(a, b); },
+        [](R& r) { return P{r.uniform(-100.0, 100.0), r.logUniform(1e-3, 1e3)}; }, true, false,
+        kAll, opt, sink);
+    offGrid<GumbelDistribution>(
+        "gumbel", [](double a, double b) { return GumbelDistribution(a, b); },
+        [](R& r) { return P{r.uniform(-100.0, 100.0), r.logUniform(1e-3, 1e3)}; }, true, false,
+        kAll, opt, sink);
+    offGrid<ErlangDistribution>(
+        "erlang", [](double a, double b) { return ErlangDistribution(static_cast<int>(a), b); },
+        [](R& r) { return P{r.integer(1.0, 1e4), r.logUniform(1e-3, 1e3)}; }, true, false, kAll,
+        opt, sink);
+    offGrid<FDistribution>(
+        "fisher_f", [](double a, double b) { return FDistribution(a, b); },
+        [](R& r) { return P{r.logUniform(1e-2, 1e6), r.logUniform(1e-2, 1e6)}; }, true, false, kAll,
+        opt, sink);
+    offGrid<InverseGammaDistribution>(
+        "inverse_gamma", [](double a, double b) { return InverseGammaDistribution(a, b); },
+        [](R& r) { return P{r.logUniform(1e-2, 1e4), r.logUniform(1e-3, 1e3)}; }, true, false, kAll,
+        opt, sink);
+    offGrid<HalfNormalDistribution>(
+        "half_normal", [](double a, double) { return HalfNormalDistribution(a); },
+        [](R& r) { return P{r.logUniform(1e-100, 1e100), 0.0}; }, false, false, kAll, opt, sink);
+    offGrid<BernoulliDistribution>(
+        "bernoulli", [](double a, double) { return BernoulliDistribution(a); },
+        [&](R& r) { return P{probability(r, 1e-9), 0.0}; }, false, true, kAll, opt, sink);
+
+    // TruncatedNormal: four parameters, so the window goes in a sidecar line. One instance in
+    // four is half-infinite on a random side.
+    {
+        OffGridRng rng(opt.seed * 1000003ULL + 1000);
+        const double inf = std::numeric_limits<double>::infinity();
+        for (int i = 0; i < opt.instances; ++i) {
+            const double mean = rng.uniform(-5.0, 5.0);
+            const double sd = rng.logUniform(0.1, 10.0);
+            double lo = mean + sd * rng.uniform(-6.0, 4.0);
+            double hi = lo + sd * rng.logUniform(1e-3, 8.0);
+            if (rng.coin(0.25)) {
+                if (rng.coin())
+                    lo = -inf;
+                else
+                    hi = inf;
+            }
+            std::optional<TruncatedNormalDistribution> dist;
+            try {
+                dist.emplace(mean, sd, lo, hi);
+            } catch (...) {
+                sink.addSkip("truncated_normal");
+                continue;
+            }
+            sidecarLines().push_back("# tn_window " + fmtBits(mean) + " " + fmtBits(sd) + " " +
+                                     fmtBits(lo) + " " + fmtBits(hi));
+            emitOffGridInstance(*dist, "truncated_normal", mean, sd, /*hasP2=*/true,
+                                /*discrete=*/false, kAll, rng, sink);
+        }
+    }
+}
+
 std::string getGitCommitShort() {
 #if defined(_WIN32)
     FILE* pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
@@ -1207,14 +1613,45 @@ std::string getDateStamp() {
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::cerr << "Usage: accuracy_sweep <output.csv>\n";
+    const char* usage =
+        "Usage: accuracy_sweep <output.csv> [--grid-from <previous.csv>]\n"
+        "                                   [--offgrid [--seed N] [--instances N]]\n";
+    if (argc < 2) {
+        std::cerr << usage;
         return 1;
     }
     const std::string outPath = argv[1];
+    bool offgrid = false;
+    std::string gridFrom;
+    OffGridOptions offgridOptions;
+    for (int i = 2; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "--offgrid") {
+            offgrid = true;
+        } else if (arg == "--grid-from" && i + 1 < argc) {
+            gridFrom = argv[++i];
+        } else if (arg == "--seed" && i + 1 < argc) {
+            offgridOptions.seed = std::strtoull(argv[++i], nullptr, 10);
+        } else if (arg == "--instances" && i + 1 < argc) {
+            offgridOptions.instances = std::atoi(argv[++i]);
+        } else {
+            std::cerr << usage;
+            return 1;
+        }
+    }
+
+    if (!gridFrom.empty() && (offgrid || !replayGrid().load(gridFrom))) {
+        std::cerr << (offgrid ? "--grid-from replays a fixed-grid sweep; not with --offgrid\n"
+                              : "Failed to read --grid-from file\n");
+        return 1;
+    }
 
     Sink sink;
-    sweepAll(sink);
+    if (offgrid) {
+        sweepOffGrid(offgridOptions, sink);
+    } else {
+        sweepAll(sink);
+    }
 
     std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
     if (!out) {
@@ -1225,7 +1662,18 @@ int main(int argc, char** argv) {
     out << "# libstats accuracy_sweep v1\n";
     out << "# commit=" << getGitCommitShort()
         << "  isa=" << stats::arch::simd::SIMDPolicy::getLevelString()
-        << "  date=" << getDateStamp() << "\n";
+        << "  date=" << getDateStamp();
+    if (offgrid) {
+        out << "  mode=offgrid  seed=" << offgridOptions.seed
+            << "  instances=" << offgridOptions.instances;
+    }
+    if (!gridFrom.empty()) {
+        out << "  grid=replayed";
+    }
+    out << "\n";
+    for (const auto& line : sidecarLines()) {
+        out << line << "\n";
+    }
     out << "dist,method,p1_bits,p2_bits,x_bits,scalar_bits,batch_bits\n";
     for (const auto& row : sink.rows()) {
         out << row.toCsvLine() << "\n";
@@ -1240,6 +1688,10 @@ int main(int argc, char** argv) {
     }
     out.close();
 
+    if (replayGrid().active() && replayGrid().unmatched() > 0) {
+        std::cout << "accuracy_sweep: " << replayGrid().unmatched()
+                  << " instance/method runs had no rows in the --grid-from file\n";
+    }
     std::size_t total = sink.rows().size() + sink.survivalRows().size();
     std::cout << "accuracy_sweep: wrote " << total << " rows to " << outPath << "\n";
     std::cout << "Per-distribution row counts:\n";

@@ -93,6 +93,11 @@ not a contract violation, since the cdf contract has no such rule.
 Usage:
     <python-with-mpmath> tools/accuracy_vs_mpmath.py <sweep.csv> [--out PATH]
 
+Per-row gate (#258), see "Per-row results" below in this file:
+    ... <sweep.csv> --no-doc --refs-out refs.txt --rows-out rows_prev.csv   # the previous sweep
+    ... <new.csv> --no-doc --refs refs.txt --baseline rows_prev.csv         # exit 2 on a regression
+    ... <sweep.csv> --allow-out allow.csv                                   # committable allowlist
+
 Writes the stdout summary table, then rewrites the generated block of
 docs/ACCURACY_CHARACTERIZATION.md (between the `<!-- BEGIN GENERATED -->`
 and `<!-- END GENERATED -->` markers) with per-distribution tables built
@@ -2604,6 +2609,23 @@ def run_self_checks() -> list:
 
     tol = mp.mpf("1e-30")
 
+    # #258 gate rule. Within budget always passes; over budget fails unless the baseline row
+    # was already that bad; a baseline row does not excuse getting worse beyond noise.
+    check("gate: within budget passes", not row_fails(3.9, 0.0, 4.0))
+    check("gate: over budget with no baseline fails", row_fails(4.1, 0.0, 4.0))
+    check("gate: known-large row at its baseline passes", not row_fails(1500.0, 1500.0, 4.0))
+    check("gate: known-large row within noise passes", not row_fails(2900.0, 1500.0, 4.0))
+    check("gate: known-large row worse beyond noise fails", row_fails(3100.0, 1500.0, 4.0))
+    _k = ("d", "cdf", 1, 2, 3)
+    _f, _over, _imp = gate_rows([(_k, 9.0, 1.0)], {_k: (2.0, 1.0)}, 4.0)
+    check("gate: one scalar regression is one failure", len(_f) == 1 and _f[0][3] == "scalar")
+    _f, _over, _imp = gate_rows([(_k, 1.0, None)], {_k: (50.0, None)}, 4.0)
+    check("gate: an improvement is counted, not failed", not _f and _imp == 1)
+    _b = Baseline({_k: (100.0, None)})
+    check("baseline: exact key found", _b.get(_k) == (100.0, None))
+    check("baseline: a neighbouring x is a different row",
+          _b.get(("d", "cdf", 1, 2, 4)) == (0.0, None) and _b.missing == 1)
+
     # --- incomplete-beta continued fraction (large-parameter path) ---
     # The CF replaces mp.betainc wherever min(a,b) >= BETAINC_CF_MIN_SHAPE
     # (see _betainc_reg); anchor it against mp.betainc where mpmath is
@@ -3378,6 +3400,16 @@ def parse_csv(path: str) -> "tuple[list[Row], dict]":
             if not line:
                 continue
             if line.startswith("#"):
+                if line.startswith("# tn_window "):
+                    # Off-grid sweep (#213): a random truncated_normal instance carries its
+                    # window here, since the fixed _TN_WINDOWS table cannot know it.
+                    mean, sd, lo, hi = (parse_bits_field(t) for t in line.split()[2:6])
+                    known = _TN_WINDOWS.get((mean, sd))
+                    if known is not None and known != (lo, hi):
+                        raise ValueError(f"{path}:{lineno}: tn_window for ({mean!r}, {sd!r}) "
+                                         f"contradicts the window already known: {known}")
+                    _TN_WINDOWS[(mean, sd)] = (lo, hi)
+                    continue
                 if "commit=" in line and "isa=" in line:
                     meta["banner"] = line.lstrip("#").strip()
                     m = re.search(r"isa=(\S+)", meta["banner"])
@@ -3539,6 +3571,185 @@ def _overflow_correct(ref, got: float) -> bool:
     return abs(ref) >= _DBL_ROUNDS_TO_INF and math.isinf(got) and (got > 0) == (ref > 0)
 
 
+# ---------------------------------------------------------------------------
+# Per-row results, reference cache, budgets and the row diff (#258)
+#
+# The group tables keep one worst case per (dist, method), so a row that gets
+# worse inside a group already dominated by a known-large row is invisible in
+# them. Every scored row is therefore also kept on its own, with one number:
+#
+#   score = law_frac            for cdf/survival rows in the deep tail
+#                               (reference below 1e-3), i.e. the error as a
+#                               fraction of the achievable |ln F| 2^-52 law;
+#         = relerr / 2^-52      otherwise, i.e. the relative error in eps
+#                               (subnormal references on relerr's ULP scale).
+#
+# A row is over budget when its score exceeds --budget. It fails the run when
+# it is over budget AND worse than the same row in the --baseline file beyond
+# noise (more than twice the baseline score plus 2). A row the baseline does
+# not list has baseline score 0, so it fails as soon as it is over budget. The
+# baseline is a file written by --rows-out (every row) or --allow-out (only the
+# over-budget rows, small enough to commit): the allowlist of known rows and
+# the previous sweep are the same mechanism.
+# ---------------------------------------------------------------------------
+
+ROW_TIMEOUT_S = 0  # --row-timeout; 0 = none
+TOLERATE_ORACLE_GAPS = False  # set for a sweep whose banner says mode=offgrid
+
+
+class _RowTimeout(Exception):
+    pass
+
+
+def _call_with_timeout(fn, p1, p2, x):
+    """fn(p1, p2, x), abandoned after ROW_TIMEOUT_S seconds (#213: at random parameters a few
+    references take minutes in mpmath). SIGALRM only, so no limit where it does not exist."""
+    import signal
+    if ROW_TIMEOUT_S <= 0 or not hasattr(signal, "SIGALRM"):
+        return fn(p1, p2, x)
+
+    def _raise(signum, frame):
+        raise _RowTimeout()
+
+    previous = signal.signal(signal.SIGALRM, _raise)
+    signal.alarm(int(ROW_TIMEOUT_S))
+    try:
+        return fn(p1, p2, x)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+ROW_RESULTS: list = []   # (key, scalar_score, batch_score or None), filled by compare()
+REF_CACHE: dict = {}     # key -> mpf, loaded by --refs
+REF_COMPUTED: dict = {}  # key -> mpf, every reference this run evaluated or reused
+
+_NOISE_FACTOR = 2.0
+_NOISE_ADD = 2.0
+
+
+def row_key(row) -> tuple:
+    return (row.dist, row.method, f64_to_bits(row.p1), f64_to_bits(row.p2), f64_to_bits(row.x))
+
+
+def row_score(got: "mp.mpf", ref: "mp.mpf", is_cdf_tail: bool) -> float:
+    return float(law_frac(got, ref) if is_cdf_tail else relerr(got, ref) / TWO_POW_NEG52)
+
+
+def _key_fields(key: tuple) -> str:
+    return f"{key[0]},{key[1]},0x{key[2]:016x},0x{key[3]:016x},0x{key[4]:016x}"
+
+
+def _parse_key(parts: list) -> tuple:
+    return (parts[0], parts[1], int(parts[2], 16), int(parts[3], 16), int(parts[4], 16))
+
+
+def write_refs(path: str) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("# accuracy_vs_mpmath references v1: dist,method,p1_bits,p2_bits,x_bits,ref\n")
+        for key, ref in REF_COMPUTED.items():
+            f.write(f"{_key_fields(key)},{mp.nstr(ref, 45)}\n")
+
+
+def load_refs(path: str) -> int:
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("#") or not line.strip():
+                continue
+            parts = line.strip().split(",")
+            REF_CACHE[_parse_key(parts)] = mp.mpf(parts[5])
+    return len(REF_CACHE)
+
+
+def write_rows(path: str, budget: "float | None" = None) -> int:
+    """Every scored row, or with a budget only the rows over it (the allowlist)."""
+    written = 0
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("# accuracy_vs_mpmath rows v1: dist,method,p1_bits,p2_bits,x_bits,"
+                "scalar_score,batch_score\n")
+        for key, sc, bt in ROW_RESULTS:
+            if budget is not None and max(sc, bt if bt is not None else 0.0) <= budget:
+                continue
+            f.write(f"{_key_fields(key)},{sc:.6g},{'-' if bt is None else format(bt, '.6g')}\n")
+            written += 1
+    return written
+
+
+def load_rows(path: str) -> dict:
+    out: dict = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("#") or not line.strip():
+                continue
+            parts = line.strip().split(",")
+            out[_parse_key(parts)] = (float(parts[5]), None if parts[6] == "-" else float(parts[6]))
+    return out
+
+
+def row_fails(score: float, base: float, budget: float) -> bool:
+    return score > budget and score > _NOISE_FACTOR * base + _NOISE_ADD
+
+
+class Baseline:
+    """Scores of a previous sweep, looked up by exact row key.
+
+    Exact only, by design. The sweep builds its x grid from the library's own quantile, so two
+    builds whose quantiles differ sweep neighbouring doubles (3,888 of 26,882 rows between
+    v2.5.0 and the corvus adoption), and a nearest-x match is not like for like: Gamma(9999, 1)
+    pdf reads 164 eps at one x and 834 at the next double with identical code. Matching
+    neighbours reported 411 regressions that were the grid. Produce the new sweep with
+    `accuracy_sweep --grid-from <previous.csv>`, which evaluates the same inputs."""
+
+    def __init__(self, rows: dict):
+        self.rows = rows
+        self.exact = self.missing = 0
+
+    def __bool__(self) -> bool:
+        return bool(self.rows)
+
+    def get(self, key: tuple) -> tuple:
+        hit = self.rows.get(key)
+        if hit is not None:
+            self.exact += 1
+            return hit
+        self.missing += 1
+        return (0.0, None)
+
+
+def gate_rows(results: list, baseline, budget: float) -> "tuple[list, int, int]":
+    """-> (failures, n_over_budget, n_improved). A failure is (score, base, key, src)."""
+    if not isinstance(baseline, Baseline):
+        baseline = Baseline(baseline)
+    failures = []
+    over = improved = 0
+    for key, sc, bt in results:
+        base_sc, base_bt = baseline.get(key)
+        for src, score, base in (("scalar", sc, base_sc), ("batch", bt, base_bt)):
+            if score is None:
+                continue
+            base = 0.0 if base is None else base
+            if score > budget:
+                over += 1
+            if row_fails(score, base, budget):
+                failures.append((score, base, key, src))
+            elif base > budget and score * _NOISE_FACTOR + _NOISE_ADD < base:
+                improved += 1
+    failures.sort(key=lambda t: -t[0])
+    return failures, over, improved
+
+
+def print_gate(failures: list, over: int, improved: int, budget: float, have_baseline: bool) -> None:
+    print(f"\nPer-row gate: budget {budget:g} (eps, or fractions of the tail law); "
+          f"{len(ROW_RESULTS)} rows scored, {over} values over budget, "
+          f"{improved} better than the baseline beyond noise, {len(failures)} FAILING"
+          + ("" if have_baseline else " (no baseline: every over-budget value fails)"))
+    for score, base, key, src in failures[:40]:
+        print(f"  FAIL {key[0]}/{key[1]} {src}: score {score:.4g} (baseline {base:.4g})  "
+              f"p1={bits_to_f64(key[2])!r} p2={bits_to_f64(key[3])!r} x={bits_to_f64(key[4])!r}")
+    if len(failures) > 40:
+        print(f"  ... and {len(failures) - 40} more")
+
+
 def compare(rows: list) -> "tuple[dict, list]":
     groups: dict = {}
     skipped = []
@@ -3605,7 +3816,29 @@ def compare(rows: list) -> "tuple[dict, list]":
         else:
             try:
                 _t0 = time.perf_counter()
-                ref = fn(row.p1, row.p2, row.x)
+                _key = row_key(row)
+                ref = REF_CACHE.get(_key)
+                if ref is None:
+                    try:
+                        ref = _call_with_timeout(fn, row.p1, row.p2, row.x)
+                    except _RowTimeout:
+                        skipped.append((row.lineno,
+                                        f"oracle exceeded --row-timeout on {row.dist}/{row.method} "
+                                        f"p1={row.p1!r} p2={row.p2!r} x={row.x!r}"))
+                        continue
+                    except Exception as exc:  # noqa: BLE001
+                        # The fixed grid is one the oracle is known to cover, so a reference it
+                        # cannot produce there stops the run. An off-grid sweep draws its
+                        # instances at random and some land outside what the oracle can do at
+                        # dps 50; those rows are listed, not fatal (#213).
+                        if not TOLERATE_ORACLE_GAPS:
+                            raise
+                        skipped.append((row.lineno,
+                                        f"oracle gap on {row.dist}/{row.method} p1={row.p1!r} "
+                                        f"p2={row.p2!r} x={row.x!r}: {type(exc).__name__}: "
+                                        f"{str(exc)[:80]}"))
+                        continue
+                REF_COMPUTED[_key] = ref
                 _dt = time.perf_counter() - _t0
                 if _dt > 1.0:
                     print(f"  [slow-row] line {row.lineno} {row.dist}/{row.method} "
@@ -3687,6 +3920,10 @@ def compare(rows: list) -> "tuple[dict, list]":
             )
             continue
         g.scalar.observe(mp.mpf(row.scalar), ref, row.x, is_cdf_tail)
+        _batch_score = (row_score(mp.mpf(row.batch), ref, is_cdf_tail)
+                        if row.batch is not None and math.isfinite(row.batch) else None)
+        ROW_RESULTS.append((row_key(row), row_score(mp.mpf(row.scalar), ref, is_cdf_tail),
+                            _batch_score))
 
         if row.batch is not None and not math.isfinite(row.batch):
             g.violations.append(
@@ -3884,7 +4121,37 @@ def main(argv=None) -> int:
         default=None,
         help="ISA label for the generated block (default: the sweep banner's isa= value)",
     )
+    parser.add_argument("--no-doc", action="store_true",
+                        help="score and report only; do not rewrite the characterization doc")
+    parser.add_argument("--refs", default=None,
+                        help="reference file from an earlier --refs-out: rows it lists are not "
+                             "re-evaluated in mpmath (a second sweep on the same grid scores in "
+                             "seconds)")
+    parser.add_argument("--refs-out", default=None,
+                        help="write every reference this run used, for --refs")
+    parser.add_argument("--rows-out", default=None,
+                        help="write one line per scored row (its score for scalar and batch)")
+    parser.add_argument("--allow-out", default=None,
+                        help="write only the rows over --budget: the committable allowlist")
+    parser.add_argument("--baseline", default=None,
+                        help="a --rows-out or --allow-out file from the previous sweep; with it "
+                             "the run fails (exit 2) on any row over --budget that is worse than "
+                             "its baseline beyond noise")
+    parser.add_argument("--budget", type=float, default=None,
+                        help="per-row budget in eps (deep-tail cdf/survival rows: in fractions "
+                             "of the |ln F| 2^-52 law). Given alone it fails every row over it; "
+                             "default 4 when --baseline or --allow-out is given")
+    parser.add_argument("--row-timeout", type=int, default=0,
+                        help="seconds allowed per reference; a row over it is listed as skipped "
+                             "(off-grid sweeps, where a few random instances take minutes)")
     args = parser.parse_args(argv)
+    global ROW_TIMEOUT_S
+    ROW_TIMEOUT_S = args.row_timeout
+    budget = args.budget
+    if budget is None and (args.baseline or args.allow_out):
+        budget = 4.0
+    if args.refs:
+        print(f"Loaded {load_refs(args.refs)} references from {args.refs}")
 
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     doc_path = args.out or os.path.join(repo_root, "docs", "ACCURACY_CHARACTERIZATION.md")
@@ -3902,11 +4169,36 @@ def main(argv=None) -> int:
         print(f"Input banner: {meta['banner']}")
     print(f"Parsed {len(rows)} rows from {args.csv}\n")
 
+    global TOLERATE_ORACLE_GAPS
+    TOLERATE_ORACLE_GAPS = "mode=offgrid" in meta.get("banner", "")
     groups, skipped = compare(rows)
     violations_total = sum(len(g.violations) for g in groups.values())
 
     print_stdout_summary(groups, skipped, violations_total)
     print_fallbacks()
+
+    if args.refs_out:
+        write_refs(args.refs_out)
+        print(f"\nWrote {len(REF_COMPUTED)} references to {args.refs_out}")
+    if args.rows_out:
+        print(f"Wrote {write_rows(args.rows_out)} rows to {args.rows_out}")
+    if args.allow_out:
+        print(f"Wrote {write_rows(args.allow_out, budget)} over-budget rows to {args.allow_out}")
+    gate_failed = False
+    if budget is not None:
+        baseline = Baseline(load_rows(args.baseline) if args.baseline else {})
+        failures, over, improved = gate_rows(ROW_RESULTS, baseline, budget)
+        print_gate(failures, over, improved, budget, bool(args.baseline))
+        if args.baseline:
+            print(f"  baseline rows matched {baseline.exact}, not in the baseline "
+                  f"{baseline.missing}")
+            if baseline.missing:
+                print("  Rows missing from the baseline count as new and fail when over budget. "
+                      "If the two sweeps are of different builds, make the new one with "
+                      "`accuracy_sweep --grid-from <previous.csv>` so both use the same inputs.")
+        gate_failed = bool(failures)
+    if args.no_doc:
+        return 2 if gate_failed else 0
 
     isa = args.isa or meta.get("isa")
     if not isa:
@@ -3918,13 +4210,13 @@ def main(argv=None) -> int:
     if missing and not args.out:
         print(f"\nPartial sweep (missing {', '.join(missing)}): {doc_path} not updated. "
               "Pass --out to write the partial block elsewhere.")
-        return 0
+        return 2 if gate_failed else 0
     banner = meta.get("banner", "(no banner)")
     body = f"## Generated tables: {isa}\n\nSweep banner: `{banner}`\n\n" + render_markdown(groups)
     outcome = rewrite_doc(doc_path, body, isa)
     print(f"\n{outcome.capitalize()} generated block isa={isa} in {doc_path}")
 
-    return 0
+    return 2 if gate_failed else 0
 
 
 if __name__ == "__main__":
