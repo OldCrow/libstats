@@ -544,6 +544,49 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
   #213 and #258 first (they should precede the other machines'
   regeneration), then #179, #287, #290; #156's gates and the #107/#108
   and #221 decisions are the user's; the kAvx capture comes last.
+- **Session of 2026-11-20 [DERIVED, Ivy Bridge]: the two verification tools
+  (#258, #213).** Commits `d6e5517` (tools) and `72db578` (oracle fixes).
+  CI dispatched on `72db578` at session end, **not read**.
+  - **#258, per-row gate** (`tools/accuracy_vs_mpmath.py`): every scored
+    row keeps a score; `--refs`/`--refs-out` cache references (a second
+    sweep scores in about a minute, not 25); `--baseline` with `--budget`
+    exits 2 on a row worse than its baseline beyond noise; `--rows-out`
+    and `--allow-out` write the files. The cache is versioned
+    (`ORACLE_REFS_VERSION`) and remembers rows the oracle gave up on.
+  - **Replay grid** (`accuracy_sweep --grid-from <previous.csv>`): needed
+    because the x grid comes from the library's own quantile, so two
+    builds sweep neighbouring doubles (3,888 of 26,882 rows between v2.5.0
+    and here) and density error at large shape swings with the low bits of
+    x. A nearest-x match reported 411 regressions that were the grid.
+  - **dev against v2.5.0 on v2.5.0's grid:** 26,301 rows matched, 1,111
+    values better beyond noise, 98 worse. The 98 are densities below shape
+    20: `stirling_error` forms δ(m) by subtraction, and the change of
+    `lgamma` reshuffled which arguments round badly (corvus `lgamma` is the
+    more accurate: 0.49 ulp worst against glibc's 1.33). 235 scalar density
+    rows better, 44 worse, same typical size. Recorded on #314 with the fix
+    direction; not a regression in quality.
+  - **#213, off-grid sweep** (`accuracy_sweep --offgrid [--seed N]
+    [--instances N]`): rebuilt from the `numerical-defect-hunt` skill
+    (dotfiles), since the hunt's prototypes were not kept anywhere. All six
+    scope points of the issue are covered. First pass on dev, seed 213,
+    five instances: 10,633 rows, 10,440 scored, 141 skipped, 2 contract
+    violations.
+  - **Found by it, filed in the patch milestone:** #316 (Cauchy quantile
+    −inf where a finite double exists) and #317 (Fisher-F pdf/logpdf at
+    subnormal x; probably the hunt's "Fisher-F subnormal case"). Neither
+    has a fix started.
+  - **Oracle faults it exposed, fixed:** the Beta survival reference below
+    the working precision (returned 1 for 0.4348), and quantile rows at a
+    subnormal p (now the smaller of the distance in x and in CDF space).
+  - **Open:** #213's acceptance (the hunt's five findings reproduced on a
+    pre-fix build) and runbook step R2b; a committed allowlist for the
+    gate, with dev's own rows as the baseline from here; 120
+    NegativeBinomial survival rows the oracle cannot reference within 20 s;
+    three density groups over 1,000 ε not examined (Erlang,
+    TruncatedNormal, Gumbel pdf). Working files are in the gitignored
+    `build-ivb-adopt/rows258/` (sweeps, reference caches, per-row scores).
+  - **Then, as before:** #179, #287, #290; #156's gates and the #107/#108
+    and #221 decisions are the user's; the kAvx capture comes last.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
