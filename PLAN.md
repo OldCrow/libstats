@@ -628,6 +628,53 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
     `…/scratchpad/prefix` (pre-fix build, registered with git; remove with
     `git worktree remove --force`). Working files in
     `build-ivb-adopt/rows258/`.
+  - **Later the same day, with the user: #179, #290's remainder, and the
+    backend decision** (`4e3abe9`, `aadc46b`, `af2e548`). CI dispatched on
+    `af2e548`; **no run on these three had reported when this was written**,
+    and Windows and macOS are checked by CI only.
+    - **#179 fixed** (`4e3abe9`). Reproduced first: on GCC 13.3 and Clang 18
+      the header chose pthreads unless `<version>` or `<execution>` came
+      first, then `std::execution`. Now `parallel_execution.h` includes
+      `<version>` and reads the generated `libstats_config.h`, back with
+      one fact, `LIBSTATS_HAS_TBB`. On libstdc++ the policies are taken
+      only when the build links TBB and the file sees TBB's headers.
+    - **Found on the way:** the pthreads backend was never called
+      (`safe_for_each` and `safe_transform` went `std::execution`, GCD,
+      else serial), so "pthreads" meant serial. Those two are wired; the
+      pthreads implementations now join every thread before rethrowing.
+    - **Guard:** `test_parallel_backend_selection`, probe sources that
+      differ only in what precedes the header or in a flag. Red on the
+      unfixed header (backends 1 and 5 in one program; one thread).
+    - **#290's remainder done** (`aadc46b`): `-ltbb` moves to the `.pc`
+      file's public `Libs` (the old file fails a consumer that calls a
+      wrapper: "DSO missing from command line"); `consumer_example` calls
+      `safe_transform`; CI's GCC leg installs `libtbb-dev` and its
+      pkg-config step compiles, links and runs the consumer. Checked here
+      against Highway and corvus installed to a prefix, with TBB and with
+      `LIBSTATS_HAS_TBB=OFF`: both consumers build and run.
+      **Not covered:** `consumer_example_fetchcontent` (fetches `main`),
+      and after the CI change no leg runs the install steps without TBB.
+    - **Also in `aadc46b`:** `libstats_algorithm_common.h` deleted (nothing
+      included it; a public header, so v3.0.0 is the release for it), and
+      the wrappers' no-throw rule documented in the header and AGENTS.md.
+    - **`_OPENMP` out of the selection** (`af2e548`): a per-file compiler
+      flag, so a consumer file built with `-fopenmp` on a build without TBB
+      took OpenMP bodies against the library's pthreads. Guard case added,
+      red on the previous header with no TBB backend. CI's Clang leg (no
+      TBB) is where it can fail. `find_dependency(OpenMP)` removed.
+    - **Backend decision [user, 2026-11-21], recorded on #319:** macOS
+      GCD; Windows `std::execution` (MSVC's library builds it on the
+      Windows thread pool); Linux with TBB `std::execution`; Linux without
+      TBB the library's own pool, replacing the per-call pthreads code;
+      OpenMP not selected. Deleting the Windows Thread Pool and OpenMP
+      code and moving Linux onto the pool is #319 (patch milestone), not
+      v3.0.0.
+    - **Owed when CI is green:** status comments and `fixed-on-branch` on
+      #179 and #290.
+    - **Left for v3.0.0 on this machine:** #287, then the kAvx capture;
+      #156's gates and the #107/#108 and #221 decisions are the user's.
+    - **Scratch, safe to delete:** `…/scratchpad/p179` and
+      `…/scratchpad/p290` (two install prefixes).
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
