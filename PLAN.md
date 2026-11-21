@@ -70,7 +70,15 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   `build-ivb-adopt/quiet-<UTC>_sha-<sha>/`. Then L5 for kAvx.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
-- **K — Kaby Lake, AVX2, macOS, AppleClang**: not started.
+- **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
+  the commit that carries this line: Release build warning-free, AVX2
+  with FMA, 135/135, backend GCD. L1 found one defect at `cfbb992`:
+  Poisson's WORK_STEALING batch CDF called `pool.waitForAll()` (#180's
+  fix undone by the port, `30479d9`), which
+  `ConcurrencyStress_Poisson.WorkStealingCrossWaiting` fails 10 of 10
+  here and skips on every other machine and CI leg. Fixed on this branch;
+  **no result changes, so no leg re-runs L2**. The same commit pair
+  removes an AppleClang warning in `tools/accuracy_sweep.cpp`. L2 next.
 
 ### What every leg produces
 
