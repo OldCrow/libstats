@@ -9,6 +9,8 @@
 
 #include <cmath>
 #include <iostream>
+#include <numeric>
+#include <vector>
 
 int main() {
     // Create a standard normal distribution using the safe factory API
@@ -40,6 +42,19 @@ int main() {
                   << "\n";
         return 1;
     }
+
+    // Call one of the parallel wrappers from this translation unit. They are inline templates,
+    // so on a libstats built with TBB this is where the consumer itself needs libtbb at link
+    // time: the installed package must carry that dependency (#290).
+    std::vector<double> squares(100000);
+    std::iota(squares.begin(), squares.end(), 0.0);
+    stats::arch::safe_transform(squares.begin(), squares.end(), squares.begin(),
+                                [](double v) { return v * v; });
+    if (squares[3] != 9.0 || squares.back() != 99999.0 * 99999.0) {
+        std::cerr << "Verification failed: safe_transform returned wrong values\n";
+        return 1;
+    }
+    std::cout << "Parallel wrappers: " << stats::arch::execution_support_string() << "\n";
 
     std::cout << "\nVerification passed.\n";
     return 0;

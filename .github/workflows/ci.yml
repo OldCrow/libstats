@@ -76,7 +76,11 @@ jobs:
       run: |
         sudo apt-get update
         if [[ "$CC_PKG" == gcc* ]]; then
-          sudo apt-get install -y "$CC_PKG" "$CXX_PKG"
+          # libtbb-dev on the GCC leg only (#290, #179): with TBB's headers present libstdc++'s
+          # parallel algorithms take its TBB backend, parallel_execution.h selects
+          # std::execution, and the install-contract steps below must carry libtbb to the
+          # consumer. The Clang leg stays without TBB and covers the pthreads backend.
+          sudo apt-get install -y "$CC_PKG" "$CXX_PKG" libtbb-dev
         elif [[ "$CC_PKG" == clang* ]]; then
           sudo apt-get install -y "$CC_PKG"
         fi
@@ -281,6 +285,12 @@ jobs:
         export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/_install/lib/pkgconfig"
         pkg-config --exists --print-errors libstats
         pkg-config --cflags --libs libstats
+        # Compile and link the consumer through pkg-config alone, against the shared library:
+        # its own call to a parallel wrapper needs libtbb, which must come from the .pc file's
+        # public Libs (#290), and libstats_config.h must be found from -I<prefix>/include (#179).
+        # shellcheck disable=SC2046
+        "$CXX" -O1 consumer_example/main.cpp $(pkg-config --cflags --libs libstats) -o /tmp/pc_consumer
+        LD_LIBRARY_PATH="$GITHUB_WORKSPACE/_install/lib" /tmp/pc_consumer
 
   # ---------------------------------------------------------------------------
   # ASan+UBSan together in one Linux job (corvus/ewcalc pattern) rather than

@@ -925,13 +925,22 @@ file(
     "${CMAKE_INSTALL_PREFIX}"
 )
 string(REGEX REPLACE "/$" "" LIBSTATS_PC_PREFIX_REL "${LIBSTATS_PC_PREFIX_REL}")
+# TBB goes in the .pc file's public Libs, not Libs.private (#290). The safe_* wrappers in
+# libstats/platform/parallel_execution.h are inline templates, and on a build that links TBB they
+# call libstdc++'s TBB-backed parallel algorithms from the CONSUMER's translation units, so the
+# consumer needs libtbb even when it links libstats as a shared library. This mirrors the PUBLIC
+# TBB::tbb link on the CMake targets.
+set(LIBSTATS_PC_LIBS_PUBLIC "")
+macro(libstats_pc_tbb_libs)
+    if(LIBSTATS_HAS_TBB)
+        set(LIBSTATS_PC_LIBS_PUBLIC " -ltbb")
+    endif()
+endmacro()
 if(NOT LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
     # No install without a system corvus (see above); no .pc either.
 elseif(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
     set(LIBSTATS_PC_LIBS_PRIVATE "-pthread -lcorvus -lhwy")
-    if(LIBSTATS_HAS_TBB)
-        string(APPEND LIBSTATS_PC_LIBS_PRIVATE " -ltbb")
-    endif()
+    libstats_pc_tbb_libs()
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
         "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"
@@ -947,9 +956,7 @@ elseif(UNIX AND NOT APPLE) # pkg-config is primarily used on Linux
 elseif(APPLE)
     # On macOS with Homebrew, also generate pkg-config
     set(LIBSTATS_PC_LIBS_PRIVATE "-lcorvus -lhwy")
-    if(LIBSTATS_HAS_TBB)
-        string(APPEND LIBSTATS_PC_LIBS_PRIVATE " -ltbb")
-    endif()
+    libstats_pc_tbb_libs()
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats.pc.in"
         "${CMAKE_CURRENT_BINARY_DIR}/libstats.pc"

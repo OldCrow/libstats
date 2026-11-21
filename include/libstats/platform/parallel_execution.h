@@ -1036,6 +1036,13 @@ T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
  *
  * These provide a consistent API that automatically uses parallel execution
  * when available and falls back to serial execution otherwise.
+ *
+ * @warning The callable passed to a wrapper must not throw. What an exception does depends on
+ * the backend and on the range's size: under std::execution policies it calls std::terminate
+ * (the standard's rule for parallel algorithms); under GCD it leaves a dispatch_apply block,
+ * which also ends the program; under pthreads, and on every serial path (a range below the
+ * parallel threshold, or no backend), it reaches the caller. A callable that can fail should
+ * record the failure and return.
  */
 
 /// Safe parallel fill operation with Level 0-2 integration

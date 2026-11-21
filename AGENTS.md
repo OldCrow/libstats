@@ -216,6 +216,10 @@ produces silently wrong results or a deadlock, not a build error.
   `WorkStealingPool::parallelFor` deliberately swallows, because its completion
   latch must be decremented on every path or the caller deadlocks. So
   `Strategy::WORK_STEALING` loses what `Strategy::PARALLEL` reports.
+  The `safe_*` wrappers in `parallel_execution.h` are a third case: a callable
+  passed to one must not throw. Under `std::execution` and GCD an exception
+  ends the program; under pthreads, and for a range below the parallel
+  threshold, it reaches the caller (#179).
 - **One parameter state per batch holds for every strategy but SCALAR.**
   The VECTORIZED, PARALLEL and WORK_STEALING lambdas take one snapshot;
   `executeStrategy`'s SCALAR case calls the locking scalar method per

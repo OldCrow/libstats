@@ -11,6 +11,6 @@ Version: @PROJECT_VERSION@
 URL: https://github.com/OldCrow/libstats
 
 Requires:
-Libs: -L${libdir} -lstats
+Libs: -L${libdir} -lstats@LIBSTATS_PC_LIBS_PUBLIC@
 Libs.private: @LIBSTATS_PC_LIBS_PRIVATE@
 Cflags: -I${includedir} -std=c++20
