@@ -587,6 +587,47 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
     `build-ivb-adopt/rows258/` (sweeps, reference caches, per-row scores).
   - **Then, as before:** #179, #287, #290; #156's gates and the #107/#108
     and #221 decisions are the user's; the kAvx capture comes last.
+- **Session of 2026-11-21 [DERIVED, Ivy Bridge; user away for most of it]:
+  #213's acceptance, the allowlist, runbook step R2b.** CI on `e639c9a`
+  was green. **Everything below is in the working tree, uncommitted**
+  (commits need the user's key): `tools/accuracy_sweep.cpp`,
+  `tools/accuracy_vs_mpmath.py`, `docs/ACCURACY_CHARACTERIZATION.md`,
+  `data/accuracy/allow_AVX.csv`, and this file.
+  - **#213 acceptance met.** Today's sweep tool, built against `834b981`
+    (the commit before the 2026-10-08 fix round; survival rows stubbed out
+    in the scratch copy, since most classes had no `getSurvival` then),
+    reproduces all five of the hunt's findings, same seed, pre-fix against
+    dev: Geometric CDF 4.5e6 ε against 0.42; Beta quantile, 75 rows over
+    100 ε with worst inf against none; the Fisher-F subnormal case (CDF
+    4e10 against 59; pdf/logpdf still bad on dev, #317); #126 through the
+    NegativeBinomial (2.4e4), Binomial (1.6e3) and Fisher-F CDFs; and the
+    Rayleigh/HalfNormal range defect (Rayleigh CDF inf and pdf 1.8e29,
+    HalfNormal pdf 4.5e15, batch NaN; 102 contract violations) against
+    dev's 2, both filed (#316, #317).
+  - **Sweep changes for that:** deliberate instances beside the random
+    ones (Rayleigh and HalfNormal scales either side of where σ² leaves the
+    normal range: the first range, to 1e±100, never reached the defect),
+    and constructor refusals counted in `# rejected_instance` lines, apart
+    from quantile rows that threw. dev refuses the three scales outside
+    [1.49e-154, 1e10] and sweeps the two inside.
+  - **Allowlist:** `data/accuracy/allow_AVX.csv`, 3,039 over-budget rows
+    of dev's fixed-grid sweep (264 KB). The gate is shown both ways: dev
+    against its own allowlist exits 0 with none failing; the v2.5.0 sweep
+    against dev's rows on the same grid exits 2 with 1,111 failing.
+  - **Runbook:** step R2b added above (row gate, then off-grid sweep);
+    commands and how to read the output are in
+    `docs/ACCURACY_CHARACTERIZATION.md`.
+  - **Unexamined groups, now examined:** Erlang and Gumbel pdf over 1,000 ε
+    are the conditioning of x. **TruncatedNormal pdf is a candidate
+    finding, not filed:** for a window about 0.0013 σ wide at z ≈ −5.9
+    every row of the instance is off by the same 1,586–1,599 ε, and a
+    second narrow window by about 128 ε. A uniform relative error points
+    at the normalizing constant, a difference of two nearly equal CDF
+    values; not confirmed in the code.
+  - **Left over:** the scratch worktree
+    `…/scratchpad/prefix` (pre-fix build, registered with git; remove with
+    `git worktree remove --force`). Working files in
+    `build-ivb-adopt/rows258/`.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
@@ -1415,6 +1456,17 @@ Status by machine (each machine edits only its own line):
    same row in the AVX-512 block — is a stop-and-report.
 5. Commit (user's approval) as `docs(accuracy): regenerate <ISA> block
    at <sha> — 32 → N`, then push.
+
+### R2b — row gate and off-grid sweep (every machine, from v3.0.0)
+Added 2026-11-21 (#258, #213). After R2, on the same build:
+1. Row gate: score the R2 sweep with `--baseline data/accuracy/allow_<ISA>.csv`
+   (create that file with `--allow-out` if the ISA has none). Exit 2 means a
+   row got worse beyond noise: stop and report.
+2. Off-grid sweep: `accuracy_sweep offgrid.csv --offgrid`, then the oracle
+   with `--no-doc --row-timeout 20 --budget 4`. Contract violations and rows
+   far over budget are triaged as the doc describes; nothing is committed.
+Commands and how to read the output: `docs/ACCURACY_CHARACTERIZATION.md`,
+"Row gate" and "Off-grid sweep".
 
 ### R4 — Mac-only gates (done on K, 2026-10-03; M skips R4)
 - **#162** (`gh issue view 162`): the POST_BUILD ad-hoc `codesign`

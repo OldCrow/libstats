@@ -52,6 +52,69 @@ a new ISA appends a block after the last existing one, and `--isa` overrides
 the label. Do not hand-edit anything between a `BEGIN GENERATED` /
 `END GENERATED` pair — the next regeneration on that ISA overwrites it.
 
+### Row gate: this sweep against the previous one (#258)
+
+The tables keep one worst case per distribution and method, so a row that gets
+worse inside a group already dominated by a known large row does not show in
+them. The gate compares every row with the same row of an earlier sweep and
+exits 2 when one is over budget and worse than before beyond noise.
+
+```sh
+# Once per ISA, or after a deliberate change: write the allowlist.
+build-release/tools/accuracy_sweep sweep.csv
+<python-with-mpmath> tools/accuracy_vs_mpmath.py sweep.csv --no-doc \
+    --refs-out refs.txt --allow-out data/accuracy/allow_<ISA>.csv
+
+# Every later sweep on that ISA:
+<python-with-mpmath> tools/accuracy_vs_mpmath.py sweep.csv \
+    --refs refs.txt --baseline data/accuracy/allow_<ISA>.csv
+```
+
+- A row's score is its relative error in ε, or for deep-tail `cdf` and
+  `survival` rows its fraction of the `|ln F|·2^-52` law. The budget is 4. A row
+  fails when it is over budget and more than twice its baseline score plus 2.
+- `--allow-out` writes only the rows over budget, which is small enough to
+  commit; a row it does not list has baseline 0 and fails as soon as it is over
+  budget. `--rows-out` writes every row.
+- `--refs` reuses the references of an earlier run: a second sweep on the same
+  grid scores in about a minute instead of 25. The file is local, not committed,
+  and one written before a change to the oracle's reference functions is
+  refused.
+- **Two different builds must be swept on the same inputs.** The x grid is
+  built from the library's own quantile, so two builds whose quantiles differ in
+  the last bits sweep neighbouring doubles, and a density's error at large shape
+  swings with the low bits of x. Make the newer sweep with
+  `accuracy_sweep new.csv --grid-from old.csv`; the gate matches exact rows only.
+
+### Off-grid sweep, runbook step R2b (#213)
+
+The fixed grid has three parameter instances per distribution plus the switch
+bands. The off-grid sweep draws random instances over wide ranges, including
+shape ratios past 1e5, probabilities down to the smallest subnormal and x at
+`denorm_min` and `DBL_MIN`. It is deterministic for a seed on every platform.
+
+```sh
+build-release/tools/accuracy_sweep offgrid.csv --offgrid          # seed 213, 5 instances
+<python-with-mpmath> tools/accuracy_vs_mpmath.py offgrid.csv --no-doc \
+    --row-timeout 20 --budget 4 --refs-out offgrid_refs.txt --rows-out offgrid_rows.csv
+```
+
+About 10,600 rows; the oracle takes around an hour the first time, since some
+references at random parameters are slow, and minutes with `--refs` after
+that. It never rewrites this document. Read the result per row, not per group:
+
+- **Contract violations** are defects. Each needs a look.
+- **Skipped rows** are the oracle's limits, not the library's: a reference that
+  exceeded `--row-timeout` or that the oracle cannot form at 50 digits.
+- **Rows far over budget** are candidates. Check the reference independently at
+  higher precision before believing either side: the first run's two worst rows
+  were the oracle's own mistakes (a Beta survival reference, and the scoring of
+  quantiles at a subnormal p). Densities in the hundreds of ε at large shape or
+  in a steep tail are usually the conditioning of x, not a defect.
+
+Run it per machine with the release legs, and with another `--seed` when
+hunting.
+
 ## Reading the tables
 
 - `max_abs` / `max_rel` / `p99_rel`: worst absolute error, worst relative

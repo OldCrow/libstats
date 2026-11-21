@@ -1297,6 +1297,10 @@ void sweepAll(Sink& sink) {
 // - TruncatedNormal's window travels in `# tn_window` comment lines: the CSV
 //   has two parameter columns and the oracle's fixed table cannot know a
 //   random instance.
+// - Besides the random instances a distribution can carry deliberate ones. Rayleigh and
+//   HalfNormal get scales either side of where the square leaves the normal range (the
+//   hunt's range defect). An instance the constructor refuses is counted in a
+//   `# rejected_instance` line, apart from quantile rows that threw.
 // - von Mises quantile rows are capped: each costs the oracle 10-30 s.
 // The oracle reports these per row (--budget / --rows-out), not per group.
 //==============================================================================
@@ -1309,6 +1313,14 @@ struct OffGridOptions {
 std::vector<std::string>& sidecarLines() {
     static std::vector<std::string> lines;
     return lines;
+}
+
+// Instances whose constructor refused the drawn parameters, per distribution. Kept apart from
+// the quantile skips: a refusal is the library declaring its range (Rayleigh and HalfNormal
+// reject a scale whose square is not a normal double), not a row that failed.
+std::map<std::string, int>& rejectedInstances() {
+    static std::map<std::string, int> counts;
+    return counts;
 }
 
 class OffGridRng {
@@ -1401,20 +1413,26 @@ void emitOffGridInstance(Dist& dist, const std::string& distName, double p1, dou
 // Each distribution has its own stream, so adding one does not move another's instances.
 template <typename Dist, typename Factory, typename Draw>
 void offGrid(const std::string& distName, Factory factory, Draw draw, bool hasP2, bool discrete,
-             std::size_t quantileCap, const OffGridOptions& opt, Sink& sink) {
+             std::size_t quantileCap, const OffGridOptions& opt, Sink& sink,
+             const std::vector<std::pair<double, double>>& adversarial = {}) {
     std::uint64_t salt = 0;
     for (std::size_t i = 0; i < kDistNames.size(); ++i) {
         if (distName == kDistNames[i])
             salt = i + 1;
     }
     OffGridRng rng(opt.seed * 1000003ULL + salt);
-    for (int i = 0; i < opt.instances; ++i) {
-        const std::pair<double, double> params = draw(rng);
+    // The random instances, then the deliberate ones: parameter values chosen to sit where a
+    // known kind of defect lives, which a random draw would reach only by luck.
+    const int total = opt.instances + static_cast<int>(adversarial.size());
+    for (int i = 0; i < total; ++i) {
+        const std::pair<double, double> params =
+            i < opt.instances ? draw(rng)
+                              : adversarial[static_cast<std::size_t>(i - opt.instances)];
         std::optional<Dist> dist;
         try {
             dist.emplace(factory(params.first, params.second));
         } catch (...) {
-            sink.addSkip(distName);
+            ++rejectedInstances()[distName];
             continue;
         }
         emitOffGridInstance(*dist, distName, params.first, params.second, hasP2, discrete,
@@ -1428,6 +1446,11 @@ void sweepOffGrid(const OffGridOptions& opt, Sink& sink) {
     using R = OffGridRng;
     constexpr double kPi = std::numbers::pi;
     constexpr std::size_t kAll = 0;  // no quantile cap
+
+    // Scales whose square leaves the normal range, either side of each edge: the hunt's
+    // Rayleigh/HalfNormal range defect. The library now refuses the ones outside its range.
+    const std::vector<P> kScaleSquareEdges = {P{1e-158, 0.0}, P{1.2e-154, 0.0}, P{2e-154, 0.0},
+                                              P{1e10, 0.0}, P{1e155, 0.0}};
 
     // A probability parameter, log-uniform toward 0 or mirrored toward 1.
     const auto probability = [](R& r, double lo) {
@@ -1509,7 +1532,8 @@ void sweepOffGrid(const OffGridOptions& opt, Sink& sink) {
         opt, sink);
     offGrid<RayleighDistribution>(
         "rayleigh", [](double a, double) { return RayleighDistribution(a); },
-        [](R& r) { return P{r.logUniform(1e-100, 1e100), 0.0}; }, false, false, kAll, opt, sink);
+        [](R& r) { return P{r.logUniform(1e-150, 1e9), 0.0}; }, false, false, kAll, opt, sink,
+        kScaleSquareEdges);
     offGrid<WeibullDistribution>(
         "weibull", [](double a, double b) { return WeibullDistribution(a, b); },
         [](R& r) { return P{r.logUniform(0.05, 50.0), r.logUniform(1e-3, 1e3)}; }, true, false,
@@ -1536,7 +1560,8 @@ void sweepOffGrid(const OffGridOptions& opt, Sink& sink) {
         opt, sink);
     offGrid<HalfNormalDistribution>(
         "half_normal", [](double a, double) { return HalfNormalDistribution(a); },
-        [](R& r) { return P{r.logUniform(1e-100, 1e100), 0.0}; }, false, false, kAll, opt, sink);
+        [](R& r) { return P{r.logUniform(1e-150, 1e9), 0.0}; }, false, false, kAll, opt, sink,
+        kScaleSquareEdges);
     offGrid<BernoulliDistribution>(
         "bernoulli", [](double a, double) { return BernoulliDistribution(a); },
         [&](R& r) { return P{probability(r, 1e-9), 0.0}; }, false, true, kAll, opt, sink);
@@ -1561,7 +1586,7 @@ void sweepOffGrid(const OffGridOptions& opt, Sink& sink) {
             try {
                 dist.emplace(mean, sd, lo, hi);
             } catch (...) {
-                sink.addSkip("truncated_normal");
+                ++rejectedInstances()["truncated_normal"];
                 continue;
             }
             sidecarLines().push_back("# tn_window " + fmtBits(mean) + " " + fmtBits(sd) + " " +
@@ -1685,6 +1710,9 @@ int main(int argc, char** argv) {
         if (n > 0) {
             out << "# skipped_quantile " << distName << " " << n << "\n";
         }
+    }
+    for (const auto& [distName, n] : rejectedInstances()) {
+        out << "# rejected_instance " << distName << " " << n << "\n";
     }
     out.close();
 

@@ -4266,12 +4266,12 @@ def main(argv=None) -> int:
         failures, over, improved = gate_rows(ROW_RESULTS, baseline, budget)
         print_gate(failures, over, improved, budget, bool(args.baseline))
         if args.baseline:
-            print(f"  baseline rows matched {baseline.exact}, not in the baseline "
-                  f"{baseline.missing}")
-            if baseline.missing:
-                print("  Rows missing from the baseline count as new and fail when over budget. "
-                      "If the two sweeps are of different builds, make the new one with "
-                      "`accuracy_sweep --grid-from <previous.csv>` so both use the same inputs.")
+            print(f"  baseline rows matched {baseline.exact}; {baseline.missing} rows are not "
+                  "in it (an allowlist holds only the rows over budget)")
+            if any(base == 0.0 for _score, base, _key, _src in failures):
+                print("  Some failing rows are not in the baseline at all. If the two sweeps "
+                      "are of different builds, make the new one with `accuracy_sweep "
+                      "--grid-from <previous.csv>` so both use the same inputs.")
         gate_failed = bool(failures)
     if args.no_doc:
         return 2 if gate_failed else 0
