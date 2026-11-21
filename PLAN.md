@@ -675,6 +675,39 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
       #156's gates and the #107/#108 and #221 decisions are the user's.
     - **Scratch, safe to delete:** `…/scratchpad/p179` and
       `…/scratchpad/p290` (two install prefixes).
+  - **Evening: #287, the #108 and #221 decisions, and the capture is
+    ready** (`e890dec`; CI green on `af2e548`, dispatched on `e890dec`
+    and **not read** when this was written).
+    - **#287 fixed:** `INSTALL_GTEST` and `BUILD_GMOCK` off before the
+      fetch. GoogleTest's install rules 13 → 0; a full build installed to
+      a fresh prefix holds only libstats files.
+    - **#108 [user]: keep the per-tier trig duplication**, recorded in
+      AGENTS.md, "SIMD kernel conventions". **#221 [user]:** the exp/log
+      coefficient copies stay on the same reasoning and the issue's
+      acceptance is amended; the Student-t continued fraction already
+      carried none of the borrowed identifiers (rewritten for v2.5.0), so
+      only two comments and the notices entry changed. **#107** waits for
+      the M1 (its change is on the NEON side).
+    - **No `src/` code changed after `af2e548`** (`e890dec` touches
+      comments only), so `src/` is settled for the kAvx capture.
+    - **The capture, for the user to run** (Claude closed, screen locked,
+      on AC): `build-ivb-adopt/quiet_run.sh`. It now also builds
+      `tools/bench/distributions_bench` and `elementary_bench` against
+      `build-ivb-main` (headers from `main`) and against this tree, and
+      runs them alternately, three passes, between the SIMD verification
+      and the three `strategy_profile --large` runs. That is #156's Ivy
+      Bridge number from the same session; it adds about two minutes to
+      roughly four hours. Tried once on a loaded machine to confirm the
+      four binaries build and run; those numbers are not a record.
+    - **After the capture:** assemble the bundle; derive kAvx with the
+      fork rule as corrected above; write the table and its
+      documentation column (#291); run the suite; dispatch CI. Then state
+      the benchmark on #156. #156's gates wait for the other machines.
+    - **Node 20 warning on the Windows legs:** from the pinned
+      `ilammy/msvc-dev-cmd` v1.13.0, its latest release, which declares
+      Node 20; GitHub runs it on Node 24 and warns. Harmless today. Not
+      filed; the likely fix is a script step calling `vcvars64.bat`, and
+      it is probably a fleet change.
 
 **Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
 Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
