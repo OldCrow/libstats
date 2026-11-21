@@ -25,10 +25,9 @@ and is merged in.
   whatever a leg finds.
 - **Validated so far on one machine only**: Ivy Bridge (AVX, GCC 13.3,
   Linux). Correctness 135/135, warning-free. CI green on every leg at
-  `af2e548` (macOS AppleClang, GCC 14 with TBB, Clang 17 without, MSVC,
-  clang-cl, ASan/UBSan, TSan, FMA-contraction, install contract). CI on
-  `e890dec` was dispatched (run 44947886476) and **not read** when this
-  was written.
+  `e890dec` (CI #457; macOS AppleClang, GCC 14 with TBB, Clang 17
+  without, MSVC, clang-cl, ASan/UBSan, TSan, FMA-contraction, install
+  contract). Later commits touch only this file and one doc heading.
 - **Not yet done anywhere but here**: the accuracy sweep and block, the
   row gate and off-grid sweep, the prototype bit-identity check, quiet
   timing, threshold capture. That is the fleet work below.
@@ -42,8 +41,8 @@ parallel: every machine reads only its own tier's threshold rows, and
 nothing a leg needs is still open on another machine.
 
 **Start from** the commit that carries this section, or later. Confirm
-with `git log -1` and state the head in the leg's status line. Confirm CI
-is green on `e890dec` or later before starting.
+with `git log -1` and state the head in the leg's status line. CI is
+green on `e890dec`, the last commit that changed code, tests or CI.
 
 **Order if they are not run at once** [DERIVED]: M1, then Zen 4, then
 Kaby Lake. The M1 differs most from what is validated (architecture,
@@ -66,7 +65,9 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   `b766e45`, sweep row for row). **L4 capture pending**: the user runs
   `build-ivb-adopt/quiet_run.sh` (local script; timing tests,
   `simd_verification`, the dev-against-`main` benches, three
-  `strategy_profile --large` runs, about four hours). Then L5 for kAvx.
+  `strategy_profile --large` runs, about four hours). The tree was clean
+  and pushed when the session closed for it. Results land in
+  `build-ivb-adopt/quiet-<UTC>_sha-<sha>/`. Then L5 for kAvx.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang**: not started.
@@ -239,11 +240,9 @@ Milestone #6: 32 open, 1 closed (#312). Issues stay open until this
 branch reaches `main`; `fixed-on-branch` marks the ones that are fixed
 and guarded here, each with a status comment.
 
-- **Labelled `fixed-on-branch` (17):** #108, #110, #113, #136, #138,
-  #179, #221, #247, #248, #251, #252, #262, #267, #270, #271, #290, #311.
-- **Done here, label owed:** #213 and #258 (tools, runbook step and
-  allowlist in; commented), #287 (fixed in `e890dec`; label when its CI
-  run is read), #126 and #214 (guards in `c0f8c3b`).
+- **Labelled `fixed-on-branch` (22):** #108, #110, #113, #126, #136,
+  #138, #179, #213, #214, #221, #247, #248, #251, #252, #258, #262, #267,
+  #270, #271, #287, #290, #311.
 - **Wait on the other machines:** #47 (AppleClang), #52 (timings and
   rows on every tier), #103 and #104 (guards pass and the sweep is clean
   on AVX; other ISAs), #141 (`gamma_p`/`gamma_q` ≤ 0.48 ulp on AVX; other
