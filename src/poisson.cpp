@@ -784,7 +784,6 @@ void PoissonDistribution::getCumulativeProbability(std::span<const double> value
                 dist.getCumulativeProbabilityBatchUnsafeImpl(
                     vals.data() + start, res.data() + start, len, cached_lambda);
             });
-            pool.waitForAll();
         });
 }
 
