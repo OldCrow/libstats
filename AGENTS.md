@@ -193,8 +193,9 @@ distribution roster lives in the code and in that guide, not here.
   translation unit (#179): `std::execution` where its policies run in parallel
   (on libstdc++ only when the build links TBB), else GCD (macOS), else
   pthreads. Only `safe_for_each` and `safe_transform` call the pthreads
-  implementations; the Windows Thread Pool and OpenMP implementations in that
-  header are called by no wrapper except `safe_fill` (OpenMP)
+  implementations. The Windows Thread Pool and OpenMP implementations in that
+  header are unreachable: nothing selects them, and `_OPENMP` in particular must
+  not, being a per-file compiler flag (#319 has the plan)
 
 ## Batch API contracts
 

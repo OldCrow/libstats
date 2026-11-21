@@ -28,10 +28,13 @@ inline constexpr int kBackendGcd = 2;
 inline constexpr int kBackendWinThreadPool = 3;
 inline constexpr int kBackendOpenMp = 4;
 inline constexpr int kBackendPthreads = 5;
+inline constexpr int kBackendNotProbed = -1;
 
 // One per probe translation unit (tests/parallel_backend_probe_*.cpp).
 int backendWithNothingBefore() noexcept;
 int backendAfterVersion() noexcept;
 int backendAfterString() noexcept;
+// Compiled with -fopenmp on GCC and Clang (tests/CMakeLists.txt); kBackendNotProbed elsewhere.
+int backendWithOpenMpFlag() noexcept;
 
 }  // namespace libstats_test

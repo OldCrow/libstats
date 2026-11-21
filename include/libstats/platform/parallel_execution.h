@@ -27,7 +27,6 @@
 // 3. Platform-specific parallel systems:
 //    a. Grand Central Dispatch (GCD) on Apple platforms
 //    b. Windows Thread Pool API on Windows
-//    c. OpenMP (if available and enabled)
 // 4. POSIX threads (pthreads) on Unix/Linux systems
 // 5. Fallback to serial execution
 
@@ -95,11 +94,12 @@
     #include <windows.h>
     #define LIBSTATS_HAS_WIN_THREADPOOL 1
     #define LIBSTATS_HAS_PARALLEL_EXECUTION 1
-// OpenMP support (cross-platform)
-#elif defined(_OPENMP) && _OPENMP >= 200805
-    #include <omp.h>
-    #define LIBSTATS_HAS_OPENMP 1
-    #define LIBSTATS_HAS_PARALLEL_EXECUTION 1
+// OpenMP is deliberately not selected from _OPENMP. That macro is a per-translation-unit compiler
+// flag (-fopenmp) which no libstats target sets, so a consumer who compiled their own files with
+// it took the OpenMP bodies of these inline functions while the library's files took pthreads:
+// the defect #179 fixed, by another route. If OpenMP is ever offered it must be a configure-time
+// fact in libstats_config.h with the runtime linked PUBLIC. The OpenMP implementations further
+// down are unreachable until then (#319).
 // POSIX threads fallback for Unix/Linux systems
 #elif defined(__unix__) || defined(__linux__) || (defined(__APPLE__) && defined(__MACH__))
     #include <pthread.h>

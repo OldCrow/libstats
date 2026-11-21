@@ -30,8 +30,6 @@ int expectedBackend() noexcept {
     return kBackendStdExecution;
     #elif defined(__APPLE__)
     return kBackendGcd;
-    #elif defined(_OPENMP)
-    return kBackendOpenMp;
     #else
     return kBackendPthreads;
     #endif
@@ -49,6 +47,16 @@ TEST(ParallelBackendSelection, Issue179_SameBackendWhateverWasIncludedFirst) {
     EXPECT_EQ(backendWithNothingBefore(), here);
     EXPECT_EQ(backendAfterVersion(), here);
     EXPECT_EQ(backendAfterString(), here);
+}
+
+// A consumer's own compiler flags must not change the backend either. One probe is compiled
+// with -fopenmp where the compiler takes it; before the fix that file selected the OpenMP
+// backend on a build without TBB, while every other file selected pthreads.
+TEST(ParallelBackendSelection, Issue179_OpenMpFlagDoesNotChangeTheBackend) {
+    const int with_flag = backendWithOpenMpFlag();
+    if (with_flag == kBackendNotProbed)
+        GTEST_SKIP() << "this compiler was not given an OpenMP flag";
+    EXPECT_EQ(with_flag, LIBSTATS_TEST_SELECTED_BACKEND);
 }
 
 TEST(ParallelBackendSelection, Issue179_BackendMatchesTheBuild) {

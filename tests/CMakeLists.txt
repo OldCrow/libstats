@@ -274,7 +274,7 @@ create_libstats_gtest(
     test_parallel_execution_comprehensive.cpp
 )
 # #179 guard: one backend whatever a translation unit included first, and that backend runs on
-# more than one thread. The three probe sources differ only in what precedes the header.
+# more than one thread. The probe sources differ only in what precedes the header, or in a flag.
 create_libstats_gtest(test_parallel_backend_selection test_parallel_backend_selection.cpp)
 if(TARGET test_parallel_backend_selection)
     target_sources(
@@ -283,7 +283,17 @@ if(TARGET test_parallel_backend_selection)
             parallel_backend_probe_first.cpp
             parallel_backend_probe_version.cpp
             parallel_backend_probe_string.cpp
+            parallel_backend_probe_openmp.cpp
     )
+    # One probe gets -fopenmp, compile only: it defines _OPENMP in that file and needs no OpenMP
+    # runtime, because the header no longer selects on it and the probe calls nothing from one.
+    # GCC and Clang on Linux only; elsewhere the case skips.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set_source_files_properties(
+            parallel_backend_probe_openmp.cpp
+            PROPERTIES COMPILE_OPTIONS "-fopenmp"
+        )
+    endif()
 endif()
 
 # benchmark.h - Performance measurement utilities
