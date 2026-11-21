@@ -2,2199 +2,349 @@
 
 State only: what is decided, open, or next. Release contents are in
 `CHANGELOG.md`, per-version validation in `docs/VALIDATION_HISTORY.md`,
-conventions and commands in `AGENTS.md`. The history this file used to
-carry (shipped releases, closed milestones, the Resolved log, the
-2026-08-21 defensive review, travel-era records, the corvus spike) is in
-`git show f508b12:PLAN.md`.
+conventions and commands in `AGENTS.md`.
 
-## v3.0.0 corvus adoption — `dev/v3.0.0-corvus-adoption` [DERIVED, 2026-10-24, M1]
+History is in git, not here. This file was pruned on 2026-11-21: the
+adoption branch's rebuild and CI narrative, the session logs of 2026-11-16
+to 2026-11-21, the v2.5.0 release record and its runbook are in
+`git show e1a11ec:PLAN.md`. Earlier history (shipped releases, closed
+milestones, the 2026-08-21 review, the corvus spike) is in
+`git show f508b12:PLAN.md`. Each fixed issue carries a status comment
+naming its commits.
 
-**The adoption branch was rebuilt on the v2.5.0 release.** `dev/v2.5.0-corvus`
-(tip `72f9195`: 32 commits on `d8d3388`, 175 behind `main`) was not rebased in
-place. Its content was ported onto `main` (`c42fc4e`) as a new branch,
-`dev/v3.0.0-corvus-adoption`, in logical commits: the engine swap (the six
-corvus commits `d9afe31`…`e62a616` squashed, so the elementary-family swap and
-its revert net to "erf is corvus on x86"), the CI and clang-cl commits, the
-bench tooling and evidence, and the docs. Dropped as superseded: `45000c6`
-(normal-guess discrete quantiles and the Student-t one-inverse-call quantile;
-`main` has both, with the later accuracy fixes on top), `420eaf1` (already on
-`main` as `6245e4e`), `a036ffb` (an AVX-512 characterization block that the
-pin bump regenerates anyway) and every `docs(plan)` / `docs(bench)` plan note
-(their state is this section). The old branch is archived as the signed tag
-`archive/dev-v2.5.0-corvus` (`72f9195`, like the spike) and was deleted from
-origin 2026-10-26 [user]. Branch commits, oldest first (signed 2026-10-25, pushed; the plan
-commit that carries this list follows them):
+## v3.0.0 corvus adoption — where it stands [DERIVED, 2026-11-21, Ivy Bridge]
 
-```
-30479d9 feat(corvus): corvus is the special-function engine, rebuilt on v2.5.0
-1ba43bf ci(sanitizers): 60-minute budget and SSE-only corvus targets — the leg now compiles co
-91c3755 build(corvus): warn when a fetched corvus is compiled by cl.exe; plan state for the libs
-fc03129 build(corvus): the cl.exe warning names a clang-cl build as the first remedy; plan state
-da00ad8 build(windows): clang-cl presets; the Strict build type compiles under clang-cl
-03f2af4 ci: a Windows clang-cl leg through the preset; docs for the two Windows compilers
-6df2275 docs(agents): list the windows-clang-cl presets under the CMake-standard deviations
-39e27c5 docs(bench): Zen 4 and Kaby Lake comparatives, v2.4.1 vs the adoption branch
-```
+Branch `dev/v3.0.0-corvus-adoption`, built on the v2.5.0 release. corvus
+v1.2.0 is the special-function engine (found or fetched, pinned;
+`cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line at `99f2175`
+and is merged in.
 
-ctest here after the fixes below: **132/132** (`ctest -LE "timing|benchmark"`,
-Release, NEON, 150 s), build warning-clean.
+- **`src/` is settled for v3.0.0.** The last code change is `af2e548`;
+  `e890dec` after it changes comments only. Nothing further is planned in
+  `src/` before release, except threshold rows (each machine's own) and
+  whatever a leg finds.
+- **Validated so far on one machine only**: Ivy Bridge (AVX, GCC 13.3,
+  Linux). Correctness 135/135, warning-free. CI green on every leg at
+  `af2e548` (macOS AppleClang, GCC 14 with TBB, Clang 17 without, MSVC,
+  clang-cl, ASan/UBSan, TSan, FMA-contraction, install contract). CI on
+  `e890dec` was dispatched (run 44947886476) and **not read** when this
+  was written.
+- **Not yet done anywhere but here**: the accuracy sweep and block, the
+  row gate and off-grid sweep, the prototype bit-identity check, quiet
+  timing, threshold capture. That is the fleet work below.
+- **Project version is still 2.5.0** in `CMakeLists.txt`; the bump is a
+  release step.
 
-**Resolution rules applied (42 files changed on both sides).** `main`'s code
-stands in every overlapping file; the adoption re-points its special-function
-calls at corvus rather than replacing `main`'s rewritten paths:
-- `src/math_utils.cpp`: `lgamma`, `gamma_p/q`, `beta_i` (three forms),
-  `lbeta`, `digamma`, `trigamma`, `inverse_beta_i`,
-  `inverse_normal_cdf` and `inv_survival_normal` are corvus calls behind
-  `main`'s edge guards (NaN propagation, the 0/1 out-of-domain reads, the
-  I_½(a, a) = ½ tie, infinite shapes); `erfc_inv`, `gamma_q_inv`, `beta_q_inv`
-  and the Bessel helpers (`log_bessel_i0_scaled` included, which `main`'s von
-  Mises normaliser needs) are defined there. `beta_i_pair(x, 1 − x)` takes the
-  small side as `beta_p(a, b, x)` or `beta_q(b, a, 1 − x)`. The retired local
-  cores (series, continued fractions, Temme tails, BGRAT's shape-specific
-  helpers, the logit-Newton beta inverse, the log-x Newton gamma inverse,
-  `lgamma1p_small`, `gamma_q_small_shape`) are deleted: 3158 → 1544 lines,
-  found by the unused-function warnings and a reachability pass.
-- Kept as `main` wrote them, now on corvus-backed scalars: `gamma.cpp` (the
-  rate-product correction #216 and `gammaPAtRateProduct` loop; the branch's
-  `vector_gamma_p` block path is dropped), `student_t.cpp` (the #159 kernel,
-  `t_cdf(t, df, lbeta)` per element; the branch's `vector_beta_i` block path is
-  dropped), `truncated_normal.cpp`, `gaussian.cpp`, `half_normal.cpp`,
-  `von_mises.{h,cpp}` (quadrature), `dispatch_thresholds.h`, the three
-  helper deletions (fix-9), `tests/CMakeLists.txt` and `ci.yml` (union).
-- On corvus spans as the branch wrote them: `beta.cpp` and `poisson.cpp` batch
-  CDFs; the x86 erf kernels are gone from `simd_{sse2,avx2,avx512}.cpp`.
-- Docs: the adoption's own lines retitled v2.5.0 → v3.0.0; CHANGELOG `[3.0.0]`
-  rewritten to the ported state; `docs/ACCURACY_CHARACTERIZATION.md` is
-  `main`'s v2.5.0 copy, every block stale against corvus until the pin bump.
+## Fleet legs for v3.0.0 [OPEN; user, 2026-11-21]
 
-**First ctest on the port (M1, 2026-10-24): 127/132, then three port fixes and
-one deferral.** Port fixes: the Poisson batch CDF rounded the count where the
-scalar path floors it (DH3 P1; `test_poisson_enhanced`, `test_contract_gates`);
-`log_bessel_i0` returned 5e-324 at 5e-324 (|x| + log i0e(|x|) cancels once
-e^-|x| rounds to 1; now x²/4 below 1e-8; fix-9 gate); the Beta quantile
-`BudgetUsage` gate asserted usage > 0, which a correctly rounded engine leaves
-at exactly 0 (now ≥ 0, the printed figure is the signal). **Deferral:
-`gamma_p_inv` stays on v2.5.0's log-x Newton solver (#160) with its helper
-closure restored from `main` (`log_gamma_tail`, the Temme zone, the series and
-continued fraction, `gamma_q_small_shape`, `kWilsonHilfertyExactShape`; marked
-`>>> restored from main` in the file).** corvus v1.0.1's `gamma_p_inv` fails
-`test_gamma_quantile_accuracy` and the Gamma/Erlang/ChiSquared identities
-grossly — Gamma(0.001).Q(0.9999) = 3.3e47 for 1.50, Gamma(20).Q(5e-324) = 0.02
-— which are corvus #48 (small-shape upper tail, fixed in v1.1.0 row 7) and #72
-(deep-subnormal targets, v1.1.0 row 12f, still open), plus the a ≥ 1e16
-Wilson-Hilferty exactness of #226 that corvus does not promise. The swap of the
-gamma inverse is the first item of the pin bump, gated by those two tests.
+Each machine runs one leg. The legs are independent and may run in
+parallel: every machine reads only its own tier's threshold rows, and
+nothing a leg needs is still open on another machine.
 
-**First CI run on the branch (40243853108, dispatched 2026-10-25; ci.yml has no
-push trigger for dev branches).** 11 of 14 jobs green on the first try,
-including Windows clang-cl, macOS, GCC 14, Clang 17, TSan, FMA-contraction and
-the install-contract leg. Three timed out, all one cause: a fetched corvus
-inherited the leg's flags. Coverage (Debug + gcov, 20 min) was still inside
-`test_snapshot_consistency`'s 50,000-call loops at the cut; the ASan leg's
-build step alone passed 50 minutes (main: 11); MSVC's build went 7.9 → 20.9
-minutes with cl.exe compiling every Highway tier, and its test step was at 8.2
-minutes (main: 1.7) when the 30-minute cap hit. Local M1 Debug baseline with
-corvus at -O0: `test_concurrency_stress` FAILED on its starvation watchdog
-("Poisson move assign loops: no progress in 120 s"); Release passes it.
-**DECIDED [user, 2026-10-25]: a fetched corvus builds as Release and
-uninstrumented regardless of libstats' configuration** (corvus's own 2026-10-25
-sanitizer decision, f72a128, generalised: instrumenting the dependency is
-noise). Done in `cmake/FindOrFetchCorvus.cmake` (function scope around
-`FetchContent_MakeAvailable`: Release per-config flags, gcov and sanitizer
-compile flags stripped; the runtime library and `$<CONFIG>` stay the build's).
-Comparator on the M1 (Debug libstats; seconds, Release reference first):
-`test_snapshot_consistency` 29.8 / 33.6 with corvus Release / >1500 with corvus
--O0 (stopped); `test_concurrency_stress` 116.9 / 140.3 / FAILED at 348 on the
-watchdog; `test_contract_gates` 3.0 / 3.2; `test_student_t_enhanced` 0.5 / 1.3.
-Debug with a Release corvus runs within ~20% of Release; the "deadlock" was
-starvation. The Release tree's flags are byte-identical before and after.
-The MSVC leg is a different mechanism (already Release; cl.exe compile time and
-3–19× slower kernels — `test_snapshot_consistency` alone took 393 s there, vs
-1.5 min for the whole step on #391, the last pre-corvus run): its remedy —
-budget, tier trim, `-E` on the two concurrency tests, or compile-only with
-clang-cl as the Windows test build — is open [user]. Coverage was already
-marginal before corvus: #391 hit its 20-minute cap with no corvus at all.
+**Start from** the commit that carries this section, or later. Confirm
+with `git log -1` and state the head in the leg's status line. Confirm CI
+is green on `e890dec` or later before starting.
 
-**Second CI run (40247472881, with the Release-corvus fix): 12/14 green.** The
-ASan leg passed in 25 of its 60 minutes (build 15.5, test 9.2; main 10.8 and
-4.5; first run: build alone > 50). Coverage: build 4.9 min (first run 6.2, main
-3.8), tests cut at 14.7 min (main 8.6). MSVC: build 21 min, tests cut at 8.
-Cancelled jobs keep no retrievable log. **Same-machine, same-flags comparator
-(M1, Debug + gcov, corvus Release; `build-m1-gg-v3-cov` vs
-`libstats-main/build-m1-cov`):** branch 292 s vs main 220 s over 132 tests, all
-passing; the difference is `test_concurrency_stress` 185 vs 138 and
-`test_snapshot_consistency` 62 vs 47, everything else within seconds. Per gtest
-case the regression is confined to the discrete and beta families
-(NegativeBinomial writers 15.1 vs 4.4 s, Binomial batches 24.6 vs 16.7,
-Bernoulli, Geometric, FisherF, Beta); the corvus-span cases are unchanged (Beta
-boundary batch +0.1 s, von Mises batch identical). Those families call
-`lgamma`, `lbeta`, `beta_i`/`beta_i_pair` per element: on the branch each is a
-span-of-one `corvus_scalar` hop (span construction at -O0 plus corvus's
-dynamic-dispatch kernel over one lane) where main called libm's `lgamma_r` and
-its inline cores. In Release this is invisible (the suite runs in 150 s); under
--O0 instrumentation it is +33% on the suite and, on the 4-vCPU runner, enough to
-push coverage past 20 minutes. It is exactly corvus #42 lever 1's target (the
-≤ 250 ns single-call cost) and what the v1.1.0 scalar entry points replace the
-deducing wrapper with, so it shrinks at the pin bump. [DERIVED, 2026-10-26]
+**Order if they are not run at once** [DERIVED]: M1, then Zen 4, then
+Kaby Lake. The M1 differs most from what is validated (architecture,
+AppleClang and libc++, GCD backend, hardware FMA), so a defect there is
+the one most likely to change code the other legs would re-run. Zen 4 is
+the longest leg (two compilers, the throttling opt-out). Kaby Lake covers
+the least new ground but is the only native AVX2 tier. To clear the PR
+gate soonest, run Kaby Lake first.
 
-**DECIDED [user, 2026-10-26]: the two budgets.** Coverage: 30 minutes, suite
-whole (20 was marginal before the adoption; the ~6-minute overrun is the
-scalar hop, which the v1.2.0 pin removes). MSVC: 40 minutes; the cl.exe leg
-skips `test_snapshot_consistency` and `test_concurrency_stress` (both still run
-on the windows-latest clang-cl leg, same OS and thread pool, and on every other
-leg; the leg's own value, UCRT libm and no FP contraction, is covered by the
-other 130 tests); `CORVUS_DISABLED_TARGETS="HWY_SSSE3|HWY_SSE4"` trims two of
-the four tiers cl.exe compiles (corvus is fetched before the global
-`/arch:AVX2`, so SSE2 is Highway's baseline there and stays). Rejected: 60
-minutes for MSVC (Windows minutes bill 2×) and a compile-only cl.exe leg (it
-is a distinct numerical environment). Re-measure both at the v1.2.0 pin; the
-exclusion and the trim are the first things to lift. **The adoption pins corvus
-v1.2.0, not v1.1.0 [user, 2026-10-26]**: v1.1.0 (released 2026-10-26, verified
-on the M1) is the accuracy leg; the performance leg is pending. Its scalar entry
-points cut single-call cost 2–19× on the M1 indicative bench, which is exactly
-the hop above.
+**What gates on the legs**: the dev-branch PR (one other leg complete);
+removing the `PROTOTYPE` comment tags (all three report bit-identity);
+#156's gates (all four machines' numbers); the release docs.
 
-**Re-measured at the v1.2.0 pin [user, 2026-11-18]: trim lifted, snapshot test
-back, stress test stays out.** One trial run on the cl.exe leg with all four
-tiers and both tests (run 44347225426, image 20261103.298.1): the build took
-11.0 min, about 1 min more than with the trim; `test_snapshot_consistency`
-passed in 194 s (393 s before the pin); `test_concurrency_stress` FAILED at
-327 s on its 120 s no-progress watchdog in the Beta `setParameters` loops, the
-reader inside a SCALAR batch CDF, which is starvation at cl.exe-built corvus
-speed. So `CORVUS_DISABLED_TARGETS` is gone from the cl.exe leg and only
-`test_concurrency_stress` is excluded there. One run is not a distribution: if
-a slow runner pushes the leg at its 40-minute budget, the snapshot test is the
-first thing to take out again.
+### Leg status (edit only your own line)
 
-**Third CI run (40401273278, with the budgets): 13/14 green; the one failure is
-the pin-currency canary, by design** (find_package floor 1.0, FetchContent tag
-v1.0.1, corvus latest v1.1.0; it runs only on schedule and dispatch and will
-read red until the pin moves). Coverage with the suite whole: build 7.8, tests
-10.7 (main 8.6), job ~20 of 30 — the old cap was a coin toss. MSVC: build 16.4
-(was 20.9; the SSSE3/SSE4 trim), test 0.8 under the exclusion, 18 of 40. ASan
-and every build and sanitizer leg green. [DERIVED, 2026-10-26]
+- **I — Ivy Bridge, AVX, Linux, GCC 13.3**: L1 done at `e890dec`
+  (135/135). L2's AVX block is stale (banner `b766e45`); regenerate after
+  the capture. L2b done: `data/accuracy/allow_AVX.csv`; off-grid sweep
+  found #316, #317, #318. L3 done at the time (`90d1bef` against
+  `b766e45`, sweep row for row). **L4 capture pending**: the user runs
+  `build-ivb-adopt/quiet_run.sh` (local script; timing tests,
+  `simd_verification`, the dev-against-`main` benches, three
+  `strategy_profile --large` runs, about four hours). Then L5 for kAvx.
+- **M — M1, NEON, macOS, AppleClang**: not started.
+- **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
+- **K — Kaby Lake, AVX2, macOS, AppleClang**: not started.
 
-**Still local, not corvus (decide per item before release):** `t_tails`
-(Student-t deep tail: `beta_continued_fraction`, `beta_i_large_a_half` BGRAT,
-`lgamma_ratio_excess`'s successors) and `inverse_t_cdf`'s `solve_concave`;
-`log_gamma_prefactor`, `beta_prefactor_constant`, the `log1pmx` family and
-`stirling_remainder` (density prefactors, #166/#266); `inv_survival_normal_log`
-(subnormal probit targets, #225); `gamma_p_from_log_x` / `gamma_q_from_log_x`.
-Each is either a corvus swap-identity call away or a density kernel that is
-not corvus's business; the sweep at the pin bump decides.
+### What every leg produces
 
-**Owed before v3.0.0 (unchanged from the workplan):** ~~pin bump to corvus
-v1.2.0~~ (done 2026-11-17, Status below; `gamma_p_inv` went to corvus with
-it); then the characterization regeneration on the other three ISAs, the dispatch-table
-re-derivation (R8 → `derive_threshold_rows.py` → `table_ab_bench` A/B), the
-record legs, pylibstats #20/#26. (CI has since run on this branch; see the
-later entries.) Tooling: the `cmake-format` pre-commit hook crashes under its
-Python 3.15 venv (`re.Scanner` capturing groups, cmakelang 0.6.13); the C++
-hooks and the include-order check pass; CMake files were not re-formatted.
-
-**Moved into v3.0.0 from the accuracy patch (#8) [user, 2026-10-26].**
-`main` stays frozen. On this branch, work only the #8 issues the adoption
-needs. Each moved issue has a reason comment. Rationale and the triage are
-in `main`'s PLAN.md, Decided, "Freeze and the accuracy patch". The issues:
-- **Edit files this branch edits:** #152 (`ci.yml` coverage job), #179
-  (needs a `libstats_config.h` fact; this branch deletes the template),
-  #214 (`gamma_p_inv`: fix or retire it with the pin-bump swap), #217,
-  #218, #219, #248 and #249 (`t_tails`/`t_cdf`), #251
-  (`gamma_p_from_log_x`), #272 (the Beta case via
-  `beta_prefactor_constant`).
-- **Superseded by the swap:** #262 (`beta_i` dyadic ties) and #271 (Gamma
-  CDF at tiny shape). Re-measure on the post-swap sweep; close as
-  "overtaken by corvus adoption" only if the defect is gone.
-- **Post-swap sweep:** #103 and #104 (enforced in v2.5.0; re-run the
-  guards, then close) and #114 (one pass after the swap).
-- **Verification support:** #213 (off-grid and adversarial sweep) and #258
-  (per-row budgets, and a row diff against v2.5.0). Land them before the
-  characterization regeneration.
-
-The 20 issues left on #8 are independent of the adoption and ship as a
-patch after v3.0.0. If the adoption runs quickly, reassess pulling
-accuracy-first issues forward.
-
-**Local machine state, M1 (2026-10-24):** the only libstats build tree here is
-`build-m1-gg-v3/` (this branch, Release preset, AppleClang 21, corvus v1.0.1
-fetched, Highway 1.4.0 system). The 2026-10-02 note's `build-m1-gg/` and
-`build-m1-gg-corvus/` are gone. `../libstats-main` is the `main` worktree
-(`c42fc4e`). A stale 2.0.2 install remains under `~/.local/lib` and
-`~/.local/lib/cmake/libstats` (Z's equivalent was removed 2026-10-16).
-
-## Status [DERIVED] — 2026-11-17
-**corvus pin moved to v1.2.0 on 2026-11-17 (Ivy Bridge); the other three
-machines owe their legs [OPEN].** Workplan task 2, authored on the Linux
-machine: `33e4aef` (pin, `find_package` and `find_dependency` floors at 1.2,
-the eight scalar entry-point calls) and `b766e45` (`gamma_p_inv` on corvus;
-v2.5.0's solver and its 300-line closure removed). `main` is merged in
-(#288's test fix, #290, the coverage leg's stress scale).
-
-Measured there [DERIVED] (AVX tier, GCC 13.3 and Clang 18.1.3, Release;
-evidence in `docs/bench-evidence/2026-11-17-ivybridge-avx-corvus-v120/`):
-- 0 new warnings, every target builds, correctness 132/132 under both;
-  trig ULP gate 14/14, `simd_verification` 140/0.
-- Sweep at `b766e45`: 26,882 rows, 190 oracle self-checks, 0 contract
-  violations. Against `main`'s block from the same machine (2026-11-16):
-  no row more than 2× worse, 37 of 216 more than 2× better (the incomplete
-  gamma and beta CDFs about 1e-13 → 1e-16; quantiles gamma 2.4e-13 →
-  1.5e-16, chi-squared 1.4e-13 → 9.7e-17, Erlang 2.4e-14 → 1.8e-16). The
-  `isa=AVX` block is regenerated; the AVX-512, AVX2 and NEON blocks are
-  still `main`'s v2.5.0 copies.
-- `GammaQuantileAccuracy.LargeShape` expected the shape itself at shape
-  1e32 for p = 0.1 and 0.9; those quantiles lie 0.711 ulp away and corvus
-  rounds them correctly. The expectation was the #226 shortcut's output and
-  is corrected in `b766e45`.
-- Suite time, indicative (machine in use): 340 s against 126 s on `main`,
-  nearly all of it `test_concurrency_stress` (289 s against 106 s). The
-  scalar entry points did not remove that cost. A number for #156 and for
-  the CI budgets, not yet a timing record.
-
-**Decided [user, 2026-11-18], after the Ivy Bridge leg and its profile:**
-- **Per-call cost does not block v3.0.0.** v3.0.0 ships on corvus v1.2.0
-  for the accuracy; speed is recovered later on a v3.1.0 pinned to corvus
-  v1.3.0. Speedups that need no corvus change may be scoped into v3.0.0
-  where they are reasonable (`proto/batch-cdf-spans`, below).
-- **No PR for this branch** until at least one other machine has run its
-  leg; work stays on the branch.
-- **`expm1`/`log1pmx` stay out of this bump** (leaning; rationale below).
-- **The cl.exe leg's exclusion and tier trim get a CI trial**
-  (`ci/msvc-lift-trial`, measurement only).
-- #156's gates: in due course, once every machine has post-bump numbers.
-- The corvus side (OldCrow/corvus#110 scalar entry points for `lgamma`
-  and `lbeta`, #111 the `LgammaDiffDd` kernel cost) runs in its own session.
-
-**Where the adoption's time goes** [DERIVED, 2026-11-17, Ivy Bridge, `perf`
-`cycles:u` and callgrind]: the two concurrency tests are 2.7× and 3.6×
-slower than `main` here (3× and 7–9× on hosted Linux x86, CI run
-44184913469 against 44168257104). corvus is 88–93% of the time in the
-Bernoulli, negative binomial, Beta and Fisher-F races, and 31–48% is
-`LgammaDiffDd`, reached from `lbeta` and from the beta kernel's prefactor.
-Single calls against v2.5.0's kernels on this machine: `lgamma(2)` 18 →
-144 ns, `lbeta` 76 → 1,742, `gamma_p` 112 → 1,358, `beta_i` 342 → 3,531.
-This CPU is corvus's worst case in the fleet (two lanes, Dekker products).
-
-**`proto/batch-cdf-spans`** [DERIVED, 2026-11-17/18; `f2c17f2` and
-`eb6b47d`]: batch CDFs
-that looped one scalar corvus call per element now hand corvus spans a
-block of 256 at a time, edges written directly, the scalar path's guards
-in its order. Binomial, negative binomial, Fisher-F, then Gamma (which
-ChiSquared and Erlang share) and InverseGamma with their rounding
-corrections kept per element. It also drops `beta_prefactor_constant`
-calls whose result `beta_i_pair` has ignored since the adoption.
-Bit-identical: the 26,882-row sweep and 5.3 million randomized values
-against `b766e45`. Batch CDF per element here: 1.5–2.0× faster (Binomial
-6,410 → 3,270 ns, Gamma(3.5) 986 → 535). `test_snapshot_consistency` 57
-→ 31 s (`main` 16); `test_concurrency_stress` 278 → 230 s (`main` 107),
-since its readers are mostly scalar calls. Two lanes predict about 2×;
-wider tiers are unmeasured.
-
-**Extended and promoted onto this branch [user, 2026-11-18]** (`23f6fb3`,
-merge `90d1bef`). An inventory of every batch kernel found one corvus call
-still made per element: `lgamma` in the Poisson, Binomial and
-NegativeBinomial PMF and LogPMF kernels at counts under 20. Student-t's
-batch CDF needed nothing (its `lbeta` is hoisted, its tail kernels are
-libstats' own). `detail::lgamma` now reads integers 1..32 from a table it
-fills from corvus on first use, which helps scalar calls too;
-NegativeBinomial hoists `lgamma(r + 1)` and sends the non-integer
-`lgamma(k + r + 1)` through one span per block. Bit-identical: 5.7 million
-values hash the same and the sweep matches `b766e45` row for row; 132/132
-on GCC and Clang. Indicative batch ns per element here, PMF: Poisson(15)
-132 → 33, Binomial(15, 0.3) 303 → 64, NegativeBinomial(2.5, 0.4) 276 →
-127; Binomial(100, 0.3) 285 → 256, where the cost is the Stirling
-arithmetic, not corvus. `test_concurrency_stress` 230 → 220 s,
-`test_snapshot_consistency` 31 → 30 s. What remains per call is every
-scalar method (corvus #110, #111). The other three machines owe the
-bit-identity check and timings on their tiers; the `PROTOTYPE` comment
-tags stay until they report.
-
-**Quiet Ivy Bridge leg and where to resume [DERIVED, 2026-11-18, Ivy
-Bridge; session ended here].** Branch tip `c04c338` plus this note: `main`
-(`da7a43e`) is merged in, so #308/#309 (Gaussian `fit()` variance) and
-#288/#310 (Intel_Legacy default grain) are here; 132/132 on the merged
-tree (GCC, Release). CI on `c04c338` was dispatched (run 44461285297) and
-its result was not read.
-- **Bundle** `data/profiles/dispatcher/2026-11-18T21-29-12Z_linux-x86_64_…_sha-6278ddd`
-  (`9724475`): three quiet `--large` runs, 76 min each, the first capture
-  on silicon whose native tier is AVX. Its manifest carries the conditions
-  and the spread (serial strategies 1%, parallel 8–14% between runs).
-- **kAvx (#291), nothing applied.** 41 rows agree, 34 differ, every one
-  with the table above the measured crossover.
-  `scripts/derive_threshold_rows.py` with this bundle as `new` and
-  `2026-10-13T13-58-00Z_…` as `prev` proposes 32 values (run through a
-  driver that overrides `TABLES["kAvx"]`; output was in the gitignored
-  `build-ivb-adopt/derive-kavx/`, regenerate it). Two corrections before
-  any row is written [OPEN, user decides]: the fork-zone rule (candidate
-  ≤ 6144 encodes 4096) is the capped Kaby Lake build's, and here PARALLEL
-  is behind at 4096 and ahead at 6144 for ten of those rows (Cauchy,
-  ChiSquared, Erlang, Gamma, LogNormal LogPDF; Logistic, Gumbel CDF;
-  LogNormal, Pareto, TruncatedNormal PDF), which should read 6144; and
-  InverseGamma PDF and LogPDF should be held, since they measure a serial
-  loop (#311). Clean changes: Gaussian LogPDF 150k → 50k, Exponential and
-  HalfNormal LogPDF 100k → 50k, Discrete PDF and LogPDF 50k → 8192,
-  Uniform LogPDF 200k → 75k. Below 4096 PARALLEL does not fork (#307).
-- **#311, software `fma`** [OPEN, v3.0.0 milestone, user 2026-11-18]: `std::fma` is glibc's
-  software routine on a CPU without FMA, 175 ns per call here. Two calls
-  per element are the whole 350 ns of InverseGamma PDF and LogPDF, in the
-  serial fixup loop, so PARALLEL gains 1.03×. Binomial PDF (254 ns; the
-  "Stirling arithmetic" above), VonMises CDF (623 ns) and the Gamma-family
-  CDFs are attributed by reading, not profiled. Proposed: one `detail`
-  helper, hardware FMA or a Dekker split product, after classifying each
-  site (exact residual, general addend, fusion spelled only to pin
-  results). Does not need corvus unfrozen, so it is in v3.0.0. Land it
-  before the other machines run their legs, so each validates once; here
-  it must leave the sweep bit-identical or account for every changed row.
-- **#312, `test_poisson_enhanced_timing`** [DONE 2026-11-19, PR 313]: fails
-  here deterministically (1.54–1.61× against 1.656× at 50,000), on `main`
-  from before the adoption too. `getSIMDValidationThreshold` raises the
-  bar for a complex distribution on non-AVX-512 builds. Fix: the base
-  1.2× flat for that case, `tests/` only. Branch
-  `fix/312-poisson-simd-expectation` exists locally at `da7a43e`, empty
-  and unpushed. The other 13 timing tests and `simd_verification` passed.
-- **Small, unfiled:** `scripts/analyze_crossovers.py` reports Uniform and
-  NegBinomial as "not in table" (a row wrapped over two lines; the CSV
-  name against `NEGATIVE_BINOMIAL`); the derive script reads both.
-- **Still owed:** the Kaby Lake, Zen 4 and M1 legs (they gate this
-  branch's PR); a dev-versus-`main` Release comparison for #156.
-
-**v3.0.0 milestone audit and disposition [DERIVED, 2026-11-19, Ivy
-Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
-- **Placement.** No fix on this branch is missing from `main`: every fix
-  since v2.5.0 went to `main` first and was merged in (PRs 302, 304, 305,
-  306, 309, 310, 313). The only dev-only work that is not corvus-specific is
-  the clang-cl group (`da00ad8`, `03f2af4`, `ca6f527`); it ships with
-  v3.0.0 and is not back-ported [user: clang-cl is needed only because of
-  corvus and Highway under MSVC].
-- **Housekeeping done today.** #312 fixed (PR 313, `99f2175`) and closed.
-  #287, #290 (re-scoped to the TBB install-contract checks) and #291 moved
-  into v3.0.0; comments on #178, #283, #291, #52. The patch milestone's
-  description leads with its current state (ships after v3.0.0, likely
-  v3.0.1). No unmilestoned issue is left.
-- **Disposition of the 39 open v3.0.0 issues.** Measured on this machine
-  only (AVX tier, GCC 13.3; mpmath at 50–60 digits), dev against a build
-  of `main`. Only the AVX characterization block is regenerated. No test
-  on the branch gained a guard for any of these, so none has the
-  fail-against-the-unfixed-state evidence AGENTS.md requires.
-
-  *Defect gone, measured; guard or cleanup owed before closing (16):*
-
-  | Issue | Measured on dev | Still owed |
-  |---|---|---|
-  | #47 | von Mises pdf/logpdf ≤ 1.7 ulp; Bessel tiers gone | AppleClang validation (this machine was Tier 1); Tier-2 tolerances in `test_contract_gates.cpp:1170-1178` |
-  | #252 | entropy error ≤ 1.2e-14; step at κ = 50 is 1.5e-14 (was 3.2e-5) | tightened guard |
-  | #267 | `std::cyl_bessel_i` gone (by grep; no TSan run read) | `tests/tsan.supp:3-7` line; dead `lgamma_r` declaration, `math_utils.cpp:22-25` |
-  | #126 | issue's gate ≤ 0.49 ulp (was 1e-6 absolute) | `kCdfTolBeyondIntMax = 2e-4` still in `test_discrete_quantile_bounds.cpp:185`; Geometric pin |
-  | #136 | `erf_inv` ≤ 0.42 ulp, monotone over the tail band | the fail-first gate the issue asks for |
-  | #138 | digamma ≤ 0.47 ulp | two stale test comments |
-  | #141 | `gamma_p`/`gamma_q` ≤ 0.48 ulp at a = 1e3–1e5 | other ISAs |
-  | #113 | Student-t(30) 0.52 ulp; ChiSq(1e5) ≤ 0.27 ulp | unused `MAX_BETA_ITERATIONS`/`MAX_GAMMA_SERIES_ITERATIONS`; attribution paragraph in the characterization doc |
-  | #247 | 0 decreases over 144,000 adjacent pairs | adjacent-double guard |
-  | #262 | survival exact at 1,420 dyadic ties | tests still accept k or k + 1 |
-  | #270 | NB(3, 1e-20) ≤ 0.49 ulp | nothing |
-  | #271 | ≤ 0.23 ε; F + S − 1 = 0.19 ε | nothing |
-  | #214 | monotone to p = 5e-324; F(Q(p))/p = 1.000 | sweep grid stops at 1e-300; guard near p = ½ |
-  | #248 | 15–22 ε (was 112–353 on `main`) | guard; mechanism (corvus `lbeta`) inferred, K(a) form not implemented |
-  | #103 | guards pass; 0 deviations in the sweep | other three ISAs |
-  | #104 | 0 NaN in 2,655 quantile rows; guards pass | other three ISAs; the Cauchy gate vectors are in no test |
-
-  *Partly (8):*
-
-  | Issue | Done | Still owed |
-  |---|---|---|
-  | #266 | CDF side ≤ 0.65 ulp, no jump at shape 20 | density prefactors still switch at shape 20 (Gamma pdf 24–53 ulp, Beta pdf up to 280); Student-t CDF up to 66 ulp |
-  | #272 | Beta and NegBinomial CDF NaNs cleared (71 → 52 NaN rows) | Pareto, Weibull, Beta pdf, NegBinomial pmf, Gumbel logpdf |
-  | #52 | batch CDF on spans; PMF off per-element `lgamma` | scipy before/after; dispatch rows; other ISAs |
-  | #221 | `erf_inv`'s NR body gone | NR continued fraction still live for Student-t tails; `THIRD_PARTY_NOTICES.md:58-76` names functions that no longer exist; exp/log coefficient copies kept by decision |
-  | #114 | `vector_gamma_q`/`vector_beta_i` now live; `gamma_inverse_cdf` is a test-only wrapper | lint job cannot fail; unused public functions; write-only flags; the rest |
-  | #218 | three items, all already gone on `main` | everything else |
-  | #219 | ACKLAM constants gone | everything else |
-  | #220 | survival/hazard and part of serialization stated (on `main`) | sampler stream, fit domain, atomic getters, `detail` enums; no decision per item recorded |
-
-  *Not addressed (15):*
-
-  | Issue | State on dev |
-  |---|---|
-  | #107, #108 | both trig tables, both generators and every per-tier trig kernel remain; no `corvus::cos`/`sin` call. The plan's "close on the swap" does not hold |
-  | #110 | the three erfc tail shapes remain, and now sit on two implementations: `normal_cdf` on `corvus::erfc`, Gaussian and LogNormal on `std::erfc` |
-  | #251 | below `DBL_MIN` unchanged (+43 ulp); at and above it dev is now exact (−0.1 ulp, was +32). So the CDF steps **down 42 ulp** at `DBL_MIN`, against about 10 on `main`: no value got worse, but the non-monotone step is wider. Verified directly |
-  | #249 | bit-for-bit as `main`: 56.9 ε max, 317 of 1,501 rows above 16 ε |
-  | #213, #258 | no tool, no runbook step; the plan says to land them before the characterization regeneration, and the AVX block is already regenerated |
-  | #152 | coverage job differs from `main` only in its timeout |
-  | #179 | unchanged; `cmake/libstats_config.h.in` is deleted here, so the fix needs it back. AGENTS.md and BUILD_SYSTEM_GUIDE still describe it as existing |
-  | #217 | 43 double-checked locks, identical per file to `main` |
-  | #156 | gates undecided; no post-bump timing record on any machine |
-  | #287, #290, #291, #311 | open as filed or re-scoped |
-
-- **Recommendation [DERIVED; user decides].** The milestone holds far more
-  than the swap. Keep in v3.0.0 what the release's own claims rest on:
-  guards for the sixteen measured rows, #251, #110, #213 and #258 (before
-  the other three ISAs regenerate), #267 and #221's stale suppression and
-  notices, #179, #287, #290, #291, #311, #156's gates, and a recorded
-  decision for #107/#108. Candidates to return to the patch: #114, #152,
-  #217, #218, #219, #220, #249, and the remainders of #266 and #272.
-- **Moved [user, 2026-11-19].** #114, #152, #217, #218, #219, #220 and
-  #249 are back in the patch milestone, each with a note. The remainders
-  of #266 and #272 are split out as #314 (density prefactors, Student-t
-  CDF) and #315 (density NaNs) in the patch; #266 and #272 stay in v3.0.0
-  for their resolved halves. Counts after the moves: v3.0.0 32 open and 1
-  closed, the patch 29 open. Still to decide: the remaining v3.0.0 items
-  in the recommendation above, and when the sixteen measured fixes get
-  their guards. #311 has not been started.
-- **Guards landed [2026-11-19]** (`c0f8c3b`; CI #448 green on every leg,
-  the first run of these tests under Clang, AppleClang, clang-cl and
-  cl.exe). `tests/test_corvus_adoption_guards.cpp` has eleven cases for
-  #126, #136, #214, #247, #248, #262, #266 (CDF half), #270 and #271; each
-  was run against a v2.5.0 build here and fails there. Margins on v2.5.0,
-  in ε: NegativeBinomial(3, 1e-20) CDF 48.6, Student-t just below ν = 40
-  333, Gamma(19) CDF 31.5, Beta(19, 1e15) CDF 58.5, Gamma CDF at shape
-  1e-4 9.5; the rest fail outright. The dyadic-tie tests now require k
-  (v2.5.0 returns k + 1 at k = 6..9); `kCdfTolBeyondIntMax` 2e-4 → 3e-6;
-  von Mises entropy below κ = 50 1e-6 → 1e-13 (passes on the macOS leg; not
-  shown to fail on a v2.5.0 AppleClang build).
-  - **#141 and #113 were already fixed in v2.5.0** at the points tried
-    (within 5 ε on this machine), so no guard for them could fail; the
-    existing `test_incomplete_gamma_beta_accuracy` is their guard. Geometric
-    at tiny p likewise.
-  - **None closes yet:** the fixes are not on `main`, and each acceptance
-    asks for the other three ISAs. Ready to close when this branch merges,
-    with nothing else owed: #136, #247, #262, #270, #271, #248, #252.
-    Close at merge after a small remainder: #126 (the NegBinomial logpmf
-    cancellation is unmeasured), #214 (sweep grid below p = 1e-300), #47
-    (a v2.5.0 AppleClang run of the tightened entropy test), #266 (CDF
-    half; the rest is #314), #141 and #113 (unused iteration constants, the
-    attribution paragraph), #138 (two stale comments), #267 (`tsan.supp`
-    line, dead `lgamma_r` declaration), #103 and #104 (other ISAs; the
-    Cauchy gate vectors).
-- **#311 implemented and merged here [2026-11-19]** (`31c93e0`, merge
-  `827abea`; CI #449 green on the feature branch, 134/134 on the merged
-  tree; issue labelled `fixed-on-branch`). `detail::fma_portable` replaces `std::fma` at all 30 sites:
-  `std::fma` inline where the file is compiled for FMA hardware, otherwise
-  a runtime choice between `std::fma` and `detail::fma_software`. The
-  software routine is a correctly rounded fma (Boldo–Melquiond, round to
-  odd), so no site needed classifying, superseding the per-site plan above.
-  Here: 0 mismatches against glibc's fma in 352 million cases; sweep rows
-  identical; 134/134. Indicative ns per element (machine under load),
-  VECTORIZED at 1M: InverseGamma PDF 373 → 90, LogPDF 363 → 79,
-  Binomial(100, 0.3) PDF 282 → 160, VonMises CDF 643 → 440, TruncatedNormal
-  CDF 116 → 52, InverseGamma CDF 1154 → 861. **Gamma CDF did not move
-  (800):** fma is not on its hot path, so the attribution in the issue and
-  above was wrong for that row. InverseGamma PDF still gains only 1.3×
-  from PARALLEL: the serial fixup loop is #178. FMA-hardware paths are
-  unrun; they are `std::fma` as before by construction. After it merges,
-  the InverseGamma kAvx rows need re-measuring (#291).
-- **#251 fixed [2026-11-19]** (`7152e4a`). Below `DBL_MIN` of the argument
-  the incomplete gamma takes a mantissa and a binary exponent
-  (`gamma_p_from_scaled`, `gamma_q_from_scaled`; the `_from_log_x` pair is
-  gone). Gamma CDF there 570 ulp → 1.4, InverseGamma survival 1067 → 1.2,
-  and no step down at `DBL_MIN` (was 42 ulp at shape 0.5). Two guards in
-  `test_contract_gates.cpp`, both red against the unfixed library. Sweep:
-  one row changed, 3.7 ulp off → 0.3. AVX tier and GCC only so far.
-- **kAvx takes this machine's native values [user, 2026-11-19].** The
-  table is keyed by tier and this is the only silicon whose native tier is
-  AVX; a capped build on FMA hardware (and `kSse2`, which delegates) gets
-  them too. **Schedule [DERIVED; the user left the timing to me]:** do not
-  write rows from the 2026-11-18 bundle. #311 has since cut InverseGamma,
-  Binomial, VonMises and TruncatedNormal costs 1.5–4× here, and cheaper
-  kernels cross to PARALLEL later, so those rows are stale. One pass,
-  after the remaining v3.0.0 `src/` work on this machine has landed (#110
-  and the cleanups): a fresh three-run quiet capture with
-  `build-ivb-adopt/quiet_run.sh` (about four hours, screen locked), then
-  derive with the fork rule corrected for this machine (a candidate of
-  6144 stays 6144 where PARALLEL is behind at 4096), write the table, run
-  the `table_ab_bench` A/B, and commit bundle and table together. The
-  documentation column #291 asks for is written from the same capture.
-- **#110 done [2026-11-19]** (`f873711`). One helper,
-  `detail::normal_cdf_from_erf_arg(w)`, with `normal_cdf_left_tail(w)` for
-  the batch fixups; the three scalar sites and both fixups call it.
-  **On `std::erf`/`std::erfc`, by measurement:** corvus `erfc` is more
-  accurate alone (0.93 ulp worst against glibc's 2.19), but the CDF's error
-  is the rounding of `w` amplified by ~2w² (78 ulp at z = −8 either way),
-  and a corvus single call made Gaussian's scalar CDF 53 → 63 ns. Switch at
-  the helper when corvus has scalar entry points (corvus #110). LogNormal's
-  scalar CDF and survival now form their argument as the batch does: 6006
-  of 60000 short-batch values differed before, none now; guard in
-  `test_contract_gates.cpp`, red before. Sweep: 72 LogNormal rows change,
-  41 better and 31 worse, no net change. Gaussian unchanged.
-- **Cleanups done [2026-11-19]** (`e2b3259`): #267's suppression and dead
-  declaration, #113's unused constants and doc correction, #138's entropy
-  tolerances (1e-6 → 1e-12), #221's notices, and the `libstats_config.h.in`
-  wording in AGENTS.md and the build guide. CI run 44627161062 on this
-  commit is the first without the TSan suppression; **not read**. Labelled
-  `fixed-on-branch` today: #110, #113, #138, #251, #311 (with #136, #247,
-  #248, #252, #262, #270, #271 earlier). #267 gets the label when the
-  sanitizer leg confirms. #221 stays partly open: the Student-t continued
-  fraction and the exp/log coefficient copies need a decision, not code.
-- **v3.0.0 work still open on this machine:** #213 and #258 (verification
-  tools, before the other machines regenerate), #179, #287, #290, #156's
-  gates, the #107/#108 decision, and the one kAvx capture for #291 after
-  the `src/` work above settles.
-- **Session end, 2026-11-19 [DERIVED].** Tip `07cfb19` plus this note; CI
-  #451 green on `e2b3259` (every leg, ThreadSanitizer without the
-  suppression), so #267 is labelled too: thirteen v3.0.0 issues carry
-  `fixed-on-branch`. v3.0.0 stands at 32 open and 1 closed. An interim
-  sweep and oracle run at `07cfb19` (26,882 rows, 190 self-checks, 0
-  contract violations) and an indicative dev-against-v2.5.0 timing pass
-  were reported in conversation only [user]; nothing from them is recorded
-  as a result. The per-distribution table is unchanged from the pin bump
-  except InverseGamma survival (5.1e-16 → 1.8e-16, #251), so the AVX block
-  in `docs/ACCURACY_CHARACTERIZATION.md` (banner `b766e45`) is stale by
-  that one row and by today's commits; regenerate it with the other ISAs.
-  Tooling note: `accuracy_vs_mpmath.py --out` rewrites an existing doc in
-  place and fails on a new path. **Resume with** the open list above:
-  #213 and #258 first (they should precede the other machines'
-  regeneration), then #179, #287, #290; #156's gates and the #107/#108
-  and #221 decisions are the user's; the kAvx capture comes last.
-- **Session of 2026-11-20 [DERIVED, Ivy Bridge]: the two verification tools
-  (#258, #213).** Commits `d6e5517` (tools) and `72db578` (oracle fixes).
-  CI dispatched on `72db578` at session end, **not read**.
-  - **#258, per-row gate** (`tools/accuracy_vs_mpmath.py`): every scored
-    row keeps a score; `--refs`/`--refs-out` cache references (a second
-    sweep scores in about a minute, not 25); `--baseline` with `--budget`
-    exits 2 on a row worse than its baseline beyond noise; `--rows-out`
-    and `--allow-out` write the files. The cache is versioned
-    (`ORACLE_REFS_VERSION`) and remembers rows the oracle gave up on.
-  - **Replay grid** (`accuracy_sweep --grid-from <previous.csv>`): needed
-    because the x grid comes from the library's own quantile, so two
-    builds sweep neighbouring doubles (3,888 of 26,882 rows between v2.5.0
-    and here) and density error at large shape swings with the low bits of
-    x. A nearest-x match reported 411 regressions that were the grid.
-  - **dev against v2.5.0 on v2.5.0's grid:** 26,301 rows matched, 1,111
-    values better beyond noise, 98 worse. The 98 are densities below shape
-    20: `stirling_error` forms δ(m) by subtraction, and the change of
-    `lgamma` reshuffled which arguments round badly (corvus `lgamma` is the
-    more accurate: 0.49 ulp worst against glibc's 1.33). 235 scalar density
-    rows better, 44 worse, same typical size. Recorded on #314 with the fix
-    direction; not a regression in quality.
-  - **#213, off-grid sweep** (`accuracy_sweep --offgrid [--seed N]
-    [--instances N]`): rebuilt from the `numerical-defect-hunt` skill
-    (dotfiles), since the hunt's prototypes were not kept anywhere. All six
-    scope points of the issue are covered. First pass on dev, seed 213,
-    five instances: 10,633 rows, 10,440 scored, 141 skipped, 2 contract
-    violations.
-  - **Found by it, filed in the patch milestone:** #316 (Cauchy quantile
-    −inf where a finite double exists) and #317 (Fisher-F pdf/logpdf at
-    subnormal x; probably the hunt's "Fisher-F subnormal case"). Neither
-    has a fix started.
-  - **Oracle faults it exposed, fixed:** the Beta survival reference below
-    the working precision (returned 1 for 0.4348), and quantile rows at a
-    subnormal p (now the smaller of the distance in x and in CDF space).
-  - **Open:** #213's acceptance (the hunt's five findings reproduced on a
-    pre-fix build) and runbook step R2b; a committed allowlist for the
-    gate, with dev's own rows as the baseline from here; 120
-    NegativeBinomial survival rows the oracle cannot reference within 20 s;
-    three density groups over 1,000 ε not examined (Erlang,
-    TruncatedNormal, Gumbel pdf). Working files are in the gitignored
-    `build-ivb-adopt/rows258/` (sweeps, reference caches, per-row scores).
-  - **Then, as before:** #179, #287, #290; #156's gates and the #107/#108
-    and #221 decisions are the user's; the kAvx capture comes last.
-- **Session of 2026-11-21 [DERIVED, Ivy Bridge; user away for most of it]:
-  #213's acceptance, the allowlist, runbook step R2b.** CI on `e639c9a`
-  was green. Committed as `09db102`; outcome comments posted on #213 and
-  #258, which stay open until dev reaches `main`.
-  - **#213 acceptance met.** Today's sweep tool, built against `834b981`
-    (the commit before the 2026-10-08 fix round; survival rows stubbed out
-    in the scratch copy, since most classes had no `getSurvival` then),
-    reproduces all five of the hunt's findings, same seed, pre-fix against
-    dev: Geometric CDF 4.5e6 ε against 0.42; Beta quantile, 75 rows over
-    100 ε with worst inf against none; the Fisher-F subnormal case (CDF
-    4e10 against 59; pdf/logpdf still bad on dev, #317); #126 through the
-    NegativeBinomial (2.4e4), Binomial (1.6e3) and Fisher-F CDFs; and the
-    Rayleigh/HalfNormal range defect (Rayleigh CDF inf and pdf 1.8e29,
-    HalfNormal pdf 4.5e15, batch NaN; 102 contract violations) against
-    dev's 2, both filed (#316, #317).
-  - **Sweep changes for that:** deliberate instances beside the random
-    ones (Rayleigh and HalfNormal scales either side of where σ² leaves the
-    normal range: the first range, to 1e±100, never reached the defect),
-    and constructor refusals counted in `# rejected_instance` lines, apart
-    from quantile rows that threw. dev refuses the three scales outside
-    [1.49e-154, 1e10] and sweeps the two inside.
-  - **Allowlist:** `data/accuracy/allow_AVX.csv`, 3,039 over-budget rows
-    of dev's fixed-grid sweep (264 KB). The gate is shown both ways: dev
-    against its own allowlist exits 0 with none failing; the v2.5.0 sweep
-    against dev's rows on the same grid exits 2 with 1,111 failing.
-  - **Runbook:** step R2b added above (row gate, then off-grid sweep);
-    commands and how to read the output are in
-    `docs/ACCURACY_CHARACTERIZATION.md`.
-  - **Unexamined groups, now examined:** Erlang and Gumbel pdf over 1,000 ε
-    are the conditioning of x. **TruncatedNormal pdf is a defect, filed as
-    #318 (patch milestone):** for a window about 0.0013 σ wide at z ≈ −5.9
-    every row of the instance is off by the same 1,586–1,599 ε, and a
-    second narrow window by about 128 ε. Z takes the window width as
-    β − α, which loses |α|/w of a rounding; (b − a)/σ keeps it (mpmath:
-    Z at the rounded α, β is 1,582 ε off, with the width kept 11 ε).
-    pdf and logpdf only; cdf and survival already use (b − a)/σ. Older
-    than the adoption (`834b981` is worse).
-  - **Left over:** the scratch worktree
-    `…/scratchpad/prefix` (pre-fix build, registered with git; remove with
-    `git worktree remove --force`). Working files in
-    `build-ivb-adopt/rows258/`.
-  - **Later the same day, with the user: #179, #290's remainder, and the
-    backend decision** (`4e3abe9`, `aadc46b`, `af2e548`). CI dispatched on
-    `af2e548`; **no run on these three had reported when this was written**,
-    and Windows and macOS are checked by CI only.
-    - **#179 fixed** (`4e3abe9`). Reproduced first: on GCC 13.3 and Clang 18
-      the header chose pthreads unless `<version>` or `<execution>` came
-      first, then `std::execution`. Now `parallel_execution.h` includes
-      `<version>` and reads the generated `libstats_config.h`, back with
-      one fact, `LIBSTATS_HAS_TBB`. On libstdc++ the policies are taken
-      only when the build links TBB and the file sees TBB's headers.
-    - **Found on the way:** the pthreads backend was never called
-      (`safe_for_each` and `safe_transform` went `std::execution`, GCD,
-      else serial), so "pthreads" meant serial. Those two are wired; the
-      pthreads implementations now join every thread before rethrowing.
-    - **Guard:** `test_parallel_backend_selection`, probe sources that
-      differ only in what precedes the header or in a flag. Red on the
-      unfixed header (backends 1 and 5 in one program; one thread).
-    - **#290's remainder done** (`aadc46b`): `-ltbb` moves to the `.pc`
-      file's public `Libs` (the old file fails a consumer that calls a
-      wrapper: "DSO missing from command line"); `consumer_example` calls
-      `safe_transform`; CI's GCC leg installs `libtbb-dev` and its
-      pkg-config step compiles, links and runs the consumer. Checked here
-      against Highway and corvus installed to a prefix, with TBB and with
-      `LIBSTATS_HAS_TBB=OFF`: both consumers build and run.
-      **Not covered:** `consumer_example_fetchcontent` (fetches `main`),
-      and after the CI change no leg runs the install steps without TBB.
-    - **Also in `aadc46b`:** `libstats_algorithm_common.h` deleted (nothing
-      included it; a public header, so v3.0.0 is the release for it), and
-      the wrappers' no-throw rule documented in the header and AGENTS.md.
-    - **`_OPENMP` out of the selection** (`af2e548`): a per-file compiler
-      flag, so a consumer file built with `-fopenmp` on a build without TBB
-      took OpenMP bodies against the library's pthreads. Guard case added,
-      red on the previous header with no TBB backend. CI's Clang leg (no
-      TBB) is where it can fail. `find_dependency(OpenMP)` removed.
-    - **Backend decision [user, 2026-11-21], recorded on #319:** macOS
-      GCD; Windows `std::execution` (MSVC's library builds it on the
-      Windows thread pool); Linux with TBB `std::execution`; Linux without
-      TBB the library's own pool, replacing the per-call pthreads code;
-      OpenMP not selected. Deleting the Windows Thread Pool and OpenMP
-      code and moving Linux onto the pool is #319 (patch milestone), not
-      v3.0.0.
-    - **Owed when CI is green:** status comments and `fixed-on-branch` on
-      #179 and #290.
-    - **Left for v3.0.0 on this machine:** #287, then the kAvx capture;
-      #156's gates and the #107/#108 and #221 decisions are the user's.
-    - **Scratch, safe to delete:** `…/scratchpad/p179` and
-      `…/scratchpad/p290` (two install prefixes).
-  - **Evening: #287, the #108 and #221 decisions, and the capture is
-    ready** (`e890dec`; CI green on `af2e548`, dispatched on `e890dec`
-    and **not read** when this was written).
-    - **#287 fixed:** `INSTALL_GTEST` and `BUILD_GMOCK` off before the
-      fetch. GoogleTest's install rules 13 → 0; a full build installed to
-      a fresh prefix holds only libstats files.
-    - **#108 [user]: keep the per-tier trig duplication**, recorded in
-      AGENTS.md, "SIMD kernel conventions". **#221 [user]:** the exp/log
-      coefficient copies stay on the same reasoning and the issue's
-      acceptance is amended; the Student-t continued fraction already
-      carried none of the borrowed identifiers (rewritten for v2.5.0), so
-      only two comments and the notices entry changed. **#107** waits for
-      the M1 (its change is on the NEON side).
-    - **No `src/` code changed after `af2e548`** (`e890dec` touches
-      comments only), so `src/` is settled for the kAvx capture.
-    - **The capture, for the user to run** (Claude closed, screen locked,
-      on AC): `build-ivb-adopt/quiet_run.sh`. It now also builds
-      `tools/bench/distributions_bench` and `elementary_bench` against
-      `build-ivb-main` (headers from `main`) and against this tree, and
-      runs them alternately, three passes, between the SIMD verification
-      and the three `strategy_profile --large` runs. That is #156's Ivy
-      Bridge number from the same session; it adds about two minutes to
-      roughly four hours. Tried once on a loaded machine to confirm the
-      four binaries build and run; those numbers are not a record.
-    - **After the capture:** assemble the bundle; derive kAvx with the
-      fork rule as corrected above; write the table and its
-      documentation column (#291); run the suite; dispatch CI. Then state
-      the benchmark on #156. #156's gates wait for the other machines.
-    - **Node 20 warning on the Windows legs:** from the pinned
-      `ilammy/msvc-dev-cmd` v1.13.0, its latest release, which declares
-      Node 20; GitHub runs it on Node 24 and warns. Harmless today. Not
-      filed; the likely fix is a script step calling `vcvars64.bat`, and
-      it is probably a fleet change.
-
-**Why `expm1`/`log1pmx` are not adopted now** [DERIVED, 2026-11-18, Ivy
-Bridge]: (1) no accuracy to win: the rows that rest on `expm1` already
-read 1.3e-16 to 2.4e-16 (exponential, Rayleigh, geometric, Pareto `cdf`),
-so a correctly rounded kernel moves the last bit at most; the 1e-13 rows
-left in those families are conditioning, not the kernel. (2) corvus
-exports both as spans only: a single call costs 56 ns for `expm1` and
-105 ns for `log1pmx` against glibc's 13 ns `expm1`, and libstats' uses
-are mostly scalar. (3) On spans `expm1` is about level with glibc (22.5
-against 19.2 ns per element), so the batch loops in Exponential and
-Rayleigh could take it for correct rounding at no real cost. That is a
-bit-changing edit on four machines for a last-bit gain: a candidate for
-v3.1.0, not for the pin bump. (4) libstats' own `log1pmx` family feeds
-density prefactors and the Gamma batch density inline; replacing it buys
-nothing the sweep asks for.
-
-Owed [OPEN]:
-- Kaby Lake, Zen 4 and M1 legs: correctness suite, sweep, block
-  regeneration. Then the quiet timing passes (task 3).
-- A CI dispatch on the branch (no push trigger): the pin canary should
-  read green; re-measure the coverage and MSVC budgets, and lift the
-  cl.exe exclusion and tier trim if they allow [user, 2026-10-26].
-- [user] `expm1`/`log1pmx`: not adopted in this bump. corvus exports them
-  as spans only and libstats' uses are scalar density prefactors.
-- [user] #156's gates, once the post-bump numbers exist on all machines.
-- #107/#108: verify that the branch removed the duplicated trig tables
-  before closing either.
-
-What the bump carried, as written on 2026-11-02 (corvus `v1.2.0`, signed
-tag on corvus `691db43`):
-- **Wrapper change:** since corvus v1.1.0, `gamma_p`, `gamma_q`, `beta_p`,
-  `beta_q` and their four inverses have scalar overloads, so each name is
-  an overload set and the deducing `corvus_scalar` wrapper no longer
-  compiles. Call the scalar overloads directly.
-- **New exports:** span `expm1` and `log1pmx` (corvus #45, from this
-  repo's v2.5.0 work), both correctly rounded.
-- **Throughput:** corvus #42 lever 1 (beta and its inverses up to 1.9×
-  faster) and #31 (lgamma table band, single reflection log).
-- **Gates, libstats' decision (#156):** #42's NEON targets (`gamma_p` ≤ 40,
-  `beta_p` ≤ 30 ns/el) are out of reach under corvus's accuracy contract;
-  the M1 reads 272 and 823 ns/el. The log speedup gate needs exempting or
-  re-baselining: corvus `log` runs 0.44–0.66× of Apple's libm (1.5× UCRT).
-- **Same release in libhmm** (fleet coherence rule, libhmm #106).
-- **On the swap:** #107 and #108 were to close, citing corvus #32. They do
-  not: the trig kernels were kept (2026-11-19 disposition table above).
-
-**Fourth fleet machine: Ivy Bridge on Linux — baseline run 2026-11-16
-(on `main`; the adoption's own run is in Status above).**
-MacBook Pro 9,1 (i7-3820QM: AVX, no AVX2, no FMA), Linux Mint 22.3, glibc
-2.39, GCC 13.3 and clang 17/18. Source: corvus #101 and corvus `PLAN.md`.
-Now in AGENTS.md's fleet table. The 2026-11-11 note here was a source read
-from the Zen 4 box; the native run below replaces its first two inferences.
-None of this blocks the v1.2.0 pin bump.
-
-Measured on the machine [DERIVED] (2026-11-16, `main` `321bb98`, GCC 13.3
-and Clang 18.1.3 Release; matrix row in `docs/VALIDATION_HISTORY.md`,
-evidence in `docs/bench-evidence/2026-11-16-ivybridge-avx-baseline/`):
-- The CPU dispatches the AVX tier at runtime (`system_inspector --quick`).
-- Correctness 131/132 under both compilers; the failure is #288. Trig ULP
-  gate 14/14 with AVX cos/sin at max 1 ULP, the SSE2 figures exactly.
-  `simd_verification` 140/0. The native run is a confirmation:
-  `TrigUlpGates.Avx` ran the same `-mavx` kernels on Kaby Lake and Zen 4
-  at v2.5.0.
-- Accuracy sweep: 26,882 rows, 0 contract violations, new `isa=AVX` block
-  in `docs/ACCURACY_CHARACTERIZATION.md` ("Fourth machine"). GCC and Clang
-  agree bit for bit except the NaN sign on four Beta rows. This block is
-  the same-machine reference for the post-swap sweep here.
-- Not measured: anything timed. The machine was in normal use.
-
-Raised by the run, the user's decision [OPEN]:
-- `src/simd_avx.cpp`'s cos/sin comment still reads "UNPROVEN LEG pending
-  the ULP gate" and expects about 1.5 ULP. The gate reads 1 ULP here. Retiring the comment is a `src/` edit, so it waits
-  for the freeze to lift.
-- Clang without an FMA tier warns that `kBudgetTight` is unused
-  (`tests/test_trig_ulp_gates.cpp:151`; `kBudgetLoose` beside it already
-  carries `[[maybe_unused]]`). Not filed.
-- Scalar Beta `pdf`/`logpdf` at x = NaN returns NaN with a
-  compiler-dependent sign bit. Inside the contract (NaN in, NaN out);
-  recorded, not filed.
-- #288, #289 and #290 all reproduced at `321bb98` under both compilers.
-  Since then: #288's test passes an explicit grain (#302; its default-grain
-  item is still open, a `src/` change) and #290's link failure is fixed
-  (#304). #289 is untouched.
-
-Still inferred, verify on the Linux machine [OPEN]:
-- That the corvus swap reads worst here: 4-lane AVX loops hand off to
-  2-lane corvus kernels (corvus dispatches its 128-bit `SSE4` target on
-  this CPU; Highway has no AVX1 target) that also pay the Dekker
-  `TwoProd` cost. corvus #101 measured corvus `log` 0.56×, `log1p` 0.39×,
-  `expm1` 0.50× of glibc and `erf` 3.56× (GCC, one pass, indicative). No
-  libstats kernel has been timed on this machine. Bench
-  `dev/v3.0.0-corvus-adoption` against `main` here, quiet, and state the
-  result on #156; it is a number to report, not a regression to fix,
-  under corvus's accuracy contract.
-- That mixing libstats' VEX AVX code with corvus's non-VEX SSE4 code
-  costs nothing. Sandy/Ivy Bridge charge a state-transition penalty when
-  legacy SSE runs with dirty upper YMM halves. GCC and clang emit
-  `vzeroupper` at function exit by default, so a clean result is
-  expected, not shown. Check the disassembly at a corvus call site or
-  count `other_assists.avx_to_sse` with `perf stat`.
-- That the dispatch thresholds in `performance_dispatcher.h` suit a
-  4-core non-FMA part. Untested; look only if the bench reads oddly.
-- The 14 timing tests and the batch speed gates on a quiet machine.
-
-**v2.5.0 released 2026-10-16.** PR #278 (`dev/v2.4.2` → `main`, merge
-commit `dda07d1`, 158 commits) closed the 75 issues of milestone #10,
-which is closed; CI, CodeQL, the AVX-512 workflows and the docs build
-green on `main`; the CHANGELOG date set in `e24d4ab`; signed tag
-`v2.5.0` on `e24d4ab`; GitHub release from the `[2.5.0]` section. Code
-stays frozen until corvus is integrated (v3.0.0). Closed the same day:
-pylibstats 0.8.0 pins v2.5.0 (PR OldCrow/pylibstats#31, tag v0.8.0,
-PyPI 0.8.0, GitHub release; its #20 and #26 renumbered to the v3.0.0
-corvus pin); the corvus branch's `PLAN.md` carries the merge note's
-final state (`72f9195` on `dev/v2.5.0-corvus`: rebase onto `main`,
-fix-9 edges, the re-derived tables, the deferrals); the standards repo's
-WINDOWS-TOOLCHAIN §5/§6 (`731a99f`) cover the `/arch:` rule and the
-throttling opt-out. `dev/v2.4.2` is deleted (GitHub removed the remote
-on merge; the local branch and the Z worktrees `libstats-v2.4.2`,
-`libstats-oldtable`, `libstats-v2.4.1` are gone, as are Z's stale build
-trees). `spike/corvus-bessel` is deleted, archived as the signed tag
-`archive/spike-corvus-bessel` (its tip `d8443b0`). Remaining on origin:
-`dev/v2.5.0-corvus`. Z's stale libstats 2.0.0 install under
-`C:\Program Files\libstats` is removed (2026-10-16); nothing from the
-v2.5.0 cycle is outstanding on Z.
-
-**v2.5.0 was in progress [DONE 2026-10-16]** on `dev/v2.4.2` (cut from `main` at
-`d8d3388`; milestone #10 "v2.5.0 — Correctness & accuracy", #157–#172, which
-the release PR closes). This line ships as **v2.5.0**, not v2.4.2
-[user, 2026-10-04; Decided]; the branch keeps its name, and "v2.4.2" in
-this file names that branch and its code. All milestone code is in, #162 included
-(`8018c5d`). The speed work on the over-budget rows landed on
-2026-10-04 (Known Gaps, "Over-budget slowdowns"; `b5a47df` through
-`5367999`), with `SQRT_PI` corrected (`4ec1950`) and the Beta
-large-shape density fixed (`97c67bf`).
-
-**Freeze policy [user, 2026-10-07].** v2.5.0's code freezes for good at
-its release and stays frozen until corvus is integrated (v3.0.0). Until
-then the freeze head names the code under validation, not a promise that
-it is final: a defect that affects accuracy, a speedup or a contract's
-validity is fixed, the head moves, and every machine repeats R1, R2's
-sweep compare, R8 and R9 there. v2.5.0 releases from the first head that
-passes every machine's gates with no such defect open. **Freeze head:
-`6e188b4`** (2026-10-12: hunt-3 and fix-5 rounds `7d75176`–`6e188b4`
-over `d7e9dbd`; CI green on all 11 jobs, run 38195277171). A final hunt
-on fix-5's new code runs before the AVX2 block and R8 [user, 2026-10-12].
-
-**Fix-9 round [DERIVED, 2026-10-13].** CI at `14249cb` failed on gcc-14
-(`test_contract_gates`) and MSVC (`far` in a Fix8 test, renamed). The
-GCC failure is a GCC 14/16 miscompile: an overflow guard on `c·x`, with
-`c` a compile-time constant, makes GCC treat `x` as ±inf in the fallback
-(#275; AGENTS.md "Overflow-guard rule"). Four guards now test the
-operand. A GCC-vs-AppleClang probe of every other guard (~650k results)
-found no further case. The full suite passes under GCC 16 on K: Homebrew
-gcc-16 and a GCC-built GoogleTest in the scratch worktree
-`libstats-gccrepro`.
-
-The same round:
-- The Bessel log helpers past DBL_MAX/2π, and Tier 1 I₀ at 5e-324
-  (libstdc++ returns NaN there).
-- von Mises kurtosis is now the circular kurtosis (#276).
-- The manual-GTest link fallback (#274).
-- The κ > 1000 von Mises CDF budgets tightened to 4e-15.
-- Dead `detail::` code deleted: `executeWithStrategy`, the generic
-  `validate*Parameter` helpers, `is_delegation_wrapper`.
-
-Filed in #8: #273, TruncatedNormal variance 0 for windows narrower than
-~1e-154σ. Circular kurtosis and #273's deferral ratified [user,
-2026-10-13]. Committed as `8d3c9c7` (fix-9) and the R6a docs commit;
-next: CI, label #274–#276 `fixed-on-branch`, then the AVX2 block and R8
-at the new head.
-
-**K at `d1adc95` [DERIVED, 2026-10-13]:**
-- CI was green 12/12 (run 38397309137), and #274–#276 are labelled.
-- R2: the AVX2 sweep's bits are identical to 14249cb (26,885 rows), with
-  190 self-checks and 0 contract violations. The block is regenerated.
-- R8: the AVX2, AVX and SSE2 bundles are under `2026-10-13T*_sha-d1adc95`,
-  with `cross_tier_assessment.txt` in the AVX2 bundle. 33–35 of 81 rows per
-  tier moved against `6f86996`. The discrete rows and the von Mises and
-  Student-t CDFs went from NEVER to 1–4k (#175/#176 measured before);
-  continuous rows cross sooner (ee11e62).
-- Both are staged, not committed. Commit messages are in the session's
-  `scratchpad/commit-msgs/14-r2-avx2.txt` and `15-r8-k.txt`.
-
-Next: Z and M rerun R1, R2 and R8 at `d1adc95`. Z done 2026-10-14 (its
-status line; #277 filed). Then the table rows under the 2026-10-14 rules
-(R8), then R6b.
-
-**At `d1adc95`, per machine [OPEN, 2026-10-13].** Code head `d1adc95`;
-the branch tip may be later with docs and data only. `git fetch`, a clean
-tree, then the runbook's sections, with these specifics. Run any chain
-longer than 1.5 h detached in a new session, unsandboxed: the
-`os.setsid()` launcher, as `scratchpad/r8/run_r8_k.sh` did on K. Gate
-each quiet step on the 1-min load (K and M below 2.0). Stop and report
-anything unexplained.
-- **M (NEON, AppleClang 21):**
-  1. R1: a fresh `build-release` with tests on. 0 warnings; correctness
-     132/132, stress included.
-  2. R2: sweep (26,885 rows). Diff the result bits against M's last sweep
-     at `5213b42`. Expect changes only in rows that fix-7/8/9 touch
-     (`0ab1b25`, `0d8ba77`, `8d3c9c7`); explain every one. Then
-     `accuracy_vs_mpmath.py` (a Python with mpmath): 0 contract
-     violations, NEON block only.
-  3. Quiet `test_parallel_batch_gates`: every ratio below 0.75.
-  4. R8 NEON: three `--large` runs, bundled like K's `2026-10-13T*`
-     bundles. Compare with kNeon and with M's `2026-10-05T04-36-25Z`
-     bundle.
-  5. R3: costs against v2.4.1, and `ctest -j1 -L timing`.
-  6. R9: the stress test under TSan (M is the only weakly ordered CPU).
-- **Z (Zen 4; clang-cl performance, MSVC correctness):**
-  1. R1: both compilers Release, 0 warnings, correctness 132/132.
-  2. R2: sweep under both. Diff against Z's last sweep (`3339fc1`).
-     Regenerate the AVX-512 block, which is at `c09efd0`, from the
-     clang-cl sweep. If Z has no mpmath, run the oracle on K or M from
-     the CSV.
-  3. The speed gate.
-  4. R8 on clang-cl: AVX-512, AVX2, AVX and SSE2, three runs each. Opt
-     every process out of power throttling, with ~20 s of warm-up load
-     before each run. Compare with kAvx512/kAvx2/kAvx and with K's
-     `2026-10-13T*` bundles.
-  5. R3: costs against v2.4.1 on clang-cl, and the timing tests.
-  6. R9: the stress test (no TSan on Windows).
-- **K (AVX2, AppleClang 15): done at `d1adc95`** [DERIVED, 2026-10-14].
-  - R1: Release 0 warnings, 132/132.
-  - R9: TSan build 0 warnings. The seven concurrency binaries and the whole
-    suite pass with 0 reports; stress 136/136 with no #180 skips.
-  - R3: timing 14/14. 49 NEW AUTO gaps, all the R8 rows that now go
-    PARALLEL from 1e4; costs stable against 2026-10-04, apart from Gamma(20)
-    logpdf +13% and Student-t(1000) cdf +8% (accuracy fixes).
-  - Evidence: `docs/bench-evidence/2026-10-14-kabylake-{r9-tsan,v242-cost}/`.
-  - **Table A/B on kAvx2 and kAvx, 2026-10-15** [DERIVED, K; user's
-    decisions per round; evidence `2026-10-15-kabylake-threshold-rows/`].
-    Three rounds, each old/new/old/new per tier (AVX2, capped AVX, capped
-    SSE2), quiet.
-    - Round 1 (`580b7f7`'s rows against `10a7ff7`): AUTO gaps 158/146/173
-      → 15/9/26.
-    - Round 2 (13 values) and round 3 (3 rows): gaps → 2/2/17. The rest is
-      by design (Uniform PDF 200k on AVX), two marginal unchanged AVX2
-      rows, and the SSE2-only rows left for kSse2 (v3).
-    - Final header: 15 values on 13 rows over `31d3ec3`, reproduced by
-      `derive_threshold_rows.py`. Stale comments rewritten, including the
-      #111 notes (#211's last item).
-    - R1: Release 0 warnings, 132/132, gates 0.270–0.296, timing 14/14.
-    - **Finding for v3:** K's AUTO goes multi-threaded through
-      WORK_STEALING, which beats PARALLEL well below the profiled
-      crossover. The R8 profiles measure PARALLEL, and kAvx2/kAvx serve
-      PARALLEL platforms too, so the rows stay PARALLEL-optimal except
-      where PARALLEL is break-even (Gaussian LogPDF 100k) [user]. A
-      per-strategy threshold is a v3 input.
-- Note on `794f515`'s message: the discrete and CDF rows' NEVER → 1–4k
-  also reflect #191's slice fix (2026-10-07/08). K's captures from that
-  night were never committed, so the comparison base was `6f86996`.
-
-History: `ee11e62` [user, 2026-10-06] moved the head from `5367999`
-by the Windows build fix (`6cab6ed`: `far` is a windows.h macro; a
-rename in `gamma.cpp` and `beta.cpp`), the `log1pmx_series` Horner
-written out (`998d985`, so MSVC vectorizes the Beta and Gamma Stirling
-batches), clang-cl's global flag made cl.exe's `/arch:` (`606607f`), the
-parallel-path fixes (`73ecbfe`: #175, #176; one snapshot per batch,
-sliced batch kernels) and the audit's lock, TOCTOU and parallel-path
-fixes (`ee11e62`; Known Gaps). The first three are bit-identical on
-clang or Windows-only, so K's runs at `5367999` and M's at `2c5230a`
-stand for R1–R3 [user, 2026-10-04/05]. `73ecbfe` and `ee11e62` are
-bit-identical on Z under MSVC and clang-cl (the sweep's result bits);
-every machine reruns R1 with the new gates and re-profiles R8 (R8). Verified on K (AppleClang 15,
-2026-10-05): the AVX2 sweep at the freeze code is bit-identical to
-`4ceafae`'s. CI first ran on this branch at `bb27040` (manual dispatch),
-green on all 10 jobs: GCC 14, Linux clang 17, macOS AppleClang, MSVC,
-sanitizers, strict `-Werror`. No change to `src/`,
-the public headers, `dispatch_thresholds.h` or build flags without the
-user's decision; work outside them (issues, tooling under `tools/` and
-`scripts/`, docs, cross-repo) continues. A defect found in validation
-is stopped and reported; fixing it moves the freeze head and reruns
-every machine. The threshold update (R8) is the planned exception, last,
-followed by one R1 per machine. At the freeze on K: correctness 89/89,
-AVX2 sweep 0 contract violations, warning-clean; a quiet A/B against
-`b1ffc16` (scratch, `ab_bench`) put Student-t, Exponential and Rayleigh
-back at baseline (1.01–1.11×), kept Weibull 0.55×, Pareto 0.89×, Beta
-(2, 1e5) 0.5–0.7×, and measured Beta with both shapes large at logpdf
-2.2×, pdf 1.3× (the accuracy fix's cost).
-
-Every machine now runs R1, R2 and R3 at the freeze head (K's earlier
-records stand as history) and takes its R8 captures there. Then the runbook
-below, docs, and the release. Every fix has a gate shown to fail on the
-code before it.
-
-Fixed on the branch [DERIVED] — detail in the commit messages:
-- Milestone #157–#161, #163–#167, #170–#172; the FORCE_PARALLEL span
-  lambdas that sent NaN out of support.
-- Numerics: `solve_concave` behind `detail::gamma_p_inv` (#160) and
-  `inverse_t_cdf` (#159, BGRAT tails); Stirling-form prefactors and a 3ε
-  stop (#166); stable `lbeta`; Loader-style log-pmfs (#172, no
-  third-party code [user]); small-shape `gamma_q`; subnormal probit;
-  log1p/expm1 tails (quantiles of Exponential, Rayleigh, Weibull, Pareto;
-  the CDFs of Pareto, Weibull, Exponential, Rayleigh); von Mises tail CDF
-  and quantile.
-- Threading: scalar methods branch on one parameter snapshot (Binomial,
-  Poisson, Gamma and Uniform quantiles); noexcept `trySet*` assign under
-  one lock.
-- Special parameters exact: value paths take λ, α, β = 1 only when exactly 1.
-- Build: `run_tests` → `run_tests_correctness` with VERBATIM (VS 2026
-  `.slnx`); the dynamic tests' DLL-copy race.
-- Oracle: references that lost a tiny p or t at dps 50; refuses to
-  rewrite the doc from a partial CSV.
-
-Not defects, decided [DERIVED]: discrete quantiles near p = 1 that differ
-from the oracle by 3 to 5e4 counts (the contract is the smallest k whose
-library CDF reaches p; #116, #170); logpdf near its zero crossing (a
-relative metric on a near-zero value).
-
-Last release: v2.5.0 (2026-10-16); v2.4.1 (2026-09-19) before it. v3.0.0
-(corvus adoption) is in progress on this branch,
-`dev/v3.0.0-corvus-adoption`, targeting the corvus v1.2.0 pin; the section
-at the top of this file is authoritative for its state. `dev/v2.5.0-corvus`
-was deleted from origin on 2026-10-26 and archived as the tag
-`archive/dev-v2.5.0-corvus`.
-
-## v2.5.0 release runbook (branch `dev/v2.4.2`) [DONE 2026-10-16]
-Historical record of the v2.5.0 cycle; every step ran on every machine
-before the release (Status). Kept for its procedures, which the next
-release reuses.
-
-Machines: **Z** = Zen 4 (Windows 11, MSVC, AVX-512), **K** = Kaby Lake
-(macOS Ventura, AppleClang, AVX2), **M** = Mac Mini M1 (macOS 27,
-AppleClang, NEON).
-
-Status by machine (each machine edits only its own line):
-- **Z:** R0 done (`tools/bench/`, `8cf5550`). At the freeze head
-  (2026-10-04): `5367999` did not build on Windows (fixed, `6cab6ed`).
-  R1 done with MSVC (VS 2026, fresh configure, 0 warnings, 89/89,
-  Release CRT) and clang-cl 22.1.3 (Ninja, 0 warnings after `abd0e86`,
-  89/89), AVX-512 on both. R2 done: AVX-512 block at `c09efd0`, 0
-  contract violations; Beta pdf/logpdf and the Gamma family 2–10⁴×
-  better; Binomial pdf (1.7e-14 → 4.9e-14) and Poisson pdf (5.5e-14 →
-  1.2e-13) worse, digit for digit as on K's AVX2 block at `4ceafae`, so
-  the code's, within the contract. R5 skipped [user]. The MSVC R3/R8
-  overnight of 2026-10-04/05 (`2026-10-04-zen4-v242-cost/`, bundles
-  `2026-10-05T0*_windows-*_sha-2c5230a`) ran under power throttling
-  (base clock; Rules) and is superseded for R8 (manifests say so); its
-  R3 ratios hold. At `998d985`: R1 MSVC and clang-cl 89/89, the sweep
-  bit-identical to `6cab6ed` under both, so the AVX-512 block stands. At
-  `606607f` (clang-cl `/arch:`): clang-cl 0 warnings, 89/89, its sweep
-  0 contract violations through the oracle (to scratch; the block stays
-  MSVC's). **R3 and R8 done on clang-cl** (overnight 2026-10-05/06, every
-  process opted out of throttling, clock at boost throughout;
-  `docs/bench-evidence/2026-10-05-zen4-clangcl-v242-cost/`; v2.4.1 built
-  with `v241_clangcl_compat.patch` there, applied uncommitted in
-  `../libstats-v2.4.1`). R3: timing 21/22, the one failure a single-shot
-  timing that 40 reruns pass (`test_gaussian_enhanced`, #177); von
-  Mises quantile 17–23× and Student-t quantile at ν ≥ 1e3 11.6–13.3×
-  against v2.4.1, the fastest absolute times of the three machines (the
-  ratio is v2.4.1's 18 ns grid lookup); Beta at large shapes 3–4×. R8:
-  bundles `2026-10-06T0*_windows-*_sha-69c7be4`, run-to-run spread 9–13
-  rows > 2×; the cross-tier comparison and the hypothesis tests are in
-  the AVX-512 bundle and under "Trends" below. Those R8 bundles predate
-  `73ecbfe`/`ee11e62` and are superseded for R8 (R8, "Next on every
-  machine"). At `ee11e62` (2026-10-06): MSVC and clang-cl 0 warnings,
-  90/90, sweep bit-identical to `73ecbfe` and `998d985`; speed gate
-  PARALLEL/VECTORIZED 0.17–0.22 at 1M; every concurrency gate failed on
-  `73ecbfe` (the Poisson one by deadlock) and passes. R8 steps 3–4 run
-  overnight 2026-10-06/07 on the clang-cl trees rebuilt at `ee11e62`
-  (0 warnings, tiers confirmed): the speed gate alone, the 23 timing
-  tests, then three `--large` runs per tier (AVX-512, AVX2, AVX, SSE2),
-  every process opted out of throttling. Done, clock at boost throughout
-  (127.2–127.8 ms), speed gate passed, timing 23/23; superseded before
-  use by #184–#191 (#191 rewired both profiled parallel strategies) and
-  kept as Z's pre-#191 R8 reference: bundles
-  `2026-10-07T0*_windows-*_sha-8271f6e`, evidence
-  `docs/bench-evidence/2026-10-06-zen4-clangcl-ee11e62-r8/`; the
-  `69c7be4` bundles marked superseded too. At `3339fc1` (2026-10-07):
-  #190 reads 6 physical, 12 logical (correct; Z is 6C/12T); clang-cl
-  and MSVC 0 warnings once the stress test got `/bigobj` under MSVC
-  (C1128) and both `std::getenv` calls a `_dupenv_s` reader (clang-cl
-  lacks `_CRT_SECURE_NO_WARNINGS`; tests and tools only); sweep
-  bit-identical to `ee11e62`'s under both; correctness 90/91, the stress
-  test failing only its strategy differential (#191's slice tail, R9;
-  K fixes it [user]). R8 and the stress rerun wait for K's head.
-  **At `d1adc95` (branch tip `df78931`), 2026-10-13 evening** [DERIVED, Z]:
-  VS 2026 18.11 (MSVC 14.51, bundled clang-cl 22.1.3), fresh configures
-  of all five trees. R1: MSVC and clang-cl 0 warnings, correctness
-  132/132 each, Release CRT confirmed, tiers confirmed per tree
-  (AVX-512; capped AVX2, AVX, SSE2). R9: stress 109 passed + 27 skipped
-  (`WorkStealingCrossWaiting`, unreachable on Windows) under both, no
-  known-issue skips. R2: both sweeps 26,883 rows (plus the two banner
-  lines); against Z's `3339fc1` sweeps 1,074 (clang-cl) and 1,016 (MSVC)
-  rows changed across 27 distributions, 1,515 removed and 18,188 added
-  (the fix-5 grid and the survival rows); the eight fix rounds since.
-  Oracle (Python 3.14.7, mpmath 1.4.1, on Z) on both: 190 self-checks, 0
-  contract violations, 0 fallbacks. AVX-512 block regenerated from the
-  clang-cl sweep [user, 2026-10-13: clang-cl, header line updated];
-  uncommitted, awaiting the user. **Reported, not fixed:** the
-  TruncatedNormal quantile row reads max_rel 6.3e291 at p = 0.5 on both
-  compilers: `TruncatedNormal(0, 1)` Q(0.5) = −1.41e-16 (bits
-  `0xbca4552040000000`), exact 0 at `3339fc1`, and K's AVX2 block does not
-  show it (its worst p is 0.001, 4.3e-15). Scored against DBL_MIN, so a
-  1.4e-16 absolute miss of an exact 0; within the contract (0 violations).
-  Filed as #277 in milestone #8 [user, 2026-10-14]: deferred, freeze head
-  unmoved; R6b adds the oracle scoring note (R6).
-  **Overnight 2026-10-13/14 done** [DERIVED, Z; 22:17–00:20, detached
-  through WMI, screen locked; evidence
-  `docs/bench-evidence/2026-10-13-zen4-clangcl-d1adc95/`, uncommitted]:
-  clock 127.1–128.2 ms per pass before every phase (boost throughout),
-  phases started at 3.0–6.8% CPU. Speed gate alone: PARALLEL/VECTORIZED
-  0.237–0.265 at 1M, all eight under 0.75. R3 against v2.4.1 on clang-cl:
-  von Mises quantile 15.8–22.8× (18 → 293–416 ns), Student-t quantile at
-  ν ≥ 1e3 10.6–11.5×, Gamma(20) logpdf forced VECTORIZED 4.6–8.2×, Beta
-  large shapes forced SCALAR 5×; 45 NEW and 16 BOTH AUTO-vs-best gaps,
-  nearly all AUTO on VECTORIZED where PARALLEL wins 2–4× at n = 1e4–1e5
-  (Binomial, NegativeBinomial, Student-t, Gamma α ≥ 10, Beta(1000,1000)).
-  Timing 14/14. R8 on clang-cl, three `--large` runs per tier, 7,777 rows
-  each: bundles `2026-10-14T02-41-05Z` (AVX-512), `03-05-23Z` (AVX2),
-  `03-29-48Z` (AVX), `03-54-51Z` (SSE2), `_windows-x86_64_dev-v2.4.2_sha-df78931`;
-  `cross_tier_assessment.{py,txt}` in the AVX-512 bundle. Against the
-  tables, candidates differ by more than one grid step on 61 (kAvx512),
-  59 (kAvx2), 47 (AVX vs kAvx) and 60 (SSE2 vs kAvx) of 81 rows; against
-  Z's `8271f6e` captures (code `ee11e62`) 55/41/39/46 rows moved; against
-  K's `d1adc95` captures 40 (AVX2), 40 (AVX), 44 (SSE2) of 81 differ, Z
-  mostly later. Many Z candidates sit at 6144–8192, Z's fork threshold
-  (8192): PARALLEL wins as soon as it forks, so those rows read "the fork
-  threshold", not a measured crossover. Run-to-run spread > 2× on
-  26/28/24/15 rows per tier (AVX-512/AVX2/AVX/SSE2; K: 25–32). SSE2
-  differs from AVX on 26 rows; 8 rows out of tier order by > 2× (FisherF
-  PDF, Gamma LogPDF, Geometric PDF/LogPDF, InverseGamma CDF, Poisson
-  LogPDF, Uniform PDF/LogPDF). Nothing committed: the AVX-512 block, the
-  four bundles, the evidence directory and this file await the user.
-  Committed and pushed 2026-10-14 (`85e1350`, `4b3cc3d`, `575ab2a`).
-  **Table A/B on kAvx512, 2026-10-15** [DERIVED, Z; uncommitted, awaiting
-  the user's review; `docs/bench-evidence/2026-10-15-zen4-threshold-rows/`]:
-  at `122aa51` (M's rows `580b7f7`/`bb9ac0b`), the procedure under "Table
-  A/B on K and Z", clang-cl, ABAB, five rounds; rounds 1, 2, 4, 5 quiet
-  (2.7–8.8% CPU, boost), round 3 indicative. Round 1 (the `580b7f7`
-  kAvx512 against `10a7ff7`, one pair per tier): AUTO gaps 207 → 103, no
-  table-caused regression (the "slower" rows are single-pass outliers on
-  unchanged rows, trivial-kernel Uniform at 1–4k, InverseGamma where every
-  strategy shifted). The 103 remaining sat on the sixteen `KEEP override`
-  rows and their delegates: the same gap under both tables. Capped tiers
-  for K's direction: kAvx2 196 → 46, AVX-tree kAvx 164 → 31, SSE2-tree
-  kAvx 198 → 64, no regression beyond the forced-strategy shift. Decided
-  [user, 2026-10-15: every change with conclusive evidence]: round 2,
-  fourteen overrides dropped (`DROP_OVERRIDE`, step 4) — Binomial LogPDF,
-  NegBinomial PDF/LogPDF, Student-t CDF, von Mises CDF, Gaussian CDF and
-  the Bernoulli PDF/LogPDF and Geometric PDF mirrors → 8192; Cauchy CDF,
-  Beta LogPDF, Pareto CDF, Rayleigh CDF, Exponential CDF → 25k (gaps 209
-  → 18); round 3/4, three one-step rows taken (`TAKE_CANDIDATE`) —
-  Logistic LogPDF 50k → 25k, Gumbel CDF 50k → 25k, TruncatedNormal LogPDF
-  75k → 50k (gaps 211 → 19); round 5, four fork-zone rows whose profile
-  candidate was only the max of a > 2× spread while every quiet pass
-  shows PARALLEL ahead at 8192 (new `BENCH_CROSSOVER` rule, evidence per
-  row) — Beta PDF/LogPDF, Pareto CDF, Cauchy CDF 25k → 8192: gaps 208 →
-  5, 199 of 810 AUTO rows faster > 1.25×, 2 slower inside the noise band;
-  the five left are 1–2k trivial-kernel rows and two 1.3–1.4× unchanged
-  rows. Kept, bench-supported: Fisher-F PDF 8192, InverseGamma PDF 25k.
-  Header: 21 values on 21 rows (clang-format 20.1.8), other tables
-  untouched; the script's `2026-10-14:` markers extend with the new
-  old → new pairs. R1 at the final header: MSVC and clang-cl 0 warnings,
-  132/132 each, gates 0.235–0.254. The Gamma-at-8192 AUTO observation is
-  closed by `gamma_probe/`: `selectStrategy` returns VECTORIZED there and
-  AUTO times identically to forced VECTORIZED in every order, after a
-  PARALLEL call and after a pause; the bench rows were measurement
-  outliers (none in round 5). No issue. Worktree `../libstats-oldtable`
-  (10a7ff7) kept for reruns.
-  Next on Z: the user reviews, then commits the header, the script and
-  the evidence (one commit for header + script, one for evidence + this
-  file); CI on the push; nothing else on Z.
-- **K:** R1 done (AppleClang 15, macOS 13.7.8, CMake 4.4.3; `a0a913e`
-  fixed the SDK `label` collision and sign-compare warnings in tests;
-  86/86). R2 done: AVX2 block at `a0a913e` (`4f40228`), 0 contract
-  violations. R4 done: #162 reproduced on head and fixed (`8018c5d`);
-  #167 fail-first under UBSan (`d8d3388` aborts at `poisson.cpp:1240`,
-  head clean). Run binaries outside the Claude Code sandbox, which blocks
-  the cache-size sysctls. R3 done (2026-10-03,
-  `docs/bench-evidence/2026-10-03-kabylake-v242-cost/`): timing 22/22;
-  von Mises quantile 52–136× slower; Gamma α ≥ 20 logpdf 10–15× and
-  Student-t 4–9× (scalar fall-backs); discrete quantiles 0.2–0.6×. 20 NEW
-  AUTO-vs-best gaps, all favouring PARALLEL at n = 1e3–1e5 (Z: 22); 13 in
-  both versions. R8 captures done (2026-10-04, `d9384f8`): AVX2, AVX
-  and SSE2 bundles `data/profiles/dispatcher/2026-10-04T*`, three quiet
-  runs each; findings under R8. Superseded by the 2026-10-04 speed work
-  (`b5a47df`–`5367999`). At the freeze head (2026-10-04): R1 done
-  (clean `build-release`, 0 warnings, 89/89); R2 done, AVX2 block at
-  `4ceafae` (`dce2656`), 0 contract violations, no row worse. R3 done
-  (overnight 2026-10-04/05, `docs/bench-evidence/2026-10-04-kabylake-v242-cost/`):
-  timing 22/22; per call or forced VECTORIZED, von Mises quantile
-  5.4–6.8× (was 52–136×), Student-t quantile at ν ≥ 1e3 6.8–8.0×, Gamma
-  α ≥ 20 logpdf 3.5–4.9× (was 10–15×), Beta(25, 25) and (1000, 1000)
-  logpdf 4.1–4.2×, Student-t pdf 4.2× (as before); discrete quantiles
-  0.2–0.6×. 14 NEW AUTO-vs-best gaps, all but one favouring PARALLEL at
-  n = 1e3–1e5; 10 in both versions. R8 done: bundles
-  `2026-10-05T0{1,3,4}-*_darwin-*_sha-6f86996` (AVX2, AVX, SSE2; code
-  `5367999`), run-to-run spread 11–17 rows > 2×. Against `d9384f8`, the
-  speed work moved VonMises CDF to NEVER on every tier and Weibull and
-  Pareto CDF later; the comparison is in the AVX2 bundle. Against the tables:
-  kAvx2 30 rows, kAvx 10 (AVX) and 27 (SSE2). No cross-machine analysis
-  or table change until Z's clang-cl R3/R8 rerun is in [user,
-  2026-10-05]. R4 stands. K's R1–R4 and R8 are complete at the freeze head.
-  At `bb27040` (2026-10-05): incremental build 0 warnings, 89/89; the
-  sweep bit-identical to `4ceafae`'s (10,212 lines), so `998d985`
-  changes nothing on AppleClang 15. At `045acd9` (2026-10-07, after
-  pulling `e9a7410`): Release 0 warnings; correctness 91/91; sweep
-  bit-identical to `bb27040`'s, so `ee11e62`, #184–#191 and the slice
-  fix change no result bits on AppleClang 15; stress test after K's fix
-  in R9. #184–#191 moved to milestone #10 [user]. Next on K: quiet
-  `test_parallel_batch_gates`, R8 (AVX2, AVX, SSE2; the capped trees
-  rebuilt), then R9's stress test under TSan.
-  **2026-10-07/08 review and fix round** [DERIVED, K; committed 2026-10-08
-  as `6a56806` (#201, #137), `a8c125d` (#192–#209, #173), `b0ac2ad` (#183,
-  #227, #210), `6920ece` (oracle tie rule); AVX2 block at `6920ece`]: an architecture review and
-  a defect hunt (reports in the session scratchpad; skill
-  `numerical-defect-hunt`, dotfiles `6c03c2d`); fixes #192–#209, #173,
-  #137, #183 and #227, each with a guard shown failing first (#183's is
-  TSan: 18 setter races → 0); CI tests `test_distribution_identities`
-  and `test_io_fit_fuzz` (#210); `detail::parse_double` so
-  full-precision output (#208) reads back subnormals; the oracle scores
-  discrete ties by the library-CDF rule. Decided [user, 2026-10-08]:
-  keep F15's tie rule (#204); accept F6 (`getSurvival` virtual), F14
-  (Rayleigh/HalfNormal σ ≤ 1e10, as Gaussian), F19 (17 significant
-  digits); fix #183 and #227 now. Next [user, 2026-10-08]: fix #223–#226 and
-  #228 (Beta sampler returns 0.5 at small shapes).
-  Verified on the final tree: Release 0 warnings, correctness 99/99,
-  stress 124 passed + 12 skipped (#180), TSan stress 0 races, sweep
-  bit-identical to the merged tree (Beta, TN, Geometric CDF and
-  Discrete-tie rows changed against `045acd9`), oracle 0 contract
-  violations. Overnight 2026-10-07/08 (code hash `3a00b1e8208bfe3b`,
-  before #183/#227, which touch setters only; sweep unchanged by them):
-  `test_parallel_batch_gates` 0.27–0.33 (all < 0.75); R8 AVX2, AVX,
-  SSE2 three runs each, #191 moved 25–35 rows per tier to PARALLEL
-  sooner (many NEVER → ~4096, the fork threshold), 2–8 later; tables
-  now differ on 50/36/47 rows; R9 TSan: only #183 and the test-side
-  `std::cout` race in `test_work_stealing_pool`. Bundles: superseded by the next
-  round (below); not committed.
-  **2026-10-08 second fix round** [DERIVED, K]: `00d1597` (CI test fixes:
-  CMake script policy, strict-GCC braces, a busy-spin starvation that read
-  as a deadlock on CI's 3-vCPU runner, two budgets; CI green, run
-  37867646381); `6703edc` (#223, #224, #226 and Gamma #214: log-space
-  Gamma residual, Temme expansion for a ≥ 1e4; #225 TN quantile at
-  denorm_min; #228 Beta sampler in log space for shapes < 1, streams
-  unchanged for shapes ≥ 1; #229 Beta CDF at shapes < 1e-3; CI green, run
-  37874653275). `f380bde` (#230: inverse_beta_i at shapes < 1e-3 had three faults —
-  quantiles anywhere in the interval, e.g. Beta(1, 1e-300).Q(3.68e-299)
-  = 0.53; fixed with the #229 machinery, ordinary shapes byte-identical;
-  correctness 99/99, stress 124 + 12 skipped, identity and Beta quantile
-  tests 3/3). Batch CDF at Gamma α 0.5 and 2.5 ~13–16% slower, α 1e6
-  50× faster. The overnight of 2026-10-08/09 (code hash
-  `a7dbdbcd7ad4e71f` = `f380bde`) is void: the Claude app restarted at
-  23:58 (Claude Code update) and its cleanup SIGKILLed the run's children
-  from 00:05 (AVX2 three runs and AVX run 1 completed; SSE2 and TSan
-  none). `nohup … & disown` keeps the process group; detach in a new
-  session next time. Next [user, 2026-10-09]: another review for
-  remaining defects until every one is fixed or assigned a milestone;
-  then the AVX2 block at the freeze head and a full R8 (AVX2, AVX,
-  SSE2), the quiet batch gates and TSan.
-  **2026-10-10 hunt-2 fix round** [DERIVED, K]: `4eb0816` (#212 timing
-  split via `libstats_split_timing_cases`, 283 cases into CI's correctness
-  run; #177 batch-fit gate above `BATCH_FIT_MIN`); `cd9a2ab` (#216,
-  #231–#242; plus a found defect: the beta continued fraction lost
-  0.68·a·ε at its branch point, now an odd contraction with the cancelling
-  term in closed form, and the Stirling prefactor's dropped linear term);
-  `317cf66` (MSVC `small` macro; two guards made FMA-contraction-robust on
-  AArch64); `7806429` (Student-t fit to ν = 1e8 with a Gaussian limit;
-  correctness checks moved out of timing cases in 12 files); `d7e9dbd`
-  (Beta small side computed directly above x_b for b < 1, was up to
-  3.1e4 ε; Student-t fit guard pooled). #241's Beta part (1–3 ulp
-  non-monotone at shapes ≤ 1e-3, needs a correctly rounded I_x) is #247 in
-  #6. Sweep vs `merge3`: 402 rows changed, all explained; oracle 0
-  contract violations; correctness 117/117. The von Mises sampler's
-  streams change in the last bits at ordinary κ [user: keep]. A memory
-  exhaustion (three agents building at once) restarted K mid-round: cap
-  concurrent builds on K.
-  **2026-10-10/11 hunt-3 round** [DERIVED, K]: `7d75176` — targeted hunt
-  on d7e9dbd's changes, then three fix agents plus digamma/trigamma: beta
-  log1p prefactor and beta_i_pair (Binomial, Fisher-F), Fisher-F extremes
-  and small side, beta past the shape-ratio switch (F(50,1e20).Q(0.5)
-  163.84 → 0.9867), von Mises hang at κ ≥ 6.5e15, Student-t fit
-  derivative, Uniform, TN, Gamma/Weibull contract edges, TN entropy and
-  kurtosis. Deferred: #248–#253.
-  **2026-10-11/12 fix-5 round** [DERIVED, K]: from a corvus-pattern audit
-  of the oracles (corvus #54/#61: no shared-formula band; checks that
-  could not fail) and a probe of the bands the sweep never visited.
-  `08d48aa`: oracle scores relative error to DBL_MIN and ULP below (was
-  absolute below 1e-290), its own Cauchy/von Mises/Fisher-F reference
-  defects fixed, 131 self-checks with negative controls, sweep 18,732
-  rows with both sides of every kernel switch; von Mises CDF above
-  κ = 1000 (normal limit from 1e20), TN half-infinite windows and
-  complement-native survival, discrete quantiles for p > ½ decided on
-  the survival side [user: rule accepted; Q(F(k)) = k can fail above ½],
-  Poisson CDF floors non-integer x, Cauchy subnormal pdf, six derived
-  constants 1 ulp off (INV_SQRT_2 et al.) made correctly rounded,
-  InverseGamma β/x and Gamma βx rounding at huge shape. `ac72e9a`: that
-  rate correction counted twice under FMA contraction on AArch64; split
-  statement plus -ffp-contract=off for gamma.cpp and inverse_gamma.cpp,
-  and a new `fma-contraction` CI leg (clang-17, -mfma). `47bea80`:
-  complement-native getSurvival for Gamma, ChiSquared, Erlang.
-  `e352c62`: the survival guard's step scaled to log-rounding (MSVC).
-  `f3c8f2a`: inline-definition allowlist emptied. `e73f39f`: clang-format
-  20.1.8 over the repo (673 violations; neutral: sweep byte-identical),
-  listed in `.git-blame-ignore-revs` (`6e188b4`). Deferred: #8 holds
-  #248–#251, #253 and #257–#265; #6 (corvus) holds #247 and #252.
-  Process notes: K's sandbox broke after an OOM restart (intern.c
-  assertion), so builds run unsandboxed; cap agents' compile jobs at 6
-  total; agents must never write outside their worktree (one appended a
-  test to main) and never pkill by pattern (one killed others' builds).
-- **M:** macOS 27.0.1, AppleClang 21.0.0 (clang-2100.3.34.2), CMake
-  4.4.3, Ninja 1.13.2. At `2c5230a` (freeze head plus tests/docs,
-  2026-10-04): R1 done (clean `build-release`, 0 warnings, NEON, 89/89).
-  R2 done: NEON block at `2c5230a`, 0 contract violations (v2.4.1: 32);
-  no row worse than the AVX-512 block. Fifteen rows are worse than the
-  v2.4.1 NEON block (Cauchy cdf 2.9e-16 → 2.1e-12; Gaussian, LogNormal
-  pdf/cdf 7–20×; Pareto quantile, Rayleigh pdf), each by the same
-  factor in both x86 blocks, so the branch's, within the contract;
-  oracle run with the `libstats-log-cleanroom` venv (mpmath 1.3.0). R4
-  skipped (done on K). R8 and R3 ran overnight 2026-10-04/05 at
-  `2c5230a` from a detached script, gated on ambient CPU < 15% over two
-  10 s windows (relaxing to 20% after 3 h), not on load: the M1's 1-min
-  load sits at 4–10 idle. The gate opened in lulls; `mediaanalysisd`
-  and Backblaze returned during the R8 runs (noise logged per minute).
-  R8 done: NEON bundle `2026-10-05T04-36-25Z_*_sha-2c5230a`, run-to-run
-  spread 9 rows > 2× (K: 12–19). 22 of 81 rows differ from kNeon, 20 of
-  them as in 2026-09-04 (deliberate overrides); the v2.4.2 movers are
-  FisherF PDF 8192 → 2048 and LogPDF 10k → 4096, as on K's kAvx2; 8
-  more rows moved since September onto values kNeon already holds. R3
-  done (`docs/bench-evidence/2026-10-05-m1-v242-cost/`): timing 22/22
-  (ambient 6.1%); von Mises quantile 5.8–8.7×, Student-t quantile at ν ≥
-  1e3 7–9×, Gamma(20) logpdf 4.3× forced VECTORIZED; discrete quantiles
-  0.23–0.71×. 14 NEW AUTO-vs-best gaps, all favouring PARALLEL at
-  n = 1e4–1e5 (Beta 25 and 1000 shapes, Gamma α ≥ 19.9, Binomial and
-  NegativeBinomial CDF at large counts); 9 in both versions. At
-  `1f999e3` (2026-10-05): incremental build 0 warnings, 89/89; the
-  sweep bit-identical to `2c5230a`'s (10,210 rows), so `998d985`
-  changes nothing on AppleClang 21 / NEON either. M's R1–R3 and R8 are
-  complete at the freeze code. At `ee11e62` (2026-10-06, a Claude session
-  whose sandbox bypass was refused, so every binary ran inside the
-  sandbox): Release 0 warnings, correctness 90/90. Next-steps 2–4 (sweep
-  compare, `test_parallel_batch_gates`, R8) not run: they need the
-  bypass (cache sizes read 0 inside) and a quiet machine (Spotlight and
-  `backupd` at ~180% CPU each). R9 steps 1–4 done on M:
-  `tests/test_concurrency_stress.cpp` and
-  `docs/bench-evidence/2026-10-06-m1-concurrency/`, both uncommitted;
-  results under R9.
-  **2026-10-12 review and seam hunt** [DERIVED, M; uncommitted, awaiting
-  the user; `docs/bench-evidence/2026-10-12-m1-seam-hunt/summary.txt`]:
-  at `a033bbb`, inside the sandbox (correctness and sweeps only): Release
-  0 warnings, 118/118; the first NEON run of fix-5's 18,732-row sweep and
-  the first oracle run of a contracted build, 0 contract violations with
-  contraction on and off. A constructed-parameter probe at every method
-  switch found four defects, fixed with guards that fail on `HEAD`'s
-  library: discrete quantiles non-monotone across p = ½ (Binomial,
-  NegativeBinomial); von Mises pdf/logpdf from κ ~ 1e10 (exactly 1 from
-  1e20); Student-t CDF beyond |t| = √ν; Fisher-F logpdf at large df.
-  After: 131/131, stress 109 + 27 skipped, oracle 0. Open for the user:
-  the −π fold (#51's convention), the shape-20 Stirling switch (10–988
-  ulp below 20), a #214-mechanism case at shape 0.004, H5's luck-based
-  bit equality. Test hardening: adaptive cross-wait budget (K verifies),
-  stronger inline check, per-name timing-split check. These move the
-  freeze head; K's final hunt runs on code without them.
-  **2026-10-12/13 follow-up** [DERIVED, M; decided by the user
-  2026-10-12; committed `8be51a3`..`5213b42`]: committed and pushed
-  the four fixes above (`35cb02f`..`5b20fc2`). Then: #180 fixed (16
-  global `waitForAll()` calls removed; the cross-wait check lists no
-  known rows, so K's stress run is its verification); H5's batch-vs-scalar
-  check relaxed to 2 ulp; the von Mises domain documented in doubles
-  (#51, comment posted); the shape-20 comment corrected and the switch
-  filed as #266 (milestone v3.0.0); #214 extended by comment. The sweep
-  and oracle now cover `getSurvival` (8,153 rows, 59 new two-sided
-  self-checks). Their first run found the 11 distributions on 1 − F
-  returning exact 0 in the upper tail, and the rate-product correction
-  skipped at a subnormal P or Q in Gamma and InverseGamma (1.9e-7). Both
-  fixed with guards that fail first (`test_survival_tails`,
-  `M1_GammaRateCorrectionAtSubnormalResult`). A ThreadSanitizer CI leg
-  (Linux, clang-17) was added after removing a test-side `std::cout`
-  race; rehearsed on M: 131/131 clean. Final on M: Release 0 warnings,
-  correctness 132/132, stress 109 + 27 skipped, sweep 26,885 rows,
-  oracle 190 self-checks, 0 contract violations, 0 zero collapses.
-  Left as noted: Weibull survival at k = 100 (1.2e-10, the input's
-  conditioning), the deepest-subnormal erfc floor in Gaussian,
-  HalfNormal and `normal_cdf` (no sweep row reaches it). First CI run
-  with the TSan leg failed three jobs, fixed in `ce03863` and `2f506ae`
-  (tests and CI only, no library code): GCC `-Wrange-loop-construct` in
-  the Student-t guard (Strict); the guard's monotone check on the UCRT,
-  whose `log` jitters one ulp (277 ulp at ν = 1000), now bounded there
-  by ν·ulp(log x)/ε (MSVC); and libstdc++'s `std::cyl_bessel_i` writing
-  `signgam` from von Mises' `log_bessel_i0`, suppressed in
-  `tests/tsan.supp` and filed as #267 (v3.0.0 removes it). CI at
-  `2f506ae`: 12/12 green, TSan 132/132 with no reports. Freeze head
-  `2f506ae`: every machine repeats R1, R2's sweep compare (with survival
-  rows now) and R8; K runs R9 under TSan and the cross-wait test for
-  #180. Runs started at `5213b42` stand: the library code is the same.
-  **At `d1adc95`, 2026-10-13** [DERIVED, M; CMake now 4.4.4]: R1 done
-  (fresh `build-release`, 0 warnings; correctness 132/132 outside the
-  sandbox, 82 s). Inside and outside the sandbox `hw.l2cachesize` read
-  4 MB on macOS 27, so the cache-size concern did not reproduce here. R2
-  done: sweep 26,882 rows, 313 changed against the 5213b42 sweep, all in
-  Gamma/Erlang/InverseGamma (1 ulp CDF and survival at large shape,
-  0ab1b25) and von Mises κ ≥ 100 (1–2 ulp logpdf from the log I₀
-  rewrite, 8d3c9c7); oracle 190 self-checks, 0 contract violations;
-  against K's AVX2 block 11 cells worse on NEON, the largest 2.6x.
-  Committed `ea3e4f3`. Steps 3–6 ran overnight 2026-10-13/14 from one
-  detached script under `caffeinate -is` (M's AC sleep is 1 min;
-  `docs/bench-evidence/2026-10-13-m1-v242-cost/overnight_m_20261013.sh`,
-  the 2026-10-05 ambient gate, Backblaze paused by the user). Gates
-  (23:33, quiet): all 8 PARALLEL/VECTORIZED ratios 0.21–0.26. R8 done:
-  NEON bundle `2026-10-14T04-39-37Z_darwin-arm64_dev-v2.4.2_sha-d1adc95`
-  (three `--large` runs at 00:39, 00:46, 01:51; 7 min each, was 16;
-  `mediaanalysisd` during runs 2–3, so run-to-run spread 28 rows > 2×,
-  was 9). Against kNeon 48 of 81 rows would change, 33 moved since the
-  2026-10-05 bundle: the discrete rows and the von Mises and Student-t
-  CDFs NEVER → 1–6k, the continuous CDFs (Exponential, Rayleigh,
-  Weibull, Pareto, Cauchy, Laplace, TruncatedNormal) 25–50k → 4–8k,
-  Beta PDF/LogPDF NEVER → 8192/10k, as on K's tiers. R3 done
-  (`2026-10-13-m1-v242-cost/`): bench pair at 05:26 after the gate
-  relaxed to 20% at the 3 h mark; per call von Mises quantile 6.4–9.5×,
-  Student-t quantile at ν = 1e6 7×, Gamma(20) logpdf 5.7× forced
-  VECTORIZED, Beta large-shape logpdf scalar 3.3–3.5×; parallel
-  discrete and von Mises CDF batches 0.03–0.06×; 46 NEW AUTO-vs-best
-  gaps, all favouring PARALLEL at n = 1e4–1e5, 10 in both versions (R8
-  input). Timing suite 14/14 at 05:45. R9 done
-  (`2026-10-14-m1-concurrency/summary.txt`): fresh `build-tsan`, stress
-  at scale 1 109 passed + 27 `WorkStealingCrossWaiting` skips (K only),
-  the six targeted tests and the whole correctness ctest `-j2` 132/132,
-  **zero ThreadSanitizer reports**; the report path verified with a
-  two-line race under the same `TSAN_OPTIONS`; #183's positive control
-  no longer exists (fixed in `b0ac2ad`). M's steps 1–6 at `d1adc95` are
-  complete; bundle and evidence staged uncommitted, awaiting the user.
-  **Table rows, 2026-10-14 evening** [DERIVED, M; uncommitted, awaiting
-  the user]: `scripts/derive_threshold_rows.py` (new) derives every
-  table from its bundle under the 2026-10-14 rules, one script for
-  kAvx512 (Z's bundle, fork 8192), kAvx2 and kAvx (K's, fork 4096, Z's
-  capped tiers as a direction check) and kNeon (M's, fork 2048: M's
-  threshold is 1536 and the grid has no 1536 point). Two rules added
-  from M's A/B evidence: a table value below the fork value is never an
-  override (it was never a measured crossover), and `DROP_OVERRIDE` /
-  `KEEP_ROW` lists carry per-row user decisions with their evidence
-  (kNeon: von Mises PDF/LogPDF, Gaussian CDF, Discrete CDF, Exponential
-  PDF, Gumbel PDF, FisherF PDF dropped; Exponential CDF and Rayleigh CDF
-  kept at 25k, PARALLEL at 8192 losing 1.6–2× under load). Result: 162
-  values on 85 rows (kAvx512 45, kAvx2 41, kAvx 31, kNeon 45); each
-  changed row carries a `2026-10-14:` marker with its old and new
-  values, the earlier prose kept after it. Measured on M with
-  `tools/bench/table_ab_bench.cpp` (new: AUTO against forced
-  VECTORIZED/PARALLEL, 27 distributions × 10 sizes, ABAB, indicative
-  load): AUTO rows more than 1.25× behind their best forced strategy
-  202 → 24, 191 of 810 AUTO rows faster than 1.25×, none slower once
-  load is accounted for; the R3 cost bench agrees (54 → 7). The header
-  is **applied in this worktree** (clang-format run): R1 on M against it
-  0 warnings, 132/132, gates 0.20–0.23. Evidence and the four per-table
-  row files: `docs/bench-evidence/2026-10-14-m1-threshold-rows/`
-  (PROPOSAL.md, AB_RESULTS.md). Scratch tree `../libstats-rows` holds
-  the proposed header for reruns. Committed as `580b7f7` (header, script, bench) and `724c203`
-  (evidence, this line). Next: K and Z run the table A/B (R8, "Table A/B
-  on K and Z"), one R1 each; CI on the push.
-  **Eight one-step rows taken** [user, 2026-10-14 evening]: the residual
-  kNeon gaps where the quiet candidate and the loaded A/B agree
-  (`TAKE_CANDIDATE` in the script, evidence per row): Gamma and Beta CDF
-  4096 → 2048 (ChiSquared and Erlang CDF follow Gamma's row), Weibull
-  LogPDF, Logistic PDF/LogPDF, LogNormal PDF 50k → 25k, Pareto PDF 75k →
-  50k, Gaussian PDF 50k → 75k; committed `bb9ac0b`, evidence
-  `3577c94`. Round 4 against `580b7f7`: all eight at
-  the best strategy's speed, AUTO gaps 13 → 9 (outliers and 1.25–1.27×
-  cases); R1 0 warnings, 132/132, gates 0.21–0.22. Residual on kNeon:
-  Student-t PDF at 25k (quiet runs 10k/50k/25k, left alone). Scratch
-  worktrees `libstats-rows` and `libstats-v2.4.1` removed.
+| Step | Output | Committed as |
+|---|---|---|
+| L1 native correctness | warning-free Release build; `system_inspector --quick`; correctness suite count; the backend `test_parallel_backend_selection` reports | status line |
+| L2 accuracy sweep and block | this ISA's block in `docs/ACCURACY_CHARACTERIZATION.md`, 0 contract violations | `docs(accuracy): regenerate <ISA> block at <sha>` |
+| L2b row gate and off-grid sweep | `data/accuracy/allow_<ISA>.csv`; a list of off-grid findings | the allowlist; findings filed as issues |
+| L3 prototype bit-identity | sweep at `90d1bef` identical to sweep at `b766e45` | status line |
+| L4 quiet session | timing tests, `simd_verification`, `tools/bench` dev against `main`, three `strategy_profile --large` runs | bundle under `data/profiles/dispatcher/`; bench evidence under `docs/bench-evidence/` |
+| L5 threshold rows | this tier's rows in `dispatch_thresholds.h`, settled by `table_ab_bench` | header, script and bundle together |
+| L6 report | bench numbers stated on #156; status line updated | — |
 
 ### Rules on every machine
-- Commit or push only when the user asks. Commits are signed (YubiKey);
-  never disable signing; batch a commit and its push.
-- Edit only your own status line above; `git pull --rebase` first.
-- Validate at the freeze head `2f506ae` (Status: it moves when a
-  defect is fixed; validate at the latest); confirm it with `git log -1`
-  before R1. Library code changes only by the user's decision: see Status.
-- New defects or unexpected oracle rows: stop and report with evidence.
-  Fix nothing in library code without the user's decision.
-- Quiet runs (R3) alone on the machine: no builds, sweeps or other
-  sessions. On K, wait for the load average to fall below 2.0.
-- On Z, a locked screen puts running processes under Windows power
-  throttling (EcoQoS): base clock, 1.5× slower, and it stays with that
-  process after unlock [DERIVED, 2026-10-05]. Opt each measured process
-  out (`SetProcessInformation`, ProcessPowerThrottling, EXECUTION_SPEED
-  in ControlMask, StateMask 0); children do not inherit it, so launch
-  every binary yourself, not through ctest. Helper:
+
+- Commit, push, comment, label or file only when the user asks. Commits
+  are signed; never disable signing.
+- **Commit only your own**: your tier's rows in `dispatch_thresholds.h`,
+  your `isa=` block, your `allow_<ISA>.csv`, your bundle and evidence
+  directories, your status line here. `git pull --rebase` before every
+  commit; this file is the one every leg edits.
+- **Library code changes only by the user's decision.** A new defect or
+  an unexpected oracle row: stop and report with evidence. If the fix
+  also applies to `main`, it goes to `main` first on a small branch with
+  a PR, then `main` is merged here; adoption-only fixes go straight to
+  this branch. A fix that changes results means the other legs re-run L2
+  from the new head, so say so in your status line.
+- **A new guard must be shown to fail on the unfixed library**, on the
+  platform it targets (AGENTS.md, Testing).
+- CI: this branch has no push trigger. Dispatch with
+  `gh workflow run ci.yml --ref dev/v3.0.0-corvus-adoption` after a
+  change to `src/`, tests, tools or the workflow; do not poll.
+- Performance numbers from Release builds only. **Only a quiet-machine
+  run is a record**; anything measured on a machine in use is reported
+  in conversation and written nowhere.
+- Quiet runs alone on the machine: no builds, sweeps or other sessions.
+  K: wait for the 1-minute load to fall below 2.0. I: the script waits
+  for 0.30.
+- Z: a locked screen puts running processes under Windows power
+  throttling (EcoQoS), 1.5× slower, and it stays with the process after
+  unlock. Opt each measured process out (`SetProcessInformation`,
+  ProcessPowerThrottling, EXECUTION_SPEED in ControlMask, StateMask 0);
+  children do not inherit it, so launch every binary yourself, not
+  through ctest. Helper:
   `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1`.
-- Performance numbers from Release builds only.
-- On the Macs, run every library binary (tests, tools, sweeps, benches,
-  profiles) outside the Claude Code sandbox: it blocks the
-  `hw.*cachesize` sysctls, so cache sizes read 0 and the cache-derived
-  tuning changes. The sandbox also blocks the SSH agent for `git fetch`.
+  The CPU also steps down some 8–15 s into sustained load: set
+  `LIBSTATS_BENCH_WARMUP_SECONDS=25` for the benches and precede each
+  `strategy_profile` run with a discarded short pass.
+- Macs: run every library binary outside the Claude Code sandbox. It
+  blocks the `hw.*cachesize` sysctls, so cache sizes read 0 and the
+  cache-derived tuning changes; it also blocks the SSH agent.
 
-### Cold start (K, M)
-1. `git fetch`; `dev/v2.4.2` must be at the freeze head `2f506ae` or
-   later. Work in a
-   worktree beside the main checkout: `git worktree add
-   ../libstats-v2.4.2 dev/v2.4.2`, or `git pull` in it if it exists.
-2. Read `AGENTS.md` and this file. Record the OS, AppleClang and CMake
-   versions for R6.
+### The steps
 
-### R1 — native correctness (K, M)
-1. `rm -rf build-release`, then `cmake --preset release -G Ninja`, then
-   `cmake --build build-release`. Expect a warning-clean build. This is
-   the first clang build of the v2.4.2 code: watch `[[maybe_unused]]`,
-   the double-double helpers under FP contraction, and
-   `lgamma1p_small`'s table.
-2. `./build-release/tools/system_inspector --quick`: AVX2+FMA on K,
-   NEON on M.
-3. `ctest --test-dir build-release -LE "timing|benchmark" -j8`: expect
-   89/89. The target `run_tests_correctness` runs a 79-test subset.
+**L1 — native correctness.** Fresh Release build (`cmake --preset release
+-G Ninja`, or the Windows presets in AGENTS.md); expect no warnings. Run
+`system_inspector --quick` and record the tier. Run
+`ctest -LE "timing|benchmark"`; the count is 135 on Linux and may differ
+by platform. Record what `test_parallel_backend_selection` selects: GCD
+on the Macs, `std::execution` on Windows, and on Linux `std::execution`
+with TBB or pthreads without. On the Macs this is the first native run of
+the #179 change.
 
-### R2 — accuracy sweep and block (K, M)
-1. The tree must be clean, at a pushed commit, and built in R1. The sweep
-   stamps `git rev-parse` at run time, so the banner then names the code
-   it measured.
-2. `cmake --build build-release --target accuracy_sweep`, then
-   `./build-release/tools/accuracy_sweep sweep.csv`. Write the CSV
-   outside the repo.
-3. `python3 tools/accuracy_vs_mpmath.py sweep.csv`, using the Python that
-   ran the 2026-09-28 regenerations. If `import mpmath` fails, ask the
-   user before installing anything. Only a full sweep rewrites the doc,
-   and only its own `isa=` block (AVX2 on K, NEON on M); check with
-   `git diff` that nothing outside that block changed.
-4. Expected: 0 contract violations (v2.4.1: 32 on each). Large rows that
-   are known or decided:
-   - the Beta quantile, max_rel ~1e259 at p = 0.001 (#137, v2.5.0);
-   - logpdf rows with max_rel ≫ 1 but max_abs ≲ 1e-14 (Laplace,
-     Exponential, Logistic, Gumbel, Beta near a zero crossing);
-   - discrete quantiles near p = 1 (Geometric, NegativeBinomial,
-     Poisson, Binomial);
-   - quantile rows with a huge max_abs and a small max_rel.
+**L2 — accuracy sweep and block.** The tree must be clean and at a pushed
+commit; the sweep stamps the commit it measured. `accuracy_sweep
+sweep.csv` (write it outside the repo), then
+`python3 tools/accuracy_vs_mpmath.py sweep.csv` with mpmath installed (ask
+the user before installing anything). A full sweep rewrites only its own
+`isa=` block; check with `git diff`. Expect 0 contract violations and no
+row worse than the same row in that ISA's v2.5.0 block beyond noise.
+Keep the sweep CSV and the per-row scores (`--rows-out`) for L2b.
 
-   Anything else — a contract violation, or a row far worse than the
-   same row in the AVX-512 block — is a stop-and-report.
-5. Commit (user's approval) as `docs(accuracy): regenerate <ISA> block
-   at <sha> — 32 → N`, then push.
+**L2b — row gate and off-grid sweep.** Commands and how to read the
+output: `docs/ACCURACY_CHARACTERIZATION.md`, "Row gate" and "Off-grid
+sweep".
+1. Row gate against v2.5.0, on the same inputs: build `v2.5.0` beside
+   the checkout, sweep it, then sweep this branch with `--grid-from` that
+   CSV, and score with `--baseline` the v2.5.0 rows. Two builds sweep
+   neighbouring doubles otherwise, and the comparison is not row for row.
+   Expected here: about 1,100 values better; the worse ones are densities
+   below shape 20 (#314). Anything else worse is a stop-and-report.
+2. Write this ISA's allowlist with `--allow-out
+   data/accuracy/allow_<ISA>.csv` from the L2 sweep.
+3. Off-grid: `accuracy_sweep offgrid.csv --offgrid` (default seed 213),
+   then the oracle with `--no-doc --row-timeout 20 --budget 4`. Known on
+   AVX: #316 (Cauchy quantile), #317 (Fisher-F at subnormal x), #318
+   (TruncatedNormal narrow-window density). Report anything else.
+   Known oracle gap: 120 NegativeBinomial survival rows exceed the time
+   limit and are not scored.
 
-### R2b — row gate and off-grid sweep (every machine, from v3.0.0)
-Added 2026-11-21 (#258, #213). After R2, on the same build:
-1. Row gate: score the R2 sweep with `--baseline data/accuracy/allow_<ISA>.csv`
-   (create that file with `--allow-out` if the ISA has none). Exit 2 means a
-   row got worse beyond noise: stop and report.
-2. Off-grid sweep: `accuracy_sweep offgrid.csv --offgrid`, then the oracle
-   with `--no-doc --row-timeout 20 --budget 4`. Contract violations and rows
-   far over budget are triaged as the doc describes; nothing is committed.
-Commands and how to read the output: `docs/ACCURACY_CHARACTERIZATION.md`,
-"Row gate" and "Off-grid sweep".
+**L3 — prototype bit-identity.** The batch-CDF span routing and the
+integer `lgamma` table (`23f6fb3`, merge `90d1bef`) must not change a
+bit. Build `b766e45` and `90d1bef` Release, run each one's
+`accuracy_sweep`, and `diff` the two CSVs past the banner lines: expect
+no difference. Record the batch timings the bench in L4 gives for the
+discrete PMFs and the incomplete gamma and beta CDFs. The `PROTOTYPE`
+tags in `src/` come out once M, Z and K have all reported.
 
-### R4 — Mac-only gates (done on K, 2026-10-03; M skips R4)
-- **#162** (`gh issue view 162`): the POST_BUILD ad-hoc `codesign`
-  fails "is already signed" when a reconfigure re-runs the dylib's
-  symlink step without relinking. Reproduce first on head, then fix
-  `CMakeLists.txt`. Accept: the reproduction builds clean, and R1 passes
-  again. Write and verify it in one Mac pass [user].
-- **#167 fail-first under UBSan.** x86 MSVC cannot show it. The gate is
-  `SupportBoundary.CountsBeyondIntRange` in
-  `tests/test_support_boundary_gates.cpp`. That file does not exist at
-  `d8d3388`, so:
-  1. Make a detached worktree at `d8d3388`.
-  2. Copy the file in from head, and append
-     `create_libstats_gtest(test_support_boundary_gates
-     test_support_boundary_gates.cpp)` to its `tests/CMakeLists.txt`.
-  3. In both trees, configure a fresh `build-ubsan` with `-G Ninja
-     -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLIBSTATS_BUILD_TOOLS=OFF`. Pass
-     `-fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all`
-     in `CMAKE_CXX_FLAGS`, `CMAKE_EXE_LINKER_FLAGS` and
-     `CMAKE_SHARED_LINKER_FLAGS`.
-  4. Build that target in each, and run it with
-     `--gtest_filter=SupportBoundary.CountsBeyondIntRange`.
-  5. Pass if the `d8d3388` run aborts with a float-cast-overflow runtime
-     error and head runs clean. Record both outputs for R6.
+**L4 — quiet session**, last on each machine, one sitting:
+1. `ctest -j1 -L timing` (Z: launch each binary directly).
+2. `tools/simd_verification`.
+3. `tools/bench/distributions_bench.cpp` and `elementary_bench.cpp`,
+   each built against a `main` build and against this branch with the
+   library's own flags, run alternately, three passes. Build lines:
+   `tools/bench/README.md`. This is the machine's number for #156.
+4. Three `strategy_profile --large -o strategy_profile_run<i>.csv` runs.
+5. Bundle as `data/profiles/dispatcher/README.md` describes
+   (`metadata.json`, `manifest.txt` with the conditions and the spread,
+   the three CSVs, `sustained_crossovers.txt`, logs).
 
-  The other tests in that file gate other issues and fail at `d8d3388`
-  by design.
+**L5 — threshold rows.** Every table is stale: the adoption changed
+kernel costs on every tier, and #311 changed them again on CPUs without
+FMA. Derive this tier's rows from the L4 bundle with
+`scripts/derive_threshold_rows.py` (recipe in the dispatcher README; its
+`TABLES` entry for your tier must point at the new bundle), then settle
+them with `tools/bench/table_ab_bench.cpp`, old table against new, run
+old, new, old, new. Rules [user, 2026-10-14, still in force]: a candidate
+at the machine's fork threshold is not a measured crossover; skip a row
+whose three runs spread more than 2× unless its maximum still clears the
+table by more than one grid step; per-row override comments stay unless
+the comment is stale. Then L1 again. Tier ownership: kAvx512 is Z's
+(clang-cl), kNeon is M's, kAvx2 is K's, **kAvx is I's** [user,
+2026-11-19: native values from the only silicon whose native tier is
+AVX; on I a candidate of 6144 stays 6144 where PARALLEL is behind at
+4096]. kSse2 delegates to kAvx.
 
-### R3 — quiet-machine costs and timing (Z, K, M; last on each)
-1. A `v2.4.1` build to compare against.
-   - K, M: `git worktree add ../libstats-v2.4.1 v2.4.1` (detached), then
-     in it `cmake --preset release -G Ninja -DLIBSTATS_BUILD_TESTS=OFF
-     -DLIBSTATS_BUILD_TOOLS=OFF` and `cmake --build build-release
-     --target libstats_static`.
-   - Z: `../libstats-v2.4.1/build-v242cmp` exists.
-2. Build `tools/bench/v242_cost_bench.cpp` against each tree. The
-   commands are in its header: clang++ on K and M, cl from vcvars64 on Z.
-3. Quiet: `./bench_v241 > v241.csv`, then `./bench_v242 > v242.csv`, back
-   to back (about 2 min each on Z). On Z, set
-   `LIBSTATS_BENCH_WARMUP_SECONDS=20` first. Then
-   `python3 tools/bench/v242_compare.py v241.csv v242.csv > compare.txt`.
-4. Quiet: `ctest --test-dir build-release -j1 -L timing` (Z:
-   `ctest --test-dir build -C Release -j1 -L timing`). On K and M this is
-   the first native run of the steady-state speedup gates from #169 (in
-   `d8d3388`), unverified there so far.
-5. Keep the two CSVs and `compare.txt` for R6 under
-   `docs/bench-evidence/<date>-<machine>-v242-cost/`; commit with the
-   user's approval.
-6. Report section 3 of `compare.txt` (AUTO-vs-best gaps marked NEW). The
-   gaps feed R8; do not re-derive thresholds here. INDICATIVE
-   smoke run on a busy Z: von Mises quantile 140–320× slower (3–6 µs
-   Newton on the quadrature CDF, was a grid); forced VECTORIZED 8–13×
-   slower for Gamma α ≥ 20 and Student-t ν ≥ 1e3 (scalar fall-backs); 22
-   NEW gaps, all favouring PARALLEL at n = 1e4–1e5.
+**L6 — report.** State the bench result on #156 and update your status
+line. Do not decide #156's gates; that follows all four machines.
 
-### R5 — optional capped-tier leg (Z)
-v2.4.0 precedent: a `LIBSTATS_MAX_SIMD_TIER` build, correctness and
-sweep. R8 builds the same capped trees on Z; run R5's correctness and
-sweep on them before their profiles if wanted.
+### Machine-specific items
 
-### R8 — dispatch-threshold captures (Z, M) [DONE 2026-10-15]
-Outcome: all four tables re-derived by script (`580b7f7`), then settled
-by per-machine table A/B: kNeon `bb9ac0b`, kAvx512 `6c149f1`/`31d3ec3`,
-kAvx2 and kAvx `4c3a133`/`af7a088`; shipped in v2.5.0. It closed #144
-(2026-10-26). No kSse2 table yet: the SSE2-vs-AVX rows are a v3 input.
+- **M**: #107 (one trig table; the change is on the NEON side) is done
+  here or not at all. #47 is owed its AppleClang validation (von Mises
+  pdf/logpdf ≤ 1.7 ulp on AVX). #156's original numbers are from this
+  machine: `gamma_p` 272 and `beta_p` 823 ns per element against targets
+  of 40 and 30 that corvus's accuracy contract puts out of reach.
+- **Z**: clang-cl is the performance build and supplies kAvx512; cl.exe
+  is the correctness build. CI's cl.exe leg excludes
+  `test_concurrency_stress` (starvation at cl.exe-built corvus speed);
+  say whether it passes natively. A capped-tier leg
+  (`LIBSTATS_MAX_SIMD_TIER`) is optional.
+- **K**: the only hyper-threaded macOS machine, so the only one where
+  AUTO reaches WORK_STEALING. #47's AppleClang validation applies here
+  too.
+- **I**: after the capture, assemble the bundle, derive kAvx, write the
+  table and the documentation column #291 asks for, regenerate the AVX
+  block, and state the bench on #156. Unverified here: that mixing
+  libstats' VEX code with corvus's non-VEX SSE4 kernels costs nothing on
+  this CPU (check `other_assists.avx_to_sse` with `perf stat` if the
+  bench reads oddly).
 
-Decided [user, 2026-10-03/04]: capture `strategy_profile` for every tier
-natively, compare across machines, and only then update
-`dispatch_thresholds.h`. No table edits yet. Z: AVX-512, AVX2, AVX,
-SSE2. M: NEON. K captured at `d9384f8`. Timing: the speed work landed
-2026-10-04 and moved many rows beyond von Mises and Gamma (Student-t
-and Beta densities now SIMD at every shape; the Exponential, Rayleigh,
-Weibull and Pareto CDFs on `vector_expm1`; the discrete log-pmfs and
-every incomplete gamma/beta through the new `log1pmx`; the von Mises
-CDF now compute-bound, scalar per element). Capture once, at the final
-head, on every machine; K's `d9384f8` bundles are the before-picture.
+### After the legs
 
-Why [DERIVED, K bundles `2026-10-04T*`]: the v2.4.2 accuracy fixes
-shrank the VECTORIZED advantage over SCALAR, so PARALLEL now wins sooner
-on these rows. On AVX2 the V/S time ratio went from 0.07–0.12 to
-0.24–0.43 for Student-t pdf/logpdf, Cauchy (which delegates to
-StudentT(1)) and the Exponential/Pareto/Weibull/Rayleigh CDFs, and from
-0.25 to 0.79 for the von Mises CDF. 12 of 81 kAvx2 crossovers moved since
-2026-09-04 (also FisherF ×3 and Poisson logpdf), and 7 of 81 kAvx. A
-mechanical re-derive would change 35 kAvx2 rows, but 23 of those measure
-the same as in September: they are deliberate overrides with per-row
-comments, so keep them unless the comments show them stale. SSE2 differs
-from AVX on 18 rows, nearly all crossing sooner, which argues against
-`sse2_parallel_threshold()` delegating to kAvx. Noise to handle when
-deriving: 12–19 rows per tier spread more than 2× across three runs, and
-crossovers at n = 64 are thin-margin resolution artifacts (the bundle
-README's clamping rule).
+1. Open the dev-branch PR once one other leg is complete.
+2. Remove the `PROTOTYPE` tags once all three have reported L3.
+3. #156: decide the gates from the four machines' numbers [user].
+4. Release docs: version 2.5.0 → 3.0.0, `CHANGELOG.md`,
+   `docs/VALIDATION_HISTORY.md` (matrix, costs, the threshold tables),
+   `MIGRATION_GUIDE.md`, README and AGENTS status lines.
+5. Release: PR to `main` closing every issue labelled
+   `fixed-on-branch`; CI green; signed tag; GitHub release; close the
+   milestone. Then pylibstats and libhmm (Cross-Repo).
 
-Procedure (each tier):
-1. Build Release with tests off; for a capped tier add
-   `-DLIBSTATS_MAX_SIMD_TIER=<AVX2|AVX|SSE2>`. Z: one build directory per
-   tier beside `build/`, `stats.dll` copied beside the tools. Confirm the
-   tier from the configure line ("capped at <tier> ... disabled: ...")
-   and `system_inspector --quick`, and record both.
-2. Three quiet `strategy_profile --large -o strategy_profile_run<i>.csv`
-   runs. Start each only once the machine is quiet (K: 1-min load < 2.0)
-   and log the start load. A run takes ~27 min on K. Z: `strategy_profile`
-   has no warm-up option, so precede each run with ~20 s of load (a
-   discarded short pass) to get past the boost drop (VALIDATION_HISTORY,
-   "Zen 4 frequency scaling"), and record that.
-3. Bundle as K's `2026-10-04T*` bundles do:
-   `data/profiles/dispatcher/<UTC run-1 start>_<platform>_dev-v2.4.2_sha-<sha>/`
-   with `metadata.json`, `manifest.txt` (capture notes), the three CSVs,
-   `analyze_crossovers.py` (copy from a K bundle; paths are relative),
-   `sustained_crossovers.txt` and `logs/*.txt` (`.gitignore` drops
-   `*.log`).
-4. Compare with `cross_tier_assessment.py` from K's AVX2 bundle: copy
-   it, point `NEWD` at your bundles, and for AVX-512 compare against
-   kAvx512. Report rows moved against the table and against K's same
-   tier, and stop there; commit the bundles with the user's approval.
+## State of the v3.0.0 issues [DERIVED, 2026-11-21]
 
-After Z and M [user's decision]: update only the rows v2.4.2 moved in
-each table, decide on a kSse2 table of its own, then R1 again on every
-machine whose table changed. Inputs: "Trends from the v2.5.0 captures".
+Milestone #6: 32 open, 1 closed (#312). Issues stay open until this
+branch reaches `main`; `fixed-on-branch` marks the ones that are fixed
+and guarded here, each with a status comment.
 
-**Decided [user, 2026-10-14], from Z's `d1adc95` assessment
-(`2026-10-14T02-41-05Z` bundle, `cross_tier_assessment.txt`):**
-- **kAvx512 is updated from Z's captures alone**, rows that moved for a
-  code reason, with two rules: a candidate at Z's fork threshold (6144 or
-  8192) is not a measured crossover — encode 8192 where the table says
-  NEVER or a lower value, read as "parallel once it forks"; skip a row
-  whose three runs spread more than 2× unless its max still clears the
-  table value by more than one grid step. About 30 rows.
-- **kAvx2 and kAvx are K's**: Z's capped AVX2/AVX captures (Zen 4 cache
-  and clock) confirm the direction of a K move, never supply the value.
-  The same two rules apply, with K's fork threshold [user, 2026-10-14]:
-  - **Fork threshold 4096 on every K tree.** `get_min_elements_for_parallel()`
-    reads the CPU's runtime features, and K's CPU has AVX2 under the AVX
-    and SSE2 caps too.
-  - **A candidate at 4096 or 6144 is not a measured crossover.** Encode
-    4096 ("parallel once it forks") where the table says NEVER or a
-    lower value, as Z's rule reads.
-  - **The 2× spread rule as for Z.** Skip a row whose three runs spread
-    more than 2×, unless its maximum still clears the table value by more
-    than one grid step.
-  - **Inputs:** K's `2026-10-13T*_sha-d1adc95` bundles, derived by script.
-- **No kSse2 table in v2.5.0**: Z's 26 and K's 18 SSE2-vs-AVX rows are
-  its evidence, filed as a v3 input with both bundles; delegation to kAvx
-  stays.
-- The 8 out-of-tier-order rows are spread-list or 256-floor artifacts:
-  the clamping rule, not table entries.
-- Rows are derived by script from the bundles, not by hand; per-row
-  override comments stay unless the comment itself is stale; one R1 per
-  machine whose table changed, after.
+- **Labelled `fixed-on-branch` (17):** #108, #110, #113, #136, #138,
+  #179, #221, #247, #248, #251, #252, #262, #267, #270, #271, #290, #311.
+- **Done here, label owed:** #213 and #258 (tools, runbook step and
+  allowlist in; commented), #287 (fixed in `e890dec`; label when its CI
+  run is read), #126 and #214 (guards in `c0f8c3b`).
+- **Wait on the other machines:** #47 (AppleClang), #52 (timings and
+  rows on every tier), #103 and #104 (guards pass and the sweep is clean
+  on AVX; other ISAs), #141 (`gamma_p`/`gamma_q` ≤ 0.48 ulp on AVX; other
+  ISAs), #107 (M), #291 (kAvx capture, I).
+- **Resolved halves only:** #266 (CDF side; density prefactors are
+  #314) and #272 (Beta and NegativeBinomial CDF NaNs; the rest is #315).
+- **Decision owed [user]:** #156, after the legs.
 
-Captures complete on K, M and Z at the freeze code (2026-10-06). Decided
-[user, 2026-10-06]: change only the rows that moved for a code reason,
-not a full re-derivation. But the rows under the two parallel-path
-defects found in Z's analysis (Trends; #175, #176) measure
-the defects, not the operations: Bernoulli, Binomial, Geometric,
-NegativeBinomial and the von Mises CDF (per-element lock), the Student-t
-CDF (serial PARALLEL lambda). Their rows are unknown until the fix and a
-re-profile, so the table update waits for both. Fixed at `73ecbfe`
-(2026-10-06; Z: both gates failed on the previous head and pass,
-PARALLEL/VECTORIZED 0.17–0.22 at 1M for all eight operations under
-MSVC and clang-cl; sweep bit-identical). The Macs' 1.5–8.9× slower
-PARALLEL was measured on the unfixed code; the fix is unrun there.
+Kept in libstats and not on corvus, by decision: the Student-t tail
+kernels (`beta_continued_fraction`, `beta_i_large_a_half`) and
+`inverse_t_cdf`'s solver; the density prefactor family
+(`log_gamma_prefactor`, `beta_prefactor_constant`, `log1pmx`,
+`stirling_remainder`); `inv_survival_normal_log`; the incomplete gamma
+below `DBL_MIN` (`gamma_p_from_scaled`); libstats' own `exp`, `log`,
+`cos` and `sin` SIMD kernels.
 
-The audit that followed (2026-10-06, `ee11e62`) also changed what R8
-measures: below ParallelUtils' fork threshold, PARALLEL now takes the
-batch path instead of a serial per-element scalar loop, so no capture
-before `ee11e62` measured PARALLEL under 1024–8192 elements as AUTO runs
-it now.
-
-Next on every machine, at the freeze head (Status):
-1. Build (R1's commands); correctness ctest, 90 tests (91 with
-   `test_parallel_batch_gates`, which is timing-labelled).
-   `test_snapshot_consistency` and `test_concurrency_gates` carry the
-   new correctness gates; a hang in the latter is the Poisson deadlock
-   (its watchdog ends the process after 60 s).
-2. The accuracy sweep, compared with your last sweep's result bits
-   (`diff` past the two banner lines): expect identical. Any difference
-   is a stop-and-report.
-3. Quiet: `test_parallel_batch_gates` alone; expect every
-   PARALLEL/VECTORIZED ratio below 0.75 (it prints them). Record them.
-4. R8 again, every tier (K: AVX2, AVX, SSE2; M: NEON; Z: clang-cl
-   AVX-512, AVX2, AVX, SSE2), as before; the new bundles supersede all
-   previous v2.5.0 captures.
-5. R9 (stress test and ThreadSanitizer): written on M; then run on
-   every machine, after that machine's quiet runs.
-Then decide the rows.
-
-**Table A/B on K and Z** [M, 2026-10-14; the rows landed in `580b7f7`
-(all four tables, derived from each machine's own bundle) and `bb9ac0b`
-(eight kNeon rows from M's A/B); the header to test is the current head]. Verify your table the way M
-verified kNeon, then one R1:
-1. Two trees: the header before the rows, `10a7ff7` (`git worktree add
-   --detach ../libstats-oldtable 10a7ff7`), and the current head
-   (`bb9ac0b` or later). Build
-   Release in both with tests and tools off (`cmake --preset release -G
-   Ninja -DLIBSTATS_BUILD_TESTS=OFF -DLIBSTATS_BUILD_TOOLS=OFF`, target
-   `libstats_static`). Z: clang-cl, one pair per tier
-   (`-DLIBSTATS_MAX_SIMD_TIER=` AVX2, AVX, SSE2 for the capped tiers).
-2. Build `tools/bench/table_ab_bench.cpp` from the head tree against each
-   (the build line is in its header comment; Z: cl or clang-cl). Run
-   old, new, old, new back to back under the same load; Z opts each
-   process out of power throttling and warms up first (Rules).
-3. `docs/bench-evidence/2026-10-14-m1-threshold-rows/table_ab_analyze.py`
-   expects `tab_old_{1,2}.csv` and `tab_new_{1,2}.csv` in its `R`
-   directory (edit the path or copy the files). Read: the forced-strategy
-   noise floor first; then "REGRESSIONS" (new AUTO slower than old by
-   more than 1.25×, where the forced strategies did not slow by the same
-   factor), then "remaining gaps" (AUTO more than 1.25× behind its best
-   forced strategy, same under both tables = a row the rules kept).
-4. Decide per row as M did: a regression caused by the table goes in
-   `KEEP_ROW` in `scripts/derive_threshold_rows.py` with the evidence;
-   an override the bench shows wrong under both tables goes in
-   `DROP_OVERRIDE`; rerun the script (`--out <dir>`), copy
-   `dispatch_thresholds.h.proposed` over the header, clang-format, rebuild,
-   rerun the bench pair. Keyed by table, so K's and Z's rows live beside
-   M's in the same file.
-5. R1 (Release, 0 warnings, correctness 132/132) and the gates. Evidence
-   under `docs/bench-evidence/2026-10-14-<machine>-threshold-rows/`;
-   commit the header, the script and the evidence with the user.
-M's A/B on kNeon: `2026-10-14-m1-threshold-rows/AB_RESULTS.md`.
-
-### R9 — mechanical concurrency checks (M writes; M, K, Z run) [DONE 2026-10-16]
-Goal [user, 2026-10-06]: catch mechanically, before the v3 refactor
-redesigns locking, the defect classes that so far only code review has
-found, so later fixes stop triggering unplanned bugfix rounds. Review
-finds instances of the classes it looks for; it cannot show absence.
-Three 2026-10-06 rounds still found TOCTOUs and lock errors (Known
-Gaps); CI has no TSan leg. R9 succeeds when every class below has a
-detector shown to fire, or is recorded as a v3 input with no detector.
-
-**Classes and detectors** [DERIVED from `ee11e62`'s message and
-#178–#183; the M/K/Z split: "Per-machine"]:
-
-| Class | Instances so far | Detector | Where it can fire |
-|---|---|---|---|
-| C1 unlocked shared read/write | Uniform copy-assign; pool construction; #183 | TSan | M, K |
-| C2 check-then-act across a lock release | Uniform/Discrete bound setters; 5 delegate setters | stress invariant oracle, aligned rounds | M, K, Z |
-| C3 recursive or double lock | Poisson `getMedian`; `d == d` | stress watchdog (deadlock) | M (deadlocked at `6987317`), Z; K untested; `d == d` none |
-| C4 one call mixing two parameter states | Binomial, NegBinomial, von Mises batches; Beta boundary; #182 | stress one-state oracle | M, K, Z |
-| C5 strategy runs the wrong kernel | PARALLEL below the fork threshold | strategy differential (step 1c) | M, K, Z |
-| C6 parallel helper semantics | `parallelTransform` repeated chunks; #181 | call-count gates; #181 needs fault injection | gates all; #181 none |
-| C7 work-stealing cross-waiting | #180 | `WorkStealingCrossWaiting`: a WORK_STEALING batch beside a blocked pool task | K only after #190; fires on K (12 rows, 28 ops; known #180) |
-
-No detector, so v3 inputs unless one is found: `d == d` (undefined, no
-platform shows it), recursive shared locks off Windows, #181's
-submit-failure path.
-
-**Per-machine** [user, 2026-10-06: decided, with the strategy
-differential (step 1c) kept]. One test source, not three: the defect
-classes belong to the code, and machines differ only in which classes
-can show. The test prints what it reached
-(strategy per batch reader, core counts, lock backend) so coverage is
-read off the log, not assumed:
-- **M** (M1, 4P+4E, no SMT): the only weakly ordered CPU, so missing
-  acquire/release on atomics can show only here; TSan. Until #190's fix
-  `SystemCapabilities` read physical = logical / 2, so M took
-  WORK_STEALING; with it, MAXIMIZE_THROUGHPUT and AUTO resolve to
-  PARALLEL on M, and no public API reaches WORK_STEALING there. The
-  recursive shared lock deadlocked here too (C3).
-- **K** (Kaby Lake 4C/8T, SMT): the only WORK_STEALING machine after
-  #190, so K verifies every WORK_STEALING lambda (#191's rewiring
-  included) and runs TSan on them. Runs after K's R8 quiet runs.
-- **Z** (Zen 4 6C/12T, Windows): SRWLOCK; Windows resolves
-  MAXIMIZE_THROUGHPUT to PARALLEL, so no WORK_STEALING. No TSan (MSVC and
-  clang-cl do not support it on Windows). Run the stress test under both
-  MSVC and clang-cl. Runs after Z's R8 overnight.
-- No machine has Linux; a Linux TSan CI leg is the only check that would
-  stay in place (user's decision, CI-HOUSE-STYLE runner budget).
-
-Run every Mac binary outside the Claude Code sandbox (Rules).
-
-1. **Write `tests/test_concurrency_stress.cpp`** (on M), a correctness
-   test (no `timing` label, so CI runs it). Default run under ~60 s;
-   `LIBSTATS_STRESS_SCALE` (rounds multiplier, default 1) lets the TSan
-   runs shrink it and machine runs grow it. Self-contained: copy
-   `runWithWatchdog` and `racedRounds` from
-   `tests/test_concurrency_gates.cpp`, which does not exist before
-   `ee11e62`. Table-driven, one row per distribution (all 27):
-   a. **States.** Two valid parameter states A and B, distinct at every
-      probe. A writer flips between them through `setParameters` (one
-      lock, so A and B are the only states); a second variant flips
-      each single-parameter setter, ordered so every intermediate is
-      valid, and adds the intermediates to the allowed set.
-   b. **Readers.** Scalar pdf, logpdf, CDF at fixed probes;
-      `getQuantile`; `getMean`, `getVariance`, `getSkewness`,
-      `getKurtosis`, `getMedian`, `getMode`, `getEntropy` (all 27 have
-      them); batch pdf/logpdf/CDF under `FORCE_SCALAR`,
-      `FORCE_VECTORIZED`, `FORCE_PARALLEL`, `MAXIMIZE_THROUGHPUT` and
-      AUTO, at a size above `arch::get_min_elements_for_parallel()`;
-      `sample` with a fresh fixed-seed generator per call; copy
-      construction, copy assignment, move; `operator==` against fixed
-      A and B. Separately, `fit` and stream `operator>>` as writers
-      racing the readers: each produces a state C, computed from a fixed
-      instance fitted to the same data or reading the same stream, and C
-      joins the allowed set.
-   c. **Strategy differential** (C5, no race): for each distribution and
-      batch operation, every strategy against `FORCE_VECTORIZED` at
-      sizes straddling the fork threshold and the SIMD minimum. Open:
-      whether sliced PARALLEL is bit-identical to VECTORIZED above the
-      threshold (slice edges move SIMD tails); establish it on M first,
-      then gate bitwise or record the tolerance.
-   d. **Oracle.** Every racing result equals an allowed state's value
-      bit for bit, computed from fixed instances by the same call; every
-      batch comes entirely from one state.
-   e. **Driving.** Both free-running loops and aligned rounds
-      (`racedRounds`): loops missed every one-shot race the aligned
-      rounds caught (`ee11e62`'s message). Every reader under a
-      watchdog, so a deadlock fails instead of hanging.
-   f. **Reach.** Print which strategy each batch reader resolved to,
-      `logical_cores`/`physical_cores`, and the scale.
-2. **Show it fires before trusting it.** Build it in a detached
-   worktree at `6987317` (before #175, #176 and the audit fixes),
-   registered in that tree's `tests/CMakeLists.txt`. It must fail on the
-   Binomial, NegativeBinomial and von Mises batches, the Beta boundary
-   batch, the Uniform and Discrete bound setters, and the Bernoulli,
-   Geometric, ChiSquared, Erlang and InverseGamma delegates on every
-   machine; on Poisson's `getMedian` (deadlock) on Z. `getMedian` not
-   deadlocking on M or K is the lock backend, not a harness gap; record
-   it either way. Any other miss means the harness needs work. Record
-   per machine which it catches; `test_concurrency_gates.cpp`'s header
-   says what each defect looked like.
-3. **At `ee11e62`, expect it to fail on #182 (FisherF `sample`) and
-   nothing else.** #182 is a defect open at the freeze head, so catching
-   it there shows the harness fires on current code. Mark #182's row an
-   expected failure (GTest skip naming the issue) only after it is seen
-   to fail. Any other failure is a new defect: stop and report with the
-   evidence (it moves the freeze head).
-4. **ThreadSanitizer (M, then K).** A fresh `build-tsan` (Ninja,
-   `RelWithDebInfo`, `-DLIBSTATS_BUILD_TOOLS=OFF`, `-fsanitize=thread`
-   in `CMAKE_CXX_FLAGS`, `CMAKE_EXE_LINKER_FLAGS` and
-   `CMAKE_SHARED_LINKER_FLAGS`, as R4's UBSan build; a fetched corvus
-   and Highway take the same flags). Run with a reduced
-   `LIBSTATS_STRESS_SCALE`: `test_concurrency_stress`,
-   `test_concurrency_gates`, `test_snapshot_consistency`,
-   `test_thread_pool`, `test_work_stealing_pool`,
-   `test_parallel_execution_integration`,
-   `test_parallel_exception_propagation`, then the whole correctness
-   ctest (`-LE "timing|benchmark"`, `-j2`). Expect #183's unlocked reads
-   in `validateParameters` (the TSan positive control at head). Every
-   other report is a finding (file:line, both stacks); triage benign
-   ones explicitly, never suppress silently. Fail-first for the two
-   `ee11e62` fixes with no deterministic gate, at `73ecbfe`: the stress
-   test (copy assignment under a writer) should report Uniform's
-   copy-assignment, and `test_work_stealing_pool` the pool's
-   construction.
-5. **Report** to the user, per machine: what the stress test caught at
-   `6987317`, its result at `ee11e62`, the TSan findings, and the class
-   table updated with "shown to fire" evidence or "no detector". Commit
-   the test and the evidence (`docs/bench-evidence/<date>-<machine>-concurrency/`)
-   with the user's approval.
-
-**R9 on M** [DERIVED, 2026-10-06; evidence
-`docs/bench-evidence/2026-10-06-m1-concurrency/summary.txt`; test and
-evidence uncommitted, awaiting the user]. Run inside the sandbox (the
-bypass was refused); correctness only, which the cache sizes do not
-affect.
-- Step 1c settled: every strategy returns exactly the batch kernel's or
-  the scalar method's bits, never a mix; above the fork threshold
-  PARALLEL runs the scalar formula in 33 of 81 (distribution, op) pairs
-  (F8), up to 88 ULP from VECTORIZED. The gate is "one known kernel", and
-  PARALLEL below the threshold must be the batch kernel.
-- Step 2 at `6987317`: caught every listed defect but InverseGamma's
-  delegate (unseen on Z too); Poisson's recursive lock deadlocked on
-  macOS; Bernoulli and Geometric delegates only at 20× rounds (1–52 of
-  60,000), so the same-setter pairs run 20×.
-- Step 3 at head: #182 fired (1 hit); new F1–F4 below; nothing else.
-  Run time 65 s (budget ~60 s).
-- Step 4 TSan: at head F1 and #183 (positive control) only, beyond a
-  test-side `std::cout` race in `test_work_stealing_pool`; the whole
-  correctness ctest otherwise clean. At `73ecbfe`: Uniform's
-  copy-assignment and the pool's construction both reported.
-- Decided [user, 2026-10-07]: F1–F8 filed (#184–#191); the stress test
-  lands with known-issue skips. A result explained by an open issue
-  prints `[ known ] #N` and does not fail; a test whose only failures are
-  known is skipped naming them; each issue's fix removes its entry
-  (`knownReaderIssue`, `knownProgramIssue`, `knownPairIssue`). At head:
-  exit 0, 25 tests skipped (#182, #184–#187), 68 s; at `6987317` the
-  same file still fails every listed defect.
-- Decided [user, 2026-10-07]: fix #184–#191 before the freeze (it moves
-  the freeze head; every machine then repeats R1, R2's sweep compare and
-  R8 at the new head); the 68 s run time is accepted; M's pending runs
-  go overnight, outside the sandbox, after the fixes. Q1 decided
-  [user, 2026-10-07]: B, document per-element SCALAR semantics now;
-  one-state batches under every strategy is a v3 design input.
-- Fixes, steps 1–3 [DERIVED, M, 2026-10-07; uncommitted, awaiting the
-  user]: #189 (Poisson `validateCurrentParameters` exported), #187
-  (stream tag length), #188 (no thread_local spare; new per-row
-  `SeededSample` test), #184 (move-assignment locks both objects in
-  `std::lock` order, as copy-assignment does [user, 2026-10-07: parity];
-  `noexcept` kept; base-class contract doc updated), #185 (TruncatedNormal `fit` commits
-  only if the bounds are unchanged, else recomputes), #186 (vector
-  `sample` draws from a delegate copy taken under the owner's lock).
-  Each shown failing first by removing its skip. After: stress 107
-  passed, 1 skipped (#182); correctness 91/91; timing 23/23 (loaded
-  machine); TSan: only #183's setter reads. Commits staged as: format
-  drift (4 files), then #189, #187, #188, #184, #185, #186, then docs
-  (AGENTS.md's SCALAR note for Q1, this file); each intermediate state
-  built and tested; pushed 2026-10-07 (`5765d68`..`7d9cb0b`).
-- #190 and #191 [DERIVED, M, 2026-10-07; uncommitted, awaiting the
-  user's YubiKey]. #190: `SystemCapabilities` reads the detector's
-  physical count (sysctl on macOS), and the x86 CPUID leaf-0xB path
-  divides the core-level logical count by threads per core (unverified
-  natively: Z's `system_inspector --quick` must read 6 physical, 12
-  logical; Z is 6C/12T, and read 6 and 12 at `3339fc1` under both
-  compilers, 2026-10-07). Guard `ConcurrencyStressMachine.CoreTopology` (in the stress
-  test; `test_system_capabilities` is timing-labelled, so CI never ran
-  it), two-sided against sysctl; failed first (physical 4 vs 8). M now
-  resolves MAXIMIZE_THROUGHPUT to PARALLEL. #191: every PARALLEL and
-  WORK_STEALING lambda runs its VECTORIZED kernel over 1024-element
-  slices (19 files, by a subagent, reviewed; Gamma and Beta CDF and
-  Discrete were also scalar; Cauchy CDF's inline loop moved to a helper;
-  new code drops the redundant `waitForAll`, existing ones stay for
-  #180). The differential now requires PARALLEL and MAXIMIZE_THROUGHPUT
-  to equal VECTORIZED's bits at every size; failed first in 14 tests,
-  passes 27/27 (43 "batch", 38 "="). Stress 109/109, correctness 91/91,
-  TSan only #183. The WORK_STEALING half runs only on K: K's stress
-  test and TSan verify it. No #191 timing gate: the old path also beat
-  VECTORIZED at 1M, so it could not fail first; R8 shows the gain.
-  `test_parallel_batch_gates` on M (first Mac run of the #175/#176 fix,
-  load ~14): 0.19–0.23, all 8 under 0.75.
-- Next: commit #190, #191 and this file; that head is the new freeze
-  head. Then every machine: R1, R2's sweep compare, R8 (M's runs
-  overnight, outside the sandbox), the stress test (K under TSan).
-- Next on K and Z: pull, build, run the stress test (K also under TSan),
-  compare with M's lists; no new harness work needed for that.
-- **#191's slice tail breaks the differential on Z** [DERIVED, Z,
-  2026-10-07, at `3339fc1`]. clang-cl: six `StrategyDifferential` tests
-  fail, 13 (distribution, op) pairs: Beta, StudentT, LogNormal, Rayleigh
-  pdf/logpdf; Weibull pdf/logpdf/cdf; Pareto cdf. MSVC: three tests, 5
-  pairs (Beta pdf/logpdf, Weibull pdf/logpdf, Pareto cdf); MSVC does not
-  contract to FMA, so more scalar fallbacks round as the kernel does. `parallelForSlices(count, 1024, …)` leaves a last slice of
-  `count % 1024` elements; when that is 1 to simdMin − 1
-  (`SIMDPolicy::computeOptimalThreshold`: 8 on AVX-512, AVX2, AVX; 4 on
-  SSE2, NEON), the batch impl's `shouldUseSIMD` is false and the slice
-  runs its scalar fallback (e.g. `weibull.cpp:860`), so one call mixes
-  kernels. Z's fork threshold is 8192, so the sizes 8193 and 24583 end
-  in slices of 1 and 7; M's 1536 gave 513 and 519, which is why M
-  passed (`docs/bench-evidence/2026-10-07-zen4-concurrency/`). Values stay accurate; #191's contract (VECTORIZED's bits at
-  every size) fails, on any machine at such sizes.
-- Decided [user, 2026-10-07]: **K fixes it with its work-stealing
-  work.** Fold a short final slice into the previous one in both
-  helpers, `ParallelUtils::parallelForSlices` (`thread_pool.h:275`,
-  also under `parallelTransform`) and `WorkStealingPool::parallelForSlices`
-  (`work_stealing_pool.h:267`), so every kernel's tail lands on the same
-  elements as VECTORIZED's. Add sizes 1024·k + 1 and 1024·k + simdMin − 1
-  above the fork threshold to the differential, so it fires on every
-  machine; show it failing on K before the fix. Moves the freeze head;
-  Z then reruns R1, the sweep compare, the stress test and R8.
-- **Done on K** [DERIVED, 2026-10-07, `045acd9`]. Both helpers fold a
-  partial final slice into the previous one (any remainder [user]), so
-  slices start at multiples of 1024 and the last holds 1024–2047
-  elements. The differential gains 1024·k + 1 and 1024·k + simdMin − 1
-  above the fork threshold (K: 6145, 6151); before the fix it failed 14
-  distributions on K under PARALLEL and MAX_THROUGHPUT (WORK_STEALING
-  on K), after it all 81 pairs run the batch kernel. **C7 probe written**
-  [user]: `WorkStealingCrossWaiting` runs a MAXIMIZE_THROUGHPUT batch
-  beside a pool task that blocks until released; the batch must return
-  within 1 s. It fires on K for every lambda still calling
-  `pool.waitForAll()` (Beta, Binomial, FisherF, NegativeBinomial, Gamma,
-  LogNormal, InverseGamma, VonMises) and their delegates (ChiSquared,
-  Erlang, Bernoulli, Geometric): 28 operations, known #180 skips until
-  #180's fix; it skips where WORK_STEALING is unreachable (M, Z). K's
-  stress run: 124 passed, 12 skipped (#180), 128 s (M: 68 s; the #180
-  waits are 28 s of it).
-
-### R6 — release docs (after R1–R4 everywhere, R3 everywhere and R8)
-**Split [user, 2026-10-12]:** R6a (version, #211, docs sweep, contracts,
-MIGRATION) now; R6b (generated blocks, VALIDATION_HISTORY matrix and R8
-table, CHANGELOG) after R8. R6a committed 2026-10-13 [DERIVED]. Prose that needs R8 or sweep numbers carries
-`<!-- R6b: confirm -->`; R6b clears every marker.
-**R6b applied on Z, 2026-10-15** [DERIVED; uncommitted, awaiting the user]:
-the docs sweep from a read-only inventory (every scoped doc read in full),
-the five markers cleared, the CHANGELOG 2.5.0 section written by hand
-(git-cliff parses only 14 of the 156 branch commits with `cliff.toml`),
-VALIDATION_HISTORY's v2.5.0 matrix, costs and R8 summary, and the
-CI_CD_GUIDE notes below. Touched: README, AGENTS, MIGRATION_GUIDE,
-PROJECT_CONCEPT, CHANGELOG, tools/ and scripts/ READMEs, the dispatcher
-profiles README, docs/{ACCURACY_CHARACTERIZATION, ACADEMIC_REFERENCES,
-AVX512_TESTING_GUIDE, BUILD_SYSTEM_GUIDE, CI_CD_GUIDE,
-HEADER_ARCHITECTURE_GUIDE, SIMD_BENCHMARK_RESULTS,
-SIMD_OPTIMIZATION_REFERENCE, VALIDATION_HISTORY}, and comments only in
-`dispatch_thresholds.h`, `gen_vonmises_cdf_vectors.py` and
-`v242_cost_bench.cpp`. K's kAvx2/kAvx result (`4c3a133`) and the per-band cost
-table folded in 2026-10-16 after the rebase. Left for the tag: the
-CHANGELOG date, README's "released" wording, and the cross-repo
-WINDOWS-TOOLCHAIN note.
-Version 2.4.1 → 2.5.0: `CMakeLists.txt:83`, README (status lines and the
-stale test counts), AGENTS "Current status", PROJECT_CONCEPT. CHANGELOG
-via git-cliff. VALIDATION_HISTORY: the three-machine matrix, the costs,
-the R4 records and the R8 table update. ACCURACY_CHARACTERIZATION: the three generated blocks
-only. This file.
-
-Docs sweep [user, 2026-10-05; OPEN]: this cycle changed more than the
-version. clang-cl is the Windows performance build with cl.exe's
-`/arch:` flags; Windows timing needs the power-throttling opt-out;
-MSVC's vectorization limits; v2.5.0/v3.0.0 numbering. Candidates:
-README, PROJECT_CONCEPT, MIGRATION_GUIDE, AGENTS, `tools/` README,
-`docs/` (BUILD_SYSTEM_GUIDE, CI_CD_GUIDE, SIMD_OPTIMIZATION_REFERENCE,
-VALIDATION_HISTORY, whose "Zen 4 frequency scaling" needs re-reading
-against the throttling finding). Start from an inventory of stale
-statements (read-only search agent), not from memory. Cross-repo:
-standards WINDOWS-TOOLCHAIN gains the `/arch:` equivalence and the
-throttling opt-out.
-
-CI_CD_GUIDE [user, 2026-10-10; OPEN]: note that `test_concurrency_stress`
-on the macos-15 runner varies 97–372 s on unchanged code (six runs,
-`00d1597`–`d7e9dbd`) while Linux and Windows hold 68–102 s; shared ARM
-VMs and the spin-then-yield barriers, not a regression. Headroom: ctest's
-1,500 s default and the 120 s per-race watchdog. If macOS nears half the
-limit, lower `LIBSTATS_STRESS_SCALE` for that job. Also list the
-`fma-contraction` leg (clang-17, `-mfma -ffp-contract=on`) and why.
-
-ACCURACY_CHARACTERIZATION [2026-10-12; OPEN]: "Reading the tables" needs
-a line on the new scoring (relative to DBL_MIN, ULP distance for
-subnormal references); many max_rel/p99 values move when the blocks are
-regenerated (e.g. Cauchy cdf 2.1e-12 → 2.8e-16 was the oracle's own
-cancellation; Cauchy pdf shows subnormal ULPs), and the sweep now has
-18,732 rows. Also [user, 2026-10-14, #277]: a quantile whose reference
-is exactly 0 inside a scale-1 window joins the decided near-zero-crossing
-class and is scored on max_abs against the window width, so the AVX-512
-block's TruncatedNormal quantile row stops reading 6.3e291.
-
-Speed/accuracy tradeoffs by band, for VALIDATION_HISTORY's cost section
-and the release notes [DERIVED, K's R3 at `d1adc95`,
-`docs/bench-evidence/2026-10-14-kabylake-v242-cost/`; user, 2026-10-16:
-state them per band, never as "distribution X is slower"]. The cost moves
-in steps at algorithm switch points in the parameters, as corvus's does.
-Kernel cost v2.5.0 / v2.4.1: the median over sizes of the per-call and
-forced-VECTORIZED times; above 1 is slower. Z's ratios run larger (von
-Mises quantile 16–23×, Student-t quantile ~11×) against v2.4.1's very
-cheap lookups there.
-
-| Family | Low band | High band | Inflection |
-|---|---|---|---|
-| Gamma density | shape 2.5–19.9: 1.0 | shape 20: 3.3 (logpdf); 1000: 2.6 | step at shape 20, the Stirling prefactor (`STIRLING_PREFACTOR_SHAPE`; #266, v3) |
-| Gamma CDF | shape 0.01: 2.1; 2.5: 1.5 | shape 10–20: 1.1–1.2; 1000: 1.5 | small-shape `gamma_q` and the rate-product correction |
-| Gamma quantile | shape 0.01: 0.15 | 0.6–0.7 elsewhere | faster everywhere (`solve_concave`) |
-| Beta density | (2,2): 1.0 | (25,25): 3.4; (1000,1000): 3.0 | large shapes take the Stirling/`lbeta` form; CDF 1.1–1.3 throughout |
-| Student-t | ν 7–30: CDF 1.05–1.1, quantile 1.5 | ν ≥ 1e3: CDF 4.4–5.2, quantile 6.5–6.8, pdf 1.9 | large-ν tail paths (BGRAT; log(ν/t²) beyond √ν) |
-| von Mises CDF | κ = 1: 2.1 | κ = 30: 0.81; κ = 300: 0.19 | inverted: fixed-cost quadrature replaced a Bessel series whose cost grew with κ |
-| von Mises quantile | 5.3–6.9, flat in κ | — | fixed cost (Newton on the exact CDF, ~300–400 ns) against v2.4.1's grid lookup |
-| Poisson CDF | λ 12–1000: 1.3–1.6 | λ = 1e5: 0.21 | large λ 5× faster |
-| Discrete densities (Binomial, NegBinomial, Poisson) | 1.3–1.8 | 1.3–1.5 | roughly uniform: the Loader-style log-pmf (#172); slightly dearer at small n or r |
-| Discrete quantiles | 0.04–0.74 | — | faster everywhere |
-
-Not covered: the cost bench sweeps parameter bands at a fixed input range,
-so it does not resolve x-regions (deep tails, near-boundary bands,
-log-space branches). Timing the accuracy grid per x-region is a v3 input.
-
-### R7 — release
-PR
-`dev/v2.4.2` → `main` closing every issue labelled `fixed-on-branch` (the
-record of truth: `gh issue list --label fixed-on-branch --state open`; 75 at
-`4c3a133` (#211 labelled 2026-10-16), each with a comment naming its fix commit; #173's residual,
-`std::cyl_bessel_i`'s signgam write, is #267 in v3.0.0). #211 (docs) is
-labelled with them (R6a `d1adc95`, the tools' lists `7da6944`, the #111
-comments `4c3a133`); R6b adds nothing it needs. The PR body lists them as `Closes #N`; CI
-green, including the sanitizer legs; merge; signed tag `v2.5.0`; GitHub
-release from the CHANGELOG section; close milestone #10. Then coordinate
-the pylibstats pin bump (Cross-Repo below), and tell the corvus session
-about the merge note.
-
-Corvus merge note [DERIVED]: `math_utils.{h,cpp}`, `student_t.cpp`,
-`gamma.cpp`, `poisson.cpp`, `binomial.cpp`, `negative_binomial.cpp`,
-`von_mises.cpp`, `exponential.cpp`, `weibull.cpp`, `rayleigh.cpp`,
-`tests/CMakeLists.txt` and this file will conflict. Keep this branch's
-fixes; corvus's definitions replace `gamma_p_inv` and the incomplete
-gamma/beta where the corvus release swaps them in. `von_mises.{h,cpp}`:
-take this branch's whole (`96b157f`, fixed-cost quadrature; no Bessel
-series left to swap). `beta.cpp`, `simd_dispatch.cpp`, `pareto.cpp`
-also changed here since this note was first written. `vector_log1p` and
-`vector_expm1` point at corvus once corvus #45 lands.
-
-Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
-- `bessel.h`: the Tier 1 I₀ guard below 1e-8 and the log(2πx) split. If
-  corvus replaces the Bessel helpers, its versions need both edges.
-- `laplace.cpp` and `inverse_gamma.cpp`: operand-tested overflow guards
-  (AGENTS.md, "Overflow-guard rule"). Keep the operand form in any merged
-  guard.
-- Deleted code: `dispatch_utils.h` (`executeWithStrategy`),
-  `distribution_common.h` (the generic `validate*Parameter` helpers) and
-  `distribution_meta.h` (`is_delegation_wrapper`). The corvus branch still
-  defines all three, but nothing calls them there or in pylibstats,
-  libhmm or corvus (checked 2026-10-14). The merge takes the deletions,
-  along with the `using` lines in each `src/*.cpp`.
+Filed from this work into the patch milestone: #314, #315, #316, #317,
+#318, #319. Small and unfiled:
+- `scripts/analyze_crossovers.py` reports Uniform and NegBinomial as "not
+  in table" (a wrapped row; a name mismatch). The derive script reads both.
+- `src/simd_avx.cpp`'s cos/sin comment still reads "UNPROVEN LEG"; the
+  native gate reads 1 ULP.
+- Clang without an FMA tier warns that `kBudgetTight` is unused
+  (`tests/test_trig_ulp_gates.cpp`).
+- The Windows CI legs warn that `ilammy/msvc-dev-cmd` v1.13.0 targets
+  Node 20. It is that action's latest release; harmless today. The likely
+  fix is a script step calling `vcvars64.bat`, probably fleet-wide.
 
 ## Decided [DERIVED]
-- **Freeze and the accuracy patch [user, 2026-10-26]** (replaces the
-  2026-10-07 freeze policy's "until corvus is integrated" and #8's "ships
-  after v3.0.0"). `main`'s code stays frozen until the adoption starts.
-  The adoption has started (`dev/v3.0.0-corvus-adoption`). From then on,
-  only the #8 issues the adoption needs are worked, on the adoption branch
-  and inside v3.0.0. The rest close as "overtaken by corvus adoption".
-  Triage of #8 against the branch (2026-10-26):
-  - 22 issues touch nothing the branch changes.
-  - #262 and #271 are superseded by the swap (re-measure after it).
-  - 10 edit the files the branch edits: #152, #179, #214, #217–#219,
-    #248, #249, #251, #272.
-  - #103, #104 and #114 wait on the post-swap sweep.
-  Disposition [user, 2026-10-26]:
-  - The 15 coupled issues move to v3.0.0, together with two tooling
-    issues, #213 and #258, as verification support for the swap. That is
-    17 in total.
-  - The other 20 stay on #8 as a patch after v3.0.0. Close none of them
-    as overtaken, since they are real defects.
-  - If the adoption runs quickly and smoothly, reassess pulling
-    accuracy-first issues from #8 forward.
-  - #262 and #271 close as "overtaken by corvus adoption" only when the
-    post-swap sweep shows the defect gone.
+
+For v3.0.0:
+- **Scope and order [user, 2026-10-26, 2026-11-19].** v3.0.0 is the
+  corvus adoption plus the issues it needs. The accuracy patch
+  (milestone #8) ships after it, as v3.0.1; none of its issues close as
+  overtaken, since they are real defects. Then v3.1.0 New Distributions,
+  then the Architecture Refactor.
+- **Per-call cost does not block v3.0.0 [user, 2026-11-18].** It ships on
+  corvus v1.2.0 for the accuracy. Speed is recovered on a v3.1.0 pinned
+  to corvus v1.3.0 (corvus #110, #111). Speedups that need no corvus
+  change may be scoped into v3.0.0. Measured on Ivy Bridge, corvus's
+  worst case in the fleet (two lanes, no FMA): single calls `lgamma(2)`
+  18 → 144 ns, `lbeta` 76 → 1,742, `gamma_p` 112 → 1,358, `beta_i`
+  342 → 3,531 against v2.5.0.
+- **No PR for the dev branch** until one other machine has run its leg
+  [user, 2026-11-18].
+- **Placement [user, 2026-11-19].** A fix that applies to `main` goes to
+  `main` first, then `main` is merged into the dev branch. clang-cl work
+  stays on the dev branch: clang-cl is needed only because of corvus and
+  Highway under MSVC.
+- **A fetched corvus builds as Release and uninstrumented** whatever
+  libstats' configuration [user, 2026-10-25]. Instrumenting the
+  dependency is noise, and corvus at -O0 starves the concurrency tests.
+- **CI budgets [user, 2026-10-26; re-measured 2026-11-18].** Coverage 30
+  minutes with the suite whole. cl.exe leg 40 minutes, all four Highway
+  tiers, `test_snapshot_consistency` in, `test_concurrency_stress` out
+  (it starves at cl.exe-built corvus speed; it runs on every other leg).
+  If a slow runner pushes that leg at its budget, the snapshot test is
+  the first thing to take out again.
+- **`expm1`/`log1pmx` are not adopted from corvus in v3.0.0** [user,
+  2026-11-18]. No accuracy to win (the rows that rest on `expm1` already
+  read 1e-16), corvus exports them as spans only (56 and 105 ns for one
+  call against glibc's 13), and libstats' uses are mostly scalar. On
+  spans `expm1` is level with glibc, so the Exponential and Rayleigh
+  batch loops are a v3.1.0 candidate.
+- **kAvx takes Ivy Bridge's native values** [user, 2026-11-19], from one
+  quiet capture after `src/` settles.
+- **Trig and coefficient duplication stays** [user, 2026-11-21; #108,
+  #221]: AGENTS.md, "SIMD kernel conventions".
+- **Parallel backends for the `safe_*` wrappers** [user, 2026-11-21;
+  #319]: GCD on macOS; `std::execution` on Windows and on Linux with
+  TBB; the library's own pool on Linux without TBB; OpenMP not selected.
+  v3.0.0 carries only the selection fixes (#179); the rest is #319.
+- **#156's gates** are decided after every machine has post-bump numbers
+  [user, 2026-11-18].
+
+Standing:
 - **Windows performance build is clang-cl [user, 2026-10-05]**, with
   cl.exe's `/arch:` flags (`/arch:AVX2` = AVX2 + FMA, F16C, BMI1/2,
   LZCNT, MOVBE; `/arch:AVX512` adds AVX-512 F, CD, BW, DQ, VL), so both
   compilers build the same ISA. cl.exe is the correctness build
-  (standards WINDOWS-TOOLCHAIN §5); Z's R3/R8 and kAvx512 come from
+  (standards WINDOWS-TOOLCHAIN §5); Z's timing and kAvx512 come from
   clang-cl.
-- **Release numbering [user, 2026-10-04].** `dev/v2.4.2` ships as
-  v2.5.0: no public API change, but consumers see different results
-  (0 contract violations, new tail and edge behaviour), a different
-  speed profile (slowdowns and re-derived dispatch tables, R8) and a
-  new supported compiler (clang-cl, `6245e4e`). Corvus adoption
-  (`dev/v2.5.0-corvus`, milestone #6) becomes v3.0.0: the installed
-  package gains `find_dependency(corvus 1.0 CONFIG)`, so under
-  `SameMajorVersion` a `find_package(libstats 2.x)` consumer would
-  accept it and fail to configure without corvus; it also ends
-  "zero external dependencies". Branch names stay. Knock-on [user,
-  2026-10-04]: New Distributions (#3) becomes v3.1.0, after corvus;
-  the Architecture Refactor (#4) becomes "post-v3", v3.x or v4 decided
-  later. The accuracy patch (#8) may be overtaken by this release (see
-  GitHub Milestones). GitHub milestones retitled 2026-10-04 [user].
+- **Why the adoption is a major version [user, 2026-10-04].** The
+  installed package gains `find_dependency(corvus CONFIG)`, so under
+  `SameMajorVersion` a `find_package(libstats 2.x)` consumer would accept
+  it and fail to configure without corvus; it also ends "zero external
+  dependencies".
 - **Accuracy-for-speed budget [user, 2026-10-04].** Slowdowns of 2×, 5×
   and up to ~10× are acceptable for accuracy fixes; 50–150× is not. 10×
   is a guide, not a hard limit: weigh how hot the function is for
   consumers (a Gaussian pdf matters far more than a von Mises quantile)
   against the effort, and maximise speed at the accuracy kept, within
   reasonable effort. Over-budget rows get a performance pass or a
-  theoretical case that the cost is intrinsic (Known Gaps, "Over-budget
-  slowdowns"). Code on this branch may change again for speed, and R8's
-  tables are re-profiled after it.
-- **Vectorized log1p [user, 2026-10-04].** A `VectorOps` primitive is
-  preferred to an inline composite. Corvus has one (`corvus::log1p`,
-  span, correctly rounded) but corvus arrives only in v3.0.0, so v2.5.0
-  derives `vector_log1p` once, generically, from each tier's
-  `vector_log` (the compensated `log(u) − ((u−1)−z)/u`, `u = 1+z`), and
-  v3.0.0 points it at `corvus::log1p`. `vector_expm1` likewise [user,
-  2026-10-04] (Taylor below ½, `vector_exp` less 1 above). Neither
-  serves log1p(x) − x: its cancellation amplifies their few ulp (1e-12
-  at large α), so `detail::log1pmx_series` (atanh form) does. corvus
-  exports for `expm1` and `log1pmx` are requested (corvus #45).
+  theoretical case that the cost is intrinsic (Known Gaps). Per-call
+  corvus cost in v3.0.0 is the decided exception above.
+- **Vectorized log1p and expm1 [user, 2026-10-04].** A `VectorOps`
+  primitive is preferred to an inline composite. `vector_log1p` and
+  `vector_expm1` are derived generically from each tier's `vector_log`
+  and `vector_exp`; neither serves log1p(x) − x, whose cancellation
+  amplifies their few ulp, so `detail::log1pmx_series` (atanh form) does.
+  Pointing them at corvus's spans is the v3.1.0 candidate above.
 - **Numerical kernel promotion [user, 2026-10-04].** A better method
   found here is fixed here, written to be moved (generated, verified
   constants; regime map; independent oracle; fail-first guards), and
@@ -2229,17 +379,14 @@ Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
   2026-10-03].** It, and the review fixes after it, are built from
   published mathematics (Stirling's series, A&S 6.5.29) and the library's
   own helpers.
-- **corvus constant-argument calls [user, 2026-09-29]** (v2.5.0). Fill a
-  constant span per block on the stack, inside the existing `vector_*`
-  adapters, rather than requesting a corvus broadcast overload. Settle the
-  block size, and `vector_beta_i`'s argument order, in the swap.
 - **Project skills** live once, in `.claude/skills/`; `.agents/skills` is
   a tracked relative symlink. Edit only `.claude/skills/`. On Windows it
   needs Developer Mode plus a repository-local `core.symlinks=true`; Git
   for Windows defaults to false, and a clone records the value it found.
   Z is set (2026-10-03).
-- **`origin/spike/corvus-bessel`** holds the only Tier 0 corvus Bessel
-  code (`a1c71d6`). It is not merged; keep it.
+- **Archived branches** are signed tags: `archive/spike-corvus-bessel`
+  (the only Tier 0 corvus Bessel code) and `archive/dev-v2.5.0-corvus`
+  (the first adoption branch, ported onto v2.5.0 as this one).
 - **CI and tooling [2026-11-11]** (rules and incidents: CI House Style §1,
   §6, §8).
   - Runner labels: jobs that install a versioned tool (gcc-13, gcc-14,
@@ -2266,128 +413,54 @@ Fix-9 (`8d3c9c7`) [DERIVED, 2026-10-14] also changes:
   - `reviewdog/action-actionlint` stays at v1.83.0 or newer (#292).
 
 ## GitHub Synchronization [DERIVED]
-Last reconciled against live GitHub state: 2026-10-26 (milestones and
-open issues below; no open issue without a milestone; no open PRs).
+Last reconciled against live GitHub state: 2026-11-21. No open issue
+without a milestone; no open PRs.
 - GitHub is the collaborator-facing source for issues and milestones;
-  this file is the agent-facing state. Keep both in sync: when creating,
-  closing, retitling or moving an issue or milestone, update this section
-  in the same change set.
-- Re-check when the task reads the backlog or changes it, or when more
-  than 7 days have passed since the date above.
-- Open milestones are itemized here; closed ones are counts only.
+  this file is the agent-facing state. When creating, closing, retitling
+  or moving an issue or milestone, update this file in the same change.
+- Re-check when a task reads or changes the backlog, or after 7 days.
 
 ## GitHub Milestones [DERIVED]
-Closed: #1 v2.2.0 (5), #5 v2.3.0 (5), #7 v2.3.1 (13), #2 v2.4.0 (6), #9
-v2.4.1 (3), #10 v2.5.0 (75, released 2026-10-16). Milestone numbers do
-not sort in version order (two title renumberings, 2026-07-21 and
-2026-08-16).
+Closed: #1 v2.2.0, #5 v2.3.0, #7 v2.3.1, #2 v2.4.0, #9 v2.4.1, #10 v2.5.0
+(released 2026-10-16). Milestone numbers do not sort in version order.
 
-Release order [user, 2026-10-04]: v3.0.0 corvus (#6) → v3.1.0 New
-Distributions (#3) → Architecture Refactor (#4, post-v3). The accuracy
-patch (#8) ships after v3.0.0 (re-scoped 2026-10-26; Decided). Retitled 2026-10-04 [user], each
-description carrying a dated renumbering note: #10 "v2.5.0 — Correctness
-& accuracy", #6 "v3.0.0 — corvus adoption", #3 "v3.1.0 — New
-Distributions (Extended)", #4 "Post-v3 — Architecture Refactor"; #8 note
-only.
-
-- **#6 v3.0.0 — corvus adoption** (open, 18): #47, #52, #107, #108, #110,
-  #113, #126, #136, #138, #141, #156, #220, #221, #247, #252, #266, #267,
-  #270. Full swap [user, 2026-09-17]: every `detail::` special function
-  corvus covers. #126 and #141 are absorbed, measured against corvus
-  v1.0.0. #137 and #173 closed with v2.5.0; #267 is #173's residual.
-  #156 gates the release on corvus v1.2.0 throughput. Added since
-  2026-10-06: #220 public-contracts design and #221 (retire the
-  NR-shaped beta continued fraction and per-tier coefficient copies),
-  both from the 2026-10-07 architecture review; #247, #270 (beta), #252
-  (von Mises entropy via Bessel), #266 (prefactor and density forms below
-  shape 20). Corvus is pinned at v1.0.1. State and design: that branch's
-  PLAN.md.
-  Moved from #8 on 2026-10-26 [user; Decided, "Freeze and the accuracy
-  patch"], 17 issues, each with a reason comment:
-  - Same files as the branch: #152, #179, #214, #217, #218, #219, #248,
-    #249, #251, #272.
-  - Superseded by the swap: #262 and #271. Re-measure them, then close
-    as overtaken.
-  - Post-swap sweep: #103 (enforced in v2.5.0; re-run its guards), #104
-    (v2.5.0's #159 and #160; confirm), #114 (one pass after the swap).
-  - Verification support: #213 (off-grid and adversarial sweep), #258
-    (per-row budgets, and a row diff against v2.5.0).
-  Open now: 35.
-- **#8 Accuracy, contracts & kernel hygiene patch** (open, 20; 8 closed):
-  a patch after v3.0.0, independent of the adoption. Closed since
-  2026-10-06: #180 and #183 (with v2.5.0), #257 and #265 (2026-10-12),
-  #144 (2026-10-26; R8 corrected its kAvx512 cell for v2.5.0). #146 and
-  #111 closed 2026-10-05.
-  - Accuracy: #215, #243, #244, #245, #246, #250, #263, #273, #277.
-    #245 may already be fixed (`cd9a2ab`); check it before working it.
-    #244's "exact path" premise looks wrong (a Stirling path above
-    λ = 20).
+- **#6 v3.0.0 — corvus adoption** (32 open, 1 closed): itemized in "State
+  of the v3.0.0 issues" above.
+- **#8 Accuracy, contracts & kernel hygiene patch** (33 open, 8 closed),
+  v3.0.1:
+  - Accuracy: #215, #243, #244, #245, #246, #249, #250, #263, #273, #277,
+    #314, #315, #316, #317, #318. #245 may already be fixed (`cd9a2ab`);
+    check before working it. #244's "exact path" premise looks wrong.
   - Oracle and test tooling: #259, #260, #261.
-  - Concurrency: #181, #182.
-  - API defects and docs: #253 (document), #268, #269.
-  - Speed: #178 (InverseGamma's serial passes).
-  - Parallel layer, from the 2026-10-26 fleet-structure survey: #283
-    (Gaussian `fit()` partition follows the platform grain, so bits
-    differ across machines); #284 (deprecate the unused
-    thread-count-dependent reduction helpers; remove at the next major).
-- **#3 v3.1.0 — New Distributions (Extended)** (open, 5): #58 GEV, #59
+  - Concurrency: #181, #182, #217.
+  - Contracts, API and docs: #220, #253, #268, #269.
+  - Cleanup and CI: #114, #152, #218, #219.
+  - Speed and the parallel layer: #178, #283, #284, #319.
+- **#3 v3.1.0 — New Distributions (Extended)** (6 open): #58 GEV, #59
   LogLogistic, #60 Triangular, #61 Wald, #62 Hypergeometric +
-  BetaBinomial + Zipf. Settle #62's Zipf CDF design (summation or the
-  Hurwitz-zeta closed form) before planning; it scopes corvus work.
-- **#4 Post-v3 — Architecture Refactor** (open, 8): #40, #41, #42, #43,
-  #128, #222, #282, #285. #222 (layering: GoF statistics out of L1
-  `math_utils`) came from the 2026-10-07 architecture review. #282 (one slice callable per batch site behind
-  one internal scheduling seam) is the first step of #43 and is wanted
-  whatever the threading direction [user, 2026-10-26]. #285 (caller-supplied
-  executor) is gated on a fleet executor concept. #42 is on hold: the
-  direction [OPEN] under discussion moves the pools to an optional fleet
-  library and deletes the `safe_*` backends.
+  BetaBinomial + Zipf, and #307 (the fixed 4,096-element gate in
+  `parallelForSlices`). Settle #62's Zipf CDF design before planning; it
+  scopes corvus work.
+- **#4 Post-v3 — Architecture Refactor** (8 open): #40, #41, #42, #43,
+  #128, #222, #282, #285. #282 (one slice callable per batch site behind
+  one scheduling seam) is the first step of #43 and is wanted whatever
+  the threading direction [user, 2026-10-26]. #285 is gated on a fleet
+  executor concept. #42 is on hold.
 
-## Trends from the v2.5.0 captures [OPEN, 2026-10-05; tested 2026-10-06]
-First extracted from K's three tiers, M's NEON and Z's throttled
-overnight as markers for analysis [user]; tested on 2026-10-06 against
-the three freeze-code datasets (K's AVX2/AVX/SSE2 at `6f86996`, M's NEON
-at `2c5230a`, Z's clang-cl AVX-512/AVX2/AVX/SSE2 at `69c7be4`), per
-machine and together [DERIVED]. A difference counts only beyond that
-row's own three-run spread (grid steps). Three runs in one night are a
-lower bound on noise.
-
-For v2.5.0:
-- **"Table noise exceeds table precision": rejected as stated.** Run
-  noise is a median 0–1 grid step; only 3–11 of 81 rows per set spread
-  > 2 steps. Rows differing from their table beyond that noise: K 24
-  (AVX2), 9 (AVX), 27 (SSE2); M 22; Z 41, 42, 28, 38. The tables are
-  off because crossovers are per machine (below) while a table serves an
-  architecture.
-- **"AUTO is too reluctant": true only at costly parameters.** On the
-  profile's default parameters the tables cross too early as often as
-  too late (the cheapest third: early 8–11, late ~2 on most sets). R3's
-  AUTO-vs-best gaps favour PARALLEL (K 23/24, M 23/23, Z 28/33), mostly
-  at costly parameters (Beta 25 and 1000 shapes, Gamma α ≥ 20, Student-t
-  ν ≥ 1e3, large counts: 18/24, 17/23, 19/33). Per-element cost varies
-  up to 10× with the parameters, so one threshold per (distribution,
-  operation) cannot serve both.
-- **Two parallel-path defects** (#175, #176, v2.5.0; predate v2.5.0,
-  v2.4.1 has both). (1) The PARALLEL lambdas of `binomial.cpp`,
-  `negative_binomial.cpp` and `von_mises.cpp` call the scalar method per
-  element, and each call takes `withCacheSnapshot`'s `shared_lock` on
-  the object's one mutex: PARALLEL/VECTORIZED at 2M elements 1.5–12×
-  slower, worst on the Macs (GCD) and through Bernoulli and Geometric,
-  which delegate. (2) The Student-t CDF's PARALLEL lambda is a serial
-  loop: exactly 1.00× on every machine. These are the NEVER rows that
-  look costly; their table rows wait for the fix (R8). Fixed at
-  `73ecbfe`; the audit it prompted found more, fixed at `ee11e62` or
-  filed (Known Gaps, GitHub Milestones).
-- **kSse2: confirmed, SSE2 crosses sooner.** K 21 sooner / 0 later, Z 15 /
-  1, the rest within noise, following SSE2's cost over AVX (median 1.16×
-  K, 1.65× Z). Delegating to kAvx is late on a fifth to a quarter of rows.
-- **Remaining over-budget rows:** Student-t quantile at ν ≥ 1e3 (K, M
-  7–9×; Z 11.6–13.3×) and the von Mises quantile (K, M 5–9×; Z 17–23×,
-  Z's ratio from v2.4.1's cheap grid; in absolute terms Z is fastest).
-  Ship as documented gaps, or give Student-t the von Mises treatment (a
-  fixed-cost method, normal-limited at large ν; a corvus #44 kernel).
-
-For corvus adoption (v3.0.0) and later:
+## Design inputs from the threshold captures [OPEN]
+From the v2.5.0 captures on three machines (tested 2026-10-06) and the
+Ivy Bridge capture of 2026-11-18. Full analysis: `git show e1a11ec:PLAN.md`,
+"Trends".
+- **Crossovers are per machine; a table serves an architecture.** That,
+  not run noise (a median 0–1 grid step), is why tables read off.
+- **One threshold per (distribution, operation) cannot serve every
+  parameter**: per-element cost varies up to 10× with the parameters, and
+  AUTO is late mostly at costly ones.
+- **SSE2 crosses sooner than AVX** (K 21 rows sooner, 0 later; Z 15, 1),
+  so delegating kSse2 to kAvx is late on a fifth to a quarter of rows.
+  No kSse2 table yet.
+- **Below 4,096 elements PARALLEL does not fork** (#307), so a candidate
+  there is not a crossover.
 - **Thresholds follow per-element cost: supported** [DERIVED,
   2026-10-06]. log(crossover) against log(VECTORIZED ns/element) has
   slope −0.5 to −1.03 (−1 predicted; M −1.03, R² 0.85; K AVX −0.97,
@@ -2397,9 +470,8 @@ For corvus adoption (v3.0.0) and later:
   noise: Z crosses later on 19–27 rows and sooner on 9–11, its
   vectorized cost about half K's, and the crossover ratio follows the
   cost ratio with slope +1.1 (AVX2, AVX; SSE2 +0.36). Exceptions are the
-  two defects above. Corvus replaces the
-  kernels and invalidates every table, so spend little on v2.5.0 table
-  precision. Evaluate a cost model (per-element costs × one per-machine
+  two parallel-path defects fixed in v2.5.0 (#175, #176). Corvus replaced
+  the kernels and invalidated every table, hence L5. Evaluate a cost model (per-element costs × one per-machine
   overhead, perhaps calibrated at startup) against the tables; it ties
   into the post-v3 Architecture Refactor.
 - **Don't depend on auto-vectorization.** Beta's large-shape cost was
@@ -2418,138 +490,57 @@ For corvus adoption (v3.0.0) and later:
   worse than the v2.5.0 block, on every ISA.
 
 ## Known Gaps [OPEN]
-- **CI on ubuntu-26.04** [OPEN, 2026-11-11]: the jobs that install versioned
-  tools are pinned to `ubuntu-24.04` (#294, CI House Style §1). Moving that
-  pin needs two things first, both seen on #293's runs:
-  - Coverage: lcov 2.4 fails with `inconsistent` ("mismatched end line" in
-    `tests/test_discrete_quantile_bounds.cpp:57`) under `gcov-13`. The
-    `path` error from orphan CMakeTmp `.gcda` files is already fixed.
-  - TSan: the exception-release false positive in
-    `test_parallel_exception_propagation` is suppressed on two frames in
-    `tests/tsan.supp`, because the freeing stack differs between
-    libstdc++ 14 and 15. It depends on timing (it fired on main in CI run
-    419 on ubuntu-24.04, after many clean runs), so a pass proves little;
-    re-read the report's frames if it fires again after an image move.
-- **R9 findings on M** [DERIVED, 2026-10-06; filed 2026-10-07 as
-  #184–#191 (F1–F8 in order), milestone "Accuracy, contracts & kernel
-  hygiene patch"; detail in
-  `docs/bench-evidence/2026-10-06-m1-concurrency/summary.txt`]:
-  - F1 (C1) #184: move-assignment takes no lock in all 27 distributions
-    (TSan; the stress test sees wrong values in 26). Same class as
-    Uniform's copy-assignment, fixed in `ee11e62`.
-  - F2 (C2) #185: TruncatedNormal `fit` reads the bounds, computes, then
-    writes μ and σ under a later lock (`truncated_normal.cpp:661`);
-    racing a bound setter, 741–2998 of 3000 rounds end in neither serial
-    order.
-  - F3 (C4) #186: InverseGamma and FisherF `sample(rng, n)` loop the locking
-    scalar `sample`, so one call mixes states; others snapshot once.
-  - F4 #187: Poisson `operator>>` cannot read `operator<<`'s output (`"λ="`
-    + 2 bytes lands on `=`; `poisson.cpp:1020`).
-  - F5 #188: Gaussian `sample`'s `static thread_local` Box–Muller spare
-    (`gaussian.cpp:330`) makes a draw depend on the thread's earlier
-    draws; identically seeded generators disagree.
-  - F6 #189: Poisson `validateCurrentParameters` is defined `inline` in
-    `poisson.cpp:246`; callers fail to link.
-  - F7 #190: `SystemCapabilities` hardcodes physical = logical / 2
-    (`system_capabilities.cpp:28`); the macOS PARALLEL/WORK_STEALING
-    choice reads it, so the M1 is treated as SMT.
-  - F8 (perf) #191: PARALLEL above the fork threshold runs the scalar formula,
-    not the batch kernel, in 33 of 81 (distribution, op) pairs.
-  - Q1 (decided B, 2026-10-07): FORCE_SCALAR batches lock per element
-    (`executeStrategy`'s SCALAR case) and can mix states; documented as
-    per-element, one state under every strategy deferred to v3.
-- **Lock and parallel-path audit** [DERIVED, 2026-10-06; read-only agent,
-  findings verified]. Fixed at `ee11e62`, each gate failing first on
-  `73ecbfe` except where noted: Poisson `getMedian`'s recursive shared
-  lock (deadlocked on Windows); Uniform/Discrete bound-setter TOCTOU;
-  Uniform's unlocked copy-assignment (no deterministic gate; TSan, R8
-  step 5); delegate setters (Bernoulli, Geometric, ChiSquared, Erlang,
-  InverseGamma) updating the delegate outside their lock;
-  `parallelTransform`'s repeated chunks; PARALLEL below the fork
-  threshold running a serial scalar loop; Beta's boundary values from
-  the locking scalar methods; `d == d` locking twice (14 distributions;
-  cannot fail first); the work-stealing pool's construction race (TSan).
-  Filed, not fixed for v2.5.0 [user]: #178–#183. The 48 PARALLEL lambdas'
-  own `should_use_parallel` gates are now dead (the dispatcher routes
-  below a higher threshold); left in place.
-- **Over-budget slowdowns** (budget: Decided, "Accuracy-for-speed
-  budget"). Resolved 2026-10-04 [DERIVED, K, indicative, against
-  v2.4.1]:
-  - von Mises quantile 52–136× → 5–7×; CDF tail 0.1–1.1×, bulk
-    0.14–0.75×, batch 0.27–3.5× (`717564f` levers 1–2, `96b157f` the
-    fixed-cost quadrature rewrite; the Bessel series is gone).
-  - Gamma α ≥ 20 pdf/logpdf 8–15× → about 2–5× (`b5a47df` log1pmx and
-    hoisted constants, `b1ffc16` vectorized Stirling batch).
-  - Beta: the batch is SIMD at every shape (`97c67bf`); with one shape
-    large 0.5–0.7× `b1ffc16`, with both large (now Stirling form, for
-    accuracy) logpdf 2.2× and pdf 1.3× `b1ffc16`, about 3× v2.4.1.
-  - Student-t, Exponential, Rayleigh: the generic `vector_log1p` and
-    `vector_expm1` lost to their earlier paths, which were kept
-    (`9ca52db`; A/B in Status).
-  - Within budget, left: Student-t CDF/quantile at large ν (5–8×, the
-    incomplete-beta continued fraction; corvus #44's research question),
-    discrete log-pmfs (0.9–2×), FisherF (2–3×).
-- **MSVC codegen behind clang-cl** [DERIVED, Z, 2026-10-05]. Windows
-  performance numbers come from clang-cl [user, 2026-10-05; standards
-  WINDOWS-TOOLCHAIN §5]; MSVC is the correctness build. The Beta and
-  Gamma Stirling batches were scalar under MSVC (reason 1106, the Horner
-  loop in `log1pmx_series`); `998d985` writes it out and MSVC vectorizes
-  them, 2.2–3.3× faster, Beta at clang-cl's speed. Left: Gamma at large
-  shapes 1.5–1.6× behind clang-cl, since MSVC does not contract FMAs
-  (`/fp:contract` is a build-flag change under the freeze, and the
-  FP-contraction rule in AGENTS.md); `vector_expm1`'s Taylor loop scalar
-  under MSVC (reason 1100, its |x| < ½ select; every select form tried),
-  which the Pareto and Weibull batch CDFs use. Evidence:
+- **CI on ubuntu-26.04** [2026-11-11]: the jobs that install versioned
+  tools are pinned to `ubuntu-24.04` (#294, CI House Style §1). Moving the
+  pin needs two things first: lcov 2.4 fails with `inconsistent` under
+  `gcov-13` (`tests/test_discrete_quantile_bounds.cpp:57`), and the TSan
+  exception-release false positive in
+  `test_parallel_exception_propagation` is suppressed on two frames that
+  differ between libstdc++ 14 and 15 (`tests/tsan.supp`); it depends on
+  timing, so a pass proves little.
+- **No CI leg runs the install-contract steps without TBB** since the GCC
+  leg gained `libtbb-dev` (#290). Checked once locally; a second install
+  leg would cover it at the cost of runner time.
+- **`consumer_example_fetchcontent` fetches `main`**, so it cannot
+  exercise this branch until it is merged.
+- **Concurrency findings of 2026-10-06** are filed as #184–#191 and
+  #178–#183; evidence in
+  `docs/bench-evidence/2026-10-06-m1-concurrency/summary.txt`. Decided
+  then: a FORCE_SCALAR batch locks per element and can mix states; one
+  state under every strategy is a v3 design input (AGENTS.md, Batch API
+  contracts).
+- **Within the accuracy-for-speed budget, left as is**: Student-t CDF and
+  quantile at large ν (5–8× against v2.4.1; the continued fraction),
+  discrete log-pmfs (0.9–2×), FisherF (2–3×). The cost bench sweeps
+  parameter bands at a fixed input range and does not resolve x-regions.
+- **MSVC codegen behind clang-cl** [Z, 2026-10-05]: Gamma at large shapes
+  1.5–1.6× behind, since MSVC does not contract FMAs; `vector_expm1`'s
+  Taylor loop is scalar under MSVC, which the Pareto and Weibull batch
+  CDFs use. Evidence:
   `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/`.
-- **Beta pdf/logpdf at large shapes**: resolved in `97c67bf` (Stirling
-  form from both shapes 20; logpdf 3.6e-10 → 2.8e-14, pdf 1.8e-11 →
-  1.0e-13), with the far-from-mode log1p fix it exposed in Gamma and
-  Beta (x ≪ mode; Gamma(1000) logpdf at 1e-15 was −inf). Its cost: Known
-  Gaps above. corvus #45's span `log1pmx` would carry the series.
-- The `exp_max` clamp sits ~30 ULP below the true overflow threshold, so
-  in that one-double window the kernels return `exp(exp_max)` where
-  `std::exp` is still finite. A deliberate margin; left as is.
-- von Mises circular variance (#93 residual): forming the complement
-  1 − A costs about 2κ × A's ULP error near the κ = 50 cut. That is close
-  to intrinsic in double, and corvus does not remove it: its exports
-  return doubles. Only a double-double complement export would.
-- The past-INT_MAX CDF guard tolerance (2e-4) comes from `beta_i`'s
-  lgamma floor. Tighten it when the v2.5.0 incomplete-beta core lands.
-- The pinned clang-format is 23.1.5 (#297, 2026-11-11; it formats the
-  tree identically to 20.1.8, so no reformat), and CI enforces it:
-  the `precommit` job runs every hook on all files. Every hook
-  can fail and none repeats another: the warn-only copyright and
-  include-order checks are gone (no file carried a copyright header;
-  clang-format owns include order), and `no-debug-code` now fails.
-  The older drift in `fisher_f.cpp` and `beta.cpp` was cleared in
-  `b5a47df`.
+- The `exp_max` clamp sits about 30 ULP below the true overflow
+  threshold; in that window the kernels return `exp(exp_max)` where
+  `std::exp` is still finite. A deliberate margin.
+- von Mises circular variance (#93 residual): forming 1 − A costs about
+  2κ × A's ULP error near the κ = 50 cut. Close to intrinsic in double;
+  only a double-double complement export from corvus would remove it.
+
 ## Cross-Repo Dependencies [OPEN]
 - **pylibstats** pins this repo by a `find_package` floor and a
-  FetchContent `GIT_TAG` in `pylibstats/CMakeLists.txt`, which is the
-  only source of the version; its pin-currency canary fails when it falls
-  behind. Before a release or an API break, check that pin and coordinate
-  the bump. It is at v2.4.1 (pylibstats 0.7.1, PR #22); v2.5.0 is owed
-  after R7, and v3.0.0 (corvus) needs a major-version floor change.
-- **corvus issues from v2.5.0** [2026-10-04]: #44 (promote the von Mises
-  quadrature machinery; fixed-cost incomplete gamma/beta as research),
-  #45 (span `expm1`, `log1pmx`). No milestone. The corvus branch's von
-  Mises Bessel changes are superseded by `96b157f` (note on that branch).
-- **corvus dependency cost to the wheels** [priced 2026-09-17; full
-  record: `git show f508b12:PLAN.md`, Cross-Repo]. Open, for the v2.5.0
-  swap PR:
-  - libstats find-or-fetches corvus pinned at v1.0.1;
-  - install is supported only with a system corvus;
-  - corvus stays out of installed headers (move the `bessel.h`
-    wrappers into a TU);
-  - `find_dependency(corvus)`;
-  - THIRD_PARTY_NOTICES (corvus MIT, Highway Apache-2.0);
-  - a corvus pin canary.
-
-  For pylibstats v0.8.0 (pylibstats #20): the Windows wheel (raise the
-  timeout and accept corvus's AVX2 cap, or clang-cl), NOTICE and
-  Apache-2.0 text in the wheel, and pylibstats' missing LICENSE file. For
-  the corvus pin bump: Linux aarch64 (GCC) NEON is unvalidated. That bump
-  targets corvus v1.2.0, the throughput release; corvus v1.1.0 ships
-  correctness fixes only [corvus, user, 2026-10-20; #156 retargeted].
-- **libhmm** shares rules and reference kernels: libhmm#103 (`errorf_inv`
-  saturation class), libhmm#108 (Codecov port after #152).
+  FetchContent `GIT_TAG` in its `CMakeLists.txt`; its pin-currency canary
+  fails when it falls behind. It is at v2.5.0 (pylibstats 0.8.0). v3.0.0
+  needs a major-version floor change and brings corvus into the wheels
+  (pylibstats #20, #26): the Windows wheel (accept corvus's AVX2 cap
+  under cl.exe, or build with clang-cl), the NOTICE and Apache-2.0 text
+  for Highway, and Linux aarch64 NEON, which is unvalidated.
+- **libhmm** ships the same corvus release (fleet coherence rule, libhmm
+  #106) and needs the GoogleTest install fix (libhmm #146, this repo's
+  #287). Shared rules and kernels: libhmm #103, #108.
+- **corvus**: #110 (scalar entry points for `lgamma` and `lbeta`) and
+  #111 (`LgammaDiffDd` cost) are the v1.3.0 work that v3.1.0 waits on;
+  #44 (von Mises quadrature machinery, fixed-cost incomplete gamma/beta)
+  and #45 (`expm1`, `log1pmx` spans, landed) came from v2.5.0. The
+  corvus session is the user's own.
+- **standards**: the Node 20 action finding and the capture-harness
+  convention (one harness for warm-up, the quiet gate, the throttling
+  opt-out and the bundle layout) are candidates for the fleet repo.

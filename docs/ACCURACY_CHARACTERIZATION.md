@@ -86,7 +86,7 @@ build-release/tools/accuracy_sweep sweep.csv
   swings with the low bits of x. Make the newer sweep with
   `accuracy_sweep new.csv --grid-from old.csv`; the gate matches exact rows only.
 
-### Off-grid sweep, runbook step R2b (#213)
+### Off-grid sweep, fleet-leg step L2b (#213)
 
 The fixed grid has three parameter instances per distribution plus the switch
 bands. The off-grid sweep draws random instances over wide ranges, including
