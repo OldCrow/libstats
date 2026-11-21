@@ -1444,7 +1444,7 @@ void sweepOffGrid(const OffGridOptions& opt, Sink& sink) {
     using namespace stats;
     using P = std::pair<double, double>;
     using R = OffGridRng;
-    constexpr double kPi = std::numbers::pi;
+    static constexpr double kPi = std::numbers::pi;
     constexpr std::size_t kAll = 0;  // no quantile cap
 
     // Scales whose square leaves the normal range, either side of each edge: the hunt's
@@ -1502,7 +1502,7 @@ void sweepOffGrid(const OffGridOptions& opt, Sink& sink) {
         kAll, opt, sink);
     offGrid<VonMisesDistribution>(
         "von_mises", [](double a, double b) { return VonMisesDistribution(a, b); },
-        [kPi](R& r) { return P{r.uniform(-kPi, kPi), r.logUniform(1e-3, 1e3)}; }, true, false,
+        [](R& r) { return P{r.uniform(-kPi, kPi), r.logUniform(1e-3, 1e3)}; }, true, false,
         /*quantileCap=*/4, opt, sink);
     offGrid<BinomialDistribution>(
         "binomial", [](double a, double b) { return BinomialDistribution(static_cast<int>(a), b); },
