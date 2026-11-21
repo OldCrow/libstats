@@ -51,6 +51,12 @@ if(NOT GTEST_FOUND AND NOT TARGET GTest::gtest AND NOT TARGET gtest)
     )
     # Prevent GTest from overriding the project's CRT choice on Windows.
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    # Keep GoogleTest out of libstats' install set (#287). Its own CMake defaults INSTALL_GTEST
+    # to ON, so `cmake --install` put gtest and gmock headers, static libraries and a GTest
+    # package config into the libstats prefix, where the config could shadow a consumer's own
+    # find_package(GTest). No test uses GoogleMock, so it is not built either.
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
     # GoogleTest 1.17.0 builds its own sources with -WX under an MSVC-style driver, and its
     # char8_t printer trips -Wcharacter-conversion, new in Clang 21. Only clang-cl meets both.

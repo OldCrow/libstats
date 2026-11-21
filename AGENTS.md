@@ -253,6 +253,15 @@ on top of `scripts/analyze_crossovers.py` (the sustained-crossover rule; not
   `docs/SIMD_BENCHMARK_RESULTS.md`): x86 hardware gather is too expensive to
   beat a polynomial; NEON is the opposite, where a table lookup is nearly
   free. Table kernels are a NEON technique here, not an x86 one.
+- **The quadrant-reduction trig kernel is duplicated per tier on purpose**
+  (#108, decided 2026-11-21): once per x86 file, and inline in the two NEON
+  lambdas. Within a file cos and sin share; across tiers the copies differ
+  only in intrinsic types. Sharing them would touch four validated tiers at
+  once and need every per-tier gate rerun, for no change in behaviour.
+  `simd_neon.cpp` states the same preference at `vector_sin_neon`: the body is
+  "duplicated here rather than shared so the validated cos kernel above stays
+  byte-for-byte untouched". The per-tier `exp`/`log` coefficient sets are
+  kept the same way (#221). A change to one copy must be made to all.
 
 ### FP-contraction rule
 

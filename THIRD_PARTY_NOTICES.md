@@ -60,11 +60,13 @@ file, and the derivations in `docs/NEON_*_DERIVATION.md` /
 **Reference**: Press, W.H. et al., *Numerical Recipes in C++*, Cambridge
 University Press, 3rd edition 2007.
 
-**Usage**: One function in `src/math_utils.cpp` uses a standard numerical
-method described in Numerical Recipes:
-- `beta_continued_fraction` — Lentz modified continued-fraction evaluation
-  of the regularized incomplete beta function, kept for the Student-t tail
-  kernels
+**Usage**: One function in `src/math_utils.cpp` evaluates a classical
+continued fraction that Numerical Recipes also describes:
+- `beta_continued_fraction` — the continued fraction of the regularized
+  incomplete beta function (DLMF 8.17.22), kept for the Student-t tail
+  kernels. Since v2.5.0 it is evaluated in its odd contraction by the
+  modified Lentz method, with the cancelling term formed in closed form;
+  it shares neither structure nor identifiers with the NR routine (#221).
 
 Through v2.5.0 this entry also named `erf_inv` (rational approximation,
 Moro/Acklam) and `gamma_p_series` (power series of the regularized

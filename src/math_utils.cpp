@@ -718,8 +718,8 @@ double beta_i_pair(double x, double y, double a, double b, double /*log_beta_pre
     return x <= y ? corvus::beta_p(a, b, x) : corvus::beta_q(b, a, y);
 }
 
-// Helper function for beta incomplete function continued fraction
-// Based on Numerical Recipes algorithm
+// The incomplete beta continued fraction with its leading 1/a, for the Student-t tail kernels.
+// The fraction is the classical one (DLMF 8.17.22); the evaluation below is this library's own.
 static double beta_continued_fraction(double x, double y, double a, double b) noexcept {
     // Return the continued fraction value multiplied by 1/a
     // This is part of the standard algorithm for regularized incomplete beta
@@ -729,7 +729,7 @@ static double beta_continued_fraction(double x, double y, double a, double b) no
 // The continued fraction h itself, without the leading 1/a (folded into the log prefactor by
 // the tiny-shape path, where exp(·)/a cancels).
 //
-// h = 1/(1 + d₁/(1 + d₂/(1 + d₃/…))), the Numerical Recipes fraction with
+// h = 1/(1 + d₁/(1 + d₂/(1 + d₃/…))), the classical fraction (DLMF 8.17.22) with
 //   d₂ₘ = m(b − m)x / ((a + 2m − 1)(a + 2m)),
 //   d₂ₘ₊₁ = −(a + m)(a + b + m)x / ((a + 2m)(a + 2m + 1)),
 // evaluated as its odd contraction (Lentz): 1/h = B₀ + A₁/(B₁ + A₂/(B₂ + …)) with
