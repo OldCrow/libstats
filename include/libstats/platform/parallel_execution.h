@@ -31,8 +31,41 @@
 // 4. POSIX threads (pthreads) on Unix/Linux systems
 // 5. Fallback to serial execution
 
-// Check for C++20 std::execution policies
+// The backend is decided from two things that read the same in every translation unit: the
+// standard library's own feature macros, which <version> defines whatever was included before
+// this header, and the build's configure-time facts in the generated libstats_config.h. Before
+// #179 the test below ran on whichever feature macros earlier includes happened to define, so
+// two translation units of one program could compile different bodies for the same inline
+// functions (on libstdc++, <version> or <execution> first gave std::execution, anything else
+// pthreads).
+#include <version>
+
+// Generated at configure time and installed beside libstats.h. The second spelling serves a
+// consumer whose only include path is the install prefix's include directory (pkg-config).
+#if __has_include("libstats_config.h")
+    #include "libstats_config.h"
+#else
+    #include "../libstats_config.h"
+#endif
+
+// std::execution policies are taken only where they run in parallel. libstdc++ implements them
+// on TBB and falls back, silently, to a serial backend when <tbb/tbb.h> is not found; its TBB
+// backend also needs libtbb at link time. So on libstdc++ the policies are used only when this
+// build links TBB (LIBSTATS_HAS_TBB) and the compiling translation unit sees TBB's headers
+// (_GLIBCXX_USE_TBB_PAR_BACKEND, libstdc++'s own switch). A libstdc++ that does not define that
+// switch is treated as serial. Other standard libraries are taken at their feature macro.
 #if defined(__cpp_lib_execution)
+    #if !defined(__GLIBCXX__)
+        #define LIBSTATS_STD_EXECUTION_IS_PARALLEL 1
+    #elif defined(LIBSTATS_HAS_TBB) && defined(_GLIBCXX_USE_TBB_PAR_BACKEND)
+        #if _GLIBCXX_USE_TBB_PAR_BACKEND
+            #define LIBSTATS_STD_EXECUTION_IS_PARALLEL 1
+        #endif
+    #endif
+#endif
+
+// Check for C++20 std::execution policies
+#if defined(LIBSTATS_STD_EXECUTION_IS_PARALLEL)
     #include <execution>
     #define LIBSTATS_HAS_STD_EXECUTION 1
     #define LIBSTATS_HAS_PARALLEL_EXECUTION 1
@@ -833,6 +866,20 @@ inline void* pthread_worker(void* arg) {
     return nullptr;
 }
 
+/// Joins every thread, then rethrows the first exception in chunk order. Rethrowing from inside
+/// the join loop left the later threads running on work items that were being destroyed.
+inline void join_all_then_rethrow(std::vector<pthread_t>& threads,
+                                  std::vector<PThreadWorkItem>& work_items) {
+    for (pthread_t& thread : threads) {
+        pthread_join(thread, nullptr);
+    }
+    for (PThreadWorkItem& item : work_items) {
+        if (item.exception_ptr) {
+            std::rethrow_exception(item.exception_ptr);
+        }
+    }
+}
+
 /// Helper function to determine optimal chunk size for pthreads
 inline size_t get_pthread_chunk_size(size_t total_elements) noexcept {
     const size_t num_cores = get_logical_core_count();
@@ -882,13 +929,7 @@ void pthread_for_each(Iterator first, Iterator last, UnaryFunction f) {
         }
     }
 
-    // Wait for all threads to complete
-    for (size_t t = 0; t < max_threads; ++t) {
-        pthread_join(threads[t], nullptr);
-        if (work_items[t].exception_ptr) {
-            std::rethrow_exception(work_items[t].exception_ptr);
-        }
-    }
+    join_all_then_rethrow(threads, work_items);
 }
 
 /// pthreads-based parallel transform implementation
@@ -934,13 +975,7 @@ void pthread_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, Unar
         }
     }
 
-    // Wait for all threads to complete
-    for (size_t t = 0; t < max_threads; ++t) {
-        pthread_join(threads[t], nullptr);
-        if (work_items[t].exception_ptr) {
-            std::rethrow_exception(work_items[t].exception_ptr);
-        }
-    }
+    join_all_then_rethrow(threads, work_items);
 }
 
 /// pthreads-based parallel reduce implementation
@@ -982,13 +1017,7 @@ T pthread_reduce(Iterator first, Iterator last, T init, BinaryOp op) {
         }
     }
 
-    // Wait for all threads to complete
-    for (size_t t = 0; t < max_threads; ++t) {
-        pthread_join(threads[t], nullptr);
-        if (work_items[t].exception_ptr) {
-            std::rethrow_exception(work_items[t].exception_ptr);
-        }
-    }
+    join_all_then_rethrow(threads, work_items);
 
     // Combine partial results
     return std::accumulate(partial_results.begin(), partial_results.end(), init, op);
@@ -1047,6 +1076,14 @@ void safe_transform(Iterator1 first1, Iterator1 last1, Iterator2 first2, UnaryOp
         std::transform(std::execution::par_unseq, first1, last1, first2, op);
 #elif defined(LIBSTATS_HAS_GCD)
         detail::gcd_transform(first1, last1, first2, op);
+#elif defined(LIBSTATS_HAS_PTHREADS)
+        // The pthreads split indexes into the range, so it needs random access (#179).
+        if constexpr (std::random_access_iterator<Iterator1> &&
+                      std::random_access_iterator<Iterator2>) {
+            detail::pthread_transform(first1, last1, first2, op);
+        } else {
+            std::transform(first1, last1, first2, op);
+        }
 #else
         std::transform(first1, last1, first2, op);
 #endif
@@ -1085,6 +1122,14 @@ void safe_for_each(Iterator first, Iterator last, UnaryFunction f) {
         std::for_each(std::execution::par_unseq, first, last, f);
 #elif defined(LIBSTATS_HAS_GCD)
         detail::gcd_for_each(first, last, f);
+#elif defined(LIBSTATS_HAS_PTHREADS)
+        // Reached on libstdc++ without TBB, where std::execution would run serially (#179).
+        // The pthreads split indexes into the range, so it needs random access.
+        if constexpr (std::random_access_iterator<Iterator>) {
+            detail::pthread_for_each(first, last, f);
+        } else {
+            std::for_each(first, last, f);
+        }
 #else
         std::for_each(first, last, f);
 #endif

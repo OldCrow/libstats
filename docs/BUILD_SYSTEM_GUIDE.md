@@ -152,9 +152,11 @@ package: `<src>/include` (for `#include "libstats/core/foo.h"`),
 A second generated header, `libstats_config.h` (template
 `cmake/libstats_config.h.in`), is the place for configure-time facts that
 public headers branch on, installed beside the hand-written headers so every
-consumer sees the same values. v3.0.0 has none (its one fact,
-`LIBSTATS_HAS_CXX17_BESSEL`, went with the Bessel tiers), so neither the
-template nor the header exists at present.
+consumer sees the same values. v3.0.0 has one: `LIBSTATS_HAS_TBB`, defined
+when the build found TBB and links it. `platform/parallel_execution.h` reads
+it to choose its backend on libstdc++, whose `std::execution` policies run in
+parallel only on TBB (#179). The earlier fact, `LIBSTATS_HAS_CXX17_BESSEL`,
+went with the Bessel tiers.
 
 ## SIMD detection
 
@@ -316,6 +318,6 @@ This is what happened when it was broken.
   macro from the installed export, so every consumer compiled Tier 2 Bessel
   and an ODR violation against the library's own TUs.
 
-v3.0.0 retired the Bessel tiers and with them the generated
-`libstats_config.h`; the rule stands for the next configure-time fact a public
-header needs.
+v3.0.0 retired the Bessel tiers and, for a while, the generated
+`libstats_config.h` with them; #179 brought the header back for
+`LIBSTATS_HAS_TBB`.

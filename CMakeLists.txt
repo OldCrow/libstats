@@ -494,6 +494,16 @@ configure_file(
     @ONLY
 )
 
+# Configure-time facts a public header branches on travel in a generated header, never in
+# target_compile_definitions (#97; AGENTS.md, "CMake standard"). Today: whether this build links
+# TBB, which parallel_execution.h needs to choose its backend on libstdc++ (#179). TBB detection
+# has already run above.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/libstats_config.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_config.h"
+    @ONLY
+)
+
 # =============================================================================
 # CREATE OBJECT LIBRARIES FOR PARALLEL COMPILATION
 # =============================================================================
@@ -822,6 +832,13 @@ if(LIBSTATS_CORVUS_PROVIDER STREQUAL "system")
     # installed tree.
     install(
         FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_version.h"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats
+    )
+
+    # The generated config header goes beside it: parallel_execution.h includes it
+    # unconditionally, so an install tree without it does not compile (#179).
+    install(
+        FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/libstats_config.h"
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libstats
     )
 

@@ -19,6 +19,7 @@
 #include <functional>
 #include <iterator>
 #include <numeric>
+#include <version>  // feature macros, whatever was included before this header (#179)
 
 // Conditionally include execution for parallel algorithms
 #if defined(__cpp_lib_execution) && __cpp_lib_execution >= 201603L

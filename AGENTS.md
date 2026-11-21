@@ -95,9 +95,8 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
 - **A configure-time fact that a public header branches on goes in the
   generated `libstats_config.h`, never in `target_compile_definitions`.**
   The template is `cmake/libstats_config.h.in`, installed beside the hand-written
-  headers by the same mechanism as `libstats_version.h`. v3.0.0 has no such fact
-  (the Bessel tiers were its only one), so the template is absent; recreate it for
-  the next one (#179 needs it). Fleet rule:
+  headers by the same mechanism as `libstats_version.h`. v3.0.0 has one such fact:
+  `LIBSTATS_HAS_TBB`, read by `platform/parallel_execution.h` (#179). Fleet rule:
   [CMake House Style §7](https://github.com/OldCrow/standards/blob/main/CMAKE-HOUSE-STYLE.md#7-install-contract-libhmm-libstats-corvus).
   The #97 export incident that prompted it: `docs/BUILD_SYSTEM_GUIDE.md`.
 - Install contract conforms: GNUInstallDirs, `libstats-targets` export
@@ -190,9 +189,12 @@ distribution roster lives in the code and in that guide, not here.
   the Windows Visual Studio generator adds a per-config subdirectory (`build\tools\Release\`)
 - **Threading**: batch PARALLEL and WORK_STEALING run on the library's own
   `std::thread` pools on every platform. The `safe_*` wrappers in
-  `parallel_execution.h` pick a backend at compile time: `std::execution` where
-  the standard library provides it, else GCD (macOS), Windows Thread Pool,
-  OpenMP or pthreads
+  `parallel_execution.h` pick a backend at compile time, the same one in every
+  translation unit (#179): `std::execution` where its policies run in parallel
+  (on libstdc++ only when the build links TBB), else GCD (macOS), else
+  pthreads. Only `safe_for_each` and `safe_transform` call the pthreads
+  implementations; the Windows Thread Pool and OpenMP implementations in that
+  header are called by no wrapper except `safe_fill` (OpenMP)
 
 ## Batch API contracts
 

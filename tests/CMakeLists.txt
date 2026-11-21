@@ -273,6 +273,18 @@ create_libstats_gtest(
     test_parallel_execution_comprehensive
     test_parallel_execution_comprehensive.cpp
 )
+# #179 guard: one backend whatever a translation unit included first, and that backend runs on
+# more than one thread. The three probe sources differ only in what precedes the header.
+create_libstats_gtest(test_parallel_backend_selection test_parallel_backend_selection.cpp)
+if(TARGET test_parallel_backend_selection)
+    target_sources(
+        test_parallel_backend_selection
+        PRIVATE
+            parallel_backend_probe_first.cpp
+            parallel_backend_probe_version.cpp
+            parallel_backend_probe_string.cpp
+    )
+endif()
 
 # benchmark.h - Performance measurement utilities
 create_libstats_test(test_benchmark_basic test_benchmark_basic.cpp)
