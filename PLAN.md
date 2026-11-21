@@ -589,10 +589,8 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
     and #221 decisions are the user's; the kAvx capture comes last.
 - **Session of 2026-11-21 [DERIVED, Ivy Bridge; user away for most of it]:
   #213's acceptance, the allowlist, runbook step R2b.** CI on `e639c9a`
-  was green. **Everything below is in the working tree, uncommitted**
-  (commits need the user's key): `tools/accuracy_sweep.cpp`,
-  `tools/accuracy_vs_mpmath.py`, `docs/ACCURACY_CHARACTERIZATION.md`,
-  `data/accuracy/allow_AVX.csv`, and this file.
+  was green. Committed as `09db102`; outcome comments posted on #213 and
+  #258, which stay open until dev reaches `main`.
   - **#213 acceptance met.** Today's sweep tool, built against `834b981`
     (the commit before the 2026-10-08 fix round; survival rows stubbed out
     in the scratch copy, since most classes had no `getSurvival` then),
@@ -618,12 +616,14 @@ Bridge; decisions OPEN, user].** Asked for by the user before #311 starts.
     commands and how to read the output are in
     `docs/ACCURACY_CHARACTERIZATION.md`.
   - **Unexamined groups, now examined:** Erlang and Gumbel pdf over 1,000 ε
-    are the conditioning of x. **TruncatedNormal pdf is a candidate
-    finding, not filed:** for a window about 0.0013 σ wide at z ≈ −5.9
+    are the conditioning of x. **TruncatedNormal pdf is a defect, filed as
+    #318 (patch milestone):** for a window about 0.0013 σ wide at z ≈ −5.9
     every row of the instance is off by the same 1,586–1,599 ε, and a
-    second narrow window by about 128 ε. A uniform relative error points
-    at the normalizing constant, a difference of two nearly equal CDF
-    values; not confirmed in the code.
+    second narrow window by about 128 ε. Z takes the window width as
+    β − α, which loses |α|/w of a rounding; (b − a)/σ keeps it (mpmath:
+    Z at the rounded α, β is 1,582 ε off, with the width kept 11 ε).
+    pdf and logpdf only; cdf and survival already use (b − a)/σ. Older
+    than the adoption (`834b981` is worse).
   - **Left over:** the scratch worktree
     `…/scratchpad/prefix` (pre-fix build, registered with git; remove with
     `git worktree remove --force`). Working files in
