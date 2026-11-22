@@ -62,12 +62,17 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   (135/135). L2's AVX block is stale (banner `b766e45`); regenerate after
   the capture. L2b done: `data/accuracy/allow_AVX.csv`; off-grid sweep
   found #316, #317, #318. L3 done at the time (`90d1bef` against
-  `b766e45`, sweep row for row). **L4 capture pending**: the user runs
-  `build-ivb-adopt/quiet_run.sh` (local script; timing tests,
-  `simd_verification`, the dev-against-`main` benches, three
-  `strategy_profile --large` runs, about four hours). The tree was clean
-  and pushed when the session closed for it. Results land in
-  `build-ivb-adopt/quiet-<UTC>_sha-<sha>/`. Then L5 for kAvx.
+  `b766e45`, sweep row for row). **L4 done 2026-11-21** at `cfbb992`
+  (code `e890dec`), quiet, on AC, screen locked: bundle
+  `data/profiles/dispatcher/2026-11-21T21-09-06Z_linux-x86_64_…_sha-cfbb992`
+  (three `--large` runs, timing tests 14/14, `simd_verification` all
+  pass, the dev-against-`main` benches under `bench/`; notes in its
+  manifest). K's `78e47eb` came after it and touches only Poisson CDF
+  WORK_STEALING cells, so kAvx's derivation is unaffected. **L5 next**:
+  derive kAvx (a trial proposes 30 changed values; PARALLEL is behind
+  VECTORIZED at 4096 on 37 of 81 rows, so the fork zone ends at 4096
+  here), re-read the script's Kaby Lake kAvx entries, A/B, write the
+  table and #291's column. Then the AVX block, L1 again and L6.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at

@@ -1,0 +1,5 @@
+== bench build
+main_ref:    main 99f2175
+main_build:  /home/wolfman/Development/libstats/build-ivb-main (libstats.a 2026-11-17T12:46Z)
+bench_flags: /usr/bin/c++ -O3 -DNDEBUG -std=c++20 -DLIBSTATS_HAS_AVX=1 -DLIBSTATS_HAS_SSE2=1
+bench_ok:    1

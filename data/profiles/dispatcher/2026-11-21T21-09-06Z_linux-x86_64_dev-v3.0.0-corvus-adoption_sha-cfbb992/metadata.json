@@ -1,0 +1,20 @@
+{
+  "captured_at_utc": "2026-11-21T21-09-06Z",
+  "run_id": "2026-11-21T21-09-06Z_linux-x86_64_dev-v3.0.0-corvus-adoption_sha-cfbb992",
+  "git_branch": "dev/v3.0.0-corvus-adoption",
+  "git_sha": "cfbb992",
+  "code_sha": "e890dec",
+  "project_root": "/home/wolfman/Development/libstats",
+  "build_dir": "/home/wolfman/Development/libstats/build-ivb-adopt",
+  "build_type": "Release",
+  "cmake_options": "",
+  "cxx_compiler": "/usr/bin/c++ (GCC 13.3.0, Ubuntu 13.3.0-6ubuntu2~24.04.1)",
+  "cmake": "4.4.4",
+  "os": "linux (Linux Mint 22.3, kernel 7.0.0-43-generic, glibc 2.39)",
+  "arch": "x86_64",
+  "simd_tier_active": "AVX",
+  "simd_tier_capped": "",
+  "cpu_brand": "Intel(R) Core(TM) i7-3820QM CPU @ 2.70GHz",
+  "physical_cores": "4",
+  "logical_cores": "8"
+}

@@ -1,0 +1,73 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-11-21T21-09-06Z_linux-x86_64_dev-v3.0.0-corvus-adoption_sha-cfbb992
+Captured at (UTC): 2026-11-21T21-09-06Z (script start; runs 1-3 began 21:13Z, 22:23Z and 23:34Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- sustained_crossovers.txt
+- bench/distributions_bench_{main,dev}_pass{1,2,3}.txt
+- bench/elementary_bench_{main,dev}_pass{1,2,3}.txt
+- logs/load_marks.txt
+- logs/environment.txt
+- logs/bench_build.txt
+- logs/ctest_timing.txt
+- logs/simd_verification.txt
+- logs/quiet_run.sh.txt
+
+Capture notes:
+- Native AVX (Release, build-ivb-adopt/, Ninja, GCC 13.3) on the MacBook Pro 9,1, Ivy Bridge
+  i7-3820QM (4 cores, 8 threads; AVX, no AVX2, no FMA), Linux Mint 22.3, glibc 2.39, at cfbb992 on
+  dev/v3.0.0-corvus-adoption (corvus v1.2.0). cfbb992 is docs-only over e890dec, the last commit
+  that changed src/, tests or the build (metadata.json: code_sha). This is the capture kAvx is to
+  be derived from (#291; kAvx takes this machine's native values, user 2026-11-19). It supersedes
+  2026-11-18T21-29-12Z_..._sha-6278ddd, taken before #311 and the later src/ changes.
+- One src/ change landed after this capture: 78e47eb (Kaby Lake leg, #180) removes
+  pool.waitForAll() from Poisson's WORK_STEALING batch CDF. It touches only the Poisson CDF
+  WORK_STEALING cells of these CSVs; the kAvx rows come from VECTORIZED against PARALLEL, and AUTO
+  does not reach WORK_STEALING on Linux, so the derivation is unaffected.
+- Three `strategy_profile --large -o <csv>` runs, 70 min each, from logs/quiet_run.sh.txt started
+  in a terminal with the desktop session (X11) left up and the screen locked, on AC power,
+  governor schedutil, turbo enabled. The script's console output was not kept this time (no
+  logs/run.txt); every step's exit status is in the step's own log.
+- Load: 1-minute load 0.28 at the start of the timing tests. Load marks during the profile runs
+  read 3.7-4.1 (logs/load_marks.txt); the profiler's own pools run 4 and 8 threads, so its share
+  of that cannot be separated afterwards. Run-to-run spread (max/min of the three medians per
+  cell): SCALAR and VECTORIZED 1% median (p90 7-8%) at 4096 elements and up; PARALLEL and
+  WORK_STEALING 11% median (p90 27%). Below 4096 the p90 is 36-70% for every strategy (short
+  timings).
+- sustained_crossovers.txt is `scripts/analyze_crossovers.py --bundle <this> --table kAvx`:
+  44 ok, 31 DIFF. Its "not in table" for Uniform and NegBinomial is that tool's table parser (a
+  row wrapped over two lines; the CSV name NegBinomial against NEGATIVE_BINOMIAL), not a missing
+  row: scripts/derive_threshold_rows.py reads both.
+- Below 4096 elements PARALLEL does not fork (the fixed gate in parallelForSlices, #307), so
+  PARALLEL equals VECTORIZED there and a candidate under 4096 is not a measured crossover.
+- At 4096 PARALLEL is behind VECTORIZED (median of the three runs) for 37 of the 81 rows, so the
+  capped Kaby Lake build's fork-zone rule (candidate <= 6144 encodes 4096) does not hold here.
+  Among rows whose candidate is 6144 or 8192: ChiSquared, Erlang, Gamma, Gumbel, StudentT, Pareto,
+  Rayleigh, Cauchy and LogNormal LogPDF, Laplace, LogNormal, Pareto, StudentT and TruncatedNormal
+  PDF, Gumbel and Logistic CDF. LogNormal PDF and LogPDF read ahead at 4096 in run 2 only (1.40x,
+  1.33x against 0.94-0.96x and 0.72-0.75x).
+- InverseGamma PDF and LogPDF: 86 and 75 ns/element VECTORIZED at 2M elements (about 350 in the
+  2026-11-18 bundle, before #311), PARALLEL 1.27x and 1.31x ahead there. The serial fixup loop
+  after the Gamma delegate still bounds the parallel gain, so their rows measure that loop.
+- logs/ctest_timing.txt: `ctest -j1 -L timing`, 14 of 14 passed (test_poisson_enhanced_timing,
+  which failed in the 2026-11-18 capture, passed).
+- logs/simd_verification.txt: every operation passed (140 PASS, 0 FAIL).
+- bench/: tools/bench/distributions_bench.cpp and elementary_bench.cpp, each built twice with the
+  flags in logs/bench_build.txt, against main 99f2175 (build-ivb-main, headers from
+  `git archive main`) and against this tree, run main, dev alternately for three passes before the
+  profile runs (1-minute load 1.2-2.6 from the benches themselves). The dev-against-main record
+  for #156 on this machine.
+- Row derivation (not applied; a trial run, nothing written to the tree):
+  scripts/derive_threshold_rows.py with this bundle as kAvx's new capture and
+  2026-10-13T13-58-00Z_... (the capped Kaby Lake build the table came from) as its previous one
+  proposes 30 changed values. With the fork zone ending at 6144 (the script as committed), 17 of
+  them encode 4096; with it ending at 4096 (this machine's rule), 5 encode 4096 and 12 more take
+  their measured 6144. The script's kAvx entries in BENCH_CROSSOVER, TAKE_CANDIDATE and
+  DROP_OVERRIDE are Kaby Lake evidence and are to be re-read for this machine before the table is
+  written; tools/bench/table_ab_bench.cpp then settles the result.
