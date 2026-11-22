@@ -78,7 +78,21 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   `ConcurrencyStress_Poisson.WorkStealingCrossWaiting` fails 10 of 10
   here and skips on every other machine and CI leg. Fixed on this branch;
   **no result changes, so no leg re-runs L2**. The same commit pair
-  removes an AppleClang warning in `tools/accuracy_sweep.cpp`. L2 next.
+  removes an AppleClang warning in `tools/accuracy_sweep.cpp`. CI green
+  on `09c7ea0` (run 44959041879).
+  **L2 done** at `09c7ea0`: 26,882 rows, 200 self-checks, 0 contract
+  violations; AVX2 block regenerated. **L2b done**:
+  `data/accuracy/allow_AVX2.csv` (3,037 rows). Row gate against v2.5.0
+  on its grid: 26,301 rows, 912 values better, 102 worse; 83 are
+  small-shape densities (#314) and the other 19 are rounding changes
+  amplified by ill-conditioned formulas, each reference checked at 80
+  digits (detail on #314, including the Student-t log normaliser at
+  large ν, 20.7 ulp at ν = 1e18 against 11.4 on v2.5.0). Off-grid, seed
+  213: 11,196 scored, 141 skipped, 2 contract violations, both known
+  (#316, #317). Not examined: Fisher-F pdf at 1,295 ε, shapes (21490,
+  9667). **L3 done**: `b766e45` and `90d1bef` sweeps bit-identical on
+  AVX2. Working files are in `../libstats-kleg/` (local). L4 next, on a
+  quiet machine.
 
 ### What every leg produces
 
