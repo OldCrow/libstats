@@ -90,7 +90,7 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   caller (#321). Also found: `parallelForSlices` on the four-thread pool
   costs ceil(slices/4) slice-times, so 5, 6, 9 and 10 slices are slow
   sizes on every row (#323); Cauchy LogPDF loses under sustained PARALLEL
-  at 50k-500k (noted on #321). Still owed: L6.
+  at 50k-500k (noted on #321). **L6 done 2026-11-21**: bench stated on #156. Leg complete; the kAvx re-capture waits on #320.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
