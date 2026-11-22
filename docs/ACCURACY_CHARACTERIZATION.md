@@ -1812,20 +1812,20 @@ Sweep banner: `commit=df78931  isa=NEON  date=2026-10-13`
 
 ## Generated tables: AVX
 
-Sweep banner: `commit=b766e45  isa=AVX  date=2026-11-17`
+Sweep banner: `commit=98810cf  isa=AVX  date=2026-11-21`
 
 ### bernoulli
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 2.876e-17 | 2.876e-17 | 2.876e-17 | 0 | - | 0 |
-| cdf | batch | 2.876e-17 | 2.876e-17 | 2.876e-17 | 0 | abs=0, rel=0 | 0 |
+| cdf | scalar | 2.876e-17 | 2.876e-17 | 2.876e-17 | 4.075e-31 | - | 0 |
+| cdf | batch | 2.876e-17 | 2.876e-17 | 2.876e-17 | 4.075e-31 | abs=0, rel=0 | 0 |
 | logpdf | scalar | 5.192e-16 | 9.356e-17 | 9.356e-17 | - | - | 0 |
 | logpdf | batch | 5.192e-16 | 9.356e-17 | 9.356e-17 | - | abs=0, rel=0 | 0 |
 | pdf | scalar | 2.876e-17 | 4.235e-16 | 4.235e-16 | - | - | 1 |
 | pdf | batch | 2.876e-17 | 4.235e-16 | 4.235e-16 | - | abs=0, rel=0 | 1 |
 | quantile | scalar | 0 | 0 | 0 | - | - | 0 |
-| survival | scalar | 0 | 0 | 0 | 0 | - | 0 |
+| survival | scalar | 1.133e-46 | 3.092e-46 | 3.092e-46 | 1.008e-31 | - | 0 |
 
 ### beta
 
@@ -2007,7 +2007,7 @@ Sweep banner: `commit=b766e45  isa=AVX  date=2026-11-17`
 | pdf | scalar | 2.442e+9 | 2.938e-13 | 1.687e-13 | - | - | 0.000211637 |
 | pdf | batch | 2.442e+9 | 2.938e-13 | 1.687e-13 | - | abs=4.441e-16, rel=2.844e-14 | 0.000211637 |
 | quantile | scalar | 1.138e+185 | 6.441e-14 | 3.66e-14 | - | - | 0.99 |
-| survival | scalar | 8.155e-17 | 5.06e-16 | 1.548e-16 | 0.3193 | - | 1.79769e+308 |
+| survival | scalar | 8.155e-17 | 1.784e-16 | 1.495e-16 | 0.2475 | - | 0.000149204 |
 
 ### laplace
 
@@ -2039,14 +2039,14 @@ Sweep banner: `commit=b766e45  isa=AVX  date=2026-11-17`
 
 | method | source | max_abs | max_rel | p99_rel | law_frac(cdf) | batch_vs_scalar | worst_x |
 |---|---|---|---|---|---|---|---|
-| cdf | scalar | 8.379e-17 | 2.534e-13 | 9.022e-14 | 1.652 | - | 0.690409 |
-| cdf | batch | 8.735e-17 | 2.09e-13 | 1.541e-13 | 2.554 | abs=1.11e-16, rel=2.717e-13 | 0.763465 |
+| cdf | scalar | 8.379e-17 | 1.63e-13 | 9.011e-14 | 1.416 | - | 0.718119 |
+| cdf | batch | 8.735e-17 | 2.09e-13 | 1.541e-13 | 2.554 | abs=1.11e-16, rel=2.715e-13 | 0.763465 |
 | logpdf | scalar | 1.51e-13 | 1.045e-15 | 1.034e-15 | - | - | 0.0770652 |
 | logpdf | batch | 2.374e-13 | 1.045e-15 | 6.339e-16 | - | abs=1.705e-13, rel=9.281e-16 | 0.0770652 |
 | pdf | scalar | 1.681e-14 | 1.51e-13 | 1.237e-13 | - | - | 0.718119 |
 | pdf | batch | 1.943e-14 | 2.374e-13 | 1.608e-13 | - | abs=1.421e-14, rel=1.705e-13 | 0.690409 |
 | quantile | scalar | 2.187e-8 | 2.767e-15 | 2.767e-15 | - | - | 1 |
-| survival | scalar | 8.506e-17 | 1.208e-13 | 1.144e-13 | 1.789 | - | 1.2646e+16 |
+| survival | scalar | 8.506e-17 | 1.208e-13 | 9.921e-14 | 1.8 | - | 1.2646e+16 |
 
 ### negative_binomial
 

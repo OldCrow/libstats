@@ -59,8 +59,9 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
 ### Leg status (edit only your own line)
 
 - **I — Ivy Bridge, AVX, Linux, GCC 13.3**: L1 done at `e890dec`
-  (135/135). L2's AVX block is stale (banner `b766e45`); regenerate after
-  the capture. L2b done: `data/accuracy/allow_AVX.csv`; off-grid sweep
+  (135/135). L2 done again 2026-11-21 at `98810cf`: 26,882 rows, 200
+  self-checks, 0 contract violations, AVX block regenerated; row gate
+  against `allow_AVX.csv` 0 failing. L2b done: `data/accuracy/allow_AVX.csv`; off-grid sweep
   found #316, #317, #318. L3 done at the time (`90d1bef` against
   `b766e45`, sweep row for row). **L4 done 2026-11-21** at `cfbb992`
   (code `e890dec`), quiet, on AC, screen locked: bundle
@@ -78,8 +79,7 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   wherever it goes multi-threaded, under the old table too; not
   investigated, not filed. The capture's bench reads lognormal batch PDF
   1.44x slower on dev: a short-window artifact (kernel and steady-state
-  parallel times equal `main`'s), not to be quoted on #156. Still owed:
-  the AVX accuracy block, L6.
+  parallel times equal `main`'s), not to be quoted on #156. Still owed: L6.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
