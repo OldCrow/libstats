@@ -30,6 +30,11 @@ Resolved work from v1.4.0 through v2.0.0:
   back-to-back A/B with `tools/bench/table_ab_bench.cpp` then settled the kNeon,
   kAvx512, kAvx2 and kAvx rows (580b7f7, bb9ac0b, 6c149f1, 4c3a133). Evidence and numbers:
   `SIMD_BENCHMARK_RESULTS.md` §v2.5.0.
+- v3.0.0 dispatch: `kAvx` re-derived on 2026-11-21 from a native capture on
+  the Ivy Bridge machine (AVX, no FMA), replacing the capped Kaby Lake
+  build's values: 27 values, all earlier. On that machine PARALLEL is still
+  behind VECTORIZED at the 4096 fork value on 37 of 81 rows, so a measured
+  6144 is encoded as 6144 (#291). `SIMD_BENCHMARK_RESULTS.md` §v3.0.0.
 
 Which `simd_*.cpp` files compile for each tier, and how
 `LIBSTATS_MAX_SIMD_TIER` caps them, is in `cmake/SIMDDetection.cmake`

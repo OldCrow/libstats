@@ -1,0 +1,9 @@
+01:34:00 load=4.88 old pass 1 start
+01:39:48 load=2.79 old pass 1 end rows=2431
+01:39:48 load=2.79 new pass 1 start
+01:45:32 load=2.82 new pass 1 end rows=2431
+01:45:32 load=2.82 old pass 2 start
+01:51:17 load=2.52 old pass 2 end rows=2431
+01:51:17 load=2.52 new pass 2 start
+01:57:01 load=1.41 new pass 2 end rows=2431
+DONE

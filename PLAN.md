@@ -68,11 +68,18 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   (three `--large` runs, timing tests 14/14, `simd_verification` all
   pass, the dev-against-`main` benches under `bench/`; notes in its
   manifest). K's `78e47eb` came after it and touches only Poisson CDF
-  WORK_STEALING cells, so kAvx's derivation is unaffected. **L5 next**:
-  derive kAvx (a trial proposes 30 changed values; PARALLEL is behind
-  VECTORIZED at 4096 on 37 of 81 rows, so the fork zone ends at 4096
-  here), re-read the script's Kaby Lake kAvx entries, A/B, write the
-  table and #291's column. Then the AVX block, L1 again and L6.
+  WORK_STEALING cells, so kAvx's derivation is unaffected. **L5 done 2026-11-21**: kAvx re-derived, 27 values across 19 distributions, all earlier; the fork
+  zone ends at 4096 on this machine. A loaded `table_ab_bench` A/B held
+  26 of the rule's 30 values, moved Exponential CDF to 8192 and kept
+  Rayleigh CDF and InverseGamma PDF/LogPDF
+  (`docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/`). #291's
+  column is in `docs/SIMD_BENCHMARK_RESULTS.md`. Open from the A/B:
+  InverseGamma PDF under AUTO is 1.7x slower than either forced strategy
+  wherever it goes multi-threaded, under the old table too; not
+  investigated, not filed. The capture's bench reads lognormal batch PDF
+  1.44x slower on dev: a short-window artifact (kernel and steady-state
+  parallel times equal `main`'s), not to be quoted on #156. Still owed:
+  the AVX accuracy block, L6.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at

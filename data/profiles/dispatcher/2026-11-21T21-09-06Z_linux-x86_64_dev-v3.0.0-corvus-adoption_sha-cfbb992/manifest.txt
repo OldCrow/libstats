@@ -57,7 +57,7 @@ Capture notes:
   after the Gamma delegate still bounds the parallel gain, so their rows measure that loop.
 - logs/ctest_timing.txt: `ctest -j1 -L timing`, 14 of 14 passed (test_poisson_enhanced_timing,
   which failed in the 2026-11-18 capture, passed).
-- logs/simd_verification.txt: every operation passed (140 PASS, 0 FAIL).
+- logs/simd_verification.txt: 70 of 70 tests passed.
 - bench/: tools/bench/distributions_bench.cpp and elementary_bench.cpp, each built twice with the
   flags in logs/bench_build.txt, against main 99f2175 (build-ivb-main, headers from
   `git archive main`) and against this tree, run main, dev alternately for three passes before the

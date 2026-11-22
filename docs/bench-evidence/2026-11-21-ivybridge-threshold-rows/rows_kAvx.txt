@@ -1,0 +1,88 @@
+kAvx: rows derived from 2026-11-21T21-09-06Z_linux-x86_64_dev-v3.0.0-corvus-adoption_sha-cfbb992 (I (Ivy Bridge, GCC 13.3), native AVX)
+previous capture 2026-10-13T13-58-00Z_darwin-x86_64_dev-v2.4.2_sha-d1adc95; fork value 4096, fork zone <= 4096
+grid: 64 128 256 512 1024 2048 4096 6144 8192 10k 25k 50k 75k 100k 150k 200k 250k 300k 400k 500k 750k 1000k 1500k 2000k
+
+Distribution    Op       table          run1/run2/run3    cand    prev  decision       proposed  cmt  Zdir    note
+Bernoulli       PDF       4096           4096/512/4096    4096    4096  KEEP ok            4096  yes  -       
+Bernoulli       LogPDF    4096          4096/4096/2048    4096    1024  KEEP ok            4096  yes  -       
+Bernoulli       CDF       4096          6144/6144/6144    6144    4096  KEEP ok            4096  yes  -       
+Beta            PDF       4096            256/128/1024    1024    6144  KEEP ok            4096  yes  -       candidate in the fork zone; table already at the fork value
+Beta            LogPDF     25k          1024/1024/4096    4096     25k  CHANGE fork        4096  yes  -       runs spread 4.0x; max 4096 still clears the table; candidate 4096 in the fork zone: parallel once it forks
+Beta            CDF       4096          4096/4096/4096    4096    4096  KEEP ok            4096  yes  -       
+Binomial        PDF       4096           1024/512/1024    1024    2048  KEEP override      4096  yes  -       measures as before; table comment stands unless stale
+Binomial        LogPDF    4096          2048/4096/4096    4096    4096  KEEP ok            4096  yes  -       
+Binomial        CDF       4096          4096/4096/4096    4096    2048  KEEP ok            4096  yes  -       
+Cauchy          PDF        50k             25k/25k/25k     25k     75k  KEEP ok             50k  -    -       
+Cauchy          LogPDF     50k          8192/6144/8192    8192     25k  CHANGE             8192  -    -       
+Cauchy          CDF       6144           2048/512/4096    4096    6144  KEEP ok            6144  -    -       
+ChiSquared      PDF        25k          2048/2048/1024    2048     25k  CHANGE fork        4096  yes  -       candidate 2048 in the fork zone: parallel once it forks
+ChiSquared      LogPDF     25k          6144/6144/6144    6144     25k  CHANGE             6144  yes  -       
+ChiSquared      CDF       4096          2048/4096/4096    4096    2048  KEEP ok            4096  yes  -       
+Discrete        PDF        50k            10k/8192/25k     25k     50k  KEEP ok             50k  -    -       
+Discrete        LogPDF     50k            25k/10k/8192     25k     50k  KEEP ok             50k  -    -       
+Discrete        CDF        50k             25k/25k/25k     25k     50k  KEEP ok             50k  -    -       
+Erlang          PDF       6144          1024/4096/2048    4096    6144  KEEP ok            6144  yes  -       
+Erlang          LogPDF     25k          6144/8192/6144    6144     25k  CHANGE             6144  yes  -       
+Erlang          CDF       4096          4096/2048/2048    2048    4096  KEEP ok            4096  yes  -       
+Exponential     PDF        25k             10k/10k/25k     25k     50k  KEEP ok             25k  -    -       
+Exponential     LogPDF    100k             50k/50k/50k     50k    100k  CHANGE              50k  -    -       
+Exponential     CDF        25k            256/512/1024    1024    6144  CHANGE bench       8192  -    -       bench crossover: user 2026-11-21 (I): table_ab ABAB 2026-11-21 on I (loaded, two passes per table; docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/): the profile's sub-fork candidate would encode 4096, where PARALLEL is 1.17-1.35x slower than VECTORIZED in all four files; 0.73-0.79x at 8192; table already overrode the previous capture
+FisherF         PDF       4096          2048/2048/4096    2048    4096  KEEP ok            4096  yes  -       
+FisherF         LogPDF    4096          2048/4096/4096    4096     512  KEEP ok            4096  yes  -       
+FisherF         CDF       4096           1024/256/4096    4096    4096  KEEP ok            4096  yes  -       
+Gamma           PDF       6144          6144/4096/2048    6144    8192  KEEP ok            6144  yes  -       
+Gamma           LogPDF     25k          6144/6144/6144    6144     25k  CHANGE             6144  yes  -       
+Gamma           CDF       4096          4096/2048/4096    4096    4096  KEEP ok            4096  yes  -       
+Gaussian        PDF        50k             10k/10k/25k     25k     50k  KEEP ok             50k  -    -       
+Gaussian        LogPDF    150k             50k/50k/50k     50k    150k  CHANGE              50k  -    -       
+Gaussian        CDF       4096          4096/6144/2048    6144    4096  KEEP ok            4096  -    -       
+Geometric       PDF       4096           256/2048/2048    2048    1024  KEEP ok            4096  yes  -       
+Geometric       LogPDF    4096            2048/128/128    2048    4096  KEEP ok            4096  yes  -       
+Geometric       CDF       4096          2048/4096/4096    4096    4096  KEEP ok            4096  yes  -       
+Gumbel          PDF       8192          4096/6144/6144    6144    8192  KEEP ok            8192  yes  -       
+Gumbel          LogPDF     25k          8192/6144/6144    6144     25k  CHANGE             6144  yes  -       
+Gumbel          CDF        25k          6144/4096/6144    6144     25k  CHANGE             6144  yes  -       
+HalfNormal      PDF        25k             10k/25k/10k     25k     25k  KEEP ok             25k  yes  -       
+HalfNormal      LogPDF    100k             50k/50k/50k     50k    100k  CHANGE              50k  yes  -       
+HalfNormal      CDF       4096          6144/6144/6144    6144    4096  KEEP ok            4096  yes  -       
+InverseGamma    PDF       200k          8192/8192/6144    8192    200k  KEEP judgment      200k  yes  -       user 2026-11-21 (I): table_ab ABAB 2026-11-21 on I (loaded, two passes per table; docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/): PARALLEL 1.02-1.05x VECTORIZED at 8192, 0.99 at 10k, 0.86-0.94 at 25k-100k (the serial fixup loop bounds the gain), and AUTO reads 1.7x slower than either forced strategy wherever it goes multi-threaded; 200k kept
+InverseGamma    LogPDF     25k          8192/6144/8192    8192     25k  KEEP judgment       25k  yes  -       user 2026-11-21 (I): table_ab ABAB 2026-11-21 on I (loaded, two passes per table; docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/): PARALLEL 1.07-1.14x slower than VECTORIZED at 8192 and 10k; 25k kept
+InverseGamma    CDF       2048            2048/4096/64    4096    4096  KEEP ok            2048  yes  -       
+Laplace         PDF        25k          6144/6144/8192    6144     25k  CHANGE             6144  yes  -       
+Laplace         LogPDF     50k             25k/25k/25k     25k     50k  KEEP ok             50k  yes  -       
+Laplace         CDF       4096           512/4096/1024    4096    6144  KEEP ok            4096  yes  -       
+LogNormal       PDF        25k          6144/4096/6144    6144     10k  CHANGE             6144  yes  -       
+LogNormal       LogPDF     25k          8192/4096/8192    8192     25k  CHANGE             8192  yes  -       
+LogNormal       CDF       4096          1024/2048/1024    1024    4096  KEEP ok            4096  yes  -       candidate in the fork zone; table already at the fork value
+Logistic        PDF       4096          4096/4096/4096    4096    6144  KEEP ok            4096  yes  -       
+Logistic        LogPDF    4096           512/4096/4096    4096    6144  KEEP ok            4096  yes  -       
+Logistic        CDF        25k          6144/6144/8192    6144     25k  CHANGE             6144  yes  -       
+NegBinomial     PDF       4096          4096/4096/4096    4096    2048  KEEP ok            4096  yes  -       
+NegBinomial     LogPDF    4096           4096/256/2048    4096    4096  KEEP ok            4096  yes  -       
+NegBinomial     CDF       4096          4096/4096/4096    4096    4096  KEEP ok            4096  yes  -       
+Pareto          PDF        25k          6144/4096/6144    6144     25k  CHANGE             6144  yes  -       
+Pareto          LogPDF     50k           10k/8192/8192    8192     25k  CHANGE             8192  yes  -       
+Pareto          CDF       4096            256/2048/512    2048    6144  KEEP ok            4096  yes  -       
+Poisson         PDF       4096          4096/1024/2048    4096    4096  KEEP ok            4096  yes  -       
+Poisson         LogPDF    4096          4096/4096/4096    4096    4096  KEEP ok            4096  yes  -       
+Poisson         CDF       4096           4096/256/4096    4096    4096  KEEP ok            4096  yes  -       
+Rayleigh        PDF       8192          6144/4096/2048    6144    8192  KEEP ok            8192  yes  -       
+Rayleigh        LogPDF     25k          8192/6144/8192    8192     25k  CHANGE             8192  yes  -       
+Rayleigh        CDF       8192            1024/128/256    1024    6144  KEEP judgment      8192  yes  -       user 2026-11-21 (I): table_ab ABAB 2026-11-21 on I (loaded, two passes per table; docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/): PARALLEL 0.95-1.12x VECTORIZED at 4096 (median 1.01), no gain from the fork value; 8192 kept
+StudentT        PDF        25k          6144/6144/1024    6144     25k  CHANGE             6144  yes  -       runs spread 6.0x; max 6144 still clears the table
+StudentT        LogPDF     50k          6144/6144/6144    6144     25k  CHANGE             6144  yes  -       
+StudentT        CDF       4096            4096/64/2048    4096    4096  KEEP ok            4096  yes  -       
+TruncatedNormal PDF        25k          6144/6144/6144    6144     25k  CHANGE             6144  -    -       
+TruncatedNormal LogPDF     50k             10k/25k/25k     25k     50k  KEEP ok             50k  -    -       
+TruncatedNormal CDF       4096          4096/4096/4096    4096    4096  KEEP ok            4096  -    -       
+Uniform         PDF       250k             75k/75k/75k     75k   2000k  CHANGE              75k  yes  -       table already overrode the previous capture
+Uniform         LogPDF    200k             50k/75k/75k     75k    200k  CHANGE              75k  yes  -       
+Uniform         CDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  -       
+VonMises        PDF       8192          4096/4096/4096    4096    8192  CHANGE fork        4096  yes  -       candidate 4096 in the fork zone: parallel once it forks
+VonMises        LogPDF     25k          8192/8192/8192    8192     25k  CHANGE             8192  yes  -       
+VonMises        CDF       4096          1024/2048/4096    4096    4096  KEEP ok            4096  yes  -       
+Weibull         PDF       4096           4096/256/2048    4096    6144  KEEP ok            4096  yes  -       
+Weibull         LogPDF     25k          4096/4096/4096    4096     25k  CHANGE fork        4096  yes  -       candidate 4096 in the fork zone: parallel once it forks
+Weibull         CDF       4096          4096/1024/2048    4096    4096  KEEP ok            4096  yes  -       
+
+CHANGE=22  CHANGE bench=1  CHANGE fork=4  KEEP judgment=3  KEEP ok=50  KEEP override=1  total=81

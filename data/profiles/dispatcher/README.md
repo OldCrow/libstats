@@ -45,8 +45,15 @@ header names its bundle.
 | kNeon | Mac Mini M1 (native) | `2026-10-14T04-39-37Z_darwin-arm64_…` |
 | kAvx2 | Kaby Lake i7-7820HQ (native) | `2026-10-13T13-11-55Z_darwin-x86_64_…` |
 | kAvx512 | Asus TUF A16 Zen 4 (native, clang-cl) | `2026-10-14T02-41-05Z_windows-x86_64_…` |
-| kAvx | Kaby Lake, `LIBSTATS_MAX_SIMD_TIER=AVX` capped build | `2026-10-13T13-58-00Z_darwin-x86_64_…` |
+| kAvx | Ivy Bridge i7-3820QM (native, Linux, GCC 13.3), re-derived 2026-11-21 at the v3.0.0 adoption head | `2026-11-21T21-09-06Z_linux-x86_64_…` |
 | kSse2 | delegates to kAvx by design | — |
+
+kAvx came from the capped Kaby Lake build (`2026-10-13T13-58-00Z_…`,
+`LIBSTATS_MAX_SIMD_TIER=AVX`) until 2026-11-21; that bundle is now the
+"previous capture" the script compares the native one against, and
+`2026-11-18T21-29-12Z_linux-x86_64_…` is an earlier native capture, superseded
+(taken before #311). The native derivation ends the fork zone at 4096 and has
+no Zen 4 direction check: `docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/`.
 
 Zen 4's capped AVX2 and AVX bundles (`2026-10-14T03-05-23Z_…`,
 `T03-29-48Z_…`) are the script's direction checks for kAvx2 and kAvx; each

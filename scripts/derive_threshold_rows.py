@@ -57,11 +57,17 @@ TABLES = OrderedDict([
                      fork=4096, fork_zone=6144,
                      confirm="2026-10-14T03-05-23Z_windows-x86_64_dev-v2.4.2_sha-df78931",
                      machine="K (Kaby Lake, AppleClang 15)")),
-    ("kAvx",    dict(new="2026-10-13T13-58-00Z_darwin-x86_64_dev-v2.4.2_sha-d1adc95",
-                     prev="2026-10-05T03-09-27Z_darwin-x86_64_dev-v2.4.2_sha-6f86996",
-                     fork=4096, fork_zone=6144,
-                     confirm="2026-10-14T03-29-48Z_windows-x86_64_dev-v2.4.2_sha-df78931",
-                     machine="K (Kaby Lake, AppleClang 15), AVX-capped tree")),
+    # kAvx takes the Ivy Bridge machine's native values (user 2026-11-19, #291): the only silicon
+    # whose native tier is AVX. prev is the capped Kaby Lake capture the v2.5.0 table came from, so
+    # rule 2 keeps only rows this machine measures where that build did. PARALLEL is behind
+    # VECTORIZED at 4096 on 37 of 81 rows here, so the fork zone ends at the fork value: a
+    # candidate of 6144 is a measured crossover and stays 6144. No Z direction check: Z's capped
+    # AVX build has FMA and AVX2 hardware under the cap.
+    ("kAvx",    dict(new="2026-11-21T21-09-06Z_linux-x86_64_dev-v3.0.0-corvus-adoption_sha-cfbb992",
+                     prev="2026-10-13T13-58-00Z_darwin-x86_64_dev-v2.4.2_sha-d1adc95",
+                     fork=4096, fork_zone=4096, confirm=None, date="2026-11-21",
+                     head="v3.0.0 corvus-adoption head (code e890dec) from the native bundle",
+                     machine="I (Ivy Bridge, GCC 13.3), native AVX")),
     ("kNeon",   dict(new="2026-10-14T04-39-37Z_darwin-arm64_dev-v2.4.2_sha-d1adc95",
                      prev="2026-10-05T04-36-25Z_darwin-arm64_dev-v2.4.2_sha-2c5230a",
                      fork=2048, fork_zone=2048, confirm=None, machine="M (M1, AppleClang 21)")),
@@ -94,14 +100,14 @@ DROP_OVERRIDE = {
     ("kAvx2", "Exponential", "PDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.7-2.2x behind PARALLEL at 50k-100k under both tables; candidate 50k three times",
     ("kAvx2", "Exponential", "CDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.3-2.3x behind PARALLEL at 25k-50k under both tables; the value is BENCH_CROSSOVER's (the rule's 8192 loses)",
     ("kAvx2", "Gaussian", "LogPDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): with the 20k override AUTO goes multi-threaded at 25k where VECTORIZED is 1.9x faster; PARALLEL 2.2x behind at 50k, even at 100k, 0.51x at 200k; candidate 150k three times",
-    ("kAvx", "Pareto", "CDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), AVX and SSE2 trees: PARALLEL 0.71-0.80x VECTORIZED at 4096, 0.36-0.44x from 25k; AUTO 1.4-2.4x behind at 4096-25k under both tables; candidate 6144 (fork zone)",
-    ("kAvx", "Rayleigh", "CDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), AVX and SSE2 trees: AUTO 1.3-2.1x behind PARALLEL at 8192-25k under both tables; the value is BENCH_CROSSOVER's (the fork value 4096 loses)",
-    ("kAvx", "Poisson", "LogPDF"): "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), AVX and SSE2 trees: PARALLEL 0.70-0.72x VECTORIZED at 4096; AUTO 1.4x behind at 4096 under both tables; candidate 4096 three times",
 }
 # Rows kept at their table value by the user's judgment although the rules would change them.
 KEEP_ROW = {
     ("kNeon", "Exponential", "CDF"): "user 2026-10-14: the quiet profile's 8192 is marginal for a 2.5 ns/element kernel; on the loaded machine PARALLEL at 8192-10k loses 1.6-2x to VECTORIZED and only matches it at 25k (table_ab ABAB); 25k kept",
     ("kNeon", "Rayleigh", "CDF"): "user 2026-10-14: as Exponential CDF; PARALLEL at 8192 loses 1.8x, wins at 25k (table_ab ABAB); 25k kept",
+    ("kAvx", "Rayleigh", "CDF"): "user 2026-11-21 (I): table_ab ABAB 2026-11-21 on I (loaded, two passes per table; docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/): PARALLEL 0.95-1.12x VECTORIZED at 4096 (median 1.01), no gain from the fork value; 8192 kept",
+    ("kAvx", "InverseGamma", "PDF"): "user 2026-11-21 (I): table_ab ABAB 2026-11-21 on I (loaded, two passes per table; docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/): PARALLEL 1.02-1.05x VECTORIZED at 8192, 0.99 at 10k, 0.86-0.94 at 25k-100k (the serial fixup loop bounds the gain), and AUTO reads 1.7x slower than either forced strategy wherever it goes multi-threaded; 200k kept",
+    ("kAvx", "InverseGamma", "LogPDF"): "user 2026-11-21 (I): table_ab ABAB 2026-11-21 on I (loaded, two passes per table; docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/): PARALLEL 1.07-1.14x slower than VECTORIZED at 8192 and 10k; 25k kept",
 }
 # Rows within one grid step of the table (rule 1 would keep them) where the user takes the candidate: the
 # quiet captures and the loaded A/B agree on the direction at that size.
@@ -121,7 +127,6 @@ TAKE_CANDIDATE = {
     ("kAvx2", "LogNormal", "PDF"): "user 2026-10-15 (K): candidate 25k; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.4-1.6x behind PARALLEL at 25k under both tables",
     ("kAvx2", "Gumbel", "PDF"): "user 2026-10-15 (K): candidate 25k three times; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.5x behind PARALLEL at 25k under both tables",
     ("kAvx2", "FisherF", "LogPDF"): "user 2026-10-15 (K): candidate 4096; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.7-1.8x behind PARALLEL at 4096 under both tables",
-    ("kAvx", "VonMises", "LogPDF"): "user 2026-10-15 (K): candidate 25k; table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): AUTO 1.3x (AVX tree) and 1.8x (SSE2 tree) behind PARALLEL at 25k under both tables",
 }
 # Rows whose quiet-profile candidate sits one or two grid steps above the fork value only because the
 # three runs spread past 2x (the rule takes their max), where the loaded A/B shows PARALLEL ahead at the
@@ -136,8 +141,7 @@ BENCH_CROSSOVER = {
     ("kAvx2", "Exponential", "CDF"): (25000, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): PARALLEL 1.4-1.5x behind VECTORIZED at 8192-10k, 0.78x at 25k, 0.45x at 50k; the rule's 8192 (max of a 1024/6144/8192 spread) would regress"),
     ("kAvx2", "Gaussian", "LogPDF"): (100000, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), round 2: at 150k AUTO stays VECTORIZED at 100k, where K's WORK_STEALING is 2.2x faster (0.34 vs 0.76 ns); PARALLEL/VECTORIZED at 100k 1.10 median (0.97-1.20) over eight passes, 0.52 at 200k: break-even for PARALLEL platforms"),
     ("kAvx2", "Uniform", "PDF"): (250000, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), rounds 1-2, eight passes per tier: PARALLEL/VECTORIZED 0.54-0.57 median at 500k on the AVX2, AVX and SSE2 trees (AUTO 1.9x behind), 0.80-0.88 median at 200k with passes to 1.23, 1.6-2.1 at 100k; the 2000k candidate is the max of a 10x spread (200k/2000k/250k); 250k is the median run"),
-    ("kAvx", "Uniform", "PDF"): (250000, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0), rounds 1-2, eight passes per tier: PARALLEL/VECTORIZED 0.54-0.57 median at 500k on the AVX2, AVX and SSE2 trees (AUTO 1.9x behind), 0.80-0.88 median at 200k with passes to 1.23, 1.6-2.1 at 100k; the 2000k candidate is the max of a 10x spread (2000k/250k/200k); 250k is the median run"),
-    ("kAvx", "Rayleigh", "CDF"): (8192, "user 2026-10-15 (K): table_ab ABAB 2026-10-15 on K (quiet, load < 2.0): PARALLEL 1.38x (AVX tree) and 1.09x (SSE2 tree) behind VECTORIZED at 4096, 0.71-0.84x at 8192; the fork value 4096 would regress"),
+    ("kAvx", "Exponential", "CDF"): (8192, "user 2026-11-21 (I): table_ab ABAB 2026-11-21 on I (loaded, two passes per table; docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/): the profile's sub-fork candidate would encode 4096, where PARALLEL is 1.17-1.35x slower than VECTORIZED in all four files; 0.73-0.79x at 8192"),
 }
 REDERIVE_DATE = "2026-10-14"
 
@@ -306,6 +310,7 @@ def apply(header_text, table, cfg, rows):
     """Replace the braces of CHANGE rows inside `table`; prefix each changed row's trailing comment with a
     re-derivation marker naming the old values, keep the existing prose after it, and add a note block
     above the table."""
+    date = cfg.get("date", REDERIVE_DATE)  # a table re-derived later carries its own marker date
     lines = header_text.splitlines(keepends=True)
     start, end = table_span(lines, table)
     changes = {}
@@ -324,9 +329,9 @@ def apply(header_text, table, cfg, rows):
             marks.append(f"{OPS[oi]} {fmt(t)}\u2192{fmt(prop)}")
         m = ROW_OPEN.search(lines[i])
         rest = lines[j][lines[j].index("}") + 1:]
-        marker = f"// {REDERIVE_DATE}: " + ", ".join(marks) + "."
-        existing = re.search(r"// %s: (.*?)\.(\s|$)" % re.escape(REDERIVE_DATE), rest)
-        prefix = f"// {REDERIVE_DATE}: "
+        marker = f"// {date}: " + ", ".join(marks) + "."
+        existing = re.search(r"// %s: (.*?)\.(\s|$)" % re.escape(date), rest)
+        prefix = f"// {date}: "
         if existing:  # a marker from an earlier run of this script: merge the new marks into it
             rest = rest[:existing.start(1)] + existing.group(1) + ", " + ", ".join(marks) + rest[existing.end(1):]
         elif prefix in rest:  # an earlier marker wrapped onto the next line by clang-format
@@ -338,10 +343,10 @@ def apply(header_text, table, cfg, rows):
         else:
             rest = rest.rstrip("\n").rstrip() + "  " + marker + "\n"
         lines[i:j + 1] = [lines[i][:m.end()] + ", ".join(vals) + "}" + rest]
-    note = (f"// {REDERIVE_DATE}: rows re-derived at the v2.5.0 head from the R8 bundle\n"
+    note = (f"// {date}: rows re-derived at the {cfg.get('head', 'v2.5.0 head from the R8 bundle')}\n"
             f"// {cfg['new']}\n"
             f"// by scripts/derive_threshold_rows.py (PLAN.md R8, the 2026-10-14 rules; fork value {cfg['fork']}).\n"
-            f"// A row marked \"{REDERIVE_DATE}:\" names its old and new values; the prose after the marker\n"
+            f"// A row marked \"{date}:\" names its old and new values; the prose after the marker\n"
             f"// predates the re-derivation and describes the older measurement.\n")
     if n and not any(note.splitlines()[0].strip() in l for l in lines[max(0, start - 8):start]):
         lines.insert(start, note)

@@ -10,10 +10,75 @@ Current release validation targets:
 |---|---|---|
 | Intel Kaby Lake | AVX2+FMA | correctness + `simd_verification` |
 | Intel Kaby Lake (capped build) | AVX via `LIBSTATS_MAX_SIMD_TIER=AVX` | correctness + threshold profiling |
+| Intel Ivy Bridge | AVX, native (no AVX2, no FMA) | correctness + `simd_verification` + `kAvx` threshold profiling |
 | Apple Silicon M1 | NEON | correctness + `simd_verification` |
 | AMD Zen 4 | AVX-512 | correctness + `simd_verification` |
 
 Record new release measurements here after each real-machine validation pass.
+
+## v3.0.0 `kAvx` on native AVX silicon (2026-11-21, #291)
+
+Ivy Bridge i7-3820QM (4C/8T; AVX, no AVX2, no FMA), Linux, GCC 13.3, at the
+corvus-adoption head (code `e890dec`). Every earlier AVX figure in this
+document is from a Kaby Lake build capped with `LIBSTATS_MAX_SIMD_TIER=AVX`,
+which runs AVX code on an AVX2-era core. Source bundle:
+`data/profiles/dispatcher/2026-11-21T21-09-06Z_linux-x86_64_…_sha-cfbb992/`
+(quiet; three `strategy_profile --large` runs, `simd_verification` 70 of 70).
+
+**Dispatch table.** `kAvx` re-derived from that bundle: 27 values across 19
+distributions, every one earlier than the capped build's (most LogPDF rows 25k–50k →
+6144–8192). PARALLEL is behind VECTORIZED at the 4096 fork value on 37 of 81
+rows, so a measured 6144 is encoded as 6144. A loaded
+`tools/bench/table_ab_bench.cpp` A/B held 26 of the rule's 30 values, moved
+Exponential CDF to 8192 and kept Rayleigh CDF and InverseGamma PDF/LogPDF.
+Evidence and the per-row numbers:
+`docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/README.md`.
+
+**Forced-strategy parallel speedup over VECTORIZED at N = 2M**, the method
+of the v2.4.0 table below (ratio VECTORIZED/PARALLEL, range over the three
+runs). The capped column is repeated from that table and is v2.4.0 code, so
+the two columns differ in code as well as silicon:
+
+| Distribution / Op | Ivy Bridge AVX (native, v3.0.0) | Kaby Lake AVX (capped, v2.4.0) |
+|---|---|---|
+| Gamma PDF | 4.0–5.0× | 4.9–5.2× |
+| Gamma LogPDF | 3.6–5.4× | 4.7–6.3× |
+| LogNormal CDF | 3.6× | 4.1–4.2× |
+| FisherF CDF | 3.8–3.9× | 3.4–3.9× |
+| InverseGamma CDF | 3.8–3.9× | 3.1–3.4× |
+| TruncatedNormal CDF | 3.9–4.1× | 4.0–4.1× |
+| Gumbel PDF | 3.7–4.3× | 2.4–2.6× |
+| Logistic PDF | 3.9–4.9× | 1.7–1.8× |
+| HalfNormal CDF | 3.2–3.9× | 1.9–2.1× |
+| Beta PDF | 3.7–4.7× | **0.82–0.89×** |
+| Beta LogPDF | 4.0–5.0× | **0.70×** |
+
+Beta PDF/LogPDF no longer lose under a fork, as on every tier since
+v2.5.0. InverseGamma PDF and LogPDF are the exception on this
+machine, 1.27× and 1.31×: a serial fixup loop after the Gamma delegate
+bounds them.
+
+**Vector speedup over the scalar loop** (`simd_verification`, n = 1024,
+same quiet session):
+
+| Distribution | PDF | LogPDF | CDF |
+|---|---|---|---|
+| Uniform | 14.4× | 27.1× | 9.9× |
+| Gaussian | 7.8× | 34.6× | 2.5× |
+| Exponential | 5.4× | 19.0× | 7.0× |
+| Discrete | 2.8× | 3.6× | 6.4× |
+| Poisson | 1.7× | 1.8× | 1.4× |
+| Gamma | 3.2× | 4.0× | 1.8× |
+| ChiSquared | 3.8× | 3.7× | 1.3× |
+| StudentT | 3.5× | 3.6× | 8.2× |
+| Beta | 3.3× | 3.7× | 1.9× |
+| von Mises | 3.6× | 4.0× | 1.1× |
+| Geometric | 1.3× | 1.3× | 2.1× |
+| Laplace | 3.8× | 9.8× | 2.4× |
+| Cauchy | 6.3× | 4.5× | 2.2× |
+
+Kernels: `vector_exp` 2.7×, `vector_log` 1.3×, `vector_erf` 1.9×,
+`vector_cos` 1.9×.
 
 ## v2.5.0 dispatch table re-derivation (2026-10-14/15)
 

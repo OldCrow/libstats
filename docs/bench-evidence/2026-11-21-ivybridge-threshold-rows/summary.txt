@@ -1,0 +1,2 @@
+kAvx     I (Ivy Bridge, GCC 13.3), native AVX: CHANGE 22, CHANGE bench 1, CHANGE fork 4, KEEP judgment 3, KEEP ok 50, KEEP override 1; 27 values written; 22 changed rows carry a comment to re-read; 2 changed rows already overrode the previous capture
+total values changed: 27
