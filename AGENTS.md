@@ -309,6 +309,19 @@ Test categories, labels, and the coverage breakdown are in
 parallel strategies show less speedup on a loaded machine — a measurement
 problem, not a correctness one.
 
+**A timing taken in a window shorter than about 100 ms after a change of
+threading mode is not a result.** While a parallel section runs, the calling
+thread sleeps and its core's clock drops; the serial work that follows runs at
+2.1–2.8 GHz instead of 3.5 on the Ivy Bridge machine (Linux `schedutil`) and
+takes 50–100 ms to recover. A new process starts cold the same way. The
+effect follows the measurement order, so repeating the run reproduces it:
+on 2026-11-21 it read as AUTO 1.7× slower than either forced strategy
+(InverseGamma PDF), a 1.44× lognormal regression and a 0.72× kernel gain, none
+of them real. Before trusting an odd ratio, time the cell again after 0.15 s or
+more of the same work. `strategy_profile` and the `tools/bench` programs do not
+yet warm up this way (#320); the Zen 4 boost step-down and power throttling
+(`docs/VALIDATION_HISTORY.md`) are the same class.
+
 **A new regression guard must be shown to fail against the unfixed state, on the
 platform it targets, before it is trusted.** Two ways a guard can be
 structurally unable to fail, both seen on #97 (the Bessel tier and its guard

@@ -74,12 +74,23 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   26 of the rule's 30 values, moved Exponential CDF to 8192 and kept
   Rayleigh CDF and InverseGamma PDF/LogPDF
   (`docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/`). #291's
-  column is in `docs/SIMD_BENCHMARK_RESULTS.md`. Open from the A/B:
-  InverseGamma PDF under AUTO is 1.7x slower than either forced strategy
-  wherever it goes multi-threaded, under the old table too; not
-  investigated, not filed. The capture's bench reads lognormal batch PDF
-  1.44x slower on dev: a short-window artifact (kernel and steady-state
-  parallel times equal `main`'s), not to be quoted on #156. Still owed: L6.
+  column is in `docs/SIMD_BENCHMARK_RESULTS.md`. **The kAvx table at
+  `98810cf` is provisional** [user, 2026-11-21]: a sustained forced
+  PARALLEL-against-VECTORIZED run (0.15 s warm-up, 0.25 s timed per cell)
+  has PARALLEL cleanly ahead from 25000 but erratic between 4096 and
+  10000, so the rows moved into that zone are not confirmed (worst:
+  Weibull LogPDF 1.4-1.9x slower at 8192-10000, Beta LogPDF 1.9x at
+  10000, Pareto LogPDF 1.2x at 8192). It stays on dev and is re-captured
+  once `strategy_profile` warms up each cell (#320). Causes found for the
+  odd readings: the A/B's "InverseGamma PDF under AUTO 1.7x slower", the
+  bench's lognormal PDF 1.44x, von Mises scalar 1.16x and elementary
+  n=1000 0.72x are all the CPU clock recovering after a parallel section
+  or a process start (#320, AGENTS.md Testing), none to be quoted on
+  #156; InverseGamma PDF/LogPDF do over 90% of their work serially on the
+  caller (#321). Found and not filed: `parallelForSlices` on the
+  four-thread pool costs ceil(slices/4) slice-times, so 5, 6 and 9
+  slices are slow sizes on every row; Cauchy LogPDF loses under sustained
+  PARALLEL at 50k-500k (the #321 shape). Still owed: L6.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at

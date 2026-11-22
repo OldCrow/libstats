@@ -298,6 +298,9 @@ constexpr ArchTable kNeon = {{
 // InverseGamma PDF 200k and LogPDF 25k stand against a profile candidate of 8192: PARALLEL is
 // level or behind at 8192-10k and 7-12% ahead at 25k-100k (a serial fixup loop bounds the gain).
 // docs/bench-evidence/2026-11-21-ivybridge-threshold-rows/.
+// PROVISIONAL: sustained timing has PARALLEL erratic between 4096 and 10000 on this machine, so
+// the rows moved into that zone are not confirmed; re-capture is due once strategy_profile
+// warms up each cell (#320).
 constexpr ArchTable kAvx = {{
     /* UNIFORM(0)            */ {75000, 75000,
                                  25000},  // 2026-11-21: PDF 250k→75k, LogPDF 200k→75k. 2026-10-14:

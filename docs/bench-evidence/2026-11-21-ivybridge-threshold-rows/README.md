@@ -1,5 +1,9 @@
 # kAvx on native AVX silicon: derivation and table A/B, 2026-11-21
 
+**Status: the committed table is provisional** [user, 2026-11-21]. See "After the commit" at the
+end: sustained timing does not confirm the rows moved into the 4096–8192 zone, and the A/B below
+was timed inside the CPU-frequency ramp (#320).
+
 Ivy Bridge i7-3820QM (4C/8T; AVX, no AVX2, no FMA), Linux Mint 22.3, glibc 2.39, GCC 13.3,
 `dev/v3.0.0-corvus-adoption` (corvus v1.2.0). The fleet's only machine whose native tier is AVX.
 `kAvx` takes this machine's values [user, 2026-11-19]; until now the table came from a Kaby Lake
@@ -65,7 +69,7 @@ Four do not [user, 2026-11-21]:
 The table as committed therefore differs from the one benched in these four rows. Three keep the
 old value and one takes a size the bench measured, so no second round was run.
 
-## Open: InverseGamma PDF under AUTO
+## InverseGamma PDF under AUTO
 
 Under both tables, wherever AUTO goes multi-threaded for InverseGamma PDF it is slower than
 either forced strategy (ns/element):
@@ -77,8 +81,32 @@ either forced strategy (ns/element):
 | 200000 | 71 | 60 | 117–142 | 109 |
 
 At 25000 the old table's InverseGamma PDF row is 200k, so AUTO should have stayed VECTORIZED;
-the PDF delegates to Gamma, whose own row is 6144. Not investigated. It is why the 200k row
-stays, and it is not caused by the table.
+the PDF delegates to Gamma, whose own row is 6144, and Gamma's row decides.
+
+**Cause, found after the commit: the bench, not the library.** The AUTO PDF cell is timed
+straight after a forced-PARALLEL CDF cell. While that runs the calling thread sleeps and its
+core's clock drops (2.1–2.8 GHz against 3.5, `schedutil`); InverseGamma PDF does over 90% of its
+work serially on the caller (#321), so it is the row that shows it. Timed per block, AUTO PDF
+goes 183 → 103 ns/element after a PARALLEL CDF and reads 66–72 after a VECTORIZED one. #320.
+
+## After the commit: a sustained check
+
+Forced VECTORIZED against forced PARALLEL, every row, sizes 4096–500000, each cell warmed for
+0.15 s and timed for 0.25 s; 1-minute load 0.9–1.4. Indicative, not a record.
+
+- From 25000 up PARALLEL takes 0.3–0.7× VECTORIZED's time on essentially every row (Cauchy
+  LogPDF is the exception: 1.2–1.8× slower at 50k–500k).
+- Between 4096 and 10000 the ratio is not monotone: typically good at 8192, bad at 6144 and
+  10000 (Poisson LogPDF, a row this commit did not touch: 0.81, 1.94, 0.59, 1.81). Tasks are one
+  per 1024-element slice on a four-thread pool, so wall time goes as ceil(slices / 4).
+- Moved rows it does not support, PARALLEL / VECTORIZED at 8192 and 10000: Weibull LogPDF 1.36,
+  1.89; Beta LogPDF 0.60, 1.86; Erlang LogPDF 0.77, 1.38; ChiSquared LogPDF 0.92, 1.16; Pareto
+  LogPDF 1.23, 0.93; Rayleigh LogPDF 1.11, 0.97.
+- The A/B above read several forced-VECTORIZED LogPDF cells at 16–17 ns/element where the quiet
+  capture and this run read about 9, so its PARALLEL margins on those rows are overstated.
+
+The table stays as committed on the dev branch and is re-captured once `strategy_profile` warms
+up each cell (#320).
 
 ## Not a quiet record
 
