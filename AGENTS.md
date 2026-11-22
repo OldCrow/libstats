@@ -318,9 +318,10 @@ effect follows the measurement order, so repeating the run reproduces it:
 on 2026-11-21 it read as AUTO 1.7× slower than either forced strategy
 (InverseGamma PDF), a 1.44× lognormal regression and a 0.72× kernel gain, none
 of them real. Before trusting an odd ratio, time the cell again after 0.15 s or
-more of the same work. `strategy_profile` and the `tools/bench` programs do not
-yet warm up this way (#320); the Zen 4 boost step-down and power throttling
-(`docs/VALIDATION_HISTORY.md`) are the same class.
+more of the same work. `strategy_profile` and the `tools/bench` programs that
+time cells (`distributions_bench`, `elementary_bench`, `table_ab_bench`) do
+this per cell through `tools/bench/sustained_timing.h` (#320); the Zen 4 boost
+step-down and power throttling (`docs/VALIDATION_HISTORY.md`) are the same class.
 
 **A new regression guard must be shown to fail against the unfixed state, on the
 platform it targets, before it is trusted.** Two ways a guard can be

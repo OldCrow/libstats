@@ -127,6 +127,29 @@ automatically — it sleeps 30 seconds before each run.  Increase with
 `--sleep 60` if bimodal instability persists; use `--sleep 0` only for
 smoke tests where measurement accuracy is not required.
 
+### Per-cell timing (`sustained-v1`, #320)
+
+Until 2026-11-22 a cell was three warm-up calls and the median of seven timed
+calls. After a parallel section the calling core's clock takes 50–100 ms to
+recover (Ivy Bridge, Linux `schedutil`: 2.1–2.8 GHz against 3.5), so a cell
+that short read the state its neighbour left behind, and the fixed cell order
+made the bias repeat in every run rather than average out.
+
+Each cell now runs its own work for 0.15 s (discarded), then is timed in
+blocks of about 0.5 ms for at least 0.25 s (`tools/bench/sustained_timing.h`).
+The CSV keeps `MedianTime_us` in the fifth column, now the median block per
+call, and adds `MinTime_us`, `MeanTime_us` and `Blocks`; the analysis scripts
+read columns by name and `threshold_validator` reads the first five. The log
+header prints `Timing method: sustained-v1` with the two durations, which
+`LIBSTATS_BENCH_CELL_WARMUP_SECONDS` and `LIBSTATS_BENCH_CELL_SECONDS` change.
+Bundles captured with the earlier method are not comparable cell for cell.
+
+The standard grid has 28 sizes, stepping by whole 1024-element slices from
+3072 to 8192 and through 10240, 12288, 16384 and 20480 (#323). A standard run
+is at least 0.4 s per cell: about an hour for 27 distributions, so a three-run
+bundle is an afternoon. `--only`, `--sizes` and `--strategies` restrict a run
+for a targeted re-check.
+
 ---
 
 ## Step 1 — Capture profiling bundles

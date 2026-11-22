@@ -5,6 +5,11 @@
 // proposal). Parameters and input ranges follow tools/strategy_profile.cpp, so the rows map onto
 // the R8 bundles.
 //
+// Timing (#320): each cell runs its own work for 0.15 s, then is timed for at least 0.25 s in
+// blocks, and reports the fastest block (sustained_timing.h). The earlier five blocks of 200,000
+// elements were short enough to read the CPU clock the previous cell left behind: AUTO, timed
+// first at each size, read up to 1.7x slower than the strategy it had chosen.
+//
 // Build (T = a tree with build-release/libstats.a):
 //   clang++ -std=c++20 -O2 -DNDEBUG -I$T/include -I$T/build-release/generated \
 //     tools/bench/table_ab_bench.cpp $T/build-release/libstats.a -lpthread -o table_ab_<tag>
@@ -36,6 +41,7 @@
 #include "libstats/distributions/uniform.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/distributions/weibull.h"
+#include "sustained_timing.h"
 
 #include <algorithm>
 #include <chrono>
@@ -49,28 +55,16 @@
 
 namespace {
 
-using clk = std::chrono::steady_clock;
 using Strategy = stats::detail::PerformanceHint::PreferredStrategy;
 
 volatile double sink = 0.0;
 constexpr double kPi = 3.14159265358979323846;
-constexpr std::size_t kMinBlock = 200'000;  // elements per timed block
 constexpr std::size_t kSizes[] = {1024,  2048,  4096,   8192,   10000,
                                   25000, 50000, 100000, 200000, 500000};
 
 template <class F>
 double nsPer(std::size_t n, F&& f) {
-    const std::size_t reps = std::max<std::size_t>(1, (kMinBlock + n - 1) / n);
-    double best = 1e300;
-    for (int r = 0; r < 5; ++r) {
-        const auto t0 = clk::now();
-        for (std::size_t i = 0; i < reps; ++i)
-            f();
-        const auto t1 = clk::now();
-        best =
-            std::min(best, std::chrono::duration<double, std::nano>(t1 - t0).count() / (reps * n));
-    }
-    return best;
+    return bench_timing::timeCell(f).min_ns / static_cast<double>(n);
 }
 
 void row(const char* name, const char* op, std::size_t n, const char* strategy, double ns) {

@@ -6,8 +6,16 @@
  * across all dispatcher-supported distributions, core batch operations, and a
  * representative batch-size sweep. The output is intended to be the canonical
  * raw dataset for tuning dispatcher thresholds.
+ *
+ * Timing (#320): every cell first runs its own work for 0.15 s, then is timed
+ * for at least 0.25 s in blocks, and reports the median block per call
+ * (tools/bench/sustained_timing.h). A cell timed for a handful of calls reads
+ * the CPU clock the previous cell left behind — after a parallel section the
+ * calling core runs slow for 50-100 ms — so the earlier "3 warm-up calls,
+ * median of 7" method made a cell's reading depend on its neighbours.
  */
 
+#include "bench/sustained_timing.h"
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/binomial.h"
 #include "libstats/distributions/cauchy.h"
@@ -52,8 +60,7 @@ using namespace std::chrono;
 namespace {
 
 constexpr int DEFAULT_RNG_SEED = 42;
-constexpr int WARMUP_ITERATIONS = 3;
-constexpr int TIMING_REPEATS = 7;
+constexpr const char* TIMING_METHOD = "sustained-v1";  // recorded in capture bundles
 constexpr const char* RESULTS_CSV_FILENAME = "strategy_profile_results.csv";
 
 enum class ProfileOperation { PDF, LOG_PDF, CDF };
@@ -64,12 +71,10 @@ struct StrategyProfileResult {
     std::size_t batch_size;
     Strategy strategy;
     double median_time_us;
+    double min_time_us;
+    double mean_time_us;  // total timed time over total calls: the sustained cost
+    std::size_t blocks;
 };
-
-double median_us(std::vector<double>& timings) {
-    std::sort(timings.begin(), timings.end());
-    return timings[timings.size() / 2];
-}
 
 std::string operation_to_string(ProfileOperation operation) {
     switch (operation) {
@@ -101,8 +106,17 @@ constexpr std::array<Strategy, 4> STRATEGIES = {Strategy::SCALAR, Strategy::VECT
 
 class StrategyProfiler {
    public:
-    explicit StrategyProfiler(bool include_large) : gen_(DEFAULT_RNG_SEED) {
-        initialize_batch_sizes(include_large);
+    StrategyProfiler(bool include_large, std::vector<std::size_t> sizes,
+                     std::vector<std::string> only, std::vector<std::string> strategies)
+        : gen_(DEFAULT_RNG_SEED),
+          only_(std::move(only)),
+          strategies_(std::move(strategies)),
+          budget_(bench_timing::cellBudgetFromEnv()) {
+        if (sizes.empty()) {
+            initialize_batch_sizes(include_large);
+        } else {
+            batch_sizes_ = std::move(sizes);
+        }
     }
 
     void run(const std::string& output_csv_path) {
@@ -113,7 +127,10 @@ class StrategyProfiler {
         for (auto size : batch_sizes_) {
             std::cout << " " << size;
         }
-        std::cout << "\n\n";
+        std::cout << "\n";
+        std::cout << "Timing method: " << TIMING_METHOD << " (per cell: " << budget_.warmup_s
+                  << " s warm-up of the cell's own work, then at least " << budget_.timed_s
+                  << " s timed; median block per call)\n\n";
 
         profile_all_distributions();
         print_summary();
@@ -124,6 +141,9 @@ class StrategyProfiler {
     std::mt19937 gen_;
     std::vector<StrategyProfileResult> results_;
     std::vector<std::size_t> batch_sizes_;
+    std::vector<std::string> only_;        // empty = every distribution
+    std::vector<std::string> strategies_;  // empty = every strategy (CSV names)
+    bench_timing::CellBudget budget_;
 
     void initialize_batch_sizes(bool include_large) {
         // Standard grid: powers-of-2 to L1/L2 cache boundary (8 doubles per
@@ -132,11 +152,19 @@ class StrategyProfiler {
         // resolution.  Sizes < 64 are excluded: timing resolution (~0.1-0.2 µs)
         // is too coarse to distinguish strategies at those batch sizes, and
         // the dispatch table clamps all thresholds to a minimum of 64.
+        //
+        // From 3072 to 32768 the grid steps by whole kBatchSlice (1024) slices:
+        // that is where most V→P crossovers fall on a 4-core machine, and a
+        // parallel batch costs ceil(slices / threads) slice-times (#323), so a
+        // crossover read between 4096 and 8192 or 10000 and 25000 could sit
+        // anywhere in a 2x range. 10000 stays as the one size in that band
+        // that is not a whole number of slices.
         batch_sizes_ = {// Cache-line-aligned small sizes (8 doubles = 1 cache line)
-                        64, 128, 256, 512, 1024, 2048, 4096, 6144, 8192,
-                        // Medium/large: dense coverage of the 10k-500k band where most
-                        // V→P crossovers actually occur.
-                        10000, 25000, 50000, 75000, 100000, 150000, 200000, 250000, 300000, 400000,
+                        64, 128, 256, 512, 1024, 2048,
+                        // Whole slices: 3 to 8, then 10, 12, 16, 20 and 32.
+                        3072, 4096, 5120, 6144, 7168, 8192, 10000, 10240, 12288, 16384, 20480,
+                        // Medium/large: geometric coverage up to the 500k ceiling.
+                        25000, 32768, 50000, 75000, 100000, 150000, 200000, 250000, 300000, 400000,
                         500000};
 
         if (include_large) {
@@ -182,6 +210,10 @@ class StrategyProfiler {
     template <typename Distribution, typename Generator>
     void profile_distribution(const std::string& distribution_name,
                               const Distribution& distribution, Generator&& generator) {
+        if (!only_.empty() &&
+            std::find(only_.begin(), only_.end(), distribution_name) == only_.end()) {
+            return;
+        }
         stats::detail::detail::subsectionHeader(distribution_name + " Strategy Profile");
 
         for (auto batch_size : batch_sizes_) {
@@ -191,11 +223,18 @@ class StrategyProfiler {
 
             for (auto operation : OPERATIONS) {
                 for (auto strategy : STRATEGIES) {
-                    const double median_time_us =
+                    if (!strategies_.empty() && std::find(strategies_.begin(), strategies_.end(),
+                                                          stats::detail::detail::strategyToString(
+                                                              strategy)) == strategies_.end()) {
+                        continue;
+                    }
+                    const bench_timing::CellTiming timing =
                         benchmark_strategy(distribution, input_values, operation, strategy);
 
                     results_.push_back({distribution_name, operation_to_string(operation),
-                                        batch_size, strategy, median_time_us});
+                                        batch_size, strategy, timing.median_ns / 1000.0,
+                                        timing.min_ns / 1000.0, timing.mean_ns / 1000.0,
+                                        timing.blocks});
                 }
             }
 
@@ -205,28 +244,17 @@ class StrategyProfiler {
     }
 
     template <typename Distribution>
-    double benchmark_strategy(const Distribution& distribution,
-                              const std::vector<double>& input_values, ProfileOperation operation,
-                              Strategy strategy) const {
+    bench_timing::CellTiming benchmark_strategy(const Distribution& distribution,
+                                                const std::vector<double>& input_values,
+                                                ProfileOperation operation,
+                                                Strategy strategy) const {
         std::vector<double> output_values(input_values.size());
         std::span<const double> input_span(input_values);
         std::span<double> output_span(output_values);
 
-        for (int i = 0; i < WARMUP_ITERATIONS; ++i) {
-            perform_operation(distribution, input_span, output_span, operation, strategy);
-        }
-
-        std::vector<double> timings_us;
-        timings_us.reserve(TIMING_REPEATS);
-
-        for (int i = 0; i < TIMING_REPEATS; ++i) {
-            const auto start = high_resolution_clock::now();
-            perform_operation(distribution, input_span, output_span, operation, strategy);
-            const auto end = high_resolution_clock::now();
-            timings_us.push_back(duration<double, std::micro>(end - start).count());
-        }
-
-        return median_us(timings_us);
+        return bench_timing::timeCell(
+            [&] { perform_operation(distribution, input_span, output_span, operation, strategy); },
+            budget_);
     }
 
     template <typename Distribution>
@@ -705,13 +733,17 @@ class StrategyProfiler {
 
     void save_results(const std::string& output_csv_path) const {
         std::ofstream csv_file(output_csv_path);
-        csv_file << "Distribution,Operation,BatchSize,Strategy,MedianTime_us\n";
+        // The first five columns are the format every reader knows (threshold_validator reads
+        // them by position, the scripts by name); the rest are appended and optional.
+        csv_file << "Distribution,Operation,BatchSize,Strategy,MedianTime_us,MinTime_us,"
+                    "MeanTime_us,Blocks\n";
         csv_file << std::fixed << std::setprecision(6);
 
         for (const auto& result : results_) {
             csv_file << result.distribution << "," << result.operation << "," << result.batch_size
                      << "," << stats::detail::detail::strategyToString(result.strategy) << ","
-                     << result.median_time_us << "\n";
+                     << result.median_time_us << "," << result.min_time_us << ","
+                     << result.mean_time_us << "," << result.blocks << "\n";
         }
 
         std::cout << "Results saved to " << output_csv_path << "\n";
@@ -723,6 +755,12 @@ void print_usage(const char* program_name) {
     std::cout << "\nOptions:\n";
     std::cout << "  -l, --large              Include 750K, 1M, 1.5M, and 2M batch sizes\n";
     std::cout << "  -o, --output-csv PATH    Write CSV results to PATH\n";
+    std::cout << "  -s, --sizes N[,N...]     Profile these batch sizes instead of the grid\n";
+    std::cout << "  -d, --only NAME[,NAME..] Profile only these distributions (CSV names)\n";
+    std::cout << "  -S, --strategies S[,S..] Profile only these strategies (CSV names, e.g.\n";
+    std::cout << "                           VECTORIZED,PARALLEL)\n";
+    std::cout << "\nPer-cell timing (seconds, environment): LIBSTATS_BENCH_CELL_WARMUP_SECONDS\n";
+    std::cout << "(default 0.15), LIBSTATS_BENCH_CELL_SECONDS (default 0.25)\n";
     std::cout << "  -h, --help               Show this help message\n";
     std::cout << "\nDefault output file: " << RESULTS_CSV_FILENAME << "\n";
 }
@@ -730,6 +768,21 @@ void print_usage(const char* program_name) {
 int main(int argc, char* argv[]) {
     bool include_large = false;
     std::string output_csv_path = RESULTS_CSV_FILENAME;
+    std::vector<std::size_t> sizes;
+    std::vector<std::string> only;
+    std::vector<std::string> strategies;
+    const auto split = [](const std::string& list) {
+        std::vector<std::string> parts;
+        std::size_t begin = 0;
+        while (begin <= list.size()) {
+            const std::size_t comma = std::min(list.find(',', begin), list.size());
+            if (comma > begin) {
+                parts.push_back(list.substr(begin, comma - begin));
+            }
+            begin = comma + 1;
+        }
+        return parts;
+    };
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -741,6 +794,30 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             output_csv_path = argv[++i];
+        } else if (arg == "-s" || arg == "--sizes" || arg == "-d" || arg == "--only" ||
+                   arg == "-S" || arg == "--strategies") {
+            if (i + 1 >= argc) {
+                std::cerr << "Missing value for " << arg << "\n";
+                return 1;
+            }
+            const auto parts = split(argv[++i]);
+            if (arg == "-d" || arg == "--only") {
+                only = parts;
+                continue;
+            }
+            if (arg == "-S" || arg == "--strategies") {
+                strategies = parts;
+                continue;
+            }
+            for (const auto& part : parts) {
+                char* end = nullptr;
+                const unsigned long long value = std::strtoull(part.c_str(), &end, 10);
+                if (end == part.c_str() || *end != '\0' || value == 0) {
+                    std::cerr << "Bad batch size: " << part << "\n";
+                    return 1;
+                }
+                sizes.push_back(static_cast<std::size_t>(value));
+            }
         } else if (arg == "-h" || arg == "--help") {
             print_usage(argv[0]);
             return 0;
@@ -751,8 +828,8 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    return stats::detail::detail::runTool("Strategy Profile", [include_large, &output_csv_path]() {
-        StrategyProfiler profiler(include_large);
+    return stats::detail::detail::runTool("Strategy Profile", [&]() {
+        StrategyProfiler profiler(include_large, sizes, only, strategies);
         profiler.run(output_csv_path);
     });
 }

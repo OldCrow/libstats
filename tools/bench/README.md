@@ -13,7 +13,7 @@ record (2026-09-30, AVX2, quiet, one pass) is
 
 - `distributions_bench.cpp` — public API: batch pdf/logpdf/cdf at 1e6 under
   auto dispatch, scalar pdf/logpdf/cdf at 1e5, quantile at 1e4; ns/element,
-  min of 7 runs, ten distributions.
+  fastest timed block, ten distributions.
 - `elementary_bench.cpp` — `VectorOps::vector_exp/log/cos/sin/erf` at 1e3 and
   1e6 (retired tier kernels vs corvus).
 - `corvus_scaling_bench.cpp` — corvus called directly: ns/element vs span
@@ -38,6 +38,17 @@ Highway `-L` with wherever `libhwy` lives (or the fetched
 `_deps/highway-build`), and on Windows/MSVC use the equivalent `/I` and `.lib`
 paths. Use a Release build of the branch and a quiet machine where possible;
 label the run INDICATIVE otherwise.
+
+Per-cell timing (#320): `distributions_bench`, `elementary_bench` and
+`table_ab_bench` time every cell through `sustained_timing.h`: the cell's own
+work runs for 0.15 s and is discarded, then it is timed in blocks for at least
+0.25 s. A cell timed for a few calls reads the CPU clock the previous cell left
+behind (50–100 ms to recover after a change of threading mode on the Ivy Bridge
+machine), and the fixed cell order makes that bias repeat instead of averaging
+out. `LIBSTATS_BENCH_CELL_WARMUP_SECONDS` and `LIBSTATS_BENCH_CELL_SECONDS`
+change the two durations. This is separate from the process-level
+`LIBSTATS_BENCH_WARMUP_SECONDS` below, which covers a step that arrives seconds
+into a run.
 
 ## Windows (Zen 4)
 

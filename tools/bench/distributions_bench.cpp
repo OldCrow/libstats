@@ -1,6 +1,11 @@
 // Same-source microbenchmark, compiled against v2.4.1 and dev/v2.5.0-corvus.
-// Reports ns/element (min of 7 runs) for batch cdf/pdf/logpdf at 1e6 elements
-// (auto dispatch), scalar cdf at 1e5, and quantile at 1e4.
+// Reports ns/element for batch cdf/pdf/logpdf at 1e6 elements (auto dispatch), scalar cdf at
+// 1e5, and quantile at 1e4.
+//
+// Timing (#320): each cell runs its own work for 0.15 s, then is timed for at least 0.25 s in
+// blocks, and reports the fastest block (sustained_timing.h). The earlier minimum of seven calls
+// was short enough to read the CPU clock the previous cell left behind: a batch PDF timed
+// straight after a parallel batch CDF read up to 1.44x slower with identical code.
 #include "libstats/distributions/beta.h"
 #include "libstats/distributions/binomial.h"
 #include "libstats/distributions/exponential.h"
@@ -11,6 +16,7 @@
 #include "libstats/distributions/student_t.h"
 #include "libstats/distributions/von_mises.h"
 #include "libstats/distributions/weibull.h"
+#include "sustained_timing.h"
 
 #include <chrono>
 #include <cmath>
@@ -23,14 +29,7 @@ using clk = std::chrono::steady_clock;
 static double sink = 0.0;
 template <class F>
 double ns_per(std::size_t n, F&& f) {
-    double best = 1e300;
-    for (int r = 0; r < 7; ++r) {
-        auto t0 = clk::now();
-        f();
-        auto t1 = clk::now();
-        best = std::min(best, std::chrono::duration<double, std::nano>(t1 - t0).count() / n);
-    }
-    return best;
+    return bench_timing::timeCell(f).min_ns / static_cast<double>(n);
 }
 template <class D>
 void bench(const char* name, D& d, double lo, double hi, bool integer) {
@@ -89,7 +88,9 @@ void bench(const char* name, D& d, double lo, double hi, bool integer) {
 }
 // LIBSTATS_BENCH_WARMUP_SECONDS=N: spin N seconds before the first measurement, so every row is
 // taken in the sustained-frequency regime. Off by default. Needed on the Zen 4 box, where boost
-// steps down ~1.5x some 8-15 s into a run and lands on different rows of the two binaries.
+// steps down ~1.5x some 8-15 s into a run and lands on different rows of the two binaries. The
+// per-cell warm-up above does not replace it: that covers a 50-100 ms clock recovery, not a
+// boost budget that runs out seconds into the process.
 static void warmup() {
     const char* s = std::getenv("LIBSTATS_BENCH_WARMUP_SECONDS");
     const double secs = s ? std::atof(s) : 0.0;

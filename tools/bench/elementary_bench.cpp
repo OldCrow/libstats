@@ -1,4 +1,11 @@
+// VectorOps::vector_exp/log/cos/sin/erf at 1e3 and 1e6 elements, ns/element.
+//
+// Timing (#320): each cell runs its own work for 0.15 s, then is timed for at least 0.25 s in
+// blocks, and reports the fastest block (sustained_timing.h). The earlier minimum of nine calls
+// put the whole n = 1000 row inside the cold start of the process: it read 0.72x between two
+// binaries whose kernels were the same.
 #include "libstats/platform/simd.h"
+#include "sustained_timing.h"
 
 #include <chrono>
 #include <cstdio>
@@ -9,14 +16,7 @@ using clk = std::chrono::steady_clock;
 static double sink;
 template <class F>
 double ns_per(std::size_t n, F&& f) {
-    double b = 1e300;
-    for (int r = 0; r < 9; ++r) {
-        auto t0 = clk::now();
-        f();
-        auto t1 = clk::now();
-        b = std::min(b, std::chrono::duration<double, std::nano>(t1 - t0).count() / n);
-    }
-    return b;
+    return bench_timing::timeCell(f).min_ns / static_cast<double>(n);
 }
 // LIBSTATS_BENCH_WARMUP_SECONDS=N: spin N seconds before the first measurement, so every row is
 // taken in the sustained-frequency regime. Off by default. Needed on the Zen 4 box, where boost
