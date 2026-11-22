@@ -87,10 +87,10 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   n=1000 0.72x are all the CPU clock recovering after a parallel section
   or a process start (#320, AGENTS.md Testing), none to be quoted on
   #156; InverseGamma PDF/LogPDF do over 90% of their work serially on the
-  caller (#321). Found and not filed: `parallelForSlices` on the
-  four-thread pool costs ceil(slices/4) slice-times, so 5, 6 and 9
-  slices are slow sizes on every row; Cauchy LogPDF loses under sustained
-  PARALLEL at 50k-500k (the #321 shape). Still owed: L6.
+  caller (#321). Also found: `parallelForSlices` on the four-thread pool
+  costs ceil(slices/4) slice-times, so 5, 6, 9 and 10 slices are slow
+  sizes on every row (#323); Cauchy LogPDF loses under sustained PARALLEL
+  at 50k-500k (noted on #321). Still owed: L6.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
