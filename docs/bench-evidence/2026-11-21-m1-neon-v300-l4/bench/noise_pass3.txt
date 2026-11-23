@@ -1,0 +1,4 @@
+02:26:34 load=3.19 top: 25.7%Bartender 7.3%launchd 7.2%CoreServicesUIAgent 
+02:27:34 load=2.59 top: 150.4%mediaanalysisd 15.4%VTDecoderXPCService 8.6%VTEncoderXPCService 
+02:28:35 load=3.34 top: 126.1%mediaanalysisd 9.3%airportd 9.0%VTEncoderXPCService 
+02:29:35 load=4.48 top: 99.4%bztransmit 92.5%mediaanalysisd 7.5%VTDecoderXPCService 

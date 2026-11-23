@@ -1,0 +1,1 @@
+20:17:58 load=4.10 top: 90.5%mediaanalysisd 6.1%locationd 4.3%sandboxd 

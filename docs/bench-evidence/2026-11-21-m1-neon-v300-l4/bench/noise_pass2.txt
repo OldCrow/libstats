@@ -1,0 +1,4 @@
+02:22:13 load=3.54 top: 8.2%launchd 5.1%bzfilelist 2.3%com.apple.DriverKit-AppleBCMWLAN 
+02:23:13 load=2.57 top: 9.0%launchd 8.2%syspolicyd 4.0%bzfilelist 
+02:24:13 load=3.24 top: 33.9%CoreLocationAgent 13.1%Bartender 12.4%AccessibilityUIServer 
+02:25:13 load=3.18 top: 100.0%mediaanalysisd 2.3%com.apple.DriverKit-AppleBCMWLAN 1.5%logd 

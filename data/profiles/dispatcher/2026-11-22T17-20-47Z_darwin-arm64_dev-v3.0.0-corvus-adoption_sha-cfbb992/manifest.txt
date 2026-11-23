@@ -1,0 +1,53 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-11-22T17-20-47Z_darwin-arm64_dev-v3.0.0-corvus-adoption_sha-cfbb992
+Captured at (UTC): 2026-11-22T17-20-47Z (run 1; runs 2-3 18:27Z and 19:34Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- sustained_crossovers.txt
+- logs/run.txt
+- logs/gate_samples.txt
+- logs/noise_run{1,2,3}.txt
+- logs/system_inspector.txt
+
+Capture notes:
+- Native NEON (Release, build-release/, Ninja) on the Mac Mini M1 (8 cores, 4P+4E), macOS 27.2.1,
+  AppleClang 21.0.0, CMake 4.5.1, on dev/v3.0.0-corvus-adoption at cfbb992 (corvus v1.2.0 fetched,
+  Highway 1.4.0 from Homebrew). The tree carried uncommitted docs and data only (PLAN.md, the NEON
+  accuracy block, allow_NEON.csv). This is the M leg's L4 capture (PLAN.md "Fleet legs for v3.0.0");
+  it supersedes 2026-10-14T04-39-37Z at d1adc95, which predates the corvus adoption. L1 (135/135),
+  L2 (0 contract violations) and L3 ran at the same head on 2026-11-21.
+- Three `strategy_profile --large -o <csv>` runs, 26 min each (7 min at d1adc95: the incomplete
+  gamma and beta CDFs cost more on this branch), screen locked, from detached scripts under
+  caffeinate (docs/bench-evidence/2026-11-21-m1-neon-v300-l4/). Gate: ambient CPU (100 - top's
+  idle %, all 8 cores) below 15% over two consecutive 10 s windows. Run 1 started at 9.56%
+  (12:20 local), run 2 at 8.58%, run 3 at 9.78% (logs/run.txt).
+- The first session (l4_quiet_m_20261121.sh) reached this phase at 02:30 local on 2026-11-22 and
+  found no gate sample below 20% before its 12:00 deadline: mediaanalysisd ran throughout
+  (logs/gate_samples.txt). l4_profile_m_20261122.sh relaunched the phase alone at 12:03 with the
+  same gate. Time Machine was paused by the user; Backblaze was not paused.
+- NOT quiet throughout. Each run started in a quiet window, but mediaanalysisd came back within
+  1-3 minutes and held 0.9-1.8 cores for the rest of every run; bztransmit (0.9 cores) and
+  corespotlightd (1.4-2.4 cores, single samples) appear in runs 1 and 2 (logs/noise_run*.txt, one
+  sample a minute). Run-to-run spread is 34 rows > 2x (2026-10-14: 28; 2026-10-05: 9), the widest
+  M capture so far.
+- sustained_crossovers.txt is `scripts/analyze_crossovers.py --bundle <this> --table kNeon` at
+  cfbb992: ok=64 DIFF=11, every row carrying a table comment. The tool reports the NegBinomial and
+  Uniform rows as "not in table" (a name-matching gap in its table reader);
+  scripts/derive_threshold_rows.py maps them and reads them as KEEP.
+- Against the table: no row moves earlier by more than one grid step except the three known
+  kept overrides (Exponential, Rayleigh and LogNormal CDF, 25k encoded against 8192 measured).
+  The eight rows that move later all take the maximum of a > 2x spread: Bernoulli CDF 6144 -> 25k,
+  ChiSquared PDF 25k -> 75k, Gamma and InverseGamma LogPDF 25k -> 75k, NegBinomial LogPDF
+  2048 -> 6144, Poisson LogPDF 2048 -> 10k, Rayleigh PDF 20k -> 75k and LogPDF 25k -> 75k.
+- The gamma/beta-family CDF rows stay at the 2048 fork value although their kernels cost 2.5-12x
+  more per element than on main (bench in the evidence directory): PARALLEL wins as soon as it
+  forks, as before.
+- Profiler: cfbb992's, before the per-cell steady-state timing of 8c55bfc (#320): three warm-up
+  calls and the median of seven timed calls per cell. Not comparable cell for cell with a
+  sustained-v1 bundle; rows derived from it are provisional (PLAN.md, "Changed 2026-11-22").
