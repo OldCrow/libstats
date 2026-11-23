@@ -16,7 +16,7 @@ naming its commits.
 
 Branch `dev/v3.0.0-corvus-adoption`, built on the v2.5.0 release. corvus
 v1.2.0 is the special-function engine (found or fetched, pinned;
-`cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line at `99f2175`
+`cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line at `19d2c35`
 and is merged in.
 
 - **`src/` is settled for v3.0.0.** The last code change is `af2e548`;
