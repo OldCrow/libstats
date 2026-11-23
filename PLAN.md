@@ -114,12 +114,15 @@ design decision (all four machines' L7).
   each cell in its own steady state). The kAvx bundle is from the
   earlier profiler, so the table stays provisional. The slow sizes and
   erratic readings above were mostly the package's low-clock state, not
-  slice arithmetic ("Pool wake-up and batch spacing"). **L7 owed** as a
-  quiet run. A first pass with the machine in use (indicative): with
-  only the thread pool, the Poisson crossover is 25,000 back to back and
-  50,000–100,000 at gaps of 500 µs and more, and Gaussian does not cross
-  below 200,000 at 500 µs–20 ms; after `--init` both hold their
-  back-to-back crossover (Poisson 4096, Gaussian 25,000) at every gap.
+  slice arithmetic ("Pool wake-up and batch spacing"). **L7 done 2026-11-22** at `7089876`, quiet
+  (`docs/bench-evidence/2026-11-22-ivybridge-batch-gap/`). Crossover at
+  gap 0 / 2 ms / 20 ms, plain run: Poisson 25,000 / 50,000 / 50,000,
+  Gaussian 25,000 / 200,000 / 200,000. `--init` run: Poisson 4096 and
+  Gaussian 25,000 at every gap. So on I the crossover moves with the gap
+  when only the thread pool exists, and does not once the work-stealing
+  pool is polling; forced PARALLEL at the same gap is up to 3x faster
+  after `--init` (Poisson at 10,000: 47–57 against 18–22 ns/element),
+  and VECTORIZED about 13% slower.
   The kAvx re-capture waits on the pool design.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.

@@ -1,0 +1,8 @@
+commit:   7089876
+started:  2026-11-23T01:02:32Z
+governor: schedutil
+load at start: 0.28 1.26 1.34 1/1039 303741
+after plain:     1.04 1.24 1.32 1/1026 303968
+after init:      3.31 2.33 1.74 1/1036 304267
+after init+auto: 2.88 2.79 2.10 1/1032 304613
+finished: 2026-11-23T01:13:02Z
