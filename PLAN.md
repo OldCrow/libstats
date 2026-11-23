@@ -54,7 +54,26 @@ gate soonest, run Kaby Lake first.
 
 **What gates on the legs**: the dev-branch PR (one other leg complete);
 removing the `PROTOTYPE` comment tags (all three report bit-identity);
-#156's gates (all four machines' numbers); the release docs.
+#156's gates (all four machines' numbers); the release docs; the pool
+design decision (all four machines' L7).
+
+**Changed 2026-11-22, read before your next step** [user]:
+- **L7 is new and every machine owes it**, including a machine whose
+  L1–L6 are done. It is a 15-minute quiet sitting; see "The steps" and
+  "Pool wake-up and batch spacing" below for why.
+- **The profiler and three bench programs time differently from
+  `8c55bfc`** (#320: each cell runs its own work for 0.15 s, then is
+  timed for at least 0.25 s; 28 sizes, 32 with `--large`). A
+  `strategy_profile --large` run now takes over an hour, so L4's three
+  runs are an afternoon. A bundle captured before `8c55bfc` is not
+  comparable cell for cell with one captured after.
+- **A leg already past L4 keeps what it captured.** Say in your status
+  line which commit's profiler produced your bundle. Rows derived from a
+  pre-`8c55bfc` bundle are provisional, as kAvx is; whether they are
+  re-captured is decided after L7 [OPEN; user]. Do not re-capture on
+  your own.
+- A leg that has not started L4 pulls first and captures with the new
+  profiler.
 
 ### Leg status (edit only your own line)
 
@@ -90,7 +109,18 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   caller (#321). Also found: `parallelForSlices` on the four-thread pool
   costs ceil(slices/4) slice-times, so 5, 6, 9 and 10 slices are slow
   sizes on every row (#323); Cauchy LogPDF loses under sustained PARALLEL
-  at 50k-500k (noted on #321). **L6 done 2026-11-21**: bench stated on #156. Leg complete; the kAvx re-capture waits on #320.
+  at 50k-500k (noted on #321). **L6 done 2026-11-21**: bench stated on #156.
+  **2026-11-22**: #320 fixed at `8c55bfc` (profiler and benches time
+  each cell in its own steady state). The kAvx bundle is from the
+  earlier profiler, so the table stays provisional. The slow sizes and
+  erratic readings above were mostly the package's low-clock state, not
+  slice arithmetic ("Pool wake-up and batch spacing"). **L7 owed** as a
+  quiet run. A first pass with the machine in use (indicative): with
+  only the thread pool, the Poisson crossover is 25,000 back to back and
+  50,000–100,000 at gaps of 500 µs and more, and Gaussian does not cross
+  below 200,000 at 500 µs–20 ms; after `--init` both hold their
+  back-to-back crossover (Poisson 4096, Gaussian 25,000) at every gap.
+  The kAvx re-capture waits on the pool design.
 - **M — M1, NEON, macOS, AppleClang**: not started.
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
@@ -128,6 +158,7 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
 | L4 quiet session | timing tests, `simd_verification`, `tools/bench` dev against `main`, three `strategy_profile --large` runs | bundle under `data/profiles/dispatcher/`; bench evidence under `docs/bench-evidence/` |
 | L5 threshold rows | this tier's rows in `dispatch_thresholds.h`, settled by `table_ab_bench` | header, script and bundle together |
 | L6 report | bench numbers stated on #156; status line updated | — |
+| L7 batch-gap check | three `batch_gap_bench` runs (plain, `--init`, `--init --auto`); the crossovers by gap in the status line | `docs/bench-evidence/<date>-<machine>-batch-gap/` |
 
 ### Rules on every machine
 
@@ -135,7 +166,7 @@ removing the `PROTOTYPE` comment tags (all three report bit-identity);
   are signed; never disable signing.
 - **Commit only your own**: your tier's rows in `dispatch_thresholds.h`,
   your `isa=` block, your `allow_<ISA>.csv`, your bundle and evidence
-  directories, your status line here. `git pull --rebase` before every
+  directories (L7's included), your status line here. `git pull --rebase` before every
   commit; this file is the one every leg edits.
 - **Library code changes only by the user's decision.** A new defect or
   an unexpected oracle row: stop and report with evidence. If the fix
@@ -245,6 +276,37 @@ AVX; on I a candidate of 6144 stays 6144 where PARALLEL is behind at
 **L6 — report.** State the bench result on #156 and update your status
 line. Do not decide #156's gates; that follows all four machines.
 
+**L7 — batch-gap check** [user, 2026-11-22]. Independent of L1–L6: run
+it in the L4 sitting if that is still ahead, otherwise in a short quiet
+sitting of its own. It changes no code and decides nothing; it measures
+whether this machine's V→P crossover moves when batches stop arriving
+back to back, which is what the pool design waits on.
+1. Build `tools/bench/batch_gap_bench.cpp` against this branch with the
+   library's own flags, as the L4 benches are built
+   (`tools/bench/README.md`). One binary; no `main` build needed.
+2. On a quiet machine, under the same rules as L4 (Z: throttling
+   opt-out, launch the binary yourself, one discarded pass first; Macs:
+   outside the sandbox), run three times, each its own process:
+   `batch_gap_bench > gap_plain.csv`,
+   `batch_gap_bench --init > gap_init.csv`,
+   `batch_gap_bench --init --auto > gap_init_auto.csv`.
+   Three to five minutes each. Keep the default busy gap; `--sleep` is
+   not asked for (Windows cannot sleep for 50 µs).
+3. Commit the three CSVs with a README (machine, commit, compiler,
+   conditions, load) under
+   `docs/bench-evidence/<date>-<machine>-batch-gap/`.
+4. In your status line state, for Poisson and for Gaussian, the
+   crossover the `#` lines give at gap 0, 2 ms and 20 ms, in the plain
+   run and in the `--init` run. That answers the two questions:
+   does the crossover move with the gap, and is forced PARALLEL faster
+   at the same gap once `--init` has started the work-stealing pool.
+   **K also**: at each gap, is the AUTO column (work stealing there)
+   faster than forced PARALLEL in the `--init` run.
+5. If the numbers look unlike anything described below, say so and stop:
+   the bench shows that a gap matters, not why, and a machine may have a
+   different cause (M: woken workers on efficiency cores; Z: core
+   parking). A per-machine trace is the follow-up, on the user's word.
+
 ### Machine-specific items
 
 - **M**: #107 (one trig table; the change is on the NEON side) is done
@@ -272,6 +334,8 @@ line. Do not decide #156's gates; that follows all four machines.
 1. Open the dev-branch PR once one other leg is complete.
 2. Remove the `PROTOTYPE` tags once all three have reported L3.
 3. #156: decide the gates from the four machines' numbers [user].
+   The pool design ("Pool wake-up and batch spacing") from the four L7
+   results [user]; the fix is due by v3.0.0.
 4. Release docs: version 2.5.0 → 3.0.0, `CHANGELOG.md`,
    `docs/VALIDATION_HISTORY.md` (matrix, costs, the threshold tables),
    `MIGRATION_GUIDE.md`, README and AGENTS status lines.
@@ -490,6 +554,75 @@ Closed: #1 v2.2.0, #5 v2.3.0, #7 v2.3.1, #2 v2.4.0, #9 v2.4.1, #10 v2.5.0
   one scheduling seam) is the first step of #43 and is wanted whatever
   the threading direction [user, 2026-10-26]. #285 is gated on a fleet
   executor concept. #42 is on hold.
+
+## Pool wake-up and batch spacing [OPEN; found 2026-11-22, Ivy Bridge]
+
+Found while fixing the profiler (#320). Every figure here is from one
+machine in use and is **indicative**: it says where to look, and L7 is
+what measures it. Nothing below is filed or posted yet.
+
+**What was found on I (AVX, Linux `schedutil`, 4 cores / 8 threads).**
+- When the thread pool's workers sleep between short parallel sections,
+  the whole package settles at its lowest clock (about 1.2 of 3.5 GHz)
+  and stays there while the pattern lasts. Forced PARALLEL is then two to
+  three times slower, and slower than VECTORIZED, at the sizes where the
+  slices divide unevenly over four workers (5120, 6144, 7168, 10000);
+  8192 and sizes from 10240 up were unaffected back to back.
+- **The profiler never saw it.** The tools call
+  `initialize_performance_systems()`, which starts the work-stealing
+  pool, and that pool's idle workers poll (ten yields, then a 100 µs
+  sleep; `src/work_stealing_pool.cpp`). The polling keeps the cores
+  awake. So every table was measured with the cores held awake.
+- **The polling has a cost of its own**: an idle initialised process
+  burns over two cores, and serial VECTORIZED work beside it runs about
+  12% slower. Same code on `main`.
+- **Batch spacing decides the crossover.** With the workers awake (back
+  to back, or the polling pool alive) PARALLEL wins from 4096 or below
+  on Poisson PDF. With 2 ms of serial work between batches and no
+  polling pool, it wins only from 100,000–200,000.
+- A worker spin of 50 µs before sleeping removes the back-to-back
+  slowdown and nothing else: it covers gaps up to about its own length
+  (a 3 ms spin covered 2 ms gaps, partly 5 ms, not 20 ms).
+- This corrects earlier notes: the "slow sizes" read off #323 and the
+  "erratic between 4096 and 10000" readings on #320 and #291 were mostly
+  this low-clock state. The ceil(slices / threads) cost of #323 is real
+  but modest (Gamma CDF P/V 0.32 at 4 slices, 0.41 at 5, 0.30 at 7).
+  Those issues, the kAvx evidence README and the `PROVISIONAL` comment
+  still carry the old reading; corrections wait on the user's word.
+
+**Not known.** Whether this is general or a property of this CPU and
+governor; whether Zen 4 and Apple Silicon have it, or a different
+problem with the same symptom; and whether work stealing's wins on K
+(up to 7:1, the reason AUTO selects it there) are the polling keeping
+cores awake rather than the stealing. L7 answers the first and third and
+shows whether the second needs a trace.
+
+**User's positions** [user, 2026-11-22]: which spacing is the primary
+use cannot be known, it depends on the caller; the idle burn should go
+in v2.5.x or v2.6.x if the fix is cheap, and v3.0.0 is the line it must
+not cross.
+
+**Options, undecided:**
+1. Keep the polling pool, add the short spin: thresholds hold for both
+   spacings, back-to-back gains 12–18%, the idle burn stays.
+2. Remove the polling and set thresholds for sleeping workers: no burn,
+   never slower than VECTORIZED, streams lose their speedup below about
+   100,000.
+3. A spin of milliseconds: moves the cliff to the spin length, at the
+   price of every worker spinning that long after each batch.
+4. Two thresholds chosen by pool state: the low one while the workers
+   are still spinning, the high one once they sleep. No burn and right
+   for both spacings; costs a second threshold per row (or a factor per
+   architecture) and a profiler mode for spaced batches. Favoured by the
+   analysis if L7 shows the spread on more than one machine.
+
+**Held on I, not pushed**: a branch from `main` with the portable 50 µs
+spin, `initialize_performance_systems()` starting the work-stealing pool
+only where AUTO selects it, and a guard (an idle initialised process
+burns no CPU; fails on unfixed `main`, passes fixed). The second part
+must not land alone: without the polling pool an initialised caller
+with spaced batches is about 2.5× slower at 10,000. The kAvx re-capture
+waits on the design.
 
 ## Design inputs from the threshold captures [OPEN]
 From the v2.5.0 captures on three machines (tested 2026-10-06) and the

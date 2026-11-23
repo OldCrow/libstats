@@ -18,6 +18,14 @@ record (2026-09-30, AVX2, quiet, one pass) is
   1e6 (retired tier kernels vs corvus).
 - `corvus_scaling_bench.cpp` — corvus called directly: ns/element vs span
   length 1 … 65536, to separate per-call overhead from per-element cost.
+- `batch_gap_bench.cpp` — forced VECTORIZED against forced PARALLEL when
+  batches are separated by serial work on the caller (0, 50 µs, 500 µs, 2 ms,
+  20 ms), Poisson and Gaussian PDF at 4096 … 200000. The profiler times batches
+  back to back; this shows whether its crossovers survive a gap long enough for
+  the pool's workers to sleep. One binary, built against the tree under test;
+  run it plain, with `--init` and with `--init --auto` (three runs, 3 to 5
+  minutes each, quiet machine), because the pool state cannot be undone within
+  a process. The file's header has the detail.
 
 Build (Release trees; `OLD` = a `git worktree` of `v2.4.1` with
 `libstats_static` built, `NEW` = the branch checkout with its build dir):
