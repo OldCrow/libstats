@@ -120,7 +120,9 @@ void ThreadPool::workerLoop() {
     }
 }
 
-std::size_t ThreadPool::getOptimalThreadCount() noexcept {
+namespace {
+
+std::size_t computeOptimalThreadCount() noexcept {
     const auto& features = arch::get_features();
     std::size_t threadCount = std::thread::hardware_concurrency();
 
@@ -137,6 +139,18 @@ std::size_t ThreadPool::getOptimalThreadCount() noexcept {
     }
 
     return std::max(threadCount, std::size_t{detail::ONE_INT});
+}
+
+}  // namespace
+
+std::size_t ThreadPool::getOptimalThreadCount() noexcept {
+    // Computed once. ParallelUtils sizes every parallel loop with this, and glibc's
+    // std::thread::hardware_concurrency() reads a file under /sys on each call: about 10 us per
+    // batch on the Ivy Bridge machine, a quarter of a 4096-element parallel batch. The global
+    // pool is sized from the same value at its creation, so a later change in the CPUs available
+    // to the process was never followed by the pool either.
+    static const std::size_t count = computeOptimalThreadCount();
+    return count;
 }
 
 //========== ParallelUtils Implementation ==========
