@@ -129,7 +129,41 @@ design decision (all four machines' L7).
   after `--init` (Poisson at 10,000: 47–57 against 18–22 ns/element),
   and VECTORIZED about 13% slower.
   The kAvx re-capture waits on the pool design.
-- **M — M1, NEON, macOS, AppleClang**: not started.
+- **M — M1, NEON, macOS 27.2.1, AppleClang 21.0.0**: L1 done 2026-11-21
+  at `cfbb992` and again 2026-11-22 at `c6ae2b9`: Release build
+  warning-free, NEON, 135/135, backend GCD
+  (`test_parallel_backend_selection` 3 pass, the OpenMP case skips;
+  `WorkStealingCrossWaiting` skips here). **L2 done** at `cfbb992`:
+  NEON block regenerated, 0 contract violations. **L2b done**:
+  `data/accuracy/allow_NEON.csv` (2,971 rows). Row gate against v2.5.0
+  on its grid: 874 values better, 126 worse, all small-shape densities
+  (#314) except six groups that read the same in `allow_AVX.csv`
+  (Student-t cdf and quantile at ν 39.9, Fisher-F survival, LogNormal
+  quantile, Cauchy logpdf, Geometric pdf). Off-grid, seed 213: 2
+  contract violations, #316 and #317; #318 reproduces; 142 rows skipped
+  (120 NegativeBinomial survival, 21 Fisher-F quantile oracle gaps, 1
+  Student-t quantile timeout). **L3 done**: `b766e45` and `90d1bef`
+  sweeps bit-identical on NEON. **L4 done 2026-11-22** at `cfbb992`,
+  screen locked, each item gated on ambient CPU below 15% (20% after
+  3 h): bundle
+  `data/profiles/dispatcher/2026-11-22T17-20-47Z_darwin-arm64_…_sha-cfbb992`
+  (three `--large` runs of 26 min), timing tests 14/14,
+  `simd_verification` 0 failed
+  (`docs/bench-evidence/2026-11-21-m1-neon-v300-l4/`). **Its profiler
+  and benches are `cfbb992`'s, before `8c55bfc`**, and the runs were not
+  quiet throughout: `mediaanalysisd` held 1–2 cores in every profile
+  run (34 rows spread more than 2×). Dev against `main`, old timer:
+  densities level; batch CDF Gamma 2.5×, Poisson 5.0×, Binomial 6.5×,
+  Beta 11.7×; scalar CDF up to 14.4× (Beta); quantile up to 12.6×
+  (Beta). Not stated on #156 yet. **L5 done 2026-11-22, provisional**
+  (`docs/bench-evidence/2026-11-22-m1-neon-threshold-rows/`): the
+  derivation proposed 11 values; `table_ab_bench` (old timer) supported
+  one, kNeon Poisson LogPDF 2048 → 10k, applied; seven spread-maximum
+  candidates lost the A/B. Found: Bernoulli dispatches on Binomial's
+  row, so AUTO Bernoulli CDF runs PARALLEL from 2048 and is 2.8–3.8×
+  behind VECTORIZED at 4096 (a dispatch change, not a row; not acted
+  on). `batch_gap_bench` compiles clean under AppleClang 21. **L6, L7,
+  #107 and #47 owed.**
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
   the commit that carries this line: Release build warning-free, AVX2
