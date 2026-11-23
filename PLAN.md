@@ -184,8 +184,21 @@ design decision (all four machines' L7).
   candidates lost the A/B. Found: Bernoulli dispatches on Binomial's
   row, so AUTO Bernoulli CDF runs PARALLEL from 2048 and is 2.8–3.8×
   behind VECTORIZED at 4096 (a dispatch change, not a row; not acted
-  on). `batch_gap_bench` compiles clean under AppleClang 21. **L6, L7,
-  #107 and #47 owed.**
+  on). L7 done 2026-11-23 at `7a1ec20`, two passes, indexing daemons on
+  one to three cores in all but one run
+  (`docs/bench-evidence/2026-11-22-m1-batch-gap/`): **the crossover does
+  not move with the gap**, unlike Ivy Bridge — Poisson 10000 plain and
+  4096 with `--init`, Gaussian 100000 in both, at 0, 2 ms and 20 ms
+  alike. Forced PARALLEL after `--init` is faster at the same gap only
+  where the work per call is small (Poisson 4096 by up to 43%, 10000 by
+  9–15%, Gaussian 100000 by 15–26% at 2 ms and 20 ms); at Poisson
+  100000 and 200000 it is about 11% slower, and VECTORIZED is 7% slower
+  at every size. Without the pool the kNeon Poisson PDF threshold of
+  4096 is wrong (PARALLEL 1.18–1.65× behind; 10000 is the crossover).
+  `fit_gap_model.py`: where the plain run fits, a start delay of
+  5–24 µs (K: 61–89), residuals up to 20% under the load. Not traced;
+  `pool_wake_bench` and the idle-burn figure not run on M. **L6, #107
+  and #47 owed.**
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
   the commit that carries this line: Release build warning-free, AVX2
