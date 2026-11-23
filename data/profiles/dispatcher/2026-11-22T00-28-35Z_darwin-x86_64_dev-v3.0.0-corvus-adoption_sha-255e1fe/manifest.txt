@@ -1,0 +1,57 @@
+Dispatcher profile bundle
+=========================
+
+Run ID: 2026-11-22T00-28-35Z_darwin-x86_64_dev-v3.0.0-corvus-adoption_sha-255e1fe
+Captured at (UTC): 2026-11-22T00-28-35Z (script start; runs 1-3 began 00:32Z, 01:13Z and 01:55Z)
+
+Files:
+- metadata.json
+- strategy_profile_run1.csv
+- strategy_profile_run2.csv
+- strategy_profile_run3.csv
+- sustained_crossovers.txt
+- logs/run.txt
+- logs/environment.txt
+- logs/ctest_timing.txt
+- logs/simd_verification.txt
+- logs/quiet_run.sh.txt
+
+Capture notes:
+- Native AVX2+FMA (Release, build-kaby-v3/, Ninja, AppleClang 15) on the MacBook Pro 14,1, Kaby
+  Lake i7-7820HQ (4 cores, 8 threads), macOS 13.7.8, at 255e1fe on dev/v3.0.0-corvus-adoption
+  (corvus v1.2.0 fetched, system Highway 1.4.0). The last change to src/ or tools/ below 255e1fe
+  is ec8cdc9; the commits after it are documents and data. Backend GCD. Supersedes K's
+  2026-10-13T13-11-55Z_... bundle, which predates the corvus adoption.
+- Three `strategy_profile --large -o <csv>` runs, 40 min each (13 min at d1adc95: the incomplete
+  gamma and beta CDFs cost more, see below), from logs/quiet_run.sh.txt, detached in its own
+  session, screen locked, AC power, the script holding caffeinate.
+- Load: every measured item started only once the 1-minute load was below 2.0 (profile runs
+  started at 1.92, 1.85 and 1.72; logs/run.txt). Loads at the end of each run (3.4-5.0) include
+  the run's own 4- and 8-thread pools; no marks were taken during a run. Run-to-run spread
+  (max/min - 1 of the three medians per cell): at 4096 elements and up, SCALAR 2.7% median (p90
+  7%), VECTORIZED 3.2% (p90 11%), PARALLEL 7.4% (p90 26%), WORK_STEALING 6.4% (p90 23%). Below
+  4096 the median is 1-2% and the p90 23-51% for every strategy (short timings).
+- sustained_crossovers.txt is `scripts/analyze_crossovers.py --bundle <this> --table kAvx2`:
+  66 ok, 9 DIFF (Bernoulli LogPDF and CDF, Beta LogPDF, Exponential LogPDF and CDF, FisherF PDF,
+  Logistic PDF and LogPDF, Rayleigh CDF), every DIFF on a row with a table comment. Its "not in
+  table" for Uniform and NegBinomial is that tool's table parser, not a missing row:
+  scripts/derive_threshold_rows.py reads both.
+- Below 4096 elements PARALLEL does not fork (#307), so a candidate under 4096 is not a
+  measured crossover.
+- VECTORIZED cost at 2M elements, the heaviest rows: FisherF CDF 1088 ns/element, Binomial CDF
+  787, NegBinomial CDF 769, Beta CDF 757, Poisson CDF 361, InverseGamma CDF 336, Gamma CDF 326,
+  Erlang CDF 297 (#156).
+- logs/ctest_timing.txt: `ctest -j1 -L timing`, 14 of 14 passed (started at load 1.76).
+- logs/simd_verification.txt: every operation passed, 0 failed. Beta_EdgeCases CDF reads 0.4x
+  against the scalar loop; the suite's geometric means are PDF 8.2x, LogPDF 11.4x, CDF 4.2x.
+- The same sitting ran tools/bench main against dev, three alternating passes:
+  docs/bench-evidence/2026-11-22-kabylake-v300-cost/.
+- Profiler: the one at 255e1fe, before 8c55bfc (#320): three warm-up calls and the median of
+  seven timed calls per cell, the 2026-09-04 `--large` grid. Not comparable cell for cell with
+  a bundle captured from 8c55bfc on, and rows derived from it are provisional (PLAN.md,
+  "Changed 2026-11-22"). The profiler starts the work-stealing pool, so every cell was timed
+  with that pool's idle workers polling (PLAN.md, "Pool wake-up and batch spacing").
+- Row derivation, not applied: scripts/derive_threshold_rows.py with this bundle as kAvx2's new
+  capture and 2026-10-13T13-11-55Z_... as its previous one proposes three changed values:
+  Bernoulli CDF 4096 to 8192, Beta LogPDF 8192 to 25000 (runs 8192/25000/8192), Logistic LogPDF
+  25000 to 8192. No table_ab_bench run was made.

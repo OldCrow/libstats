@@ -1,0 +1,65 @@
+date_utc:    2026-11-22T00-28-35Z
+dev:         255e1fe6e5c350cc31b2e05491cb278e342119bb (dev/v3.0.0-corvus-adoption)
+main:        99f21752e045cc000b020b3a57014100431765c5
+os:          macOS 13.7.8 22H730
+kernel:      Darwin 22.6.0 x86_64
+cpu:         Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz
+cores:       4 physical, 8 logical
+caches:      L1d 32768 L2 262144 L3 8388608
+compiler:    Apple clang version 15.0.0 (clang-1500.1.0.2.5)
+cmake:       cmake version 4.5.1
+build_type:  Release (dev), Release (main)
+power:       Now drawing from 'AC Power'
+uptime:      19:28  up 23:20, 1 user, load averages: 1.76 2.31 2.52
+binaries:
+ce198fb27c685d6b07c9324315e5dcd13508deaa030a6359580980a3f98d45b9  /Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7/build-kaby-v3/libstats.a
+8409afa9e0e82e3f5de33214a471ce0f8b1f482ac7bd268a2f16d5aa9339fccd  /Users/wolfman/Development/libstats/build-kaby-main/libstats.a
+c2d41ab2e22fa5d033a597cbe75c7e036398c3456a0b1985fe5662807524277a  /Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7/build-kaby-v3/tools/strategy_profile
+0ace06092b46ef6abe9cd59781dd887261e3806b5e6f99a624c9697582085927  /Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7/build-kaby-v3/tools/simd_verification
+d17533052a6977918d68e6856a4d97ac76b04d2f2c2668f07c7cac0b9be9eab6  /Users/wolfman/Development/libstats-kleg/bench/dist_dev
+1de4d5932d1f2495a08a897c2ceb8da2f8fe1f0774aa9830a5b590442cec9644  /Users/wolfman/Development/libstats-kleg/bench/dist_main
+4caf17de8558a1c5de4fc895ea6a1b91efd511fdffc5b0d609166b654cc08ccb  /Users/wolfman/Development/libstats-kleg/bench/elem_dev
+c45618dcdc7684bd4209b6b314bb01455b59e6be26fb0ceea02ac3eb1ade84b7  /Users/wolfman/Development/libstats-kleg/bench/elem_main
+
+
+=================================
+  System Inspector - Quick Mode
+=================================
+
+Basic system information and capabilities overview
+
+System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+
+
+--- System Capabilities ---
+Logical Cores:           8
+Physical Cores:          4
+Hyperthreading:          Enabled
+
+
+--- CPU Features ---
+Feature             Support   Description                   
+------------------------------------------------------------
+AVX-512             No        Foundation instructions       
+AVX2                Yes       Advanced Vector Ext 2         
+AVX                 Yes       Advanced Vector Ext           
+SSE2                Yes       Streaming SIMD Ext 2          
+NEON                No        ARM SIMD instructions         
+FMA                 Yes       Fused Multiply-Add            
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size      
+------------------------------------------
+L1             32          64 bytes       
+L2             256         64 bytes       
+L3             8192        64 bytes       
+
+
+Use --constants, --performance, or --full for detailed analysis.
+
+System inspection completed successfully.
+end: dev 255e1fe6e5c350cc31b2e05491cb278e342119bb dirty=0
+ce198fb27c685d6b07c9324315e5dcd13508deaa030a6359580980a3f98d45b9  /Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7/build-kaby-v3/libstats.a
+8409afa9e0e82e3f5de33214a471ce0f8b1f482ac7bd268a2f16d5aa9339fccd  /Users/wolfman/Development/libstats/build-kaby-main/libstats.a
+c2d41ab2e22fa5d033a597cbe75c7e036398c3456a0b1985fe5662807524277a  /Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7/build-kaby-v3/tools/strategy_profile

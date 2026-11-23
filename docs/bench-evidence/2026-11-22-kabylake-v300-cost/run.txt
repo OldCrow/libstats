@@ -1,0 +1,56 @@
+2026-11-22T00:28:35Z load=1.76 L4 start dev=255e1fe main=99f2175 smoke=0 max_load=2.0
+2026-11-22T00:28:35Z load=1.76 build dev ok: [4/4] Linking CXX executable tests/Release/test_gaussian_basic_dynamic
+2026-11-22T00:28:35Z load=1.76 build main ok: /Users/wolfman/Development/libstats/build-kaby-main/libstats.2.5.0.dylib: replac
+2026-11-22T00:28:35Z load=1.76 system_inspector: System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+2026-11-22T00:28:35Z load=1.76 timing tests waiting for load < 2.0
+2026-11-22T00:28:35Z load=1.76 timing tests start
+2026-11-22T00:28:55Z load=2.63 timing tests end exit=0 100% tests passed out of 14
+2026-11-22T00:28:55Z load=2.63 simd_verification waiting for load < 2.0
+2026-11-22T00:29:55Z load=1.86 simd_verification start
+2026-11-22T00:29:56Z load=1.86 simd_verification end exit=0
+2026-11-22T00:29:56Z load=1.86 bench dist_main pass1 waiting for load < 2.0
+2026-11-22T00:29:56Z load=1.86 bench dist_main pass1 start
+2026-11-22T00:30:01Z load=2.03 bench dist_main pass1 end exit=0
+2026-11-22T00:30:01Z load=2.03 bench dist_dev pass1 waiting for load < 2.0
+2026-11-22T00:30:16Z load=1.87 bench dist_dev pass1 start
+2026-11-22T00:30:32Z load=2.40 bench dist_dev pass1 end exit=0
+2026-11-22T00:30:32Z load=2.40 bench elem_main pass1 waiting for load < 2.0
+2026-11-22T00:31:02Z load=1.83 bench elem_main pass1 start
+2026-11-22T00:31:02Z load=1.83 bench elem_main pass1 end exit=0
+2026-11-22T00:31:02Z load=1.83 bench elem_dev pass1 waiting for load < 2.0
+2026-11-22T00:31:02Z load=1.83 bench elem_dev pass1 start
+2026-11-22T00:31:03Z load=1.83 bench elem_dev pass1 end exit=0
+2026-11-22T00:31:03Z load=1.83 bench dist_main pass2 waiting for load < 2.0
+2026-11-22T00:31:03Z load=1.83 bench dist_main pass2 start
+2026-11-22T00:31:07Z load=2.01 bench dist_main pass2 end exit=0
+2026-11-22T00:31:07Z load=2.01 bench dist_dev pass2 waiting for load < 2.0
+2026-11-22T00:31:37Z load=1.72 bench dist_dev pass2 start
+2026-11-22T00:31:53Z load=1.99 bench dist_dev pass2 end exit=0
+2026-11-22T00:31:53Z load=1.99 bench elem_main pass2 waiting for load < 2.0
+2026-11-22T00:31:53Z load=1.99 bench elem_main pass2 start
+2026-11-22T00:31:53Z load=1.99 bench elem_main pass2 end exit=0
+2026-11-22T00:31:53Z load=1.99 bench elem_dev pass2 waiting for load < 2.0
+2026-11-22T00:31:53Z load=1.99 bench elem_dev pass2 start
+2026-11-22T00:31:53Z load=1.99 bench elem_dev pass2 end exit=0
+2026-11-22T00:31:53Z load=1.99 bench dist_main pass3 waiting for load < 2.0
+2026-11-22T00:31:53Z load=1.99 bench dist_main pass3 start
+2026-11-22T00:31:58Z load=2.47 bench dist_main pass3 end exit=0
+2026-11-22T00:31:58Z load=2.47 bench dist_dev pass3 waiting for load < 2.0
+2026-11-22T00:32:28Z load=1.89 bench dist_dev pass3 start
+2026-11-22T00:32:43Z load=1.92 bench dist_dev pass3 end exit=0
+2026-11-22T00:32:43Z load=1.92 bench elem_main pass3 waiting for load < 2.0
+2026-11-22T00:32:43Z load=1.92 bench elem_main pass3 start
+2026-11-22T00:32:44Z load=1.92 bench elem_main pass3 end exit=0
+2026-11-22T00:32:44Z load=1.92 bench elem_dev pass3 waiting for load < 2.0
+2026-11-22T00:32:44Z load=1.92 bench elem_dev pass3 start
+2026-11-22T00:32:44Z load=1.92 bench elem_dev pass3 end exit=0
+2026-11-22T00:32:44Z load=1.92 strategy_profile run1 waiting for load < 2.0
+2026-11-22T00:32:44Z load=1.92 strategy_profile run1 start
+2026-11-22T01:12:19Z load=3.74 strategy_profile run1 end exit=0 rows=    7777
+2026-11-22T01:12:19Z load=3.74 strategy_profile run2 waiting for load < 2.0
+2026-11-22T01:13:49Z load=1.85 strategy_profile run2 start
+2026-11-22T01:53:26Z load=5.00 strategy_profile run2 end exit=0 rows=    7777
+2026-11-22T01:53:26Z load=5.00 strategy_profile run3 waiting for load < 2.0
+2026-11-22T01:55:26Z load=1.72 strategy_profile run3 start
+2026-11-22T02:35:07Z load=3.43 strategy_profile run3 end exit=0 rows=    7777
+2026-11-22T02:35:07Z load=3.43 L4 DONE dev=255e1fe

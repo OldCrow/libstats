@@ -1,0 +1,149 @@
+#!/bin/bash
+# Kaby Lake (AVX2) quiet session, fleet-leg step L4 of libstats PLAN.md.
+#
+# Launch detached, outside the Claude Code sandbox (it hides the cache sysctls):
+#   python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+#       /Users/wolfman/Development/libstats-kleg/k_quiet_run.sh > <log> 2>&1 < /dev/null &
+#
+# In order, each measured item starting only once the 1-minute load is below MAX_LOAD:
+#   1. ctest -j1 -L timing
+#   2. tools/simd_verification
+#   3. distributions_bench and elementary_bench, main against dev, alternately, PASSES passes
+#   4. RUNS runs of strategy_profile --large
+# Nothing is committed or pushed. Results land in libstats-kleg/quiet-<UTC>_sha-<sha>/.
+#
+# Environment: MAX_LOAD=2.0  WAIT_MIN=120 (per item)  PASSES=3  RUNS=3
+#              SMOKE=1  check everything, measure nothing
+#              SKIP_TIMING=1 SKIP_SIMD=1 SKIP_BENCH=1 SKIP_PROFILE=1
+
+set -u
+DEV=/Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7
+DB=$DEV/build-kaby-v3
+MAIN=/Users/wolfman/Development/libstats
+MB=$MAIN/build-kaby-main
+KLEG=/Users/wolfman/Development/libstats-kleg
+BENCH=$KLEG/bench
+EXPECT_BRANCH=dev/v3.0.0-corvus-adoption
+MAX_LOAD="${MAX_LOAD:-2.0}"
+WAIT_MIN="${WAIT_MIN:-120}"
+PASSES="${PASSES:-3}"
+RUNS="${RUNS:-3}"
+SMOKE="${SMOKE:-0}"
+
+cd "$DEV" || exit 1
+branch="$(git branch --show-current)"
+[ "$branch" = "$EXPECT_BRANCH" ] || { echo "on '$branch', expected '$EXPECT_BRANCH'" >&2; exit 1; }
+[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "dev tree is dirty" >&2; exit 1; }
+[ "$(git -C "$MAIN" branch --show-current)" = main ] || { echo "base checkout is not on main" >&2; exit 1; }
+[ -z "$(git -C "$MAIN" status --porcelain --untracked-files=no)" ] || { echo "main tree is dirty" >&2; exit 1; }
+
+sha="$(git rev-parse --short HEAD)"
+main_sha="$(git -C "$MAIN" rev-parse --short HEAD)"
+stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+OUT="$KLEG/quiet-${stamp}_sha-${sha}"
+[ "$SMOKE" = 1 ] && OUT="$KLEG/smoke-${stamp}_sha-${sha}"
+mkdir -p "$OUT"
+RUNLOG="$OUT/run.txt"
+
+load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
+mark() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) load=$(load1) $*" | tee -a "$RUNLOG"; }
+
+# Keep the machine awake for as long as this script lives.
+caffeinate -i -m -s -w $$ &
+
+mark "L4 start dev=$sha main=$main_sha smoke=$SMOKE max_load=$MAX_LOAD"
+
+# Binaries must match HEAD: both builds are no-ops unless a source changed.
+for pair in "$DB:dev" "$MB:main"; do
+    dir="${pair%%:*}"; name="${pair##*:}"
+    if ! cmake --build "$dir" --parallel 4 >"$OUT/build_$name.txt" 2>&1; then
+        mark "build $name FAILED"; exit 1
+    fi
+    mark "build $name ok: $(tail -1 "$OUT/build_$name.txt" | cut -c1-80)"
+done
+for b in dist_main dist_dev elem_main elem_dev; do
+    [ -x "$BENCH/$b" ] || { mark "missing bench binary $b"; exit 1; }
+    [ "$BENCH/$b" -nt "$DB/libstats.a" ] || [ "${b##*_}" = main ] || { mark "bench $b is older than the dev library"; exit 1; }
+done
+
+{
+    echo "date_utc:    $stamp"
+    echo "dev:         $(git rev-parse HEAD) ($branch)"
+    echo "main:        $(git -C "$MAIN" rev-parse HEAD)"
+    echo "os:          $(sw_vers -productName) $(sw_vers -productVersion) $(sw_vers -buildVersion)"
+    echo "kernel:      $(uname -srm)"
+    echo "cpu:         $(sysctl -n machdep.cpu.brand_string)"
+    echo "cores:       $(sysctl -n hw.physicalcpu) physical, $(sysctl -n hw.logicalcpu) logical"
+    echo "caches:      L1d $(sysctl -n hw.l1dcachesize) L2 $(sysctl -n hw.l2cachesize) L3 $(sysctl -n hw.l3cachesize)"
+    echo "compiler:    $(c++ --version | head -1)"
+    echo "cmake:       $(cmake --version | head -1)"
+    echo "build_type:  $(grep -m1 'CMAKE_BUILD_TYPE:' "$DB/CMakeCache.txt" | cut -d= -f2) (dev), $(grep -m1 'CMAKE_BUILD_TYPE:' "$MB/CMakeCache.txt" | cut -d= -f2) (main)"
+    echo "power:       $(pmset -g batt | head -1)"
+    echo "uptime:      $(uptime)"
+    echo "binaries:"
+    shasum -a 256 "$DB/libstats.a" "$MB/libstats.a" "$DB/tools/strategy_profile" "$DB/tools/simd_verification" "$BENCH"/dist_* "$BENCH"/elem_*
+    echo
+    "$DB/tools/system_inspector" --quick
+} >"$OUT/environment.txt" 2>&1
+mark "system_inspector: $(grep -m1 '^System:' "$OUT/environment.txt")"
+if grep -q 'L3 *0 ' "$OUT/environment.txt" || ! grep -q '8192 KB L3' "$OUT/environment.txt"; then
+    mark "cache sizes not visible: is this running inside the sandbox? ABORT"; exit 1
+fi
+
+# Wait for the 1-minute load to fall below MAX_LOAD; give up after WAIT_MIN minutes.
+wait_quiet() {
+    local what="$1" i
+    [ "$SMOKE" = 1 ] && { mark "$what (smoke: not waiting, not running)"; return 1; }
+    mark "$what waiting for load < $MAX_LOAD"
+    for i in $(seq 1 $((WAIT_MIN * 4))); do
+        if awk -v l="$(load1)" -v m="$MAX_LOAD" 'BEGIN { exit !(l < m) }'; then
+            return 0
+        fi
+        sleep 15
+    done
+    mark "$what load did not settle in $WAIT_MIN min; top consumers:"
+    ps -Ao pcpu,comm -r | head -6 | tee -a "$RUNLOG"
+    mark "ABORT: an unquiet run is not a record"
+    exit 2
+}
+
+if [ "${SKIP_TIMING:-0}" != 1 ] && wait_quiet "timing tests"; then
+    mark "timing tests start"
+    ctest --test-dir "$DB" -j1 -L timing --output-on-failure >"$OUT/ctest_timing.txt" 2>&1
+    mark "timing tests end exit=$? $(grep -E 'tests passed|tests failed' "$OUT/ctest_timing.txt" | tail -1)"
+fi
+
+if [ "${SKIP_SIMD:-0}" != 1 ] && wait_quiet "simd_verification"; then
+    mark "simd_verification start"
+    "$DB/tools/simd_verification" >"$OUT/simd_verification.txt" 2>&1
+    mark "simd_verification end exit=$?"
+fi
+
+if [ "${SKIP_BENCH:-0}" != 1 ]; then
+    for pass in $(seq 1 "$PASSES"); do
+        for b in dist_main dist_dev elem_main elem_dev; do
+            if wait_quiet "bench $b pass$pass"; then
+                mark "bench $b pass$pass start"
+                "$BENCH/$b" >"$OUT/bench_${b}_pass$pass.txt" 2>&1
+                mark "bench $b pass$pass end exit=$?"
+            fi
+        done
+    done
+fi
+
+if [ "${SKIP_PROFILE:-0}" != 1 ]; then
+    for run in $(seq 1 "$RUNS"); do
+        if wait_quiet "strategy_profile run$run"; then
+            mark "strategy_profile run$run start"
+            "$DB/tools/strategy_profile" --large -o "$OUT/strategy_profile_run$run.csv" \
+                >"$OUT/strategy_profile_run$run.txt" 2>&1
+            mark "strategy_profile run$run end exit=$? rows=$(wc -l <"$OUT/strategy_profile_run$run.csv" 2>/dev/null)"
+        fi
+    done
+fi
+
+{
+    echo "end: dev $(git rev-parse HEAD) dirty=$(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+    shasum -a 256 "$DB/libstats.a" "$MB/libstats.a" "$DB/tools/strategy_profile"
+} >>"$OUT/environment.txt" 2>&1
+mark "L4 DONE dev=$(git rev-parse --short HEAD)"

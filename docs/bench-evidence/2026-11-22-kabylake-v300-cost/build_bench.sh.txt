@@ -1,0 +1,24 @@
+#!/bin/bash
+# Kaby Lake (AVX2) build of the tools/bench comparatives for fleet-leg step L4:
+# main (v2.5.x line) against dev/v3.0.0-corvus-adoption, same bench source (the dev
+# checkout's), compiled with the flags and definitions of the library's own TUs
+# (build.ninja: -O3 -DNDEBUG -std=c++20 -stdlib=libc++ and the three LIBSTATS_HAS_*).
+set -eu
+DEV=/Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7
+DB=$DEV/build-kaby-v3
+MAIN=/Users/wolfman/Development/libstats
+MB=$MAIN/build-kaby-main
+OUT=/Users/wolfman/Development/libstats-kleg/bench
+FLAGS=(-O3 -DNDEBUG -std=c++20 -stdlib=libc++ -DLIBSTATS_HAS_AVX2=1 -DLIBSTATS_HAS_AVX=1 -DLIBSTATS_HAS_SSE2=1)
+mkdir -p "$OUT"
+cd "$DEV/tools/bench"
+for pair in distributions:dist elementary:elem; do
+    src="${pair%%:*}_bench.cpp"; n="${pair##*:}"
+    c++ "${FLAGS[@]}" -I"$MAIN/include" -I"$MAIN/include/libstats" -I"$MB/generated" \
+        "$src" "$MB/libstats.a" -lpthread -o "$OUT/${n}_main"
+    c++ "${FLAGS[@]}" -I"$DEV/include" -I"$DEV/include/libstats" -I"$DB/generated" \
+        -isystem "$DB/_deps/corvus-src/include" \
+        "$src" "$DB/libstats.a" "$DB/_deps/corvus-build/libcorvus.a" \
+        -L/usr/local/lib -lhwy -lhwy_contrib -lpthread -o "$OUT/${n}_dev"
+done
+ls -l "$OUT"
