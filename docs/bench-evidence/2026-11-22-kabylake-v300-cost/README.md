@@ -49,3 +49,19 @@ Reading:
   Binomial 10.3×, Gamma 10.5×, Beta 16.5×.
 - Student-t batch CDF is level (1.03×) while its scalar CDF is 6.4×.
 - Raw output: `bench_{dist,elem}_{main,dev}_pass{1,2,3}.txt`.
+
+## Re-run with the sustained timer, 2026-11-23
+
+`sustained/`: the same four benches rebuilt from `8c55bfc`'s sources (0.15 s warm-up and at
+least 0.25 s timed per cell, #320), dev at `c6ae2b9` against `main` at `19d2c35`, three
+passes with the order alternating (main first on passes 1 and 3, dev first on pass 2),
+quiet as above (`../2026-11-23-kabylake-batch-gap/run.txt`).
+
+The ratios above hold to within 6%, with three exceptions, all batch densities: Poisson
+log-pmf 0.68 to 0.77, and the Gaussian and exponential pdf from 0.87 and 0.89 to 1.00 (cells
+of 0.7–0.9 ns printed to one decimal). Batch CDF: Gamma 1.64×, Poisson 3.46×, Binomial 4.71×, Beta
+7.98×. Scalar CDF: Gamma 4.39×, Student-t 6.50×, Poisson 7.01×, Binomial 12.58×, Beta 18.02×.
+Quantile: Student-t 2.92×, Poisson 5.73×, Binomial 10.45×, Gamma 10.74×, Beta 16.90×.
+`erf` is 0.73× at both sizes, so that gain is real here. The absolute `elementary_bench`
+figures at n = 1000 fell from 5.7–8.3 to 1.9–2.9 ns/element for both trees: the earlier
+ones were cold. The largest max/min over the three passes of any cell is 1.37.

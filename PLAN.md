@@ -199,8 +199,22 @@ design decision (all four machines' L7).
   old timer (`docs/bench-evidence/2026-11-22-kabylake-v300-cost/`):
   densities level or faster; batch CDF Gamma 1.7×, Poisson 3.5×, Binomial
   4.8×, Beta 8.2×; scalar CDF up to 17.4× (Beta), quantile up to 16.5×
-  (Beta). Not stated on #156 yet. L5 held on the pool design; **L7
-  owed**.
+  (Beta). Re-run 2026-11-23 with the sustained timer (`sustained/` there): the
+  ratios hold within 6% (`erf` 0.73× is real here). Not stated on #156
+  yet. L5 held on the pool design. **L7 done 2026-11-23** at `c6ae2b9`,
+  quiet (`docs/bench-evidence/2026-11-23-kabylake-batch-gap/`).
+  Crossover at gap 0 / 2 ms / 20 ms, plain run: Poisson 4096 / 10,000 /
+  25,000, Gaussian 50,000 / 50,000 / 100,000. `--init` run: Poisson 4096
+  and Gaussian 50,000 at every gap. So the crossover moves with the gap
+  when only the thread pool exists. Forced PARALLEL after `--init` is
+  faster only with a gap (up to 2× at 2–20 ms) and 1.3–1.5× slower back
+  to back, the opposite of I; VECTORIZED is 9% slower. **AUTO (work
+  stealing) against forced PARALLEL, `--init` run**: faster back to back
+  (0.52–0.82), slower with any gap below 25,000 for Poisson (1.1–1.9×)
+  and at 50,000–100,000 for Gaussian (1.2–1.7×), faster at every gap
+  from 25,000 (Poisson). Unlike I: Gaussian VECTORIZED at 4096 doubles
+  (2.3 to 4.6 ns/element) at gaps of 2 ms and up in both pool states;
+  cause not measured.
 
 ### What every leg produces
 
