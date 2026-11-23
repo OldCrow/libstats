@@ -152,8 +152,21 @@ design decision (all four machines' L7).
   213: 11,196 scored, 141 skipped, 2 contract violations, both known
   (#316, #317). Not examined: Fisher-F pdf at 1,295 ε, shapes (21490,
   9667). **L3 done**: `b766e45` and `90d1bef` sweeps bit-identical on
-  AVX2. Working files are in `../libstats-kleg/` (local). L4 next, on a
-  quiet machine.
+  AVX2. Working files are in `../libstats-kleg/` (local). **L4 done
+  2026-11-22** at `255e1fe` (code `ec8cdc9`), quiet (every item started
+  below a 1-minute load of 2.0), on AC, screen locked: bundle
+  `data/profiles/dispatcher/2026-11-22T00-28-35Z_darwin-x86_64_…_sha-255e1fe`
+  (three `--large` runs of 40 min, timing tests 14/14,
+  `simd_verification` all pass). **Its profiler is `255e1fe`'s, before
+  `8c55bfc`**, so rows derived from it are provisional. Against kAvx2:
+  66 ok, 9 DIFF, all on commented rows; the derivation proposes three
+  values (Bernoulli CDF 4096→8192, Beta LogPDF 8192→25k, Logistic LogPDF
+  25k→8192), not applied, no A/B run. Dev against `main`, same sitting,
+  old timer (`docs/bench-evidence/2026-11-22-kabylake-v300-cost/`):
+  densities level or faster; batch CDF Gamma 1.7×, Poisson 3.5×, Binomial
+  4.8×, Beta 8.2×; scalar CDF up to 17.4× (Beta), quantile up to 16.5×
+  (Beta). Not stated on #156 yet. L5 held on the pool design; **L7
+  owed**.
 
 ### What every leg produces
 
