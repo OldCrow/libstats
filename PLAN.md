@@ -200,8 +200,8 @@ design decision (all four machines' L7).
   densities level or faster; batch CDF Gamma 1.7×, Poisson 3.5×, Binomial
   4.8×, Beta 8.2×; scalar CDF up to 17.4× (Beta), quantile up to 16.5×
   (Beta). Re-run 2026-11-23 with the sustained timer (`sustained/` there): the
-  ratios hold within 6% (`erf` 0.73× is real here). Not stated on #156
-  yet. L5 held on the pool design. **L7 done 2026-11-23** at `c6ae2b9`,
+  ratios hold within 6% (`erf` 0.73× is real here). **L6 done 2026-11-23**: stated
+  on #156. L5 held on the pool design. **L7 done 2026-11-23** at `c6ae2b9`,
   quiet (`docs/bench-evidence/2026-11-23-kabylake-batch-gap/`).
   Crossover at gap 0 / 2 ms / 20 ms, plain run: Poisson 4096 / 10,000 /
   25,000, Gaussian 50,000 / 50,000 / 100,000. `--init` run: Poisson 4096
