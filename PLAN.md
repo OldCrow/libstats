@@ -697,6 +697,116 @@ must not land alone: without the polling pool an initialised caller
 with spaced batches is about 2.5× slower at 10,000. The kAvx re-capture
 waits on the design.
 
+### K against I: two mechanisms, one symptom [DERIVED from the two L7 runs, K, 2026-11-23]
+
+Read from the committed L7 CSVs (`docs/bench-evidence/2026-11-22-ivybridge-batch-gap/`,
+`2026-11-23-kabylake-batch-gap/`), as extra time per forced-PARALLEL call
+against the same cell back to back. Two distributions on each machine, no
+frequency or idle-state data: the timing shapes are measured, **the causes
+are inferred**.
+
+| | K (macOS, AVX2) | I (Linux `schedutil`, AVX) |
+|---|---|---|
+| Plain run, workers asleep | a fixed 40–110 µs per call at every size (Poisson at 20 ms: 86 µs at 4096, 92 at 50,000, 41 at 200,000) | proportional: 2.4–2.9× at every size from 25,000 (Poisson at 20 ms: 1.0 ms at 50,000, 3.7 ms at 200,000) |
+| Onset | between 50 and 500 µs | at 50 µs |
+| Back to back, plain | no slow sizes | slow sizes (10,000: 50.6 ns/element against 18.4 after `--init`) |
+| Polling pool alive, back to back | PARALLEL 1.3–1.5× slower, VECTORIZED 9% slower | PARALLEL up to 3× faster, VECTORIZED 13% slower |
+| Polling pool alive, spaced | gap has no effect | gap has no effect |
+
+- **K's penalty reads as a start delay**: the workers begin late and then
+  run at full speed. A fixed cost W moves the crossover to about
+  W / (VECTORIZED − PARALLEL ns per element): Poisson saves about 14 ns,
+  giving about 6,400 (measured 10,000–25,000); Gaussian about 1.1 ns,
+  giving about 80,000 (measured 100,000).
+- **I's penalty reads as a slow run**: the workers run the whole section
+  at a low clock, so the loss grows with the batch. A fixed W does not
+  describe it; a factor on the PARALLEL time does.
+- **Work stealing on K has K's start delay from the shortest gap.** AUTO
+  costs 55–110 µs more per call from 50 µs on. The idle loop is ten
+  yields, then `sleep_for(MAX_NEWTON_ITERATIONS)` microseconds, that is
+  100 (`src/work_stealing_pool.cpp:247`; the constant is a Newton
+  iteration cap used as a duration). So an idle worker answers within a
+  sleep quantum, not at once, and the pool burns CPU without being
+  responsive. Its back-to-back win over a thread pool with no polling
+  beside it is 7–30% from 10,000 elements (Poisson 10.3 against 11.1
+  ns/element at 10,000, 6.9 against 8.3 at 50,000; Gaussian 1.02 against
+  1.47 at 50,000). The 7:1 in the profile bundles was measured with the
+  polling pool alive.
+- **VECTORIZED on K pays about 10 µs per call after a gap of 2 ms or
+  more**, Gaussian only (4096: 2.3 to 4.6 ns/element), in both pool
+  states. Candidate, unverified: the CPU powers down the upper half of
+  its 256-bit unit after about a millisecond without AVX use.
+- The thread pool wakes its workers with one `notify_one` per task
+  (`src/thread_pool.cpp:75`), so the caller pays the wake-ups in series.
+  Not measured whether that is part of W.
+
+**What it suggests for the options above** [K's reading; undecided]:
+- A second table per ISA tier is the wrong axis. The effect follows the
+  OS and its power management as far as two machines can show: kAvx2
+  serves K under macOS and any AVX2 machine under Linux or Windows.
+- On K a spaced threshold is derivable from the back-to-back profile and
+  one machine constant W, with no second capture. On I that does not
+  hold as measured; it needs a factor. Option 4 would then carry a
+  per-platform (W, factor) pair, measured once or at
+  `initialize_performance_systems()`, instead of a second threshold per
+  row.
+- Option 1 (50 µs spin) does nothing on K: K has no back-to-back loss
+  and its penalty starts beyond 50 µs.
+- Option 2 (no polling) costs K about 0.1 ms per spaced call and gains
+  9% serial and 30–50% back-to-back PARALLEL; it costs I 2.7× on spaced
+  parallel work.
+- K's AUTO → WORK_STEALING rule holds only for back-to-back batches.
+
+### Measurements this calls for [OPEN; proposed by K 2026-11-23, none run, user decides]
+
+The L7 bench gives time per call. It cannot separate a late start from a
+slow run, and neither machine recorded clocks or idle states. In order of
+value for the pool design:
+
+1. **Fit the two models to the L7 CSVs** (analysis only, no new run): per
+   machine and distribution, regress extra time per call on batch size,
+   extra = W + (k − 1) · t_parallel. K should give k ≈ 1, I W ≈ 0. M's and
+   Z's L7 runs then classify themselves. A script under `scripts/`.
+2. **Start delay and run speed per worker, unprivileged, every OS.** A
+   bench that drives the library's own pool through
+   `detail::ParallelUtils::parallelFor` with a callable that records its
+   entry time against the caller's submit time, runs a fixed
+   integer loop, and records its exit time. Entry − submit is the wake
+   latency per worker; the loop's time against its back-to-back time is
+   the clock ratio (the TSC and `steady_clock` do not slow with the core).
+   Same gaps and pool states as `batch_gap_bench`. This tests the
+   start-delay and slow-run readings directly and gives W and k without a
+   kernel in the way. It also shows whether the serial `notify_one` calls
+   stagger the workers.
+3. **Clocks and idle states, privileged, once per machine, to name the
+   cause.** While `batch_gap_bench` runs one plain cell at a 20 ms gap and
+   one back to back: K and M `sudo powermetrics --samplers cpu_power -i
+   100` (per-core frequency and C-state residency; on M also which
+   cluster the workers land on); I `turbostat --interval 0.1` (Bzy_MHz,
+   C-state residency) or `scaling_cur_freq`; Z the Processor Information
+   counters (% Processor Performance, parking status). The user runs
+   these: they need root, and the sampler itself loads the machine, so
+   the result names a cause and is not a timing record.
+4. **Whether W predicts other rows.** `batch_gap_bench` on rows that span
+   the per-element saving: a cheap kernel (Exponential or Uniform PDF,
+   under 1 ns), a middle one (LogNormal PDF) and a costly one (Gamma
+   CDF). Needs a `--dist` option on the bench. If W / saving predicts all
+   three crossovers on K, the derivable-threshold claim stands there.
+5. **A sleeping caller.** The gap is busy serial work; a caller blocked
+   on I/O lets its own core idle too. `batch_gap_bench --sleep` at 2 ms
+   and 20 ms (Windows cannot sleep 50 µs).
+6. **Finer gaps at the two onsets on K**: 5–40 µs for work stealing
+   (ten yields, then the 100 µs sleep) and 0.5–2 ms for the VECTORIZED
+   step, with a control that keeps a 256-bit operation in the gap loop;
+   if the step vanishes, it is the AVX unit. Needs a `--gaps` option.
+7. **Idle burn per machine**: user plus system CPU time of a process that
+   calls `initialize_performance_systems()` and sleeps 10 s
+   (`getrusage`). I measured over two cores; K, M and Z have no figure.
+
+Items 1, 2 and 7 are cheap and decide the most: the fixed-cost and
+proportional readings, and what the polling costs. Item 3 is the only
+one that needs the user at the keyboard.
+
 ## Design inputs from the threshold captures [OPEN]
 From the v2.5.0 captures on three machines (tested 2026-10-06) and the
 Ivy Bridge capture of 2026-11-18. Full analysis: `git show e1a11ec:PLAN.md`,
