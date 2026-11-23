@@ -868,11 +868,44 @@ from the workload; no frequency or idle-state counter was sampled.
    48.6 to 54–58 µs at 4096, work stealing 36.8 to 37.5–38.9 µs with no
    start delay. Its price back to back: thread pool 27% slower at 4096,
    21% at 10,240, 9% at 51,200, 3% at 204,800; serial integer work 3%.
-6. Not explained: work stealing delays after a busy gap (4) and not
-   after a sleeping one (5).
+6. **The busy-gap delay (4) is the idle loop** [reasoned 2026-11-23, not
+   traced]: an idle worker yields ten times, then calls
+   `sleep_for(100 µs)`, and a submit does not interrupt that sleep
+   (`src/work_stealing_pool.cpp:247`). That gives the onset at 10–20 µs
+   (the ten yields), the worst case at a 50 µs gap (every worker went to
+   sleep together after the last batch, so the first starts 80 µs
+   late), and the milder 17–41 µs at longer gaps (the eight sleep phases
+   have drifted apart). **Not explained: why a sleeping caller sees no
+   delay** (first worker 2 µs after the submit). Candidate: timer
+   coalescing. The caller's sleep and the workers' sleeps are all timer
+   wake-ups, macOS groups nearby deadlines, and workers woken with the
+   caller are in their yield window when the submit arrives. Test: the
+   spread of first-worker start times per call, or a caller that blocks
+   on something other than a timer.
 7. Serial integer work shows no step at a 2 ms busy gap, where Gaussian
    VECTORIZED gained 10 µs per call; consistent with the AVX-unit
    candidate, which stays unverified.
+
+**Ruled out as causes: the pipeline and the caches** [user's question,
+2026-11-23]. A pipeline flush or a reorder-buffer refill costs tens of
+cycles, about 10 ns; the delays here are 50–140 µs and the slow run
+lasts milliseconds. `pool_wake_bench`'s workload touches no memory and
+uses no SIMD and shows the full effect, and the gap loop evicts nothing.
+Reorder depth, vector width and L2 associativity (8-way on I, 4-way on
+K) change the steady cost per element (Poisson VECTORIZED 34 ns on I,
+23 on K), which moves a back-to-back crossover; they cannot give a fixed
+delay or a 3× slowdown. **The differences between K and I at the right
+timescale are in power management**: K's hardware-controlled frequency
+selection reacts in about a millisecond, I's is the OS governor's
+(50–100 ms to recover, #320), which alone could be why a busy caller
+holds K's workers at speed and not I's; the idle states and their exit
+latencies (tens to over a hundred microseconds, the size of K's start
+delay) differ by generation; whether I powers down its 256-bit unit as
+K is suspected to is not known. All of it is confounded with the OS
+(scheduler, governor, timers): two machines cannot separate silicon
+from system. **One test does** [proposed]: `pool_wake_bench` on I, plain
+and `--sleep`, under the `performance` governor against `schedutil`. If
+the slow run goes, it is the governor's policy.
 
 **For the design** [K's reading; undecided]:
 - The caller's state between batches matters as much as the pool's. K
