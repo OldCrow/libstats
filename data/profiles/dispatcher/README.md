@@ -95,6 +95,16 @@ checked the result.
 
 ## Capturing a new profile
 
+From `8c55bfc` (2026-11-22, #320) `strategy_profile` times each cell in its
+own steady state: 0.15 s of the cell's own work discarded, then at least
+0.25 s timed in blocks, median block reported (`scripts/PROFILING_METHOD.md`,
+"Per-cell timing"). The grid has 28 sizes (32 with `--large`), the CSV gains
+`MinTime_us`, `MeanTime_us` and `Blocks` after the first five columns, and
+the log header prints `Timing method: sustained-v1`. A bundle from before
+that commit is not comparable cell for cell with one from after; say in the
+manifest which it is. A run is at least 0.4 s per cell, and the largest cells take eight calls
+each whatever they cost: expect one to two hours for `--large`.
+
 ```bash
 # Build first (Release), then either use the harness:
 scripts/capture_dispatcher_profile.sh

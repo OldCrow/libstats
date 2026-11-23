@@ -64,8 +64,13 @@ design decision (all four machines' L7).
 - **The profiler and three bench programs time differently from
   `8c55bfc`** (#320: each cell runs its own work for 0.15 s, then is
   timed for at least 0.25 s; 28 sizes, 32 with `--large`). A
-  `strategy_profile --large` run now takes over an hour, so L4's three
-  runs are an afternoon. A bundle captured before `8c55bfc` is not
+  `strategy_profile --large` run is at least 0.4 s per cell, and the
+  largest cells still take eight calls each whatever they cost, so
+  expect one to two hours (an estimate: no machine has run one end to
+  end yet; state your run's duration in the bundle manifest), and L4's three runs are an
+  afternoon. The CSV has three more columns after the first five
+  (`MinTime_us`, `MeanTime_us`, `Blocks`); the analysis scripts read by
+  name and need no change. A bundle captured before `8c55bfc` is not
   comparable cell for cell with one captured after.
 - **A leg already past L4 keeps what it captured.** Say in your status
   line which commit's profiler produced your bundle. Rows derived from a
@@ -287,6 +292,10 @@ back to back, which is what the pool design waits on.
 1. Build `tools/bench/batch_gap_bench.cpp` against this branch with the
    library's own flags, as the L4 benches are built
    (`tools/bench/README.md`). One binary; no `main` build needed.
+   It has been compiled only with GCC 13 so far (against this branch and
+   against `main`), and CI does not build `tools/bench`: if AppleClang,
+   clang-cl or cl.exe rejects it, report the error; a portability fix to
+   the bench itself is yours to make and commit.
 2. On a quiet machine, under the same rules as L4 (Z: throttling
    opt-out, launch the binary yourself, one discarded pass first; Macs:
    outside the sandbox), run three times, each its own process:
