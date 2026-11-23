@@ -718,9 +718,12 @@ are inferred**.
   W / (VECTORIZED − PARALLEL ns per element): Poisson saves about 14 ns,
   giving about 6,400 (measured 10,000–25,000); Gaussian about 1.1 ns,
   giving about 80,000 (measured 100,000).
-- **I's penalty reads as a slow run**: the workers run the whole section
-  at a low clock, so the loss grows with the batch. A fixed W does not
-  describe it; a factor on the PARALLEL time does.
+- **I's penalty fits neither model** [corrected 2026-11-23 by the fit
+  below; this first read "a slow run"]. The loss grows with the batch,
+  which a fixed W cannot give, but a single factor leaves 18–78%
+  residual and the two-parameter fit 15–46%. I's back-to-back baseline
+  has slow sizes of its own (10,000), so the comparison cell is not
+  clean there. What I's mechanism is stays open until item 2 runs on I.
 - **Work stealing on K has K's start delay from the shortest gap.** AUTO
   costs 55–110 µs more per call from 50 µs on. The idle loop is ten
   yields, then `sleep_for(MAX_NEWTON_ITERATIONS)` microseconds, that is
@@ -763,10 +766,15 @@ The L7 bench gives time per call. It cannot separate a late start from a
 slow run, and neither machine recorded clocks or idle states. In order of
 value for the pool design:
 
-1. **Fit the two models to the L7 CSVs** (analysis only, no new run): per
-   machine and distribution, regress extra time per call on batch size,
-   extra = W + (k − 1) · t_parallel. K should give k ≈ 1, I W ≈ 0. M's and
-   Z's L7 runs then classify themselves. A script under `scripts/`.
+1. **Fit the two models to the L7 CSVs** — **done 2026-11-23**,
+   `scripts/fit_gap_model.py` (t_gap = W + k · t_0 per distribution and
+   gap; relative RMS residual over the six sizes). **K, plain, forced
+   PARALLEL: a delay.** W = 61–69 µs (Gaussian) and 68–89 µs (Poisson)
+   at 2 and 20 ms, residual 2–10%, against 25–30% for a factor; the
+   two-parameter fit gives k = 0.97–1.07. At 500 µs W is 34 µs
+   (Poisson). With `--init`: no effect (W under 12 µs). K's AUTO on
+   Poisson: W = 58–70 µs with k = 0.86–0.93 from 50 µs on. **I, plain:
+   neither** (above). M's and Z's L7 CSVs go through the same script.
 2. **Start delay and run speed per worker, unprivileged, every OS.** A
    bench that drives the library's own pool through
    `detail::ParallelUtils::parallelFor` with a callable that records its
@@ -777,7 +785,15 @@ value for the pool design:
    Same gaps and pool states as `batch_gap_bench`. This tests the
    start-delay and slow-run readings directly and gives W and k without a
    kernel in the way. It also shows whether the serial `notify_one` calls
-   stagger the workers.
+   stagger the workers. **Written 2026-11-23**:
+   `tools/bench/pool_wake_bench.cpp` (plain, `--init`, `--init --ws`;
+   `--gaps`, `--sizes`, `--sleep`; compiled with AppleClang 15 only so
+   far). **No quiet run yet.** A two-size smoke run on K with the machine
+   in use, indicative only: at a 2 ms gap the thread pool's call costs
+   60–66 µs more, the last worker starts 39–56 µs later, and the work
+   time per element is unchanged (×1.00); the caller's serial work is
+   unchanged too. That is the start-delay reading. Owed: the three quiet
+   runs on K, then the same on I, M and Z.
 3. **Clocks and idle states, privileged, once per machine, to name the
    cause.** While `batch_gap_bench` runs one plain cell at a 20 ms gap and
    one back to back: K and M `sudo powermetrics --samplers cpu_power -i

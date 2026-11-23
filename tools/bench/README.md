@@ -47,6 +47,13 @@ Highway `-L` with wherever `libhwy` lives (or the fetched
 paths. Use a Release build of the branch and a quiet machine where possible;
 label the run INDICATIVE otherwise.
 
+- `pool_wake_bench.cpp` — the follow-up to `batch_gap_bench`: whether spaced
+  batches cost more because the pool's workers start late or because they run
+  slowly. It drives the library's pools with a fixed integer workload and
+  reports, per call, each worker's start delay and its time per element.
+  Runs: plain, `--init`, `--init --ws`; about two minutes each. Read the
+  result with `scripts/fit_gap_model.py`, which fits the same two models to
+  `batch_gap_bench` CSVs.
 Per-cell timing (#320): `distributions_bench`, `elementary_bench` and
 `table_ab_bench` time every cell through `sustained_timing.h`: the cell's own
 work runs for 0.15 s and is discarded, then it is timed in blocks for at least
