@@ -10,9 +10,10 @@
  */
 
 // Standard library includes
-#include <chrono>  // for std::chrono::high_resolution_clock
-#include <cmath>   // for mathematical functions
-#include <future>  // for std::future, std::async
+#include <chrono>   // for std::chrono::high_resolution_clock
+#include <cmath>    // for mathematical functions
+#include <fstream>  // for std::ifstream (/proc/self/io)
+#include <future>   // for std::future, std::async
 #include <gtest/gtest.h>
 #include <iomanip>   // for std::setprecision
 #include <iostream>  // for std::cout, std::endl
@@ -788,3 +789,39 @@ TEST(ThreadPoolIntegration, DocumentationExamples) {
     ThreadPoolTest t;
     t.testDocumentationExamples();
 }
+
+#if defined(__linux__)
+namespace {
+/// Read system calls this process has made so far (/proc/self/io, "syscr"); -1 if unavailable.
+long long readSyscallCount() {
+    std::ifstream io("/proc/self/io");
+    std::string key;
+    long long value = 0;
+    while (io >> key >> value) {
+        if (key == "syscr:")
+            return value;
+    }
+    return -1;
+}
+}  // namespace
+
+// Guard: sizing a parallel loop must not ask the operating system for the CPU count on every
+// call. glibc's std::thread::hardware_concurrency() reads a file under /sys each time, about
+// 5 us on the Ivy Bridge machine and 10 us in place between batches, which was a quarter of a
+// 4096-element parallel batch (found with tools/bench/pool_wake_bench, 2026-11-23). Counting read
+// calls instead of timing keeps this out of the "timing" label, so CI's correctness run has it.
+TEST(ThreadPoolIntegration, OptimalThreadCountMakesNoSystemCallPerCall) {
+    const std::size_t first = stats::ThreadPool::getOptimalThreadCount();  // may initialise
+    const long long before = readSyscallCount();
+    if (before < 0)
+        GTEST_SKIP() << "/proc/self/io has no syscr line on this system";
+    constexpr int kCalls = 1000;
+    std::size_t sum = 0;
+    for (int i = 0; i < kCalls; ++i)
+        sum += stats::ThreadPool::getOptimalThreadCount();
+    const long long after = readSyscallCount();
+    EXPECT_EQ(sum, first * kCalls);
+    // Reading /proc/self/io itself costs a few reads; one per call would be a thousand.
+    EXPECT_LT(after - before, 100) << "getOptimalThreadCount() reads from the system on each call";
+}
+#endif
