@@ -1,0 +1,64 @@
+# pool_wake_bench pool=init gap=busy logical_cpus=8 slice=1024 rounds_per_element=8
+Pool,GapKind,Mode,Elements,Gap_us,Calls,Call_us,Workers,Start1_us,StartLast_us,StartLastP90_us,Work_ns,FirstWork_ns,Join_us
+init,busy,SERIAL,4096,0,12024,56.38,1,0.03,0.03,0.04,13.751,13.751,0.03
+init,busy,SERIAL,10240,0,4785,143.48,1,0.03,0.03,0.04,14.006,14.006,0.03
+init,busy,SERIAL,51200,0,971,719.95,1,0.03,0.03,0.04,14.060,14.060,0.05
+init,busy,SERIAL,204800,0,243,2880.36,1,0.03,0.03,0.04,14.064,14.064,0.06
+init,busy,SERIAL,4096,2000,340,56.40,1,0.03,0.03,0.04,13.753,13.753,0.03
+init,busy,SERIAL,10240,2000,326,143.52,1,0.03,0.03,0.04,14.009,14.009,0.04
+init,busy,SERIAL,51200,2000,258,720.12,1,0.04,0.04,0.05,14.063,14.063,0.05
+init,busy,SERIAL,204800,2000,144,2879.83,1,0.04,0.04,0.05,14.061,14.061,0.05
+init,busy,THREAD_POOL,4096,0,15073,44.37,4,16.50,21.82,28.08,15.965,15.965,5.37
+init,busy,THREAD_POOL,10240,0,8795,76.76,4,18.38,24.03,29.95,15.573,15.975,5.70
+init,busy,THREAD_POOL,51200,0,2749,244.15,4,17.88,22.58,28.27,15.926,15.976,6.78
+init,busy,THREAD_POOL,204800,0,797,852.70,4,19.51,23.38,29.70,15.823,16.011,6.69
+init,busy,THREAD_POOL,4096,2000,342,44.84,4,18.53,22.98,28.50,16.002,16.002,4.74
+init,busy,THREAD_POOL,10240,2000,336,78.29,4,19.18,24.07,29.26,15.797,15.997,5.72
+init,busy,THREAD_POOL,51200,2000,312,241.48,4,18.58,25.01,30.65,15.950,16.021,6.37
+init,busy,THREAD_POOL,204800,2000,244,854.27,4,20.32,24.74,30.62,15.804,16.025,7.10
+init,busy,WORK_STEALING,4096,0,17546,37.64,3,1.18,3.20,22.29,15.903,15.897,6.95
+init,busy,WORK_STEALING,10240,0,9727,66.28,4,1.36,19.36,59.10,14.589,15.716,7.72
+init,busy,WORK_STEALING,51200,0,3451,194.21,8,1.15,154.25,157.66,15.945,15.950,9.30
+init,busy,WORK_STEALING,204800,0,1104,626.00,8,82.91,158.41,169.60,16.015,46.668,6.15
+init,busy,WORK_STEALING,4096,2000,341,45.63,2,4.69,12.60,32.38,13.771,13.771,7.67
+init,busy,WORK_STEALING,10240,2000,337,74.50,4,5.52,38.69,62.92,14.320,14.040,8.64
+init,busy,WORK_STEALING,51200,2000,318,180.36,8,4.53,138.21,153.98,15.969,15.952,10.21
+init,busy,WORK_STEALING,204800,2000,277,526.38,8,7.99,135.00,154.13,16.007,15.993,7.35
+init,busy,LOCAL_POOL_4,4096,0,19627,33.91,4,6.71,12.43,15.42,15.966,15.966,5.13
+init,busy,LOCAL_POOL_4,10240,0,10268,65.84,4,7.69,12.86,16.21,15.773,16.024,5.55
+init,busy,LOCAL_POOL_4,51200,0,2962,231.09,4,7.49,14.31,16.60,15.898,15.965,6.00
+init,busy,LOCAL_POOL_4,204800,0,814,841.45,4,8.80,12.59,17.35,15.825,16.010,6.66
+init,busy,LOCAL_POOL_4,4096,2000,344,33.43,4,7.22,11.85,15.60,16.002,16.002,4.85
+init,busy,LOCAL_POOL_4,10240,2000,339,66.38,4,8.15,11.84,16.25,15.822,15.999,5.70
+init,busy,LOCAL_POOL_4,51200,2000,313,231.56,4,7.30,12.91,17.09,15.959,16.022,6.40
+init,busy,LOCAL_POOL_4,204800,2000,245,841.71,4,7.85,12.82,17.14,15.776,16.010,7.05
+init,busy,LOCAL_POOL_8,4096,0,19755,33.33,4,7.21,12.30,15.65,15.950,15.950,4.89
+init,busy,LOCAL_POOL_8,10240,0,11896,54.52,7,7.59,22.69,31.08,15.918,15.910,6.24
+init,busy,LOCAL_POOL_8,51200,0,4079,164.57,8,8.47,33.54,47.90,16.037,15.998,10.54
+init,busy,LOCAL_POOL_8,204800,0,1274,533.18,8,7.57,117.78,141.47,16.016,16.014,7.83
+init,busy,LOCAL_POOL_8,4096,2000,344,33.70,4,7.24,12.11,15.51,15.958,15.958,4.70
+init,busy,LOCAL_POOL_8,10240,2000,340,55.34,7,7.91,21.17,29.97,15.905,15.905,6.75
+init,busy,LOCAL_POOL_8,51200,2000,322,167.97,7,8.08,28.75,38.02,16.036,16.028,12.24
+init,busy,LOCAL_POOL_8,204800,2000,275,527.72,7,8.01,23.56,114.65,16.009,16.001,7.34
+# against the first gap: extra call time, extra start delay of the last worker, work-time ratio
+# LOCAL_POOL_4  n=4096    gap   2000 us: call     -0.5 us  start    -0.6 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_4  n=10240   gap   2000 us: call     +0.5 us  start    -1.0 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_4  n=51200   gap   2000 us: call     +0.5 us  start    -1.4 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_4  n=204800  gap   2000 us: call     +0.3 us  start    +0.2 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_8  n=4096    gap   2000 us: call     +0.4 us  start    -0.2 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_8  n=10240   gap   2000 us: call     +0.8 us  start    -1.5 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_8  n=51200   gap   2000 us: call     +3.4 us  start    -4.8 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_8  n=204800  gap   2000 us: call     -5.5 us  start   -94.2 us  work x1.00  first-slice x1.00
+# SERIAL        n=4096    gap   2000 us: call     +0.0 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=10240   gap   2000 us: call     +0.0 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=51200   gap   2000 us: call     +0.2 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=204800  gap   2000 us: call     -0.5 us  start    +0.0 us  work x1.00  first-slice x1.00
+# THREAD_POOL   n=4096    gap   2000 us: call     +0.5 us  start    +1.2 us  work x1.00  first-slice x1.00
+# THREAD_POOL   n=10240   gap   2000 us: call     +1.5 us  start    +0.0 us  work x1.01  first-slice x1.00
+# THREAD_POOL   n=51200   gap   2000 us: call     -2.7 us  start    +2.4 us  work x1.00  first-slice x1.00
+# THREAD_POOL   n=204800  gap   2000 us: call     +1.6 us  start    +1.4 us  work x1.00  first-slice x1.00
+# WORK_STEALING n=4096    gap   2000 us: call     +8.0 us  start    +9.4 us  work x0.87  first-slice x0.87
+# WORK_STEALING n=10240   gap   2000 us: call     +8.2 us  start   +19.3 us  work x0.98  first-slice x0.89
+# WORK_STEALING n=51200   gap   2000 us: call    -13.8 us  start   -16.0 us  work x1.00  first-slice x1.00
+# WORK_STEALING n=204800  gap   2000 us: call    -99.6 us  start   -23.4 us  work x1.00  first-slice x0.34
+# (sink 13707483946599413093)

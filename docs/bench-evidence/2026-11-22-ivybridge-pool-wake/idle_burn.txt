@@ -1,0 +1,1 @@
+idle 10 s after initialize_performance_systems: user 13.11 s, sys 11.66 s, voluntary switches 366622

@@ -1,0 +1,44 @@
+# pool_wake_bench pool=plain gap=sleep logical_cpus=8 slice=1024 rounds_per_element=8
+Pool,GapKind,Mode,Elements,Gap_us,Calls,Call_us,Workers,Start1_us,StartLast_us,StartLastP90_us,Work_ns,FirstWork_ns,Join_us
+plain,sleep,SERIAL,4096,0,12821,53.33,1,0.02,0.02,0.03,13.008,13.008,0.03
+plain,sleep,SERIAL,10240,0,5182,133.22,1,0.02,0.02,0.03,13.006,13.006,0.03
+plain,sleep,SERIAL,51200,0,1041,667.98,1,0.03,0.03,0.03,13.046,13.046,0.03
+plain,sleep,SERIAL,204800,0,261,2669.45,1,0.03,0.03,0.03,13.034,13.034,0.03
+plain,sleep,SERIAL,4096,2000,298,164.83,1,0.40,0.40,0.41,40.119,40.119,0.10
+plain,sleep,SERIAL,10240,2000,271,411.35,1,0.39,0.39,0.40,40.112,40.112,0.10
+plain,sleep,SERIAL,51200,2000,164,2096.91,1,0.41,0.41,0.69,40.938,40.938,0.25
+plain,sleep,SERIAL,204800,2000,94,5247.19,1,0.29,0.29,0.35,25.618,25.618,0.16
+plain,sleep,SERIAL,4096,20000,35,164.83,1,0.40,0.40,0.43,40.119,40.119,0.10
+plain,sleep,SERIAL,10240,20000,34,411.21,1,0.40,0.40,0.43,40.104,40.104,0.10
+plain,sleep,SERIAL,51200,20000,32,2097.03,1,0.42,0.42,0.69,40.939,40.939,0.11
+plain,sleep,SERIAL,204800,20000,25,8298.08,1,0.40,0.40,0.59,40.515,40.515,0.11
+plain,sleep,THREAD_POOL,4096,0,6527,105.90,4,39.58,54.43,65.08,40.436,40.437,11.24
+plain,sleep,THREAD_POOL,10240,0,3700,191.65,4,42.50,56.94,69.09,40.158,40.159,12.96
+plain,sleep,THREAD_POOL,51200,0,2075,351.18,4,41.45,58.96,90.73,17.849,41.732,7.62
+plain,sleep,THREAD_POOL,204800,0,734,936.72,4,60.63,110.35,140.49,13.769,40.158,8.70
+plain,sleep,THREAD_POOL,4096,2000,283,296.75,4,175.27,225.35,255.14,41.422,41.252,29.11
+plain,sleep,THREAD_POOL,10240,2000,275,383.02,4,193.36,220.49,258.01,40.938,41.229,26.89
+plain,sleep,THREAD_POOL,51200,2000,231,866.81,4,179.47,218.87,251.76,40.351,40.632,29.07
+plain,sleep,THREAD_POOL,204800,2000,145,2683.93,4,189.34,221.80,259.37,40.158,40.625,73.26
+plain,sleep,THREAD_POOL,4096,20000,35,293.45,4,179.41,224.38,258.53,41.056,41.056,21.04
+plain,sleep,THREAD_POOL,10240,20000,35,384.37,4,184.12,221.34,253.44,40.762,40.729,27.10
+plain,sleep,THREAD_POOL,51200,20000,34,913.27,4,187.00,222.45,250.95,40.260,40.530,71.48
+plain,sleep,THREAD_POOL,204800,20000,31,2688.13,4,189.94,221.02,270.35,40.158,40.533,74.54
+# against the first gap: extra call time, extra start delay of the last worker, work-time ratio
+# SERIAL        n=4096    gap   2000 us: call   +111.5 us  start    +0.4 us  work x3.08  first-slice x3.08
+# SERIAL        n=4096    gap  20000 us: call   +111.5 us  start    +0.4 us  work x3.08  first-slice x3.08
+# SERIAL        n=10240   gap   2000 us: call   +278.1 us  start    +0.4 us  work x3.08  first-slice x3.08
+# SERIAL        n=10240   gap  20000 us: call   +278.0 us  start    +0.4 us  work x3.08  first-slice x3.08
+# SERIAL        n=51200   gap   2000 us: call  +1428.9 us  start    +0.4 us  work x3.14  first-slice x3.14
+# SERIAL        n=51200   gap  20000 us: call  +1429.0 us  start    +0.4 us  work x3.14  first-slice x3.14
+# SERIAL        n=204800  gap   2000 us: call  +2577.7 us  start    +0.3 us  work x1.97  first-slice x1.97
+# SERIAL        n=204800  gap  20000 us: call  +5628.6 us  start    +0.4 us  work x3.11  first-slice x3.11
+# THREAD_POOL   n=4096    gap   2000 us: call   +190.9 us  start  +170.9 us  work x1.02  first-slice x1.02
+# THREAD_POOL   n=4096    gap  20000 us: call   +187.6 us  start  +169.9 us  work x1.02  first-slice x1.02
+# THREAD_POOL   n=10240   gap   2000 us: call   +191.4 us  start  +163.6 us  work x1.02  first-slice x1.03
+# THREAD_POOL   n=10240   gap  20000 us: call   +192.7 us  start  +164.4 us  work x1.02  first-slice x1.01
+# THREAD_POOL   n=51200   gap   2000 us: call   +515.6 us  start  +159.9 us  work x2.26  first-slice x0.97
+# THREAD_POOL   n=51200   gap  20000 us: call   +562.1 us  start  +163.5 us  work x2.26  first-slice x0.97
+# THREAD_POOL   n=204800  gap   2000 us: call  +1747.2 us  start  +111.5 us  work x2.92  first-slice x1.01
+# THREAD_POOL   n=204800  gap  20000 us: call  +1751.4 us  start  +110.7 us  work x2.92  first-slice x1.01
+# (sink 17116443970285769568)

@@ -1,0 +1,41 @@
+#!/bin/bash
+# pool_wake_bench quiet runs on Ivy Bridge (PLAN.md, "Measurements this calls for", items 2, 5-8).
+# Run from a terminal with nothing else running. About 35-40 minutes: seven runs of ~2 minutes,
+# each waiting for the 1-minute load to fall below 0.30 first.
+set -u
+REPO=/home/wolfman/Development/libstats
+L7=$REPO/build-ivb-adopt/l7
+W=$L7/pool_wake_bench
+GOV=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)
+OUT=$REPO/docs/bench-evidence/$(date +%F)-ivybridge-pool-wake
+[ "$GOV" = schedutil ] || OUT=$OUT-$GOV
+mkdir -p "$OUT"
+LOG=$OUT/run.txt
+mark() { echo "$(date -u +%FT%TZ) load=$(cut -d' ' -f1 /proc/loadavg) $*" | tee -a "$LOG"; }
+{
+    echo "commit:   $(git -C "$REPO" rev-parse --short HEAD) dirty=$(git -C "$REPO" status --porcelain --untracked-files=no | wc -l)"
+    echo "governor: $GOV"
+    echo "driver:   $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver)"
+    echo "kernel:   $(uname -srm)"
+    echo "cpu:      $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2-)"
+    echo "compiler: $(c++ --version | head -1)"
+    sha256sum "$REPO/build-ivb-adopt/libstats.a" "$W"
+} > "$OUT/environment.txt"
+run_item() {  # run_item <label> <outfile> <command...>
+    local label="$1" out="$2"; shift 2
+    mark "$label waiting for load < 0.30"
+    while awk '{exit !($1 >= 0.30)}' /proc/loadavg; do sleep 10; done
+    mark "$label start"
+    "$@" > "$out"
+    mark "$label end exit=$?"
+}
+run_item "wake plain"        "$OUT/wake_plain.csv"        "$W"
+run_item "wake init"         "$OUT/wake_init.csv"         "$W" --init
+run_item "wake init+ws"      "$OUT/wake_init_ws.csv"      "$W" --init --ws
+run_item "wake plain sleep"  "$OUT/wake_plain_sleep.csv"  "$W" --sleep --gaps 0,2000,20000
+run_item "wake init+ws fine" "$OUT/wake_init_ws_fine.csv" "$W" --init --ws --gaps 0,5,10,20,40,100
+run_item "wake local pools"  "$OUT/wake_local_pool.csv"   "$W" --init --ws --local-pool 4,8 --gaps 0,2000
+run_item "idle burn"         "$OUT/idle_burn.txt"         "$L7/idle_burn"
+mark "DONE"
+grep -h "^# THREAD_POOL" "$OUT/wake_plain.csv" "$OUT/wake_plain_sleep.csv"
+echo "Done: $OUT"

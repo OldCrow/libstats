@@ -128,6 +128,28 @@ design decision (all four machines' L7).
   pool is polling; forced PARALLEL at the same gap is up to 3x faster
   after `--init` (Poisson at 10,000: 47–57 against 18–22 ns/element),
   and VECTORIZED about 13% slower.
+  **`pool_wake_bench` done 2026-11-23** at `761bb43`, quiet, under
+  `schedutil` and again under `performance` (measurements 2, 5, 6, 7, 8
+  and the governor test;
+  `docs/bench-evidence/2026-11-22-ivybridge-pool-wake/`, README covers
+  both). **The slow run on I is the governor's policy**: plain, under
+  `schedutil`, pool workers run the integer workload at 40.2 ns per
+  element against 13.8 (2.92x, the 3.5-to-1.2 GHz ratio) at every gap
+  from 500 µs and, for calls under about 300 µs, back to back as well;
+  under `performance` they run at 13.8 everywhere. What is left under
+  `performance` is K's start delay: last worker 55–65 µs after the
+  submit against 17–20, call 28–49 µs longer. So I = K's delay plus the
+  governor's factor, which is why neither model fitted I's L7 data.
+  Sleeping caller: under `schedutil` serial work is 3.1x slower too and
+  the last worker starts 220 µs late; under `performance` serial is
+  unchanged and the call costs 106–140 µs more. With the polling pool
+  alive neither gap nor governor matters (last worker 21–30 µs), at 8%
+  on serial work and 15% on pool work, and 2.5 cores idle (24.8 CPU-s in
+  10 s). Eight plain threads match or beat work stealing at every size
+  and are 1.6x faster than four at 204,800 (K's finding 3 holds). Work
+  stealing's busy-gap delay sets in between 5 and 10 µs. Not explained:
+  the bench's four-thread local pool is 10–15 µs faster per call than
+  the library's thread pool, so that copy is not yet a faithful check.
   The kAvx re-capture waits on the pool design.
 - **M — M1, NEON, macOS 27.2.1, AppleClang 21.0.0**: L1 done 2026-11-21
   at `cfbb992` and again 2026-11-22 at `c6ae2b9`: Release build

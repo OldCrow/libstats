@@ -1,0 +1,8 @@
+commit:   761bb43 dirty=0
+governor: schedutil
+driver:   intel_cpufreq
+kernel:   Linux 7.0.0-43-generic x86_64
+cpu:       Intel(R) Core(TM) i7-3820QM CPU @ 2.70GHz
+compiler: c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+9736f2a3d3b3a2116f2a9e9fca782b17fca8772d2ec7525d82555c5246a27853  /home/wolfman/Development/libstats/build-ivb-adopt/libstats.a
+88b2035399dc22ba527136ed636d23ca4dfdd170aaa2454911f043e4497d5200  /home/wolfman/Development/libstats/build-ivb-adopt/l7/pool_wake_bench

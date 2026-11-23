@@ -1,0 +1,22 @@
+2026-11-23T03:58:19Z load=0.39 wake plain waiting for load < 0.30
+2026-11-23T03:58:39Z load=0.28 wake plain start
+2026-11-23T03:59:19Z load=0.82 wake plain end exit=0
+2026-11-23T03:59:19Z load=0.82 wake init waiting for load < 0.30
+2026-11-23T04:00:29Z load=0.25 wake init start
+2026-11-23T04:01:09Z load=2.01 wake init end exit=0
+2026-11-23T04:01:09Z load=2.01 wake init+ws waiting for load < 0.30
+2026-11-23T04:03:09Z load=0.27 wake init+ws start
+2026-11-23T04:04:10Z load=2.58 wake init+ws end exit=0
+2026-11-23T04:04:10Z load=2.58 wake plain sleep waiting for load < 0.30
+2026-11-23T04:06:20Z load=0.29 wake plain sleep start
+2026-11-23T04:06:44Z load=0.52 wake plain sleep end exit=0
+2026-11-23T04:06:44Z load=0.52 wake init+ws fine waiting for load < 0.30
+2026-11-23T04:07:44Z load=0.29 wake init+ws fine start
+2026-11-23T04:08:56Z load=2.61 wake init+ws fine end exit=0
+2026-11-23T04:08:56Z load=2.61 wake local pools waiting for load < 0.30
+2026-11-23T04:11:26Z load=0.26 wake local pools start
+2026-11-23T04:12:06Z load=1.60 wake local pools end exit=0
+2026-11-23T04:12:06Z load=1.60 idle burn waiting for load < 0.30
+2026-11-23T04:13:56Z load=0.28 idle burn start
+2026-11-23T04:14:06Z load=0.24 idle burn end exit=0
+2026-11-23T04:14:06Z load=0.24 DONE
