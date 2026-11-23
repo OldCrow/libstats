@@ -1,0 +1,65 @@
+## pass 1: run log
+2026-11-22 21:06:22 load=3.68 L7 start sha=7a1ec20 dirty=0 l2cachesize=4194304
+2026-11-22 21:06:22 load=3.68 gap_plain: waiting for ambient < 15% over two consecutive 10s windows
+2026-11-22 22:20:37 load=2.87 gap_plain: gate passed (<15%) ambient=14.40% top: 113.1%mediaanalysisd 91.9%speechmaintenanced 7.0%Carbon 
+2026-11-22 22:20:37 load=2.87 gap_plain: start
+2026-11-22 22:23:37 load=3.69 gap_plain: end exit=0 rows=133
+2026-11-22 22:23:37 load=3.69 gap_init: waiting for ambient < 15% over two consecutive 10s windows
+2026-11-22 23:55:52 load=2.47 gap_init: gate passed (<15%) ambient=12.43% top: 18.9%SoftwareUpdateNotificationManager 12.9%CoreLocationAgent 9.9%Bartender 
+2026-11-22 23:55:52 load=2.47 gap_init: start
+2026-11-22 23:58:53 load=3.80 gap_init: end exit=0 rows=133
+2026-11-22 23:58:53 load=3.80 gap_init_auto: waiting for ambient < 15% over two consecutive 10s windows
+2026-11-22 23:59:14 load=3.00 gap_init_auto: gate passed (<15%) ambient=13.39% top: 85.6%mediaanalysisd 18.5%Bartender 12.9%NotificationCenter 
+2026-11-22 23:59:14 load=3.00 gap_init_auto: start
+2026-11-23 00:04:14 load=9.80 gap_init_auto: end exit=0 rows=193
+2026-11-23 00:04:14 load=9.80 DONE
+## pass 1: load during gap_plain (top three by CPU, once a minute)
+22:20:37 load=2.87 top: 113.1%mediaanalysisd 91.9%speechmaintenanced 7.0%Carbon 
+22:21:37 load=3.62 top: 98.8%mediaanalysisd 98.8%batch_gap_bench 4.5%AXVisualSupportAgent 
+22:22:37 load=3.99 top: 101.0%batch_gap_bench 99.0%mediaanalysisd 29.5%CoreLocationAgent 
+## pass 1: load during gap_init (top three by CPU, once a minute)
+23:55:52 load=2.47 top: 18.9%SoftwareUpdateNotificationManager 12.9%CoreLocationAgent 9.9%Bartender 
+23:56:53 load=4.54 top: 162.6%batch_gap_bench 0.9%com.apple.DriverKit-AppleBCMWLAN 0.4%airportd 
+23:57:53 load=4.10 top: 165.5%batch_gap_bench 0.6%locationd 0.4%mediaremoted 
+## pass 1: load during gap_init_auto (top three by CPU, once a minute)
+23:59:14 load=3.00 top: 85.6%mediaanalysisd 18.5%Bartender 12.9%NotificationCenter 
+00:00:14 load=7.35 top: 200.3%batch_gap_bench 199.4%corespotlightd 98.9%mediaanalysisd 
+00:01:14 load=8.52 top: 190.3%batch_gap_bench 114.1%mediaanalysisd 96.3%Carbon 
+00:02:14 load=16.00 top: 202.6%batch_gap_bench 113.6%corespotlightd 104.5%Carbon 
+00:03:14 load=16.85 top: 217.3%corespotlightd 183.6%batch_gap_bench 114.1%Carbon 
+## pass 2: run log
+2026-11-23 00:06:15 load=4.41 L7 start sha=7a1ec20 dirty=0 l2cachesize=4194304
+2026-11-23 00:06:15 load=4.41 gap_plain: waiting for ambient < 8% over two consecutive 10s windows
+2026-11-23 01:06:15 load=1.80 gap_plain: gate passed (<8%) ambient=4.03% top: 12.1%locationd 4.5%airportd 4.0%bzfilelist 
+2026-11-23 01:06:15 load=1.80 gap_plain: start
+2026-11-23 01:09:15 load=5.41 gap_plain: end exit=0 rows=133
+2026-11-23 01:09:15 load=5.41 gap_init: waiting for ambient < 8% over two consecutive 10s windows
+2026-11-23 04:10:07 load=4.18 gap_init: waited 3 h, gate RELAXED to 12%
+2026-11-23 05:49:31 load=2.03 gap_init: gate passed (<12%) ambient=10.83% top: 14.4%locationd 5.5%airportd 2.2%WiFi 
+2026-11-23 05:49:31 load=2.03 gap_init: start
+2026-11-23 05:52:31 load=4.78 gap_init: end exit=0 rows=133
+2026-11-23 05:52:31 load=4.78 gap_init_auto: waiting for ambient < 8% over two consecutive 10s windows
+2026-11-23 08:52:57 load=3.09 gap_init_auto: waited 3 h, gate RELAXED to 12%
+2026-11-23 09:00:01 load=12.00 gap_init_auto: DEADLINE passed, SKIPPED
+2026-11-23 09:00:01 load=12.00 DONE
+## pass 2: load during gap_plain (every 20 s)
+01:06:15 load=1.80 top: 11.2%runningboardd 7.5%locationd 6.4%bzfilelist 
+01:06:35 load=3.49 top: 177.3%corespotlightd 104.9%batch_gap_bench 31.3%spotlightknowledged.updater 
+01:06:55 load=4.89 top: 105.2%corespotlightd 102.1%batch_gap_bench 6.9%bzfilelist 
+01:07:15 load=6.34 top: 171.4%corespotlightd 102.5%mediaanalysisd 99.8%batch_gap_bench 
+01:07:35 load=8.20 top: 269.7%corespotlightd 103.0%batch_gap_bench 92.0%mediaanalysisd 
+01:07:55 load=7.82 top: 374.6%batch_gap_bench 78.8%mediaanalysisd 7.2%VTDecoderXPCService 
+01:08:15 load=7.08 top: 100.5%batch_gap_bench 99.0%mediaanalysisd 16.0%bzfilelist 
+01:08:35 load=6.57 top: 136.0%mediaanalysisd 105.9%batch_gap_bench 22.3%storeuid 
+01:08:55 load=6.29 top: 135.7%mediaanalysisd 98.2%batch_gap_bench 29.5%storeuid 
+## pass 2: load during gap_init (every 20 s)
+05:49:31 load=2.03 top: 68.8%corespotlightd 9.0%locationd 3.3%airportd 
+05:49:51 load=2.54 top: 177.0%batch_gap_bench 4.5%locationd 3.5%sandboxd 
+05:50:11 load=2.76 top: 164.0%batch_gap_bench 3.4%locationd 1.0%airportd 
+05:50:31 load=4.06 top: 161.2%batch_gap_bench 19.9%mds_stores 3.6%mds 
+05:50:51 load=4.07 top: 165.7%batch_gap_bench 1.8%locationd 0.6%WindowServer 
+05:51:11 load=5.15 top: 496.7%batch_gap_bench 53.6%textunderstandingd 17.1%mediaanalysisd 
+05:51:31 load=5.82 top: 169.4%batch_gap_bench 5.0%AXVisualSupportAgent 3.4%Bartender 
+05:51:51 load=5.83 top: 174.6%batch_gap_bench 98.8%mediaanalysisd 19.3%OneDrive 
+05:52:11 load=4.96 top: 156.2%batch_gap_bench 99.6%mediaanalysisd 0.8%logd 
+## gate samples above the limit: pass 1 164, pass 2 521
