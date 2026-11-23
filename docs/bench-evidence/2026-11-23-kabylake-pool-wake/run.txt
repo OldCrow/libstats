@@ -1,0 +1,22 @@
+2026-11-23T02:49:33Z load=1.90 wake start dev=6d95852 main=19d2c35 smoke=0 max_load=2.0
+2026-11-23T02:49:33Z load=1.90 build dev ok: [4/4] Linking CXX executable tests/Release/test_exponential_basic_dynamic
+2026-11-23T02:49:33Z load=1.90 build main ok: [4/4] Linking CXX executable tests/Release/test_gaussian_basic_dynamic
+2026-11-23T02:49:33Z load=1.90 system_inspector: System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+2026-11-23T02:49:33Z load=1.90 wake plain waiting for load < 2.0
+2026-11-23T02:49:33Z load=1.90 wake plain start
+2026-11-23T02:50:14Z load=3.04 wake plain end exit=0
+2026-11-23T02:50:14Z load=3.04 wake init waiting for load < 2.0
+2026-11-23T02:51:29Z load=1.98 wake init start
+2026-11-23T02:52:09Z load=2.44 wake init end exit=0
+2026-11-23T02:52:09Z load=2.44 wake init+ws waiting for load < 2.0
+2026-11-23T02:52:40Z load=1.94 wake init+ws start
+2026-11-23T02:53:40Z load=2.85 wake init+ws end exit=0
+2026-11-23T02:53:40Z load=2.85 wake plain sleep waiting for load < 2.0
+2026-11-23T02:54:40Z load=1.86 wake plain sleep start
+2026-11-23T02:55:04Z load=1.98 wake plain sleep end exit=0
+2026-11-23T02:55:04Z load=1.98 wake init+ws fine waiting for load < 2.0
+2026-11-23T02:55:04Z load=1.98 wake init+ws fine start
+2026-11-23T02:56:16Z load=4.81 wake init+ws fine end exit=0
+2026-11-23T02:56:16Z load=4.81 wake DONE dev=6d95852
+2026-11-23T02:58:17Z load=1.91 wake init+ws sleep start (run by hand in the same sitting)
+2026-11-23T02:58:53Z load=3.54 wake init+ws sleep end exit=0

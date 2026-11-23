@@ -792,8 +792,10 @@ value for the pool design:
    in use, indicative only: at a 2 ms gap the thread pool's call costs
    60–66 µs more, the last worker starts 39–56 µs later, and the work
    time per element is unchanged (×1.00); the caller's serial work is
-   unchanged too. That is the start-delay reading. Owed: the three quiet
-   runs on K, then the same on I, M and Z.
+   unchanged too. That is the start-delay reading. **Quiet runs on K
+   done 2026-11-23** at `6d95852`, six processes
+   (`docs/bench-evidence/2026-11-23-kabylake-pool-wake/`, with items 5
+   and 6 below); findings under "K, measured". Owed on I, M and Z.
 3. **Clocks and idle states, privileged, once per machine, to name the
    cause.** While `batch_gap_bench` runs one plain cell at a 20 ms gap and
    one back to back: K and M `sudo powermetrics --samplers cpu_power -i
@@ -819,9 +821,75 @@ value for the pool design:
    calls `initialize_performance_systems()` and sleeps 10 s
    (`getrusage`). I measured over two cores; K, M and Z have no figure.
 
+8. **The thread pool at eight threads on K** [added 2026-11-23]: the
+   two pools differ in thread count there (finding 3 below), so every
+   WORK_STEALING-against-PARALLEL figure compares four threads with
+   eight. `pool_wake_bench` with a `ThreadPool` of
+   `hardware_concurrency()` threads would separate stealing from thread
+   count.
+
 Items 1, 2 and 7 are cheap and decide the most: the fixed-cost and
 proportional readings, and what the polling costs. Item 3 is the only
 one that needs the user at the keyboard.
+
+### K, measured: start delay, clock, and what the polling buys [DERIVED, K, 2026-11-23]
+
+`pool_wake_bench`, quiet, integer workload of 14 ns per element
+(`docs/bench-evidence/2026-11-23-kabylake-pool-wake/`). Times are read
+from the workload; no frequency or idle-state counter was sampled.
+
+1. **Busy caller, thread pool only: a late start and nothing else.** At
+   a 20 ms gap the call costs 60–75 µs more than back to back at every
+   size from 4096 to 204,800, the last worker starts 30–60 µs later
+   (76–85 µs after the submit against 16–54), and the work per element
+   is unchanged (×1.00), as is the caller's serial work. This confirms
+   the fit's W on K with no kernel involved.
+2. **Sleeping caller, thread pool only: the clock drops, serial work
+   included.** After a 2 ms or 20 ms sleep, serial work runs 3.0× slower
+   at 4096 and 10,240 (12.6 to 37.8 ns per element), recovering inside
+   longer calls (20–25 ns at 204,800). Pool workers run 2.6× slower, the
+   last starts 126–141 µs after the submit, and the call is 5× longer at
+   4096, 2.1× at 204,800. **So K shows a slow run as well, when the
+   whole process idles**; `batch_gap_bench`'s default busy gap hides it.
+   The pool's advantage over serial at the same gap falls from 2.0× to
+   1.4× at 10,240 and is lost at 4096.
+3. **The two pools run different thread counts on K**: `ThreadPool`
+   takes physical cores under hyper-threading (four,
+   `src/thread_pool.cpp:131`); the work-stealing pool ran eight workers
+   from 51,200 elements and finished 204,800 in 535 µs against 858
+   (1.6×). Its win at large sizes is thread count. At 4096–10,240 both
+   use four and it wins on the start (first worker 1.3 µs after the
+   submit against 11).
+4. **Work stealing's start delay after a busy gap sets in between 10 and
+   20 µs** (call at 4096: 36.9, 39.0, 42.9, 58.7, 59.5, 75.1 µs at gaps
+   of 0, 5, 10, 20, 40, 100 µs; 121 µs at 50 µs).
+5. **What the polling pool buys on K is the clock.** With it alive, a
+   sleeping caller loses nothing: serial 14.05 to 14.3 ns, thread pool
+   48.6 to 54–58 µs at 4096, work stealing 36.8 to 37.5–38.9 µs with no
+   start delay. Its price back to back: thread pool 27% slower at 4096,
+   21% at 10,240, 9% at 51,200, 3% at 204,800; serial integer work 3%.
+6. Not explained: work stealing delays after a busy gap (4) and not
+   after a sleeping one (5).
+7. Serial integer work shows no step at a 2 ms busy gap, where Gaussian
+   VECTORIZED gained 10 µs per call; consistent with the AVX-unit
+   candidate, which stays unverified.
+
+**For the design** [K's reading; undecided]:
+- The caller's state between batches matters as much as the pool's. K
+  has two regimes: caller busy (a delay of 60–75 µs, derivable
+  thresholds) and process idle (a delay of about 130 µs plus 2.6–3×
+  on everything for the first milliseconds). The second is not a pool
+  defect: serial and VECTORIZED code pay it too, and no threshold
+  avoids it.
+- Dropping the polling (option 2) therefore costs K more than the first
+  reading said: a caller that blocks between batches loses 3× on small
+  serial batches as well. Keeping it costs every back-to-back caller
+  3–27%.
+- K's AUTO → WORK_STEALING rule compares eight threads with four. Whether
+  stealing or thread count earns the selection is item 8.
+- I's "neither" fit may be these two regimes mixed: on I a busy caller
+  does not hold the workers' clock up as it does on K. `pool_wake_bench`
+  on I, plain and `--sleep`, would show it.
 
 ## Design inputs from the threshold captures [OPEN]
 From the v2.5.0 captures on three machines (tested 2026-10-06) and the
