@@ -26,6 +26,13 @@
 //   --sleep      the caller sleeps during the gap instead of working
 //   --gaps a,b   gaps in microseconds (default 0,50,500,2000,20000)
 //   --sizes a,b  element counts (default 4096,10240,51200,204800)
+//   --local-pool a,b  adds a LOCAL_POOL_<n> row per count: a ThreadPool of n threads owned by
+//                this program, driven by a copy of ParallelUtils' slice submission (same slices,
+//                same grain rule with n threads, one submit per chunk, wait for all). The
+//                library's pool takes physical cores under hyper-threading and its
+//                work-stealing pool takes logical ones, so this separates thread count from
+//                stealing. Give the library's own count too (4 on a 4-core/8-thread machine):
+//                that row against THREAD_POOL shows whether the copy is faithful.
 //
 // A cell runs its pattern for 0.3 s unmeasured, then for at least 0.7 s and 20 calls; the CSV
 // reports medians over calls (StartLast also at the 90th percentile). The '#' lines at the end
@@ -46,7 +53,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <future>
 #include <map>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -111,10 +120,38 @@ struct CallStats {
     int workers;
 };
 
-enum class Mode { Serial, ThreadPool, WorkStealing };
+enum class Mode { Serial, ThreadPool, WorkStealing, LocalPool };
+
+/// ParallelUtils::parallelForSlices on a pool of our own: the same slices (a short tail folded
+/// into the last one), the same grain rule with this pool's thread count, one submit per chunk,
+/// every future waited on.
+template <class Body>
+void localPoolForSlices(stats::ThreadPool& pool, std::size_t threads, std::size_t count,
+                        const Body& body) {
+    const std::size_t num_slices = std::max<std::size_t>(1, count / kSlice);
+    const std::size_t grain = std::max<std::size_t>(1, num_slices / (threads * 4));
+    std::vector<std::future<void>> futures;
+    futures.reserve((num_slices + grain - 1) / grain);
+    for (std::size_t i = 0; i < num_slices; i += grain) {
+        const std::size_t chunk_end = std::min(i + grain, num_slices);
+        futures.push_back(pool.submit([&body, i, chunk_end, count, num_slices] {
+            for (std::size_t ci = i; ci < chunk_end; ++ci) {
+                const std::size_t begin = ci * kSlice;
+                body(begin, ci + 1 == num_slices ? count - begin : kSlice);
+            }
+        }));
+    }
+    for (auto& f : futures)
+        f.wait();
+}
+
+struct LocalPool {
+    std::size_t threads;
+    std::unique_ptr<stats::ThreadPool> pool;
+};
 
 /// One call: run `n` elements under `mode`, return what the slices recorded.
-CallStats oneCall(Mode mode, std::size_t n, std::vector<SliceRecord>& slices) {
+CallStats oneCall(Mode mode, std::size_t n, std::vector<SliceRecord>& slices, LocalPool* local) {
     for (auto& s : slices)
         s.thread = -1;
     std::atomic<std::uint64_t> acc{0};
@@ -138,6 +175,9 @@ CallStats oneCall(Mode mode, std::size_t n, std::vector<SliceRecord>& slices) {
             break;
         case Mode::WorkStealing:
             stats::GlobalWorkStealingPool::getInstance().parallelForSlices(n, kSlice, body);
+            break;
+        case Mode::LocalPool:
+            localPoolForSlices(*local->pool, local->threads, n, body);
             break;
     }
     const auto done = clk::now();
@@ -184,16 +224,16 @@ struct Cell {
     std::size_t calls;
 };
 
-Cell timeCell(Mode mode, std::size_t n, double gap_us, bool sleep) {
+Cell timeCell(Mode mode, std::size_t n, double gap_us, bool sleep, LocalPool* local) {
     std::vector<SliceRecord> slices(std::max<std::size_t>(1, n / kSlice) + 1);
     for (const auto t0 = clk::now(); secondsSince(t0) < kWarmSeconds;) {
-        oneCall(mode, n, slices);
+        oneCall(mode, n, slices, local);
         gap(gap_us, sleep);
     }
     std::vector<CallStats> calls;
     for (const auto t0 = clk::now();
          secondsSince(t0) < kTimedSeconds || calls.size() < kMinCalls;) {
-        calls.push_back(oneCall(mode, n, slices));
+        calls.push_back(oneCall(mode, n, slices, local));
         gap(gap_us, sleep);
     }
     const auto quantile = [&](double CallStats::* field, double q) {
@@ -241,6 +281,7 @@ int main(int argc, char** argv) {
     bool init = false, with_ws = false, sleep = false;
     std::vector<std::size_t> sizes = {4096, 10240, 51200, 204800};
     std::vector<double> gaps_us = {0.0, 50.0, 500.0, 2000.0, 20000.0};
+    std::vector<std::size_t> local_threads;
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--init") == 0) {
             init = true;
@@ -252,13 +293,18 @@ int main(int argc, char** argv) {
             gaps_us = parseList<double>(argv[++i]);
         } else if (std::strcmp(argv[i], "--sizes") == 0 && i + 1 < argc) {
             sizes = parseList<std::size_t>(argv[++i]);
+        } else if (std::strcmp(argv[i], "--local-pool") == 0 && i + 1 < argc) {
+            local_threads = parseList<std::size_t>(argv[++i]);
+            if (local_threads.empty() ||
+                std::find(local_threads.begin(), local_threads.end(), 0) != local_threads.end())
+                gaps_us.clear();
         } else {
             gaps_us.clear();
         }
         if (gaps_us.empty() || sizes.empty()) {
             std::fprintf(stderr,
                          "usage: %s [--init] [--ws] [--sleep] [--gaps us,us,...] "
-                         "[--sizes n,n,...]\n",
+                         "[--sizes n,n,...] [--local-pool threads,...]\n",
                          argv[0]);
             return 2;
         }
@@ -268,12 +314,22 @@ int main(int argc, char** argv) {
         stats::initialize_performance_systems();
 
     struct ModeRow {
-        const char* name;
+        std::string name;
         Mode mode;
+        LocalPool* local;
     };
-    std::vector<ModeRow> modes = {{"SERIAL", Mode::Serial}, {"THREAD_POOL", Mode::ThreadPool}};
+    std::vector<ModeRow> modes = {{"SERIAL", Mode::Serial, nullptr},
+                                  {"THREAD_POOL", Mode::ThreadPool, nullptr}};
     if (with_ws)
-        modes.push_back({"WORK_STEALING", Mode::WorkStealing});
+        modes.push_back({"WORK_STEALING", Mode::WorkStealing, nullptr});
+    // Every local pool exists from here on, as the library's pools do once created: their idle
+    // workers sleep on a condition variable and cost nothing.
+    std::vector<LocalPool> local_pools;
+    local_pools.reserve(local_threads.size());
+    for (const std::size_t t : local_threads) {
+        local_pools.push_back({t, std::make_unique<stats::ThreadPool>(t)});
+        modes.push_back({"LOCAL_POOL_" + std::to_string(t), Mode::LocalPool, &local_pools.back()});
+    }
 
     const char* pool = init ? "init" : "plain";
     const char* gap_kind = sleep ? "sleep" : "busy";
@@ -289,12 +345,12 @@ int main(int argc, char** argv) {
     for (const auto& m : modes) {
         for (const double gap_us : gaps_us) {
             for (const std::size_t n : sizes) {
-                const Cell c = timeCell(m.mode, n, gap_us, sleep);
+                const Cell c = timeCell(m.mode, n, gap_us, sleep, m.local);
                 results[m.name][n][gap_us] = c;
                 std::printf("%s,%s,%s,%zu,%.0f,%zu,%.2f,%.0f,%.2f,%.2f,%.2f,%.3f,%.3f,%.2f\n", pool,
-                            gap_kind, m.name, n, gap_us, c.calls, c.call_us, c.workers, c.start1_us,
-                            c.start_last_us, c.start_last_p90_us, c.work_ns, c.first_work_ns,
-                            c.join_us);
+                            gap_kind, m.name.c_str(), n, gap_us, c.calls, c.call_us, c.workers,
+                            c.start1_us, c.start_last_us, c.start_last_p90_us, c.work_ns,
+                            c.first_work_ns, c.join_us);
                 std::fflush(stdout);
             }
         }

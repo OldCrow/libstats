@@ -826,7 +826,11 @@ value for the pool design:
    WORK_STEALING-against-PARALLEL figure compares four threads with
    eight. `pool_wake_bench` with a `ThreadPool` of
    `hardware_concurrency()` threads would separate stealing from thread
-   count.
+   count. **Prepared 2026-11-23**: `pool_wake_bench --local-pool 4,8`
+   (a pool owned by the bench, driven by a copy of the library's slice
+   submission; the 4-thread row checks the copy). No quiet run yet. A
+   smoke run with the machine in use: 204,800 elements back to back in
+   546 µs on eight threads, 529 under work stealing, 847–857 on four.
 
 Items 1, 2 and 7 are cheap and decide the most: the fixed-cost and
 proportional readings, and what the polling costs. Item 3 is the only
