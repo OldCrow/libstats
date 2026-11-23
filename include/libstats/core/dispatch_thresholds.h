@@ -158,6 +158,13 @@ using ArchTable = std::array<ThresholdRow, kDistributionTypeCount>;
 // by scripts/derive_threshold_rows.py (PLAN.md R8, the 2026-10-14 rules; fork value 2048).
 // A row marked "2026-10-14:" names its old and new values; the prose after the marker
 // predates the re-derivation and describes the older measurement.
+// 2026-11-22: re-derived on dev/v3.0.0-corvus-adoption (cfbb992) from
+// 2026-11-22T17-20-47Z_darwin-arm64_dev-v3.0.0-corvus-adoption_sha-cfbb992; one row changed
+// (Poisson LogPDF), the rest measure within one grid step or lost the table_ab A/B
+// (docs/bench-evidence/2026-11-22-m1-neon-threshold-rows/).
+// PROVISIONAL: the bundle and the A/B were timed before the per-cell steady-state change
+// (#320, 8c55bfc), with the polling work-stealing pool alive. Whether kNeon is re-captured
+// follows the batch-gap check (PLAN.md, L7).
 constexpr ArchTable kNeon = {{
     /* UNIFORM(0)            */ {NEVER, 500000,
                                  25000},  // 2026-10-14: LogPDF NEVER→500k, CDF 64→25k.
@@ -167,7 +174,10 @@ constexpr ArchTable kNeon = {{
     /* DISCRETE(3)           */ {200000, 200000, 75000},  // 2026-10-14: PDF 50k→200k, LogPDF
                                                           // 50k→200k, CDF 1000k→75k. CDF: bimodal
                                                           // {750k,1M,64}; R3 warm; upper pair→1M
-    /* POISSON(4)            */ {4096, 2048, 2048},  // 2026-10-14: LogPDF 256→2048, CDF 256→2048.
+    /* POISSON(4)            */ {4096, 10000, 2048},  // 2026-10-14: LogPDF 256→2048, CDF 256→2048.
+    // 2026-11-22 (corvus adoption, cfbb992): LogPDF 2048→10k. Runs 8192/4096/10k; table_ab
+    // ABAB: PARALLEL 1.3-1.8x behind VECTORIZED at 2048-4096, 1.04-1.23x behind at 8192-10k,
+    // 0.6x at 25k.
     // GAMMA/BETA/LOG_NORMAL rows re-measured 2026-09-04 after the
     // parallelForSlices repair (#143): their sliced PARALLEL paths had never
     // actually forked, so the June rows were calibrated against a

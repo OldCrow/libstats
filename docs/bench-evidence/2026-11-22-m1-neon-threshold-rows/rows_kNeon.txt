@@ -1,0 +1,88 @@
+kNeon: rows derived from 2026-11-22T17-20-47Z_darwin-arm64_dev-v3.0.0-corvus-adoption_sha-cfbb992 (M (M1, AppleClang 21))
+previous capture 2026-10-14T04-39-37Z_darwin-arm64_dev-v2.4.2_sha-d1adc95; fork value 2048, fork zone <= 2048
+grid: 64 128 256 512 1024 2048 4096 6144 8192 10k 25k 50k 75k 100k 150k 200k 250k 300k 400k 500k 750k 1000k 1500k 2000k
+
+Distribution    Op       table          run1/run2/run3    cand    prev  decision       proposed  cmt  Zdir    note
+Bernoulli       PDF       2048          2048/4096/2048    2048    1024  KEEP ok            2048  yes  -       
+Bernoulli       LogPDF    6144          6144/6144/4096    6144    6144  KEEP ok            6144  yes  -       
+Bernoulli       CDF       6144            25k/8192/25k     25k    6144  CHANGE              25k  yes  -       runs spread 3.1x; max 25k still clears the table
+Beta            PDF       8192            8192/10k/10k     10k    8192  KEEP ok            8192  yes  -       
+Beta            LogPDF     10k             10k/10k/10k     10k     10k  KEEP ok             10k  yes  -       
+Beta            CDF       2048           2048/128/2048    2048    2048  CHANGE taken       2048  yes  -       candidate taken: user 2026-10-14: candidate 2048 three times in both captures; PARALLEL 1.6x ahead at 2048 in both passes
+Binomial        PDF       2048          2048/1024/1024    1024    2048  KEEP ok            2048  yes  -       
+Binomial        LogPDF    2048           1024/256/1024    1024    2048  KEEP ok            2048  yes  -       
+Binomial        CDF       2048            2048/64/2048    2048    2048  KEEP ok            2048  yes  -       
+Cauchy          PDF       100k           150k/100k/75k    100k    100k  KEEP ok            100k  yes  -       
+Cauchy          LogPDF     50k             50k/50k/75k     50k     75k  KEEP ok             50k  yes  -       
+Cauchy          CDF       8192          8192/6144/6144    6144    8192  KEEP ok            8192  yes  -       
+ChiSquared      PDF        25k             25k/75k/25k     75k     25k  CHANGE              75k  yes  -       runs spread 3.0x; max 75k still clears the table
+ChiSquared      LogPDF     50k             75k/75k/75k     75k     50k  KEEP ok             50k  yes  -       
+ChiSquared      CDF       2048          2048/2048/2048    2048    2048  KEEP ok            2048  yes  -       
+Discrete        PDF       200k          200k/150k/200k    200k    200k  KEEP ok            200k  yes  -       
+Discrete        LogPDF    200k          200k/150k/150k    150k    200k  KEEP ok            200k  yes  -       
+Discrete        CDF        75k            100k/75k/75k     75k     75k  KEEP ok             75k  yes  -       
+Erlang          PDF        50k             10k/25k/75k     75k     50k  KEEP ok             50k  yes  -       
+Erlang          LogPDF     75k             50k/50k/75k     50k     50k  KEEP ok             75k  yes  -       
+Erlang          CDF       4096           2048/1024/512    2048    1024  KEEP ok            4096  yes  -       
+Exponential     PDF        75k             75k/75k/75k     75k     75k  KEEP ok             75k  yes  -       
+Exponential     LogPDF    200k          200k/200k/300k    200k    200k  KEEP ok            200k  yes  -       
+Exponential     CDF        25k           8192/8192/10k    8192    8192  KEEP judgment       25k  yes  -       user 2026-10-14: the quiet profile's 8192 is marginal for a 2.5 ns/element kernel; on the loaded machine PARALLEL at 8192-10k loses 1.6-2x to VECTORIZED and only matches it at 25k (table_ab ABAB); 25k kept
+FisherF         PDF       2048          2048/1024/1024    1024    2048  KEEP ok            2048  yes  -       
+FisherF         LogPDF    2048             512/4096/64    4096     256  KEEP ok            2048  yes  -       
+FisherF         CDF       2048          2048/1024/2048    2048    2048  KEEP ok            2048  yes  -       
+Gamma           PDF        50k            8192/25k/10k     25k     25k  KEEP ok             50k  yes  -       
+Gamma           LogPDF     25k             75k/50k/25k     75k     25k  CHANGE              75k  yes  -       runs spread 3.0x; max 75k still clears the table
+Gamma           CDF       2048           2048/1024/256    2048    2048  CHANGE taken       2048  yes  -       candidate taken: user 2026-10-14: candidate 2048 in both captures; table_ab round 3: PARALLEL 1.5-1.7x ahead at 2048 in both passes (ChiSquared and Erlang CDF follow this row)
+Gaussian        PDF        75k            100k/75k/75k     75k     75k  CHANGE taken        75k  yes  -       candidate taken: user 2026-10-14: candidate 75k three times; VECTORIZED 1.45x ahead of PARALLEL at 50k in both passes (TruncatedNormal LogPDF's AUTO tracks this row)
+Gaussian        LogPDF    200k          200k/250k/300k    250k    200k  KEEP ok            200k  yes  -       
+Gaussian        CDF        10k           8192/25k/8192     25k     10k  KEEP ok             10k  yes  -       
+Geometric       PDF       2048            256/512/2048    2048    2048  KEEP ok            2048  yes  -       
+Geometric       LogPDF    2048           512/2048/1024    2048    2048  KEEP ok            2048  yes  -       
+Geometric       CDF       4096           256/4096/4096    4096    4096  KEEP ok            4096  yes  -       
+Gumbel          PDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  -       
+Gumbel          LogPDF     50k             75k/50k/75k     75k     75k  KEEP ok             50k  yes  -       
+Gumbel          CDF        50k             75k/75k/50k     75k     25k  KEEP ok             50k  yes  -       
+HalfNormal      PDF       100k             75k/75k/75k     75k     75k  KEEP ok            100k  yes  -       
+HalfNormal      LogPDF    200k          150k/200k/150k    150k    150k  KEEP ok            200k  yes  -       
+HalfNormal      CDF        75k             75k/75k/75k     75k     75k  KEEP ok             75k  yes  -       
+InverseGamma    PDF        50k             50k/25k/75k     75k     50k  KEEP ok             50k  yes  -       
+InverseGamma    LogPDF     25k             75k/25k/75k     75k     25k  CHANGE              75k  yes  -       runs spread 3.0x; max 75k still clears the table
+InverseGamma    CDF       2048            2048/64/2048    2048    2048  KEEP ok            2048  yes  -       
+Laplace         PDF        50k             75k/50k/75k     75k     75k  KEEP ok             50k  yes  -       
+Laplace         LogPDF    100k           75k/100k/100k    100k    100k  KEEP ok            100k  yes  -       
+Laplace         CDF       6144          6144/8192/8192    8192    6144  KEEP ok            6144  yes  -       
+LogNormal       PDF        25k             25k/25k/10k     25k     25k  CHANGE taken        25k  yes  -       candidate taken: user 2026-10-14: candidate 25k; PARALLEL 1.25-1.4x ahead at 25k in both passes
+LogNormal       LogPDF     50k             50k/50k/50k     50k     25k  KEEP ok             50k  yes  -       
+LogNormal       CDF        25k           8192/10k/6144    8192     10k  KEEP override       25k  yes  -       measures as before; table comment stands unless stale
+Logistic        PDF        25k             10k/10k/25k     25k     25k  CHANGE taken        25k  yes  -       candidate taken: user 2026-10-14: candidate 25k; PARALLEL 1.5x ahead at 25k in both passes
+Logistic        LogPDF     25k             50k/25k/50k     50k     25k  CHANGE taken        50k  yes  -       candidate taken: user 2026-10-14: candidate 25k; PARALLEL 1.45x ahead at 25k in both passes
+Logistic        CDF        50k             50k/50k/75k     50k     50k  KEEP ok             50k  yes  -       
+NegBinomial     PDF       2048           512/2048/1024    2048    2048  KEEP ok            2048  yes  -       
+NegBinomial     LogPDF    2048          6144/4096/1024    6144    2048  CHANGE             6144  yes  -       runs spread 6.0x; max 6144 still clears the table
+NegBinomial     CDF       2048            1024/64/2048    2048    2048  KEEP ok            2048  yes  -       
+Pareto          PDF        50k             25k/50k/75k     75k     50k  CHANGE taken        75k  yes  -       candidate taken: user 2026-10-14: candidate 50k; PARALLEL 1.5-1.6x ahead at 50k in both passes
+Pareto          LogPDF     50k             75k/75k/75k     75k     75k  KEEP ok             50k  yes  -       
+Pareto          CDF       8192          8192/6144/8192    8192    8192  KEEP ok            8192  yes  -       
+Poisson         PDF       4096          4096/1024/6144    6144    4096  KEEP ok            4096  yes  -       
+Poisson         LogPDF    2048           8192/4096/10k     10k    1024  CHANGE              10k  yes  -       runs spread 2.4x; max 10k still clears the table
+Poisson         CDF       2048          2048/1024/1024    1024    2048  KEEP ok            2048  yes  -       
+Rayleigh        PDF        20k             75k/25k/10k     75k     25k  CHANGE              75k  yes  -       runs spread 7.5x; max 75k still clears the table
+Rayleigh        LogPDF     25k             75k/25k/25k     75k     25k  CHANGE              75k  yes  -       runs spread 3.0x; max 75k still clears the table
+Rayleigh        CDF        25k           10k/6144/8192    8192    8192  KEEP judgment       25k  yes  -       user 2026-10-14: as Exponential CDF; PARALLEL at 8192 loses 1.8x, wins at 25k (table_ab ABAB); 25k kept
+StudentT        PDF        50k             25k/25k/25k     25k     50k  KEEP ok             50k  yes  -       
+StudentT        LogPDF     25k             50k/50k/25k     50k     50k  KEEP ok             25k  yes  -       
+StudentT        CDF       2048           256/2048/2048    2048    2048  KEEP ok            2048  yes  -       
+TruncatedNormal PDF        50k             75k/50k/25k     75k     50k  KEEP ok             50k  yes  -       
+TruncatedNormal LogPDF     75k             75k/75k/75k     75k     75k  KEEP ok             75k  yes  -       
+TruncatedNormal CDF       4096          4096/4096/4096    4096    4096  KEEP ok            4096  yes  -       
+Uniform         PDF      NEVER         400k/NEVER/400k   NEVER   NEVER  KEEP ok           NEVER  yes  -       
+Uniform         LogPDF    500k          500k/400k/500k    500k    500k  KEEP ok            500k  yes  -       
+Uniform         CDF        25k             25k/25k/25k     25k     25k  KEEP ok             25k  yes  -       
+VonMises        PDF        25k             10k/25k/10k     25k     25k  KEEP ok             25k  yes  -       
+VonMises        LogPDF     25k             10k/25k/25k     25k     25k  KEEP ok             25k  yes  -       
+VonMises        CDF       2048           128/2048/1024    2048    2048  KEEP ok            2048  yes  -       
+Weibull         PDF        25k           10k/8192/8192    8192     10k  KEEP override       25k  yes  -       measures as before; table comment stands unless stale
+Weibull         LogPDF     25k             10k/10k/10k     10k     25k  CHANGE taken        10k  yes  -       candidate taken: user 2026-10-14: candidate 25k; PARALLEL 1.5-1.8x ahead at 25k in both passes
+Weibull         CDF       8192           10k/8192/6144    8192    8192  KEEP ok            8192  yes  -       
+
+CHANGE=8  CHANGE taken=8  KEEP judgment=2  KEEP ok=61  KEEP override=2  total=81

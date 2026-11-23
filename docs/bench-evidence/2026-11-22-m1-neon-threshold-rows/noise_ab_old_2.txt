@@ -1,0 +1,2 @@
+17:06:27 load=5.37 top: 5.4%bzfilelist 3.6%airportd 3.0%locationd 
+17:07:27 load=4.10 top: 169.3%table_ab_old 8.0%Bartender 4.6%WindowServer 

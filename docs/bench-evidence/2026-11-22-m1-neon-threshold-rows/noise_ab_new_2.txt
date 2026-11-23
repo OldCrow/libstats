@@ -1,0 +1,2 @@
+18:11:34 load=2.01 top: 11.8%launchd 1.2%AXVisualSupportAgent 0.9%WindowServer 
+18:12:34 load=3.31 top: 173.9%table_ab_new 8.3%Bartender 7.5%launchd 

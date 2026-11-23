@@ -1,0 +1,2 @@
+15:44:22 load=2.40 top: 8.5%WindowServer 2.7%Bartender 2.1%Application 
+15:45:22 load=4.15 top: 162.7%mediaanalysisd 100.0%table_ab_new 12.3%VTDecoderXPCService 

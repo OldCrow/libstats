@@ -42,7 +42,7 @@ header names its bundle.
 
 | Table | Machine | Bundle |
 |---|---|---|
-| kNeon | Mac Mini M1 (native) | `2026-10-14T04-39-37Z_darwin-arm64_…` |
+| kNeon | Mac Mini M1 (native); one row (Poisson LogPDF) re-derived 2026-11-22 at the v3.0.0 adoption head, provisional | `2026-10-14T04-39-37Z_darwin-arm64_…`, `2026-11-22T17-20-47Z_darwin-arm64_…` |
 | kAvx2 | Kaby Lake i7-7820HQ (native) | `2026-10-13T13-11-55Z_darwin-x86_64_…` |
 | kAvx512 | Asus TUF A16 Zen 4 (native, clang-cl) | `2026-10-14T02-41-05Z_windows-x86_64_…` |
 | kAvx | Ivy Bridge i7-3820QM (native, Linux, GCC 13.3), re-derived 2026-11-21 at the v3.0.0 adoption head | `2026-11-21T21-09-06Z_linux-x86_64_…` |

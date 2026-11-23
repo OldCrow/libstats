@@ -1,0 +1,2 @@
+15:39:49 load=2.11 top: 3.8%WindowServer 0.9%Bartender 0.5%Application 
+15:40:49 load=1.99 top: 146.4%table_ab_old 3.1%WindowServer 3.0%locationd 

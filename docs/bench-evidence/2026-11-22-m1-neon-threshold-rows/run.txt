@@ -1,0 +1,18 @@
+2026-11-22 15:02:07 load=24.87 table_ab start (old = cfbb992 table, new = l5/dispatch_thresholds.h.proposed)
+2026-11-22 15:02:07 load=24.87 ab old pass1: waiting for ambient < 15% over two consecutive 10s windows
+2026-11-22 15:39:49 load=2.11 ab old pass1: gate passed (<15%) ambient=7.80% top: 6.1%WindowServer 1.9%Bartender 0.9%Application 
+2026-11-22 15:39:49 load=2.11 ab old pass1: start
+2026-11-22 15:41:49 load=2.93 ab old pass1: end exit=0 rows=2431
+2026-11-22 15:41:49 load=2.93 ab new pass1: waiting for ambient < 15% over two consecutive 10s windows
+2026-11-22 15:44:22 load=2.40 ab new pass1: gate passed (<15%) ambient=7.20% top: 13.4%WindowServer 4.5%Bartender 3.1%Application 
+2026-11-22 15:44:22 load=2.40 ab new pass1: start
+2026-11-22 15:46:22 load=4.43 ab new pass1: end exit=0 rows=2431
+2026-11-22 15:46:22 load=4.43 ab old pass2: waiting for ambient < 15% over two consecutive 10s windows
+2026-11-22 17:06:27 load=5.37 ab old pass2: gate passed (<15%) ambient=10.09% top: 5.4%bzfilelist 3.6%airportd 3.0%locationd 
+2026-11-22 17:06:27 load=5.37 ab old pass2: start
+2026-11-22 17:08:27 load=3.10 ab old pass2: end exit=0 rows=2431
+2026-11-22 17:08:27 load=3.10 ab new pass2: waiting for ambient < 15% over two consecutive 10s windows
+2026-11-22 18:11:34 load=2.01 ab new pass2: gate passed (<15%) ambient=7.43% top: 11.8%launchd 1.2%AXVisualSupportAgent 0.9%WindowServer 
+2026-11-22 18:11:34 load=2.01 ab new pass2: start
+2026-11-22 18:13:34 load=4.31 ab new pass2: end exit=0 rows=2431
+2026-11-22 18:13:34 load=4.31 DONE

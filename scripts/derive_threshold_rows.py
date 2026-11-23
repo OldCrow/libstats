@@ -68,9 +68,16 @@ TABLES = OrderedDict([
                      fork=4096, fork_zone=4096, confirm=None, date="2026-11-21",
                      head="v3.0.0 corvus-adoption head (code e890dec) from the native bundle",
                      machine="I (Ivy Bridge, GCC 13.3), native AVX")),
-    ("kNeon",   dict(new="2026-10-14T04-39-37Z_darwin-arm64_dev-v2.4.2_sha-d1adc95",
-                     prev="2026-10-05T04-36-25Z_darwin-arm64_dev-v2.4.2_sha-2c5230a",
-                     fork=2048, fork_zone=2048, confirm=None, machine="M (M1, AppleClang 21)")),
+    # kNeon at the corvus-adoption head. Only Poisson LogPDF was applied (2026-11-22, by hand): the
+    # table_ab A/B refused seven of the eight spread-maximum candidates, and the three kNeon
+    # TAKE_CANDIDATE entries that move a value here (Logistic LogPDF, Pareto PDF, Weibull LogPDF)
+    # cite 2026-10-14 evidence for the October candidate, so their output is not to be applied
+    # (docs/bench-evidence/2026-11-22-m1-neon-threshold-rows/).
+    ("kNeon",   dict(new="2026-11-22T17-20-47Z_darwin-arm64_dev-v3.0.0-corvus-adoption_sha-cfbb992",
+                     prev="2026-10-14T04-39-37Z_darwin-arm64_dev-v2.4.2_sha-d1adc95",
+                     fork=2048, fork_zone=2048, confirm=None, date="2026-11-22",
+                     head="v3.0.0 corvus-adoption head (cfbb992) from the native bundle",
+                     machine="M (M1, AppleClang 21)")),
 ])
 NAME_MAP = {"negbinomial": "negativebinomial"}  # CSV name -> header row name, after norm()
 # Rows exempted from rule 2 (KEEP override) by the user's decision, with the reason recorded.
