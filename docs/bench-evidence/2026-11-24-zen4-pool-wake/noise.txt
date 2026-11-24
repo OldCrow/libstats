@@ -1,0 +1,6 @@
+2026-11-24 18:05:39 top3=0.04 cores: AacAmbientLighting 0.02, claude 0.01, GWIdlMon 0.01
+2026-11-24 18:06:39 top3=0.03 cores: AacAmbientLighting 0.02, AcPowerNotification 0.01, claude 0.01
+2026-11-24 18:02:07 top3=0.03 cores: AacAmbientLighting 0.02, claude 0.01, nvcontainer 0.00
+2026-11-24 18:03:07 top3=0.03 cores: AacAmbientLighting 0.01, claude 0.01, CrossDeviceService 0.00
+2026-11-24 17:54:41 top3=0.03 cores: AacAmbientLighting 0.01, claude 0.01, firefox 0.01
+2026-11-24 17:58:49 top3=0.03 cores: AacAmbientLighting 0.02, AcPowerNotification 0.01, claude 0.01

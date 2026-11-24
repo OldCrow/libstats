@@ -1,0 +1,74 @@
+2026-11-24 17:49:00 ==== quiet sitting start: phases=wake,clocks head=3662ae7 dirty=0
+2026-11-24 17:49:01 cpu=AMD Ryzen 7 7445HS w/ Radeon 740M Graphics os=10.0.26300 power=27fa6203-3987-4dcc-918d-748559d549ec  (Performance) ac=True
+2026-11-24 17:49:08 wake_plain gate cpu=6.8% quiet
+2026-11-24 17:49:19 clock[wake_plain] ms/pass=133.1/128.2 (boost ~127-130, base ~190)
+2026-11-24 17:49:45 wake_plain warm-up 25s discarded
+2026-11-24 17:49:45 wake_plain start (set=True ok=True control=1 state=0)
+2026-11-24 17:50:25 wake_plain end exit=0 lines=76 40s
+2026-11-24 17:50:31 wake_init gate cpu=9.9% waiting
+2026-11-24 17:51:07 wake_init gate cpu=10.7% waiting
+2026-11-24 17:51:43 wake_init gate cpu=3.8% quiet
+2026-11-24 17:51:53 clock[wake_init] ms/pass=127.2/127.1 (boost ~127-130, base ~190)
+2026-11-24 17:52:19 wake_init warm-up 25s discarded
+2026-11-24 17:52:19 wake_init start (set=True ok=True control=1 state=0)
+2026-11-24 17:52:59 wake_init end exit=0 lines=76 40s
+2026-11-24 17:53:05 wake_init_ws gate cpu=4.7% quiet
+2026-11-24 17:53:15 clock[wake_init_ws] ms/pass=127.2/127.2 (boost ~127-130, base ~190)
+2026-11-24 17:53:41 wake_init_ws warm-up 25s discarded
+2026-11-24 17:53:41 wake_init_ws start (set=True ok=True control=1 state=0)
+2026-11-24 17:54:41 wake_init_ws end exit=0 lines=112 61s
+2026-11-24 17:54:48 wake_plain_sleep gate cpu=3.9% quiet
+2026-11-24 17:54:58 clock[wake_plain_sleep] ms/pass=127.8/127.4 (boost ~127-130, base ~190)
+2026-11-24 17:55:23 wake_plain_sleep warm-up 25s discarded
+2026-11-24 17:55:23 wake_plain_sleep start (set=True ok=True control=1 state=0)
+2026-11-24 17:55:48 wake_plain_sleep end exit=0 lines=44 25s
+2026-11-24 17:55:54 wake_init_ws_sleep gate cpu=3.7% quiet
+2026-11-24 17:56:04 clock[wake_init_ws_sleep] ms/pass=127.3/127 (boost ~127-130, base ~190)
+2026-11-24 17:56:29 wake_init_ws_sleep warm-up 25s discarded
+2026-11-24 17:56:29 wake_init_ws_sleep start (set=True ok=True control=1 state=0)
+2026-11-24 17:57:07 wake_init_ws_sleep end exit=0 lines=64 37s
+2026-11-24 17:57:13 wake_init_ws_fine gate cpu=3.2% quiet
+2026-11-24 17:57:23 clock[wake_init_ws_fine] ms/pass=127.4/127 (boost ~127-130, base ~190)
+2026-11-24 17:57:49 wake_init_ws_fine warm-up 25s discarded
+2026-11-24 17:57:49 wake_init_ws_fine start (set=True ok=True control=1 state=0)
+2026-11-24 17:59:01 wake_init_ws_fine end exit=0 lines=136 72s
+2026-11-24 17:59:07 wake_local_pool gate cpu=4% quiet
+2026-11-24 17:59:17 clock[wake_local_pool] ms/pass=127.3/126.9 (boost ~127-130, base ~190)
+2026-11-24 17:59:43 wake_local_pool warm-up 25s discarded
+2026-11-24 17:59:43 wake_local_pool start (set=True ok=True control=1 state=0)
+2026-11-24 18:00:23 wake_local_pool end exit=0 lines=64 40s
+2026-11-24 18:00:29 gap_plain_sleep gate cpu=4.4% quiet
+2026-11-24 18:00:39 clock[gap_plain_sleep] ms/pass=127.2/126.9 (boost ~127-130, base ~190)
+2026-11-24 18:01:06 gap_plain_sleep warm-up 25s discarded
+2026-11-24 18:01:06 gap_plain_sleep start (set=True ok=True control=1 state=0)
+2026-11-24 18:03:56 gap_plain_sleep end exit=0 lines=133 170s
+2026-11-24 18:04:02 gap_init_sleep gate cpu=2.9% quiet
+2026-11-24 18:04:12 clock[gap_init_sleep] ms/pass=127.2/127 (boost ~127-130, base ~190)
+2026-11-24 18:04:38 gap_init_sleep warm-up 25s discarded
+2026-11-24 18:04:38 gap_init_sleep start (set=True ok=True control=1 state=0)
+2026-11-24 18:07:28 gap_init_sleep end exit=0 lines=133 170s
+2026-11-24 18:07:34 idle_burn gate cpu=3.7% quiet
+2026-11-24 18:07:36 idle_burn start (set=True ok=True control=1 state=0)
+2026-11-24 18:07:46 idle_burn end exit=0 lines=1 10s
+2026-11-24 18:07:52 idle_burn_plain gate cpu=4% quiet
+2026-11-24 18:07:52 idle_burn_plain start (set=True ok=True control=1 state=0)
+2026-11-24 18:08:02 idle_burn_plain end exit=0 lines=1 10s
+2026-11-24 18:08:02 wake DONE
+2026-11-24 18:08:03 clocks: nominal Processor Frequency 3201 MHz, 12 logical processors
+2026-11-24 18:08:09 clocks plain_gap0 gate cpu=2.9% quiet
+2026-11-24 18:08:11 clocks plain_gap0 start (set=True ok=True control=1 state=0)
+2026-11-24 18:08:18 clocks plain_gap0 end exit=0 samples=84
+2026-11-24 18:08:24 clocks plain_gap2ms gate cpu=3.3% quiet
+2026-11-24 18:08:27 clocks plain_gap2ms start (set=True ok=True control=1 state=0)
+2026-11-24 18:08:34 clocks plain_gap2ms end exit=0 samples=84
+2026-11-24 18:08:40 clocks plain_gap20ms gate cpu=3.8% quiet
+2026-11-24 18:08:42 clocks plain_gap20ms start (set=True ok=True control=1 state=0)
+2026-11-24 18:08:50 clocks plain_gap20ms end exit=0 samples=84
+2026-11-24 18:08:56 clocks init_ws_gap20ms gate cpu=3.4% quiet
+2026-11-24 18:08:58 clocks init_ws_gap20ms start (set=True ok=True control=1 state=0)
+2026-11-24 18:09:08 clocks init_ws_gap20ms end exit=0 samples=112
+2026-11-24 18:09:14 clocks plain_sleep_gap20ms gate cpu=4.2% quiet
+2026-11-24 18:09:17 clocks plain_sleep_gap20ms start (set=True ok=True control=1 state=0)
+2026-11-24 18:09:24 clocks plain_sleep_gap20ms end exit=0 samples=85
+2026-11-24 18:09:24 clocks DONE
+2026-11-24 18:09:30 ==== quiet sitting end: cpu=3.9%

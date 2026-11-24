@@ -273,7 +273,24 @@ design decision (all four machines' L7).
   `--init` read the same. Forced PARALLEL costs 1.9× more per element at
   2 ms and 2.6× more at 20 ms (Gaussian, 50000); `--init` does not
   remove it; VECTORIZED also slows 1.1–1.2× at 20 ms.
-  `pool_wake_bench` not run. Evidence:
+  **`pool_wake_bench`, sleeping caller, idle burn and clocks done
+  2026-11-24** at `3662ae7`, quiet
+  (`docs/bench-evidence/2026-11-24-zen4-pool-wake/`; measurements 1, 2,
+  3, 5, 6, 7, 8). Busy caller, thread pool: a late start only, +4–26 µs
+  a call at 2 ms and +24–48 µs at 20 ms, work unchanged (K: 60–75 µs
+  from 500 µs); `--init` does not remove it. Workers run 1.5× slower
+  per element than the caller at every gap, gap 0 included: four
+  logical processors boost to 130–144% of nominal and the other eight
+  sit at 99%; nothing is ever parked. Sleeping caller: serial 1.5×
+  slower (10.1 to 15.2 ns), the pool call 87–93 µs longer, and the
+  polling pool does not help, unlike M. Idle burn 0.19 CPU-s per 10 s
+  (I: 24.8). A 12-thread pool is 1.6–1.9× faster than the library's 6
+  on the integer workload. **Reported, not traced: driven directly,
+  the work-stealing pool starts 13–15 ms after the submit for a busy
+  caller** (its idle `sleep_for(100 µs)` runs to the 15.6 ms Windows
+  timer tick); the batch API does not show it on Z, where forced
+  WORK_STEALING reads as PARALLEL. `fit_gap_model.py` on L7: Poisson a
+  factor (1.13 at 2 ms), Gaussian neither. Evidence:
   `docs/bench-evidence/2026-11-24-zen4-v300-l4/`,
   `docs/bench-evidence/2026-11-24-zen4-batch-gap/`.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at

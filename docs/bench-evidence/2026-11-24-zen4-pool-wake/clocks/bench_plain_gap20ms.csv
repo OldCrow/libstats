@@ -1,0 +1,10 @@
+# pool_wake_bench pool=plain gap=busy logical_cpus=12 slice=1024 rounds_per_element=8
+Pool,GapKind,Mode,Elements,Gap_us,Calls,Call_us,Workers,Start1_us,StartLast_us,StartLastP90_us,Work_ns,FirstWork_ns,Join_us
+plain,busy,SERIAL,10240,20000,35,103.80,1,0.10,0.10,0.70,10.127,10.127,0.00
+plain,busy,SERIAL,51200,20000,35,518.80,1,0.20,0.20,0.50,10.125,10.125,0.00
+plain,busy,SERIAL,204800,20000,32,2076.60,1,0.10,0.10,0.30,10.139,10.139,0.00
+plain,busy,THREAD_POOL,10240,20000,35,82.40,6,17.20,39.70,72.90,10.254,15.234,15.10
+plain,busy,THREAD_POOL,51200,20000,35,177.10,6,18.30,40.00,62.30,15.137,15.234,9.50
+plain,busy,THREAD_POOL,204800,20000,35,553.20,6,16.60,40.60,136.60,15.137,15.234,7.70
+# against the first gap: extra call time, extra start delay of the last worker, work-time ratio
+# (sink 3423263323271588895)

@@ -1,0 +1,13 @@
+# pool_wake_bench pool=init gap=busy logical_cpus=12 slice=1024 rounds_per_element=8
+Pool,GapKind,Mode,Elements,Gap_us,Calls,Call_us,Workers,Start1_us,StartLast_us,StartLastP90_us,Work_ns,FirstWork_ns,Join_us
+init,busy,SERIAL,10240,20000,35,104.00,1,0.20,0.20,0.60,10.127,10.127,0.00
+init,busy,SERIAL,51200,20000,35,518.80,1,0.30,0.30,0.50,10.125,10.125,0.00
+init,busy,SERIAL,204800,20000,32,2078.90,1,0.10,0.10,0.50,10.149,10.149,0.00
+init,busy,THREAD_POOL,10240,20000,35,80.70,6,19.10,40.70,47.20,15.234,15.234,14.60
+init,busy,THREAD_POOL,51200,20000,35,183.50,6,18.30,42.90,141.20,15.137,15.234,10.50
+init,busy,THREAD_POOL,204800,20000,35,555.50,6,20.30,40.90,116.10,15.137,15.234,8.60
+init,busy,WORK_STEALING,10240,20000,31,151.40,1,12.00,12.00,8761.40,10.156,10.156,26.30
+init,busy,WORK_STEALING,51200,20000,33,572.90,1,12.60,12.60,3248.40,10.156,10.156,34.30
+init,busy,WORK_STEALING,204800,20000,30,2150.10,1,14.60,15.50,11247.30,10.156,10.156,21.60
+# against the first gap: extra call time, extra start delay of the last worker, work-time ratio
+# (sink 3923513332189744226)

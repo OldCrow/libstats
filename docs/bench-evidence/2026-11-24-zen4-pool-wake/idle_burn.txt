@@ -1,0 +1,1 @@
+idle 10 s after initialize_performance_systems: user 0.11 s, sys 0.08 s
