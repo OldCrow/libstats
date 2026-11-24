@@ -1,0 +1,240 @@
+
+==========================
+  SIMD Verification Tool
+==========================
+
+Validates SIMD operations correctness and performance on actual system architecture
+
+System: 8 logical cores, AVX SIMD, 8192 KB L3 cache
+
+
+--- System SIMD Capabilities ---
+Active SIMD Level: AVX
+Architecture: AVX
+SIMD Feature        Available Description                   
+------------------------------------------------------------
+AVX-512             No        512-bit vectors               
+AVX2                No        256-bit integer vectors       
+AVX                 Yes       256-bit floating-point vectors
+SSE2                Yes       128-bit vectors               
+FMA                 No        Fused multiply-add            
+
+Optimal SIMD block size: 4 elements
+Memory alignment: 32 bytes
+
+
+--- Uniform Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=0.00e+00, speedup=22.5x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=20.9x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=12.1x)
+
+--- Gaussian Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=5.55e-17, speedup=7.1x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=27.6x)
+  CDF: ✓ PASS (max_diff=1.11e-16, speedup=1.0x)
+
+--- Exponential Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=1.11e-16, speedup=7.3x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=34.2x)
+  CDF: ✓ PASS (max_diff=1.11e-16, speedup=8.2x)
+
+--- Discrete Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=0.00e+00, speedup=4.0x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=4.9x)
+  CDF: ✓ PASS (max_diff=1.11e-16, speedup=4.3x)
+
+--- Poisson Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=0.00e+00, speedup=1.5x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=1.4x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.1x)
+
+--- Gamma Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=5.55e-17, speedup=3.7x)
+  LogPDF: ✓ PASS (max_diff=3.55e-15, speedup=3.9x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.3x)
+
+--- ChiSquared Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=5.55e-17, speedup=3.9x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=4.1x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.3x)
+
+--- StudentT Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=1.11e-16, speedup=4.4x)
+  LogPDF: ✓ PASS (max_diff=8.88e-16, speedup=5.0x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.2x)
+
+--- Beta Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=1.11e-15, speedup=3.3x)
+  LogPDF: ✓ PASS (max_diff=1.33e-15, speedup=3.2x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.4x)
+
+--- Edge Cases Testing ---
+Testing distributions with edge case values (NaN, infinity, etc.)
+  Testing Uniform edge cases...
+  PDF: ✓ PASS (max_diff=0.00e+00, speedup=17.5x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=14.4x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=6.8x)
+  Testing Gaussian edge cases...
+  PDF: ✓ PASS (max_diff=5.55e-17, speedup=5.3x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=19.1x)
+  CDF: ✓ PASS (max_diff=5.55e-17, speedup=1.1x)
+  Testing Exponential edge cases...
+  PDF: ✓ PASS (max_diff=2.78e-17, speedup=1.1x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=5.2x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.3x)
+  Testing Discrete edge cases...
+  PDF: ✓ PASS (max_diff=0.00e+00, speedup=3.6x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=3.7x)
+  CDF: ✓ PASS (max_diff=1.11e-16, speedup=6.6x)
+  Testing Poisson edge cases...
+  PDF: ✓ PASS (max_diff=0.00e+00, speedup=2.6x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=1.5x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=0.9x)
+  Testing Gamma edge cases...
+  PDF: ✓ PASS (max_diff=1.11e-16, speedup=1.5x)
+  LogPDF: ✓ PASS (max_diff=2.84e-14, speedup=1.9x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.8x)
+  Testing Beta edge cases...
+  PDF: ✓ PASS (max_diff=4.44e-16, speedup=1.1x)
+  LogPDF: ✓ PASS (max_diff=2.84e-14, speedup=1.6x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=2.0x)
+  Testing StudentT edge cases...
+  PDF: ✓ PASS (max_diff=1.11e-16, speedup=3.0x)
+  LogPDF: ✓ PASS (max_diff=1.14e-13, speedup=3.6x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.3x)
+  Testing ChiSquared edge cases...
+  PDF: ✓ PASS (max_diff=5.55e-17, speedup=0.6x)
+  LogPDF: ✓ PASS (max_diff=2.84e-14, speedup=2.1x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.2x)
+
+--- VonMises Distribution SIMD Verification ---
+  PDF: ✓ PASS (max_diff=1.11e-16, speedup=4.3x)
+  LogPDF: ✓ PASS (max_diff=1.78e-15, speedup=5.8x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.0x)
+
+--- Geometric Distribution (delegates to NegBinomial) ---
+  PMF: ✓ PASS (max_diff=0.00e+00, speedup=1.2x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=1.2x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=1.9x)
+
+--- Laplace Distribution (standalone) ---
+  PDF: ✓ PASS (max_diff=5.55e-17, speedup=4.3x)
+  LogPDF: ✓ PASS (max_diff=0.00e+00, speedup=9.9x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=2.7x)
+
+--- Cauchy Distribution (delegates to StudentT(nu=1)) ---
+  PDF: ✓ PASS (max_diff=0.00e+00, speedup=5.5x)
+  LogPDF: ✓ PASS (max_diff=8.88e-16, speedup=5.0x)
+  CDF: ✓ PASS (max_diff=0.00e+00, speedup=2.0x)
+
+--- Primitive Vector Operations ---
+Direct SIMD vs scalar benchmarks for each vector op (authoritative speedup signal)
+  VectorExp: ✓ PASS (max_rel=2.20e-16, speedup=1.8x)
+  VectorLog: ✓ PASS (max_rel=2.22e-16, speedup=1.3x)
+  VectorErf: ✓ PASS (max_abs=1.11e-16, speedup=0.7x)
+  VectorCos: ✓ PASS (max_abs=1.11e-16, speedup=2.1x)
+
+==============================
+  SIMD Verification Analysis
+==============================
+
+
+=== Summary ===
+SIMD Level Tested: AVX
+Total tests: 70
+Passed: 70 (100.0%)
+Failed: 0
+
+Distribution      Operation Status  Max Err     Avg Err     Speedup   Errors  
+------------------------------------------------------------------------------
+Uniform           PDF       PASS    ~0          ~0          22.5x     0       
+Uniform           LogPDF    PASS    ~0          ~0          20.9x     0       
+Uniform           CDF       PASS    ~0          ~0          12.1x     0       
+Gaussian          PDF       PASS    ~0          ~0          7.1x      0       
+Gaussian          LogPDF    PASS    ~0          ~0          27.6x     0       
+Gaussian          CDF       PASS    ~0          ~0          1.0x      0       
+Exponential       PDF       PASS    ~0          ~0          7.3x      0       
+Exponential       LogPDF    PASS    ~0          ~0          34.2x     0       
+Exponential       CDF       PASS    ~0          ~0          8.2x      0       
+Discrete          PDF       PASS    ~0          ~0          4.0x      0       
+Discrete          LogPDF    PASS    ~0          ~0          4.9x      0       
+Discrete          CDF       PASS    ~0          ~0          4.3x      0       
+Poisson           PDF       PASS    ~0          ~0          1.5x      0       
+Poisson           LogPDF    PASS    ~0          ~0          1.4x      0       
+Poisson           CDF       PASS    ~0          ~0          1.1x      0       
+Gamma             PDF       PASS    ~0          ~0          3.7x      0       
+Gamma             LogPDF    PASS    3.6e-15     ~0          3.9x      0       
+Gamma             CDF       PASS    ~0          ~0          1.3x      0       
+ChiSquared        PDF       PASS    ~0          ~0          3.9x      0       
+ChiSquared        LogPDF    PASS    ~0          ~0          4.1x      0       
+ChiSquared        CDF       PASS    ~0          ~0          1.3x      0       
+StudentT          PDF       PASS    ~0          ~0          4.4x      0       
+StudentT          LogPDF    PASS    ~0          ~0          5.0x      0       
+StudentT          CDF       PASS    ~0          ~0          1.2x      0       
+Beta              PDF       PASS    1.1e-15     ~0          3.3x      0       
+Beta              LogPDF    PASS    1.3e-15     ~0          3.2x      0       
+Beta              CDF       PASS    ~0          ~0          1.4x      0       
+Uniform_EdgeCases PDF       PASS    ~0          ~0          17.5x     0       
+Uniform_EdgeCases LogPDF    PASS    ~0          ~0          14.4x     0       
+Uniform_EdgeCases CDF       PASS    ~0          ~0          6.8x      0       
+Gaussian_EdgeC... PDF       PASS    ~0          ~0          5.3x      0       
+Gaussian_EdgeC... LogPDF    PASS    ~0          ~0          19.1x     0       
+Gaussian_EdgeC... CDF       PASS    ~0          ~0          1.1x      0       
+Exponential_Ed... PDF       PASS    ~0          ~0          1.1x      0       
+Exponential_Ed... LogPDF    PASS    ~0          ~0          5.2x      0       
+Exponential_Ed... CDF       PASS    ~0          ~0          1.3x      0       
+Discrete_EdgeC... PDF       PASS    ~0          ~0          3.6x      0       
+Discrete_EdgeC... LogPDF    PASS    ~0          ~0          3.7x      0       
+Discrete_EdgeC... CDF       PASS    ~0          ~0          6.6x      0       
+Poisson_EdgeCases PDF       PASS    ~0          ~0          2.6x      0       
+Poisson_EdgeCases LogPDF    PASS    ~0          ~0          1.5x      0       
+Poisson_EdgeCases CDF       PASS    ~0          ~0          0.9x      0       
+Gamma_EdgeCases   PDF       PASS    ~0          ~0          1.5x      0       
+Gamma_EdgeCases   LogPDF    PASS    2.8e-14     ~0          1.9x      0       
+Gamma_EdgeCases   CDF       PASS    ~0          ~0          1.8x      0       
+Beta_EdgeCases    PDF       PASS    ~0          ~0          1.1x      0       
+Beta_EdgeCases    LogPDF    PASS    2.8e-14     2.3e-15     1.6x      0       
+Beta_EdgeCases    CDF       PASS    ~0          ~0          2.0x      0       
+StudentT_EdgeC... PDF       PASS    ~0          ~0          3.0x      0       
+StudentT_EdgeC... LogPDF    PASS    1.1e-13     2.1e-15     3.6x      0       
+StudentT_EdgeC... CDF       PASS    ~0          ~0          1.3x      0       
+ChiSquared_Edg... PDF       PASS    ~0          ~0          0.6x      0       
+ChiSquared_Edg... LogPDF    PASS    2.8e-14     ~0          2.1x      0       
+ChiSquared_Edg... CDF       PASS    ~0          ~0          1.2x      0       
+VonMises          PDF       PASS    ~0          ~0          4.3x      0       
+VonMises          LogPDF    PASS    1.8e-15     ~0          5.8x      0       
+VonMises          CDF       PASS    ~0          ~0          1.0x      0       
+Geometric         PMF       PASS    ~0          ~0          1.2x      0       
+Geometric         LogPDF    PASS    ~0          ~0          1.2x      0       
+Geometric         CDF       PASS    ~0          ~0          1.9x      0       
+Laplace           PDF       PASS    ~0          ~0          4.3x      0       
+Laplace           LogPDF    PASS    ~0          ~0          9.9x      0       
+Laplace           CDF       PASS    ~0          ~0          2.7x      0       
+Cauchy            PDF       PASS    ~0          ~0          5.5x      0       
+Cauchy            LogPDF    PASS    ~0          ~0          5.0x      0       
+Cauchy            CDF       PASS    ~0          ~0          2.0x      0       
+VectorExp         ---       PASS    ~0          ~0          1.8x      0       
+VectorLog         ---       PASS    ~0          ~0          1.3x      0       
+VectorErf         ---       PASS    ~0          ~0          0.7x      0       
+VectorCos         ---       PASS    ~0          ~0          2.1x      0       
+
+--- Performance Analysis ---
+Distribution suite speedup geometric means (AVX):
+  PDF     3.6x  (range 0.6x–22.5x,  n=21)
+  LogPDF  5.0x  (range 1.2x–34.2x,  n=22)
+  CDF     2.0x  (range 0.9x–12.1x,  n=22)
+
+Primitive vector op speedups:
+  VectorExp: 1.8x
+  VectorLog: 1.3x
+  VectorErf: 0.7x
+  VectorCos: 2.1x
+
+--- Recommendations ---
+✅ All SIMD operations are producing correct results.
+✅ AVX optimizations are working correctly.
+✅ AVX distribution suite performance is meeting expectations.
+
+Note: Small numerical differences are expected due to floating-point precision.
+      SIMD operations may use different rounding or instruction sequences.
+      Focus on fixing tests with large relative errors or systematic issues.

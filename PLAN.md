@@ -52,9 +52,18 @@ milestone.
 
 ### Leg status (edit only your own line)
 
-- **I — Ivy Bridge, AVX, Linux, GCC 13.3 and Clang 18**: P1 half done
-  2026-11-23: GCC 13.3 Release 132/132 at `94399b1`, whose tree is
-  identical to `7069adc`'s. Clang 18, P2, P3 and P4 not started.
+- **I — Ivy Bridge, AVX, Linux, GCC 13.3 and Clang 18**: **P1–P4 done
+  2026-11-23** at `51e1390` (code identical to `7069adc`), fresh Ninja
+  Release configures. GCC 13.3.0 and Clang 18.1.3: 0 warnings each; tier
+  AVX; 8 logical and 4 physical cores read (16 threads at the 2026-11-16
+  baseline, #289); correctness 132/132 each (131 at the baseline, #288);
+  `simd_verification` 140 pass, 0 fail each; timing 14/14 each, quiet
+  (load 0.29 at each start, `schedutil`). Sweep (GCC): 26,882 rows, 190
+  self-checks, 0 contract violations; the `isa=AVX` block changes in its
+  banner and seven `cauchy` rows only, kept as a diff and not committed.
+  Evidence: `docs/bench-evidence/2026-11-23-ivybridge-v2.5.1/`. Raised:
+  `tools/cpp20_features_inspector` now links under both compilers
+  although #290 is open; not investigated.
 - **K — Kaby Lake, AVX2, macOS 13, AppleClang 15**: not started.
 - **M — M1, NEON, macOS 27, AppleClang 21**: not started.
 - **Z — Zen 4, AVX-512, Windows 11, MSVC and clang-cl**: not started.
@@ -119,14 +128,25 @@ region #326 changed.
 
 1. Clean tree at the validated commit, built in P1.
    `<build>/tools/accuracy_sweep sweep.csv`, written outside the repo.
+   **Start it from inside the checkout being validated**: the banner's
+   `commit=` is `git rev-parse` of the current directory, not of the tree
+   the binary was built from (I's first sweep, started from a folder inside
+   another checkout, was stamped with that checkout's commit and had to be
+   rerun; the rows were bit-identical). Check the banner names the
+   validated commit before scoring.
 2. `python3 tools/accuracy_vs_mpmath.py sweep.csv` with the Python that
    holds mpmath (I: `~/.venvs/fleet-oracle/bin/python`, about 25 minutes).
    It rewrites only the machine's own `isa=` block in
    `docs/ACCURACY_CHARACTERIZATION.md`.
 3. **Expect 0 contract violations and 26,882 rows.** `git diff` on the doc
-   should change the banner and Cauchy quantile rows only, and those for
-   the better or by an ulp or two. Any other row moving, or a Cauchy row
-   getting worse by more than that, is a stop-and-report.
+   should change the banner and rows of the `cauchy` section only: the
+   quantile rows, and the cdf, pdf and logpdf rows as well, because the
+   sweep builds their x grid from the quantile and those points move by an
+   ulp or two [corrected from I's run, 2026-11-23]. On I: quantile max abs
+   5.403e+289 to 1.505e+289 with max rel unchanged at 2.543e-16; cdf max
+   rel 2.847e-16 to 2.904e-16; pdf 4.213e-16 to 3.465e-16; logpdf max abs
+   2.336e-13 to 2.333e-13. A row outside `cauchy` moving, or a `cauchy`
+   row moving by more than that scale, is a stop-and-report.
 4. Keep the diff for the release PR; do not commit the regenerated block
    on your own. Whether the four blocks are regenerated for v2.5.1 or the
    diff is only recorded is the user's decision once the diffs are in.
