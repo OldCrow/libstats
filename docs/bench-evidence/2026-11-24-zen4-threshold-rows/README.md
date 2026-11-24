@@ -7,8 +7,9 @@ than 2×).
 
 **Nothing is applied.** `dispatch_thresholds.h` is unchanged in this tree.
 The proposal below is the script's output; the A/B shows it is better than the
-table on balance and wrong in a known way on about fifteen rows. Which values
-to take is the user's decision.
+table on balance and wrong in a known way on about fifteen rows. **Decided
+[user, 2026-11-24]: hold every value**, the one 2× row included; reconsider
+if another machine's capture moves its table materially.
 
 ## Derivation
 

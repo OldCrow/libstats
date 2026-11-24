@@ -240,7 +240,7 @@ design decision (all four machines' L7).
   (Student-t, Fisher-F, InverseGamma, Weibull), 117–620 ulps from the
   correctly rounded value; `main` returns the same bits on 10 of the
   14 and is worse on the other four, so none is the adoption's;
-  #104's subject, not filed. **L3 done**:
+  #104's subject, stated there. **L3 done**:
   `b766e45` and `90d1bef` sweeps bit-identical on AVX-512. **L4 done
   2026-11-24**, quiet throughout (CPU 2–3% at every gate, clock probe
   127 ms, every process opted out of throttling): timing 14/14,
@@ -254,7 +254,10 @@ design decision (all four machines' L7).
   3× faster here than on K (corvus #110's cost, on `erfcinv`). Three `strategy_profile --large`
   runs with `164cbce`'s profiler (sustained-v1), 81 min each, 3 of 81
   rows spread > 2×: bundle `2026-11-24T07-53-40Z_windows-x86_64_…`.
-  **L5 derived and A/B'd, not applied** [OPEN; user]: the script
+  **L5 derived and A/B'd; rows held** [user, 2026-11-24: hold every
+  kAvx512 value, Erlang LogPDF included; reconsider if another
+  machine's capture moves its table materially, since L1 is re-run
+  then anyway]: the script
   proposes 34 kAvx512 values, 30 earlier (most 25k → 8192 or 10240);
   quiet ABAB: AUTO rows > 1.25× behind 35 → 15, 22 faster, 3 slower.
   PARALLEL wins at 8192, loses at 10000 and wins again from 25000 on

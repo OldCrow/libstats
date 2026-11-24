@@ -96,7 +96,8 @@ Sweeps started from the clean worktree; banner
   reproduces the oracle's score on all 14, so none is an oracle error. The
   library's value is 117–620 ulps from the correctly rounded quantile:
   Student-t ×4 (ν 0.48–2.05, p below 1e-117; worst 474 ε), Fisher-F ×7 (one
-  degree of freedom 0.07–0.12, p below 1e-56 or within 1e-9 of 1; worst
+  degree of freedom 0.07–0.12, p at or below 1.1e-56 or within 6e-9 of 1;
+  worst
   398 ε), InverseGamma ×2 (shape below 0.18, p within 1e-11 of 1; 211 ε),
   Weibull ×1 (shape 0.094, p 6.8e-26; 115 ε). The common factor is a small
   shape with a deep tail; x runs from 1e-271 to 1e+247. **Not the adoption's:**
@@ -106,7 +107,7 @@ Sweeps started from the clean worktree; banner
   other four `main` is further from the reference than this branch: Fisher-F
   310, 707 and 329 ε against 203, 317 and 184 here, InverseGamma 302 ε
   against 211. This is #104's subject (the quantile contract at
-  extreme p). Not filed.
+  extreme p); stated there 2026-11-24.
 
 ## L3 — prototype bit-identity
 
