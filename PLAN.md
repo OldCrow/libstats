@@ -204,8 +204,21 @@ design decision (all four machines' L7).
   4096 is wrong (PARALLEL 1.18–1.65× behind; 10000 is the crossover).
   `fit_gap_model.py`: where the plain run fits, a start delay of
   5–24 µs (K: 61–89), residuals up to 20% under the load. Not traced;
-  `pool_wake_bench` and the idle-burn figure not run on M. **L6, #107
-  and #47 owed.**
+  **`pool_wake_bench` and idle burn done 2026-11-24** at `03cb724`,
+  quiet, with `mediaanalysisd` and `corespotlightd` suspended around
+  each run [user] (`docs/bench-evidence/2026-11-24-m1-pool-wake/`;
+  measurements 2, 5, 6, 7; 8 not run). Busy caller, thread pool only: no
+  cost up to 2 ms, 23–40 µs at 20 ms, work unchanged (K: 60–75 µs from
+  500 µs). **Sleeping caller: the clock drops as on K**, serial 3.3×
+  slower (15.0 to 49.4 ns), pool calls 2.1–4.0× longer; with the
+  polling pool alive it loses nothing. The polling costs 7% on serial
+  work, 5–10% on pool calls at 204,800 and 5.6–6.6 CPU-s per 10 s idle
+  (I: 24.8). Work stealing matches the thread pool back to back (eight
+  workers each) and is slower after any busy gap from 5 µs. So the
+  polling pool is not pure cost on M1: it holds the clock for a caller
+  that blocks, and an M1 guard that drops it would cost that caller
+  3.3×. These runs predate #324; M has no figure for the lookup.
+  **L6, #107 and #47 owed.**
 - **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
   the commit that carries this line: Release build warning-free, AVX2
