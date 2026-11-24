@@ -22,8 +22,8 @@ double ns_per(std::size_t n, F&& f) {
 // taken in the sustained-frequency regime. Off by default. Needed on the Zen 4 box, where boost
 // steps down ~1.5x some 8-15 s into a run and lands on different rows of the two binaries.
 static void warmup() {
-    const char* s = std::getenv("LIBSTATS_BENCH_WARMUP_SECONDS");
-    const double secs = s ? std::atof(s) : 0.0;
+    const std::string s = bench_timing::envValue("LIBSTATS_BENCH_WARMUP_SECONDS");
+    const double secs = s.empty() ? 0.0 : std::atof(s.c_str());
     if (secs <= 0.0)
         return;
     volatile double x = 1.0;

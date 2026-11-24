@@ -25,9 +25,27 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
+#include <string>
 #include <vector>
 
 namespace bench_timing {
+
+/// An environment variable's value, empty when unset. The Windows CRT deprecates std::getenv, and
+/// these programs are compiled without _CRT_SECURE_NO_WARNINGS, so clang-cl warned on it.
+inline std::string envValue(const char* name) {
+#ifdef _WIN32
+    char* buf = nullptr;
+    std::size_t len = 0;
+    std::string value;
+    if (_dupenv_s(&buf, &len, name) == 0 && buf != nullptr)
+        value = buf;
+    std::free(buf);
+    return value;
+#else
+    const char* s = std::getenv(name);
+    return s ? s : "";
+#endif
+}
 
 struct CellBudget {
     double warmup_s = 0.15;   // this cell's own work, discarded
@@ -39,13 +57,13 @@ struct CellBudget {
 /// The default budget, with the two durations overridable from the environment.
 inline CellBudget cellBudgetFromEnv() {
     CellBudget b;
-    if (const char* s = std::getenv("LIBSTATS_BENCH_CELL_WARMUP_SECONDS")) {
-        const double v = std::atof(s);
+    if (const std::string s = envValue("LIBSTATS_BENCH_CELL_WARMUP_SECONDS"); !s.empty()) {
+        const double v = std::atof(s.c_str());
         if (v >= 0.0)
             b.warmup_s = v;
     }
-    if (const char* s = std::getenv("LIBSTATS_BENCH_CELL_SECONDS")) {
-        const double v = std::atof(s);
+    if (const std::string s = envValue("LIBSTATS_BENCH_CELL_SECONDS"); !s.empty()) {
+        const double v = std::atof(s.c_str());
         if (v >= 0.0)
             b.timed_s = v;
     }

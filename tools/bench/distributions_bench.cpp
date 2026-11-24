@@ -92,8 +92,8 @@ void bench(const char* name, D& d, double lo, double hi, bool integer) {
 // per-cell warm-up above does not replace it: that covers a 50-100 ms clock recovery, not a
 // boost budget that runs out seconds into the process.
 static void warmup() {
-    const char* s = std::getenv("LIBSTATS_BENCH_WARMUP_SECONDS");
-    const double secs = s ? std::atof(s) : 0.0;
+    const std::string s = bench_timing::envValue("LIBSTATS_BENCH_WARMUP_SECONDS");
+    const double secs = s.empty() ? 0.0 : std::atof(s.c_str());
     if (secs <= 0.0)
         return;
     volatile double x = 1.0;
