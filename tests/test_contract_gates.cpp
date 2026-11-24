@@ -2949,6 +2949,21 @@ TEST(ContractGates, Fix9_VonMisesCircularKurtosis) {
     EXPECT_EQ(VonMisesDistribution(0.0, 1e-30).getKurtosis(), 0.125 * 1e-30 * 1e-30);
 }
 
+// #268: ExponentialDistribution::setParameters(double) was declared in the header and defined
+// nowhere, so any caller failed to link. The gate is that this test links; it then checks the
+// setter does what setLambda does, the atomic copy included, and rejects what setLambda rejects.
+TEST(ContractGates, Issue268_ExponentialSetParametersIsDefined) {
+    auto d = stats::ExponentialDistribution::create(1.0).unwrap();
+    d.setParameters(2.5);
+    EXPECT_EQ(d.getLambda(), 2.5);
+    EXPECT_EQ(d.getLambdaAtomic(), 2.5);
+    EXPECT_EQ(d.getMean(), 1.0 / 2.5);
+    EXPECT_THROW(d.setParameters(0.0), std::invalid_argument);
+    EXPECT_THROW(d.setParameters(-1.0), std::invalid_argument);
+    EXPECT_THROW(d.setParameters(std::numeric_limits<double>::quiet_NaN()), std::invalid_argument);
+    EXPECT_EQ(d.getLambda(), 2.5);
+}
+
 // #316: the Cauchy quantile formed 1 / tan(pi·q) before applying the scale. That reciprocal
 // overflows once pi·q is below about 5.6e-309 although scale / (pi·q) is finite for a scale
 // under 1, and for a subnormal q the product pi·q is itself rounded to a few bits (4.7% off at
