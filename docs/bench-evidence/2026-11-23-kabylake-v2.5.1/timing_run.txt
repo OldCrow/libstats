@@ -1,0 +1,8 @@
+2026-11-24T05:14:01Z load=1.38 timing waiting for load < 2.0
+2026-11-24T05:14:01Z load=1.38 timing start
+2026-11-24T05:14:12Z load=1.95 timing end exit=0
+Label Time Summary:
+timing    =  10.42 sec*proc (14 tests)
+
+Total Test time (real) =  10.44 sec
+2026-11-24T05:14:12Z load=1.95 DONE

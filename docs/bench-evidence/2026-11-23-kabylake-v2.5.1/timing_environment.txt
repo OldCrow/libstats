@@ -1,0 +1,8 @@
+commit:   3dd8358 dirty=0
+os:       macOS 13.7.8 22H730
+kernel:   Darwin 22.6.0 x86_64
+cpu:      Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz
+cores:    4 physical, 8 logical
+compiler: Apple clang version 15.0.0 (clang-1500.1.0.2.5)
+power:    Now drawing from 'AC Power'
+uptime:    0:14  up 3 days,  4:05, 1 user, load averages: 1.38 1.56 2.05

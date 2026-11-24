@@ -75,7 +75,16 @@ milestone.
   although #290 is open. Explained [Z, 2026-11-23]: `7d56812` (PR #304,
   2026-11-17, after the baseline) fixed the link on `main`; #290 stays
   open for its install-contract remainder, fixed on the v3.0.0 branch.
-- **K — Kaby Lake, AVX2, macOS 13, AppleClang 15**: not started.
+- **K — Kaby Lake, AVX2, macOS 13.7.8, AppleClang 15.0.0**: **P1–P4 done
+  2026-11-23** at `3dd8358` (code identical to `7069adc`), fresh Ninja
+  Release configure in a worktree of `main`. 0 warnings; tier AVX2+FMA; 8
+  logical and 4 physical cores read; correctness 132/132 (`-j6`);
+  `simd_verification` 140 pass, 0 fail; timing 14/14, screen locked
+  (load 1.38 at the start). Sweep: 26,882 rows, 190 self-checks, 0
+  contract violations; the `isa=AVX2` block changes in its banner and
+  seven `cauchy` rows only, to I's figures (quantile max rel 2.774e-16
+  here, unchanged), kept as a diff and not committed. Evidence:
+  `docs/bench-evidence/2026-11-23-kabylake-v2.5.1/`.
 - **M — M1, NEON, macOS 27, AppleClang 21**: not started.
 - **Z — Zen 4, AVX-512, Windows 11, MSVC 19.52 and clang-cl 22.1.3**:
   **P1–P4 done 2026-11-23** at `b5f0311` (code identical to `7069adc`),
