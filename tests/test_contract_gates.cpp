@@ -2971,8 +2971,8 @@ TEST(ContractGates, Issue316_CauchyQuantileFiniteAtSubnormalP) {
     EXPECT_LT(rel(q_tiny, -0x1.e1042c3d96d7fp+1005), 5e-16) << q_tiny;
 
     // A scale just above DBL_MIN, whose multiple by 1/pi would be subnormal.
-    const auto small = stats::CauchyDistribution::create(0.0, 3e-308).unwrap();
-    EXPECT_LT(rel(small.getQuantile(1e-310), -0x1.7df8cc0a8770ep+6), 5e-16);
+    const auto near_min = stats::CauchyDistribution::create(0.0, 3e-308).unwrap();
+    EXPECT_LT(rel(near_min.getQuantile(1e-310), -0x1.7df8cc0a8770ep+6), 5e-16);
 
     // Where the true value is beyond DBL_MAX the answer is still -inf, and p = 0 stays -inf.
     const auto unit = stats::CauchyDistribution::create(0.0, 1.0).unwrap();
