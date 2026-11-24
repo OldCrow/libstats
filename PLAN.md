@@ -285,11 +285,12 @@ design decision (all four machines' L7).
   slower (10.1 to 15.2 ns), the pool call 87–93 µs longer, and the
   polling pool does not help, unlike M. Idle burn 0.19 CPU-s per 10 s
   (I: 24.8). A 12-thread pool is 1.6–1.9× faster than the library's 6
-  on the integer workload. **Reported, not traced: driven directly,
+  on the integer workload. **Driven directly,
   the work-stealing pool starts 13–15 ms after the submit for a busy
   caller** (its idle `sleep_for(100 µs)` runs to the 15.6 ms Windows
   timer tick); the batch API does not show it on Z, where forced
-  WORK_STEALING reads as PARALLEL. `fit_gap_model.py` on L7: Poisson a
+  WORK_STEALING reads as PARALLEL; cause confirmed and filed as #333.
+  `fit_gap_model.py` on L7: Poisson a
   factor (1.13 at 2 ms), Gaussian neither. Evidence:
   `docs/bench-evidence/2026-11-24-zen4-v300-l4/`,
   `docs/bench-evidence/2026-11-24-zen4-batch-gap/`.
@@ -1055,6 +1056,40 @@ the slow run goes, it is the governor's policy.
 - I's "neither" fit may be these two regimes mixed: on I a busy caller
   does not hold the workers' clock up as it does on K. `pool_wake_bench`
   on I, plain and `--sleep`, would show it.
+
+### Z: on Windows the idle sleep is a timer tick, and the batch API never uses the pool [DERIVED, Z, 2026-11-24]
+
+From Z's quiet `pool_wake_bench` runs
+(`docs/bench-evidence/2026-11-24-zen4-pool-wake/`) and the code. Filed
+as #333.
+
+- **`WorkStealingPool::submit()` wakes no worker.** An idle worker finds a
+  task when its loop comes round: ten yields, then `sleep_for(100 µs)`. On
+  Windows that sleep runs to the next timer tick (15.6 ms by default), so
+  a call into the idle pool starts 13–15 ms late at every gap from 0 to
+  2 ms (the thread pool: 5–9 µs). Raising the process's timer resolution
+  to 1 ms brings the start under 1 ms (checked with the machine in use;
+  figures on #333). The polling loop on Windows is therefore not
+  polling in the sense I, K and M measured.
+- **So the polling pool buys nothing on Z and costs nothing.** Idle burn
+  0.19 CPU-s per 10 s (I 24.8, M 5.6–6.6); it does not hold the clock for
+  the thread pool's workers or for a sleeping caller.
+- **No batch call reaches this pool on Windows.** The dispatcher returns
+  PARALLEL in its `_WIN32` branch (`c9e640a`, 2026-04-12, on profiling
+  that read "PARALLEL wins 3.3:1" there), and `PerformanceHint` cannot
+  force work stealing. The exposure is code that drives the pool directly.
+  Whether that 3.3:1 was this same delay was not established.
+- **The profiler's WORK_STEALING column is PARALLEL wherever the
+  dispatcher does not choose work stealing.** `strategy_profile` maps the
+  column to the `MAXIMIZE_THROUGHPUT` hint (`a3bddbf`, 2026-06-21). That
+  resolves to work stealing only on hyper-threaded macOS, so the column
+  measures work stealing on K alone; on Z, I and M it repeats PARALLEL (Z:
+  29.8 against 29.7 µs, Gaussian PDF at 50000). No PARALLEL-against-
+  WORK_STEALING comparison in those three machines' bundles is one.
+- **For the design:** a wake-up on submit (condition variable or
+  semaphore) removes the tick on Windows and the 100 µs on the others, and
+  ends the idle burn on I and M in the same change. A per-platform guard
+  on the polling pool is not enough on its own.
 
 ## Design inputs from the threshold captures [OPEN]
 From the v2.5.0 captures on three machines (tested 2026-10-06) and the
