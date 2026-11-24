@@ -1,0 +1,126 @@
+## run log
+2026-11-24 00:33:53 load=3.68 wake start sha=03cb724 dirty=0 daemons suspended per run: mediaanalysisd corespotlightd
+2026-11-24 00:38:53 load=3.98 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 00:46:03 load=1.62 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 00:53:13 load=1.66 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:00:23 load=1.72 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:07:33 load=1.67 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:14:43 load=1.91 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:21:53 load=1.70 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:28:53 load=1.89 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:35:53 load=2.01 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:42:53 load=1.53 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:49:53 load=1.64 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 01:57:03 load=2.34 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 02:04:03 load=6.39 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 02:11:03 load=4.18 wake_plain: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 02:16:16 load=1.79 wake_plain: gate passed (<8%) ambient=3.17% top: 5.0%python3 2.8%WindowServer 0.4%Bartender 
+2026-11-24 02:16:16 load=1.79 wake_plain: start
+2026-11-24 02:17:01 load=1.98 wake_plain: end exit=0 rows=76
+2026-11-24 02:22:01 load=1.62 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 02:29:01 load=1.83 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 02:36:01 load=3.00 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 02:43:01 load=1.99 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 02:50:01 load=1.82 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 02:57:01 load=1.68 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 03:04:01 load=2.31 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 03:11:01 load=1.55 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 03:18:01 load=1.83 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 03:25:02 load=1.96 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 03:32:02 load=1.50 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 03:39:02 load=2.69 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 03:46:02 load=1.86 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 03:53:02 load=2.19 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:00:03 load=2.95 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:07:03 load=2.65 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:14:04 load=2.59 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:21:04 load=2.58 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:28:05 load=2.69 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:35:09 load=6.71 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:42:09 load=2.52 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:49:10 load=3.11 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 04:56:10 load=2.34 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:03:11 load=1.88 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:10:11 load=1.59 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:17:12 load=1.74 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:24:12 load=1.51 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:31:13 load=1.68 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:38:14 load=2.31 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:45:15 load=2.92 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:52:15 load=1.68 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 05:59:16 load=2.43 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 06:06:16 load=14.52 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 06:13:16 load=14.31 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 06:20:17 load=7.88 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 06:27:17 load=4.35 wake_init: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 06:31:04 load=13.41 wake_init: gate passed (<8%) ambient=7.24% top: 45.3%AddressBookSourceSync 17.7%runningboardd 14.1%trustd 
+2026-11-24 06:31:04 load=13.41 wake_init: start
+2026-11-24 06:31:49 load=8.42 wake_init: end exit=0 rows=76
+2026-11-24 06:36:50 load=1.69 wake_init_ws: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 06:39:22 load=3.16 wake_init_ws: gate passed (<8%) ambient=3.51% top: 9.9%locationd 4.6%airportd 4.5%com.apple.DriverKit-AppleBCMWLAN 
+2026-11-24 06:39:22 load=3.16 wake_init_ws: start
+2026-11-24 06:40:37 load=4.43 wake_init_ws: end exit=0 rows=112
+2026-11-24 06:41:09 load=3.29 wake_plain_sleep: gate passed (<8%) ambient=5.16% top: 6.6%bzfilelist 5.2%com.apple.DriverKit-AppleBCMWLAN 1.5%diskimagesiod 
+2026-11-24 06:41:09 load=3.29 wake_plain_sleep: start
+2026-11-24 06:41:39 load=2.61 wake_plain_sleep: end exit=0 rows=44
+2026-11-24 06:42:12 load=2.13 wake_init_ws_sleep: gate passed (<8%) ambient=6.45% top: 5.4%locationd 5.4%com.apple.DriverKit-AppleBCMWLAN 4.0%bzfilelist 
+2026-11-24 06:42:12 load=2.13 wake_init_ws_sleep: start
+2026-11-24 06:42:57 load=3.85 wake_init_ws_sleep: end exit=0 rows=64
+2026-11-24 06:48:08 load=2.75 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 06:55:08 load=17.53 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:02:09 load=8.90 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:09:10 load=6.05 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:16:10 load=3.44 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:23:10 load=12.29 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:30:11 load=10.53 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:37:11 load=6.02 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:44:11 load=2.92 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:51:12 load=6.90 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 07:58:12 load=9.67 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 08:05:12 load=5.25 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 08:12:13 load=4.20 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 08:19:13 load=2.17 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 08:26:13 load=3.28 wake_init_ws_fine: no window in 5 min with the daemons suspended; resumed, retry in 2 min
+2026-11-24 08:33:03 load=3.65 wake_init_ws_fine: gate passed (<8%) ambient=7.27% top: 7.3%WindowServer 6.6%Bartender 1.5%bzfilelist 
+2026-11-24 08:33:03 load=3.65 wake_init_ws_fine: start
+2026-11-24 08:34:18 load=4.42 wake_init_ws_fine: end exit=0 rows=136
+2026-11-24 08:34:18 load=4.42 wake_local_pool: DEADLINE passed, SKIPPED
+2026-11-24 08:34:18 load=4.42 idle_burn: DEADLINE passed, SKIPPED
+2026-11-24 08:34:18 load=4.42 idle_burn_plain: DEADLINE passed, SKIPPED
+2026-11-24 08:34:18 load=4.42 DONE
+## load during wake_plain (top three by CPU, every 15 s)
+02:16:16 load=1.79 top: 3.7%python3 1.8%WindowServer 1.3%syspolicyd 
+02:16:31 load=1.61 top: 100.0%pool_wake_bench 1.1%WindowServer 0.8%sandboxd 
+02:16:46 load=1.56 top: 135.0%pool_wake_bench 13.8%mds_stores 4.8%WindowServer 
+## load during wake_init (top three by CPU, every 15 s)
+06:31:04 load=13.41 top: 48.3%contactsd 32.4%AddressBookSourceSync 19.5%runningboardd 
+06:31:19 load=10.81 top: 167.5%pool_wake_bench 24.6%deleted_helper 0.8%bzfilelist 
+06:31:34 load=10.16 top: 219.5%pool_wake_bench 114.8%contactsd 31.4%AddressBookSourceSync 
+## load during wake_init_ws (top three by CPU, every 15 s)
+06:39:22 load=3.16 top: 9.9%locationd 4.6%airportd 4.5%com.apple.DriverKit-AppleBCMWLAN 
+06:39:37 load=3.68 top: 161.9%pool_wake_bench 2.2%bzfilelist 0.6%usernoted 
+06:39:52 load=6.63 top: 216.9%pool_wake_bench 32.0%coreaudiod 11.1%mediaremoted 
+06:40:07 load=5.86 top: 181.8%pool_wake_bench 13.3%bzfilelist 0.6%python3 
+06:40:22 load=5.40 top: 2.8%bzfilelist 2.8%locationd 2.4%sandboxd 
+## load during wake_plain_sleep (top three by CPU, every 15 s)
+06:41:09 load=3.29 top: 6.6%bzfilelist 5.2%com.apple.DriverKit-AppleBCMWLAN 1.5%diskimagesiod 
+06:41:24 load=3.16 top: 545.0%pool_wake_bench 3.5%com.apple.DriverKit-AppleBCMWLAN 2.8%bzfilelist 
+## load during wake_init_ws_sleep (top three by CPU, every 15 s)
+06:42:12 load=2.13 top: 7.9%bzfilelist 5.4%com.apple.DriverKit-AppleBCMWLAN 5.4%locationd 
+06:42:27 load=2.89 top: 552.7%pool_wake_bench 22.1%mdworker_shared 20.9%mdworker_shared 
+06:42:42 load=3.97 top: 71.4%pool_wake_bench 19.9%mdworker_shared 17.5%mds 
+## load during wake_init_ws_fine (top three by CPU, every 15 s)
+08:33:03 load=3.65 top: 4.5%WindowServer 4.0%Bartender 1.1%com.apple.DriverKit-AppleBCMWLAN 
+08:33:18 load=3.14 top: 160.4%pool_wake_bench 2.8%locationd 1.0%airportd 
+08:33:33 load=3.85 top: 466.2%pool_wake_bench 2.8%PerfPowerServices 2.5%WindowServer 
+08:33:48 load=4.89 top: 242.4%pool_wake_bench 22.0%CoreLocationAgent 17.8%AccessibilityUIServer 
+08:34:03 load=4.89 top: 527.9%pool_wake_bench 7.9%launchd 3.6%WindowServer 
+## gate samples above 8% with the two daemons suspended: 1899; most frequent in the top three:
+1899 top:
+829 WindowServer
+467 mdworker_shared
+442 Bartender
+419 storeuid
+347 CGPDFService
+294 bzfilelist
+263 AXVisualSupportAgent

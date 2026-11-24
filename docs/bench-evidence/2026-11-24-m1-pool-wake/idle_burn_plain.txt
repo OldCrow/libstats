@@ -1,0 +1,1 @@
+idle 10 s with no pool started: user 0.00 s, sys 0.00 s, voluntary switches 0
