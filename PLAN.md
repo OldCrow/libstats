@@ -159,7 +159,8 @@ design decision (all four machines' L7).
   subnormal p, #316), merged here at `e4026b3`.
   The kAvx re-capture waits on the pool design.
 - **M — M1, NEON, macOS 27.2.1, AppleClang 21.0.0**: L1 done 2026-11-21
-  at `cfbb992` and again 2026-11-22 at `c6ae2b9`: Release build
+  at `cfbb992`, again 2026-11-22 at `c6ae2b9` and 2026-11-24 at
+  `0f57256` (with #324, #325, #326): Release build
   warning-free, NEON, 135/135, backend GCD
   (`test_parallel_backend_selection` 3 pass, the OpenMP case skips;
   `WorkStealingCrossWaiting` skips here). **L2 done** at `cfbb992`:
