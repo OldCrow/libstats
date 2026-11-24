@@ -1,0 +1,8 @@
+2026-11-24 02:35:47 top3=0.03 cores: GlassWire 0.02, AacAmbientLighting 0.01, SearchHost 0.00
+2026-11-24 02:36:48 top3=0.04 cores: GlassWire 0.02, AacAmbientLighting 0.01, MSPCManagerCore 0.00
+2026-11-24 02:39:18 top3=0.04 cores: GlassWire 0.03, AacAmbientLighting 0.01, claude 0.00
+2026-11-24 02:40:18 top3=0.04 cores: GlassWire 0.02, AacAmbientLighting 0.01, claude 0.01
+2026-11-24 02:41:19 top3=0.04 cores: GlassWire 0.02, AacAmbientLighting 0.01, claude 0.00
+2026-11-24 02:42:19 top3=0.05 cores: GlassWire 0.03, AacAmbientLighting 0.02, claude 0.00
+2026-11-24 02:32:17 top3=0.03 cores: GlassWire 0.02, AacAmbientLighting 0.01, claude 0.00
+2026-11-24 02:33:18 top3=0.04 cores: GlassWire 0.02, AacAmbientLighting 0.01, claude 0.00

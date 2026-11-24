@@ -1,0 +1,2 @@
+kAvx512  Z (Zen 4, clang-cl): CHANGE 17, CHANGE bench 4, CHANGE fork 15, CHANGE taken 3, KEEP ok 42; 39 values written; 39 changed rows carry a comment to re-read; 8 changed rows already overrode the previous capture
+total values changed: 39

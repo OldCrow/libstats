@@ -1,0 +1,26 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v300\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = UniformEnhancedTest.SIMDAndParallelBatchImplementations
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from UniformEnhancedTest
+[ RUN      ] UniformEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 28.8μs (baseline)
+  Vectorized: 0.6μs (48x speedup)
+  Parallel: 0.7μs (41.1429x speedup)
+  Work Stealing: 0.8μs (36x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 289.6μs (baseline)
+  Vectorized: 7.3μs (39.6712x speedup)
+  Parallel: 27.7μs (10.4549x speedup)
+  Work Stealing: 21.5μs (13.4698x speedup)
+[       OK ] UniformEnhancedTest.SIMDAndParallelBatchImplementations (34 ms)
+[----------] 1 test from UniformEnhancedTest (35 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (36 ms total)
+[  PASSED  ] 1 test.

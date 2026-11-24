@@ -1,0 +1,15 @@
+2026-11-24 07:02:21 ==== quiet sitting start: phases=ab head=164cbce dirty=4
+2026-11-24 07:02:23 cpu=AMD Ryzen 7 7445HS w/ Radeon 740M Graphics os=10.0.26300 power=27fa6203-3987-4dcc-918d-748559d549ec  (Performance) ac=True
+2026-11-24 07:02:30 L5 table_ab gate cpu=4.6% quiet
+2026-11-24 07:02:41 clock[table_ab_before] ms/pass=127.3/127.1 (boost ~127-130, base ~190)
+2026-11-24 07:03:09 L5 table_ab warm-up 25s discarded
+2026-11-24 07:03:09 table_ab old pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 07:19:31 table_ab old pass 1 end exit=0 lines=2431 981s
+2026-11-24 07:19:32 table_ab new pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 07:35:53 table_ab new pass 1 end exit=0 lines=2431 981s
+2026-11-24 07:35:53 table_ab old pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 07:52:16 table_ab old pass 2 end exit=0 lines=2431 982s
+2026-11-24 07:52:16 table_ab new pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 08:08:37 table_ab new pass 2 end exit=0 lines=2431 982s
+2026-11-24 08:08:47 clock[table_ab_after] ms/pass=127.3/127 (boost ~127-130, base ~190)
+2026-11-24 08:08:47 L5 table_ab DONE

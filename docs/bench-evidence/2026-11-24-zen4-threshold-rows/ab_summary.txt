@@ -1,0 +1,49 @@
+noise floor (forced, same code): median 1.000 p05 0.95 p95 1.04 n=1620
+pass-to-pass (old table, all rows): median 1.000 p05 0.96 p95 1.05
+AUTO rows 810: new/old median 1.000; faster >1.25x 22; slower >1.25x 3
+AUTO > 1.25x behind best forced: old table 35, new table 15
+
+== REGRESSIONS: new AUTO slower than old by > 1.25x
+  HalfNormal      logpdf    1024  old     0.25 new     0.33  new/old  1.32  old a/b 1.00(para) new a/b 1.00(para)
+  HalfNormal      cdf       8192  old     1.46 new     1.93  new/old  1.31  old a/b 1.02(para) new a/b 1.36(para)
+  Cauchy          logpdf    8192  old     2.49 new     3.21  new/old  1.29  old a/b 1.00(vect) new a/b 1.29(vect)
+
+== remaining gaps under the NEW table: AUTO > 1.25x behind best forced
+  TruncatedNormal pdf       8192  auto/best 1.59 (best parallel)  old auto/best 1.54  new/old 1.00
+  LogNormal       logpdf    8192  auto/best 1.55 (best parallel)  old auto/best 1.51  new/old 1.00
+  Rayleigh        logpdf    8192  auto/best 1.54 (best parallel)  old auto/best 1.57  new/old 0.95
+  Gumbel          logpdf    8192  auto/best 1.52 (best parallel)  old auto/best 1.48  new/old 0.99
+  VonMises        logpdf    8192  auto/best 1.51 (best parallel)  old auto/best 1.49  new/old 1.00
+  ChiSquared      logpdf    8192  auto/best 1.50 (best parallel)  old auto/best 1.45  new/old 1.03
+  Gamma           logpdf    8192  auto/best 1.46 (best parallel)  old auto/best 1.46  new/old 1.00
+  Laplace         pdf       8192  auto/best 1.46 (best parallel)  old auto/best 1.42  new/old 1.01
+  Erlang          logpdf    8192  auto/best 1.44 (best parallel)  old auto/best 1.46  new/old 1.01
+  Pareto          pdf       8192  auto/best 1.44 (best parallel)  old auto/best 1.53  new/old 0.99
+  Logistic        cdf       8192  auto/best 1.38 (best parallel)  old auto/best 1.44  new/old 0.98
+  HalfNormal      cdf       8192  auto/best 1.36 (best parallel)  old auto/best 1.02  new/old 1.31
+  Gumbel          cdf       8192  auto/best 1.34 (best parallel)  old auto/best 1.38  new/old 0.99
+  Cauchy          logpdf    8192  auto/best 1.29 (best vectorized)  old auto/best 1.00  new/old 1.29
+  Discrete        pdf     100000  auto/best 1.28 (best parallel)  old auto/best 1.26  new/old 0.95
+
+== gaps CLOSED by the new table (old a/b > 1.25, new a/b <= 1.25)
+  Cauchy          pdf     n:new/old  8192:1.00
+  ChiSquared      pdf     n:new/old  8192:0.74
+  Erlang          pdf     n:new/old  8192:0.78
+  Exponential     cdf     n:new/old  8192:0.68
+  Gamma           pdf     n:new/old  8192:0.72
+  Gumbel          logpdf  n:new/old  25000:0.73
+  Gumbel          pdf     n:new/old  8192:0.72
+  Laplace         cdf     n:new/old  8192:0.72 10000:0.75
+  Laplace         pdf     n:new/old  25000:0.76
+  LogNormal       logpdf  n:new/old  25000:0.69
+  LogNormal       pdf     n:new/old  8192:0.75
+  Logistic        logpdf  n:new/old  8192:0.72
+  Logistic        pdf     n:new/old  8192:0.70 10000:0.74
+  Rayleigh        pdf     n:new/old  8192:0.73
+  StudentT        logpdf  n:new/old  8192:0.72
+  StudentT        pdf     n:new/old  8192:0.70 10000:0.76
+  Uniform         pdf     n:new/old  200000:0.90
+  VonMises        pdf     n:new/old  8192:0.73
+  Weibull         logpdf  n:new/old  8192:0.75
+
+== per-row verdict for every changed proposal row would need the table; see rows_kNeon.txt

@@ -220,7 +220,59 @@ design decision (all four machines' L7).
   that blocks, and an M1 guard that drops it would cost that caller
   3.3×. These runs predate #324; M has no figure for the lookup.
   **L6, #107 and #47 owed.**
-- **Z — Zen 4, AVX-512, Windows, clang-cl and cl.exe**: not started.
+- **Z — Zen 4, AVX-512, Windows 11, clang-cl 22.1.3 and cl.exe 19.52**:
+  **L1 done 2026-11-23** at `164cbce` (code `e4026b3`): 135/135 under
+  both, backend `std::execution`; `test_concurrency_stress` passes
+  natively under `cl.exe` (195 s). Not warning-free as found: clang-cl
+  gave two `getenv` deprecation warnings in
+  `tools/bench/sustained_timing.h` (`strategy_profile`, since
+  `8c55bfc`), fixed with the leg (`bench_timing::envValue`, 0 warnings
+  after); cl.exe's eight are Highway's own (`D9025`). **L2 done**: 26,882 rows, 200 self-checks, 0 contract violations
+  under both; AVX-512 block regenerated from the clang-cl sweep. **L2b
+  done**: `data/accuracy/allow_AVX-512.csv` (3,025 rows). Row gate
+  against v2.5.0 on its grid: 26,301 rows, 707 values better, 74 worse,
+  all in the classes K and M reported (#314's small-shape densities;
+  Student-t at ν 39.9 and at large ν, Fisher-F survival, LogNormal
+  quantile, Geometric pdf), none re-checked at higher precision here.
+  Off-grid, seed 213: 11,278 scored, 60 skipped, 1 contract violation
+  (#317); #316 is gone. 14 quantile rows at 115–474 ε are real, each
+  reference rechecked at 130 digits: small shape with a deep tail
+  (Student-t, Fisher-F, InverseGamma, Weibull), 117–620 ulps from the
+  correctly rounded value; `main` returns the same bits on 10 of the
+  14 and is worse on the other four, so none is the adoption's;
+  #104's subject, not filed. **L3 done**:
+  `b766e45` and `90d1bef` sweeps bit-identical on AVX-512. **L4 done
+  2026-11-24**, quiet throughout (CPU 2–3% at every gate, clock probe
+  127 ms, every process opted out of throttling): timing 14/14,
+  `simd_verification` 140 pass; bench against `main` (`7069adc`), three
+  passes, sustained timer: discrete pmfs 0.48–0.63×, `erf` 0.47×, batch
+  CDF Poisson 2.0×, Binomial 3.0×, Beta 5.7×, Gamma 0.85×; scalar CDF
+  3.8–13.7×, quantile 2.8–15.6× on the gamma and beta families;
+  **Gaussian and LogNormal quantile 1.47× and 1.53× slower, where K
+  read 0.82×**: the probit is now `corvus::erfcinv` on a one-element
+  span, 106 ns here against 178 on K, and `main`'s scalar probit is
+  3× faster here than on K (corvus #110's cost, on `erfcinv`). Three `strategy_profile --large`
+  runs with `164cbce`'s profiler (sustained-v1), 81 min each, 3 of 81
+  rows spread > 2×: bundle `2026-11-24T07-53-40Z_windows-x86_64_…`.
+  **L5 derived and A/B'd, not applied** [OPEN; user]: the script
+  proposes 34 kAvx512 values, 30 earlier (most 25k → 8192 or 10240);
+  quiet ABAB: AUTO rows > 1.25× behind 35 → 15, 22 faster, 3 slower.
+  PARALLEL wins at 8192, loses at 10000 and wins again from 25000 on
+  most rows, so the 15 rows read as 10240 leave AUTO 1.3–1.6× behind at
+  8192; and Cauchy LogPDF regresses 1.29× at 8192 through Student-t's
+  row. Only one row has a 2× win below its value (Erlang LogPDF,
+  75k, PARALLEL 0.46× at 50000); the gains are all in the 1.3–1.6×
+  band. L1 on the proposed header (clang-cl): 135/135.
+  `docs/bench-evidence/2026-11-24-zen4-threshold-rows/`. **L6 done
+  2026-11-24**: bench stated on #156. **L7 done 2026-11-24**, quiet, same sitting:
+  Gaussian's crossover is 50000 at gap 0 and 100000 at 2 ms and 20 ms;
+  Poisson's is 10000 (the first size that forks) at every gap; plain and
+  `--init` read the same. Forced PARALLEL costs 1.9× more per element at
+  2 ms and 2.6× more at 20 ms (Gaussian, 50000); `--init` does not
+  remove it; VECTORIZED also slows 1.1–1.2× at 20 ms.
+  `pool_wake_bench` not run. Evidence:
+  `docs/bench-evidence/2026-11-24-zen4-v300-l4/`,
+  `docs/bench-evidence/2026-11-24-zen4-batch-gap/`.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
   the commit that carries this line: Release build warning-free, AVX2
   with FMA, 135/135, backend GCD. L1 found one defect at `cfbb992`:

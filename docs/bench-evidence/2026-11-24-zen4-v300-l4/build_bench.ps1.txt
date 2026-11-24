@@ -1,0 +1,29 @@
+# Z's v3.0.0 legs: build tools/bench programs with clang-cl and the flags and definitions of the
+# library's own TUs (clangcl\build.ninja: /EHsc /O2 /Ob2 /DNDEBUG -std:c++20 -MD /arch:AVX512, the
+# four LIBSTATS_HAS_*, NOMINMAX, _USE_MATH_DEFINES). The bench sources are the dev checkout's.
+# -Tree is the library the bench is built against: its include root and its build directory.
+param(
+    [Parameter(Mandatory)] [string]$Tree,      # e.g. ...\wt or ...\main-wt
+    [Parameter(Mandatory)] [string]$Bld,       # e.g. ...\clangcl or ...\main
+    [Parameter(Mandatory)] [string]$Suffix,    # dev | main | old | new ...
+    [Parameter(Mandatory)] [string[]]$Benches, # distributions elementary batch_gap table_ab
+    [string]$OutDir = "$(Split-Path $PSScriptRoot -Parent)\bench"
+)
+$ErrorActionPreference = 'Continue'
+$Root = Split-Path $PSScriptRoot -Parent
+. "$PSScriptRoot\vcvars.ps1"
+New-Item -ItemType Directory -Force $OutDir | Out-Null
+$flags = @('/nologo', '/DWIN32', '/D_WINDOWS', '/EHsc', '/O2', '/Ob2', '/DNDEBUG', '-std:c++20', '-MD', '/arch:AVX512',
+    '-DLIBSTATS_HAS_AVX2=1', '-DLIBSTATS_HAS_AVX512=1', '-DLIBSTATS_HAS_AVX=1', '-DLIBSTATS_HAS_SSE2=1', '-DNOMINMAX', '-D_USE_MATH_DEFINES')
+$inc = @("-I$Tree\include", "-I$Tree\include\libstats", "-I$Bld\generated")
+$libs = @("$Bld\stats_static.lib")
+if (Test-Path "$Bld\_deps\corvus-build\corvus.lib") {
+    $inc += "-imsvc$Bld\_deps\corvus-src\include"
+    $libs += @("$Bld\_deps\corvus-build\corvus.lib", "$Bld\_deps\highway-build\hwy.lib")
+}
+foreach ($b in $Benches) {
+    $src = "$Root\wt\tools\bench\${b}_bench.cpp"
+    $exe = "$OutDir\${b}_$Suffix.exe"
+    & clang-cl @flags @inc $src "/Fe$exe" "/Fo$OutDir\${b}_$Suffix.obj" /link @libs *> "$OutDir\build_${b}_$Suffix.txt"
+    "bench $b $Suffix exit=$LASTEXITCODE warnings=$((Select-String -Path "$OutDir\build_${b}_$Suffix.txt" -Pattern 'warning' | Measure-Object).Count)"
+}

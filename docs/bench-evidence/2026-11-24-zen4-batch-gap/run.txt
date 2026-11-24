@@ -1,0 +1,19 @@
+2026-11-24 02:29:53 ==== quiet sitting start: phases=l7,timing,simd,bench,profile head=164cbce dirty=2
+2026-11-24 02:29:55 cpu=AMD Ryzen 7 7445HS w/ Radeon 740M Graphics os=10.0.26300 power=27fa6203-3987-4dcc-918d-748559d549ec  (Performance) ac=True
+2026-11-24 02:30:02 L7 plain gate cpu=8% waiting
+2026-11-24 02:30:38 L7 plain gate cpu=5.5% quiet
+2026-11-24 02:30:50 clock[l7_plain] ms/pass=127.1/127.4 (boost ~127-130, base ~190)
+2026-11-24 02:31:17 L7 plain warm-up 25s discarded
+2026-11-24 02:31:17 L7 batch_gap plain start (set=True ok=True control=1 state=0)
+2026-11-24 02:34:05 L7 batch_gap plain end exit=0 lines=133 168s
+2026-11-24 02:34:11 L7 init gate cpu=3% quiet
+2026-11-24 02:34:21 clock[l7_init] ms/pass=127.2/127 (boost ~127-130, base ~190)
+2026-11-24 02:34:47 L7 init warm-up 25s discarded
+2026-11-24 02:34:47 L7 batch_gap init start (set=True ok=True control=1 state=0)
+2026-11-24 02:37:35 L7 batch_gap init end exit=0 lines=133 169s
+2026-11-24 02:37:41 L7 init_auto gate cpu=3.6% quiet
+2026-11-24 02:37:52 clock[l7_init_auto] ms/pass=127.1/127 (boost ~127-130, base ~190)
+2026-11-24 02:38:17 L7 init_auto warm-up 25s discarded
+2026-11-24 02:38:17 L7 batch_gap init_auto start (set=True ok=True control=1 state=0)
+2026-11-24 02:42:30 L7 batch_gap init_auto end exit=0 lines=193 253s
+2026-11-24 02:42:30 L7 DONE

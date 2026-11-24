@@ -1,0 +1,41 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v300\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = GaussianEnhancedTest.SIMDAndParallelBatchImplementations:GaussianEnhancedTest.AutoDispatchAssessment:GaussianEnhancedTest.ParallelBatchFittingSpeedup
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from GaussianEnhancedTest
+[ RUN      ] GaussianEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 38.9μs (baseline)
+  Vectorized: 4.5μs (8.64444x speedup)
+  Parallel: 4.5μs (8.64444x speedup)
+  Work Stealing: 4.6μs (8.45652x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 392μs (baseline)
+  Vectorized: 46.3μs (8.46652x speedup)
+  Parallel: 29.9μs (13.1104x speedup)
+  Work Stealing: 34.4μs (11.3953x speedup)
+[       OK ] GaussianEnhancedTest.SIMDAndParallelBatchImplementations (35 ms)
+[ RUN      ] GaussianEnhancedTest.AutoDispatchAssessment
+
+=== Auto-Dispatch Strategy Assessment ===
+  Batch size 5 (expected: SCALAR): Auto 0.049475μs vs Traditional 0.04025μs, Correct: ✅
+  Batch size 50 (expected: SCALAR): Auto 0.09125μs vs Traditional 0.3965μs, Correct: ✅
+  Batch size 500 (expected: VECTORIZED): Auto 0.47μs vs Traditional 3.9725μs, Correct: ✅
+  Batch size 5000 (expected: VECTORIZED): Auto 4.55μs vs Traditional 39.725μs, Correct: ✅
+  Batch size 50000 (expected: PARALLEL): Auto 30μs vs Traditional 399.7μs, Correct: ✅
+[       OK ] GaussianEnhancedTest.AutoDispatchAssessment (22 ms)
+[ RUN      ] GaussianEnhancedTest.ParallelBatchFittingSpeedup
+  256 datasets x 2000 points, 12 hardware threads
+  Parallel batch fitting: 575.9 us
+  Sequential individual fits: 2189.8 us
+  Speedup: 3.8024x
+[       OK ] GaussianEnhancedTest.ParallelBatchFittingSpeedup (74 ms)
+[----------] 3 tests from GaussianEnhancedTest (134 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (135 ms total)
+[  PASSED  ] 3 tests.

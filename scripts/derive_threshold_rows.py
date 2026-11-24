@@ -49,8 +49,8 @@ NEVER, OPS, INF = ac.NEVER, ac.OPS, float("inf")
 
 # table -> (new bundle, previous bundle, fork value to encode, fork zone upper bound, Z direction bundle)
 TABLES = OrderedDict([
-    ("kAvx512", dict(new="2026-10-14T02-41-05Z_windows-x86_64_dev-v2.4.2_sha-df78931",
-                     prev="2026-10-07T02-10-06Z_windows-x86_64_dev-v2.4.2_sha-8271f6e",
+    ("kAvx512", dict(new="2026-11-24T07-53-40Z_windows-x86_64_dev-v3.0.0-corvus-adoption_sha-164cbce",
+                     prev="2026-10-14T02-41-05Z_windows-x86_64_dev-v2.4.2_sha-df78931",
                      fork=8192, fork_zone=8192, confirm=None, machine="Z (Zen 4, clang-cl)")),
     ("kAvx2",   dict(new="2026-10-13T13-11-55Z_darwin-x86_64_dev-v2.4.2_sha-d1adc95",
                      prev="2026-10-05T01-50-52Z_darwin-x86_64_dev-v2.4.2_sha-6f86996",

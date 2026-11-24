@@ -1,0 +1,187 @@
+# Z's v3.0.0 quiet sitting: L7 (batch_gap_bench x3), then L4 (timing tests, simd_verification,
+# distributions/elementary benches main against dev x3, strategy_profile --large x3).
+# Every measured process is launched directly by this script and opted out of Windows power throttling
+# (docs/VALIDATION_HISTORY.md, "Zen 4 timing: power throttling"); ctest only lists the timing tests.
+# Before each run: a CPU quiet gate, a 10-s clock probe, and where stated a discarded warm-up pass.
+# Nothing here builds, commits or writes inside the repository.
+param(
+    [string[]]$Phases = @('l7', 'timing', 'simd', 'bench', 'profile'),
+    [string]$Out = "$(Split-Path $PSScriptRoot -Parent)\quiet",
+    [double]$QuietPct = 8.0,
+    [int]$QuietMaxWaitMin = 15,
+    [int]$WarmupSec = 25
+)
+$ErrorActionPreference = 'Continue'
+$Root = Split-Path $PSScriptRoot -Parent
+$Wt = "$Root\wt"
+$Dev = "$Root\clangcl"
+$Bench = "$Root\bench"
+New-Item -ItemType Directory -Force $Out | Out-Null
+$Log = "$Out\run.txt"
+. "$Wt\docs\bench-evidence\2026-10-05-zen4-msvc-vs-clangcl\nothrottle.ps1"
+Add-Type -Namespace Win32 -Name Power -MemberDefinition @'
+[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);
+'@
+[Win32.Power]::SetThreadExecutionState([uint32]'0x80000001') | Out-Null   # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+
+function Stamp { (Get-Date).ToString('yyyy-MM-dd HH:mm:ss') }
+function Log($msg) { $line = "$(Stamp) $msg"; Add-Content -Path $Log -Value $line; Write-Host $line }
+function CpuPct {
+    $s = Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 2 -MaxSamples 3 -ErrorAction SilentlyContinue
+    if (-not $s) { return -1 }
+    [math]::Round(($s.CounterSamples | Measure-Object CookedValue -Average).Average, 1)
+}
+function WaitQuiet($label) {
+    $t0 = Get-Date
+    while ($true) {
+        $c = CpuPct
+        if ($c -ge 0 -and $c -lt $QuietPct) { Log "$label gate cpu=$c% quiet"; return }
+        if (((Get-Date) - $t0).TotalMinutes -ge $QuietMaxWaitMin) { Log "$label gate cpu=$c% NOT QUIET after $QuietMaxWaitMin min, starting anyway (indicative)"; return }
+        Log "$label gate cpu=$c% waiting"; Start-Sleep -Seconds 30
+    }
+}
+function StartOptedOut($exe, $wd, $stdout, $argList) {
+    $extra = @{}; if ($argList) { $extra.ArgumentList = $argList }
+    $p = Start-Process @extra -FilePath $exe -WorkingDirectory $wd -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError "$stdout.err"
+    $null = $p.Handle
+    $ok = Disable-PowerThrottling $p
+    $p | Add-Member -NotePropertyName OptOut -NotePropertyValue "set=$ok $(Get-PowerThrottling $p)"
+    return $p
+}
+# Other processes' CPU while a measured process runs: once a minute, the three busiest, in cores.
+function NoiseSample($file, $selfId) {
+    $a = @{}; Get-Process | ForEach-Object { $a[$_.Id] = $_.TotalProcessorTime.TotalSeconds }
+    Start-Sleep -Seconds 10
+    $rows = Get-Process | Where-Object { $_.Id -ne $selfId -and $_.Id -ne $PID -and $a.ContainsKey($_.Id) } | ForEach-Object {
+        [pscustomobject]@{ Name = $_.ProcessName; Cores = ($_.TotalProcessorTime.TotalSeconds - $a[$_.Id]) / 10.0 }
+    } | Sort-Object Cores -Descending | Select-Object -First 3
+    $sum = ($rows | Measure-Object Cores -Sum).Sum
+    Add-Content $file ("{0} top3={1:N2} cores: {2}" -f (Stamp), $sum, (($rows | ForEach-Object { "{0} {1:N2}" -f $_.Name, $_.Cores }) -join ', '))
+}
+function RunOptedOut($label, $exe, $wd, $stdout, $argList, $noiseFile) {
+    $p = StartOptedOut $exe $wd $stdout $argList
+    Log "$label start ($($p.OptOut))"
+    $t0 = Get-Date; $next = (Get-Date).AddSeconds(50)
+    while (-not $p.WaitForExit(1000)) {
+        if ($noiseFile -and (Get-Date) -ge $next) { NoiseSample $noiseFile $p.Id; $next = (Get-Date).AddSeconds(50) }
+    }
+    $p.WaitForExit()
+    if ((Test-Path "$stdout.err") -and (Get-Item "$stdout.err").Length -eq 0) { Remove-Item "$stdout.err" }
+    $lines = if (Test-Path $stdout) { (Get-Content $stdout).Count } else { 0 }
+    Log ("{0} end exit={1} lines={2} {3:N0}s" -f $label, $p.ExitCode, $lines, ((Get-Date) - $t0).TotalSeconds)
+    return $p.ExitCode
+}
+function Warmup($label, $exe, $wd, $argList) {
+    $tmp = "$Out\warmup_discard.txt"
+    $p = StartOptedOut $exe $wd $tmp $argList
+    Start-Sleep -Seconds $WarmupSec
+    if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+    Start-Sleep -Milliseconds 500
+    Remove-Item $tmp, "$tmp.err" -ErrorAction SilentlyContinue
+    Log "$label warm-up ${WarmupSec}s discarded"
+}
+$Probe = "$PSScriptRoot\clock_probe.exe"
+if (-not (Test-Path $Probe)) {
+    . "$PSScriptRoot\vcvars.ps1"
+    & clang-cl /nologo /O2 /EHsc "/Fe$Probe" "/Fo$PSScriptRoot\clock_probe.obj" "$Wt\docs\bench-evidence\2026-10-05-zen4-msvc-vs-clangcl\clock_probe.cpp" | Out-Null
+}
+function ClockCheck($label) {
+    $o = "$Out\clock_$label.txt"
+    $p = StartOptedOut $Probe $Out $o '10'; $p.WaitForExit()
+    Remove-Item "$o.err" -ErrorAction SilentlyContinue
+    $vals = Get-Content $o | ForEach-Object { if ($_ -match '([\d.]+) ms') { [double]$Matches[1] } }
+    Log "clock[$label] ms/pass=$($vals -join '/') (boost ~127-130, base ~190)"
+}
+
+Log "==== quiet sitting start: phases=$($Phases -join ',') head=$(git -C $Wt rev-parse --short HEAD) dirty=$((git -C $Wt status --porcelain | Measure-Object).Count)"
+Log "cpu=$((Get-CimInstance Win32_Processor).Name.Trim()) os=$((Get-CimInstance Win32_OperatingSystem).Version) power=$((powercfg /getactivescheme) -replace '^.*GUID: ', '') ac=$((Get-CimInstance -Namespace root\wmi -ClassName BatteryStatus -ErrorAction SilentlyContinue | Select-Object -First 1).PowerOnline)"
+
+if ($Phases -contains 'l7') {
+    $d = "$Out\batch_gap"; New-Item -ItemType Directory -Force $d | Out-Null
+    $exe = "$Bench\batch_gap_dev.exe"
+    $runs = @(@('plain', $null), @('init', '--init'), @('init_auto', '--init --auto'))
+    foreach ($r in $runs) {
+        WaitQuiet "L7 $($r[0])"
+        ClockCheck "l7_$($r[0])"
+        Warmup "L7 $($r[0])" $exe $d $r[1]
+        RunOptedOut "L7 batch_gap $($r[0])" $exe $d "$d\gap_$($r[0]).csv" $r[1] "$d\noise_$($r[0]).txt" | Out-Null
+    }
+    Log "L7 DONE"
+}
+
+if ($Phases -contains 'timing') {
+    $d = "$Out\timing"; New-Item -ItemType Directory -Force $d | Out-Null
+    WaitQuiet 'L4 timing'
+    ClockCheck 'timing_before'
+    $tests = (ctest --test-dir $Dev --show-only=json-v1 -L timing | ConvertFrom-Json).tests
+    $pass = 0; $fail = @()
+    foreach ($t in $tests) {
+        $envProp = ($t.properties | Where-Object name -eq 'ENVIRONMENT').value
+        $wdProp = ($t.properties | Where-Object name -eq 'WORKING_DIRECTORY').value
+        $set = @()
+        foreach ($e in $envProp) { $k, $v = $e -split '=', 2; Set-Item "env:$k" $v; $set += $k }
+        $argList = $null; if ($t.command.Count -gt 1) { $argList = $t.command[1..($t.command.Count - 1)] }
+        $code = RunOptedOut "timing $($t.name)" $t.command[0] $wdProp "$d\$($t.name).txt" $argList $null
+        foreach ($k in $set) { Remove-Item "env:$k" }
+        if ($code -eq 0) { $pass++ } else { $fail += $t.name }
+    }
+    ClockCheck 'timing_after'
+    Log "L4 timing RESULT $pass/$($tests.Count) passed; failed: $($fail -join ', ')"
+}
+
+if ($Phases -contains 'simd') {
+    $d = "$Out\simd"; New-Item -ItemType Directory -Force $d | Out-Null
+    WaitQuiet 'L4 simd'
+    RunOptedOut 'simd_verification' "$Dev\tools\simd_verification.exe" $d "$d\simd_verification.txt" $null $null | Out-Null
+}
+
+if ($Phases -contains 'bench') {
+    $d = "$Out\bench"; New-Item -ItemType Directory -Force $d | Out-Null
+    $env:LIBSTATS_BENCH_WARMUP_SECONDS = '25'
+    foreach ($pass in 1, 2, 3) {
+        $order = if ($pass -eq 2) { @('dev', 'main') } else { @('main', 'dev') }
+        foreach ($b in @(@('distributions', 'dist'), @('elementary', 'elem'))) {
+            WaitQuiet "L4 bench $($b[1]) pass $pass"
+            if ($pass -eq 1) { ClockCheck "bench_$($b[1])" }
+            foreach ($side in $order) {
+                RunOptedOut "bench $($b[1]) $side pass $pass" "$Bench\$($b[0])_$side.exe" $d "$d\bench_$($b[1])_${side}_pass$pass.txt" $null $null | Out-Null
+            }
+        }
+    }
+    Remove-Item env:LIBSTATS_BENCH_WARMUP_SECONDS
+    Log "L4 bench DONE"
+}
+
+if ($Phases -contains 'profile') {
+    $d = "$Out\profile"; New-Item -ItemType Directory -Force $d | Out-Null
+    $exe = "$Dev\tools\strategy_profile.exe"
+    foreach ($i in 1, 2, 3) {
+        WaitQuiet "L4 profile run $i"
+        ClockCheck "profile_run$i"
+        Warmup "L4 profile run $i" $exe $d "-o `"$d\warmup_discard.csv`""
+        Remove-Item "$d\warmup_discard.csv" -ErrorAction SilentlyContinue
+        RunOptedOut "strategy_profile run $i" $exe $d "$d\strategy_profile_run$i.log.txt" "--large -o `"$d\strategy_profile_run$i.csv`"" "$d\noise_run$i.txt" | Out-Null
+        Log "run $i utc=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH-mm-ssZ')) csv_lines=$(if (Test-Path "$d\strategy_profile_run$i.csv") { (Get-Content "$d\strategy_profile_run$i.csv").Count } else { 0 })"
+    }
+    ClockCheck 'profile_after'
+    Log "L4 profile DONE"
+}
+
+if ($Phases -contains 'ab') {
+    # L5: table A/B, old (the committed kAvx512 table) against new (the proposed header), ABAB.
+    $d = "$Out\table_ab"; New-Item -ItemType Directory -Force $d | Out-Null
+    WaitQuiet 'L5 table_ab'
+    ClockCheck 'table_ab_before'
+    Warmup 'L5 table_ab' "$Bench\table_ab_old.exe" $d $null
+    foreach ($pass in 1, 2) {
+        foreach ($side in 'old', 'new') {
+            RunOptedOut "table_ab $side pass $pass" "$Bench\table_ab_$side.exe" $d "$d\tab_${side}_$pass.csv" $null "$d\noise_${side}_$pass.txt" | Out-Null
+        }
+    }
+    ClockCheck 'table_ab_after'
+    Log "L5 table_ab DONE"
+}
+
+Log "==== quiet sitting end: cpu=$(CpuPct)%"
+[Win32.Power]::SetThreadExecutionState([uint32]'0x80000000') | Out-Null
+Set-Content "$Out\DONE_$($Phases -join '_').txt" (Stamp)

@@ -1,0 +1,26 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v300\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = PoissonEnhancedTest.SIMDAndParallelBatchImplementations
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from PoissonEnhancedTest
+[ RUN      ] PoissonEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 86.6μs (baseline)
+  Vectorized: 48.7μs (1.77823x speedup)
+  Parallel: 48.6μs (1.78189x speedup)
+  Work Stealing: 48.6μs (1.78189x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 953.4μs (baseline)
+  Vectorized: 627.3μs (1.51985x speedup)
+  Parallel: 182.2μs (5.23271x speedup)
+  Work Stealing: 192.6μs (4.95016x speedup)
+[       OK ] PoissonEnhancedTest.SIMDAndParallelBatchImplementations (70 ms)
+[----------] 1 test from PoissonEnhancedTest (71 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (73 ms total)
+[  PASSED  ] 1 test.

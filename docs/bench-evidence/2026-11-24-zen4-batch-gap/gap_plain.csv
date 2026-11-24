@@ -1,0 +1,133 @@
+# batch_gap_bench pool=plain gap=busy logical_cpus=12
+Pool,GapKind,Distribution,Operation,BatchSize,Gap_us,Strategy,MedianNsPerElement
+plain,busy,Poisson,PDF,4096,0,VECTORIZED,10.547
+plain,busy,Poisson,PDF,4096,0,PARALLEL,10.547
+plain,busy,Poisson,PDF,10000,0,VECTORIZED,10.490
+plain,busy,Poisson,PDF,10000,0,PARALLEL,5.810
+plain,busy,Poisson,PDF,25000,0,VECTORIZED,10.520
+plain,busy,Poisson,PDF,25000,0,PARALLEL,3.792
+plain,busy,Poisson,PDF,50000,0,VECTORIZED,12.226
+plain,busy,Poisson,PDF,50000,0,PARALLEL,3.560
+plain,busy,Poisson,PDF,100000,0,VECTORIZED,12.570
+plain,busy,Poisson,PDF,100000,0,PARALLEL,3.253
+plain,busy,Poisson,PDF,200000,0,VECTORIZED,12.689
+plain,busy,Poisson,PDF,200000,0,PARALLEL,3.246
+plain,busy,Poisson,PDF,4096,50,VECTORIZED,10.547
+plain,busy,Poisson,PDF,4096,50,PARALLEL,10.547
+plain,busy,Poisson,PDF,10000,50,VECTORIZED,10.500
+plain,busy,Poisson,PDF,10000,50,PARALLEL,5.930
+plain,busy,Poisson,PDF,25000,50,VECTORIZED,10.516
+plain,busy,Poisson,PDF,25000,50,PARALLEL,3.888
+plain,busy,Poisson,PDF,50000,50,VECTORIZED,12.238
+plain,busy,Poisson,PDF,50000,50,PARALLEL,3.696
+plain,busy,Poisson,PDF,100000,50,VECTORIZED,12.573
+plain,busy,Poisson,PDF,100000,50,PARALLEL,3.292
+plain,busy,Poisson,PDF,200000,50,VECTORIZED,12.670
+plain,busy,Poisson,PDF,200000,50,PARALLEL,3.245
+plain,busy,Poisson,PDF,4096,500,VECTORIZED,10.571
+plain,busy,Poisson,PDF,4096,500,PARALLEL,10.571
+plain,busy,Poisson,PDF,10000,500,VECTORIZED,10.520
+plain,busy,Poisson,PDF,10000,500,PARALLEL,6.180
+plain,busy,Poisson,PDF,25000,500,VECTORIZED,10.640
+plain,busy,Poisson,PDF,25000,500,PARALLEL,4.208
+plain,busy,Poisson,PDF,50000,500,VECTORIZED,12.238
+plain,busy,Poisson,PDF,50000,500,PARALLEL,3.820
+plain,busy,Poisson,PDF,100000,500,VECTORIZED,12.590
+plain,busy,Poisson,PDF,100000,500,PARALLEL,3.384
+plain,busy,Poisson,PDF,200000,500,VECTORIZED,12.690
+plain,busy,Poisson,PDF,200000,500,PARALLEL,3.284
+plain,busy,Poisson,PDF,4096,2000,VECTORIZED,10.596
+plain,busy,Poisson,PDF,4096,2000,PARALLEL,10.571
+plain,busy,Poisson,PDF,10000,2000,VECTORIZED,10.520
+plain,busy,Poisson,PDF,10000,2000,PARALLEL,7.810
+plain,busy,Poisson,PDF,25000,2000,VECTORIZED,11.420
+plain,busy,Poisson,PDF,25000,2000,PARALLEL,4.668
+plain,busy,Poisson,PDF,50000,2000,VECTORIZED,12.316
+plain,busy,Poisson,PDF,50000,2000,PARALLEL,4.072
+plain,busy,Poisson,PDF,100000,2000,VECTORIZED,12.607
+plain,busy,Poisson,PDF,100000,2000,PARALLEL,3.639
+plain,busy,Poisson,PDF,200000,2000,VECTORIZED,12.741
+plain,busy,Poisson,PDF,200000,2000,PARALLEL,3.518
+plain,busy,Poisson,PDF,4096,20000,VECTORIZED,11.621
+plain,busy,Poisson,PDF,4096,20000,PARALLEL,12.012
+plain,busy,Poisson,PDF,10000,20000,VECTORIZED,11.840
+plain,busy,Poisson,PDF,10000,20000,PARALLEL,11.250
+plain,busy,Poisson,PDF,25000,20000,VECTORIZED,12.772
+plain,busy,Poisson,PDF,25000,20000,PARALLEL,6.156
+plain,busy,Poisson,PDF,50000,20000,VECTORIZED,12.786
+plain,busy,Poisson,PDF,50000,20000,PARALLEL,4.928
+plain,busy,Poisson,PDF,100000,20000,VECTORIZED,12.782
+plain,busy,Poisson,PDF,100000,20000,PARALLEL,3.935
+plain,busy,Poisson,PDF,200000,20000,VECTORIZED,12.800
+plain,busy,Poisson,PDF,200000,20000,PARALLEL,3.752
+plain,busy,Gaussian,PDF,4096,0,VECTORIZED,0.928
+plain,busy,Gaussian,PDF,4096,0,PARALLEL,0.928
+plain,busy,Gaussian,PDF,10000,0,VECTORIZED,0.920
+plain,busy,Gaussian,PDF,10000,0,PARALLEL,1.650
+plain,busy,Gaussian,PDF,25000,0,VECTORIZED,0.916
+plain,busy,Gaussian,PDF,25000,0,PARALLEL,1.168
+plain,busy,Gaussian,PDF,50000,0,VECTORIZED,0.918
+plain,busy,Gaussian,PDF,50000,0,PARALLEL,0.602
+plain,busy,Gaussian,PDF,100000,0,VECTORIZED,0.953
+plain,busy,Gaussian,PDF,100000,0,PARALLEL,0.408
+plain,busy,Gaussian,PDF,200000,0,VECTORIZED,0.956
+plain,busy,Gaussian,PDF,200000,0,PARALLEL,0.342
+plain,busy,Gaussian,PDF,4096,50,VECTORIZED,0.928
+plain,busy,Gaussian,PDF,4096,50,PARALLEL,0.928
+plain,busy,Gaussian,PDF,10000,50,VECTORIZED,0.920
+plain,busy,Gaussian,PDF,10000,50,PARALLEL,1.570
+plain,busy,Gaussian,PDF,25000,50,VECTORIZED,0.920
+plain,busy,Gaussian,PDF,25000,50,PARALLEL,1.156
+plain,busy,Gaussian,PDF,50000,50,VECTORIZED,0.918
+plain,busy,Gaussian,PDF,50000,50,PARALLEL,0.592
+plain,busy,Gaussian,PDF,100000,50,VECTORIZED,0.954
+plain,busy,Gaussian,PDF,100000,50,PARALLEL,0.411
+plain,busy,Gaussian,PDF,200000,50,VECTORIZED,0.955
+plain,busy,Gaussian,PDF,200000,50,PARALLEL,0.338
+plain,busy,Gaussian,PDF,4096,500,VECTORIZED,0.928
+plain,busy,Gaussian,PDF,4096,500,PARALLEL,0.928
+plain,busy,Gaussian,PDF,10000,500,VECTORIZED,0.930
+plain,busy,Gaussian,PDF,10000,500,PARALLEL,1.740
+plain,busy,Gaussian,PDF,25000,500,VECTORIZED,0.920
+plain,busy,Gaussian,PDF,25000,500,PARALLEL,1.208
+plain,busy,Gaussian,PDF,50000,500,VECTORIZED,0.920
+plain,busy,Gaussian,PDF,50000,500,PARALLEL,0.646
+plain,busy,Gaussian,PDF,100000,500,VECTORIZED,0.955
+plain,busy,Gaussian,PDF,100000,500,PARALLEL,0.451
+plain,busy,Gaussian,PDF,200000,500,VECTORIZED,0.957
+plain,busy,Gaussian,PDF,200000,500,PARALLEL,0.369
+plain,busy,Gaussian,PDF,4096,2000,VECTORIZED,0.952
+plain,busy,Gaussian,PDF,4096,2000,PARALLEL,0.952
+plain,busy,Gaussian,PDF,10000,2000,VECTORIZED,0.930
+plain,busy,Gaussian,PDF,10000,2000,PARALLEL,2.340
+plain,busy,Gaussian,PDF,25000,2000,VECTORIZED,0.924
+plain,busy,Gaussian,PDF,25000,2000,PARALLEL,1.676
+plain,busy,Gaussian,PDF,50000,2000,VECTORIZED,0.926
+plain,busy,Gaussian,PDF,50000,2000,PARALLEL,1.134
+plain,busy,Gaussian,PDF,100000,2000,VECTORIZED,0.958
+plain,busy,Gaussian,PDF,100000,2000,PARALLEL,0.721
+plain,busy,Gaussian,PDF,200000,2000,VECTORIZED,0.974
+plain,busy,Gaussian,PDF,200000,2000,PARALLEL,0.433
+plain,busy,Gaussian,PDF,4096,20000,VECTORIZED,1.465
+plain,busy,Gaussian,PDF,4096,20000,PARALLEL,1.367
+plain,busy,Gaussian,PDF,10000,20000,VECTORIZED,1.240
+plain,busy,Gaussian,PDF,10000,20000,PARALLEL,5.190
+plain,busy,Gaussian,PDF,25000,20000,VECTORIZED,1.168
+plain,busy,Gaussian,PDF,25000,20000,PARALLEL,2.148
+plain,busy,Gaussian,PDF,50000,20000,VECTORIZED,1.120
+plain,busy,Gaussian,PDF,50000,20000,PARALLEL,1.580
+plain,busy,Gaussian,PDF,100000,20000,VECTORIZED,1.106
+plain,busy,Gaussian,PDF,100000,20000,PARALLEL,0.959
+plain,busy,Gaussian,PDF,200000,20000,VECTORIZED,1.073
+plain,busy,Gaussian,PDF,200000,20000,PARALLEL,0.599
+# PARALLEL/VECTORIZED by size, and the sustained crossover
+# Gaussian gap      0 us: P/V 1.00 1.79 1.28 0.66 0.43 0.36  crossover 50000
+# Gaussian gap     50 us: P/V 1.00 1.71 1.26 0.64 0.43 0.35  crossover 50000
+# Gaussian gap    500 us: P/V 1.00 1.87 1.31 0.70 0.47 0.39  crossover 50000
+# Gaussian gap   2000 us: P/V 1.00 2.52 1.81 1.22 0.75 0.45  crossover 100000
+# Gaussian gap  20000 us: P/V 0.93 4.19 1.84 1.41 0.87 0.56  crossover 100000
+# Poisson  gap      0 us: P/V 1.00 0.55 0.36 0.29 0.26 0.26  crossover 10000
+# Poisson  gap     50 us: P/V 1.00 0.56 0.37 0.30 0.26 0.26  crossover 10000
+# Poisson  gap    500 us: P/V 1.00 0.59 0.40 0.31 0.27 0.26  crossover 10000
+# Poisson  gap   2000 us: P/V 1.00 0.74 0.41 0.33 0.29 0.28  crossover 4096
+# Poisson  gap  20000 us: P/V 1.03 0.95 0.48 0.39 0.31 0.29  crossover 10000

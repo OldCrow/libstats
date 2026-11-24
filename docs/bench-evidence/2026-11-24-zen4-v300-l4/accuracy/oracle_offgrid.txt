@@ -1,0 +1,527 @@
+  [progress] 500/11389 rows
+  [progress] 1000/11389 rows
+  [slow-row] line 1261 poisson/quantile p1=56925.11840999498 p2=0.0 x=1e-301 took 1.4s
+  [slow-row] line 1262 poisson/quantile p1=56925.11840999498 p2=0.0 x=1e-305 took 1.3s
+  [slow-row] line 1263 poisson/quantile p1=56925.11840999498 p2=0.0 x=1e-310 took 1.3s
+  [slow-row] line 1264 poisson/quantile p1=56925.11840999498 p2=0.0 x=1e-320 took 1.3s
+  [slow-row] line 1265 poisson/quantile p1=56925.11840999498 p2=0.0 x=5e-324 took 1.3s
+  [progress] 1500/11389 rows
+  [slow-row] line 1905 student_t/quantile p1=4679.232544382103 p2=0.0 x=9.02017226639401e-219 took 5.1s
+  [progress] 2000/11389 rows
+  [slow-row] line 2089 student_t/quantile p1=18418.200500548104 p2=0.0 x=3.059452705250174e-200 took 3.6s
+  [slow-row] line 2090 student_t/quantile p1=18418.200500548104 p2=0.0 x=1.4279501428789145e-210 took 3.9s
+  [slow-row] line 2091 student_t/quantile p1=18418.200500548104 p2=0.0 x=1.4143054576446652e-245 took 6.5s
+  [slow-row] line 2098 student_t/quantile p1=18418.200500548104 p2=0.0 x=1e-301 took 7.7s
+  [slow-row] line 2099 student_t/quantile p1=18418.200500548104 p2=0.0 x=1e-305 took 10.1s
+  [slow-row] line 2100 student_t/quantile p1=18418.200500548104 p2=0.0 x=1e-310 took 11.2s
+  [slow-row] line 2101 student_t/quantile p1=18418.200500548104 p2=0.0 x=1e-320 took 14.2s
+  [slow-row] line 2102 student_t/quantile p1=18418.200500548104 p2=0.0 x=5e-324 took 18.3s
+  [progress] 2500/11389 rows
+  [slow-row] line 2572 von_mises/quantile p1=-2.1034414649819477 p2=305.3383372922386 x=1.142522455234807e-219 took 1.9s
+  [slow-row] line 2573 von_mises/quantile p1=-2.1034414649819477 p2=305.3383372922386 x=1.9743939631837428e-284 took 1.3s
+  [slow-row] line 2574 von_mises/quantile p1=-2.1034414649819477 p2=305.3383372922386 x=7.087079860292438e-74 took 1.6s
+  [slow-row] line 2575 von_mises/quantile p1=-2.1034414649819477 p2=305.3383372922386 x=2.030152253324956e-76 took 1.2s
+  [slow-row] line 2664 von_mises/quantile p1=-0.5072988068345334 p2=829.6733414020308 x=1.0739871691532024e-273 took 1.9s
+  [slow-row] line 2665 von_mises/quantile p1=-0.5072988068345334 p2=829.6733414020308 x=1.3271080757966015e-265 took 1.8s
+  [slow-row] line 2666 von_mises/quantile p1=-0.5072988068345334 p2=829.6733414020308 x=2.931746196234549e-29 took 2.0s
+  [slow-row] line 2667 von_mises/quantile p1=-0.5072988068345334 p2=829.6733414020308 x=1.0520574729959371e-204 took 1.3s
+  [slow-row] line 2714 von_mises/quantile p1=-2.4560033013506217 p2=158.00832734165974 x=8.707064536433536e-64 took 1.1s
+  [slow-row] line 2715 von_mises/quantile p1=-2.4560033013506217 p2=158.00832734165974 x=3.139758441080542e-07 took 1.1s
+  [progress] 3000/11389 rows
+  [progress] 3500/11389 rows
+  [progress] 4000/11389 rows
+  [progress] 4500/11389 rows
+  [progress] 5000/11389 rows
+  [progress] 5500/11389 rows
+  [progress] 6000/11389 rows
+  [slow-row] line 6296 fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=0.11796947898651526 took 2.1s
+  [slow-row] line 6299 fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=0.9999999897830597 took 1.0s
+  [slow-row] line 6300 fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=0.984180675767689 took 1.5s
+  [slow-row] line 6302 fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=0.9999999999952401 took 1.0s
+  [slow-row] line 6356 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1.566027421793587e-62 took 2.4s
+  [slow-row] line 6357 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1.1361608917110763e-229 took 2.4s
+  [slow-row] line 6358 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1.8913869052807527e-284 took 2.4s
+  [slow-row] line 6359 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1.6876061316110414e-204 took 2.5s
+  [slow-row] line 6360 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1.2102626915248859e-248 took 2.4s
+  [slow-row] line 6361 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=3.629452676944595e-280 took 2.6s
+  [slow-row] line 6362 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=0.9999998926516531 took 3.2s
+  [slow-row] line 6363 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=0.9999999999696918 took 3.2s
+  [slow-row] line 6364 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=0.9999999999665266 took 3.1s
+  [slow-row] line 6365 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=0.9787346845169229 took 11.6s
+  [slow-row] line 6366 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1e-301 took 3.7s
+  [slow-row] line 6367 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1e-305 took 4.0s
+  [slow-row] line 6368 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1e-310 took 4.0s
+  [slow-row] line 6369 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=1e-320 took 2.6s
+  [slow-row] line 6370 fisher_f/quantile p1=46.88016945207628 p2=735048.2662425734 x=5e-324 took 2.9s
+  [progress] 6500/11389 rows
+  [slow-row] line 6591 inverse_gamma/quantile p1=1468.1635588249885 p2=0.001698401205846806 x=2.7662663466327733e-130 took 3.3s
+  [slow-row] line 6593 inverse_gamma/quantile p1=1468.1635588249885 p2=0.001698401205846806 x=6.464861395980391e-19 took 1.7s
+  [slow-row] line 6594 inverse_gamma/quantile p1=1468.1635588249885 p2=0.001698401205846806 x=3.963769135799756e-43 took 1.2s
+  [progress] 7000/11389 rows
+  [progress] 7500/11389 rows
+  [progress] 8000/11389 rows
+  [progress] 8500/11389 rows
+  [slow-row] line 8937 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=724802.0 took 130.7s
+  [slow-row] line 8938 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=1456198.0 took 116.3s
+  [slow-row] line 8939 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=1535545.0 took 115.7s
+  [slow-row] line 8940 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=1969394.0 took 112.2s
+  [slow-row] line 8941 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=2023677.0 took 113.3s
+  [slow-row] line 8942 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=2166534.0 took 110.7s
+  [slow-row] line 8943 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=2183782.0 took 102.4s
+  [slow-row] line 8944 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=2183783.0 took 100.9s
+  [slow-row] line 8945 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=3583183.0 took 90.7s
+  [slow-row] line 8946 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=3583184.0 took 66.6s
+  [slow-row] line 8947 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=6103081.0 took 63.5s
+  [slow-row] line 8948 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=6103082.0 took 63.6s
+  [slow-row] line 8949 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=8500399.0 took 64.4s
+  [slow-row] line 8950 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=8500400.0 took 62.4s
+  [slow-row] line 8951 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=10844233.0 took 61.6s
+  [slow-row] line 8952 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=10844234.0 took 62.6s
+  [slow-row] line 8953 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=13157510.0 took 62.0s
+  [slow-row] line 8954 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=13157511.0 took 61.3s
+  [slow-row] line 8955 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=15450876.0 took 61.6s
+  [slow-row] line 8956 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=15450877.0 took 60.7s
+  [slow-row] line 8957 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=17730188.0 took 61.0s
+  [slow-row] line 8958 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=17730189.0 took 60.8s
+  [slow-row] line 8959 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=18865749.0 took 61.7s
+  [slow-row] line 8960 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=18865750.0 took 60.7s
+  [slow-row] line 8961 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=19149272.0 took 60.8s
+  [slow-row] line 8962 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=19149273.0 took 60.8s
+  [slow-row] line 8963 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=19432656.0 took 60.8s
+  [slow-row] line 8964 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=19432657.0 took 60.8s
+  [slow-row] line 8965 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=19715908.0 took 60.6s
+  [slow-row] line 8966 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=19715909.0 took 60.7s
+  [slow-row] line 8967 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=19999029.0 took 60.7s
+  [slow-row] line 8968 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=19999030.0 took 60.5s
+  [slow-row] line 8969 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=20168841.0 took 61.5s
+  [slow-row] line 8970 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=20168842.0 took 60.7s
+  [slow-row] line 8971 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=21695237.0 took 60.7s
+  [slow-row] line 8972 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=21695238.0 took 61.0s
+  [slow-row] line 8973 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=27324487.0 took 60.1s
+  [slow-row] line 8974 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=27324488.0 took 59.9s
+  [slow-row] line 8975 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=35720795.0 took 60.0s
+  [slow-row] line 8976 negative_binomial/survival p1=26.555594623446904 p2=4.1950345210118e-05 x=35720796.0 took 60.0s
+  [progress] 9000/11389 rows
+  [slow-row] line 9020 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=42935.0 took 54.1s
+  [slow-row] line 9021 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=53176.0 took 54.5s
+  [slow-row] line 9022 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=109690.0 took 54.3s
+  [slow-row] line 9023 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=115830.0 took 53.9s
+  [slow-row] line 9024 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=304873.0 took 53.8s
+  [slow-row] line 9025 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=465094.0 took 54.3s
+  [slow-row] line 9026 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=795280.0 took 53.9s
+  [slow-row] line 9027 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=834843.0 took 53.3s
+  [slow-row] line 9028 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=834844.0 took 52.9s
+  [slow-row] line 9029 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=1837538.0 took 53.3s
+  [slow-row] line 9030 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=1837539.0 took 53.2s
+  [slow-row] line 9031 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=3829774.0 took 53.5s
+  [slow-row] line 9032 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=3829775.0 took 52.9s
+  [slow-row] line 9033 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=5817075.0 took 52.8s
+  [slow-row] line 9034 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=5817076.0 took 52.8s
+  [slow-row] line 9035 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=7802438.0 took 53.6s
+  [slow-row] line 9036 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=7802439.0 took 53.3s
+  [slow-row] line 9037 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=9786755.0 took 53.2s
+  [slow-row] line 9038 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=9786756.0 took 53.4s
+  [slow-row] line 9039 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=11770417.0 took 53.1s
+  [slow-row] line 9040 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=11770418.0 took 53.1s
+  [slow-row] line 9041 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=13753629.0 took 53.0s
+  [slow-row] line 9042 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=13753630.0 took 53.5s
+  [slow-row] line 9043 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=14745106.0 took 53.8s
+  [slow-row] line 9044 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=14745107.0 took 53.2s
+  [slow-row] line 9045 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=14992964.0 took 53.4s
+  [slow-row] line 9046 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=14992965.0 took 53.4s
+  [slow-row] line 9047 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=15240817.0 took 52.9s
+  [slow-row] line 9048 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=15240818.0 took 53.2s
+  [slow-row] line 9049 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=15488667.0 took 54.5s
+  [slow-row] line 9050 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=15488668.0 took 53.9s
+  [slow-row] line 9051 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=15736513.0 took 53.3s
+  [slow-row] line 9052 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=15736514.0 took 53.2s
+  [slow-row] line 9053 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=15885218.0 took 53.1s
+  [slow-row] line 9054 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=15885219.0 took 53.9s
+  [slow-row] line 9055 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=17223508.0 took 53.4s
+  [slow-row] line 9056 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=17223509.0 took 53.7s
+  [slow-row] line 9057 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=22179411.0 took 52.9s
+  [slow-row] line 9058 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=22179412.0 took 53.0s
+  [slow-row] line 9059 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=29611856.0 took 53.4s
+  [slow-row] line 9060 negative_binomial/survival p1=1.725097869416503 p2=4.6497386312605486e-05 x=29611857.0 took 53.4s
+  [progress] 9500/11389 rows
+  [progress] 10000/11389 rows
+  [progress] 10500/11389 rows
+  [progress] 11000/11389 rows
+Running oracle self-checks (mp.dps=50)...
+  200 self-checks passed.
+
+Input banner: commit=164cbce  isa=AVX-512  date=2026-11-23  mode=offgrid  seed=213  instances=5
+Parsed 11389 rows from ../sweep/offgrid.csv
+
+dist               method    src        n      max_abs      max_rel      p99_rel   law_frac        worst_x
+bernoulli          cdf       scalar    10    1.222e-17    1.222e-17    1.222e-17          0              0
+bernoulli          cdf       batch     10    1.222e-17    1.222e-17    1.222e-17          0              0
+                             b_vs_s    10            0            0
+bernoulli          logpdf    scalar    10    1.191e-15    7.917e-17    7.917e-17          -              1
+bernoulli          logpdf    batch     10    1.191e-15    7.917e-17    7.917e-17          -              1
+                             b_vs_s    10            0            0
+bernoulli          pdf       scalar    10    1.222e-17    1.211e-15    1.211e-15          -              0
+bernoulli          pdf       batch     10    1.222e-17    1.211e-15    1.211e-15          -              0
+                             b_vs_s    10            0            0
+bernoulli          quantile  scalar    75            0            0            0          -              0
+bernoulli          survival  scalar    10            0            0            0          0              0
+beta               cdf       scalar    50     2.94e-17    7.375e-17    7.375e-17    0.01098     0.00251183
+beta               cdf       batch     50     2.94e-17    7.375e-17    7.375e-17    0.01098     0.00251183
+                             b_vs_s    50            0            0
+beta               logpdf    scalar    44    3.365e-13    7.956e-16    7.956e-16          -      0.0174712
+beta               logpdf    batch     44    3.365e-13    1.056e-15    1.056e-15          -       0.945645
+                             b_vs_s    44    1.137e-13    7.959e-16
+beta               pdf       scalar    42   7.709e+290    8.584e-14    8.584e-14          -   2.22507e-308
+beta               pdf       batch     42   7.709e+290    8.584e-14    8.584e-14          -   2.22507e-308
+                             b_vs_s    42    7.854e+54    5.672e-14
+beta               quantile  scalar    75    2.077e-18    1.057e-16    1.057e-16          -         1e-301
+beta               survival  scalar    84    4.746e-17    9.503e-17    9.503e-17      0.428       0.774554
+binomial           cdf       scalar    46    4.457e-17    8.218e-17    8.218e-17    0.01397           9314
+binomial           cdf       batch     46    4.457e-17    8.218e-17    8.218e-17    0.01397           9314
+                             b_vs_s    46            0            0
+binomial           logpdf    scalar    46    1.787e-13    5.915e-16    5.915e-16          -           9510
+binomial           logpdf    batch     46    1.787e-13    5.915e-16    5.915e-16          -           9510
+                             b_vs_s    46            0            0
+binomial           pdf       scalar    46    5.004e-17    1.788e-13    1.788e-13          -          50429
+binomial           pdf       batch     46    5.004e-17    1.788e-13    1.788e-13          -          50429
+                             b_vs_s    46            0            0
+binomial           quantile  scalar    75            0            0            0          -              0
+binomial           survival  scalar    64    3.581e-17    7.849e-17    7.849e-17   0.009363          51892
+cauchy             cdf       scalar    80     1.11e-16    2.083e-16    2.083e-16    0.02133   -2.25823e+92
+cauchy             cdf       batch     80     1.11e-16    2.083e-16    2.083e-16    0.02133   -2.25823e+92
+                             b_vs_s    80            0            0
+cauchy             logpdf    scalar    80    2.237e-13    2.156e-16    2.156e-16          -  -2.65485e+225
+cauchy             logpdf    batch     80    2.237e-13    2.156e-16    2.156e-16          -  -2.65485e+225
+                             b_vs_s    80    5.684e-14    2.091e-16
+cauchy             pdf       scalar    80    8.557e-16    3.425e-16    3.425e-16          -           5243
+cauchy             pdf       batch     80    8.557e-16    3.425e-16    3.425e-16          -           5243
+                             b_vs_s    80            0            0
+cauchy             quantile  scalar    61   7.417e+290    2.246e-16    2.246e-16          -    2.36692e-16
+cauchy             survival  scalar   165    1.008e-16    3.377e-16    2.824e-16     0.1244    1.20974e+10
+chi_squared        cdf       scalar    77    4.555e-17    9.057e-17    9.057e-17   0.003863    9.21301e-09
+chi_squared        cdf       batch     77    4.555e-17    9.057e-17    9.057e-17   0.003863    9.21301e-09
+                             b_vs_s    77            0            0
+chi_squared        logpdf    scalar    76    4.991e-11    1.091e-15    1.091e-15          -        20.9091
+chi_squared        logpdf    batch     76    4.991e-11    1.091e-15    1.091e-15          -        20.9091
+                             b_vs_s    76    1.137e-13    7.434e-16
+chi_squared        pdf       scalar    76   1.349e+281    7.902e-14    7.902e-14          -    2.24624e-08
+chi_squared        pdf       batch     76   1.349e+281    9.804e-14    9.804e-14          -        3416.12
+                             b_vs_s    76     2.22e-16    1.137e-13
+chi_squared        quantile  scalar    75    4.123e-13    9.237e-17    9.237e-17          -       0.999972
+chi_squared        survival  scalar   162    5.523e-17    1.027e-16    1.026e-16      0.462    0.000197741
+discrete           cdf       scalar    22    4.792e-17    5.694e-17    5.694e-17    0.03617           1083
+discrete           cdf       batch     22    9.869e-17    1.269e-16    1.269e-16    0.03617             26
+                             b_vs_s    22     1.11e-16    1.427e-16
+discrete           logpdf    scalar    22    2.244e-16    8.685e-17    8.685e-17          -            -32
+discrete           logpdf    batch     22    2.244e-16    8.685e-17    8.685e-17          -            -32
+                             b_vs_s    22            0            0
+discrete           pdf       scalar    22     1.85e-17    5.605e-17    5.605e-17          -             13
+discrete           pdf       batch     22     1.85e-17    5.605e-17    5.605e-17          -             13
+                             b_vs_s    22            0            0
+discrete           quantile  scalar    75            0            0            0          -              0
+discrete           survival  scalar    22    4.934e-17     7.03e-17     7.03e-17          0            449
+erlang             cdf       scalar    80    8.046e-17    3.523e-16    3.523e-16    0.04259    1.98169e-09
+erlang             cdf       batch     80    8.046e-17    3.523e-16    3.523e-16    0.04259    1.98169e-09
+                             b_vs_s    80            0            0
+erlang             logpdf    scalar    80    2.298e-10      6.7e-16      6.7e-16          -        41317.2
+erlang             logpdf    batch     80    2.298e-10      6.7e-16      6.7e-16          -        41317.2
+                             b_vs_s    80    1.137e-13    8.465e-16
+erlang             pdf       scalar    80    5.953e-16    2.466e-13    2.466e-13          -         272077
+erlang             pdf       batch     80    5.393e-16    3.603e-13    3.603e-13          -         272077
+                             b_vs_s    80    8.882e-16    1.137e-13
+erlang             quantile  scalar    75    8.176e-11    1.603e-16    1.603e-16          -              1
+erlang             survival  scalar   165    7.643e-17    5.063e-14    3.407e-14     0.4844        350.894
+exponential        cdf       scalar    80    7.928e-17    1.624e-16    1.624e-16     0.4739        67378.7
+exponential        cdf       batch     80    7.928e-17    1.624e-16    1.624e-16     0.4739        67378.7
+                             b_vs_s    80            0            0
+exponential        logpdf    scalar    80    2.835e-15    6.733e-16    6.733e-16          -     0.00148574
+exponential        logpdf    batch     80    2.835e-15    3.136e-15    3.136e-15          -     0.00148574
+                             b_vs_s    80    3.553e-15    3.809e-15
+exponential        pdf       scalar    80    3.353e-13    1.564e-15    1.564e-15          -        639.207
+exponential        pdf       batch     80    3.104e-13    1.564e-15    1.564e-15          -        639.207
+                             b_vs_s    80    4.547e-13    3.433e-16
+exponential        quantile  scalar    75    6.812e-10    1.636e-16    1.636e-16          -   1.54914e-145
+exponential        survival  scalar   165      5.1e-17    5.658e-14    4.258e-14     0.4781        13188.9
+fisher_f           cdf       scalar    74    2.016e-15    6.159e-13    6.159e-13      5.879       0.553487
+fisher_f           cdf       batch     74    2.016e-15    6.159e-13    6.159e-13      5.879       0.553487
+                             b_vs_s    74            0            0
+fisher_f           logpdf    scalar    73        770.3    0.0001456    0.0001456          -   4.94066e-324
+fisher_f           logpdf    batch     73        770.3    0.0001456    0.0001456          -   4.94066e-324
+                             b_vs_s    73            0            0
+  VIOLATION line 6324 (scalar): reference is finite (-16681.2), scalar_bits decoded to -inf
+fisher_f           pdf       scalar    74   3.946e+184      0.06427      0.06427          -   4.94066e-324
+fisher_f           pdf       batch     74   3.946e+184      0.06427      0.06427          -   4.94066e-324
+                             b_vs_s    74            0            0
+fisher_f           quantile  scalar    53   3.549e+233      0.02914      0.02914          -   4.94066e-324
+fisher_f           survival  scalar   154    2.016e-15     4.26e-13    4.056e-13      15.22        1.72975
+gamma              cdf       scalar    80    6.678e-17    1.567e-16    1.567e-16    0.03277        76.6462
+gamma              cdf       batch     80    6.678e-17    1.567e-16    1.567e-16    0.03277        76.6462
+                             b_vs_s    80            0            0
+gamma              logpdf    scalar    80    4.535e-11    5.639e-15    5.639e-15          -        0.11347
+gamma              logpdf    batch     80    4.535e-11    5.639e-15    5.639e-15          -        0.11347
+                             b_vs_s    80    5.684e-14    1.848e-16
+gamma              pdf       scalar    80    3.415e+38    9.218e-14    9.218e-14          -       0.267599
+gamma              pdf       batch     80    3.415e+38    9.218e-14    9.218e-14          -       0.267599
+                             b_vs_s    80    1.776e-15    5.676e-14
+gamma              quantile  scalar    75    4.496e-13    1.955e-16    1.955e-16          -   1.64866e-207
+gamma              survival  scalar   165    7.889e-17    5.397e-14    4.754e-14     0.4586        9.24873
+gaussian           cdf       scalar    80    1.262e-16     1.51e-13     1.51e-13      1.776        434.054
+gaussian           cdf       batch     80    9.006e-17     1.51e-13     1.51e-13      1.776        434.054
+                             b_vs_s    80     1.11e-16    1.727e-16
+gaussian           logpdf    scalar    80     1.486e-9     2.15e-16     2.15e-16          -       -787.637
+gaussian           logpdf    batch     80     1.486e-9     2.15e-16     2.15e-16          -       -787.637
+                             b_vs_s    80    1.137e-13    2.168e-16
+gaussian           pdf       scalar    80    2.526e-15    5.688e-14    5.688e-14          -        390.452
+gaussian           pdf       batch     80    2.526e-15    8.143e-14    8.143e-14          -       -792.706
+                             b_vs_s    80    1.776e-15    1.138e-13
+gaussian           quantile  scalar    75      1.0e-13    3.175e-16    3.175e-16          -              1
+gaussian           survival  scalar   165    9.007e-17    2.765e-13    2.288e-13        1.8        375.213
+  ZERO-COLLAPSE 1 row(s) return 0 against a reference that rounds to nonzero (largest ref 3.629e-324, line 7594)
+geometric          cdf       scalar    49    1.052e-16    2.253e-16    2.253e-16    0.02828    1.07334e+06
+geometric          cdf       batch     49    1.052e-16    2.253e-16    2.253e-16    0.02828    1.07334e+06
+                             b_vs_s    49            0            0
+geometric          logpdf    scalar    49    4.103e-15    2.657e-16    2.657e-16          -              9
+geometric          logpdf    batch     49    4.103e-15    2.657e-16    2.657e-16          -              9
+                             b_vs_s    49            0            0
+geometric          pdf       scalar    49    4.133e-17    4.174e-15    4.174e-15          -          37981
+geometric          pdf       batch     49    4.133e-17    4.174e-15    4.174e-15          -          37981
+                             b_vs_s    49            0            0
+geometric          quantile  scalar    75            0            0            0          -              0
+geometric          survival  scalar   219    9.005e-17    1.032e-13    9.278e-14     0.7816    4.68563e+10
+gumbel             cdf       scalar    80    4.829e-17    3.376e-13    3.376e-13      2.657        84.3099
+gumbel             cdf       batch     80    6.357e-17    3.376e-13    3.376e-13      2.657        84.3099
+                             b_vs_s    80     1.11e-16    2.836e-14
+gumbel             logpdf    scalar    80   3.595e+160    2.158e-14    2.158e-14          -   4.94066e-324
+gumbel             logpdf    batch     80   3.595e+160    2.158e-14    2.158e-14          -   4.94066e-324
+                             b_vs_s    80    2.842e-14    1.578e-16
+gumbel             pdf       scalar    80      1.3e-13     3.56e-13     3.56e-13          -        84.3099
+gumbel             pdf       batch     80    1.225e-13     3.56e-13     3.56e-13          -        84.3099
+                             b_vs_s    80    2.842e-14    2.832e-14
+gumbel             quantile  scalar    75    2.587e-14    2.332e-16    2.332e-16          -              1
+gumbel             survival  scalar   165    7.927e-17     1.11e-13    1.015e-13     0.8005         8272.9
+half_normal        cdf       scalar   109    2.463e-16     4.16e-16    2.977e-16     0.7389    4.6239e-114
+half_normal        cdf       batch    109    1.431e-16    3.101e-16    2.647e-16     0.7389   1.36058e-114
+                             b_vs_s   109     2.22e-16    2.483e-16
+half_normal        logpdf    scalar   109    5.329e-14    3.906e-16    2.298e-16          -    2.10928e-09
+half_normal        logpdf    batch    109    5.329e-14    6.327e-16    2.087e-16          -    1.70182e-09
+                             b_vs_s   109    1.421e-14    4.029e-16
+half_normal        pdf       scalar   109   4.345e+137    3.747e-15    2.994e-15          -    6.92781e+10
+half_normal        pdf       batch    109   4.345e+137    3.747e-15    2.994e-15          -    6.92781e+10
+                             b_vs_s   109            0            0
+half_normal        quantile  scalar   105     6.614e-6     8.689e-7     3.573e-7          -   9.99989e-321
+half_normal        survival  scalar   228    1.526e-16    3.359e-13    1.665e-13      2.532   3.43389e-112
+inverse_gamma      cdf       scalar    80    4.944e-17    1.632e-16    1.632e-16   0.004265     0.00158379
+inverse_gamma      cdf       batch     80    4.944e-17    1.632e-16    1.632e-16   0.004265     0.00158379
+                             b_vs_s    80            0            0
+inverse_gamma      logpdf    scalar    74    1.441e-13    9.279e-16    9.279e-16          -    1.38016e-06
+inverse_gamma      logpdf    batch     74    1.441e-13    9.279e-16    9.279e-16          -    1.38016e-06
+                             b_vs_s    74    5.684e-14     6.71e-16
+inverse_gamma      pdf       scalar    80     2.553e-8    1.441e-13    1.441e-13          -    6.15583e-07
+inverse_gamma      pdf       batch     80     2.553e-8    1.441e-13    1.441e-13          -    6.15583e-07
+                             b_vs_s    80    1.796e-19    5.686e-14
+inverse_gamma      quantile  scalar    75   4.523e+193    0.0009405    0.0009405          -   4.94066e-324
+inverse_gamma      survival  scalar   159     5.03e-17    1.336e-16    1.231e-16     0.3724     1.4371e-06
+laplace            cdf       scalar    80    7.823e-17    5.572e-14    5.572e-14      0.595       -36730.3
+laplace            cdf       batch     80    7.911e-17     9.03e-14     9.03e-14     0.7439       -38895.4
+                             b_vs_s    80     1.11e-16    1.136e-13
+laplace            logpdf    scalar    80    6.934e-14    1.159e-14    1.159e-14          -       -80.8015
+laplace            logpdf    batch     80    8.424e-14     1.77e-14     1.77e-14          -       -80.8015
+                             b_vs_s    80    5.684e-14    6.114e-15
+laplace            pdf       scalar    80     4.02e-14    6.939e-14    6.939e-14          -        -274035
+laplace            pdf       batch     80     4.02e-14    8.421e-14    8.421e-14          -       -26652.2
+                             b_vs_s    80    1.421e-14    5.698e-14
+laplace            quantile  scalar    75    5.301e-11    1.916e-16    1.916e-16          -         1e-310
+laplace            survival  scalar   165     5.07e-17    8.479e-14    7.232e-14     0.7806         356673
+logistic           cdf       scalar    80    1.293e-16     8.48e-14     8.48e-14     0.6602       -5902.62
+logistic           cdf       batch     80    1.293e-16    8.462e-14    8.462e-14     0.6602       -5902.62
+                             b_vs_s    80    3.469e-18    1.762e-16
+logistic           logpdf    scalar    80    8.295e-14    2.291e-16    2.291e-16          -        6.45378
+logistic           logpdf    batch     80    8.295e-14    4.088e-16    4.088e-16          -        -38.632
+                             b_vs_s    80    3.553e-15    3.427e-16
+logistic           pdf       scalar    80    1.427e-15    8.294e-14    8.294e-14          -       -5902.62
+logistic           pdf       batch     80    2.315e-15    8.294e-14    8.294e-14          -       -5902.62
+                             b_vs_s    80    1.776e-15     3.56e-15
+logistic           quantile  scalar    75    7.407e-12     1.35e-16     1.35e-16          -   4.94066e-324
+logistic           survival  scalar   165    1.189e-16    1.329e-13    1.293e-13       1.05        49.4613
+lognormal          cdf       scalar    79    3.211e-16    1.981e-13    1.981e-13      1.662      0.0558158
+lognormal          cdf       batch     79    3.211e-16    1.981e-13    1.981e-13      1.662      0.0558158
+                             b_vs_s    79    5.551e-17    1.409e-16
+lognormal          logpdf    scalar    79     7.761e-9    1.698e-15    1.698e-15          -       0.163962
+lognormal          logpdf    batch     79     4.036e-9    1.698e-15    1.698e-15          -       0.163962
+                             b_vs_s    79     3.725e-9    1.012e-15
+lognormal          pdf       scalar    79    7.192e-14    1.954e-13    1.954e-13          -    2.34724e-37
+lognormal          pdf       batch     79    7.192e-14    1.565e-13    1.565e-13          -     0.00121468
+                             b_vs_s    79    5.329e-14    1.137e-13
+lognormal          quantile  scalar    75     0.002503    3.254e-14    3.254e-14          -   4.94066e-324
+lognormal          survival  scalar   164    2.656e-16    1.836e-13    1.811e-13      1.863        1.54449
+negative_binomial  cdf       scalar    47    5.184e-17    1.021e-16    1.021e-16   0.009314         499442
+negative_binomial  cdf       batch     47    5.184e-17    1.021e-16    1.021e-16   0.009314         499442
+                             b_vs_s    47            0            0
+negative_binomial  logpdf    scalar    47    2.595e-14    4.812e-16    4.812e-16          -             13
+negative_binomial  logpdf    batch     47    2.595e-14    4.812e-16    4.812e-16          -             13
+                             b_vs_s    47            0            0
+negative_binomial  pdf       scalar    47     5.39e-17    2.592e-14    2.592e-14          -            997
+negative_binomial  pdf       batch     47     5.39e-17    2.592e-14    2.592e-14          -            997
+                             b_vs_s    47            0            0
+negative_binomial  quantile  scalar    75            0            0            0          -              0
+negative_binomial  survival  scalar   178    5.426e-17     9.37e-17    9.346e-17      0.422            359
+pareto             cdf       scalar    50    5.977e-17    1.861e-16    1.861e-16    0.02224        412.283
+pareto             cdf       batch     50    5.977e-17    1.861e-16    1.861e-16     0.0433        412.283
+                             b_vs_s    50    5.551e-17    2.219e-16
+pareto             logpdf    scalar    50    2.389e-14    6.498e-16    6.498e-16          -        396.102
+pareto             logpdf    batch     50    2.389e-14     1.71e-15     1.71e-15          -        396.102
+                             b_vs_s    50    2.842e-14     2.36e-15
+pareto             pdf       scalar    50    1.143e-14    2.393e-14    2.393e-14          -    5.31383e+95
+pareto             pdf       batch     50    1.143e-14    2.393e-14    2.393e-14          -    5.31383e+95
+                             b_vs_s    50    8.882e-16     2.84e-14
+pareto             quantile  scalar    75    8.683e+69    7.514e-15    7.514e-15          -              1
+pareto             survival  scalar   133    5.977e-17    9.544e-14    8.572e-14     0.8743    2.81972e+36
+poisson            cdf       scalar    51    5.502e-17    7.957e-17    7.957e-17   0.002871          53143
+poisson            cdf       batch     51    5.502e-17    7.957e-17    7.957e-17   0.002871          53143
+                             b_vs_s    51            0            0
+poisson            logpdf    scalar    51    1.748e-13    3.712e-16    3.712e-16          -           6985
+poisson            logpdf    batch     51    1.748e-13    3.712e-16    3.712e-16          -           6985
+                             b_vs_s    51            0            0
+poisson            pdf       scalar    51    2.777e-17    1.748e-13    1.748e-13          -           6985
+poisson            pdf       batch     51    2.777e-17    1.748e-13    1.748e-13          -           6985
+                             b_vs_s    51            0            0
+poisson            quantile  scalar    75          4.0     0.000159     0.000159          -   4.94066e-324
+poisson            survival  scalar   217    5.468e-17     1.08e-16    1.053e-16     0.4865            105
+rayleigh           cdf       scalar   112    1.537e-16    2.111e-16    1.879e-16   0.007474        53113.7
+rayleigh           cdf       batch    112    8.894e-17    1.879e-16    1.863e-16   0.007474    1.7726e-142
+                             b_vs_s   112     1.11e-16    1.525e-16
+rayleigh           logpdf    scalar   112    8.703e-14    6.353e-14      3.8e-15          -   2.22507e-308
+rayleigh           logpdf    batch    112    8.703e-14    6.353e-14    4.093e-15          -   2.22507e-308
+                             b_vs_s   112    1.137e-13    7.893e-15
+rayleigh           pdf       scalar   112    2.64e+139    5.593e-14    5.404e-14          -    4.7234e-233
+rayleigh           pdf       batch    112    3.77e+139    5.774e-14    5.404e-14          -    4.7234e-233
+                             b_vs_s   112   5.824e+139    1.137e-13
+rayleigh           quantile  scalar   105     4.554e-6    1.387e-16    1.348e-16          -         1e-301
+rayleigh           survival  scalar   231    9.821e-17     1.39e-13    8.898e-14     0.9332    1.22726e+06
+student_t          cdf       scalar    78    1.234e-16    1.013e-13    1.013e-13     0.9435       -35.7508
+student_t          cdf       batch     78    1.234e-16    1.013e-13    1.013e-13     0.9435       -35.7508
+                             b_vs_s    78            0            0
+student_t          logpdf    scalar    78    8.022e-14    2.418e-16    2.418e-16          -       -26.6551
+student_t          logpdf    batch     78    1.369e-13    2.533e-16    2.533e-16          -   -8.48409e+76
+                             b_vs_s    78    1.137e-13    2.337e-16
+student_t          pdf       scalar    78    7.641e-17     8.03e-14     8.03e-14          -       -26.6551
+student_t          pdf       batch     78    1.083e-16    1.368e-13    1.368e-13          -   -8.48409e+76
+                             b_vs_s    78     1.11e-16    1.136e-13
+student_t          quantile  scalar    66   2.842e+232      9.15e-5      9.15e-5          -   4.94066e-324
+student_t          survival  scalar   163    1.195e-16    2.308e-13    9.271e-14      1.497        40.0535
+truncated_normal   cdf       scalar    52    8.782e-16    1.612e-15    1.612e-15    0.05921        6.13841
+truncated_normal   cdf       batch     52    8.782e-16    1.612e-15    1.612e-15    0.05921        6.13841
+                             b_vs_s    52            0            0
+truncated_normal   logpdf    scalar    52    3.206e-13    6.678e-14    6.678e-14          -       -38.0071
+truncated_normal   logpdf    batch     52    3.206e-13    6.678e-14    6.678e-14          -       -38.0071
+                             b_vs_s    52            0            0
+truncated_normal   pdf       scalar    52    3.909e-11    3.206e-13    3.206e-13          -       -38.0048
+truncated_normal   pdf       batch     52    3.909e-11    3.206e-13    3.206e-13          -       -38.0048
+                             b_vs_s    52    1.137e-13    1.607e-16
+truncated_normal   quantile  scalar    75    2.297e-15    1.047e-16    1.047e-16          -              1
+truncated_normal   survival  scalar    52     1.93e-15    8.072e-15    8.072e-15      1.155        9.01456
+uniform            cdf       scalar    49    5.397e-17    8.606e-17    8.606e-17          0       -33.1162
+uniform            cdf       batch     49    5.397e-17    8.606e-17    8.606e-17          0       -33.1162
+                             b_vs_s    49            0            0
+uniform            logpdf    scalar    49    3.138e-16    5.858e-17    5.858e-17          -        916.296
+uniform            logpdf    batch     49    3.138e-16    5.858e-17    5.858e-17          -        916.296
+                             b_vs_s    49            0            0
+uniform            pdf       scalar    49    2.687e-14    8.263e-17    8.263e-17          -        412.693
+uniform            pdf       batch     49    2.687e-14    8.263e-17    8.263e-17          -        412.693
+                             b_vs_s    49            0            0
+uniform            quantile  scalar    75    8.429e-14    1.059e-16    1.059e-16          -              1
+uniform            survival  scalar    49    4.887e-17    1.036e-16    1.036e-16     0.0542        182.815
+von_mises          cdf       scalar    72    7.739e-17    4.695e-14    4.695e-14     0.6502       -1.79957
+von_mises          cdf       batch     72    7.739e-17    4.695e-14    4.695e-14     0.6502       -1.79957
+                             b_vs_s    72            0            0
+von_mises          logpdf    scalar    72    1.682e-13    3.552e-16    3.552e-16          -         2.0184
+von_mises          logpdf    batch     72    1.682e-13    3.552e-16    3.552e-16          -         2.0184
+                             b_vs_s    72    7.105e-15     5.88e-16
+von_mises          pdf       scalar    72    1.785e-15    1.681e-13    1.681e-13          -         2.0184
+von_mises          pdf       batch     72    1.785e-15    1.681e-13    1.681e-13          -         2.0184
+                             b_vs_s    72    8.882e-16    7.049e-15
+von_mises          quantile  scalar    20    7.583e-16    1.106e-15    1.106e-15          -   4.48496e-145
+von_mises          survival  scalar    93    8.977e-17    7.063e-14    7.063e-14     0.8483       0.477524
+weibull            cdf       scalar    73     2.84e-15    9.176e-14    9.176e-14     0.7196    3.15527e-11
+weibull            cdf       batch     73     2.84e-15     9.79e-14     9.79e-14     0.8276    1.82844e-73
+                             b_vs_s    73    9.992e-16    1.137e-13
+weibull            logpdf    scalar    71    1.102e-12    3.946e-15    3.946e-15          -        149.941
+weibull            logpdf    batch     71    9.863e-13    3.963e-15    3.963e-15          -         141.54
+                             b_vs_s    71    1.819e-12    6.333e-15
+weibull            pdf       scalar    71   8.603e+278    1.215e-13    1.215e-13          -        149.941
+weibull            pdf       batch     71   8.603e+278     1.18e-13     1.18e-13          -        149.941
+                             b_vs_s    71   3.361e+204    1.137e-13
+weibull            quantile  scalar    75      0.07389    2.549e-14    2.549e-14          -    6.77674e-26
+weibull            survival  scalar   158    2.896e-15    5.906e-12     5.73e-12      38.26        175.103
+
+60 row(s) skipped:
+  line 6167: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=1.9287096281340863e-144: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.92871e-144)
+  line 6168: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=2.613003011718632e-276: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 2.613e-276)
+  line 6169: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=2.9193116495465617e-67: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 2.91931e-67)
+  line 6170: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=1.875122806760168e-131: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.87512e-131)
+  line 6171: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=2.2764373541555275e-238: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 2.27644e-238)
+  line 6172: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=8.299212303941726e-278: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 8.29921e-278)
+  line 6177: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=1e-301: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.0e-301)
+  line 6178: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=1e-305: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.0e-305)
+  line 6179: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=1e-310: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.0e-310)
+  line 6180: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=1e-320: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 9.99989e-321)
+  line 6181: oracle gap on fisher_f/quantile p1=17474.907458700316 p2=26.999704287349665 x=5e-324: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 4.94066e-324)
+  line 6293: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=9.11268766698077e-267: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 9.11269e-267)
+  line 6294: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=1.7471426490645922e-136: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.74714e-136)
+  line 6295: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=2.05424705538438e-185: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 2.05425e-185)
+  line 6297: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=2.9420468176973707e-259: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 2.94205e-259)
+  line 6298: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=1.5729193534784543e-242: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.57292e-242)
+  line 6303: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=1e-301: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.0e-301)
+  line 6304: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=1e-305: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.0e-305)
+  line 6305: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=1e-310: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 1.0e-310)
+  line 6306: oracle gap on fisher_f/quantile p1=21490.01837883249 p2=9667.288517217046 x=1e-320: OracleNonConvergence: fisher_f quantile: 1 - p inexact at dps 50 (p = 9.99989e-321)
+  ... and 40 more
+
+total contract violations: 1
+oracle fallbacks: 0
+
+Wrote 11329 references and 60 remembered skips to ../sweep/offgrid_refs.txt
+Wrote 11278 rows to ../sweep/offgrid_rows.csv
+
+Per-row gate: budget 4 (eps, or fractions of the tail law); 11278 rows scored, 2093 values over budget, 0 better than the baseline beyond noise, 2093 FAILING (no baseline: every over-budget value fails)
+  FAIL fisher_f/pdf scalar: score 2.894e+14 (baseline 0)  p1=0.8443500319947929 p2=0.06989846634632843 x=5e-324
+  FAIL fisher_f/pdf batch: score 2.894e+14 (baseline 0)  p1=0.8443500319947929 p2=0.06989846634632843 x=5e-324
+  FAIL fisher_f/pdf scalar: score 1.256e+13 (baseline 0)  p1=0.8443500319947929 p2=0.06989846634632843 x=1.83e-322
+  FAIL fisher_f/pdf batch: score 1.256e+13 (baseline 0)  p1=0.8443500319947929 p2=0.06989846634632843 x=1.83e-322
+  FAIL fisher_f/logpdf scalar: score 6.557e+11 (baseline 0)  p1=0.8443500319947929 p2=0.06989846634632843 x=5e-324
+  FAIL fisher_f/logpdf batch: score 6.557e+11 (baseline 0)  p1=0.8443500319947929 p2=0.06989846634632843 x=5e-324
+  FAIL fisher_f/logpdf scalar: score 4.347e+11 (baseline 0)  p1=21490.01837883249 p2=9667.288517217046 x=5e-324
+  FAIL fisher_f/logpdf batch: score 4.347e+11 (baseline 0)  p1=21490.01837883249 p2=9667.288517217046 x=5e-324
+  FAIL fisher_f/logpdf scalar: score 2.955e+10 (baseline 0)  p1=0.8443500319947929 p2=0.06989846634632843 x=1.83e-322
+  FAIL fisher_f/logpdf batch: score 2.955e+10 (baseline 0)  p1=0.8443500319947929 p2=0.06989846634632843 x=1.83e-322
+  FAIL fisher_f/logpdf scalar: score 7.828e+09 (baseline 0)  p1=254.33431033694225 p2=0.11567002873624782 x=5e-324
+  FAIL fisher_f/logpdf batch: score 7.828e+09 (baseline 0)  p1=254.33431033694225 p2=0.11567002873624782 x=5e-324
+  FAIL fisher_f/logpdf scalar: score 2.131e+09 (baseline 0)  p1=17474.907458700316 p2=26.999704287349665 x=5e-324
+  FAIL fisher_f/logpdf batch: score 2.131e+09 (baseline 0)  p1=17474.907458700316 p2=26.999704287349665 x=5e-324
+  FAIL fisher_f/pdf scalar: score 1807 (baseline 0)  p1=21490.01837883249 p2=9667.288517217046 x=0.6136982107191745
+  FAIL fisher_f/pdf batch: score 1807 (baseline 0)  p1=21490.01837883249 p2=9667.288517217046 x=0.6136982107191745
+  FAIL erlang/pdf batch: score 1622 (baseline 0)  p1=2909.0 p2=0.005333639602783843 x=272076.6606787612
+  FAIL gumbel/pdf scalar: score 1603 (baseline 0)  p1=85.6716298052369 p2=0.21355967593733907 x=84.30985845514196
+  FAIL gumbel/pdf batch: score 1603 (baseline 0)  p1=85.6716298052369 p2=0.21355967593733907 x=84.30985845514196
+  FAIL truncated_normal/pdf scalar: score 1444 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00476808784329
+  FAIL truncated_normal/pdf batch: score 1444 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00476808784329
+  FAIL truncated_normal/pdf scalar: score 1444 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.007057708574635
+  FAIL truncated_normal/pdf batch: score 1444 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.007057708574635
+  FAIL truncated_normal/pdf scalar: score 1442 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00916765209345
+  FAIL truncated_normal/pdf batch: score 1442 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00916765209345
+  FAIL truncated_normal/pdf scalar: score 1441 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00193528448458
+  FAIL truncated_normal/pdf batch: score 1441 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00193528448458
+  FAIL truncated_normal/pdf scalar: score 1441 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.01015424381552
+  FAIL truncated_normal/pdf batch: score 1441 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.01015424381552
+  FAIL truncated_normal/pdf scalar: score 1440 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00193528448465
+  FAIL truncated_normal/pdf batch: score 1440 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00193528448465
+  FAIL truncated_normal/pdf scalar: score 1438 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.005622209696625
+  FAIL truncated_normal/pdf batch: score 1438 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.005622209696625
+  FAIL truncated_normal/pdf scalar: score 1429 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.001935285448695
+  FAIL truncated_normal/pdf batch: score 1429 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.001935285448695
+  FAIL truncated_normal/pdf scalar: score 1425 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.001935284507496
+  FAIL truncated_normal/pdf batch: score 1425 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.001935284507496
+  FAIL truncated_normal/pdf scalar: score 1423 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00193528455269
+  FAIL truncated_normal/pdf batch: score 1423 (baseline 0)  p1=-1.4041591048306623 p2=6.223302482101158 x=-38.00193528455269
+  FAIL erlang/pdf scalar: score 1110 (baseline 0)  p1=2909.0 p2=0.005333639602783843 x=272076.6606787612
+  ... and 2053 more

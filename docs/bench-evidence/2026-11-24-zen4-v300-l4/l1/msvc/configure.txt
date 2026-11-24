@@ -1,0 +1,112 @@
+-- Building for: Visual Studio 18 2026
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.26300.
+-- The CXX compiler identification is MSVC 19.52.37029.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.52.37025/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting threading capabilities...
+--   ✓ OpenMP found
+--   ✓ Win32 threads available
+--   ✓ Windows Thread Pool API available
+-- Threading: OpenMP=TRUE Pthreads=FALSE GCD=FALSE
+CMake Warning (deprecated) at C:/Users/gdwol/Development/libstats-z-v300/msvc/_deps/highway-src/CMakeLists.txt:28 (cmake_policy):
+  The OLD behavior for policy CMP0111 will be removed from a future version
+  of CMake.
+
+  The cmake-policies(7) manual explains that the OLD behaviors of all
+  policies are deprecated and that a policy should be set to OLD only under
+  specific short-term circumstances.  Projects should be ported to the NEW
+  behavior and not rely on setting a policy to OLD.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+
+-- The C compiler identification is MSVC 19.52.37029.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.52.37025/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Performing Test ATOMICS_LOCK_FREE_INSTRUCTIONS
+-- Performing Test ATOMICS_LOCK_FREE_INSTRUCTIONS - Success
+-- Performing Test HWY_EMSCRIPTEN
+-- Performing Test HWY_EMSCRIPTEN - Failed
+-- Performing Test HWY_RISCV
+-- Performing Test HWY_RISCV - Failed
+-- Performing Test HWY_HAVE_WIN32_SYNCHRONIZATION_LIB
+-- Performing Test HWY_HAVE_WIN32_SYNCHRONIZATION_LIB - Success
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed
+-- Looking for pthread_create in pthreads
+-- Looking for pthread_create in pthreads - not found
+-- Looking for pthread_create in pthread
+-- Looking for pthread_create in pthread - not found
+-- Found Threads: TRUE
+-- Looking for sys/auxv.h
+-- Looking for sys/auxv.h - not found
+-- Looking for asm/hwcap.h
+-- Looking for asm/hwcap.h - not found
+-- corvus: fetched Highway 1.4.0 via FetchContent
+-- corvus: Highway was fetched, not found — 'install' target disabled
+-- libstats: fetched corvus v1.2.0 via FetchContent; 'install' target disabled
+corvus: MSVC builds are capped at AVX2. Highway blocklists every AVX-512 target under cl.exe, and corvus states the same cap so an upstream change cannot silently widen it. On AVX-512 hardware this build dispatches AVX2; make no tier claim above AVX2 from it. For AVX-512 on Windows use clang-cl (cmake --preset windows-clang-cl); CORVUS_MSVC_UNBLOCK_AVX512=ON lifts the cap without upstream support.
+CMake Warning at cmake/FindOrFetchCorvus.cmake:82 (message):
+  libstats: corvus is being compiled by MSVC (cl.exe): its kernels are capped
+  at AVX2 and run 3-19x slower than a clang-cl build.  For full speed,
+  configure with clang-cl (-G Ninja -DCMAKE_C_COMPILER=clang-cl
+  -DCMAKE_CXX_COMPILER=clang-cl), or install corvus and Highway built with
+  clang-cl and point CMAKE_PREFIX_PATH at them (tools/bench/README.md,
+  "Windows").
+Call Stack (most recent call first):
+  CMakeLists.txt:180 (include)
+
+
+-- Detecting SIMD features...
+-- SIMDDetection: CMAKE_CXX_COMPILER_ID='MSVC' CMAKE_CXX_COMPILER='C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.52.37025/bin/Hostx64/x64/cl.exe' MSVC='1' WIN32='1'
+-- SIMD: SSE2 enabled (MSVC/Clang-cl x64, default support)
+-- SIMD: AVX enabled (MSVC/Clang-cl x64, default support)
+-- SIMD: AVX2 enabled (MSVC/Clang-cl x64, default support)
+-- SIMDDetection: Checking AVX-512 support...
+-- Performing Test COMPILER_SUPPORTS_AVX512
+-- Performing Test COMPILER_SUPPORTS_AVX512 - Success
+-- SIMDDetection: check_cxx_compiler_flag('/arch:AVX512') result = 1
+-- Performing Test RUNTIME_SUPPORTS_AVX512
+-- Performing Test RUNTIME_SUPPORTS_AVX512 - Success
+-- SIMD: AVX-512 enabled (compiler + runtime, CPU verified)
+-- SIMD: NEON disabled (not ARM architecture)
+-- SIMD detection complete:
+--   SSE2: TRUE
+--   AVX:  TRUE
+--   AVX2: TRUE
+--   AVX-512: TRUE
+--   NEON: FALSE
+--   Sources: src/simd_sse2.cpp;src/simd_avx.cpp;src/simd_avx2.cpp;src/simd_avx512.cpp;src/simd_fallback.cpp;src/simd_dispatch.cpp
+-- Intel TBB: NOT FOUND - C++20 execution policies may have limited performance
+-- Applied MSVC x64 SIMD flags: /arch:AVX512
+-- Default build (MSVC): standard configuration
+-- SIMD: AVX-512/AVX2/AVX/SSE2 enabled (MSVC x64)
+-- SIMD interface target created with definitions: LIBSTATS_HAS_SSE2=1;LIBSTATS_HAS_AVX=1;LIBSTATS_HAS_AVX2=1;LIBSTATS_HAS_AVX512=1
+-- GTest not found locally - fetching via FetchContent
+-- Test infrastructure enabled
+-- SIMD dev tools disabled (LIBSTATS_BUILD_SIMD_DEV_TOOLS=OFF)
+-- Tools enabled:
+--   - system_inspector: Consolidated system analysis tool with multiple modes (--constants, --performance, --quick, --full)
+--   - cpp20_features_inspector: Comprehensive C++20 compiler and standard library feature detection with detailed functionality tests
+--   - parallel_batch_fitting_benchmark: Comprehensive parallel batch fitting performance analysis across all distributions with scalability testing
+--   - strategy_profile: Canonical forced-strategy profiler for dispatcher threshold tuning across distributions, operations, and batch sizes
+--   - simd_verification: Architecture-agnostic SIMD operations correctness verification across all distributions and edge cases
+--   - parallel_correctness_verification: Platform-aware parallel execution correctness validation across different threading systems (GCD, OpenMP, ThreadPool)
+--   - toctou_validator: Concurrent writer/reader race stress test for TOCTOU cache inconsistency detection across all 19 distributions
+--   - copy_move_stress: Concurrent copy/move throughput stress test across all 19 distributions (replaces test_copy_move_stress)
+--   - accuracy_sweep: Issue #46 deterministic bit-exact scalar/batch pdf/logpdf/cdf/quantile sweep across all 27 distributions for the mpmath oracle comparison
+-- libstats: 'install' target disabled — corvus was fetched, not found as a package
+-- libstats Configuration Summary:
+--   Version: 2.5.0
+--   C++ Standard: 20
+--   Build Type: 
+--   Testing: Enabled
+--   GTest: Available
+-- Configuring done (42.9s)
+-- Generating done (2.3s)
+-- Build files have been written to: C:/Users/gdwol/Development/libstats-z-v300/msvc

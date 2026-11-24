@@ -1,0 +1,93 @@
+2026-11-24 02:29:53 ==== quiet sitting start: phases=l7,timing,simd,bench,profile head=164cbce dirty=2
+2026-11-24 02:29:55 cpu=AMD Ryzen 7 7445HS w/ Radeon 740M Graphics os=10.0.26300 power=27fa6203-3987-4dcc-918d-748559d549ec  (Performance) ac=True
+2026-11-24 02:42:36 L4 timing gate cpu=2.2% quiet
+2026-11-24 02:42:46 clock[timing_before] ms/pass=127.1/127 (boost ~127-130, base ~190)
+2026-11-24 02:42:48 timing test_parallel_batch_gates start (set=True ok=True control=1 state=0)
+2026-11-24 02:42:55 timing test_parallel_batch_gates end exit=0 lines=19 7s
+2026-11-24 02:42:56 timing test_math_comprehensive_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:42:56 timing test_math_comprehensive_timing end exit=0 lines=15 0s
+2026-11-24 02:42:57 timing test_gaussian_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:42:57 timing test_gaussian_enhanced_timing end exit=0 lines=41 0s
+2026-11-24 02:42:58 timing test_gamma_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:42:58 timing test_gamma_enhanced_timing end exit=0 lines=34 0s
+2026-11-24 02:42:59 timing test_discrete_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:00 timing test_discrete_enhanced_timing end exit=0 lines=34 0s
+2026-11-24 02:43:01 timing test_exponential_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:01 timing test_exponential_enhanced_timing end exit=0 lines=26 0s
+2026-11-24 02:43:02 timing test_poisson_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:02 timing test_poisson_enhanced_timing end exit=0 lines=26 0s
+2026-11-24 02:43:03 timing test_uniform_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:04 timing test_uniform_enhanced_timing end exit=0 lines=26 0s
+2026-11-24 02:43:05 timing test_cauchy_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:05 timing test_cauchy_enhanced_timing end exit=0 lines=13 0s
+2026-11-24 02:43:06 timing test_laplace_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:06 timing test_laplace_enhanced_timing end exit=0 lines=13 0s
+2026-11-24 02:43:07 timing test_lognormal_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:07 timing test_lognormal_enhanced_timing end exit=0 lines=13 0s
+2026-11-24 02:43:08 timing test_pareto_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:09 timing test_pareto_enhanced_timing end exit=0 lines=13 0s
+2026-11-24 02:43:10 timing test_rayleigh_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:10 timing test_rayleigh_enhanced_timing end exit=0 lines=13 0s
+2026-11-24 02:43:11 timing test_weibull_enhanced_timing start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:11 timing test_weibull_enhanced_timing end exit=0 lines=13 0s
+2026-11-24 02:43:21 clock[timing_after] ms/pass=127.1/127.1 (boost ~127-130, base ~190)
+2026-11-24 02:43:21 L4 timing RESULT 14/14 passed; failed: 
+2026-11-24 02:43:27 L4 simd gate cpu=2.5% quiet
+2026-11-24 02:43:28 simd_verification start (set=True ok=True control=1 state=0)
+2026-11-24 02:43:28 simd_verification end exit=0 lines=240 0s
+2026-11-24 02:43:34 L4 bench dist pass 1 gate cpu=2.8% quiet
+2026-11-24 02:43:45 clock[bench_dist] ms/pass=127.1/127 (boost ~127-130, base ~190)
+2026-11-24 02:43:46 bench dist main pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 02:44:39 bench dist main pass 1 end exit=0 lines=13 54s
+2026-11-24 02:44:40 bench dist dev pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 02:45:38 bench dist dev pass 1 end exit=0 lines=13 57s
+2026-11-24 02:45:44 L4 bench elem pass 1 gate cpu=2.4% quiet
+2026-11-24 02:45:54 clock[bench_elem] ms/pass=127.3/127 (boost ~127-130, base ~190)
+2026-11-24 02:45:55 bench elem main pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 02:46:24 bench elem main pass 1 end exit=0 lines=4 29s
+2026-11-24 02:46:25 bench elem dev pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 02:46:54 bench elem dev pass 1 end exit=0 lines=4 29s
+2026-11-24 02:47:00 L4 bench dist pass 2 gate cpu=3.3% quiet
+2026-11-24 02:47:00 bench dist dev pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 02:47:58 bench dist dev pass 2 end exit=0 lines=13 57s
+2026-11-24 02:47:58 bench dist main pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 02:48:51 bench dist main pass 2 end exit=0 lines=13 53s
+2026-11-24 02:48:57 L4 bench elem pass 2 gate cpu=2.5% quiet
+2026-11-24 02:48:57 bench elem dev pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 02:49:26 bench elem dev pass 2 end exit=0 lines=4 29s
+2026-11-24 02:49:26 bench elem main pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 02:49:56 bench elem main pass 2 end exit=0 lines=4 29s
+2026-11-24 02:50:02 L4 bench dist pass 3 gate cpu=2.1% quiet
+2026-11-24 02:50:02 bench dist main pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 02:50:55 bench dist main pass 3 end exit=0 lines=13 54s
+2026-11-24 02:50:55 bench dist dev pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 02:51:53 bench dist dev pass 3 end exit=0 lines=13 57s
+2026-11-24 02:51:59 L4 bench elem pass 3 gate cpu=2.5% quiet
+2026-11-24 02:51:59 bench elem main pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 02:52:28 bench elem main pass 3 end exit=0 lines=4 29s
+2026-11-24 02:52:28 bench elem dev pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 02:52:57 bench elem dev pass 3 end exit=0 lines=4 29s
+2026-11-24 02:52:57 L4 bench DONE
+2026-11-24 02:53:03 L4 profile run 1 gate cpu=2.5% quiet
+2026-11-24 02:53:13 clock[profile_run1] ms/pass=127.1/127 (boost ~127-130, base ~190)
+2026-11-24 02:53:40 L4 profile run 1 warm-up 25s discarded
+2026-11-24 02:53:40 strategy_profile run 1 start (set=True ok=True control=1 state=0)
+2026-11-24 04:14:35 strategy_profile run 1 end exit=0 lines=3647 4,855s
+2026-11-24 04:14:35 run 1 utc=2026-11-24T09-14-35Z csv_lines=10369
+2026-11-24 04:14:41 L4 profile run 2 gate cpu=2.7% quiet
+2026-11-24 04:14:51 clock[profile_run2] ms/pass=127.2/127.1 (boost ~127-130, base ~190)
+2026-11-24 04:15:17 L4 profile run 2 warm-up 25s discarded
+2026-11-24 04:15:17 strategy_profile run 2 start (set=True ok=True control=1 state=0)
+2026-11-24 05:36:12 strategy_profile run 2 end exit=0 lines=3647 4,855s
+2026-11-24 05:36:12 run 2 utc=2026-11-24T10-36-12Z csv_lines=10369
+2026-11-24 05:36:18 L4 profile run 3 gate cpu=2.9% quiet
+2026-11-24 05:36:28 clock[profile_run3] ms/pass=127.1/127.1 (boost ~127-130, base ~190)
+2026-11-24 05:36:54 L4 profile run 3 warm-up 25s discarded
+2026-11-24 05:36:54 strategy_profile run 3 start (set=True ok=True control=1 state=0)
+2026-11-24 06:57:51 strategy_profile run 3 end exit=0 lines=3647 4,857s
+2026-11-24 06:57:51 run 3 utc=2026-11-24T11-57-51Z csv_lines=10369
+2026-11-24 06:58:01 clock[profile_after] ms/pass=127.4/126.9 (boost ~127-130, base ~190)
+2026-11-24 06:58:01 L4 profile DONE
+2026-11-24 06:58:07 ==== quiet sitting end: cpu=5.1%
+2026-11-24 07:02:23 cpu=AMD Ryzen 7 7445HS w/ Radeon 740M Graphics os=10.0.26300 power=27fa6203-3987-4dcc-918d-748559d549ec  (Performance) ac=True
+2026-11-24 08:08:54 ==== quiet sitting end: cpu=4.9%

@@ -1,0 +1,22 @@
+{
+  "captured_at_utc": "2026-11-24T07-53-40Z",
+  "run_id": "2026-11-24T07-53-40Z_windows-x86_64_dev-v3.0.0-corvus-adoption_sha-164cbce",
+  "git_branch": "dev/v3.0.0-corvus-adoption",
+  "git_sha": "164cbce",
+  "code_sha": "e4026b3",
+  "project_root": "C:/Users/gdwol/Development/libstats-z-v300/wt",
+  "build_dir": "C:/Users/gdwol/Development/libstats-z-v300/clangcl",
+  "build_type": "Release",
+  "cmake_options": "-G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl",
+  "cxx_compiler": "clang-cl 22.1.3 (Visual Studio 18 Community bundled)",
+  "cmake": "4.4.4",
+  "dependencies": "corvus v1.2.0 (fetched), Highway 1.4.0 (fetched)",
+  "timing_method": "sustained-v1",
+  "os": "windows (Windows 11 Pro 10.0.26300)",
+  "arch": "x86_64",
+  "simd_tier_active": "AVX-512",
+  "simd_tier_capped": "",
+  "cpu_brand": "AMD Ryzen 7 7445HS w/ Radeon 740M Graphics",
+  "physical_cores": "6",
+  "logical_cores": "12"
+}
