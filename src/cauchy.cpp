@@ -353,6 +353,16 @@ double CauchyDistribution::getQuantile(double p) const {
     if (p >= 0.25 && p <= 0.75)
         return x0 + g * std::tan(detail::PI * (p - detail::HALF));
     const double q = p < detail::HALF ? p : detail::ONE - p;
+    // Below q = 1e-9, cot(π·q) is 1/(π·q) to 3e-18, so the tail is γ/(π·q), formed with no
+    // intermediate that can overflow or go subnormal where the result does not (#316): 1/tan(π·q)
+    // overflows below q ≈ 1.8e-309 although γ/(π·q) is finite for γ < 1, and π·q itself keeps
+    // only a few bits for a subnormal q. γ/q first; where that would overflow, γ/π first, which
+    // is then a normal number. The guard tests the operands (AGENTS.md, overflow-guard rule).
+    if (q < 1e-9) {
+        const double tail = g < std::numeric_limits<double>::max() * q ? (g / q) * detail::INV_PI
+                                                                       : (g * detail::INV_PI) / q;
+        return p < detail::HALF ? x0 - tail : x0 + tail;
+    }
     const double cot = detail::ONE / std::tan(detail::PI * q);
     return p < detail::HALF ? x0 - g * cot : x0 + g * cot;
 }
