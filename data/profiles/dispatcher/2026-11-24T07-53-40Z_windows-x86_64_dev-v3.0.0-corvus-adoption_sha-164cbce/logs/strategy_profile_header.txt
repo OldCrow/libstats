@@ -9,4 +9,3 @@ System: 12 logical cores, AVX-512 SIMD, 16384 KB L3 cache
 
 Batch sizes: 64 128 256 512 1024 2048 3072 4096 5120 6144 7168 8192 10000 10240 12288 16384 20480 25000 32768 50000 75000 100000 150000 200000 250000 300000 400000 500000 750000 1000000 1500000 2000000
 Timing method: sustained-v1 (per cell: 0.15 s warm-up of the cell's own work, then at least 0.25 s timed; median block per call)
-
