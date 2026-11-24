@@ -23,7 +23,9 @@ compiler:
 
 Both builds complete, `tools/cpp20_features_inspector` included. At the
 baseline that tool failed to link against TBB under both compilers (#290,
-still open). Why it links now was not investigated.
+still open). It links now because `7d56812` (PR #304, 2026-11-17) links TBB
+into the standalone tools; #290 stays open for its install-contract
+remainder [added by Z, 2026-11-23].
 
 ## Results
 

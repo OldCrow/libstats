@@ -1,0 +1,32 @@
+# v2.5.1 leg P1 on Z: fresh Release configures and builds of the main worktree, MSVC (Visual Studio
+# generator) and clang-cl (Ninja), as for v2.5.0. Logs go to ..\evidence\<compiler>\.
+param([string[]]$Which = @('msvc', 'clangcl'))
+$ErrorActionPreference = 'Continue'
+$Root = Split-Path $PSScriptRoot -Parent
+$Wt = "$Root\wt"
+$Ev = "$Root\evidence"
+
+if ($Which -contains 'msvc') {
+    $b = "$Root\msvc"
+    if (Test-Path $b) { Remove-Item -Recurse -Force $b }
+    cmake -S $Wt -B $b *> "$Ev\msvc\configure.txt"
+    "configure msvc exit=$LASTEXITCODE"
+    cmake --build $b --config Release --parallel *> "$Ev\msvc\build.txt"
+    "build msvc exit=$LASTEXITCODE"
+}
+
+if ($Which -contains 'clangcl') {
+    $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+    $vcvars = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
+    $envVars = cmd /c "`"$vcvars`" > nul && set"
+    foreach ($line in $envVars) {
+        if ($line -match "^([^=]+)=(.*)$") { [System.Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') }
+    }
+    $env:PATH = "$vsPath\VC\Tools\Llvm\x64\bin;$env:PATH"
+    $b = "$Root\clangcl"
+    if (Test-Path $b) { Remove-Item -Recurse -Force $b }
+    cmake -S $Wt -B $b -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl *> "$Ev\clangcl\configure.txt"
+    "configure clangcl exit=$LASTEXITCODE"
+    cmake --build $b --parallel *> "$Ev\clangcl\build.txt"
+    "build clangcl exit=$LASTEXITCODE"
+}

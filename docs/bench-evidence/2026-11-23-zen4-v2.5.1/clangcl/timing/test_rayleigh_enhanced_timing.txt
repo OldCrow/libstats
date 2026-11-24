@@ -1,0 +1,13 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v251\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = RayleighEnhancedTest.VectorizedSpeedup
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from RayleighEnhancedTest
+[ RUN      ] RayleighEnhancedTest.VectorizedSpeedup
+Rayleigh LogPDF VECTORIZED speedup: 6.35021x (VECTORIZED 71.1μs, SCALAR 451.5μs)
+[       OK ] RayleighEnhancedTest.VectorizedSpeedup (27 ms)
+[----------] 1 test from RayleighEnhancedTest (28 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (29 ms total)
+[  PASSED  ] 1 test.

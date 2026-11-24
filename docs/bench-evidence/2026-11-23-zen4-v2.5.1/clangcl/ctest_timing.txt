@@ -1,0 +1,24 @@
+2026-11-23 23:05:01 commit=b5f0311 dirty=0 build=clangcl
+2026-11-23 23:05:03 cpu=AMD Ryzen 7 7445HS w/ Radeon 740M Graphics      os=10.0.26300
+2026-11-23 23:05:03 power: 27fa6203-3987-4dcc-918d-748559d549ec  (Performance) ac=True
+2026-11-23 23:05:10 cpu=6.1% quiet
+2026-11-23 23:05:21 clock_probe (before, 10 s)           exit=0   10.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:21 probe before:     5 s  127.2 ms |    10 s  127.1 ms
+2026-11-23 23:05:28 test_parallel_batch_gates            exit=0    5.5s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:28 test_math_comprehensive_timing       exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:28 test_gaussian_enhanced_timing        exit=0    0.2s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:28 test_gamma_enhanced_timing           exit=0    0.2s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:28 test_discrete_enhanced_timing        exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_exponential_enhanced_timing     exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_poisson_enhanced_timing         exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_uniform_enhanced_timing         exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_cauchy_enhanced_timing          exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_laplace_enhanced_timing         exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_lognormal_enhanced_timing       exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_pareto_enhanced_timing          exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_rayleigh_enhanced_timing        exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:29 test_weibull_enhanced_timing         exit=0    0.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:40 clock_probe (after, 10 s)            exit=0   10.1s optout(set=True ok=True control=1 state=0)
+2026-11-23 23:05:40 probe after:     5 s  127.2 ms |    10 s  127.1 ms
+2026-11-23 23:05:46 cpu=3.4% at end
+2026-11-23 23:05:46 RESULT 14/14 passed; failed: 

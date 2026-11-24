@@ -1,0 +1,15 @@
+Note: Google Test filter = MathUtilsTest.ErfPerformance:MathUtilsTest.GammaPerformance
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from MathUtilsTest
+[ RUN      ] MathUtilsTest.ErfPerformance
+Erf speedup: 1.31x
+[       OK ] MathUtilsTest.ErfPerformance (25 ms)
+[ RUN      ] MathUtilsTest.GammaPerformance
+Gamma_p speedup: 1.01x
+[       OK ] MathUtilsTest.GammaPerformance (33 ms)
+[----------] 2 tests from MathUtilsTest (60 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (63 ms total)
+[  PASSED  ] 2 tests.
