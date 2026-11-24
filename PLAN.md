@@ -53,7 +53,8 @@ the least new ground but is the only native AVX2 tier. To clear the PR
 gate soonest, run Kaby Lake first.
 
 **What gates on the legs**: the dev-branch PR (one other leg complete);
-removing the `PROTOTYPE` comment tags (all three report bit-identity);
+removing the `PROTOTYPE` comment tags (all three report bit-identity:
+**done 2026-11-24**, M, K and Z bit-identical, three tags removed);
 #156's gates (all four machines' numbers); the release docs; the pool
 design decision (all four machines' L7).
 
@@ -441,7 +442,9 @@ bit. Build `b766e45` and `90d1bef` Release, run each one's
 `accuracy_sweep`, and `diff` the two CSVs past the banner lines: expect
 no difference. Record the batch timings the bench in L4 gives for the
 discrete PMFs and the incomplete gamma and beta CDFs. The `PROTOTYPE`
-tags in `src/` come out once M, Z and K have all reported.
+tags came out on 2026-11-24, once M, Z and K had all reported
+bit-identity (comments only: `src/math_utils.cpp`,
+`src/negative_binomial.cpp`, `include/libstats/core/math_utils.h`).
 
 **L4 — quiet session**, last on each machine, one sitting:
 1. `ctest -j1 -L timing` (Z: launch each binary directly).
@@ -534,7 +537,8 @@ back to back, which is what the pool design waits on.
 ### After the legs
 
 1. Open the dev-branch PR once one other leg is complete.
-2. Remove the `PROTOTYPE` tags once all three have reported L3.
+2. Remove the `PROTOTYPE` tags once all three have reported L3. **Done
+   2026-11-24** [user].
 3. #156: decide the gates from the four machines' numbers [user].
    The pool design ("Pool wake-up and batch spacing") from the four L7
    results [user]; the fix is due by v3.0.0.

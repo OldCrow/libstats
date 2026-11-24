@@ -331,7 +331,7 @@ inline constexpr double LOG1PMX_SERIES_LIMIT = 0.5;
  */
 [[nodiscard]] double binomial_log_pmf(double xa, double xb, double pa) noexcept;
 /**
- * @brief binomial_log_pmf with lgamma(xa + 1) and lgamma(fl(xa + xb) + 1) supplied (PROTOTYPE)
+ * @brief binomial_log_pmf with lgamma(xa + 1) and lgamma(fl(xa + xb) + 1) supplied
  *
  * For a batch whose xa is fixed: the first is hoisted, the second can come from one
  * vector_lgamma call over the batch. lgamma_xa_plus_1 is read only where

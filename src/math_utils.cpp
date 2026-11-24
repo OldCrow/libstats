@@ -415,7 +415,7 @@ double erf_inv(double x) noexcept {
 // log Γ(x) from corvus (v3.0.0). #173's signgam race is moot here: corvus::lgamma writes no
 // global, so the lgamma_r detour of v2.5.0 is gone with it.
 //
-// PROTOTYPE: integer arguments 1..kLgammaTableSize come from a table. The discrete log-pmfs below
+// Integer arguments 1..kLgammaTableSize come from a table. The discrete log-pmfs below
 // ask for lgamma(k + 1) at counts under STIRLING_PREFACTOR_SHAPE, one to four times per element of
 // a Poisson, Binomial or NegativeBinomial batch and on every scalar call, and corvus v1.2.0 has
 // no scalar lgamma entry (corvus #110): each call is a length-1 span, about 140 ns on a 2-lane

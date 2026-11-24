@@ -123,7 +123,7 @@ namespace {
     return detail::binomial_log_pmf(r, k, p) - log_ratio;
 }
 
-// PROTOTYPE: the log-pmf of a whole batch, or the pmf where as_pmf. nbLogPmf asks corvus for
+// The log-pmf of a whole batch, or the pmf where as_pmf. nbLogPmf asks corvus for
 // lgamma(r + 1) and lgamma(k + r + 1) wherever those arguments are below
 // STIRLING_PREFACTOR_SHAPE, one length-1 span each per element. Here lgamma(r + 1) is taken once
 // for the batch and the lgamma(k + r + 1) of a block of 256 go through one corvus span;
