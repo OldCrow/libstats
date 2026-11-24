@@ -116,6 +116,12 @@ void ExponentialDistribution::setLambda(double lambda) {
     atomicParamsValid_.store(false, std::memory_order_release);
 }
 
+void ExponentialDistribution::setParameters(double lambda) {
+    // The one-parameter form of the setter every distribution has (#268: it was declared and
+    // never defined). Same validation, lock and invalidation as setLambda.
+    setLambda(lambda);
+}
+
 double ExponentialDistribution::getMean() const {
     std::shared_lock<std::shared_mutex> lock(cache_mutex_);
     if (!cache_valid_) {

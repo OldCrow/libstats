@@ -3049,3 +3049,55 @@ TEST(ContractGates, Fix9_VonMisesCircularKurtosis) {
     EXPECT_EQ(VonMisesDistribution(0.0, 0.0).getKurtosis(), 0.0);
     EXPECT_EQ(VonMisesDistribution(0.0, 1e-30).getKurtosis(), 0.125 * 1e-30 * 1e-30);
 }
+
+// #268: ExponentialDistribution::setParameters(double) was declared in the header and defined
+// nowhere, so any caller failed to link. The gate is that this test links; it then checks the
+// setter does what setLambda does, the atomic copy included, and rejects what setLambda rejects.
+TEST(ContractGates, Issue268_ExponentialSetParametersIsDefined) {
+    auto d = stats::ExponentialDistribution::create(1.0).unwrap();
+    d.setParameters(2.5);
+    EXPECT_EQ(d.getLambda(), 2.5);
+    EXPECT_EQ(d.getLambdaAtomic(), 2.5);
+    EXPECT_EQ(d.getMean(), 1.0 / 2.5);
+    EXPECT_THROW(d.setParameters(0.0), std::invalid_argument);
+    EXPECT_THROW(d.setParameters(-1.0), std::invalid_argument);
+    EXPECT_THROW(d.setParameters(std::numeric_limits<double>::quiet_NaN()), std::invalid_argument);
+    EXPECT_EQ(d.getLambda(), 2.5);
+}
+
+// #316: the Cauchy quantile formed 1 / tan(pi·q) before applying the scale. That reciprocal
+// overflows once pi·q is below about 5.6e-309 although scale / (pi·q) is finite for a scale
+// under 1, and for a subnormal q the product pi·q is itself rounded to a few bits (4.7% off at
+// denorm_min). The quantile contract (#104) is a finite result wherever a finite double exists.
+// References: x0 - gamma / (pi·p) in exact rational arithmetic with pi to 80 digits.
+TEST(ContractGates, Issue316_CauchyQuantileFiniteAtSubnormalP) {
+    const auto rel = [](double got, double want) { return std::abs(got / want - 1.0); };
+    const double inf = std::numeric_limits<double>::infinity();
+
+    // The issue's reproducer: -inf before the fix.
+    const double x0 = std::bit_cast<double>(std::uint64_t{0xc0544bd455d6da08});     // -81.18...
+    const double gamma = std::bit_cast<double>(std::uint64_t{0x3f7bf0e480b962e4});  // 0.006821527
+    const double p = std::bit_cast<double>(std::uint64_t{0x000012688b70e62b});      // about 1e-310
+    const auto d = stats::CauchyDistribution::create(x0, gamma).unwrap();
+    EXPECT_LT(rel(d.getQuantile(p), -0x1.eebd3af411805p+1020), 5e-16) << d.getQuantile(p);
+
+    // The smallest p of all, with a scale small enough that the answer is still a double.
+    const auto narrow = stats::CauchyDistribution::create(0.0, 1e-20).unwrap();
+    const double q_tiny = narrow.getQuantile(std::numeric_limits<double>::denorm_min());
+    EXPECT_LT(rel(q_tiny, -0x1.e1042c3d96d7fp+1005), 5e-16) << q_tiny;
+
+    // A scale just above DBL_MIN, whose multiple by 1/pi would be subnormal.
+    const auto near_min = stats::CauchyDistribution::create(0.0, 3e-308).unwrap();
+    EXPECT_LT(rel(near_min.getQuantile(1e-310), -0x1.7df8cc0a8770ep+6), 5e-16);
+
+    // Where the true value is beyond DBL_MAX the answer is still -inf, and p = 0 stays -inf.
+    const auto unit = stats::CauchyDistribution::create(0.0, 1.0).unwrap();
+    EXPECT_EQ(unit.getQuantile(p), -inf);
+    EXPECT_EQ(d.getQuantile(0.0), -inf);
+
+    // The ordinary tail on both sides of the small-q branch, and the upper tail's mirror.
+    EXPECT_LT(rel(unit.getQuantile(1e-300), -0x1.e6b6f220dd8bdp+994), 5e-16);
+    EXPECT_LT(rel(unit.getQuantile(2e-10), -0x1.7b7477dbad022p+30), 5e-16);
+    EXPECT_LT(rel(unit.getQuantile(1e-9), -0x1.2f905fe2f0ce7p+28), 5e-16);
+    EXPECT_GT(unit.getQuantile(1.0 - 0x1p-53), 1e15);
+}
