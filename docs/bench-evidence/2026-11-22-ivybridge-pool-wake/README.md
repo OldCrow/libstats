@@ -121,14 +121,36 @@ Thread pool, plain, the caller busy in the gap. Sizes 4096 / 10,240 / 51,200 /
    20 µs. At 10,240 it is erratic at every gap from 10 to 50 µs (144–157 µs
    against 77–80 for the thread pool).
 
+## Explained afterwards: the local pool's 10–15 µs
+
+The bench's four-thread local pool is 10–15 µs faster per call than the
+library's thread pool at every size (34 / 66 / 231 / 842 against 45 / 77 /
+246 / 855 µs; last worker at 12–13 µs against 23–25). The row was there to
+check that the bench's copy of the slice submission is faithful, and the copy
+was: the library was slow.
+
+**Cause** [traced 2026-11-23, machine in use, so indicative; the pattern
+repeated exactly over three runs]: `ParallelUtils` sizes every parallel loop
+with `ThreadPool::getOptimalThreadCount()`, which called
+`std::thread::hardware_concurrency()` each time. On glibc 2.39 that costs
+5.4 µs per call in a tight loop and about 10 µs in place between batches.
+
+| Path, polling pool alive, back to back | Call at 4096, µs | First worker starts, µs |
+|---|---|---|
+| Library `parallelForSlices` on the global pool | 45.1 | 17.1 |
+| The bench's copy on the same global pool | 34.4 | 7.2 |
+| The bench's copy plus one `getOptimalThreadCount()` call | 45.0 | 17.0 |
+
+**Fixed** in #324 (`main` at `7d2e046`, merged into this branch at
+`f6e748e`): the count is computed once. So every THREAD_POOL figure in these
+CSVs carries about 10 µs per call that the library no longer pays on this
+machine: 22% of a 4096-element call, 14% at 10,240, under 2% at 204,800.
+The WORK_STEALING and LOCAL_POOL rows do not carry it. **Not re-measured
+quietly after the fix**, and not measured on the other machines, where the
+lookup may be cheap.
+
 ## Not explained
 
-- **The bench's four-thread local pool is 10–15 µs faster per call than the
-  library's thread pool** at every size (34 / 66 / 231 / 842 against 45 / 77 /
-  246 / 855 µs; last worker at 12–13 µs against 23–25). The row was there to
-  check that the bench's copy of the slice submission is faithful. Either the
-  copy leaves something out or the library's path carries about 10 µs the copy
-  does not. Not investigated.
 - At 4096 elements, plain, `schedutil`, gaps of 500 µs and 2 ms, only three
   workers take a slice and the work reads 14.6 ns. The cell's median slice is
   probably one the caller's side ran at full clock; not traced.

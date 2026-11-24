@@ -16,7 +16,7 @@ naming its commits.
 
 Branch `dev/v3.0.0-corvus-adoption`, built on the v2.5.0 release. corvus
 v1.2.0 is the special-function engine (found or fetched, pinned;
-`cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line at `19d2c35`
+`cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line at `7069adc`
 and is merged in.
 
 - **`src/` is settled for v3.0.0.** The last code change is `af2e548`;
@@ -147,9 +147,16 @@ design decision (all four machines' L7).
   on serial work and 15% on pool work, and 2.5 cores idle (24.8 CPU-s in
   10 s). Eight plain threads match or beat work stealing at every size
   and are 1.6x faster than four at 204,800 (K's finding 3 holds). Work
-  stealing's busy-gap delay sets in between 5 and 10 µs. Not explained:
-  the bench's four-thread local pool is 10–15 µs faster per call than
-  the library's thread pool, so that copy is not yet a faithful check.
+  stealing's busy-gap delay sets in between 5 and 10 µs. The bench's
+  four-thread local pool was 10–15 µs faster per call than the library's
+  thread pool; **traced 2026-11-23** to `hardware_concurrency()` being
+  called on every parallel batch (5.4 µs per call on glibc 2.39, about
+  10 µs in place), **fixed in #324** and merged here at `f6e748e`. The
+  THREAD_POOL figures in these CSVs predate the fix and carry that 10 µs
+  (22% of a 4096-element call); a quiet re-run after it is owed, and M,
+  K and Z have no figure for the lookup. `main` also gained #325
+  (Exponential `setParameters`, #268) and #326 (Cauchy quantile at
+  subnormal p, #316), merged here at `e4026b3`.
   The kAvx re-capture waits on the pool design.
 - **M — M1, NEON, macOS 27.2.1, AppleClang 21.0.0**: L1 done 2026-11-21
   at `cfbb992` and again 2026-11-22 at `c6ae2b9`: Release build
