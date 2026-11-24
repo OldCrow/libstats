@@ -72,10 +72,23 @@ milestone.
   banner and seven `cauchy` rows only, kept as a diff and not committed.
   Evidence: `docs/bench-evidence/2026-11-23-ivybridge-v2.5.1/`. Raised:
   `tools/cpp20_features_inspector` now links under both compilers
-  although #290 is open; not investigated.
+  although #290 is open. Explained [Z, 2026-11-23]: `7d56812` (PR #304,
+  2026-11-17, after the baseline) fixed the link on `main`; #290 stays
+  open for its install-contract remainder, fixed on the v3.0.0 branch.
 - **K — Kaby Lake, AVX2, macOS 13, AppleClang 15**: not started.
 - **M — M1, NEON, macOS 27, AppleClang 21**: not started.
-- **Z — Zen 4, AVX-512, Windows 11, MSVC and clang-cl**: not started.
+- **Z — Zen 4, AVX-512, Windows 11, MSVC 19.52 and clang-cl 22.1.3**:
+  **P1–P4 done 2026-11-23** at `b5f0311` (code identical to `7069adc`),
+  fresh Release configures in a worktree of `main`. 0 warnings each; tier
+  AVX-512; 12 logical and 6 physical cores read; correctness 132/132
+  each; `simd_verification` 140 pass, 0 fail each; timing 14/14
+  (clang-cl, each binary opted out of power throttling, CPU 6.1% at the
+  start, clock probe 127 ms before and after). Sweep (clang-cl): 26,882
+  rows, 190 self-checks, 0 contract violations; the `isa=AVX-512` block
+  changes in its banner and seven `cauchy` rows only, to I's figures,
+  kept as a diff and not committed. MSVC's sweep: 0 contract violations.
+  MSVC's toolset is 14.52; v2.5.0 was validated with 14.51. Evidence:
+  `docs/bench-evidence/2026-11-23-zen4-v2.5.1/`.
 
 ### Rules on every machine
 

@@ -1,0 +1,13 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v251\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = CauchyEnhancedTest.VectorizedSpeedup
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from CauchyEnhancedTest
+[ RUN      ] CauchyEnhancedTest.VectorizedSpeedup
+Cauchy LogPDF VECTORIZED speedup: 3.03768x (VECTORIZED 196.4µs, SCALAR 596.6µs)
+[       OK ] CauchyEnhancedTest.VectorizedSpeedup (39 ms)
+[----------] 1 test from CauchyEnhancedTest (40 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (42 ms total)
+[  PASSED  ] 1 test.

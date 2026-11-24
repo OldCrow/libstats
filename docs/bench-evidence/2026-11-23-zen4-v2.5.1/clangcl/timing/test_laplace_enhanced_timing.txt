@@ -1,0 +1,13 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v251\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = LaplaceEnhancedTest.VectorizedSpeedup
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from LaplaceEnhancedTest
+[ RUN      ] LaplaceEnhancedTest.VectorizedSpeedup
+Laplace LogPDF VECTORIZED speedup: 3.42874x (VECTORIZED 86.3µs, SCALAR 295.9µs)
+[       OK ] LaplaceEnhancedTest.VectorizedSpeedup (24 ms)
+[----------] 1 test from LaplaceEnhancedTest (25 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (27 ms total)
+[  PASSED  ] 1 test.
