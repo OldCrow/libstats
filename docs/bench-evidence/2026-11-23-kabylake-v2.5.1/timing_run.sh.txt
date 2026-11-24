@@ -1,0 +1,33 @@
+#!/bin/bash
+# v2.5.1 leg P3 on Kaby Lake: the 14 timing tests, quiet (main's PLAN.md, "v2.5.1 patch release").
+# Launch detached, outside the Claude Code sandbox, screen locked. Waits for a 1-minute load < 2.0.
+set -u
+V=/Users/wolfman/Development/libstats-v2.5.1
+OUT=/Users/wolfman/Development/libstats-kleg/v251
+MAX_LOAD="${MAX_LOAD:-2.0}"
+mkdir -p "$OUT"
+LOG=$OUT/timing_run.txt
+load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
+mark() { echo "$(date -u +%FT%TZ) load=$(load1) $*" | tee -a "$LOG"; }
+caffeinate -i -m -s -w $$ &
+{
+    echo "commit:   $(git -C "$V" rev-parse --short HEAD) dirty=$(git -C "$V" status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+    echo "os:       $(sw_vers -productName) $(sw_vers -productVersion) $(sw_vers -buildVersion)"
+    echo "kernel:   $(uname -srm)"
+    echo "cpu:      $(sysctl -n machdep.cpu.brand_string)"
+    echo "cores:    $(sysctl -n hw.physicalcpu) physical, $(sysctl -n hw.logicalcpu) logical"
+    echo "compiler: $(c++ --version | head -1)"
+    echo "power:    $(pmset -g batt | head -1)"
+    echo "uptime:   $(uptime)"
+} > "$OUT/timing_environment.txt"
+mark "timing waiting for load < $MAX_LOAD"
+for i in $(seq 1 240); do
+    awk -v l="$(load1)" -v m="$MAX_LOAD" 'BEGIN { exit !(l < m) }' && break
+    [ "$i" = 240 ] && { mark "ABORT: load did not settle in 60 min"; exit 2; }
+    sleep 15
+done
+mark "timing start"
+ctest --test-dir "$V/build-release" -j1 -L timing --output-on-failure > "$OUT/ctest_timing.txt" 2>&1
+mark "timing end exit=$?"
+tail -4 "$OUT/ctest_timing.txt" | tee -a "$LOG"
+mark "DONE"
