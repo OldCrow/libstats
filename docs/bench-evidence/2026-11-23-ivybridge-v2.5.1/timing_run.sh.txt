@@ -1,0 +1,29 @@
+#!/bin/bash
+# v2.5.1 leg P3 on Ivy Bridge: the 14 timing tests, quiet (main's PLAN.md, "v2.5.1 patch release").
+# Run from a terminal with nothing else running. Each build's run waits for the 1-minute load to
+# fall below 0.30 first. GCC 13.3 build, then Clang 18.
+set -u
+V=/home/wolfman/Development/libstats/build-ivb-v251
+OUT=$V/evidence
+mkdir -p "$OUT"
+LOG=$OUT/timing_run.txt
+mark() { echo "$(date -u +%FT%TZ) load=$(cut -d' ' -f1 /proc/loadavg) $*" | tee -a "$LOG"; }
+{
+    echo "commit:   $(git -C "$V/wt" rev-parse --short HEAD) dirty=$(git -C "$V/wt" status --porcelain --untracked-files=no | wc -l)"
+    echo "governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)"
+    echo "driver:   $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver)"
+    echo "kernel:   $(uname -srm)"
+    echo "cpu:      $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2-)"
+    echo "gcc:      $(g++ --version | head -1)"
+    echo "clang:    $(clang++-18 --version | head -1)"
+} > "$OUT/timing_environment.txt"
+for c in gcc clang; do
+    mark "timing $c waiting for load < 0.30"
+    while awk '{exit !($1 >= 0.30)}' /proc/loadavg; do sleep 10; done
+    mark "timing $c start"
+    ctest --test-dir "$V/$c" -j1 -L timing --output-on-failure > "$OUT/timing_$c.txt" 2>&1
+    mark "timing $c end exit=$?"
+    tail -4 "$OUT/timing_$c.txt" | tee -a "$LOG"
+done
+mark "DONE"
+echo "Done: $OUT"
