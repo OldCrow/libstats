@@ -29,6 +29,15 @@ git diff --stat 7069adc HEAD -- src include tests tools cmake CMakeLists.txt CMa
 The diff must be empty. If it is not, the code moved: stop, read this
 section again at the new tip, and validate that commit instead.
 
+**Where to work** [added 2026-11-23]. This section lives on `main` only; a
+session that starts in the `dev/v3.0.0-corvus-adoption` checkout reads it
+with `git show origin/main:PLAN.md`. Do the legs in a separate worktree of
+`main` (`git worktree add --detach <dir> origin/main`) with its own new
+build directories, so the dev checkout and its builds are left as they
+are. A build directory made from the dev branch is the wrong code and must
+not be reused here. The Windows clang-cl presets exist only on the dev
+branch: on `main`, Z configures its two builds as it did for v2.5.0.
+
 What changed in the library since `v2.5.0` (`git log v2.5.0..7069adc -- src include`):
 
 | Commit | Change | Where it can show on a machine |
@@ -125,6 +134,9 @@ be reported with its numbers, not assumed to be a regression.
 **P4 — accuracy sweep, for the Cauchy change.** The sweep's quantile grid
 includes p = 1e-300, 1e-15 and 1e-10 and their mirrors, all inside the
 region #326 changed.
+One sweep per machine, from the build whose compiler produced that
+machine's block at v2.5.0 (Z: clang-cl; K and M: AppleClang; I: GCC). A
+second compiler's sweep is optional and goes in the evidence only.
 
 1. Clean tree at the validated commit, built in P1.
    `<build>/tools/accuracy_sweep sweep.csv`, written outside the repo.
@@ -152,6 +164,16 @@ region #326 changed.
    diff is only recorded is the user's decision once the diffs are in.
 
 ### What each machine reports
+
+**One PR per machine against `main`** [user, 2026-11-23], opened when its
+four legs are done and merged without waiting for the others: the status
+line, any correction to this section the run turned up, and the evidence
+directory. These PRs touch documents only, so they do not move the code
+the other machines validate. I's is #328, and
+`docs/bench-evidence/2026-11-23-ivybridge-v2.5.1/` is the model for the
+directory: per-compiler `system_inspector`, `ctest`, `ctest_timing` and
+`simd_verification` output, the oracle log, the block diff as
+`accuracy_block_<ISA>.diff`, and a README with the results table.
 
 One status line above, and for the matrix: machine, OS and compiler
 versions, tier, core counts from `system_inspector`, warning count,
