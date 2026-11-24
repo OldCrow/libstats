@@ -66,7 +66,7 @@ log, one line per test with its exit code and opt-out state;
 
 Both sweeps were started from inside the worktree, clean, and carry the
 banner `commit=b5f0311  isa=AVX-512  date=2026-11-23`. Scored with Python
-3.14.10 and mpmath 1.4.1, about seven minutes each.
+3.14.10 and mpmath 1.4.1, about ten minutes each, run side by side.
 
 **clang-cl** is the sweep of record: it produced this machine's block at
 v2.5.0. `accuracy_block_AVX-512.diff` is the whole change to
