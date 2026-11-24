@@ -7,6 +7,156 @@ carry (shipped releases, closed milestones, the Resolved log, the
 2026-08-21 defensive review, travel-era records, the corvus spike) is in
 `git show f508b12:PLAN.md`.
 
+## v2.5.1 patch release — fleet legs [OPEN; user, 2026-11-23]
+
+A patch over v2.5.0 from `main`: no API change, six library commits since
+the tag. **Order [user, 2026-11-23]: every machine validates the code
+below first; the version bump, CHANGELOG and matrix follow in one release
+PR.** Nothing here is the v3.0.0 work, which stays on
+`dev/v3.0.0-corvus-adoption` with its own legs in that branch's `PLAN.md`.
+
+### The code to validate
+
+**`7069adc`** (`main`, 2026-11-23). Later commits on `main` may touch
+documents only; a machine checks out `main`'s tip and confirms the code is
+the same before P1:
+
+```bash
+git fetch origin && git checkout origin/main
+git diff --stat 7069adc HEAD -- src include tests tools cmake CMakeLists.txt CMakePresets.json
+```
+
+The diff must be empty. If it is not, the code moved: stop, read this
+section again at the new tip, and validate that commit instead.
+
+What changed in the library since `v2.5.0` (`git log v2.5.0..7069adc -- src include`):
+
+| Commit | Change | Where it can show on a machine |
+|---|---|---|
+| `7856b3a`, `81574a8` (#289) | `logical_cores` and `physical_cores` take the OS bound | pool sizes; `system_inspector` core counts |
+| `237cb9e` (#288) | Intel_Legacy default grain is no longer its 32,768 maximum | Sandy/Ivy Bridge only (I) |
+| `6ae7c01` (#308) | Gaussian `fit()` counts the between-chunk variance in full | parallel `fit()` results |
+| `7d2e046` (#324) | `ThreadPool::getOptimalThreadCount()` computed once | every PARALLEL batch on glibc, about 10 µs less on I; unmeasured elsewhere |
+| `f0ffe13` (#325, closes #268) | `ExponentialDistribution::setParameters(double)` defined | new symbol |
+| `7069adc` (#326, closes #316) | Cauchy quantile below a tail probability of 1e-9 | results move by at most 2 ulp there; finite where it was ±inf at subnormal p |
+
+New gates, all in binaries CI's correctness run executes:
+`ThreadPoolIntegration.OptimalThreadCountMakesNoSystemCallPerCall` (Linux
+only; absent elsewhere), `ContractGates.Issue268_ExponentialSetParametersIsDefined`,
+`ContractGates.Issue316_CauchyQuantileFiniteAtSubnormalP`.
+
+Not in this release: the pool wake-up and idle-burn work (held for the
+v3.0.0 design), #156 (the M1 throughput regression, gated on corvus), and
+every other open issue in the "Accuracy, contracts & kernel hygiene patch"
+milestone.
+
+### Leg status (edit only your own line)
+
+- **I — Ivy Bridge, AVX, Linux, GCC 13.3 and Clang 18**: P1 half done
+  2026-11-23: GCC 13.3 Release 132/132 at `94399b1`, whose tree is
+  identical to `7069adc`'s. Clang 18, P2, P3 and P4 not started.
+- **K — Kaby Lake, AVX2, macOS 13, AppleClang 15**: not started.
+- **M — M1, NEON, macOS 27, AppleClang 21**: not started.
+- **Z — Zen 4, AVX-512, Windows 11, MSVC and clang-cl**: not started.
+
+### Rules on every machine
+
+- Commit or push only when the user asks. Commits are signed; never
+  disable signing. `git pull --rebase` before editing your status line.
+- A failure, a new warning or an unexpected oracle row: stop and report
+  with evidence. Fix nothing in library code without the user's decision;
+  a fix goes to `main` through a PR and the affected machines rerun.
+- Release builds for every number. Fresh configure (remove the build
+  directory first), so the warning count is the build's and not a cache's.
+- Timing (P3) on a quiet machine: no builds, sweeps or other sessions. On I
+  the rule is a 1-minute load below 0.30, run by the user from a terminal;
+  on K a load below 2.0; on Z opt every timed process out of power
+  throttling and launch each binary yourself (`docs/VALIDATION_HISTORY.md`,
+  "Zen 4 timing: power throttling").
+- On the Macs, run every library binary outside the Claude Code sandbox
+  (it hides the `hw.*cachesize` sysctls and the SSH agent).
+
+### The legs
+
+The scope is v2.5.0's matrix (`docs/VALIDATION_HISTORY.md`, "v2.5.0 —
+validation matrix") less what a patch does not need: no dispatch-table
+re-derivation (R8), no cost bench against the previous release (R3 steps
+1–3), no separate concurrency stress leg (R9; CI's ThreadSanitizer and
+ASan/UBSan legs ran at `7069adc`, green).
+
+**P1 — native correctness, every compiler the machine validated v2.5.0
+with** (I: GCC 13.3 and Clang 18; K: AppleClang 15; M: AppleClang 21; Z:
+MSVC and clang-cl).
+
+1. Fresh Release configure and build, as for v2.5.0's R1 on that machine
+   (`cmake --preset release -G Ninja` on Linux and the Macs; the two
+   Windows builds as in `AGENTS.md`, "Windows Session Setup"). Record the
+   compiler version and the warning count; v2.5.0 was 0 on every machine,
+   and `9452c6d` cleared I's one Clang warning (`kBudgetTight`).
+2. `system_inspector --quick`: the tier must be the machine's own (AVX,
+   AVX2+FMA, NEON, AVX-512). Record the logical and physical core counts
+   it prints; #289 changed how they are read.
+3. `ctest --test-dir <build> -LE "timing|benchmark" -j8` (Z: add
+   `-C Release` under the Visual Studio generator). **Expect 132/132.**
+   The three new gates above are inside `test_thread_pool` and
+   `test_contract_gates`.
+
+**P2 — SIMD verification.** `<build>/tools/simd_verification`: expect 0
+failures (I read 140 pass at the 2026-11-16 baseline). Record the counts.
+
+**P3 — timing tests, quiet.** `ctest --test-dir <build> -j1 -L timing`:
+**expect 14/14** (13 `*_timing` binaries and `test_parallel_batch_gates`).
+#288, #289 and #324 all change how parallel work is sized or started, so
+this leg is in scope for the patch. I has never run it on `main` (the
+2026-11-16 baseline had no quiet machine), and I's pool workers run at the
+lowest clock between spaced batches under `schedutil` (the v3.0.0 branch's
+`PLAN.md`, "Pool wake-up and batch spacing"): a timing failure on I is to
+be reported with its numbers, not assumed to be a regression.
+
+**P4 — accuracy sweep, for the Cauchy change.** The sweep's quantile grid
+includes p = 1e-300, 1e-15 and 1e-10 and their mirrors, all inside the
+region #326 changed.
+
+1. Clean tree at the validated commit, built in P1.
+   `<build>/tools/accuracy_sweep sweep.csv`, written outside the repo.
+2. `python3 tools/accuracy_vs_mpmath.py sweep.csv` with the Python that
+   holds mpmath (I: `~/.venvs/fleet-oracle/bin/python`, about 25 minutes).
+   It rewrites only the machine's own `isa=` block in
+   `docs/ACCURACY_CHARACTERIZATION.md`.
+3. **Expect 0 contract violations and 26,882 rows.** `git diff` on the doc
+   should change the banner and Cauchy quantile rows only, and those for
+   the better or by an ulp or two. Any other row moving, or a Cauchy row
+   getting worse by more than that, is a stop-and-report.
+4. Keep the diff for the release PR; do not commit the regenerated block
+   on your own. Whether the four blocks are regenerated for v2.5.1 or the
+   diff is only recorded is the user's decision once the diffs are in.
+
+### What each machine reports
+
+One status line above, and for the matrix: machine, OS and compiler
+versions, tier, core counts from `system_inspector`, warning count,
+correctness count per compiler, timing count, `simd_verification` counts,
+the sweep's row count, contract violations and which rows moved. Evidence
+that is more than a line goes under
+`docs/bench-evidence/<date>-<machine>-v2.5.1/`.
+
+### After the legs — the release PR (one machine, after all four report)
+
+1. `CMakeLists.txt`: `project(libstats VERSION 2.5.1 ...)`; rebuild and
+   rerun P1 step 3 on that machine, since the generated version header
+   changes.
+2. `CHANGELOG.md`: the 2.5.1 section. Try `git-cliff` first; v2.5.0's
+   section was written by hand because `cliff.toml` parsed few of that
+   branch's commits.
+3. `docs/VALIDATION_HISTORY.md`: the v2.5.1 matrix from the four reports.
+4. `AGENTS.md` "Current status", `README.md` and any other place that
+   names the version (`git grep -n "2\.5\.0"`, each hit read, not
+   replaced blindly). State that #156 is not addressed.
+5. PR to `main`, CI green, merge, signed tag `v2.5.1`, GitHub release from
+   the CHANGELOG section.
+6. Merge `main` into `dev/v3.0.0-corvus-adoption`. Then the pylibstats pin
+   (Cross-Repo Dependencies below) is the user's call.
+
 ## Status [DERIVED] — 2026-11-02
 **corvus v1.2.0 released 2026-11-02 — bump owed [OPEN].** Signed tag
 `v1.2.0` on corvus `691db43`; release notes on corvus's GitHub release.
