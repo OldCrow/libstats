@@ -174,8 +174,8 @@ design decision (all four machines' L7).
   spans SSE4 costs 2.5–2.8× K's AVX2 for the incomplete functions. Two
   bench artifacts explained in the README: the n = 4 row is the argument
   draw (same on K and Z), and `erf` at 256 and 4096 is 4K aliasing
-  between the bench's two buffers (1.5×, this machine only). **Neither A
-  nor B is stated on #156 yet.** **Pool re-run after #324**: the thread
+  between the bench's two buffers (1.5×, this machine only). **Both stated
+  on #156, 2026-11-24.** **Pool re-run after #324**: the thread
   pool now matches the local pool of four (34 / 67 / 232 / 842 µs
   against 45 / 77 / 246 / 854 before); plain and back to back, short
   calls are at the full clock (36 µs at 4096 against 111), and from a
@@ -620,7 +620,7 @@ matter here.
 | Machine | A — bench against `main` | B — per-call scaling |
 |---|---|---|
 | **M** (NEON) | **Owed, and it gates the decision.** The 2026-11-21 run used the old timer, was not quiet throughout, and is not stated on #156. This is M's L6. | **Owed.** No run on this branch. |
-| **I** (AVX) | **Done 2026-11-24** at `92ec8e1`, quiet, sustained timer (`docs/bench-evidence/2026-11-24-ivybridge-v300-bench-scaling-pool/`): batch CDF 3.4–7.0× for gamma, beta, poisson and binomial and 0.67× for student_t; scalar CDF 4.0–9.8×; quantile 2.0–11.4×. Replaces the statement of 2026-11-22. **Not stated on #156 yet.** | **Done 2026-11-24**, same sitting, tier SSE4 (2 lanes): a whole vector per one-element call for `erf` and `exp`; 1.3–1.9 elements at the long-span rate for the costly kernels, against K's 2.2–3.5. At that rate Gamma's scalar CDF, Beta's scalar CDF and Gamma's quantile would still be 3.7×, 6.3× and 8.7× above `main`. **Not stated on #156 yet.** |
+| **I** (AVX) | **Done 2026-11-24** at `92ec8e1`, quiet, sustained timer (`docs/bench-evidence/2026-11-24-ivybridge-v300-bench-scaling-pool/`): batch CDF 3.4–7.0× for gamma, beta, poisson and binomial and 0.67× for student_t; scalar CDF 4.0–9.8×; quantile 2.0–11.4×. Replaces the statement of 2026-11-22. Stated on #156. | **Done 2026-11-24**, same sitting, tier SSE4 (2 lanes): a whole vector per one-element call for `erf` and `exp`; 1.3–1.9 elements at the long-span rate for the costly kernels, against K's 2.2–3.5. At that rate Gamma's scalar CDF, Beta's scalar CDF and Gamma's quantile would still be 3.7×, 6.3× and 8.7× above `main`. Stated on #156. |
 | **K** (AVX2) | Done: the sustained re-run of 2026-11-23, stated on #156. | **Done 2026-11-24** at `d23d353`, quiet, tier AVX2 (`docs/bench-evidence/2026-11-24-kabylake-corvus-scaling/`): a one-element call costs a whole 4-lane vector for `erf`, `exp`, `gamma_p` and `beta_p` and 0.5–0.8 of one for the rest; 2.2–3.5 elements at the long-span rate for the costly kernels. At that rate Beta's scalar CDF and Gamma's quantile would still be 6× and 3.7× above `main`. Stated on #156. |
 | **Z** (AVX-512) | Done 2026-11-24, clang-cl and all-MSVC, both stated. | Done 2026-11-24, both compilers. |
 
