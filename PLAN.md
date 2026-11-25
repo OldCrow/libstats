@@ -551,7 +551,7 @@ back to back, which is what the pool design waits on.
 
 ## State of the v3.0.0 issues [DERIVED, 2026-11-24]
 
-Milestone #6: 35 open, 1 closed (#312). Issues stay open until this
+Milestone #6: 33 open, 3 closed (#312; #266 and #272 as split). Issues stay open until this
 branch reaches `main`; `fixed-on-branch` marks the ones that are fixed
 and guarded here, each with a status comment.
 
@@ -565,9 +565,9 @@ and guarded here, each with a status comment.
   validation, M and K), #52 (timings and rows stated per tier; done for
   I), #107 (M, here or not at all), #291 (kAvx derived; provisional
   until the pool design).
-- **Resolved halves only (2):** #266 (CDF side; density prefactors are
-  #314) and #272 (Beta and NegativeBinomial CDF NaNs; the rest is #315).
-  Both can close as split.
+- **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
+  the density prefactors are #314) and #272 (Beta and NegativeBinomial
+  CDF NaNs cleared here; the density paths are #315).
 - **Decision owed [user] (2):** #156 (all four machines' numbers are on
   the issue) and #104 (the quantile contract at extreme p; Z's off-grid
   rows are on the issue, 14 over 100 ε, none from the adoption).
