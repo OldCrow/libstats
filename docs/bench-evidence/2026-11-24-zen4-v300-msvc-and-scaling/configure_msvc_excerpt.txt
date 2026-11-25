@@ -1,0 +1,8 @@
+-- The CXX compiler identification is MSVC 19.52.37029.0
+-- The C compiler identification is MSVC 19.52.37029.0
+-- corvus: fetched Highway 1.4.0 via FetchContent
+corvus: MSVC builds are capped at AVX2. Highway blocklists every AVX-512 target under cl.exe, and corvus states the same cap so an upstream change cannot silently widen it. On AVX-512 hardware this build dispatches AVX2;
+-- corvus: Highway was fetched, not found — 'install' target disabled
+-- libstats: fetched corvus v1.2.0 via FetchContent; 'install' target disabled
+  libstats: corvus is being compiled by MSVC (cl.exe): its kernels are capped
+  at AVX2 and run 3-19x slower than a clang-cl build.  For full speed,

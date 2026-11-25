@@ -1,0 +1,26 @@
+# Z's v3.0.0 legs: fresh Release configure and build of a source tree with clang-cl (Ninja) or MSVC
+# (Visual Studio generator). Logs go to <Log>\configure.txt and <Log>\build.txt.
+param(
+    [Parameter(Mandatory)] [string]$Src,
+    [Parameter(Mandatory)] [string]$Bld,
+    [Parameter(Mandatory)] [ValidateSet('clangcl', 'msvc')] [string]$Kind,
+    [Parameter(Mandatory)] [string]$Log,
+    [string[]]$Targets = @(),
+    [string[]]$Extra = @()
+)
+$ErrorActionPreference = 'Continue'
+New-Item -ItemType Directory -Force $Log | Out-Null
+if (Test-Path $Bld) { Remove-Item -Recurse -Force $Bld }
+$tgt = @(); if ($Targets.Count) { $tgt = @('--target') + $Targets }
+if ($Kind -eq 'clangcl') {
+    . "$PSScriptRoot\vcvars.ps1"
+    cmake -S $Src -B $Bld -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl @Extra *> "$Log\configure.txt"
+    "configure $Kind $Bld exit=$LASTEXITCODE"
+    cmake --build $Bld --parallel @tgt *> "$Log\build.txt"
+    "build $Kind $Bld exit=$LASTEXITCODE"
+} else {
+    cmake -S $Src -B $Bld @Extra *> "$Log\configure.txt"
+    "configure $Kind $Bld exit=$LASTEXITCODE"
+    cmake --build $Bld --config Release --parallel @tgt *> "$Log\build.txt"
+    "build $Kind $Bld exit=$LASTEXITCODE"
+}

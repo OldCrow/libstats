@@ -291,6 +291,16 @@ design decision (all four machines' L7).
   caller** (its idle `sleep_for(100 µs)` runs to the 15.6 ms Windows
   timer tick); the batch API does not show it on Z, where forced
   WORK_STEALING reads as PARALLEL; cause confirmed and filed as #333.
+  **For #156, 2026-11-24**, quiet
+  (`docs/bench-evidence/2026-11-24-zen4-v300-msvc-and-scaling/`): the
+  all-MSVC build (corvus at AVX2) against `main`: batch CDF Beta 13.0×
+  and Binomial 6.1× (clang-cl 5.7× and 3.0×), scalar CDF up to 18.8×,
+  quantile up to 19.4×. `corvus_scaling_bench` with `erfinv` and
+  `erfcinv` added: a one-element call costs half a vector to a whole one
+  (`erfinv` 130 ns against 15.5 per element at long spans), so a
+  dispatch-only scalar entry recovers little; at the per-element rate
+  Beta's CDF and Gamma's quantile would still be 2–3× above `main`.
+  Stated on #156.
   `fit_gap_model.py` on L7: Poisson a
   factor (1.13 at 2 ms), Gaussian neither. Evidence:
   `docs/bench-evidence/2026-11-24-zen4-v300-l4/`,

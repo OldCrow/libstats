@@ -1,0 +1,4 @@
+(warm-up 25 s)
+n=1000     exp  0.69  log  0.83  cos  1.11  sin  1.11  erf  3.33
+n=1000000  exp  0.68  log  0.83  cos  1.11  sin  1.12  erf  3.34
+(sink 3.82647e+06)

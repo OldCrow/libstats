@@ -1,0 +1,57 @@
+2026-11-24 19:32:31 ==== quiet sitting start: phases=i156 head=ec4ed8c dirty=1
+2026-11-24 19:32:33 cpu=AMD Ryzen 7 7445HS w/ Radeon 740M Graphics os=10.0.26300 power=27fa6203-3987-4dcc-918d-748559d549ec  (Performance) ac=True
+2026-11-24 19:32:40 msvc bench dist pass 1 gate cpu=7.4% quiet
+2026-11-24 19:32:52 clock[i156_dist] ms/pass=127.5/127.3 (boost ~127-130, base ~190)
+2026-11-24 19:32:53 msvc bench dist main pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 19:33:47 msvc bench dist main pass 1 end exit=0 lines=13 54s
+2026-11-24 19:33:48 msvc bench dist dev pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 19:34:49 msvc bench dist dev pass 1 end exit=0 lines=13 61s
+2026-11-24 19:34:55 msvc bench elem pass 1 gate cpu=4.1% quiet
+2026-11-24 19:35:05 clock[i156_elem] ms/pass=127/127.3 (boost ~127-130, base ~190)
+2026-11-24 19:35:07 msvc bench elem main pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 19:35:36 msvc bench elem main pass 1 end exit=0 lines=4 29s
+2026-11-24 19:35:37 msvc bench elem dev pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 19:36:06 msvc bench elem dev pass 1 end exit=0 lines=4 29s
+2026-11-24 19:36:12 msvc bench dist pass 2 gate cpu=5.2% quiet
+2026-11-24 19:36:12 msvc bench dist dev pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 19:37:13 msvc bench dist dev pass 2 end exit=0 lines=13 61s
+2026-11-24 19:37:13 msvc bench dist main pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 19:38:07 msvc bench dist main pass 2 end exit=0 lines=13 54s
+2026-11-24 19:38:13 msvc bench elem pass 2 gate cpu=6.6% quiet
+2026-11-24 19:38:13 msvc bench elem dev pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 19:38:42 msvc bench elem dev pass 2 end exit=0 lines=4 29s
+2026-11-24 19:38:42 msvc bench elem main pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 19:39:11 msvc bench elem main pass 2 end exit=0 lines=4 29s
+2026-11-24 19:39:17 msvc bench dist pass 3 gate cpu=4.7% quiet
+2026-11-24 19:39:17 msvc bench dist main pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 19:40:10 msvc bench dist main pass 3 end exit=0 lines=13 54s
+2026-11-24 19:40:10 msvc bench dist dev pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 19:41:11 msvc bench dist dev pass 3 end exit=0 lines=13 61s
+2026-11-24 19:41:17 msvc bench elem pass 3 gate cpu=4.5% quiet
+2026-11-24 19:41:17 msvc bench elem main pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 19:41:46 msvc bench elem main pass 3 end exit=0 lines=4 29s
+2026-11-24 19:41:46 msvc bench elem dev pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 19:42:16 msvc bench elem dev pass 3 end exit=0 lines=4 29s
+2026-11-24 19:42:22 scaling clangcl pass 1 gate cpu=5% quiet
+2026-11-24 19:42:32 clock[i156_scaling_clangcl] ms/pass=127.4/127 (boost ~127-130, base ~190)
+2026-11-24 19:42:32 corvus_scaling clangcl pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 19:43:42 corvus_scaling clangcl pass 1 end exit=0 lines=12 71s
+2026-11-24 19:43:48 scaling msvc pass 1 gate cpu=5.2% quiet
+2026-11-24 19:43:59 clock[i156_scaling_msvc] ms/pass=127.3/127.2 (boost ~127-130, base ~190)
+2026-11-24 19:43:59 corvus_scaling msvc pass 1 start (set=True ok=True control=1 state=0)
+2026-11-24 19:45:26 corvus_scaling msvc pass 1 end exit=0 lines=12 87s
+2026-11-24 19:45:32 scaling clangcl pass 2 gate cpu=4.8% quiet
+2026-11-24 19:45:32 corvus_scaling clangcl pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 19:46:42 corvus_scaling clangcl pass 2 end exit=0 lines=12 71s
+2026-11-24 19:46:48 scaling msvc pass 2 gate cpu=5.2% quiet
+2026-11-24 19:46:48 corvus_scaling msvc pass 2 start (set=True ok=True control=1 state=0)
+2026-11-24 19:48:15 corvus_scaling msvc pass 2 end exit=0 lines=12 87s
+2026-11-24 19:48:21 scaling clangcl pass 3 gate cpu=5.5% quiet
+2026-11-24 19:48:21 corvus_scaling clangcl pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 19:49:32 corvus_scaling clangcl pass 3 end exit=0 lines=12 71s
+2026-11-24 19:49:38 scaling msvc pass 3 gate cpu=3% quiet
+2026-11-24 19:49:38 corvus_scaling msvc pass 3 start (set=True ok=True control=1 state=0)
+2026-11-24 19:51:05 corvus_scaling msvc pass 3 end exit=0 lines=12 87s
+2026-11-24 19:51:15 clock[i156_after] ms/pass=127.1/127 (boost ~127-130, base ~190)
+2026-11-24 19:51:15 i156 DONE
+2026-11-24 19:51:21 ==== quiet sitting end: cpu=4.9%

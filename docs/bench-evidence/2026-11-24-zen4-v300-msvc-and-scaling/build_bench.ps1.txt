@@ -1,0 +1,29 @@
+# Z, #156 additions: the tools/bench programs for the all-MSVC configuration (libstats and corvus
+# built with cl.exe; corvus dispatches AVX2 under Highway's MSVC blocklist), and corvus_scaling_bench
+# under both compilers. Flags are those of tools/bench/README.md, "Windows (Zen 4)", step 3.
+$ErrorActionPreference = 'Continue'
+$R = Split-Path $PSScriptRoot -Parent
+. "$PSScriptRoot\vcvars.ps1"
+$O = "$R\bench"; New-Item -ItemType Directory -Force $O | Out-Null
+$src = "$R\wt\tools\bench"
+$cl = @('/nologo', '/std:c++20', '/O2', '/Ob2', '/DNDEBUG', '/EHsc', '/MD', '/utf-8', '/arch:AVX512', '/DNOMINMAX', '/D_USE_MATH_DEFINES',
+    '/DLIBSTATS_HAS_AVX2=1', '/DLIBSTATS_HAS_AVX512=1', '/DLIBSTATS_HAS_AVX=1', '/DLIBSTATS_HAS_SSE2=1')
+function Report($name, $log) { "$name exit=$LASTEXITCODE warnings=$((Select-String -Path $log -Pattern 'warning' | Measure-Object).Count)" }
+
+# dev, all MSVC
+$D = "$R\msvc"
+$dinc = @("/I$R\wt\include", "/I$R\wt\include\libstats", "/I$D\generated", "/I$D\_deps\corvus-src\include")
+$dlib = @("$D\Release\stats_static.lib", "$D\_deps\corvus-build\Release\corvus.lib", "$D\_deps\highway-build\Release\hwy.lib")
+# main, MSVC
+$M = "$R\msvc-main"
+$minc = @("/I$R\main-wt\include", "/I$R\main-wt\include\libstats", "/I$M\generated")
+$mlib = @("$M\Release\stats_static.lib")
+foreach ($b in 'distributions', 'elementary') {
+    & cl @cl @dinc "$src\${b}_bench.cpp" "/Fe$O\${b}_msvc_dev.exe" "/Fo$O\${b}_msvc_dev.obj" /link @dlib *> "$O\build_${b}_msvc_dev.txt"; Report "$b msvc dev" "$O\build_${b}_msvc_dev.txt"
+    & cl @cl @minc "$src\${b}_bench.cpp" "/Fe$O\${b}_msvc_main.exe" "/Fo$O\${b}_msvc_main.obj" /link @mlib *> "$O\build_${b}_msvc_main.txt"; Report "$b msvc main" "$O\build_${b}_msvc_main.txt"
+}
+# corvus_scaling_bench: MSVC-built corvus (AVX2 cap) and clang-cl-built corvus (AVX3_ZEN4)
+& cl @cl "/I$D\_deps\corvus-src\include" "$src\corvus_scaling_bench.cpp" "/Fe$O\corvus_scaling_msvc.exe" "/Fo$O\corvus_scaling_msvc.obj" /link "$D\_deps\corvus-build\Release\corvus.lib" "$D\_deps\highway-build\Release\hwy.lib" *> "$O\build_scaling_msvc.txt"; Report 'corvus_scaling msvc' "$O\build_scaling_msvc.txt"
+$C = "$R\clangcl"
+& clang-cl /nologo /EHsc /O2 /Ob2 /DNDEBUG -std:c++20 -MD /arch:AVX512 -DNOMINMAX "-imsvc$C\_deps\corvus-src\include" "$src\corvus_scaling_bench.cpp" "/Fe$O\corvus_scaling_clangcl.exe" "/Fo$O\corvus_scaling_clangcl.obj" /link "$C\_deps\corvus-build\corvus.lib" "$C\_deps\highway-build\hwy.lib" *> "$O\build_scaling_clangcl.txt"; Report 'corvus_scaling clangcl' "$O\build_scaling_clangcl.txt"
+Get-ChildItem $O\*.exe | ForEach-Object { "{0,-34} {1}" -f $_.Name, (Get-FileHash $_.FullName -Algorithm SHA256).Hash.Substring(0, 16) }

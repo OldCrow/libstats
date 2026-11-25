@@ -25,8 +25,17 @@ double ns_per_elem(std::size_t n, std::size_t reps, F&& f) {
 // taken in the sustained-frequency regime. Off by default. Needed on the Zen 4 box, where boost
 // steps down ~1.5x some 8-15 s into a run and lands on different rows of the two binaries.
 static void warmup() {
+    // The Windows CRT deprecates std::getenv; this program stands alone, so the helper is local.
+#ifdef _WIN32
+    char* buf = nullptr;
+    std::size_t len = 0;
+    const bool set = _dupenv_s(&buf, &len, "LIBSTATS_BENCH_WARMUP_SECONDS") == 0 && buf != nullptr;
+    const double secs = set ? std::atof(buf) : 0.0;
+    std::free(buf);
+#else
     const char* s = std::getenv("LIBSTATS_BENCH_WARMUP_SECONDS");
     const double secs = s ? std::atof(s) : 0.0;
+#endif
     if (secs <= 0.0)
         return;
     volatile double x = 1.0;
@@ -42,18 +51,23 @@ int main() {
     std::mt19937_64 rng(7);
     std::uniform_real_distribution<double> ux(0.05, 20.0), ub(0.01, 0.99), up(0.001, 0.999);
     const std::size_t Ns[] = {1, 2, 4, 8, 32, 256, 4096, 65536};
-    std::printf("%8s %10s %10s %10s %10s %10s %10s\n", "n", "erf", "exp", "lgamma", "gamma_p",
-                "beta_p", "gamma_p_inv");
+    std::printf("%8s %10s %10s %10s %10s %10s %10s %10s %10s\n", "n", "erf", "exp", "lgamma",
+                "gamma_p", "beta_p", "gamma_p_inv", "erfinv", "erfcinv");
     for (std::size_t n : Ns) {
-        std::vector<double> a(n, 2.5), b(n, 5.0), x(n), xb(n), p(n), out(n);
+        std::vector<double> a(n, 2.5), b(n, 5.0), x(n), xb(n), p(n), out(n), xe(n), xc(n);
         for (auto& v : x)
             v = ux(rng);
         for (auto& v : xb)
             v = ub(rng);
         for (auto& v : p)
             v = up(rng);
+        // erfinv on (-1, 1) and erfcinv on (0, 2): the arguments a probit makes from p.
+        for (std::size_t i = 0; i < n; ++i) {
+            xe[i] = 2.0 * p[i] - 1.0;
+            xc[i] = 2.0 * p[i];
+        }
         const std::size_t reps = std::max<std::size_t>(1, 200000 / n);
-        std::span<const double> A(a), B(b), X(x), XB(xb), P(p);
+        std::span<const double> A(a), B(b), X(x), XB(xb), P(p), XE(xe), XC(xc);
         std::span<double> O(out);
         double e = ns_per_elem(n, reps, [&] {
             corvus::erf(XB, O);
@@ -79,7 +93,16 @@ int main() {
             corvus::gamma_p_inv(A, P, O);
             sink += out[0];
         });
-        std::printf("%8zu %10.1f %10.1f %10.1f %10.1f %10.1f %10.1f\n", n, e, ex, lg, gp, bp, gi);
+        double ei = ns_per_elem(n, reps, [&] {
+            corvus::erfinv(XE, O);
+            sink += out[0];
+        });
+        double eci = ns_per_elem(n, reps, [&] {
+            corvus::erfcinv(XC, O);
+            sink += out[0];
+        });
+        std::printf("%8zu %10.1f %10.1f %10.1f %10.1f %10.1f %10.1f %10.1f %10.1f\n", n, e, ex, lg,
+                    gp, bp, gi, ei, eci);
     }
     std::printf("(sink %g)\n", sink);
 }
