@@ -181,7 +181,6 @@ design decision (all four machines' L7).
   calls are at the full clock (36 µs at 4096 against 111), and from a
   50 µs gap the governor behaviour is as before. Still owed on I: the
   kAvx re-capture, held on the pool design.
-  The kAvx re-capture waits on the pool design.
 - **M — M1, NEON, macOS 27.2.1, AppleClang 21.0.0**: L1 done 2026-11-21
   at `cfbb992`, again 2026-11-22 at `c6ae2b9` and 2026-11-24 at
   `0f57256` (with #324, #325, #326): Release build
@@ -668,9 +667,8 @@ and guarded here, each with a status comment.
 - **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
   the density prefactors are #314) and #272 (Beta and NegativeBinomial
   CDF NaNs cleared here; the density paths are #315).
-- **Decision owed [user] (1):** #156. What M, I and K each still owe
-  for it is under "#156 — what each machine still owes" above; Z is
-  complete.
+- **Decision owed [user] (1):** #156. Only M still owes for it ("#156 —
+  what each machine still owes" above); I, K and Z are complete.
 - **Left by #104, not blockers [OPEN]:** the 14 off-grid quantile rows
   over 100 ε (small shape, deep tail; present on `main`) are #334 in the
   patch milestone; the per-family quantile accuracy notes #104's acceptance
@@ -1042,7 +1040,10 @@ value for the pool design:
    unchanged too. That is the start-delay reading. **Quiet runs on K
    done 2026-11-23** at `6d95852`, six processes
    (`docs/bench-evidence/2026-11-23-kabylake-pool-wake/`, with items 5
-   and 6 below); findings under "K, measured". Owed on I, M and Z.
+   and 6 below); findings under "K, measured". **Since run on I**
+   (2026-11-23, `docs/bench-evidence/2026-11-22-ivybridge-pool-wake/`),
+   **M and Z** (2026-11-24, `…/2026-11-24-m1-pool-wake/`,
+   `…/2026-11-24-zen4-pool-wake/`); owed on no machine.
 3. **Clocks and idle states, privileged, once per machine, to name the
    cause.** While `batch_gap_bench` runs one plain cell at a 20 ms gap and
    one back to back: K and M `sudo powermetrics --samplers cpu_power -i
