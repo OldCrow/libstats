@@ -154,8 +154,8 @@ design decision (all four machines' L7).
   called on every parallel batch (5.4 µs per call on glibc 2.39, about
   10 µs in place), **fixed in #324** and merged here at `f6e748e`. The
   THREAD_POOL figures in these CSVs predate the fix and carry that 10 µs
-  (22% of a 4096-element call); M, K and Z have no figure for the
-  lookup. `main` also gained #325
+  (22% of a 4096-element call); K and Z have no figure for the
+  lookup; M's is 0.38 µs per call (its line below). `main` also gained #325
   (Exponential `setParameters`, #268) and #326 (Cauchy quantile at
   subnormal p, #316), merged here at `e4026b3`.
   **Quiet sitting 2026-11-24** at `92ec8e1` (135/135), governor
@@ -244,8 +244,35 @@ design decision (all four machines' L7).
   workers each) and is slower after any busy gap from 5 µs. So the
   polling pool is not pure cost on M1: it holds the clock for a caller
   that blocks, and an M1 guard that drops it would cost that caller
-  3.3×. These runs predate #324; M has no figure for the lookup.
-  **L6, #107 and #47 owed.**
+  3.3×. These runs predate #324, and need no re-run for it: the lookup
+  costs 0.38 µs per call here (I: 5.4), and the thread pool reads the
+  same after the fix within 2%. **L6 done 2026-11-24** at `92ec8e1`
+  against `main` at `c049f23`, quiet (ambient CPU 2.4–3.9% at each
+  start, screen locked, fourteen background processes suspended
+  [user]), sustained timer, three passes
+  (`docs/bench-evidence/2026-11-24-m1-v300-cost/`). #156 A: batch CDF
+  Gamma 2.5×, Poisson 5.1×, Binomial 6.6×, Beta 12.4×; scalar CDF 3.5×
+  to 14.4× (Beta); quantile 2.3× to 12.5× (Beta); densities and the
+  elementary kernels level, discrete pmfs and the Gaussian and
+  LogNormal quantiles faster. The old-timer run read the same. None of
+  #156's NEON targets is met (Gamma batch CDF 46.9 ns per element,
+  Beta 147.3, a scalar CDF call 435–1496 ns). #156 B, corvus at NEON:
+  a one-element call costs a whole 2-lane vector for `erf`, `exp`,
+  `lgamma` and `beta_p` and half of one for `gamma_p` and
+  `gamma_p_inv`; 1.3–2.0 elements at the long-span rate for the costly
+  kernels (K 2.2–3.5), so a scalar entry point recovers 1.3–1.6× at
+  most and Gamma's scalar CDF, Beta's and Gamma's quantile would stay
+  2.2×, 8.7× and 6.7× above `main`. Stated on #156. Pool
+  measurement 8, same sitting: eight threads are 1.6× faster than four
+  at 204,800 and level at 10,240 and below; work stealing is slower
+  than the thread pool at 204,800 and 16–57 µs slower after a 2 ms
+  gap. **#107 done 2026-11-24, not committed**: `simd_neon.cpp`
+  includes `trig_cleanroom_data.inc` through five aliases, the NEON
+  copy and its generator are removed; the NEON object's code and
+  constants are byte-identical before and after, the generator
+  reproduces the table, 135/135, `simd_verification` 140 pass. The
+  three x86 files change in a comment only and were not built here.
+  Nothing further owed on M.
 - **Z — Zen 4, AVX-512, Windows 11, clang-cl 22.1.3 and cl.exe 19.52**:
   **L1 done 2026-11-23** at `164cbce` (code `e4026b3`): 135/135 under
   both, backend `std::execution`; `test_concurrency_stress` passes
@@ -559,8 +586,9 @@ back to back, which is what the pool design waits on.
 
 ### Machine-specific items
 
-- **M**: #107 (one trig table; the change is on the NEON side) is done
-  here or not at all. #47 needs nothing further from M: K's AppleClang
+- **M**: #107 (one trig table; the change is on the NEON side) was done
+  here on 2026-11-24, the NEON object byte-identical before and after;
+  the three x86 files change in a comment only. #47 needs nothing further from M: K's AppleClang
   validation closed it (2026-11-24), and M's NEON block and its 135/135
   with the entropy guard cover this machine; the "≤ 1.7 ulp" once asked
   here does not hold at every point on either tree (K's item below).
@@ -621,13 +649,14 @@ matter here.
 
 | Machine | A — bench against `main` | B — per-call scaling |
 |---|---|---|
-| **M** (NEON) | **Owed, and it gates the decision.** The 2026-11-21 run used the old timer, was not quiet throughout, and is not stated on #156. This is M's L6. | **Owed.** No run on this branch. |
+| **M** (NEON) | **Done 2026-11-24** at `92ec8e1`, quiet, sustained timer (`docs/bench-evidence/2026-11-24-m1-v300-cost/`): batch CDF Gamma 2.5×, Poisson 5.1×, Binomial 6.6×, Beta 12.4×; scalar CDF up to 14.4×, quantile up to 12.5× (both Beta). Stated on #156. | **Done 2026-11-24**, same sitting, tier NEON: a one-element call costs a whole 2-lane vector for `erf`, `exp`, `lgamma` and `beta_p`, half of one for `gamma_p` and `gamma_p_inv`; 1.3–2.0 elements at the long-span rate. A scalar entry point recovers 1.3–1.6× at most. Stated on #156. |
 | **I** (AVX) | **Done 2026-11-24** at `92ec8e1`, quiet, sustained timer (`docs/bench-evidence/2026-11-24-ivybridge-v300-bench-scaling-pool/`): batch CDF 3.4–7.0× for gamma, beta, poisson and binomial and 0.67× for student_t; scalar CDF 4.0–9.8×; quantile 2.0–11.4×. Replaces the statement of 2026-11-22. Stated on #156. | **Done 2026-11-24**, same sitting, tier SSE4 (2 lanes): a whole vector per one-element call for `erf` and `exp`; 1.3–1.9 elements at the long-span rate for the costly kernels, against K's 2.2–3.5. At that rate Gamma's scalar CDF, Beta's scalar CDF and Gamma's quantile would still be 3.7×, 6.3× and 8.7× above `main`. Stated on #156. |
 | **K** (AVX2) | Done: the sustained re-run of 2026-11-23, stated on #156. | **Done 2026-11-24** at `d23d353`, quiet, tier AVX2 (`docs/bench-evidence/2026-11-24-kabylake-corvus-scaling/`): a one-element call costs a whole 4-lane vector for `erf`, `exp`, `gamma_p` and `beta_p` and 0.5–0.8 of one for the rest; 2.2–3.5 elements at the long-span rate for the costly kernels. At that rate Beta's scalar CDF and Gamma's quantile would still be 6× and 3.7× above `main`. Stated on #156. |
 | **Z** (AVX-512) | Done 2026-11-24, clang-cl and all-MSVC, both stated. | Done 2026-11-24, both compilers. |
 
-The least that allows a decision is M's A. B on M and I is what would
-change the design point, since both are 2-lane tiers.
+All of it is in: the decision has what it asked for. B on M and I, the
+two 2-lane tiers, reads alike (1.3–2.0 and 1.3–1.9 elements per
+one-element call).
 
 ### After the legs
 
@@ -665,13 +694,13 @@ and guarded here, each with a status comment.
   misses on `main`. M made no statement of its own; its NEON block and
   its 135/135 with the guard in it cover it.
 - **Wait on other machines or the pool design (3):** #52 (timings and
-  rows stated per tier; done for I), #107 (M, here or not at all), #291
+  rows stated per tier; done for I), #107 (done on M 2026-11-24; the x86 files' comment change is unbuilt), #291
   (kAvx derived; provisional until the pool design).
 - **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
   the density prefactors are #314) and #272 (Beta and NegativeBinomial
   CDF NaNs cleared here; the density paths are #315).
-- **Decision owed [user] (1):** #156. Only M still owes for it ("#156 —
-  what each machine still owes" above); I, K and Z are complete.
+- **Decision owed [user] (1):** #156. All four machines are complete
+  and stated on the issue ("#156 — what each machine still owes" above).
 - **Left by #104, not blockers [OPEN]:** the 14 off-grid quantile rows
   over 100 ε (small shape, deep tail; present on `main`) are #334 in the
   patch milestone; the per-family quantile accuracy notes #104's acceptance
@@ -1112,7 +1141,11 @@ value for the pool design:
    does not explain** work stealing's late start after a busy gap only.
 7. **Idle burn per machine**: user plus system CPU time of a process that
    calls `initialize_performance_systems()` and sleeps 10 s
-   (`getrusage`). I measured over two cores; M and Z have no figure.
+   (`getrusage`). All four machines have a figure: I 24.8 CPU-s over
+   two and a half cores; **M, 2026-11-24**: 5.6–6.6 (2.1 user, 3.5–4.5
+   system), 0.00 with no pool started
+   (`docs/bench-evidence/2026-11-24-m1-pool-wake/`); **Z, 2026-11-24**:
+   0.19 (`docs/bench-evidence/2026-11-24-zen4-pool-wake/`).
    **K, 2026-11-24**: 10.5 CPU-s in 10 s, one core (5.5 user, 5.0
    system); 0.00 with only the thread pool
    (`docs/bench-evidence/2026-11-24-kabylake-pool-threads/`).
