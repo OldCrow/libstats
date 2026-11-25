@@ -275,17 +275,18 @@ design decision (all four machines' L7).
   three x86 files change in a comment only and were not built here.
   Nothing further owed on M.
   **Session state, 2026-11-24.** v2.5.1's legs on M are reported on
-  `main` in #335 (open, checks green, not merged). Cleaned up: the
+  `main` (#335, merged). Cleaned up: the
   work directory `libstats-m-2026-11-21` and its four worktrees
   (`v2.5.0`, `b766e45`, `90d1bef`, the L5 A/B tree) are removed; every
   result in them is under `docs/bench-evidence/`, the A/B tree's table
   as `2026-11-22-m1-neon-threshold-rows/dispatch_thresholds.h.proposed.txt`.
-  What remains on this machine: this checkout and the `libstats-main`
-  worktree of `main` (with `build-release` and `build-m1-cov`), kept
-  until #335 merges. Open: L5's rows stay provisional until the pool
-  design (old timer; one value applied); the Bernoulli-on-Binomial's-row
-  dispatch finding is not acted on; #107's comment change in the three
-  x86 files has not been compiled on an x86 machine. Method for a quiet
+  The `libstats-main` worktree of `main` went with #335's merge, so
+  this checkout is all that remains on this machine. Open: L5's rows
+  stay provisional until the pool design (old timer; one value applied); the Bernoulli-on-Binomial's-row
+  dispatch finding is not acted on. #107's comment change in the three
+  x86 files is covered by CI, dispatched on `66f8377` and green on
+  every leg (Linux gcc-14 and clang-17, Windows clang-cl and MSVC,
+  macOS); the push itself starts no run on this branch. Method for a quiet
   run here: screen locked, Backblaze paused by the user, the fourteen
   processes listed in `2026-11-24-m1-v300-cost/quiet_run.sh.txt`
   suspended for the run [user approves each sitting], gate at two 10 s
@@ -712,7 +713,7 @@ and guarded here, each with a status comment.
   misses on `main`. M made no statement of its own; its NEON block and
   its 135/135 with the guard in it cover it.
 - **Wait on other machines or the pool design (3):** #52 (timings and
-  rows stated per tier; done for I), #107 (done on M 2026-11-24; the x86 files' comment change is unbuilt), #291
+  rows stated per tier; done for I), #107 (done on M 2026-11-24, CI green on `66f8377`), #291
   (kAvx derived; provisional until the pool design).
 - **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
   the density prefactors are #314) and #272 (Beta and NegativeBinomial
