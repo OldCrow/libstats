@@ -544,12 +544,52 @@ back to back, which is what the pool design waits on.
   this CPU (check `other_assists.avx_to_sse` with `perf stat` if the
   bench reads oddly).
 
+### #156 — what each machine still owes [OPEN; user, 2026-11-24]
+
+The gate on #156 was set on M as absolute NEON targets (`gamma_p` ≤ 40
+and `beta_p` ≤ 30 ns per element at batch, a single-lane call ≤ 250 ns).
+corvus's comment of 2026-10-30 says they cannot be met under its accuracy
+contract, so the gate is re-baselined here, and the decision is whether
+the measured cost is accepted or some routes keep a local fast path. Two
+measurements feed it. Both are quiet runs under the leg rules above.
+
+**A — the bench against `main`.** `tools/bench/distributions_bench.cpp`
+and `elementary_bench.cpp` from this branch's tip, built with the
+library's own flags against a Release build of `main`'s tip and one of
+this branch (`tools/bench/README.md`). Three passes, `main` first on
+passes 1 and 3 and this branch first on pass 2. The benches must be
+`8c55bfc` or later (the sustained timer, #320). State the result on
+#156 as the other machines have: ns per element, median of three,
+`main` → dev with the ratio, for batch CDF, scalar CDF and quantile of
+gamma, beta, poisson, student_t and binomial, and what moved elsewhere.
+Evidence under `docs/bench-evidence/<date>-<machine>-…/`.
+
+**B — corvus per call against span length.**
+`tools/bench/corvus_scaling_bench.cpp` at `4db8257` or later (it gained
+`erfinv` and `erfcinv` columns), built against this branch's corvus;
+three passes. Record the tier it prints on its first line. It tells
+whether a one-element call costs a whole vector, which decides what a
+scalar entry point could recover. Z reads half a vector to a whole one
+at 8 lanes; a 2-lane tier may read differently, which is why M and I
+matter here.
+
+| Machine | A — bench against `main` | B — per-call scaling |
+|---|---|---|
+| **M** (NEON) | **Owed, and it gates the decision.** The 2026-11-21 run used the old timer, was not quiet throughout, and is not stated on #156. This is M's L6. | **Owed.** No run on this branch. |
+| **I** (AVX) | **Owed as a re-run.** The statement of 2026-11-22 is from the old timer, and its own text marks several cells as the bench, not the library. Do it in the quiet sitting I already owes after #324. | **Owed.** No run on this branch. |
+| **K** (AVX2) | Done: the sustained re-run of 2026-11-23, stated on #156. | **Owed.** The only K run is 2026-09-30, at corvus v1.0.1, without the two new columns. |
+| **Z** (AVX-512) | Done 2026-11-24, clang-cl and all-MSVC, both stated. | Done 2026-11-24, both compilers. |
+
+The least that allows a decision is M's A. B on M and I is what would
+change the design point, since both are 2-lane tiers.
+
 ### After the legs
 
 1. Open the dev-branch PR once one other leg is complete.
 2. Remove the `PROTOTYPE` tags once all three have reported L3. **Done
    2026-11-24** [user].
-3. #156: decide the gates from the four machines' numbers [user].
+3. #156: decide the gates from the four machines' numbers [user]; what
+   is still owed is in the section above.
    The pool design ("Pool wake-up and batch spacing") from the four L7
    results [user]; the fix is due by v3.0.0.
 4. Release docs: version 2.5.0 → 3.0.0, `CHANGELOG.md`,
@@ -580,10 +620,9 @@ and guarded here, each with a status comment.
 - **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
   the density prefactors are #314) and #272 (Beta and NegativeBinomial
   CDF NaNs cleared here; the density paths are #315).
-- **Decision owed [user] (1):** #156. I, K and Z are stated on the
-  issue; M, whose machine the gate was defined on, is not, and its bench
-  predates the sustained timer. The 2026-10-30 corvus comment says the
-  NEON targets are out of reach, so the gate needs re-baselining.
+- **Decision owed [user] (1):** #156. What M, I and K each still owe
+  for it is under "#156 — what each machine still owes" above; Z is
+  complete.
 - **Left by #104, not blockers [OPEN]:** the 14 off-grid quantile rows
   over 100 ε (small shape, deep tail; present on `main`) are #334 in the
   patch milestone; the per-family quantile accuracy notes #104's acceptance
