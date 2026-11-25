@@ -422,8 +422,8 @@ void VectorOps::vector_pow_elementwise_avx2(const double* base, const double* ex
 // ported structurally from libhmm's cos_pd/sin_pd(__m256d) (issue #74
 // there), itself ported from this project's own vector_cos_neon. See
 // docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
-// the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
-// self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
+// the mathematics; scripts/gen_trig_cleanroom_table.py regenerates
+// src/trig_cleanroom_data.inc, the one table every tier includes (#107).
 // No third-party source. _mm256_cvtepi32_epi64 requires AVX2 (this TU is
 // compiled with -mavx2 -mfma / /arch:AVX2).
 #include "trig_cleanroom_data.inc"

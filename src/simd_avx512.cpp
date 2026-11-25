@@ -395,8 +395,8 @@ void VectorOps::vector_pow_elementwise_avx512(const double* base, const double* 
 // ported structurally from libhmm's cos_pd/sin_pd(__m512d) (issue #74
 // there), itself ported from this project's own vector_cos_neon. See
 // docs/NEON_TRIG_DERIVATION.md and docs/NEON_TRIG_DIVERGENCE_AUDIT.md for
-// the mathematics; scripts/gen_trig_cleanroom_table.py regenerates and
-// self-checks src/trig_cleanroom_data.inc against src/neon_trig_cleanroom_data.inc.
+// the mathematics; scripts/gen_trig_cleanroom_table.py regenerates
+// src/trig_cleanroom_data.inc, the one table every tier includes (#107).
 // No third-party source. _mm512_cvtepi32_epi64 requires AVX-512F;
 // _mm512_xor_pd requires AVX-512DQ (this TU is compiled with -mavx512f
 // -mavx512dq / /arch:AVX512).

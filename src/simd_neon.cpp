@@ -636,8 +636,15 @@ void VectorOps::vector_erf_neon(const double* a, double* result, std::size_t siz
     // ~6e8 ULP inside [-2pi, 2pi] (7-term Taylor truncation ~6.5e-11 absolute)
     // with sign errors near k*pi/2 for |x| in the thousands. See
     // docs/NEON_TRIG_DERIVATION.md, docs/NEON_TRIG_DIVERGENCE_AUDIT.md and
-    // scripts/gen_neon_trig_cleanroom_table.py. No third-party source.
-    #include "neon_trig_cleanroom_data.inc"
+    // scripts/gen_trig_cleanroom_table.py. No third-party source.
+    // One table for every tier (#107): the x86 files include the same .inc.
+    // The aliases keep the kernel bodies below as they were validated.
+    #include "trig_cleanroom_data.inc"
+static constexpr auto& kTrigNeonDMax = kTrigDMax;
+static constexpr auto& kTrigNeonTwoOverPi = kTrigTwoOverPi;
+static constexpr auto& kTrigNeonPio2 = kTrigPio2;
+static constexpr auto& kTrigNeonSinC = kTrigSinC;
+static constexpr auto& kTrigNeonCosC = kTrigCosC;
 
 void VectorOps::vector_cos_neon(const double* input, double* output, std::size_t size) noexcept {
     if (!stats::arch::supports_neon()) {
