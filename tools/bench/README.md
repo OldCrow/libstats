@@ -25,7 +25,10 @@ record (2026-09-30, AVX2, quiet, one pass) is
   the pool's workers to sleep. One binary, built against the tree under test;
   run it plain, with `--init` and with `--init --auto` (three runs, 3 to 5
   minutes each, quiet machine), because the pool state cannot be undone within
-  a process. The file's header has the detail.
+  a process. `--dist`, `--gaps` and `--sizes` choose other rows (Exponential,
+  Uniform, LogNormal PDF, Gamma CDF), gaps and sizes; `--wide-gap` and
+  `--fma-gap` keep a 256-bit add or FMA in the gap loop. The file's header has
+  the detail.
 
 Build (Release trees; `OLD` = a `git worktree` of `v2.4.1` with
 `libstats_static` built, `NEW` = the branch checkout with its build dir):
