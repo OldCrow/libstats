@@ -1,0 +1,55 @@
+date_utc:    2026-11-24T05-42-26Z
+dev:         164cbcead480fbda8727fd89f9313e818bb185f8 (dev/v3.0.0-corvus-adoption)
+main:        3dd8358162720eca86f69e8c5e13c7c0b50a907e
+os:          macOS 13.7.8 22H730
+kernel:      Darwin 22.6.0 x86_64
+cpu:         Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz
+cores:       4 physical, 8 logical
+caches:      L1d 32768 L2 262144 L3 8388608
+compiler:    Apple clang version 15.0.0 (clang-1500.1.0.2.5)
+build_type:  Release (dev), Release (main)
+power:       Now drawing from 'AC Power'
+uptime:       0:42  up 3 days,  4:34, 1 user, load averages: 2.21 2.08 2.54
+binaries:
+e0efc24544179541a97d946b729088b9ccba2bb23e67ffeffb6c572e81ca0001  /Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7/build-kaby-v3/libstats.a
+4639050fa3ec70b7b71ac1d9888cc431f2f839ed0a3c7482af616bd38b6a72d1  /Users/wolfman/Development/libstats-kleg/bench/batch_gap
+
+
+=================================
+  System Inspector - Quick Mode
+=================================
+
+Basic system information and capabilities overview
+
+System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+
+
+--- System Capabilities ---
+Logical Cores:           8
+Physical Cores:          4
+Hyperthreading:          Enabled
+
+
+--- CPU Features ---
+Feature             Support   Description                   
+------------------------------------------------------------
+AVX-512             No        Foundation instructions       
+AVX2                Yes       Advanced Vector Ext 2         
+AVX                 Yes       Advanced Vector Ext           
+SSE2                Yes       Streaming SIMD Ext 2          
+NEON                No        ARM SIMD instructions         
+FMA                 Yes       Fused Multiply-Add            
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size      
+------------------------------------------
+L1             32          64 bytes       
+L2             256         64 bytes       
+L3             8192        64 bytes       
+
+
+Use --constants, --performance, or --full for detailed analysis.
+
+System inspection completed successfully.
+end: dev 164cbcead480fbda8727fd89f9313e818bb185f8 dirty=2

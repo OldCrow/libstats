@@ -1,0 +1,14 @@
+2026-11-24T05:42:26Z load=2.21 gap2 start dev=164cbce main=3dd8358 smoke=0 max_load=2.0
+2026-11-24T05:42:27Z load=2.21 build dev ok: [4/4] Linking CXX executable tests/Release/test_exponential_basic_dynamic
+2026-11-24T05:42:27Z load=2.21 build main ok: /Users/wolfman/Development/libstats/build-kaby-main/libstats.2.5.0.dylib: replac
+2026-11-24T05:42:27Z load=2.21 system_inspector: System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+2026-11-24T05:42:27Z load=2.21 gap2 plain waiting for load < 2.0
+2026-11-24T05:44:12Z load=1.78 gap2 plain start
+2026-11-24T05:51:15Z load=2.63 gap2 plain end exit=0
+2026-11-24T05:51:15Z load=2.63 gap2 init waiting for load < 2.0
+2026-11-24T05:51:45Z load=1.77 gap2 init start
+2026-11-24T05:58:49Z load=3.85 gap2 init end exit=0
+2026-11-24T05:58:49Z load=3.85 gap2 plain sleep waiting for load < 2.0
+2026-11-24T06:00:19Z load=1.96 gap2 plain sleep start
+2026-11-24T06:04:35Z load=1.99 gap2 plain sleep end exit=0
+2026-11-24T06:04:35Z load=1.99 gap2 DONE dev=164cbce

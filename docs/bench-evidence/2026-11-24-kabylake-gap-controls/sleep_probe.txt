@@ -1,0 +1,3 @@
+main busy    threads 8 request 100 us: n 293832  p10 108  median 121  p90 156  p99 163  max 436 us
+main sleep   threads 8 request 100 us: n 286734  p10 108  median 123  p90 158  p99 166  max 255 us
+main sleep20 threads 8 request 100 us: n 292325  p10 108  median 121  p90 157  p99 166  max 425 us

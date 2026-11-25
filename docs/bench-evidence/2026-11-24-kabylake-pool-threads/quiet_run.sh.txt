@@ -1,0 +1,136 @@
+#!/bin/bash
+# Kaby Lake (AVX2) quiet sitting: the thread pool at four and at eight threads
+# (tools/bench/pool_wake_bench.cpp --local-pool; libstats PLAN.md, "Pool wake-up and batch
+# spacing", measurement 8).
+#
+# Launch detached, outside the Claude Code sandbox:
+#   python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+#       /Users/wolfman/Development/libstats-kleg/k_threads_run.sh > <log> 2>&1 < /dev/null &
+#
+# Six processes, each started only once the 1-minute load is below MAX_LOAD:
+#   threads_plain.csv        LOCAL_POOL_4 and _8 beside the library's THREAD_POOL, no polling pool
+#   threads_init_ws.csv      the same with --init --ws: WORK_STEALING (eight threads) beside them
+#   threads_plain_sleep.csv  the caller sleeps in the gap, gaps 0, 2 ms, 20 ms
+#   idle_burn.txt            CPU time of a process asleep for 10 s (measurement 7): with no pool,
+#                            with the thread pool, and after initialize_performance_systems()
+#                            (libstats-kleg/idle_burn.cpp; macOS reports no voluntary switches)
+# Nothing is committed or pushed. Results land in libstats-kleg/threads-<UTC>_sha-<sha>/.
+#
+# Environment: MAX_LOAD=2.0  WAIT_MIN=60 (per item)  SMOKE=1 (check, measure nothing)
+
+set -u
+DEV=/Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7
+DB=$DEV/build-kaby-v3
+MAIN=/Users/wolfman/Development/libstats
+MB=$MAIN/build-kaby-main
+KLEG=/Users/wolfman/Development/libstats-kleg
+BENCH=$KLEG/bench
+EXPECT_BRANCH=dev/v3.0.0-corvus-adoption
+MAX_LOAD="${MAX_LOAD:-2.0}"
+WAIT_MIN="${WAIT_MIN:-60}"
+SMOKE="${SMOKE:-0}"
+
+cd "$DEV" || exit 1
+branch="$(git branch --show-current)"
+[ "$branch" = "$EXPECT_BRANCH" ] || { echo "on '$branch', expected '$EXPECT_BRANCH'" >&2; exit 1; }
+[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "dev tree is dirty" >&2; exit 1; }
+[ "$(git -C "$MAIN" branch --show-current)" = main ] || { echo "base checkout is not on main" >&2; exit 1; }
+[ -z "$(git -C "$MAIN" status --porcelain --untracked-files=no)" ] || { echo "main tree is dirty" >&2; exit 1; }
+
+sha="$(git rev-parse --short HEAD)"
+main_sha="$(git -C "$MAIN" rev-parse --short HEAD)"
+stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+OUT="$KLEG/threads-${stamp}_sha-${sha}"
+[ "$SMOKE" = 1 ] && OUT="$KLEG/smoke-threads-${stamp}_sha-${sha}"
+mkdir -p "$OUT"
+RUNLOG="$OUT/run.txt"
+
+load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
+mark() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) load=$(load1) $*" | tee -a "$RUNLOG"; }
+
+caffeinate -i -m -s -w $$ &
+
+mark "threads start dev=$sha main=$main_sha smoke=$SMOKE max_load=$MAX_LOAD"
+
+# Libraries must match HEAD: both builds are no-ops unless a source changed.
+for pair in "$DB:dev" "$MB:main"; do
+    dir="${pair%%:*}"; name="${pair##*:}"
+    if ! cmake --build "$dir" --parallel 4 >"$OUT/build_$name.txt" 2>&1; then
+        mark "build $name FAILED"; exit 1
+    fi
+    mark "build $name ok: $(tail -1 "$OUT/build_$name.txt" | cut -c1-80)"
+done
+# Bench binaries must be newer than the library they link and than the bench sources.
+for pair in "pool_wake:$DEV/tools/bench/pool_wake_bench.cpp" "idle_burn:$KLEG/idle_burn.cpp"; do
+    b="${pair%%:*}"; src="${pair#*:}"
+    [ -x "$BENCH/$b" ] || { mark "missing bench binary $b"; exit 1; }
+    [ "$BENCH/$b" -nt "$DB/libstats.a" ] || { mark "bench $b is older than its library"; exit 1; }
+    [ "$BENCH/$b" -nt "$src" ] || { mark "bench $b is older than its source"; exit 1; }
+done
+
+{
+    echo "date_utc:    $stamp"
+    echo "dev:         $(git rev-parse HEAD) ($branch)"
+    echo "main:        $(git -C "$MAIN" rev-parse HEAD)"
+    echo "os:          $(sw_vers -productName) $(sw_vers -productVersion) $(sw_vers -buildVersion)"
+    echo "kernel:      $(uname -srm)"
+    echo "cpu:         $(sysctl -n machdep.cpu.brand_string)"
+    echo "cores:       $(sysctl -n hw.physicalcpu) physical, $(sysctl -n hw.logicalcpu) logical"
+    echo "caches:      L1d $(sysctl -n hw.l1dcachesize) L2 $(sysctl -n hw.l2cachesize) L3 $(sysctl -n hw.l3cachesize)"
+    echo "compiler:    $(c++ --version | head -1)"
+    echo "build_type:  $(grep -m1 'CMAKE_BUILD_TYPE:' "$DB/CMakeCache.txt" | cut -d= -f2) (dev), $(grep -m1 'CMAKE_BUILD_TYPE:' "$MB/CMakeCache.txt" | cut -d= -f2) (main)"
+    echo "power:       $(pmset -g batt | head -1)"
+    echo "uptime:      $(uptime)"
+    echo "binaries:"
+    shasum -a 256 "$DB/libstats.a" "$BENCH"/pool_wake "$BENCH"/idle_burn
+    echo
+    "$DB/tools/system_inspector" --quick
+} >"$OUT/environment.txt" 2>&1
+mark "system_inspector: $(grep -m1 '^System:' "$OUT/environment.txt")"
+if ! grep -q '8192 KB L3' "$OUT/environment.txt"; then
+    mark "cache sizes not visible: is this running inside the sandbox? ABORT"; exit 1
+fi
+
+wait_quiet() {
+    local what="$1" i
+    [ "$SMOKE" = 1 ] && { mark "$what (smoke: not waiting, not running)"; return 1; }
+    mark "$what waiting for load < $MAX_LOAD"
+    for i in $(seq 1 $((WAIT_MIN * 4))); do
+        if awk -v l="$(load1)" -v m="$MAX_LOAD" 'BEGIN { exit !(l < m) }'; then
+            return 0
+        fi
+        sleep 15
+    done
+    mark "$what load did not settle in $WAIT_MIN min; top consumers:"
+    ps -Ao pcpu,comm -r | head -6 | tee -a "$RUNLOG"
+    mark "ABORT: an unquiet run is not a record"
+    exit 2
+}
+
+run_item() {  # run_item <label> <outfile> <binary> [args...]
+    local label="$1" out="$2"; shift 2
+    if wait_quiet "$label"; then
+        mark "$label start"
+        "$@" >"$out" 2>"$out.err"
+        mark "$label end exit=$?"
+        [ -s "$out.err" ] || /bin/rm -f "$out.err"
+    fi
+}
+
+W="$BENCH/pool_wake"
+run_item "threads plain"       "$OUT/threads_plain.csv"       "$W" --local-pool 4,8
+run_item "threads init+ws"     "$OUT/threads_init_ws.csv"     "$W" --init --ws --local-pool 4,8
+run_item "threads plain sleep" "$OUT/threads_plain_sleep.csv" "$W" --sleep --gaps 0,2000,20000 --local-pool 4,8
+for m in none pool init; do
+    run_item "idle burn $m" "$OUT/idle_burn_$m.txt" "$BENCH/idle_burn" "$m" 10
+done
+if [ "$SMOKE" != 1 ]; then
+    cat "$OUT"/idle_burn_none.txt "$OUT"/idle_burn_pool.txt "$OUT"/idle_burn_init.txt >"$OUT/idle_burn.txt"
+    /bin/rm -f "$OUT"/idle_burn_none.txt "$OUT"/idle_burn_pool.txt "$OUT"/idle_burn_init.txt
+    /bin/cp -f "$KLEG/idle_burn.cpp" "$OUT/idle_burn.cpp.txt"
+fi
+
+{
+    echo "end: dev $(git rev-parse HEAD) dirty=$(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+} >>"$OUT/environment.txt" 2>&1
+mark "threads DONE dev=$(git rev-parse --short HEAD)"

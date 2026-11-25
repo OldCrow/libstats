@@ -1,0 +1,14 @@
+2026-11-25T01:38:32Z load=3.03 scaling start dev=d23d353 main=c049f23 smoke=0 max_load=2.0
+2026-11-25T01:38:32Z load=3.03 build dev ok: /Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5
+2026-11-25T01:38:32Z load=3.03 build main ok: /Users/wolfman/Development/libstats/build-kaby-main/libstats.2.5.0.dylib: replac
+2026-11-25T01:38:33Z load=3.03 system_inspector: System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+2026-11-25T01:38:33Z load=3.03 corvus scaling pass1 waiting for load < 2.0
+2026-11-25T01:39:48Z load=1.99 corvus scaling pass1 start
+2026-11-25T01:41:13Z load=1.87 corvus scaling pass1 end exit=0
+2026-11-25T01:41:13Z load=1.87 corvus scaling pass2 waiting for load < 2.0
+2026-11-25T01:41:13Z load=1.87 corvus scaling pass2 start
+2026-11-25T01:42:36Z load=1.85 corvus scaling pass2 end exit=0
+2026-11-25T01:42:36Z load=1.85 corvus scaling pass3 waiting for load < 2.0
+2026-11-25T01:42:36Z load=1.85 corvus scaling pass3 start
+2026-11-25T01:44:00Z load=2.06 corvus scaling pass3 end exit=0
+2026-11-25T01:44:00Z load=2.06 scaling DONE dev=d23d353

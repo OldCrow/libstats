@@ -1,0 +1,41 @@
+// CPU time of a process that sleeps for 10 s (PLAN.md, "Pool wake-up and batch spacing",
+// measurement 7). Mode: none (no pool), pool (the global thread pool alive), init
+// (initialize_performance_systems(): the polling work-stealing pool alive too).
+// Same figures as the Ivy Bridge probe: user, sys, voluntary context switches (RUSAGE_SELF).
+#include "libstats/libstats.h"
+#include "libstats/platform/thread_pool.h"
+
+#include <chrono>
+#include <cstdio>
+#include <cstring>
+#include <sys/resource.h>
+#include <thread>
+
+static double sec(const timeval& t) { return double(t.tv_sec) + double(t.tv_usec) * 1e-6; }
+
+int main(int argc, char** argv) {
+    const char* mode = argc > 1 ? argv[1] : "init";
+    const int seconds = argc > 2 ? std::atoi(argv[2]) : 10;
+    const char* what = "no pool";
+    if (!std::strcmp(mode, "pool")) {
+        (void)stats::ParallelUtils::getGlobalThreadPool();
+        what = "the global thread pool created";
+    } else if (!std::strcmp(mode, "init")) {
+        stats::initialize_performance_systems();
+        what = "initialize_performance_systems";
+    } else if (std::strcmp(mode, "none")) {
+        std::fprintf(stderr, "usage: idle_burn [none|pool|init] [seconds]\n");
+        return 2;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));  // let start-up settle
+    rusage a{}, b{};
+    getrusage(RUSAGE_SELF, &a);
+    const auto t0 = std::chrono::steady_clock::now();
+    std::this_thread::sleep_for(std::chrono::seconds(seconds));
+    const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    getrusage(RUSAGE_SELF, &b);
+    std::printf("idle %.2f s after %s: user %.2f s, sys %.2f s, voluntary switches %ld\n", wall,
+                what, sec(b.ru_utime) - sec(a.ru_utime), sec(b.ru_stime) - sec(a.ru_stime),
+                b.ru_nvcsw - a.ru_nvcsw);
+    return 0;
+}

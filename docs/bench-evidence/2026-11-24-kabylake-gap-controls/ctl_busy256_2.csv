@@ -1,0 +1,63 @@
+# batch_gap_bench pool=plain gap=busy256 logical_cpus=8
+Pool,GapKind,Distribution,Operation,BatchSize,Gap_us,Strategy,MedianNsPerElement
+plain,busy256,Gaussian,PDF,4096,0,VECTORIZED,2.285
+plain,busy256,Gaussian,PDF,4096,0,PARALLEL,5.379
+plain,busy256,Gaussian,PDF,10000,0,VECTORIZED,2.297
+plain,busy256,Gaussian,PDF,10000,0,PARALLEL,4.392
+plain,busy256,Gaussian,PDF,4096,250,VECTORIZED,2.378
+plain,busy256,Gaussian,PDF,4096,250,PARALLEL,7.036
+plain,busy256,Gaussian,PDF,10000,250,VECTORIZED,2.381
+plain,busy256,Gaussian,PDF,10000,250,PARALLEL,5.223
+plain,busy256,Gaussian,PDF,4096,500,VECTORIZED,2.308
+plain,busy256,Gaussian,PDF,4096,500,PARALLEL,6.969
+plain,busy256,Gaussian,PDF,10000,500,VECTORIZED,2.311
+plain,busy256,Gaussian,PDF,10000,500,PARALLEL,7.260
+plain,busy256,Gaussian,PDF,4096,1000,VECTORIZED,4.513
+plain,busy256,Gaussian,PDF,4096,1000,PARALLEL,19.751
+plain,busy256,Gaussian,PDF,10000,1000,VECTORIZED,3.271
+plain,busy256,Gaussian,PDF,10000,1000,PARALLEL,9.747
+plain,busy256,Gaussian,PDF,4096,2000,VECTORIZED,4.500
+plain,busy256,Gaussian,PDF,4096,2000,PARALLEL,19.632
+plain,busy256,Gaussian,PDF,10000,2000,VECTORIZED,3.282
+plain,busy256,Gaussian,PDF,10000,2000,PARALLEL,9.841
+plain,busy256,Gaussian,PDF,4096,20000,VECTORIZED,4.629
+plain,busy256,Gaussian,PDF,4096,20000,PARALLEL,20.400
+plain,busy256,Gaussian,PDF,10000,20000,VECTORIZED,3.259
+plain,busy256,Gaussian,PDF,10000,20000,PARALLEL,10.071
+plain,busy256,Exponential,PDF,4096,0,VECTORIZED,2.609
+plain,busy256,Exponential,PDF,4096,0,PARALLEL,5.335
+plain,busy256,Exponential,PDF,10000,0,VECTORIZED,2.635
+plain,busy256,Exponential,PDF,10000,0,PARALLEL,4.574
+plain,busy256,Exponential,PDF,4096,250,VECTORIZED,2.619
+plain,busy256,Exponential,PDF,4096,250,PARALLEL,7.432
+plain,busy256,Exponential,PDF,10000,250,VECTORIZED,2.635
+plain,busy256,Exponential,PDF,10000,250,PARALLEL,4.834
+plain,busy256,Exponential,PDF,4096,500,VECTORIZED,2.616
+plain,busy256,Exponential,PDF,4096,500,PARALLEL,7.398
+plain,busy256,Exponential,PDF,10000,500,VECTORIZED,2.729
+plain,busy256,Exponential,PDF,10000,500,PARALLEL,7.286
+plain,busy256,Exponential,PDF,4096,1000,VECTORIZED,4.754
+plain,busy256,Exponential,PDF,4096,1000,PARALLEL,19.654
+plain,busy256,Exponential,PDF,10000,1000,VECTORIZED,3.486
+plain,busy256,Exponential,PDF,10000,1000,PARALLEL,9.905
+plain,busy256,Exponential,PDF,4096,2000,VECTORIZED,4.733
+plain,busy256,Exponential,PDF,4096,2000,PARALLEL,19.685
+plain,busy256,Exponential,PDF,10000,2000,VECTORIZED,3.591
+plain,busy256,Exponential,PDF,10000,2000,PARALLEL,9.919
+plain,busy256,Exponential,PDF,4096,20000,VECTORIZED,4.860
+plain,busy256,Exponential,PDF,4096,20000,PARALLEL,19.875
+plain,busy256,Exponential,PDF,10000,20000,VECTORIZED,3.551
+plain,busy256,Exponential,PDF,10000,20000,PARALLEL,10.166
+# PARALLEL/VECTORIZED by size, and the sustained crossover
+# Exponential gap      0 us: P/V 2.05 1.74  crossover none measured
+# Exponential gap    250 us: P/V 2.84 1.83  crossover none measured
+# Exponential gap    500 us: P/V 2.83 2.67  crossover none measured
+# Exponential gap   1000 us: P/V 4.13 2.84  crossover none measured
+# Exponential gap   2000 us: P/V 4.16 2.76  crossover none measured
+# Exponential gap  20000 us: P/V 4.09 2.86  crossover none measured
+# Gaussian gap      0 us: P/V 2.35 1.91  crossover none measured
+# Gaussian gap    250 us: P/V 2.96 2.19  crossover none measured
+# Gaussian gap    500 us: P/V 3.02 3.14  crossover none measured
+# Gaussian gap   1000 us: P/V 4.38 2.98  crossover none measured
+# Gaussian gap   2000 us: P/V 4.36 3.00  crossover none measured
+# Gaussian gap  20000 us: P/V 4.41 3.09  crossover none measured

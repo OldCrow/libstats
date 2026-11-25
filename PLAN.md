@@ -324,8 +324,12 @@ design decision (all four machines' L7).
   digits (detail on #314, including the Student-t log normaliser at
   large ν, 20.7 ulp at ν = 1e18 against 11.4 on v2.5.0). Off-grid, seed
   213: 11,196 scored, 141 skipped, 2 contract violations, both known
-  (#316, #317). Not examined: Fisher-F pdf at 1,295 ε, shapes (21490,
-  9667). **L3 done**: `b766e45` and `90d1bef` sweeps bit-identical on
+  (#316, #317). Fisher-F pdf at 1,295 ε, shapes (21490, 9667),
+  **examined 2026-11-24**: `main` returns the same bits; the log density
+  is good to 1–15 ε relative and the pdf is its exponential 20 standard
+  deviations from the mode (logpdf −416), so the pdf's relative error is
+  the log density's absolute error (2.9e-13). Conditioning, not a
+  regression or a wrong branch. **L3 done**: `b766e45` and `90d1bef` sweeps bit-identical on
   AVX2. Working files are in `../libstats-kleg/` (local). **L4 done
   2026-11-22** at `255e1fe` (code `ec8cdc9`), quiet (every item started
   below a 1-minute load of 2.0), on AC, screen locked: bundle
@@ -354,7 +358,13 @@ design decision (all four machines' L7).
   and at 50,000–100,000 for Gaussian (1.2–1.7×), faster at every gap
   from 25,000 (Poisson). Unlike I: Gaussian VECTORIZED at 4096 doubles
   (2.3 to 4.6 ns/element) at gaps of 2 ms and up in both pool states;
-  cause not measured.
+  cause not measured. **2026-11-24 at `164cbce`** (`main` merged, with
+  #324), rebuilt warning-free, 135/135: measurements 4 to 8 of "Pool
+  wake-up and batch spacing" done on K, quiet (results under each item;
+  `docs/bench-evidence/2026-11-24-kabylake-{pool-threads,batch-gap-rows,gap-controls}/`);
+  #47's AppleClang validation and the Fisher-F row done (below and
+  above). **Owed on K: L5, held on the pool design.** v2.5.1's legs on
+  K are reported on `main` (#331).
 
 ### What every leg produces
 
@@ -536,7 +546,16 @@ back to back, which is what the pool design waits on.
   (`LIBSTATS_MAX_SIMD_TIER`) is optional.
 - **K**: the only hyper-threaded macOS machine, so the only one where
   AUTO reaches WORK_STEALING. #47's AppleClang validation applies here
-  too.
+  too. **Done on K 2026-11-24** at `164cbce`, 996 points against mpmath:
+  pdf and logpdf are bit-identical to `main`'s (v2.5.0's `8672a3a` had
+  already taken the density off the Tier 2 normaliser); what the branch
+  fixes on AppleClang is `getEntropy()`, 1.5e-11 to 2.1e-5 off on `main`
+  for κ from 0.01 to 44 and within 1.2e-14 here. `main`'s values miss
+  `DH2_M1_VonMisesEntropy`'s 1e-13 at four of its rows, so the guard
+  fails on the unfixed state. "≤ 1.7 ulp" does not hold at every point
+  in ulps of the result (pdf 177 at κ = 100, logpdf 9.5 at its zero
+  crossing), on both trees alike: conditioning. Comment drafted, not
+  posted.
 - **I**: after the capture, assemble the bundle, derive kAvx, write the
   table and the documentation column #291 asks for, regenerate the AVX
   block, and state the bench on #156. Unverified here: that mixing
@@ -577,7 +596,7 @@ matter here.
 |---|---|---|
 | **M** (NEON) | **Owed, and it gates the decision.** The 2026-11-21 run used the old timer, was not quiet throughout, and is not stated on #156. This is M's L6. | **Owed.** No run on this branch. |
 | **I** (AVX) | **Owed as a re-run.** The statement of 2026-11-22 is from the old timer, and its own text marks several cells as the bench, not the library. Do it in the quiet sitting I already owes after #324. | **Owed.** No run on this branch. |
-| **K** (AVX2) | Done: the sustained re-run of 2026-11-23, stated on #156. | **Owed.** The only K run is 2026-09-30, at corvus v1.0.1, without the two new columns. |
+| **K** (AVX2) | Done: the sustained re-run of 2026-11-23, stated on #156. | **Done 2026-11-24** at `d23d353`, quiet, tier AVX2 (`docs/bench-evidence/2026-11-24-kabylake-corvus-scaling/`): a one-element call costs a whole 4-lane vector for `erf`, `exp`, `gamma_p` and `beta_p` and 0.5–0.8 of one for the rest; 2.2–3.5 elements at the long-span rate for the costly kernels. At that rate Beta's scalar CDF and Gamma's quantile would still be 6× and 3.7× above `main`. Not yet stated on #156. |
 | **Z** (AVX-512) | Done 2026-11-24, clang-cl and all-MSVC, both stated. | Done 2026-11-24, both compilers. |
 
 The least that allows a decision is M's A. B on M and I is what would
@@ -1009,16 +1028,44 @@ value for the pool design:
    under 1 ns), a middle one (LogNormal PDF) and a costly one (Gamma
    CDF). Needs a `--dist` option on the bench. If W / saving predicts all
    three crossovers on K, the derivable-threshold claim stands there.
+   **Done on K 2026-11-24** (`--dist`, `--gaps`, `--sizes` added;
+   `docs/bench-evidence/2026-11-24-kabylake-batch-gap-rows/`): **it
+   does.** A gap of 2 ms or more costs forced PARALLEL mostly 56–82 µs
+   on Exponential and LogNormal PDF, as on Poisson and Gaussian.
+   Exponential at 50,000 saves 65 µs back to back and ties with the gap
+   (ratio 0.97–0.98); LogNormal's crossover moves from 10,000 to 25,000,
+   where the saving first exceeds the delay (81 against 66–68 µs); Gamma
+   CDF saves 830 µs at 4096 and does not move. Forced PARALLEL below
+   4096 elements times as VECTORIZED, so the row's predicted crossover
+   near 400 cannot be tested. With `--init` no crossover moves.
 5. **A sleeping caller.** The gap is busy serial work; a caller blocked
    on I/O lets its own core idle too. `batch_gap_bench --sleep` at 2 ms
-   and 20 ms (Windows cannot sleep 50 µs).
+   and 20 ms (Windows cannot sleep 50 µs). **K, 2026-11-24** (same
+   directory): VECTORIZED loses the clock too, 3.7–3.8× on the two
+   cheap rows at 4096 and 2.4–2.9× at 200,000, so the crossovers land
+   where the busy gap put them.
 6. **Finer gaps at the two onsets on K**: 5–40 µs for work stealing
    (ten yields, then the 100 µs sleep) and 0.5–2 ms for the VECTORIZED
    step, with a control that keeps a 256-bit operation in the gap loop;
    if the step vanishes, it is the AVX unit. Needs a `--gaps` option.
+   **K, 2026-11-24** (`--wide-gap`, `--fma-gap`;
+   `docs/bench-evidence/2026-11-24-kabylake-gap-controls/`): **it does
+   not vanish, so it is not the AVX unit.** The step is 9 µs at 4096 and
+   10,000 elements on Gaussian and Exponential PDF, absent up to a
+   500 µs gap and complete from 1 ms; a 256-bit add or FMA in the gap
+   leaves it. Ungated: `main`'s library has it; it is 3.5–4.2 µs at 1024
+   elements and 1.5 µs or less on Uniform PDF; loops outside the library
+   pay 1.2 µs or less. Forced PARALLEL's delay has the same 0.5–1 ms
+   onset. Not identified; a counter would show it (item 3). The other
+   half: `sleep_for(100 µs)` on eight threads takes 121–123 µs at the
+   median whether the main thread spins or sleeps, so **timer coalescing
+   does not explain** work stealing's late start after a busy gap only.
 7. **Idle burn per machine**: user plus system CPU time of a process that
    calls `initialize_performance_systems()` and sleeps 10 s
-   (`getrusage`). I measured over two cores; K, M and Z have no figure.
+   (`getrusage`). I measured over two cores; M and Z have no figure.
+   **K, 2026-11-24**: 10.5 CPU-s in 10 s, one core (5.5 user, 5.0
+   system); 0.00 with only the thread pool
+   (`docs/bench-evidence/2026-11-24-kabylake-pool-threads/`).
 
 8. **The thread pool at eight threads on K** [added 2026-11-23]: the
    two pools differ in thread count there (finding 3 below), so every
@@ -1027,9 +1074,20 @@ value for the pool design:
    `hardware_concurrency()` threads would separate stealing from thread
    count. **Prepared 2026-11-23**: `pool_wake_bench --local-pool 4,8`
    (a pool owned by the bench, driven by a copy of the library's slice
-   submission; the 4-thread row checks the copy). No quiet run yet. A
-   smoke run with the machine in use: 204,800 elements back to back in
-   546 µs on eight threads, 529 under work stealing, 847–857 on four.
+   submission; the 4-thread row checks the copy). **Done on K
+   2026-11-24** at `164cbce` (with #324), quiet
+   (`docs/bench-evidence/2026-11-24-kabylake-pool-threads/`). The copy
+   is faithful (within about 5% of the library's pool in every cell);
+   #324 is not separable here (2–4 µs at the small sizes). At 204,800
+   elements work stealing's gain is the thread count: eight plain
+   threads 499–518 µs, work stealing 508–574, four threads 847–870.
+   Below that eight threads are level with four or slower, and back to
+   back work stealing beats them (36 / 59 / 161 µs against 45 / 81 /
+   225 at 4096 / 10,240 / 51,200): that part is its spinning workers,
+   which start within 6–26 µs. With any busy gap from 50 µs work
+   stealing loses to both plain pools at 4096 and 10,240 and wins at
+   51,200. After a sleeping caller eight threads stay at the low clock
+   through a 1.2 ms call (38–39 ns per element against 25 on four).
 
 Items 1, 2 and 7 are cheap and decide the most: the fixed-cost and
 proportional readings, and what the polling costs. Item 3 is the only

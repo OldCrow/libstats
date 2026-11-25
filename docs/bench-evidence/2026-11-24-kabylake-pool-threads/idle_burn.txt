@@ -1,0 +1,3 @@
+idle 10.00 s after no pool: user 0.00 s, sys 0.00 s, voluntary switches 0
+idle 10.00 s after the global thread pool created: user 0.00 s, sys 0.00 s, voluntary switches 0
+idle 10.01 s after initialize_performance_systems: user 5.52 s, sys 5.00 s, voluntary switches 0

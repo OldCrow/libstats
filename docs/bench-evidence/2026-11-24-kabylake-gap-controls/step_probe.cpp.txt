@@ -1,0 +1,39 @@
+// What kind of work pays the ~9 us step after a busy gap of 1 ms or more on K? (PLAN.md,
+// measurement 6.) Each workload is timed back to back and after a busy gap; no libstats.
+//   step_probe [gap_us=2000]
+// int_reg: xorshift on a register (no memory). mem_scalar: y[i] = x[i] + 1 over 4096 doubles,
+// scalar. mem_avx: the same with 256-bit FMA. reg_avx: 256-bit FMA on registers only.
+// mem_big: scalar over 1 MiB (L2-sized) to show a cache effect if there is one.
+#include <immintrin.h>
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+using clk = std::chrono::steady_clock;
+static std::vector<double> x(131072, 1.5), y(131072);
+static volatile std::uint64_t sink;
+__attribute__((noinline)) void int_reg() { std::uint64_t s = sink + 88172645463325252ULL; for (int i = 0; i < 32768; ++i) { s ^= s << 13; s ^= s >> 7; s ^= s << 17; } sink = s; }
+__attribute__((noinline, target("no-avx"))) void mem_scalar() { for (int i = 0; i < 4096; ++i) y[i] = x[i] * 1.0000001 + 1.0; }
+__attribute__((noinline, target("avx2,fma"))) void mem_avx() { const __m256d a = _mm256_set1_pd(1.0000001), b = _mm256_set1_pd(1.0); for (int i = 0; i < 4096; i += 4) _mm256_storeu_pd(&y[i], _mm256_fmadd_pd(_mm256_loadu_pd(&x[i]), a, b)); _mm256_zeroupper(); }
+__attribute__((noinline, target("avx2,fma"))) void reg_avx() { __m256d v = _mm256_set1_pd(static_cast<double>(sink & 1)); const __m256d a = _mm256_set1_pd(0.999999), b = _mm256_set1_pd(1e-9); for (int i = 0; i < 8192; ++i) v = _mm256_fmadd_pd(v, a, b); sink = static_cast<std::uint64_t>(_mm256_cvtsd_f64(v)); _mm256_zeroupper(); }
+__attribute__((noinline, target("no-avx"))) void mem_big() { for (int i = 0; i < 131072; ++i) y[i] = x[i] * 1.0000001 + 1.0; }
+static double us(clk::time_point a) { return std::chrono::duration<double, std::micro>(clk::now() - a).count(); }
+static double cell(void (*f)(), double gap_us) {
+    std::vector<double> t;
+    const auto t0 = clk::now();
+    while (us(t0) < 1.4e6 || t.size() < 30) {
+        const auto a = clk::now(); f(); const double d = us(a);
+        if (us(t0) > 0.4e6) t.push_back(d);
+        const auto g = clk::now(); while (us(g) < gap_us) {}
+    }
+    std::nth_element(t.begin(), t.begin() + static_cast<long>(t.size() / 2), t.end());
+    return t[t.size() / 2];
+}
+int main(int argc, char** argv) {
+    const double gap_us = argc > 1 ? std::atof(argv[1]) : 2000.0;
+    struct { const char* name; void (*f)(); } w[] = {{"int_reg", int_reg}, {"mem_scalar", mem_scalar}, {"mem_avx", mem_avx}, {"reg_avx", reg_avx}, {"mem_big", mem_big}};
+    for (auto& e : w) { const double a = cell(e.f, 0.0), b = cell(e.f, gap_us), c = cell(e.f, 500.0);
+        std::printf("%-10s back to back %7.2f us   gap 500 us %7.2f   gap %.0f us %7.2f   step %+.2f us\n", e.name, a, c, gap_us, b, b - a); }
+}

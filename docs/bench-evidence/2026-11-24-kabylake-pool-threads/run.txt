@@ -1,0 +1,23 @@
+2026-11-24T05:26:46Z load=4.32 threads start dev=164cbce main=3dd8358 smoke=0 max_load=2.0
+2026-11-24T05:26:46Z load=4.32 build dev ok: [4/4] Linking CXX executable tests/Release/test_gaussian_basic_dynamic
+2026-11-24T05:26:46Z load=4.32 build main ok: /Users/wolfman/Development/libstats/build-kaby-main/libstats.2.5.0.dylib: replac
+2026-11-24T05:26:46Z load=4.32 system_inspector: System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+2026-11-24T05:26:46Z load=4.32 threads plain waiting for load < 2.0
+2026-11-24T05:28:46Z load=1.87 threads plain start
+2026-11-24T05:30:07Z load=3.49 threads plain end exit=0
+2026-11-24T05:30:07Z load=3.49 threads init+ws waiting for load < 2.0
+2026-11-24T05:30:52Z load=1.97 threads init+ws start
+2026-11-24T05:32:33Z load=2.97 threads init+ws end exit=0
+2026-11-24T05:32:33Z load=2.97 threads plain sleep waiting for load < 2.0
+2026-11-24T05:33:48Z load=1.86 threads plain sleep start
+2026-11-24T05:34:36Z load=2.81 threads plain sleep end exit=0
+2026-11-24T05:34:36Z load=2.81 idle burn none waiting for load < 2.0
+2026-11-24T05:35:36Z load=1.94 idle burn none start
+2026-11-24T05:35:47Z load=2.12 idle burn none end exit=0
+2026-11-24T05:35:47Z load=2.12 idle burn pool waiting for load < 2.0
+2026-11-24T05:36:02Z load=1.73 idle burn pool start
+2026-11-24T05:36:12Z load=1.78 idle burn pool end exit=0
+2026-11-24T05:36:12Z load=1.78 idle burn init waiting for load < 2.0
+2026-11-24T05:36:12Z load=1.78 idle burn init start
+2026-11-24T05:36:22Z load=2.07 idle burn init end exit=0
+2026-11-24T05:36:23Z load=2.07 threads DONE dev=164cbce

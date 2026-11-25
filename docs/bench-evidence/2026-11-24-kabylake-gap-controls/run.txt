@@ -1,0 +1,26 @@
+2026-11-24T06:06:42Z load=1.88 ctl start dev=164cbce main=3dd8358 smoke=0 max_load=2.0
+2026-11-24T06:06:42Z load=1.88 build dev ok: /Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5
+2026-11-24T06:06:42Z load=1.88 build main ok: [4/4] Linking CXX executable tests/Release/test_exponential_basic_dynamic
+2026-11-24T06:06:43Z load=1.88 system_inspector: System: 8 logical cores, AVX2 SIMD, 8192 KB L3 cache
+2026-11-24T06:06:43Z load=1.88 ctl busy waiting for load < 2.0
+2026-11-24T06:06:43Z load=1.88 ctl busy start
+2026-11-24T06:07:50Z load=2.39 ctl busy end exit=0
+2026-11-24T06:07:50Z load=2.39 ctl busy256 waiting for load < 2.0
+2026-11-24T06:08:35Z load=1.71 ctl busy256 start
+2026-11-24T06:09:42Z load=2.23 ctl busy256 end exit=0
+2026-11-24T06:09:42Z load=2.23 ctl busy again waiting for load < 2.0
+2026-11-24T06:10:12Z load=1.94 ctl busy again start
+2026-11-24T06:11:20Z load=2.27 ctl busy again end exit=0
+2026-11-24T06:11:20Z load=2.27 ctl busy256 again waiting for load < 2.0
+2026-11-24T06:11:35Z load=1.99 ctl busy256 again start
+2026-11-24T06:12:42Z load=2.27 ctl busy256 again end exit=0
+2026-11-24T06:12:42Z load=2.27 sleep probe busy waiting for load < 2.0
+2026-11-24T06:13:12Z load=1.68 sleep probe busy start
+2026-11-24T06:13:17Z load=1.62 sleep probe busy end exit=0
+2026-11-24T06:13:17Z load=1.62 sleep probe sleep waiting for load < 2.0
+2026-11-24T06:13:17Z load=1.62 sleep probe sleep start
+2026-11-24T06:13:22Z load=1.65 sleep probe sleep end exit=0
+2026-11-24T06:13:22Z load=1.65 sleep probe sleep20 waiting for load < 2.0
+2026-11-24T06:13:22Z load=1.65 sleep probe sleep20 start
+2026-11-24T06:13:27Z load=1.52 sleep probe sleep20 end exit=0
+2026-11-24T06:13:27Z load=1.52 ctl DONE dev=164cbce

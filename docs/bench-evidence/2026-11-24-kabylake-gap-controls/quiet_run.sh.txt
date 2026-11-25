@@ -1,0 +1,129 @@
+#!/bin/bash
+# Kaby Lake (AVX2) quiet sitting: batch_gap_bench on rows that span the per-element saving
+# (libstats PLAN.md, "Pool wake-up and batch spacing", measurements 4 and 5): Exponential PDF,
+# LogNormal PDF, Gamma CDF; plain, --init, and plain with a sleeping caller.
+# Launch detached, outside the Claude Code sandbox. Nothing is committed or pushed.
+# The dev tree may hold uncommitted edits to documents and to tools/bench (DIRTY_OK=1).
+# Results land in libstats-kleg/gap2-<UTC>_sha-<sha>/.
+#
+# Environment: MAX_LOAD=2.0  WAIT_MIN=60 (per item)  SMOKE=1 (check, measure nothing)
+
+set -u
+DEV=/Users/wolfman/Development/libstats/.claude/worktrees/workplan-dependency-sync-5fc6c7
+DB=$DEV/build-kaby-v3
+MAIN=/Users/wolfman/Development/libstats
+MB=$MAIN/build-kaby-main
+KLEG=/Users/wolfman/Development/libstats-kleg
+BENCH=$KLEG/bench
+EXPECT_BRANCH=dev/v3.0.0-corvus-adoption
+MAX_LOAD="${MAX_LOAD:-2.0}"
+WAIT_MIN="${WAIT_MIN:-60}"
+SMOKE="${SMOKE:-0}"
+
+cd "$DEV" || exit 1
+branch="$(git branch --show-current)"
+[ "$branch" = "$EXPECT_BRANCH" ] || { echo "on '$branch', expected '$EXPECT_BRANCH'" >&2; exit 1; }
+[ -z "$(git status --porcelain --untracked-files=no -- src include cmake CMakeLists.txt)" ] || { echo "dev library sources are dirty" >&2; exit 1; }
+git status --porcelain --untracked-files=no
+[ "$(git -C "$MAIN" branch --show-current)" = main ] || { echo "base checkout is not on main" >&2; exit 1; }
+[ -z "$(git -C "$MAIN" status --porcelain --untracked-files=no)" ] || { echo "main tree is dirty" >&2; exit 1; }
+
+sha="$(git rev-parse --short HEAD)"
+main_sha="$(git -C "$MAIN" rev-parse --short HEAD)"
+stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+OUT="$KLEG/ctl-${stamp}_sha-${sha}"
+[ "$SMOKE" = 1 ] && OUT="$KLEG/smoke-ctl-${stamp}_sha-${sha}"
+mkdir -p "$OUT"
+RUNLOG="$OUT/run.txt"
+
+load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
+mark() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) load=$(load1) $*" | tee -a "$RUNLOG"; }
+
+caffeinate -i -m -s -w $$ &
+
+mark "ctl start dev=$sha main=$main_sha smoke=$SMOKE max_load=$MAX_LOAD"
+
+# Libraries must match HEAD: both builds are no-ops unless a source changed.
+for pair in "$DB:dev" "$MB:main"; do
+    dir="${pair%%:*}"; name="${pair##*:}"
+    if ! cmake --build "$dir" --parallel 4 >"$OUT/build_$name.txt" 2>&1; then
+        mark "build $name FAILED"; exit 1
+    fi
+    mark "build $name ok: $(tail -1 "$OUT/build_$name.txt" | cut -c1-80)"
+done
+# Bench binaries must be newer than the library they link and than the bench sources.
+for pair in "batch_gap:$DEV/tools/bench/batch_gap_bench.cpp"; do
+    b="${pair%%:*}"; src="${pair#*:}"
+    [ -x "$BENCH/$b" ] || { mark "missing bench binary $b"; exit 1; }
+    [ "$BENCH/$b" -nt "$DB/libstats.a" ] || { mark "bench $b is older than its library"; exit 1; }
+    [ "$BENCH/$b" -nt "$src" ] || { mark "bench $b is older than its source"; exit 1; }
+done
+
+{
+    echo "date_utc:    $stamp"
+    echo "dev:         $(git rev-parse HEAD) ($branch)"
+    echo "main:        $(git -C "$MAIN" rev-parse HEAD)"
+    echo "os:          $(sw_vers -productName) $(sw_vers -productVersion) $(sw_vers -buildVersion)"
+    echo "kernel:      $(uname -srm)"
+    echo "cpu:         $(sysctl -n machdep.cpu.brand_string)"
+    echo "cores:       $(sysctl -n hw.physicalcpu) physical, $(sysctl -n hw.logicalcpu) logical"
+    echo "caches:      L1d $(sysctl -n hw.l1dcachesize) L2 $(sysctl -n hw.l2cachesize) L3 $(sysctl -n hw.l3cachesize)"
+    echo "compiler:    $(c++ --version | head -1)"
+    echo "build_type:  $(grep -m1 'CMAKE_BUILD_TYPE:' "$DB/CMakeCache.txt" | cut -d= -f2) (dev), $(grep -m1 'CMAKE_BUILD_TYPE:' "$MB/CMakeCache.txt" | cut -d= -f2) (main)"
+    echo "power:       $(pmset -g batt | head -1)"
+    echo "uptime:      $(uptime)"
+    echo "binaries:"
+    shasum -a 256 "$DB/libstats.a" "$BENCH"/batch_gap
+    echo
+    "$DB/tools/system_inspector" --quick
+} >"$OUT/environment.txt" 2>&1
+mark "system_inspector: $(grep -m1 '^System:' "$OUT/environment.txt")"
+if ! grep -q '8192 KB L3' "$OUT/environment.txt"; then
+    mark "cache sizes not visible: is this running inside the sandbox? ABORT"; exit 1
+fi
+
+wait_quiet() {
+    local what="$1" i
+    [ "$SMOKE" = 1 ] && { mark "$what (smoke: not waiting, not running)"; return 1; }
+    mark "$what waiting for load < $MAX_LOAD"
+    for i in $(seq 1 $((WAIT_MIN * 4))); do
+        if awk -v l="$(load1)" -v m="$MAX_LOAD" 'BEGIN { exit !(l < m) }'; then
+            return 0
+        fi
+        sleep 15
+    done
+    mark "$what load did not settle in $WAIT_MIN min; top consumers:"
+    ps -Ao pcpu,comm -r | head -6 | tee -a "$RUNLOG"
+    mark "ABORT: an unquiet run is not a record"
+    exit 2
+}
+
+run_item() {  # run_item <label> <outfile> <binary> [args...]
+    local label="$1" out="$2"; shift 2
+    if wait_quiet "$label"; then
+        mark "$label start"
+        "$@" >"$out" 2>"$out.err"
+        mark "$label end exit=$?"
+        [ -s "$out.err" ] || /bin/rm -f "$out.err"
+    fi
+}
+
+G="$BENCH/batch_gap"
+A="--dist Gaussian,Exponential --sizes 4096,10000 --gaps 0,250,500,1000,2000,20000"
+run_item "ctl busy"    "$OUT/ctl_busy.csv"    "$G" $A
+run_item "ctl busy256" "$OUT/ctl_busy256.csv" "$G" --wide-gap $A
+run_item "ctl busy again"    "$OUT/ctl_busy_2.csv"    "$G" $A
+run_item "ctl busy256 again" "$OUT/ctl_busy256_2.csv" "$G" --wide-gap $A
+for m in busy sleep sleep20; do
+    run_item "sleep probe $m" "$OUT/sleep_probe_$m.txt" "$BENCH/sleep_probe" "$m" 8 100 5
+done
+if [ "$SMOKE" != 1 ]; then
+    cat "$OUT"/sleep_probe_busy.txt "$OUT"/sleep_probe_sleep.txt "$OUT"/sleep_probe_sleep20.txt >"$OUT/sleep_probe.txt"
+    /bin/rm -f "$OUT"/sleep_probe_busy.txt "$OUT"/sleep_probe_sleep.txt "$OUT"/sleep_probe_sleep20.txt
+    /bin/cp -f "$KLEG/sleep_probe.cpp" "$OUT/sleep_probe.cpp.txt"
+fi
+
+{
+    echo "end: dev $(git rev-parse HEAD) dirty=$(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+} >>"$OUT/environment.txt" 2>&1
+mark "ctl DONE dev=$(git rev-parse --short HEAD)"

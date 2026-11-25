@@ -1,0 +1,48 @@
+// How long does sleep_for(100 us) on a worker thread really take, and does it depend on what the
+// main thread does? (PLAN.md, "K, measured": the work-stealing pool's idle workers sleep 100 us
+// between polls; a busy-gap start delay appears and a sleeping-caller one does not. Candidate:
+// timer coalescing.) Standard library only.
+//   sleep_probe <busy|sleep|sleep20> [threads=8] [request_us=100] [seconds=5]
+// busy: main spins; sleep: main sleeps 2 ms at a time; sleep20: 20 ms at a time.
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <thread>
+#include <vector>
+using clk = std::chrono::steady_clock;
+int main(int argc, char** argv) {
+    const char* mode = argc > 1 ? argv[1] : "busy";
+    const int threads = argc > 2 ? std::atoi(argv[2]) : 8;
+    const double request_us = argc > 3 ? std::atof(argv[3]) : 100.0;
+    const double seconds = argc > 4 ? std::atof(argv[4]) : 5.0;
+    std::atomic<bool> stop{false};
+    std::vector<std::vector<double>> took(static_cast<std::size_t>(threads));
+    std::vector<std::thread> pool;
+    for (int t = 0; t < threads; ++t)
+        pool.emplace_back([&, t] {
+            auto& v = took[static_cast<std::size_t>(t)];
+            v.reserve(200000);
+            while (!stop.load(std::memory_order_relaxed)) {
+                for (int i = 0; i < 10; ++i) std::this_thread::yield();  // as the pool's idle loop
+                const auto a = clk::now();
+                std::this_thread::sleep_for(std::chrono::duration<double, std::micro>(request_us));
+                v.push_back(std::chrono::duration<double, std::micro>(clk::now() - a).count());
+            }
+        });
+    const auto t0 = clk::now();
+    while (std::chrono::duration<double>(clk::now() - t0).count() < seconds) {
+        if (!std::strcmp(mode, "sleep")) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        else if (!std::strcmp(mode, "sleep20")) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    stop = true;
+    for (auto& th : pool) th.join();
+    std::vector<double> all;
+    for (auto& v : took) all.insert(all.end(), v.begin(), v.end());
+    std::sort(all.begin(), all.end());
+    const auto q = [&](double f) { return all[static_cast<std::size_t>(f * static_cast<double>(all.size() - 1))]; };
+    std::printf("main %-7s threads %d request %.0f us: n %zu  p10 %.0f  median %.0f  p90 %.0f  p99 %.0f  max %.0f us\n",
+                mode, threads, request_us, all.size(), q(0.1), q(0.5), q(0.9), q(0.99), all.back());
+}

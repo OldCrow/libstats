@@ -1,0 +1,148 @@
+# pool_wake_bench pool=plain gap=busy logical_cpus=8 slice=1024 rounds_per_element=8
+Pool,GapKind,Mode,Elements,Gap_us,Calls,Call_us,Workers,Start1_us,StartLast_us,StartLastP90_us,Work_ns,FirstWork_ns,Join_us
+plain,busy,SERIAL,4096,0,12760,51.72,1,0.04,0.04,0.05,12.606,12.606,0.04
+plain,busy,SERIAL,10240,0,5123,129.09,1,0.04,0.04,0.05,12.598,12.598,0.04
+plain,busy,SERIAL,51200,0,1008,679.76,1,0.04,0.04,0.06,13.275,13.275,0.05
+plain,busy,SERIAL,204800,0,257,2685.11,1,0.04,0.04,0.06,13.110,13.110,0.04
+plain,busy,SERIAL,4096,50,6703,51.72,1,0.04,0.04,0.04,12.606,12.606,0.04
+plain,busy,SERIAL,10240,50,3744,129.09,1,0.04,0.04,0.05,12.598,12.598,0.04
+plain,busy,SERIAL,51200,50,963,644.92,1,0.04,0.04,0.05,12.594,12.594,0.04
+plain,busy,SERIAL,204800,50,252,2674.39,1,0.04,0.04,0.12,13.058,13.058,0.04
+plain,busy,SERIAL,4096,500,1261,51.72,1,0.04,0.04,0.05,12.607,12.607,0.04
+plain,busy,SERIAL,10240,500,1095,129.09,1,0.04,0.04,0.05,12.598,12.598,0.04
+plain,busy,SERIAL,51200,500,591,679.76,1,0.04,0.04,0.06,13.275,13.275,0.04
+plain,busy,SERIAL,204800,500,218,2655.56,1,0.04,0.04,0.07,12.966,12.966,0.04
+plain,busy,SERIAL,4096,2000,340,54.52,1,0.05,0.05,0.24,13.286,13.286,0.05
+plain,busy,SERIAL,10240,2000,328,129.21,1,0.04,0.04,0.11,12.598,12.598,0.05
+plain,busy,SERIAL,51200,2000,263,644.92,1,0.04,0.04,0.06,12.594,12.594,0.04
+plain,busy,SERIAL,204800,2000,149,2707.27,1,0.05,0.05,0.18,13.219,13.219,0.04
+plain,busy,SERIAL,4096,20000,35,54.52,1,0.14,0.14,0.62,13.283,13.283,0.05
+plain,busy,SERIAL,10240,20000,35,136.20,1,0.19,0.19,0.66,13.278,13.278,0.06
+plain,busy,SERIAL,51200,20000,34,645.15,1,0.11,0.11,0.35,12.594,12.594,0.04
+plain,busy,SERIAL,204800,20000,31,2659.06,1,0.06,0.06,0.45,12.983,12.983,0.05
+plain,busy,THREAD_POOL,4096,0,17574,36.45,4,5.12,14.39,19.71,14.193,14.191,5.54
+plain,busy,THREAD_POOL,10240,0,10404,62.34,4,5.38,16.89,25.02,13.830,14.251,6.20
+plain,busy,THREAD_POOL,51200,0,2952,229.66,4,7.13,28.26,48.54,13.809,14.300,7.87
+plain,busy,THREAD_POOL,204800,0,817,831.61,4,11.55,52.84,73.53,13.795,14.375,6.95
+plain,busy,THREAD_POOL,4096,50,7742,36.49,4,5.26,14.43,20.32,14.186,14.185,5.54
+plain,busy,THREAD_POOL,10240,50,5951,62.69,4,5.49,17.05,25.31,13.831,14.258,6.31
+plain,busy,THREAD_POOL,51200,50,2435,230.74,4,7.48,32.64,51.31,13.811,14.303,7.94
+plain,busy,THREAD_POOL,204800,50,760,863.52,4,11.60,70.31,130.36,13.795,13.837,6.91
+plain,busy,THREAD_POOL,4096,500,1194,78.02,3,9.76,48.28,69.07,14.264,14.319,9.37
+plain,busy,THREAD_POOL,10240,500,1146,103.45,4,11.41,62.48,72.95,13.836,14.374,8.40
+plain,busy,THREAD_POOL,51200,500,892,267.24,4,13.12,73.03,129.44,13.812,13.860,9.58
+plain,busy,THREAD_POOL,204800,500,501,887.52,4,11.42,73.46,132.05,13.795,13.843,6.94
+plain,busy,THREAD_POOL,4096,2000,332,105.33,3,9.71,67.49,76.78,14.742,14.195,12.16
+plain,busy,THREAD_POOL,10240,2000,329,120.02,4,11.30,71.94,82.35,14.170,14.328,9.02
+plain,busy,THREAD_POOL,51200,2000,305,274.75,4,12.76,74.21,131.58,13.812,13.853,9.90
+plain,busy,THREAD_POOL,204800,2000,241,895.86,4,11.29,73.96,132.56,13.795,13.840,6.83
+plain,busy,THREAD_POOL,4096,20000,35,100.61,3,10.03,73.04,76.69,14.188,14.144,10.32
+plain,busy,THREAD_POOL,10240,20000,35,123.50,4,11.73,75.33,83.05,13.855,14.397,8.80
+plain,busy,THREAD_POOL,51200,20000,35,289.83,4,29.67,75.45,132.68,13.814,14.601,12.39
+plain,busy,THREAD_POOL,204800,20000,34,917.26,4,23.29,76.13,131.91,13.794,13.845,25.07
+plain,busy,LOCAL_POOL_4,4096,0,17615,36.30,4,4.92,14.41,20.45,14.110,14.110,5.34
+plain,busy,LOCAL_POOL_4,10240,0,10361,62.92,4,5.49,17.49,25.51,14.105,14.113,5.83
+plain,busy,LOCAL_POOL_4,51200,0,2977,225.17,4,6.22,21.33,43.07,14.091,14.240,7.11
+plain,busy,LOCAL_POOL_4,204800,0,794,873.92,4,11.74,52.20,114.99,14.082,14.551,6.83
+plain,busy,LOCAL_POOL_4,4096,50,7741,36.57,4,5.04,14.50,20.56,14.109,14.109,5.37
+plain,busy,LOCAL_POOL_4,10240,50,5892,63.19,4,6.18,18.08,26.95,14.105,14.113,5.88
+plain,busy,LOCAL_POOL_4,51200,50,2446,228.63,4,6.73,29.04,43.07,14.093,14.252,7.19
+plain,busy,LOCAL_POOL_4,204800,50,743,878.60,4,11.53,73.16,132.84,14.080,14.115,6.36
+plain,busy,LOCAL_POOL_4,4096,500,1195,78.36,3,9.56,48.06,71.68,14.290,14.347,9.45
+plain,busy,LOCAL_POOL_4,10240,500,1147,103.96,4,11.32,62.66,71.87,14.110,14.739,7.77
+plain,busy,LOCAL_POOL_4,51200,500,894,267.68,4,13.21,71.19,84.59,14.098,14.142,8.98
+plain,busy,LOCAL_POOL_4,204800,500,498,893.93,4,11.35,73.76,131.09,14.080,14.114,6.29
+plain,busy,LOCAL_POOL_4,4096,2000,332,102.90,3,9.45,71.15,78.33,14.343,14.136,10.30
+plain,busy,LOCAL_POOL_4,10240,2000,331,114.45,4,12.44,65.00,82.17,14.310,14.337,8.48
+plain,busy,LOCAL_POOL_4,51200,2000,306,270.33,4,13.20,73.66,93.24,14.098,14.139,9.36
+plain,busy,LOCAL_POOL_4,204800,2000,240,910.23,4,11.58,73.48,130.97,14.081,14.117,6.37
+plain,busy,LOCAL_POOL_4,4096,20000,35,100.96,3,9.17,73.44,87.68,14.340,14.317,9.75
+plain,busy,LOCAL_POOL_4,10240,20000,35,126.00,4,12.15,77.33,92.75,14.139,14.439,8.73
+plain,busy,LOCAL_POOL_4,51200,20000,35,277.17,4,15.21,78.87,120.77,14.097,14.127,8.21
+plain,busy,LOCAL_POOL_4,204800,20000,34,921.81,4,16.86,75.98,131.12,14.080,14.143,24.15
+plain,busy,LOCAL_POOL_8,4096,0,17167,36.51,4,5.07,14.27,20.42,14.113,14.113,5.40
+plain,busy,LOCAL_POOL_8,10240,0,9811,63.78,7,5.38,32.69,49.46,14.503,14.468,6.46
+plain,busy,LOCAL_POOL_8,51200,0,2105,258.36,8,13.82,79.12,204.22,14.834,14.783,13.44
+plain,busy,LOCAL_POOL_8,204800,0,1036,614.48,7,21.38,197.66,579.90,14.960,14.937,12.78
+plain,busy,LOCAL_POOL_8,4096,50,7221,42.50,4,5.88,17.04,26.96,14.377,14.372,5.89
+plain,busy,LOCAL_POOL_8,10240,50,5157,76.31,7,7.95,43.83,66.75,14.754,14.750,7.67
+plain,busy,LOCAL_POOL_8,51200,50,2325,223.53,8,17.96,76.58,164.37,14.909,14.847,13.53
+plain,busy,LOCAL_POOL_8,204800,50,894,722.47,7,21.81,336.06,635.46,14.937,14.528,12.01
+plain,busy,LOCAL_POOL_8,4096,500,1196,77.73,3,9.69,47.73,70.77,14.249,14.341,9.55
+plain,busy,LOCAL_POOL_8,10240,500,1108,121.11,7,13.71,89.19,115.70,14.415,14.463,8.54
+plain,busy,LOCAL_POOL_8,51200,500,935,236.37,8,26.07,91.29,159.93,14.924,14.849,15.42
+plain,busy,LOCAL_POOL_8,204800,500,590,665.19,6,21.25,144.65,271.94,14.939,14.925,11.99
+plain,busy,LOCAL_POOL_8,4096,2000,332,102.43,3,9.59,70.44,76.67,14.344,14.136,10.52
+plain,busy,LOCAL_POOL_8,10240,2000,323,145.07,7,13.42,100.95,170.31,14.720,14.633,9.99
+plain,busy,LOCAL_POOL_8,51200,2000,294,290.54,8,24.25,113.87,273.20,14.909,14.835,13.97
+plain,busy,LOCAL_POOL_8,204800,2000,261,662.68,7,21.16,143.86,281.68,14.946,14.941,22.55
+plain,busy,LOCAL_POOL_8,4096,20000,35,100.01,3,12.35,73.97,87.56,14.412,14.346,9.58
+plain,busy,LOCAL_POOL_8,10240,20000,35,128.63,7,32.44,93.49,105.45,14.898,14.974,11.20
+plain,busy,LOCAL_POOL_8,51200,20000,35,248.41,8,65.10,96.13,122.78,14.937,14.892,15.46
+plain,busy,LOCAL_POOL_8,204800,20000,34,585.44,8,39.27,99.36,166.14,14.971,14.965,14.47
+# against the first gap: extra call time, extra start delay of the last worker, work-time ratio
+# LOCAL_POOL_4  n=4096    gap     50 us: call     +0.3 us  start    +0.1 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_4  n=4096    gap    500 us: call    +42.1 us  start   +33.6 us  work x1.01  first-slice x1.02
+# LOCAL_POOL_4  n=4096    gap   2000 us: call    +66.6 us  start   +56.7 us  work x1.02  first-slice x1.00
+# LOCAL_POOL_4  n=4096    gap  20000 us: call    +64.7 us  start   +59.0 us  work x1.02  first-slice x1.01
+# LOCAL_POOL_4  n=10240   gap     50 us: call     +0.3 us  start    +0.6 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_4  n=10240   gap    500 us: call    +41.0 us  start   +45.2 us  work x1.00  first-slice x1.04
+# LOCAL_POOL_4  n=10240   gap   2000 us: call    +51.5 us  start   +47.5 us  work x1.01  first-slice x1.02
+# LOCAL_POOL_4  n=10240   gap  20000 us: call    +63.1 us  start   +59.8 us  work x1.00  first-slice x1.02
+# LOCAL_POOL_4  n=51200   gap     50 us: call     +3.5 us  start    +7.7 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_4  n=51200   gap    500 us: call    +42.5 us  start   +49.9 us  work x1.00  first-slice x0.99
+# LOCAL_POOL_4  n=51200   gap   2000 us: call    +45.2 us  start   +52.3 us  work x1.00  first-slice x0.99
+# LOCAL_POOL_4  n=51200   gap  20000 us: call    +52.0 us  start   +57.5 us  work x1.00  first-slice x0.99
+# LOCAL_POOL_4  n=204800  gap     50 us: call     +4.7 us  start   +21.0 us  work x1.00  first-slice x0.97
+# LOCAL_POOL_4  n=204800  gap    500 us: call    +20.0 us  start   +21.6 us  work x1.00  first-slice x0.97
+# LOCAL_POOL_4  n=204800  gap   2000 us: call    +36.3 us  start   +21.3 us  work x1.00  first-slice x0.97
+# LOCAL_POOL_4  n=204800  gap  20000 us: call    +47.9 us  start   +23.8 us  work x1.00  first-slice x0.97
+# LOCAL_POOL_8  n=4096    gap     50 us: call     +6.0 us  start    +2.8 us  work x1.02  first-slice x1.02
+# LOCAL_POOL_8  n=4096    gap    500 us: call    +41.2 us  start   +33.5 us  work x1.01  first-slice x1.02
+# LOCAL_POOL_8  n=4096    gap   2000 us: call    +65.9 us  start   +56.2 us  work x1.02  first-slice x1.00
+# LOCAL_POOL_8  n=4096    gap  20000 us: call    +63.5 us  start   +59.7 us  work x1.02  first-slice x1.02
+# LOCAL_POOL_8  n=10240   gap     50 us: call    +12.5 us  start   +11.1 us  work x1.02  first-slice x1.02
+# LOCAL_POOL_8  n=10240   gap    500 us: call    +57.3 us  start   +56.5 us  work x0.99  first-slice x1.00
+# LOCAL_POOL_8  n=10240   gap   2000 us: call    +81.3 us  start   +68.3 us  work x1.01  first-slice x1.01
+# LOCAL_POOL_8  n=10240   gap  20000 us: call    +64.9 us  start   +60.8 us  work x1.03  first-slice x1.03
+# LOCAL_POOL_8  n=51200   gap     50 us: call    -34.8 us  start    -2.5 us  work x1.01  first-slice x1.00
+# LOCAL_POOL_8  n=51200   gap    500 us: call    -22.0 us  start   +12.2 us  work x1.01  first-slice x1.00
+# LOCAL_POOL_8  n=51200   gap   2000 us: call    +32.2 us  start   +34.7 us  work x1.01  first-slice x1.00
+# LOCAL_POOL_8  n=51200   gap  20000 us: call     -9.9 us  start   +17.0 us  work x1.01  first-slice x1.01
+# LOCAL_POOL_8  n=204800  gap     50 us: call   +108.0 us  start  +138.4 us  work x1.00  first-slice x0.97
+# LOCAL_POOL_8  n=204800  gap    500 us: call    +50.7 us  start   -53.0 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_8  n=204800  gap   2000 us: call    +48.2 us  start   -53.8 us  work x1.00  first-slice x1.00
+# LOCAL_POOL_8  n=204800  gap  20000 us: call    -29.0 us  start   -98.3 us  work x1.00  first-slice x1.00
+# SERIAL        n=4096    gap     50 us: call     -0.0 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=4096    gap    500 us: call     +0.0 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=4096    gap   2000 us: call     +2.8 us  start    +0.0 us  work x1.05  first-slice x1.05
+# SERIAL        n=4096    gap  20000 us: call     +2.8 us  start    +0.1 us  work x1.05  first-slice x1.05
+# SERIAL        n=10240   gap     50 us: call     -0.0 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=10240   gap    500 us: call     -0.0 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=10240   gap   2000 us: call     +0.1 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=10240   gap  20000 us: call     +7.1 us  start    +0.1 us  work x1.05  first-slice x1.05
+# SERIAL        n=51200   gap     50 us: call    -34.8 us  start    +0.0 us  work x0.95  first-slice x0.95
+# SERIAL        n=51200   gap    500 us: call     -0.0 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=51200   gap   2000 us: call    -34.8 us  start    +0.0 us  work x0.95  first-slice x0.95
+# SERIAL        n=51200   gap  20000 us: call    -34.6 us  start    +0.1 us  work x0.95  first-slice x0.95
+# SERIAL        n=204800  gap     50 us: call    -10.7 us  start    +0.0 us  work x1.00  first-slice x1.00
+# SERIAL        n=204800  gap    500 us: call    -29.6 us  start    +0.0 us  work x0.99  first-slice x0.99
+# SERIAL        n=204800  gap   2000 us: call    +22.2 us  start    +0.0 us  work x1.01  first-slice x1.01
+# SERIAL        n=204800  gap  20000 us: call    -26.1 us  start    +0.0 us  work x0.99  first-slice x0.99
+# THREAD_POOL   n=4096    gap     50 us: call     +0.0 us  start    +0.0 us  work x1.00  first-slice x1.00
+# THREAD_POOL   n=4096    gap    500 us: call    +41.6 us  start   +33.9 us  work x1.00  first-slice x1.01
+# THREAD_POOL   n=4096    gap   2000 us: call    +68.9 us  start   +53.1 us  work x1.04  first-slice x1.00
+# THREAD_POOL   n=4096    gap  20000 us: call    +64.2 us  start   +58.6 us  work x1.00  first-slice x1.00
+# THREAD_POOL   n=10240   gap     50 us: call     +0.3 us  start    +0.2 us  work x1.00  first-slice x1.00
+# THREAD_POOL   n=10240   gap    500 us: call    +41.1 us  start   +45.6 us  work x1.00  first-slice x1.01
+# THREAD_POOL   n=10240   gap   2000 us: call    +57.7 us  start   +55.1 us  work x1.02  first-slice x1.01
+# THREAD_POOL   n=10240   gap  20000 us: call    +61.2 us  start   +58.4 us  work x1.00  first-slice x1.01
+# THREAD_POOL   n=51200   gap     50 us: call     +1.1 us  start    +4.4 us  work x1.00  first-slice x1.00
+# THREAD_POOL   n=51200   gap    500 us: call    +37.6 us  start   +44.8 us  work x1.00  first-slice x0.97
+# THREAD_POOL   n=51200   gap   2000 us: call    +45.1 us  start   +46.0 us  work x1.00  first-slice x0.97
+# THREAD_POOL   n=51200   gap  20000 us: call    +60.2 us  start   +47.2 us  work x1.00  first-slice x1.02
+# THREAD_POOL   n=204800  gap     50 us: call    +31.9 us  start   +17.5 us  work x1.00  first-slice x0.96
+# THREAD_POOL   n=204800  gap    500 us: call    +55.9 us  start   +20.6 us  work x1.00  first-slice x0.96
+# THREAD_POOL   n=204800  gap   2000 us: call    +64.2 us  start   +21.1 us  work x1.00  first-slice x0.96
+# THREAD_POOL   n=204800  gap  20000 us: call    +85.7 us  start   +23.3 us  work x1.00  first-slice x0.96
+# (sink 12064057263455633132)
