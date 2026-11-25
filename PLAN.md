@@ -12,27 +12,32 @@ milestones, the 2026-08-21 review, the corvus spike) is in
 `git show f508b12:PLAN.md`. Each fixed issue carries a status comment
 naming its commits.
 
-## v3.0.0 corvus adoption — where it stands [DERIVED, 2026-11-21, Ivy Bridge]
+## v3.0.0 corvus adoption — where it stands [DERIVED, 2026-11-25]
 
 Branch `dev/v3.0.0-corvus-adoption`, built on the v2.5.0 release. corvus
 v1.2.0 is the special-function engine (found or fetched, pinned;
 `cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line at `7069adc`
 and is merged in.
 
-- **`src/` is settled for v3.0.0.** The last code change is `af2e548`;
-  `e890dec` after it changes comments only. Nothing further is planned in
-  `src/` before release, except threshold rows (each machine's own) and
-  whatever a leg finds.
-- **Validated so far on one machine only**: Ivy Bridge (AVX, GCC 13.3,
-  Linux). Correctness 135/135, warning-free. CI green on every leg at
-  `e890dec` (CI #457; macOS AppleClang, GCC 14 with TBB, Clang 17
-  without, MSVC, clang-cl, ASan/UBSan, TSan, FMA-contraction, install
-  contract). Later commits touch only this file and one doc heading.
-- **Not yet done anywhere but here**: the accuracy sweep and block, the
-  row gate and off-grid sweep, the prototype bit-identity check, quiet
-  timing, threshold capture. That is the fleet work below.
+- **The legs are run on all four machines.** L1–L4 and L7 are done on I,
+  K, M and Z (status lines below); every ISA block is regenerated with 0
+  contract violations; L3 is bit-identical on NEON, AVX2 and AVX-512 and
+  the `PROTOTYPE` tags are out. The last change under `src/` is
+  `7879e9a` (#107, one trig table for every tier; comments only on x86),
+  CI green on `66f8377`.
+- **What is not settled is the threading, not the numerics**: the pool
+  design ("Pool wake-up and batch spacing"; #323, #333) and, behind it,
+  the threshold tables (kAvx512 and kAvx2 held, kNeon and kAvx
+  provisional). The fix is due by v3.0.0, changes `src/`, and is followed
+  by L1 on every machine.
+- **One decision is owed [user]: #156.** All four machines' bench and
+  per-call scaling are on the issue.
+- **Then the release documents** ("After the legs", step 4):
+  `MIGRATION_GUIDE.md` is still the v1 → v2 guide, `README.md` still
+  says "Zero Dependencies", and the per-family quantile accuracy notes
+  #104 asked for are not written.
 - **Project version is still 2.5.0** in `CMakeLists.txt`; the bump is a
-  release step.
+  release step. v2.5.1 goes out from `main` first and is merged in here.
 
 ## Fleet legs for v3.0.0 [OPEN; user, 2026-11-21]
 
@@ -375,7 +380,10 @@ design decision (all four machines' L7).
   `fit_gap_model.py` on L7: Poisson a
   factor (1.13 at 2 ms), Gaussian neither. Evidence:
   `docs/bench-evidence/2026-11-24-zen4-v300-l4/`,
-  `docs/bench-evidence/2026-11-24-zen4-batch-gap/`.
+  `docs/bench-evidence/2026-11-24-zen4-batch-gap/`. **L1 again
+  2026-11-25** at `321ad02` (with #107), fresh builds in a standing
+  worktree: 135/135 under clang-cl (0 warnings) and cl.exe (Highway's
+  eight). Nothing owed on Z; L5 stays held.
 - **K — Kaby Lake, AVX2, macOS, AppleClang 15**: L1 done 2026-11-21 at
   the commit that carries this line: Release build warning-free, AVX2
   with FMA, 135/135, backend GCD. L1 found one defect at `cfbb992`:
@@ -699,9 +707,10 @@ Milestone #6: 33 open, 3 closed (#312; #266 and #272 as split). Issues stay open
 branch reaches `main`; `fixed-on-branch` marks the ones that are fixed
 and guarded here, each with a status comment.
 
-- **Labelled `fixed-on-branch` (27):** #47, #103, #104, #108, #110,
-  #113, #126, #136, #138, #141, #179, #213, #214, #221, #247, #248, #251,
-  #252, #258, #262, #267, #270, #271, #287, #290, #311, #320. #103, #104
+- **Labelled `fixed-on-branch` (28):** #47, #103, #104, #107, #108,
+  #110, #113, #126, #136, #138, #141, #179, #213, #214, #221, #247, #248,
+  #251, #252, #258, #262, #267, #270, #271, #287, #290, #311, #320. #107
+  was labelled by M on 2026-11-24 (one trig table, `7879e9a`). #103, #104
   and #141 were labelled 2026-11-24, once all four ISA blocks were
   regenerated here: 0 contract violations each, and the large-shape
   `gamma`, `erlang` and `inverse_gamma` CDF rows at 1.4–1.8e-16 on every
@@ -712,9 +721,9 @@ and guarded here, each with a status comment.
   von Mises rows read the same on all four tiers, and the entropy guard
   misses on `main`. M made no statement of its own; its NEON block and
   its 135/135 with the guard in it cover it.
-- **Wait on other machines or the pool design (3):** #52 (timings and
-  rows stated per tier; done for I), #107 (done on M 2026-11-24, CI green on `66f8377`), #291
-  (kAvx derived; provisional until the pool design).
+- **Wait on other machines or the pool design (2):** #52 (timings and
+  rows stated per tier; done for I) and #291 (kAvx derived; provisional
+  until the pool design).
 - **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
   the density prefactors are #314) and #272 (Beta and NegativeBinomial
   CDF NaNs cleared here; the density paths are #315).
@@ -724,8 +733,9 @@ and guarded here, each with a status comment.
   over 100 ε (small shape, deep tail; present on `main`) are #334 in the
   patch milestone; the per-family quantile accuracy notes #104's acceptance
   asked for are not written (release docs); `truncated_normal` quantile
-  on AVX-512 reads max_rel 6.3e+291 at p = 0.5, as in the v2.5.0 block,
-  not examined.
+  on AVX-512 reads max_rel 6.3e+291 at p = 0.5, as in the v2.5.0 block:
+  that row is #277 in the patch milestone (the median of a symmetric
+  window is −1.4e-16, not 0, on Zen 4).
 - **Pool design, not started (2):** #323 (slice arithmetic, corrected
   2026-11-22) and #333 (no wake-up on submit; a timer tick on Windows).
 
