@@ -555,12 +555,14 @@ Milestone #6: 33 open, 3 closed (#312; #266 and #272 as split). Issues stay open
 branch reaches `main`; `fixed-on-branch` marks the ones that are fixed
 and guarded here, each with a status comment.
 
-- **Labelled `fixed-on-branch` (25):** #103, #108, #110, #113, #126,
-  #136, #138, #141, #179, #213, #214, #221, #247, #248, #251, #252, #258,
-  #262, #267, #270, #271, #287, #290, #311, #320. #103 and #141 were
-  labelled 2026-11-24, once all four ISA blocks were regenerated here: 0
-  contract violations each, and the large-shape `gamma`, `erlang` and
-  `inverse_gamma` CDF rows at 1.4–1.8e-16 on every tier.
+- **Labelled `fixed-on-branch` (26):** #103, #104, #108, #110, #113,
+  #126, #136, #138, #141, #179, #213, #214, #221, #247, #248, #251, #252,
+  #258, #262, #267, #270, #271, #287, #290, #311, #320. #103, #104 and
+  #141 were labelled 2026-11-24, once all four ISA blocks were
+  regenerated here: 0 contract violations each, and the large-shape
+  `gamma`, `erlang` and `inverse_gamma` CDF rows at 1.4–1.8e-16 on every
+  tier. #104's contract was settled 2026-09-02 (finite, best-effort); it
+  was listed here as a decision owed by mistake.
 - **Wait on other machines or the pool design (4):** #47 (AppleClang
   validation, M and K), #52 (timings and rows stated per tier; done for
   I), #107 (M, here or not at all), #291 (kAvx derived; provisional
@@ -568,9 +570,16 @@ and guarded here, each with a status comment.
 - **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
   the density prefactors are #314) and #272 (Beta and NegativeBinomial
   CDF NaNs cleared here; the density paths are #315).
-- **Decision owed [user] (2):** #156 (all four machines' numbers are on
-  the issue) and #104 (the quantile contract at extreme p; Z's off-grid
-  rows are on the issue, 14 over 100 ε, none from the adoption).
+- **Decision owed [user] (1):** #156. I, K and Z are stated on the
+  issue; M, whose machine the gate was defined on, is not, and its bench
+  predates the sustained timer. The 2026-10-30 corvus comment says the
+  NEON targets are out of reach, so the gate needs re-baselining.
+- **Left by #104, not blockers [OPEN]:** the 14 off-grid quantile rows
+  over 100 ε (small shape, deep tail; present on `main`) have no issue
+  of their own; the per-family quantile accuracy notes #104's acceptance
+  asked for are not written (release docs); `truncated_normal` quantile
+  on AVX-512 reads max_rel 6.3e+291 at p = 0.5, as in the v2.5.0 block,
+  not examined.
 - **Pool design, not started (2):** #323 (slice arithmetic, corrected
   2026-11-22) and #333 (no wake-up on submit; a timer tick on Windows).
 
