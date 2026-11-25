@@ -211,7 +211,8 @@ design decision (all four machines' L7).
   run (34 rows spread more than 2×). Dev against `main`, old timer:
   densities level; batch CDF Gamma 2.5×, Poisson 5.0×, Binomial 6.5×,
   Beta 11.7×; scalar CDF up to 14.4× (Beta); quantile up to 12.6×
-  (Beta). Not stated on #156 yet. **L5 done 2026-11-22, provisional**
+  (Beta). Superseded by the quiet run of 2026-11-24 below, which is the
+  one stated on #156. **L5 done 2026-11-22, provisional**
   (`docs/bench-evidence/2026-11-22-m1-neon-threshold-rows/`): the
   derivation proposed 11 values; `table_ab_bench` (old timer) supported
   one, kNeon Poisson LogPDF 2048 → 10k, applied; seven spread-maximum
@@ -273,6 +274,23 @@ design decision (all four machines' L7).
   reproduces the table, 135/135, `simd_verification` 140 pass. The
   three x86 files change in a comment only and were not built here.
   Nothing further owed on M.
+  **Session state, 2026-11-24.** v2.5.1's legs on M are reported on
+  `main` in #335 (open, checks green, not merged). Cleaned up: the
+  work directory `libstats-m-2026-11-21` and its four worktrees
+  (`v2.5.0`, `b766e45`, `90d1bef`, the L5 A/B tree) are removed; every
+  result in them is under `docs/bench-evidence/`, the A/B tree's table
+  as `2026-11-22-m1-neon-threshold-rows/dispatch_thresholds.h.proposed.txt`.
+  What remains on this machine: this checkout and the `libstats-main`
+  worktree of `main` (with `build-release` and `build-m1-cov`), kept
+  until #335 merges. Open: L5's rows stay provisional until the pool
+  design (old timer; one value applied); the Bernoulli-on-Binomial's-row
+  dispatch finding is not acted on; #107's comment change in the three
+  x86 files has not been compiled on an x86 machine. Method for a quiet
+  run here: screen locked, Backblaze paused by the user, the fourteen
+  processes listed in `2026-11-24-m1-v300-cost/quiet_run.sh.txt`
+  suspended for the run [user approves each sitting], gate at two 10 s
+  windows under 8% ambient CPU. Next on M: nothing until the #156
+  decision or the pool design asks for a run.
 - **Z — Zen 4, AVX-512, Windows 11, clang-cl 22.1.3 and cl.exe 19.52**:
   **L1 done 2026-11-23** at `164cbce` (code `e4026b3`): 135/135 under
   both, backend `std::execution`; `test_concurrency_stress` passes
