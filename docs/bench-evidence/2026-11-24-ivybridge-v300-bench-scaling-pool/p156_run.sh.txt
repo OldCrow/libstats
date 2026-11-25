@@ -1,0 +1,56 @@
+#!/bin/bash
+# Ivy Bridge quiet sitting for #156 and the pool re-run after #324 (dev PLAN.md, "#156 — what each
+# machine still owes" and the I status line). Run from a terminal with nothing else running.
+#
+#   A  distributions_bench and elementary_bench, main against dev, three passes
+#      (main first on passes 1 and 3, dev first on pass 2), sustained timer
+#   B  corvus_scaling_bench, three passes
+#   C  pool_wake_bench plain and with the local pools, now that #324 is in the library
+#
+# The binaries are built beforehand into build-ivb-adopt/p156/bin (see build.txt there); this
+# script only runs them. Every item waits for the 1-minute load to fall below 0.30 first.
+set -u
+REPO=/home/wolfman/Development/libstats
+P=$REPO/build-ivb-adopt/p156
+BIN=$P/bin
+OUT=$P/run-$(date -u +%Y-%m-%dT%H-%M-%SZ)
+mkdir -p "$OUT"
+LOG=$OUT/run.txt
+mark() { echo "$(date -u +%FT%TZ) load=$(cut -d' ' -f1 /proc/loadavg) $*" | tee -a "$LOG"; }
+{
+    echo "dev:      $(git -C "$REPO" rev-parse --short HEAD) dirty=$(git -C "$REPO" status --porcelain --untracked-files=no | wc -l)"
+    cat "$P/build.txt"
+    echo "governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)"
+    echo "driver:   $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver)"
+    echo "kernel:   $(uname -srm)"
+    echo "cpu:      $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2-)"
+    echo "on_ac:    $(cat /sys/class/power_supply/A*/online 2>/dev/null | head -1)"
+    sha256sum "$BIN"/*
+} > "$OUT/environment.txt" 2>&1
+run_item() {  # run_item <label> <outfile> <command...>
+    local label="$1" out="$2"; shift 2
+    mark "$label waiting for load < 0.30"
+    while awk '{exit !($1 >= 0.30)}' /proc/loadavg; do sleep 10; done
+    mark "$label start"
+    "$@" > "$out" 2>&1
+    mark "$label end exit=$?"
+}
+# A — three passes; main first on 1 and 3, dev first on 2.
+for pass in 1 2 3; do
+    if [ "$pass" = 2 ]; then order="dev main"; else order="main dev"; fi
+    for b in dist elem; do
+        for side in $order; do
+            run_item "A $b $side pass$pass" "$OUT/bench_${b}_${side}_pass$pass.txt" "$BIN/${b}_bench_$side"
+        done
+    done
+done
+# B — corvus per call against span length.
+for pass in 1 2 3; do
+    run_item "B scaling pass$pass" "$OUT/scaling_pass$pass.txt" "$BIN/corvus_scaling_bench"
+done
+# C — the pool after #324.
+run_item "C wake plain"       "$OUT/wake_plain.csv"      "$BIN/pool_wake_bench"
+run_item "C wake init"        "$OUT/wake_init.csv"       "$BIN/pool_wake_bench" --init
+run_item "C wake local pools" "$OUT/wake_local_pool.csv" "$BIN/pool_wake_bench" --init --ws --local-pool 4,8 --gaps 0,2000
+mark "DONE"
+echo "Done: $OUT"

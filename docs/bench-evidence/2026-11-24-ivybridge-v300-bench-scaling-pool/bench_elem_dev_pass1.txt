@@ -1,0 +1,3 @@
+n=1000     exp  3.73  log  5.41  cos  4.35  sin  4.39  erf  7.77
+n=1000000  exp  3.87  log  5.26  cos  4.37  sin  4.44  erf  7.59
+(sink 716161)

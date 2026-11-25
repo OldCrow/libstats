@@ -1,0 +1,55 @@
+2026-11-25T02:50:45Z load=1.83 A dist main pass1 waiting for load < 0.30
+2026-11-25T02:52:35Z load=0.29 A dist main pass1 start
+2026-11-25T02:53:07Z load=1.19 A dist main pass1 end exit=0
+2026-11-25T02:53:07Z load=1.19 A dist dev pass1 waiting for load < 0.30
+2026-11-25T02:55:27Z load=0.29 A dist dev pass1 start
+2026-11-25T02:56:18Z load=1.40 A dist dev pass1 end exit=0
+2026-11-25T02:56:18Z load=1.40 A elem main pass1 waiting for load < 0.30
+2026-11-25T02:57:58Z load=0.26 A elem main pass1 start
+2026-11-25T02:58:02Z load=0.26 A elem main pass1 end exit=0
+2026-11-25T02:58:02Z load=0.26 A elem dev pass1 waiting for load < 0.30
+2026-11-25T02:58:02Z load=0.26 A elem dev pass1 start
+2026-11-25T02:58:06Z load=0.40 A elem dev pass1 end exit=0
+2026-11-25T02:58:06Z load=0.40 A dist dev pass2 waiting for load < 0.30
+2026-11-25T02:58:26Z load=0.29 A dist dev pass2 start
+2026-11-25T02:59:17Z load=1.90 A dist dev pass2 end exit=0
+2026-11-25T02:59:17Z load=1.90 A dist main pass2 waiting for load < 0.30
+2026-11-25T03:02:47Z load=0.28 A dist main pass2 start
+2026-11-25T03:03:19Z load=1.29 A dist main pass2 end exit=0
+2026-11-25T03:03:19Z load=1.29 A elem dev pass2 waiting for load < 0.30
+2026-11-25T03:05:09Z load=0.29 A elem dev pass2 start
+2026-11-25T03:05:13Z load=0.35 A elem dev pass2 end exit=0
+2026-11-25T03:05:13Z load=0.35 A elem main pass2 waiting for load < 0.30
+2026-11-25T03:05:33Z load=0.25 A elem main pass2 start
+2026-11-25T03:05:38Z load=0.31 A elem main pass2 end exit=0
+2026-11-25T03:05:38Z load=0.31 A dist main pass3 waiting for load < 0.30
+2026-11-25T03:05:48Z load=0.26 A dist main pass3 start
+2026-11-25T03:06:20Z load=1.36 A dist main pass3 end exit=0
+2026-11-25T03:06:20Z load=1.36 A dist dev pass3 waiting for load < 0.30
+2026-11-25T03:08:00Z load=0.25 A dist dev pass3 start
+2026-11-25T03:08:51Z load=1.47 A dist dev pass3 end exit=0
+2026-11-25T03:08:51Z load=1.47 A elem main pass3 waiting for load < 0.30
+2026-11-25T03:10:51Z load=0.25 A elem main pass3 start
+2026-11-25T03:10:55Z load=0.31 A elem main pass3 end exit=0
+2026-11-25T03:10:55Z load=0.31 A elem dev pass3 waiting for load < 0.30
+2026-11-25T03:11:05Z load=0.26 A elem dev pass3 start
+2026-11-25T03:11:09Z load=0.40 A elem dev pass3 end exit=0
+2026-11-25T03:11:09Z load=0.40 B scaling pass1 waiting for load < 0.30
+2026-11-25T03:11:49Z load=0.26 B scaling pass1 start
+2026-11-25T03:14:28Z load=0.95 B scaling pass1 end exit=0
+2026-11-25T03:14:28Z load=0.95 B scaling pass2 waiting for load < 0.30
+2026-11-25T03:15:58Z load=0.26 B scaling pass2 start
+2026-11-25T03:18:38Z load=0.95 B scaling pass2 end exit=0
+2026-11-25T03:18:38Z load=0.95 B scaling pass3 waiting for load < 0.30
+2026-11-25T03:19:48Z load=0.29 B scaling pass3 start
+2026-11-25T03:22:29Z load=1.06 B scaling pass3 end exit=0
+2026-11-25T03:22:29Z load=1.06 C wake plain waiting for load < 0.30
+2026-11-25T03:23:49Z load=0.28 C wake plain start
+2026-11-25T03:24:29Z load=1.06 C wake plain end exit=0
+2026-11-25T03:24:29Z load=1.06 C wake init waiting for load < 0.30
+2026-11-25T03:25:49Z load=0.28 C wake init start
+2026-11-25T03:26:29Z load=2.09 C wake init end exit=0
+2026-11-25T03:26:29Z load=2.09 C wake local pools waiting for load < 0.30
+2026-11-25T03:28:39Z load=0.26 C wake local pools start
+2026-11-25T03:29:19Z load=2.07 C wake local pools end exit=0
+2026-11-25T03:29:19Z load=2.07 DONE

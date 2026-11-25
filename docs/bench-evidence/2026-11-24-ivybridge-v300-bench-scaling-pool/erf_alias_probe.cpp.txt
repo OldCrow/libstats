@@ -1,0 +1,53 @@
+// Indicative probe: corvus::erf ns/element against span length and against the in/out address offset.
+#include <chrono>
+#include <corvus/corvus.h>
+#include <cstdio>
+#include <cstdlib>
+#include <random>
+#include <span>
+#include <vector>
+using clk = std::chrono::steady_clock;
+static double sink;
+template <class F> double best(std::size_t n, F&& f) {
+    std::size_t reps = std::max<std::size_t>(1, 200000 / n);
+    double b = 1e300;
+    for (int r = 0; r < 9; ++r) {
+        auto t0 = clk::now();
+        for (std::size_t k = 0; k < reps; ++k) f();
+        b = std::min(b, std::chrono::duration<double, std::nano>(clk::now() - t0).count() / (reps * n));
+    }
+    return b;
+}
+int main() {
+    std::mt19937_64 rng(7);
+    std::uniform_real_distribution<double> ub(0.01, 0.99);
+    // one arena: input at a fixed page-aligned address, output at page-aligned + off bytes
+    const std::size_t N = 65536;
+    double* in = static_cast<double*>(std::aligned_alloc(4096, N * 8 + 4096));
+    double* outb = static_cast<double*>(std::aligned_alloc(4096, N * 8 + 8192));
+    for (std::size_t i = 0; i < N; ++i) in[i] = ub(rng);
+    std::printf("%8s", "n\\off");
+    const std::size_t offs[] = {0, 16, 32, 48, 64, 4128};
+    for (auto o : offs) std::printf("%9zu", o);
+    std::printf("   (erf)   exp@0\n");
+    for (std::size_t n : {32, 64, 128, 256, 1024, 4096, 16384, 65536}) {
+        std::printf("%8zu", n);
+        for (auto o : offs) {
+            double* out = reinterpret_cast<double*>(reinterpret_cast<char*>(outb) + o);
+            std::span<const double> X(in, n); std::span<double> O(out, n);
+            std::printf("%9.2f", best(n, [&] { corvus::erf(X, O); sink += out[0]; }));
+        }
+        std::span<const double> X(in, n); std::span<double> O(outb, n);
+        std::printf("   %9.2f\n", best(n, [&] { corvus::exp(X, O); sink += outb[0]; }));
+    }
+    // same thing with std::vector storage, as the bench allocates it
+    for (std::size_t n : {32, 256, 4096, 65536}) {
+        std::vector<double> a(n, 2.5), b(n, 5.0), x(n), xb(n), p(n), out(n), xe(n), xc(n);
+        for (auto& v : xb) v = ub(rng);
+        std::span<const double> X(xb); std::span<double> O(out);
+        double t = best(n, [&] { corvus::erf(X, O); sink += out[0]; });
+        std::printf("vector n=%zu erf %.2f  in%%4096=%zu out%%4096=%zu\n", n, t,
+                    (std::size_t)((std::uintptr_t)xb.data() % 4096), (std::size_t)((std::uintptr_t)out.data() % 4096));
+    }
+    std::printf("(sink %g)\n", sink);
+}

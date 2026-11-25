@@ -154,10 +154,33 @@ design decision (all four machines' L7).
   called on every parallel batch (5.4 µs per call on glibc 2.39, about
   10 µs in place), **fixed in #324** and merged here at `f6e748e`. The
   THREAD_POOL figures in these CSVs predate the fix and carry that 10 µs
-  (22% of a 4096-element call); a quiet re-run after it is owed, and M,
-  K and Z have no figure for the lookup. `main` also gained #325
+  (22% of a 4096-element call); M, K and Z have no figure for the
+  lookup. `main` also gained #325
   (Exponential `setParameters`, #268) and #326 (Cauchy quantile at
   subnormal p, #316), merged here at `e4026b3`.
+  **Quiet sitting 2026-11-24** at `92ec8e1` (135/135), governor
+  `schedutil`, 18 items each started at load 0.25–0.29
+  (`docs/bench-evidence/2026-11-24-ivybridge-v300-bench-scaling-pool/`).
+  **#156 A, re-run with the sustained timer**, `main` → dev, median of
+  three: batch CDF gamma 3.36×, beta 6.96×, poisson 5.77×, binomial
+  5.28×, student_t 0.67×; scalar CDF 4.0–9.8× on all five; quantile
+  2.0–11.4×. Faster on dev: binomial and poisson PDF/LogPDF (0.5×,
+  0.8×), batch CDF of gaussian, lognormal and von Mises (0.54–0.64×),
+  `erf` (0.35×). **#156 B**: corvus selects SSE4 (2 lanes); a one-element
+  call costs a whole vector for `erf` and `exp` and 1.3–1.9 elements at
+  the long-span rate for the six costly kernels (K: 2.2–3.5), so a
+  scalar entry point would leave gamma scalar CDF, beta scalar CDF and
+  gamma quantile 3.7×, 6.3× and 8.7× above `main`. Per element at long
+  spans SSE4 costs 2.5–2.8× K's AVX2 for the incomplete functions. Two
+  bench artifacts explained in the README: the n = 4 row is the argument
+  draw (same on K and Z), and `erf` at 256 and 4096 is 4K aliasing
+  between the bench's two buffers (1.5×, this machine only). **Neither A
+  nor B is stated on #156 yet.** **Pool re-run after #324**: the thread
+  pool now matches the local pool of four (34 / 67 / 232 / 842 µs
+  against 45 / 77 / 246 / 854 before); plain and back to back, short
+  calls are at the full clock (36 µs at 4096 against 111), and from a
+  50 µs gap the governor behaviour is as before. Still owed on I: the
+  kAvx re-capture, held on the pool design.
   The kAvx re-capture waits on the pool design.
 - **M — M1, NEON, macOS 27.2.1, AppleClang 21.0.0**: L1 done 2026-11-21
   at `cfbb992`, again 2026-11-22 at `c6ae2b9` and 2026-11-24 at
@@ -597,7 +620,7 @@ matter here.
 | Machine | A — bench against `main` | B — per-call scaling |
 |---|---|---|
 | **M** (NEON) | **Owed, and it gates the decision.** The 2026-11-21 run used the old timer, was not quiet throughout, and is not stated on #156. This is M's L6. | **Owed.** No run on this branch. |
-| **I** (AVX) | **Owed as a re-run.** The statement of 2026-11-22 is from the old timer, and its own text marks several cells as the bench, not the library. Do it in the quiet sitting I already owes after #324. | **Owed.** No run on this branch. |
+| **I** (AVX) | **Done 2026-11-24** at `92ec8e1`, quiet, sustained timer (`docs/bench-evidence/2026-11-24-ivybridge-v300-bench-scaling-pool/`): batch CDF 3.4–7.0× for gamma, beta, poisson and binomial and 0.67× for student_t; scalar CDF 4.0–9.8×; quantile 2.0–11.4×. Replaces the statement of 2026-11-22. **Not stated on #156 yet.** | **Done 2026-11-24**, same sitting, tier SSE4 (2 lanes): a whole vector per one-element call for `erf` and `exp`; 1.3–1.9 elements at the long-span rate for the costly kernels, against K's 2.2–3.5. At that rate Gamma's scalar CDF, Beta's scalar CDF and Gamma's quantile would still be 3.7×, 6.3× and 8.7× above `main`. **Not stated on #156 yet.** |
 | **K** (AVX2) | Done: the sustained re-run of 2026-11-23, stated on #156. | **Done 2026-11-24** at `d23d353`, quiet, tier AVX2 (`docs/bench-evidence/2026-11-24-kabylake-corvus-scaling/`): a one-element call costs a whole 4-lane vector for `erf`, `exp`, `gamma_p` and `beta_p` and 0.5–0.8 of one for the rest; 2.2–3.5 elements at the long-span rate for the costly kernels. At that rate Beta's scalar CDF and Gamma's quantile would still be 6× and 3.7× above `main`. Stated on #156. |
 | **Z** (AVX-512) | Done 2026-11-24, clang-cl and all-MSVC, both stated. | Done 2026-11-24, both compilers. |
 

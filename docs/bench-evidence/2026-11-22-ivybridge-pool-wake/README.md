@@ -145,9 +145,11 @@ with `ThreadPool::getOptimalThreadCount()`, which called
 `f6e748e`): the count is computed once. So every THREAD_POOL figure in these
 CSVs carries about 10 µs per call that the library no longer pays on this
 machine: 22% of a 4096-element call, 14% at 10,240, under 2% at 204,800.
-The WORK_STEALING and LOCAL_POOL rows do not carry it. **Not re-measured
-quietly after the fix**, and not measured on the other machines, where the
-lookup may be cheap.
+The WORK_STEALING and LOCAL_POOL rows do not carry it. **Re-measured quietly
+after the fix on 2026-11-24**
+(`../2026-11-24-ivybridge-v300-bench-scaling-pool/`, section C): the thread
+pool now matches the local pool of four, and finding 2 above no longer holds
+at gap 0. Not measured on the other machines, where the lookup may be cheap.
 
 ## Not explained
 

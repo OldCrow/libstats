@@ -1,0 +1,16 @@
+dev:      92ec8e1 dirty=0
+main:     c049f23 headers; library build-ivb-v251/gcc/libstats.a built at 51e1390 (code identical: 0 differing files)
+dev lib:  build-ivb-adopt/libstats.a at 92ec8e1
+flags:    g++ -O3 -DNDEBUG -std=c++20 -DLIBSTATS_HAS_AVX=1 -DLIBSTATS_HAS_SSE2=1 ; corvus_scaling_bench: -O3 -DNDEBUG -std=c++20
+compiler: g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+governor: schedutil
+driver:   intel_cpufreq
+kernel:   Linux 7.0.0-43-generic x86_64
+cpu:       Intel(R) Core(TM) i7-3820QM CPU @ 2.70GHz
+on_ac:    1
+e1c61430dd9a4e368f966b24b81d990dfe38245feb825b58e893a2a6e1ff5352  /home/wolfman/Development/libstats/build-ivb-adopt/p156/bin/corvus_scaling_bench
+dfbcd753789663cb0c28c8ef6453d60394690258811f6261906cbac4b7919320  /home/wolfman/Development/libstats/build-ivb-adopt/p156/bin/dist_bench_dev
+664a7fa79a448923572eb0029489c2d7a1574c1dd753db4ae1939719fa6ebb82  /home/wolfman/Development/libstats/build-ivb-adopt/p156/bin/dist_bench_main
+ba3069ef7d039a450e37b1d2f469be6985fdc0b318948f1e87d1fd8b45c26efa  /home/wolfman/Development/libstats/build-ivb-adopt/p156/bin/elem_bench_dev
+ea422a9f2aa69940ba12fd4b4316aba2e33a8812f8c780249daeb33b5b0e7f77  /home/wolfman/Development/libstats/build-ivb-adopt/p156/bin/elem_bench_main
+4e4a6c4f11a58d7754ce77f8d454f81c1c172595cee70479c57f72f392c59ff5  /home/wolfman/Development/libstats/build-ivb-adopt/p156/bin/pool_wake_bench
