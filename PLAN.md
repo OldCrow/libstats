@@ -535,8 +535,11 @@ back to back, which is what the pool design waits on.
 ### Machine-specific items
 
 - **M**: #107 (one trig table; the change is on the NEON side) is done
-  here or not at all. #47 is owed its AppleClang validation (von Mises
-  pdf/logpdf ≤ 1.7 ulp on AVX). #156's original numbers are from this
+  here or not at all. #47 needs nothing further from M: K's AppleClang
+  validation closed it (2026-11-24), and M's NEON block and its 135/135
+  with the entropy guard cover this machine; the "≤ 1.7 ulp" once asked
+  here does not hold at every point on either tree (K's item below).
+  #156's original numbers are from this
   machine: `gamma_p` 272 and `beta_p` 823 ns per element against targets
   of 40 and 30 that corvus's accuracy contract puts out of reach.
 - **Z**: clang-cl is the performance build and supplies kAvx512; cl.exe
@@ -623,18 +626,22 @@ Milestone #6: 33 open, 3 closed (#312; #266 and #272 as split). Issues stay open
 branch reaches `main`; `fixed-on-branch` marks the ones that are fixed
 and guarded here, each with a status comment.
 
-- **Labelled `fixed-on-branch` (26):** #103, #104, #108, #110, #113,
-  #126, #136, #138, #141, #179, #213, #214, #221, #247, #248, #251, #252,
-  #258, #262, #267, #270, #271, #287, #290, #311, #320. #103, #104 and
-  #141 were labelled 2026-11-24, once all four ISA blocks were
+- **Labelled `fixed-on-branch` (27):** #47, #103, #104, #108, #110,
+  #113, #126, #136, #138, #141, #179, #213, #214, #221, #247, #248, #251,
+  #252, #258, #262, #267, #270, #271, #287, #290, #311, #320. #103, #104
+  and #141 were labelled 2026-11-24, once all four ISA blocks were
   regenerated here: 0 contract violations each, and the large-shape
   `gamma`, `erlang` and `inverse_gamma` CDF rows at 1.4–1.8e-16 on every
   tier. #104's contract was settled 2026-09-02 (finite, best-effort); it
-  was listed here as a decision owed by mistake.
-- **Wait on other machines or the pool design (4):** #47 (AppleClang
-  validation, M and K), #52 (timings and rows stated per tier; done for
-  I), #107 (M, here or not at all), #291 (kAvx derived; provisional
-  until the pool design).
+  was listed here as a decision owed by mistake. #47 was labelled
+  2026-11-24 on K's AppleClang validation, checked against the issue's
+  2026-08-20 closing conditions: the two-tier Bessel scheme is gone, the
+  von Mises rows read the same on all four tiers, and the entropy guard
+  misses on `main`. M made no statement of its own; its NEON block and
+  its 135/135 with the guard in it cover it.
+- **Wait on other machines or the pool design (3):** #52 (timings and
+  rows stated per tier; done for I), #107 (M, here or not at all), #291
+  (kAvx derived; provisional until the pool design).
 - **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
   the density prefactors are #314) and #272 (Beta and NegativeBinomial
   CDF NaNs cleared here; the density paths are #315).
