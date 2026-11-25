@@ -554,8 +554,7 @@ back to back, which is what the pool design waits on.
   `DH2_M1_VonMisesEntropy`'s 1e-13 at four of its rows, so the guard
   fails on the unfixed state. "≤ 1.7 ulp" does not hold at every point
   in ulps of the result (pdf 177 at κ = 100, logpdf 9.5 at its zero
-  crossing), on both trees alike: conditioning. Comment drafted, not
-  posted.
+  crossing), on both trees alike: conditioning. Stated on #47.
 - **I**: after the capture, assemble the bundle, derive kAvx, write the
   table and the documentation column #291 asks for, regenerate the AVX
   block, and state the bench on #156. Unverified here: that mixing
@@ -596,7 +595,7 @@ matter here.
 |---|---|---|
 | **M** (NEON) | **Owed, and it gates the decision.** The 2026-11-21 run used the old timer, was not quiet throughout, and is not stated on #156. This is M's L6. | **Owed.** No run on this branch. |
 | **I** (AVX) | **Owed as a re-run.** The statement of 2026-11-22 is from the old timer, and its own text marks several cells as the bench, not the library. Do it in the quiet sitting I already owes after #324. | **Owed.** No run on this branch. |
-| **K** (AVX2) | Done: the sustained re-run of 2026-11-23, stated on #156. | **Done 2026-11-24** at `d23d353`, quiet, tier AVX2 (`docs/bench-evidence/2026-11-24-kabylake-corvus-scaling/`): a one-element call costs a whole 4-lane vector for `erf`, `exp`, `gamma_p` and `beta_p` and 0.5–0.8 of one for the rest; 2.2–3.5 elements at the long-span rate for the costly kernels. At that rate Beta's scalar CDF and Gamma's quantile would still be 6× and 3.7× above `main`. Not yet stated on #156. |
+| **K** (AVX2) | Done: the sustained re-run of 2026-11-23, stated on #156. | **Done 2026-11-24** at `d23d353`, quiet, tier AVX2 (`docs/bench-evidence/2026-11-24-kabylake-corvus-scaling/`): a one-element call costs a whole 4-lane vector for `erf`, `exp`, `gamma_p` and `beta_p` and 0.5–0.8 of one for the rest; 2.2–3.5 elements at the long-span rate for the costly kernels. At that rate Beta's scalar CDF and Gamma's quantile would still be 6× and 3.7× above `main`. Stated on #156. |
 | **Z** (AVX-512) | Done 2026-11-24, clang-cl and all-MSVC, both stated. | Done 2026-11-24, both compilers. |
 
 The least that allows a decision is M's A. B on M and I is what would
