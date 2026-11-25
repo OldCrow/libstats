@@ -575,8 +575,8 @@ and guarded here, each with a status comment.
   predates the sustained timer. The 2026-10-30 corvus comment says the
   NEON targets are out of reach, so the gate needs re-baselining.
 - **Left by #104, not blockers [OPEN]:** the 14 off-grid quantile rows
-  over 100 ε (small shape, deep tail; present on `main`) have no issue
-  of their own; the per-family quantile accuracy notes #104's acceptance
+  over 100 ε (small shape, deep tail; present on `main`) are #334 in the
+  patch milestone; the per-family quantile accuracy notes #104's acceptance
   asked for are not written (release docs); `truncated_normal` quantile
   on AVX-512 reads max_rel 6.3e+291 at p = 0.5, as in the v2.5.0 block,
   not examined.
@@ -592,7 +592,7 @@ below `DBL_MIN` (`gamma_p_from_scaled`); libstats' own `exp`, `log`,
 `cos` and `sin` SIMD kernels.
 
 Filed from this work into the patch milestone: #314, #315, #316, #317,
-#318, #319. Small and unfiled:
+#318, #319, #334. Small and unfiled:
 - `scripts/analyze_crossovers.py` reports Uniform and NegBinomial as "not
   in table" (a wrapped row; a name mismatch). The derive script reads both.
 - `src/simd_avx.cpp`'s cos/sin comment still reads "UNPROVEN LEG"; the
