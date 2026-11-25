@@ -549,22 +549,30 @@ back to back, which is what the pool design waits on.
    `fixed-on-branch`; CI green; signed tag; GitHub release; close the
    milestone. Then pylibstats and libhmm (Cross-Repo).
 
-## State of the v3.0.0 issues [DERIVED, 2026-11-21]
+## State of the v3.0.0 issues [DERIVED, 2026-11-24]
 
-Milestone #6: 32 open, 1 closed (#312). Issues stay open until this
+Milestone #6: 35 open, 1 closed (#312). Issues stay open until this
 branch reaches `main`; `fixed-on-branch` marks the ones that are fixed
 and guarded here, each with a status comment.
 
-- **Labelled `fixed-on-branch` (22):** #108, #110, #113, #126, #136,
-  #138, #179, #213, #214, #221, #247, #248, #251, #252, #258, #262, #267,
-  #270, #271, #287, #290, #311.
-- **Wait on the other machines:** #47 (AppleClang), #52 (timings and
-  rows on every tier), #103 and #104 (guards pass and the sweep is clean
-  on AVX; other ISAs), #141 (`gamma_p`/`gamma_q` ≤ 0.48 ulp on AVX; other
-  ISAs), #107 (M), #291 (kAvx capture, I).
-- **Resolved halves only:** #266 (CDF side; density prefactors are
+- **Labelled `fixed-on-branch` (25):** #103, #108, #110, #113, #126,
+  #136, #138, #141, #179, #213, #214, #221, #247, #248, #251, #252, #258,
+  #262, #267, #270, #271, #287, #290, #311, #320. #103 and #141 were
+  labelled 2026-11-24, once all four ISA blocks were regenerated here: 0
+  contract violations each, and the large-shape `gamma`, `erlang` and
+  `inverse_gamma` CDF rows at 1.4–1.8e-16 on every tier.
+- **Wait on other machines or the pool design (4):** #47 (AppleClang
+  validation, M and K), #52 (timings and rows stated per tier; done for
+  I), #107 (M, here or not at all), #291 (kAvx derived; provisional
+  until the pool design).
+- **Resolved halves only (2):** #266 (CDF side; density prefactors are
   #314) and #272 (Beta and NegativeBinomial CDF NaNs; the rest is #315).
-- **Decision owed [user]:** #156, after the legs.
+  Both can close as split.
+- **Decision owed [user] (2):** #156 (all four machines' numbers are on
+  the issue) and #104 (the quantile contract at extreme p; Z's off-grid
+  rows are on the issue, 14 over 100 ε, none from the adoption).
+- **Pool design, not started (2):** #323 (slice arithmetic, corrected
+  2026-11-22) and #333 (no wake-up on submit; a timer tick on Windows).
 
 Kept in libstats and not on corvus, by decision: the Student-t tail
 kernels (`beta_continued_fraction`, `beta_i_large_a_half`) and
