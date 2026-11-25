@@ -1,0 +1,89 @@
+#!/bin/bash
+# M1 (NEON) quiet sitting for #156 (libstats PLAN.md, "#156 — what each machine still owes"):
+#   A  distributions_bench and elementary_bench, main against dev, three passes
+#      (main first on passes 1 and 3, dev first on pass 2);
+#   B  corvus_scaling_bench against the branch's corvus, three passes;
+#   and pool_wake_bench --local-pool 4,8 (pool measurement 8, not run on M before).
+# Gate before every binary: ambient CPU = 100 - top's idle %, two consecutive 10 s windows
+# below 8%. The processes in SUSPEND (the user's own; indexing, media analysis and sync,
+# approved by the user 2026-11-24) are stopped (SIGSTOP) for each group of runs and resumed
+# (SIGCONT) after it. A gate that has not passed in 5 minutes resumes them, waits 2 minutes
+# and tries again. Launch detached, outside the Claude Code sandbox, under caffeinate.
+set -u
+DEV=/Users/wolfman/Development/libstats
+MAIN=/Users/wolfman/Development/libstats-main
+O=/Users/wolfman/Development/libstats-m-2026-11-21/i156
+B=$O/bench
+LOG=$O/run.txt
+MAXAMB=8; WIN=10
+SUSPEND='mediaanalysisd corespotlightd spotlightknowledged spotlightknowledged.updater mdworker_shared storeuid CGPDFService VTEncoderXPCService VTDecoderXPCService photolibraryd photoanalysisd OneDrive contactsd AddressBookSourceSync'
+DEADLINE=$(( $(date +%s) + 10*3600 ))
+caffeinate -is -w $$ &
+
+load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
+ambient() { /usr/bin/top -l 2 -s $WIN -n 0 2>/dev/null | grep 'CPU usage' | tail -1 \
+              | sed -E 's/.* ([0-9.]+)% idle.*/\1/' | awk '{printf "%.2f", 100-$1}'; }
+top3() { /bin/ps -Ao pcpu,comm -r | sed -n '2,4p' | awk '{n=$2; sub(/.*\//,"",n); printf "%s%%%s ", $1, n}'; }
+log() { echo "$(date -u '+%FT%TZ') load=$(load1) $*" >> "$LOG"; }
+hold() { for d in $SUSPEND; do pkill "-$1" -u "$(id -u)" -x "$d"; done; }
+trap 'hold CONT' EXIT
+trap 'exit 1' INT TERM
+gate() {  # processes suspended on return 0
+  local q a t0
+  while :; do
+    [ "$(date +%s)" -gt "$DEADLINE" ] && { log "$1: DEADLINE passed, SKIPPED"; return 1; }
+    hold STOP; q=0; t0=$(date +%s)
+    while [ $(( $(date +%s) - t0 )) -lt 300 ]; do
+      a=$(ambient)
+      if awk -v a="$a" -v m="$MAXAMB" 'BEGIN{exit !(a<m)}'; then
+        q=$((q+1)); [ $q -ge 2 ] && { log "$1: gate passed (<${MAXAMB}%) ambient=${a}% top: $(top3)"; return 0; }
+      else
+        q=0; echo "$(date -u '+%FT%TZ') $1 ambient=${a}% top: $(top3)" >> "$O/gate_samples.txt"
+      fi
+    done
+    hold CONT; log "$1: no window in 5 min with the processes suspended; resumed, retry in 2 min"; sleep 120
+  done
+}
+run_item() {  # run_item <label> <outfile> <binary> [args...]
+  local label="$1" out="$2"; shift 2
+  gate "$label" || return 1
+  log "$label start"
+  "$@" > "$out" 2> "$out.err"; local rc=$?
+  log "$label end exit=$rc top: $(top3)"
+  [ -s "$out.err" ] || /bin/rm -f "$out.err"
+}
+rest() { hold CONT; sleep 20; }
+
+{
+  echo "dev:      $(git -C "$DEV" rev-parse --short HEAD) ($(git -C "$DEV" branch --show-current)) dirty=$(git -C "$DEV" status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+  echo "main:     $(git -C "$MAIN" rev-parse --short HEAD) ($(git -C "$MAIN" branch --show-current)) dirty=$(git -C "$MAIN" status --porcelain --untracked-files=no | wc -l | tr -d ' ')"
+  echo "machine:  $(sysctl -n hw.model) $(sysctl -n machdep.cpu.brand_string), macOS $(sw_vers -productVersion) ($(sw_vers -buildVersion))"
+  echo "cores:    $(sysctl -n hw.physicalcpu) physical, $(sysctl -n hw.logicalcpu) logical ($(sysctl -n hw.perflevel0.physicalcpu) performance, $(sysctl -n hw.perflevel1.physicalcpu) efficiency)"
+  echo "compiler: $(c++ --version | head -1)"
+  echo "power:    $(pmset -g batt | head -1)"
+  echo "uptime:   $(uptime)"
+  echo "suspended during the runs: $SUSPEND"
+  echo "binaries:"
+  shasum -a 256 "$DEV/build-release/libstats.a" "$DEV/build-release/_deps/corvus-build/libcorvus.a" "$MAIN/build-release/libstats.a" "$B"/dist_main "$B"/dist_dev "$B"/elem_main "$B"/elem_dev "$B"/corvus_scaling "$B"/pool_wake_bench
+  echo
+  "$DEV/build-release/tools/system_inspector" --quick
+} > "$O/environment.txt" 2>&1
+
+log "sitting start dev=$(git -C "$DEV" rev-parse --short HEAD) main=$(git -C "$MAIN" rev-parse --short HEAD)"
+for pass in 1 2 3; do
+  if [ "$pass" = 2 ]; then order="dev main"; else order="main dev"; fi
+  for kind in dist elem; do
+    for tree in $order; do
+      run_item "A $kind $tree pass$pass" "$O/bench_${kind}_${tree}_pass$pass.txt" "$B/${kind}_$tree"
+    done
+  done
+  rest
+done
+for pass in 1 2 3; do
+  run_item "B corvus scaling pass$pass" "$O/scaling_pass$pass.txt" "$B/corvus_scaling"
+  rest
+done
+run_item "wake local pools" "$O/wake_local_pool.csv" "$B/pool_wake_bench" --init --ws --local-pool 4,8 --gaps 0,2000
+hold CONT
+echo "end: dev $(git -C "$DEV" rev-parse --short HEAD) main $(git -C "$MAIN" rev-parse --short HEAD)" >> "$O/environment.txt"
+log "DONE"

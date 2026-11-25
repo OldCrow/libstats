@@ -1,0 +1,59 @@
+dev:      92ec8e1 (dev/v3.0.0-corvus-adoption) dirty=1
+main:     c049f23 (main) dirty=0
+machine:  Macmini9,1 Apple M1, macOS 27.2.1 (26B131)
+cores:    8 physical, 8 logical (4 performance, 4 efficiency)
+compiler: Apple clang version 21.0.0 (clang-2100.4.1.1)
+power:    Now drawing from 'AC Power'
+uptime:   21:37  up 4 days, 37 mins, 1 user, load averages: 4.84 4.22 4.10
+suspended during the runs: mediaanalysisd corespotlightd spotlightknowledged spotlightknowledged.updater mdworker_shared storeuid CGPDFService VTEncoderXPCService VTDecoderXPCService photolibraryd photoanalysisd OneDrive contactsd AddressBookSourceSync
+binaries:
+de55167799d31426b590f03161eb6e9678b52bcdb29143836a7e083fb4aa62b6  /Users/wolfman/Development/libstats/build-release/libstats.a
+51ae52ebf43b8866dbf9ca2fec3a9c89ce27dd3ba9bfd835b89e4c6b91e9aaf1  /Users/wolfman/Development/libstats/build-release/_deps/corvus-build/libcorvus.a
+8f24e8d718a7daac62cf1a16566adcdaa4028410b687b501f5a16b28e3224ae6  /Users/wolfman/Development/libstats-main/build-release/libstats.a
+d4f966fa2c7c438c13bbd38e5d06da36e77aa4ef5612afa87feea5e4ae3af6c9  /Users/wolfman/Development/libstats-m-2026-11-21/i156/bench/dist_main
+7c6be472bfdd9a6880c3837a50666a458291a228f5e6754af97c4c79a7c0f6f5  /Users/wolfman/Development/libstats-m-2026-11-21/i156/bench/dist_dev
+b999d4fb2343b6b2dd0f6dfb5e37126237b3ccf5d9e774ba8276cb754ae3ba8a  /Users/wolfman/Development/libstats-m-2026-11-21/i156/bench/elem_main
+f3a33fa77227fbe84b8dcc3d52045b27e0d544f40659a4063c202c65983e19c6  /Users/wolfman/Development/libstats-m-2026-11-21/i156/bench/elem_dev
+e69afd4586991cbff6733d47557ecc4a826513670806412fae172914b6f7bec9  /Users/wolfman/Development/libstats-m-2026-11-21/i156/bench/corvus_scaling
+d7c7815adfcba3d63627346f641edfee15a0df7073be6dde898513f4145237e3  /Users/wolfman/Development/libstats-m-2026-11-21/i156/bench/pool_wake_bench
+
+
+=================================
+  System Inspector - Quick Mode
+=================================
+
+Basic system information and capabilities overview
+
+System: 8 logical cores, NEON SIMD, 0 KB L3 cache
+
+
+--- System Capabilities ---
+Logical Cores:           8
+Physical Cores:          8
+Hyperthreading:          Disabled
+
+
+--- CPU Features ---
+Feature             Support   Description                   
+------------------------------------------------------------
+AVX-512             No        Foundation instructions       
+AVX2                No        Advanced Vector Ext 2         
+AVX                 No        Advanced Vector Ext           
+SSE2                No        Streaming SIMD Ext 2          
+NEON                Yes       ARM SIMD instructions         
+FMA                 No        Fused Multiply-Add            
+
+
+--- Cache Information ---
+Cache Level    Size (KB)   Line Size      
+------------------------------------------
+L1             64          64 bytes       
+L2             4096        64 bytes       
+L3             0           64 bytes       
+
+
+Use --constants, --performance, or --full for detailed analysis.
+
+Warning: L2 cache larger than L3 cache - may be normal on some systems
+System inspection completed successfully.
+end: dev 92ec8e1 main c049f23

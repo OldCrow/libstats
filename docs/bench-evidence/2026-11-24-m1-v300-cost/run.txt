@@ -1,0 +1,54 @@
+2026-11-25T02:37:15Z load=4.84 sitting start dev=92ec8e1 main=c049f23
+2026-11-25T02:42:18Z load=1.49 A dist main pass1: no window in 5 min with the processes suspended; resumed, retry in 2 min
+2026-11-25T02:44:39Z load=4.78 A dist main pass1: gate passed (<8%) ambient=2.59% top: 11.3%locationd 4.4%airportd 1.6%WiFi 
+2026-11-25T02:44:39Z load=4.78 A dist main pass1 start
+2026-11-25T02:45:08Z load=4.84 A dist main pass1 end exit=0 top: 6.6%knowledge-agent 2.6%dasd 1.5%ScreenTimeSettingsAgent 
+2026-11-25T02:45:51Z load=2.94 A dist dev pass1: gate passed (<8%) ambient=2.40% top: 9.4%locationd 3.1%airportd 1.2%com.apple.DriverKit-AppleBCMWLAN 
+2026-11-25T02:45:51Z load=2.94 A dist dev pass1 start
+2026-11-25T02:46:25Z load=3.82 A dist dev pass1 end exit=0 top: 33.8%FollowUpUI 11.6%Bartender 8.5%AXVisualSupportAgent 
+2026-11-25T02:46:46Z load=2.85 A elem main pass1: gate passed (<8%) ambient=3.36% top: 2.7%PerfPowerServices 1.2%python3 0.8%WindowServer 
+2026-11-25T02:46:46Z load=2.85 A elem main pass1 start
+2026-11-25T02:46:50Z load=2.85 A elem main pass1 end exit=0 top: 13.0%python3 0.4%donotdisturbd 0.3%tccd 
+2026-11-25T02:47:12Z load=2.22 A elem dev pass1: gate passed (<8%) ambient=3.13% top: 4.8%launchservicesd 4.0%MenuBarAgent 3.4%loginwindow 
+2026-11-25T02:47:12Z load=2.22 A elem dev pass1 start
+2026-11-25T02:47:16Z load=2.28 A elem dev pass1 end exit=0 top: 74.7%spotlightknowledged.updater 35.5%CoreLocationAgent 12.9%Bartender 
+2026-11-25T02:47:59Z load=2.38 A dist dev pass2: gate passed (<8%) ambient=2.88% top: 3.6%locationd 2.3%MenuBarAgent 2.2%runningboardd 
+2026-11-25T02:47:59Z load=2.38 A dist dev pass2 start
+2026-11-25T02:48:33Z load=3.78 A dist dev pass2 end exit=0 top: 11.6%locationd 2.1%airportd 1.2%launchd 
+2026-11-25T02:48:55Z load=3.07 A dist main pass2: gate passed (<8%) ambient=3.00% top: 1.6%python3 1.1%bzserv 0.2%fileproviderd 
+2026-11-25T02:48:55Z load=3.07 A dist main pass2 start
+2026-11-25T02:49:23Z load=4.00 A dist main pass2 end exit=0 top: 30.9%FollowUpUI 12.2%Bartender 9.6%universalAccessAuthWarn 
+2026-11-25T02:49:56Z load=2.85 A elem dev pass2: gate passed (<8%) ambient=3.89% top: 13.6%locationd 7.2%airportd 5.0%com.apple.geod 
+2026-11-25T02:49:56Z load=2.85 A elem dev pass2 start
+2026-11-25T02:50:00Z load=2.79 A elem dev pass2 end exit=0 top: 12.7%loginwindow 2.8%WindowServer 1.2%locationd 
+2026-11-25T02:50:54Z load=2.11 A elem main pass2: gate passed (<8%) ambient=3.46% top: 2.1%locationd 2.0%airportd 0.9%python3 
+2026-11-25T02:50:54Z load=2.11 A elem main pass2 start
+2026-11-25T02:50:58Z load=2.02 A elem main pass2 end exit=0 top: 1.7%locationd 1.3%coresymbolicationd 1.2%python3 
+2026-11-25T02:51:52Z load=1.88 A dist main pass3: gate passed (<8%) ambient=3.14% top: 3.4%python3 1.3%locationd 0.5%WindowServer 
+2026-11-25T02:51:52Z load=1.88 A dist main pass3 start
+2026-11-25T02:52:20Z load=2.67 A dist main pass3 end exit=0 top: 23.7%WiFiAgent 18.0%ShortcutsViewService 10.3%Bartender 
+2026-11-25T02:52:52Z load=2.34 A dist dev pass3: gate passed (<8%) ambient=2.89% top: 0.9%python3 0.4%AMPLibraryAgent 0.3%Application 
+2026-11-25T02:52:52Z load=2.34 A dist dev pass3 start
+2026-11-25T02:53:26Z load=3.70 A dist dev pass3 end exit=0 top: 28.5%FollowUpUI 19.0%AXVisualSupportAgent 12.5%Bartender 
+2026-11-25T02:53:58Z load=2.64 A elem main pass3: gate passed (<8%) ambient=3.01% top: 1.1%Application 0.7%WindowServer 0.4%python3 
+2026-11-25T02:53:58Z load=2.64 A elem main pass3 start
+2026-11-25T02:54:02Z load=2.50 A elem main pass3 end exit=0 top: 8.6%launchd 0.5%loginwindow 0.4%Bartender 
+2026-11-25T02:54:56Z load=2.13 A elem dev pass3: gate passed (<8%) ambient=2.85% top: 12.1%airportd 4.2%bzserv 4.0%com.apple.DriverKit-AppleBCMWLAN 
+2026-11-25T02:54:56Z load=2.13 A elem dev pass3 start
+2026-11-25T02:55:00Z load=2.04 A elem dev pass3 end exit=0 top: 16.2%loginwindow 15.1%ControlCenter 6.5%WindowServer 
+2026-11-25T02:55:54Z load=7.48 B corvus scaling pass1: gate passed (<8%) ambient=2.69% top: 1.8%sandboxd 1.6%locationd 0.9%WindowServer 
+2026-11-25T02:55:54Z load=7.48 B corvus scaling pass1 start
+2026-11-25T02:57:06Z load=3.35 B corvus scaling pass1 end exit=0 top: 2.3%Bartender 1.5%bzserv 1.5%FollowUpUI 
+2026-11-25T03:02:32Z load=1.55 B corvus scaling pass2: no window in 5 min with the processes suspended; resumed, retry in 2 min
+2026-11-25T03:04:54Z load=2.85 B corvus scaling pass2: gate passed (<8%) ambient=2.59% top: 7.9%python3 2.4%bzserv 0.9%locationd 
+2026-11-25T03:04:54Z load=2.85 B corvus scaling pass2 start
+2026-11-25T03:06:06Z load=2.30 B corvus scaling pass2 end exit=0 top: 32.5%CoreLocationAgent 13.4%Bartender 7.4%NotificationCenter 
+2026-11-25T03:11:30Z load=1.89 B corvus scaling pass3: no window in 5 min with the processes suspended; resumed, retry in 2 min
+2026-11-25T03:18:31Z load=1.38 B corvus scaling pass3: no window in 5 min with the processes suspended; resumed, retry in 2 min
+2026-11-25T03:20:53Z load=4.40 B corvus scaling pass3: gate passed (<8%) ambient=2.70% top: 11.2%locationd 4.3%airportd 1.4%com.apple.DriverKit-AppleBCMWLAN 
+2026-11-25T03:20:53Z load=4.40 B corvus scaling pass3 start
+2026-11-25T03:22:04Z load=2.26 B corvus scaling pass3 end exit=0 top: 11.0%airportd 4.5%locationd 2.9%com.apple.DriverKit-AppleBCMWLAN 
+2026-11-25T03:23:07Z load=1.82 wake local pools: gate passed (<8%) ambient=3.39% top: 3.7%locationd 1.5%airportd 1.5%bzserv 
+2026-11-25T03:23:07Z load=1.82 wake local pools start
+2026-11-25T03:23:48Z load=3.41 wake local pools end exit=0 top: 1.3%cfprefsd 0.7%locationd 0.6%python3 
+2026-11-25T03:23:48Z load=3.41 DONE

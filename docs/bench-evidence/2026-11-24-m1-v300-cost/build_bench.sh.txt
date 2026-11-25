@@ -1,0 +1,27 @@
+#!/bin/bash
+# M1 (NEON) build of the tools/bench programs for #156, measurements A and B (PLAN.md,
+# "#156 — what each machine still owes"): main against dev/v3.0.0-corvus-adoption, the same
+# bench source (the dev checkout's), compiled with the flags and definition of the
+# library's own TUs (-O3 -DNDEBUG -std=c++20 -arch arm64 -stdlib=libc++, LIBSTATS_HAS_NEON).
+set -eu
+DEV=/Users/wolfman/Development/libstats
+DB=$DEV/build-release
+MAIN=/Users/wolfman/Development/libstats-main
+MB=$MAIN/build-release
+OUT=/Users/wolfman/Development/libstats-m-2026-11-21/i156/bench
+FLAGS=(-O3 -DNDEBUG -std=c++20 -arch arm64 -stdlib=libc++ -DLIBSTATS_HAS_NEON=1)
+mkdir -p "$OUT"
+cd "$DEV/tools/bench"
+for pair in distributions:dist elementary:elem; do
+    src="${pair%%:*}_bench.cpp"; n="${pair##*:}"
+    c++ "${FLAGS[@]}" -I"$MAIN/include" -I"$MAIN/include/libstats" -I"$MB/generated" \
+        "$src" "$MB/libstats.a" -lpthread -o "$OUT/${n}_main"
+    c++ "${FLAGS[@]}" -I"$DEV/include" -I"$DEV/include/libstats" -I"$DB/generated" \
+        -isystem "$DB/_deps/corvus-src/include" -isystem /opt/homebrew/include \
+        "$src" "$DB/libstats.a" "$DB/_deps/corvus-build/libcorvus.a" \
+        -L/opt/homebrew/lib -lhwy -lhwy_contrib -lpthread -o "$OUT/${n}_dev"
+done
+c++ "${FLAGS[@]}" -isystem "$DB/_deps/corvus-src/include" -isystem /opt/homebrew/include \
+    corvus_scaling_bench.cpp "$DB/_deps/corvus-build/libcorvus.a" \
+    -L/opt/homebrew/lib -lhwy -lhwy_contrib -lpthread -o "$OUT/corvus_scaling"
+ls -l "$OUT"
