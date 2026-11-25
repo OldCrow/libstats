@@ -1,0 +1,56 @@
+#!/bin/bash
+# M1, v2.5.1 leg P3 (libstats PLAN.md on main): ctest -j1 -L timing on a quiet machine.
+# Gate: ambient CPU = 100 - top's idle %, two consecutive 10 s windows below 8%.
+# The processes in SUSPEND (the user's own; indexing, media analysis and sync, approved by the
+# user 2026-11-24) are stopped (SIGSTOP) before each gate and resumed (SIGCONT) after the run.
+# A gate that has not passed in 5 minutes resumes them, waits 2 minutes and tries again.
+set -u
+W=/Users/wolfman/Development/libstats-main
+O=/Users/wolfman/Development/libstats-m-2026-11-21/v251
+LOG=$O/timing_run.txt
+MAXAMB=8; WIN=10
+SUSPEND='mediaanalysisd corespotlightd spotlightknowledged spotlightknowledged.updater mdworker_shared storeuid CGPDFService VTEncoderXPCService VTDecoderXPCService photolibraryd photoanalysisd OneDrive contactsd AddressBookSourceSync'
+DEADLINE=$(( $(date +%s) + 8*3600 ))
+caffeinate -is -w $$ &
+
+load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
+ambient() { /usr/bin/top -l 2 -s $WIN -n 0 2>/dev/null | grep 'CPU usage' | tail -1 \
+              | sed -E 's/.* ([0-9.]+)% idle.*/\1/' | awk '{printf "%.2f", 100-$1}'; }
+top3() { /bin/ps -Ao pcpu,comm -r | sed -n '2,4p' | awk '{n=$2; sub(/.*\//,"",n); printf "%s%%%s ", $1, n}'; }
+log() { echo "$(date -u '+%FT%TZ') load=$(load1) $*" >> $LOG; }
+hold() { for d in $SUSPEND; do pkill "-$1" -u "$(id -u)" -x "$d"; done; }
+trap 'hold CONT' EXIT
+trap 'exit 1' INT TERM
+gate() {
+  local q a t0
+  while :; do
+    [ "$(date +%s)" -gt "$DEADLINE" ] && { log "DEADLINE passed, timing SKIPPED"; return 1; }
+    hold STOP; q=0; t0=$(date +%s)
+    while [ $(( $(date +%s) - t0 )) -lt 300 ]; do
+      a=$(ambient)
+      if awk -v a="$a" -v m="$MAXAMB" 'BEGIN{exit !(a<m)}'; then
+        q=$((q+1)); [ $q -ge 2 ] && { log "gate passed (<${MAXAMB}%) ambient=${a}% top: $(top3)"; return 0; }
+      else
+        q=0; echo "$(date -u '+%FT%TZ') ambient=${a}% top: $(top3)" >> $O/timing_gate_samples.txt
+      fi
+    done
+    hold CONT; log "no window in 5 min with the processes suspended; resumed, retry in 2 min"; sleep 120
+  done
+}
+
+cd "$W" || exit
+{
+  echo "commit:   $(git rev-parse --short HEAD) dirty=$(git status --porcelain | wc -l | tr -d ' ')"
+  echo "machine:  $(sysctl -n hw.model) $(sysctl -n machdep.cpu.brand_string), macOS $(sw_vers -productVersion) ($(sw_vers -buildVersion))"
+  echo "compiler: $(clang++ --version | head -1)"
+  echo "power:    $(pmset -g batt | head -1)"
+  echo "suspended during the run: $SUSPEND"
+} > $O/timing_environment.txt
+log "timing start sha=$(git rev-parse --short HEAD) dirty=$(git status --porcelain | wc -l | tr -d ' ')"
+if gate; then
+  log "ctest -j1 -L timing: start"
+  ctest --test-dir build-release -j1 -L timing --output-on-failure > $O/appleclang21/ctest_timing.txt 2>&1; rc=$?
+  log "ctest -j1 -L timing: end exit=$rc top: $(top3)"
+  hold CONT
+fi
+log "DONE"
