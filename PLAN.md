@@ -181,6 +181,9 @@ design decision (all four machines' L7).
   calls are at the full clock (36 µs at 4096 against 111), and from a
   50 µs gap the governor behaviour is as before. Still owed on I: the
   kAvx re-capture, held on the pool design.
+  **`turbostat` sampling skipped on I** [user, 2026-11-24]; reasons and
+  the conditions for revisiting are under "Pool wake-up and batch
+  spacing", measurement 3.
 - **M — M1, NEON, macOS 27.2.1, AppleClang 21.0.0**: L1 done 2026-11-21
   at `cfbb992`, again 2026-11-22 at `c6ae2b9` and 2026-11-24 at
   `0f57256` (with #324, #325, #326): Release build
@@ -1053,6 +1056,23 @@ value for the pool design:
    counters (% Processor Performance, parking status). The user runs
    these: they need root, and the sampler itself loads the machine, so
    the result names a cause and is not a timing record.
+   **Skipped on I** [user, 2026-11-24]. The governor switch already
+   shows the clock is the slow run's cause, by experiment where
+   `turbostat` would only confirm it. For the 55–65 µs start delay left
+   under `performance`, residency averaged over 0.1 s does not separate
+   idle-state exit from scheduler wake-up latency. And the design
+   options (keep workers awake, accept the delay in the thresholds, more
+   threads) are chosen on the measured sizes, which are in hand, not on
+   the cause's name. **Revisit if** (a) the pool design leans to a short
+   spin before sleeping, since a spin sized against idle-state entry
+   differs from one sized against a scheduler wake-up, or (b) the other
+   machines' privileged samples disagree and a third reading would
+   settle it. **If revisited, prefer the direct test**: `pool_wake_bench`
+   under `performance` with deep idle states disabled (`sudo cpupower
+   idle-set -D 10`, restored with `-E`; the user runs it, and `cpupower`
+   is not confirmed installed on I). A last-worker start falling from
+   about 60 µs to about 20 names idle-state exit; no change names the
+   scheduler.
 4. **Whether W predicts other rows.** `batch_gap_bench` on rows that span
    the per-element saving: a cheap kernel (Exponential or Uniform PDF,
    under 1 ns), a middle one (LogNormal PDF) and a costly one (Gamma
