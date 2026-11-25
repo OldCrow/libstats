@@ -85,7 +85,19 @@ milestone.
   seven `cauchy` rows only, to I's figures (quantile max rel 2.774e-16
   here, unchanged), kept as a diff and not committed. Evidence:
   `docs/bench-evidence/2026-11-23-kabylake-v2.5.1/`.
-- **M — M1, NEON, macOS 27, AppleClang 21**: not started.
+- **M — M1, NEON, macOS 27.2.1, AppleClang 21.0.0**: **P1–P4 done
+  2026-11-24** at `53cef69` (code identical to `7069adc`), fresh Ninja
+  Release configure in a worktree of `main`. 0 warnings; tier NEON; 8
+  logical and 8 physical cores read; correctness 132/132;
+  `simd_verification` 140 pass, 0 fail; timing 14/14, screen locked,
+  ambient CPU 4.8% at the start, with fourteen of the user's background
+  processes (media analysis, Spotlight, sync) suspended for the run
+  [user]. Sweep: 26,882 rows, 190 self-checks, 0 contract violations;
+  the `isa=NEON` block changes in its banner and seven `cauchy` rows
+  only, to I's figures for quantile, cdf and logpdf; the pdf step
+  (4.213e-16 to 3.465e-16) is the 99th percentile here, max rel staying
+  4.713e-16 at a point #326 does not touch. Kept as a diff and not
+  committed. Evidence: `docs/bench-evidence/2026-11-24-m1-v2.5.1/`.
 - **Z — Zen 4, AVX-512, Windows 11, MSVC 19.52 and clang-cl 22.1.3**:
   **P1–P4 done 2026-11-23** at `b5f0311` (code identical to `7069adc`),
   fresh Release configures in a worktree of `main`. 0 warnings each; tier
