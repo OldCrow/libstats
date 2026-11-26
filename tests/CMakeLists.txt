@@ -262,6 +262,17 @@ create_libstats_gtest(test_goodness_of_fit test_goodness_of_fit.cpp)
 # LEVEL 2b: Platform Capabilities thread_pool.h and work_stealing_pool.h - Thread pool
 # implementations
 create_libstats_gtest(test_thread_pool test_thread_pool.cpp)
+# LIBSTATS_THREAD_COUNT is read once per process, so its test runs in a process of its own.
+if(TARGET test_thread_pool)
+    add_test(NAME test_thread_pool_count_override COMMAND $<TARGET_FILE:test_thread_pool>)
+    set_tests_properties(
+        test_thread_pool_count_override
+        PROPERTIES
+            ENVIRONMENT
+                "LIBSTATS_THREAD_COUNT=3;GTEST_FILTER=ThreadPoolIntegration.ThreadCountFollowsEnvironmentOverride"
+            FAIL_REGULAR_EXPRESSION "Running 0 tests"
+    )
+endif()
 # <concepts> and <ranges> are guaranteed on the v2.0.0 baseline — always register.
 create_libstats_gtest(test_work_stealing_pool test_work_stealing_pool.cpp)
 set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST TRUE)

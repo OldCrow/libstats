@@ -130,7 +130,14 @@ class ThreadPool {
     void waitForAll();
 
     /// Get optimal number of threads for this system
-    /// @return Recommended thread count
+    /// @return Recommended thread count: physical cores where the CPU has
+    ///         simultaneous multithreading, else hardware_concurrency().
+    ///
+    /// Computed once per process. The environment variable
+    /// LIBSTATS_THREAD_COUNT (an integer from 1 to 1024), read at that first
+    /// call, replaces the value; anything else is ignored. It exists for the
+    /// v3.0.0 thread-count measurements and sizes the global pool and
+    /// ParallelUtils' task counts. It is not a tuning interface and may go.
     static std::size_t getOptimalThreadCount() noexcept;
 
    private:

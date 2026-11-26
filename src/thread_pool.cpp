@@ -7,6 +7,7 @@
 #include "libstats/core/statistical_constants.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 
@@ -122,7 +123,45 @@ void ThreadPool::workerLoop() {
 
 namespace {
 
+/// LIBSTATS_THREAD_COUNT as a thread count, 0 when unset or not a count in [1, 1024].
+/// _dupenv_s on Windows: its CRT deprecates std::getenv, and the build is warning-free.
+std::size_t threadCountFromEnvironment() noexcept {
+    constexpr std::size_t kMaxThreads = 1024;
+#ifdef _WIN32
+    char* buffer = nullptr;
+    std::size_t length = 0;
+    if (_dupenv_s(&buffer, &length, "LIBSTATS_THREAD_COUNT") != 0 || buffer == nullptr) {
+        std::free(buffer);
+        return 0;
+    }
+    const char* const text = buffer;
+#else
+    const char* const text = std::getenv("LIBSTATS_THREAD_COUNT");
+    if (text == nullptr)
+        return 0;
+#endif
+    std::size_t value = 0;
+    bool valid = *text != '\0';
+    for (const char* c = text; valid && *c != '\0'; ++c) {
+        valid = *c >= '0' && *c <= '9';
+        if (valid) {
+            value = value * 10 + static_cast<std::size_t>(*c - '0');
+            valid = value <= kMaxThreads;
+        }
+    }
+#ifdef _WIN32
+    std::free(buffer);
+#endif
+    return valid && value >= 1 ? value : 0;
+}
+
 std::size_t computeOptimalThreadCount() noexcept {
+    // Measurement override (v3.0.0 pool work): the fleet compares physical against logical
+    // core counts with it. Read once, here; the global pool and every slice count follow.
+    if (const std::size_t forced = threadCountFromEnvironment(); forced != 0) {
+        return forced;
+    }
+
     const auto& features = arch::get_features();
     std::size_t threadCount = std::thread::hardware_concurrency();
 

@@ -13,6 +13,7 @@
 #include <atomic>   // for std::atomic
 #include <chrono>   // for std::chrono::high_resolution_clock
 #include <cmath>    // for mathematical functions
+#include <cstdlib>  // for std::getenv, std::free
 #include <fstream>  // for std::ifstream (/proc/self/io)
 #include <future>   // for std::future, std::async
 #include <gtest/gtest.h>
@@ -854,6 +855,32 @@ TEST(ThreadPoolIntegration, ParallelForSlicesWaitsForAllThenRethrowsFirst) {
     // Every task ran its first slice (so all were waited for) and stopped there.
     for (std::size_t s = 0; s < numSlices; ++s)
         EXPECT_EQ(ran[s].load(), s % perTask == 0 ? 1 : 0) << "slice " << s;
+}
+
+// LIBSTATS_THREAD_COUNT (the measurement override): the count is read once per process, so the
+// positive case needs a process of its own. ctest runs this case alone as
+// test_thread_pool_count_override with the variable set to 3; in the plain run it checks only
+// that an unset variable leaves the detected count in place.
+TEST(ThreadPoolIntegration, ThreadCountFollowsEnvironmentOverride) {
+    std::string text;
+#ifdef _WIN32
+    char* buffer = nullptr;
+    std::size_t length = 0;
+    if (_dupenv_s(&buffer, &length, "LIBSTATS_THREAD_COUNT") == 0 && buffer != nullptr)
+        text = buffer;
+    std::free(buffer);
+#else
+    if (const char* s = std::getenv("LIBSTATS_THREAD_COUNT"))
+        text = s;
+#endif
+    const std::size_t count = stats::ThreadPool::getOptimalThreadCount();
+    if (text.empty()) {
+        EXPECT_GE(count, 1u);
+        EXPECT_LE(count, std::max<std::size_t>(4, std::thread::hardware_concurrency()));
+        return;
+    }
+    EXPECT_EQ(std::to_string(count), text);
+    EXPECT_EQ(stats::ParallelUtils::getGlobalThreadPool().getNumThreads(), count);
 }
 
 #if defined(__linux__)

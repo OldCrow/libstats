@@ -110,6 +110,11 @@ Environment, read at run time by `tests/test_concurrency_stress.cpp`:
 `LIBSTATS_STRESS_SCALE` (default 1) multiplies the stress test's rounds and
 loop time; CI lowers it under ThreadSanitizer.
 
+Environment, read once per process by the library:
+`LIBSTATS_THREAD_COUNT` (an integer from 1 to 1024) replaces the thread
+pool's detected size (`ThreadPool::getOptimalThreadCount()`). It exists for
+the v3.0.0 thread-count measurements, not as a tuning interface.
+
 ## Target layout
 
 The build uses object libraries to preserve layering and improve incremental builds:
