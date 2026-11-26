@@ -18,13 +18,12 @@ Record new release measurements here after each real-machine validation pass.
 ## v2.5.0 dispatch table re-derivation (2026-10-14/15)
 
 `scripts/derive_threshold_rows.py` re-derived every row of `kNeon`, `kAvx`,
-`kAvx2` and `kAvx512` from the R8 three-run `strategy_profile --large`
-bundles at code head d1adc95 (`data/profiles/dispatcher/`: K's
-`2026-10-13T*_darwin-x86_64_*`, Z's `2026-10-14T0*_windows-x86_64_*`, M's
+`kAvx2` and `kAvx512` from three-run `strategy_profile --large`
+bundles at code head d1adc95 (`data/profiles/dispatcher/`: Kaby Lake
+`2026-10-13T*_darwin-x86_64_*`, Zen 4 `2026-10-14T0*_windows-x86_64_*`, M1
 `2026-10-14T04-39-37Z_darwin-arm64_*`). `tools/bench/table_ab_bench.cpp`
 then timed AUTO against forced VECTORIZED and PARALLEL for all 27
-distributions at ten sizes, old table against new, ABAB (M under load, Z
-mostly quiet). AUTO rows more than 1.25× behind their best forced strategy:
+distributions at ten sizes, old table against new, ABAB (M1 under load, Zen 4 mostly quiet). AUTO rows more than 1.25× behind their best forced strategy:
 
 | Table | Machine | Before → after | Commits | Evidence |
 |---|---|---|---|---|
@@ -36,10 +35,10 @@ Zen 4's capped builds had checked `kAvx2` and `kAvx` for direction first
 (196 → 46 and 164 → 31; the Zen 4 README). Kaby Lake's AUTO goes
 multi-threaded through WORK_STEALING, which beats PARALLEL below the
 profiled crossover; the rows stay PARALLEL-optimal because the tables serve
-Linux and Windows too (a v3 input; the Kaby Lake README). Two code changes
+Linux and Windows too (see the Kaby Lake README). Two code changes
 underlie the rows:
-PARALLEL below the fork threshold runs the VECTORIZED kernel (ee11e62; Z's
-R8 at that code is in `docs/bench-evidence/2026-10-06-zen4-clangcl-ee11e62-r8/`),
+PARALLEL below the fork threshold runs the VECTORIZED kernel (ee11e62; the Zen 4
+captures at that code are in `docs/bench-evidence/2026-10-06-zen4-clangcl-ee11e62-r8/`),
 and every strategy returns VECTORIZED's bits (045acd9, #191).
 
 ## v2.4.0 dispatch recalibration measurements (2026-09-03/04)
@@ -77,7 +76,7 @@ Two findings these numbers carry:
   slower x86 `vector_erf` leaves parallel a 1.3–2.1× win. Mechanism
   recorded at the kNeon table row; cross-repo follow-up corvus#37.
 
-Superseded 2026-10-14 (R8): no table encodes these rows NEVER now. Beta
+Superseded 2026-10-14: no table encodes these rows NEVER now. Beta
 PDF/LogPDF are 8192/10000 (`kNeon`), 4096/25000 (`kAvx`), 4096/8192
 (`kAvx2`), 8192/8192 (`kAvx512`); von Mises CDF, now a fixed-cost
 quadrature (96b157f), is 2048/4096/4096/8192; HalfNormal CDF on `kNeon` is
@@ -85,7 +84,7 @@ quadrature (96b157f), is 2048/4096/4096/8192; HalfNormal CDF on `kNeon` is
 
 ## v2.0.2 scipy comparison benchmark
 
-Cross-library throughput and accuracy comparison run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, scipy 1.18.0, numpy 2.4.4). Results capture the state after the `perf/dispatch-threshold-recalibration` threshold updates.
+Cross-library throughput and accuracy comparison run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, scipy 1.18.0, numpy 2.4.4). Results capture the state after the v2.0.2 threshold recalibration.
 
 ### Machines
 
@@ -126,7 +125,7 @@ Sub-unity ratios (<1×) indicate distributions with structural algorithm limitat
 
 ### Accuracy vs scipy (max relative error, N=50k uniform grid)
 
-All values are bit-identical between Zen4 and Kaby Lake **except VonMises PDF/LogPDF**, which differ due to the Bessel function Tier 1/Tier 2 selection:
+All values are bit-identical between Zen4 and Kaby Lake **except VonMises PDF/LogPDF**, which differed with the Bessel function Tier 1/Tier 2 selection (the difference ended in v2.5.0):
 
 | Distribution | pdf | log_pdf | cdf |
 |---|---|---|---|
@@ -156,7 +155,7 @@ python benchmarks/scipy_comparison.py --sizes 1000,5000,10000,20000,30000,40000,
 
 ## NEON threshold recalibration sweep
 
-Sweep run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, scipy 1.17.1, numpy 2.4.4) to identify and resolve `kNeon` dispatch threshold floor artefacts. Branch: `perf/dispatch-threshold-recalibration`.
+Sweep run via `pylibstats/benchmarks/scipy_comparison.py` (pylibstats v0.3.2, scipy 1.17.1, numpy 2.4.4) to identify and resolve `kNeon` dispatch threshold floor artefacts.
 
 ### Machine
 
@@ -215,8 +214,7 @@ Primitive speedups from the v1.5.x validation cycle:
 
 Evaluates whether a table-lookup + short-polynomial transcendental using
 hardware gather can beat the current SLEEF-derived polynomial
-`vector_exp`/`vector_log` (see the "Issue #33 Experiment" section in PLAN.md's git history for full gates
-and governance). Tool: `tools/gather_throughput_probe.cpp` (opt-in,
+`vector_exp`/`vector_log`. Tool: `tools/gather_throughput_probe.cpp` (opt-in,
 `LIBSTATS_BUILD_SIMD_DEV_TOOLS=ON`).
 
 ### Kaby Lake AVX2 result (2026-07-18): null result, closed
@@ -312,14 +310,12 @@ kernels are unchanged. Methodological note: the Stage 1-2 throughput probe was
 necessary but not sufficient -- it modeled a single-gather variant that cannot
 meet the accuracy floor, so only the full < 1 ULP kernel could settle the
 question. With this, the entire x86 half of Issue #33 Q2 is closed null (AVX2
-and AVX-512); only the NEON Q1 path (needs the M1) remains open.
+and AVX-512).
 
 ### NEON (Mac Mini M1) Q1 result (2026-07-19): exp productionized
 
-Following the Q1 prototype win (exp <1 ULP, ~+20% stream / ~+21% hot; see
-the "Issue #33 Experiment -> NEON Q1" section in PLAN.md's git history for the full prototype numbers),
-`vector_exp_neon` (`src/simd_neon.cpp`) was productionized on branch
-`experiment/issue-33-neon-table-transcendentals`: the 10-term SLEEF
+Following the Q1 prototype win (exp <1 ULP, ~+20% stream / ~+21% hot),
+`vector_exp_neon` (`src/simd_neon.cpp`) was productionized: the 10-term SLEEF
 polynomial body was replaced with the validated 2x-unrolled, tail-corrected
 N=128 table + order-5 polynomial kernel (software `vld1q` gather -- NEON has
 no hardware gather instruction). `vector_log_neon` was left unchanged at the time (perf-null, per the
@@ -328,8 +324,7 @@ clean-room table-anchored kernel (`docs/NEON_LOG_DERIVATION.md`), which
 supersedes that null.
 
 Accuracy vs the arch-neutral 1018-point mpmath correctly-rounded reference
-(`src/exp_ulp_vectors.inc`, renamed from `avx512_exp_ulp_vectors.inc` now that
-it backs a production regression test, `tests/test_simd_neon_exp_accuracy.cpp`):
+(`src/exp_ulp_vectors.inc`, used by the regression test `tests/test_simd_neon_exp_accuracy.cpp`):
 
 | Kernel | core (abs x ≤ 700) max | mean | IEEE edges |
 |---|---:|---:|---|
@@ -362,10 +357,7 @@ codebase: never re-read the input array after the corresponding store when
 in-place calls (`a == result`) are possible -- decide fixups only from
 already-loaded registers.
 
-With this, Issue #33 Q1 was complete: exp production on NEON; log was
-un-productionized at the time (since superseded — the clean-room log
-kernel is production on NEON). The entire Issue
-#33 experiment (x86 Q2 null, NEON Q1 exp win) is closed pending PR merge.
+Issue #33 is closed: x86 Q2 null, NEON Q1 exp win.
 
 ## Running benchmarks
 

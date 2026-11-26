@@ -4,7 +4,7 @@ This guide describes the v2.x public header layout.
 
 ![libstats header layering](architecture-layers.svg)
 
-Adjacency is the relationship: each band rests on the one below it.
+Each band rests on the one below it.
 `stats/analysis/` sits beside the stack because it consumes distributions
 without being part of `libstats.h`. Process-level detail (class hierarchy,
 batch dispatch, thread-safety cache, `Result<T>` factories) is in the four
@@ -61,8 +61,8 @@ Important v2.x core headers:
 
 Removed v1.x headers:
 
-- the old core statistical-utilities stub header
-- the old distribution-memory utility header
+- `core/statistical_utilities.h` (a stub; the live header is `stats/analysis/statistical_utilities.h`)
+- `core/distribution_memory.h`
 
 ## Distribution headers
 
@@ -176,7 +176,6 @@ identically with no shim, symlink, or copy step involved.
 
 Each implemented distribution provides: PDF/CDF/Quantiles, Statistical Moments, Parameter Estimation (MLE), Random Sampling, Statistical Validation, SIMD batch operations.
 
-Parenthetical notes record how each distribution is implemented — a
+Parenthetical notes record how each distribution is implemented (a
 delegation wrapper, a transform over another distribution, or a standalone
-pipeline — and the issue that introduced it. Moved here from AGENTS.md on
-2026-09-07: the roster is reference material, not per-turn orientation.
+pipeline) and the issue that introduced it.

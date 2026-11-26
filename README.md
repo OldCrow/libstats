@@ -2,9 +2,9 @@
 
 ---
 
-### v2.5.0 released
+### v2.5.1 released
 
-**v2.5.0 is the current release.** v1.5.3 was the final v1.x release.
+**v2.5.1 is the current release.** v1.5.3 was the final v1.x release.
 See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for breaking changes and upgrade instructions.
 
 v2.4.0 grows the library 19 → 27 distributions — Logistic, Gumbel,
@@ -25,23 +25,30 @@ every chunk before rethrowing, as `parallelFor` already did.
 v2.5.0 is a correctness and accuracy release — no source API change. Every
 distribution has a complement-native `getSurvival`; an mpmath sweep that
 now covers survival drove fixes to quantiles, deep tails and
-large-parameter densities; batch calls evaluate on one parameter snapshot; and parameter
-validation is one validator per distribution. Some results change: see the
+large-parameter densities; batch calls evaluate on one parameter snapshot; and each distribution
+has one parameter validator. Some results change: see the
 v2.4 → v2.5 section of [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) and
 [Contracts](#contracts) below. The dispatch-threshold tables were re-derived
 from fresh captures on all three fleet machines and verified by a loaded A/B.
 clang-cl is supported on Windows, and CI adds ThreadSanitizer and
 FMA-contraction legs.
 
+v2.5.1 is a patch over v2.5.0 — no API change. It fixes the Cauchy quantile
+at subnormal p, Gaussian `fit()`'s between-chunk variance on the parallel
+path, and the core counts and default grain the thread pools are sized
+from on older Intel CPUs; defines `ExponentialDistribution::setParameters(double)`;
+and adds Ivy Bridge (AVX, Linux) as a fourth validated machine. See
+[CHANGELOG.md](CHANGELOG.md).
+
 ---
 
-[![Version](https://img.shields.io/badge/version-v2.5.0-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.5.0)
+[![Version](https://img.shields.io/badge/version-v2.5.1-brightgreen.svg)](https://github.com/OldCrow/libstats/releases/tag/v2.5.1)
 [![CI](https://github.com/OldCrow/libstats/actions/workflows/ci.yml/badge.svg)](https://github.com/OldCrow/libstats/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/OldCrow/libstats/graph/badge.svg)](https://codecov.io/gh/OldCrow/libstats)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/std/the-standard)
 [![CMake](https://img.shields.io/badge/CMake-3.25%2B-blue.svg)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Safety](https://img.shields.io/badge/Memory%20Safety-Enterprise%20Grade-green.svg)](#-safety--numerical-stability)
+[![Safety](https://img.shields.io/badge/Memory%20Safety-RAII-green.svg)](#-safety--numerical-stability)
 [![Performance](https://img.shields.io/badge/Performance-SIMD%20%26%20Parallel-blue.svg)](#-performance-features)
 
 A modern C++20 statistical distributions library demonstrating how to build statistical software correctly — with genuine SIMD vectorization, parallel dispatch, thread safety, and zero external dependencies.
@@ -114,7 +121,7 @@ A modern C++20 statistical distributions library demonstrating how to build stat
 - **C++20 Parallel Algorithms**: Safe wrappers for `std::execution` policies
 - **Cache Optimization**: Thread-safe caching under a reader-writer lock; batch calls evaluate on one parameter snapshot
 
-**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/AVX-512/NEON instruction sets with runtime safety verification. Validated on Intel Kaby Lake (AVX2+FMA natively; the AVX tier via a `LIBSTATS_MAX_SIMD_TIER=AVX` capped build), Apple Silicon (M1/NEON), AMD Ryzen Zen 4 (AVX-512), and Linux CI.
+**📖 Cross-Platform SIMD Support**: Automatic detection and optimization for SSE2/AVX/AVX2/AVX-512/NEON instruction sets with runtime safety verification. Validated natively on Intel Ivy Bridge (AVX), Intel Kaby Lake (AVX2+FMA), Apple Silicon (M1/NEON) and AMD Ryzen Zen 4 (AVX-512), and in Linux CI.
 
 ## Quick Start
 
@@ -208,7 +215,7 @@ Headers depend strictly downward through six layers; `stats/analysis/` sits besi
 - Thread-safe batch operations with work-stealing pools
 - Smart caching and adaptive algorithm selection
 
-### 🛡️ **Enterprise Safety**
+### 🛡️ **Safety**
 - Memory-safe operations with comprehensive bounds checking
 - Exception-safe error handling with safe factory methods
 - Thread-safe concurrent access with reader-writer locks
@@ -400,12 +407,7 @@ See [`consumer_example/`](consumer_example/) for a complete `find_package` proje
 
 ## Current State
 
-v2.5.0 is the latest tagged release, a correctness and accuracy release over
-v2.4.1 with no source API change. v2.4.0 added eight distributions —
-Logistic, Gumbel, Half-Normal, Truncated Normal, Bernoulli, Erlang,
-Fisher F, and Inverse-Gamma — with per-tier dispatch thresholds
-recalibrated from native profiling on all three fleet machines.
-v1.5.3 was the final v1.x release.
+v2.5.1 is the latest tagged release: a patch over v2.5.0. v1.5.3 was the final v1.x release.
 
 **27 distributions across 7 families** (symmetric, asymmetric unbounded, positive-support, power-law, bounded, circular, discrete) — each with a complete interface:
 - PDF, log-PDF, CDF, survival, hazard, quantile, sampling, MLE (`fit()`), and `parallelBatchFit()`
@@ -413,7 +415,7 @@ v1.5.3 was the final v1.x release.
 - Profiling-derived architecture-aware parallel dispatch thresholds
 - Thread-safe caching under a reader-writer lock; batch calls evaluate on one parameter snapshot
 
-**Validated on four SIMD tiers:** AVX (capped build on Kaby Lake — the Ivy Bridge machine is retired), AVX2+FMA (Kaby Lake), NEON (Apple M1), AVX-512 (AMD Zen 4). 70/70 SIMD verification tests pass on every fleet machine.
+**Validated natively on four SIMD tiers:** AVX (Intel Ivy Bridge, Linux), AVX2+FMA (Kaby Lake), NEON (Apple M1), AVX-512 (AMD Zen 4). `simd_verification` passes on every fleet machine. The Ivy Bridge machine left the fleet with macOS Catalina at v2.0.0 and returned under Linux in November 2026; between those dates the AVX tier was validated through a capped build on Kaby Lake.
 
 For the full release history, see [CHANGELOG.md](CHANGELOG.md).
 

@@ -10,7 +10,7 @@ This document describes the v2.x test organisation.
 | Timing-sensitive | `timing` | Run serially on a quiet machine |
 | Benchmark | `benchmark` | Not part of normal correctness validation |
 
-At v2.5.0, `ctest -N` lists 148 tests: 132 correctness, 14 `timing` and 2
+At v2.5.1, `ctest -N` lists 148 tests: 132 correctness, 14 `timing` and 2
 `benchmark`. The `run_tests_correctness` target runs 122 of the 132: it also
 excludes tests whose names match `stress|comprehensive|dynamic|_fix|parallel_compilation`.
 
@@ -38,8 +38,8 @@ still exists.
   `test_concurrency_gates`, `test_simd_dispatch_gates`, `test_trig_ulp_gates`,
   `test_log_special_gates`; `test_parallel_batch_gates` is `timing`).
 - Accuracy gates against high-precision references: checked-in vectors from
-  `scripts/gen_*_vectors.py` (mpmath at 40 digits; the von Mises, Gaussian
-  and LogNormal CDFs and the SIMD trig/exp/log kernels), and tests with
+  `scripts/gen_*_vectors.py` (mpmath: 40 digits for the von Mises, Gaussian
+and LogNormal CDFs; 200- to 320-bit precision for the SIMD trig/exp/log kernels), and tests with
   mpmath reference values in the source (`test_gamma_density_accuracy`,
   `test_gamma_quantile_accuracy`, `test_incomplete_gamma_beta_accuracy`,
   `test_probit_accuracy`, `test_tail_and_tie_accuracy`,
@@ -78,8 +78,7 @@ Distribution-specific analysis coverage:
 
 ## Copy/move tests
 
-Concurrent copy/move stress-testing lives in the TOOL
-`tools/copy_move_stress.cpp` (it replaced the old `test_copy_move_stress.cpp`),
+Concurrent copy/move stress testing lives in `tools/copy_move_stress.cpp`,
 covering all 27 distributions under multi-threaded copy/move load. The
 `noexcept`-move static assertions
 (`std::is_nothrow_move_constructible_v<D>` / `_assignable_v<D>`) live in

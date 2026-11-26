@@ -88,7 +88,7 @@ if(APPLE)
     endif()
 endif()
 
-project(libstats VERSION 2.5.0 LANGUAGES CXX)
+project(libstats VERSION 2.5.1 LANGUAGES CXX)
 
 # GNUInstallDirs gives platform-correct, packager-overridable destinations (e.g. lib64 on some Linux
 # distros) instead of hardcoded lib/bin/include. Included here (rather than down by the install()

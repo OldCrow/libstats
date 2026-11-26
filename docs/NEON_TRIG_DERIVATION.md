@@ -33,7 +33,7 @@ attempts' constants and structures differ throughout.
 
 Write `x = n·(π/2) + r` with `n = round(x·2/π)` (round to nearest), so
 `|r| ≤ π/4` (up to a hair more when the computed `n` differs from the ideal
-one; see §3.5). Only `q = n mod 4` matters for recombination, because
+one; see §3.4). Only `q = n mod 4` matters for recombination, because
 `sin`/`cos` have period `2π = 4·(π/2)`.
 
 ### 1.1 Quadrant table (from the angle-addition identities)
@@ -181,8 +181,7 @@ inside half an ulp. The cos path needs **no** shortcut: with `n = 0` its
 split head `h = fl(1 − x²/2)` (§4.4) is already the correctly-rounded
 cos for small `|x|` (and exactly 1 once `x²/2 < 2^−55`). An earlier draft
 used a cos shortcut with threshold 2^−26 and the harness caught it: for
-`x ∈ [2^−26.5, 2^−26)` the correct answer is `1 − 2^−53`, not 1 — a nice
-demonstration that the reference harness bites.
+`x ∈ [2^−26.5, 2^−26)` the correct answer is `1 − 2^−53`, not 1.
 
 ---
 
@@ -261,7 +260,7 @@ from 0.98–1.7 to 0.78 ULP.
 
 ---
 
-## 6. Design-space exploration (measured on this M1)
+## 6. Design-space exploration (measured on an Apple M1)
 
 Uniform = 3500 points as in `gen_coeffs.py`; stress = 14 000 near-`k·π/2`
 points; ULP vs correctly-rounded 320-bit references (with stored low-order

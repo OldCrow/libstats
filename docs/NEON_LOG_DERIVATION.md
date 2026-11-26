@@ -42,9 +42,8 @@ integer computation
 
     j = (F + 2^(51-K)) >> (52-K).
 
-Exactness: `F + 2^(51-K) < 2^52 + 2^51` never overflows 64 bits; the shift
-implements floor((F + h)/2h * ... ) — precisely, with s = 2^(52-K),
-`(F + s/2) >> (52-K) = floor((F + s/2)/s) = round(F/s)` (ties rounded up),
+Exactness: `F + 2^(51-K) < 2^52 + 2^51` never overflows 64 bits; with s = 2^(52-K),
+the shift computes `(F + s/2) >> (52-K) = floor((F + s/2)/s) = round(F/s)` (ties rounded up),
 which is round(N*(m-1)). Hence
 
     |m - r_j| <= 1/(2N),    j in [0, N]
@@ -202,7 +201,7 @@ approximation theory (`mp.chebyfit`, a generic fitting utility). Result:
 total degree 6 with relative error 2^-53.8, a 3-bit (=8x) gain over the
 degree-6 Taylor truncation, matching the ~2^(d-2) Chebyshev-vs-Taylor
 factor. Measured: max 0.71 ulp (§10) — one FMA cheaper than deg-7 Taylor
-but above the deg-7 accuracy; kept as a documented alternative.
+but less accurate; kept as a documented alternative.
 
 Evaluation: Horner in t for q (all FMA), then `p = t^2 * q(t)`. Horner
 rounding is a few ulp of |q| ~ 1/2 scaled by t^2, i.e. O(2^-53)*|p| with

@@ -30,7 +30,7 @@ this comparison does not feed back into the authored code.
    attempt_A author saw a few headline choices of attempt B (its D_max = 2^20,
    32-bit split parts, chebyfit usage). Every corresponding attempt_A choice was on
    disk with earlier mtimes (01:44–01:45 vs 01:55+) before the exposure; details in
-   attempt_A/DERIVATION.md's provenance note. Attempt B was stopped and its artifacts
+   the provenance note in docs/NEON_TRIG_DERIVATION.md. Attempt B was stopped and its artifacts
    preserved unused in `attempt_B_stopped/`; attempt B's own independence is
    *not* certified (it began execution amid attempt A's existing files) and it must
    not be integrated without its own audit.
@@ -50,7 +50,7 @@ this comparison does not feed back into the authored code.
    - `D_max = 2^23` in both. Convergent, not copied: ARM's `range_val = 0x1p23` bounds
      its scheme's fast path; attempt_A *derives* 2^23 from its own 30-significant-bit
      split parts (products `n·p_k` exact for `|n| < 2^(53−30) = 2^23`, and
-     `n_max = round(2^23·2/π) = 5,340,354 < 2^23`), documented in DERIVATION.md §2
+     `n_max = round(2^23·2/π) = 5,340,354 < 2^23`), documented in docs/NEON_TRIG_DERIVATION.md §2
      before any exposure to anything. 2^23 is a natural binade bound for
      double-precision trig reduction; the rationales are different and independent.
    - Applying quadrant sign by shifting a quadrant bit to position 63 and XOR-ing:
@@ -81,7 +81,7 @@ this comparison does not feed back into the authored code.
   the bit-width choice, and the error analysis are attempt_A's own.
 - **Rounding mode for n**: ARM `vrndaq` (round-away); attempt_A `vrndnq`
   (round-to-nearest-even, with a derived argument for why plain rounding suffices,
-  DERIVATION.md §3.4).
+  docs/NEON_TRIG_DERIVATION.md §3.4).
 - **Polynomial coefficients**: both use degree-6 odd sin cores, but on different
   intervals ([0,(π/4)²] vs ARM's π-reduction interval), and every coefficient's tail
   digits differ (e.g. attempt_A `-0x1.a01a01a019938p-13` vs ARM
@@ -95,7 +95,7 @@ this comparison does not feed back into the authored code.
 - **Accuracy class**: ARM documents ~2.7–2.8 (+0.5) ULP bounds; attempt_A measures
   0.78 ULP uniform / 0.50 ULP stress maxima. The clean-room implementation is not a
   re-expression of ARM's design point — it occupies a different (more accurate,
-  compensated) point in the design space, which is the program's purpose.
+  compensated) point in the design space, which is the purpose of the replacement.
 
 ## Scope and verdict
 Compared against: ARM optimized-routines advsimd `sin.c`/`cos.c` (the upstream family

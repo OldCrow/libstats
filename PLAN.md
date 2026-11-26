@@ -194,8 +194,9 @@ second compiler's sweep is optional and goes in the evidence only.
    2.336e-13 to 2.333e-13. A row outside `cauchy` moving, or a `cauchy`
    row moving by more than that scale, is a stop-and-report.
 4. Keep the diff for the release PR; do not commit the regenerated block
-   on your own. Whether the four blocks are regenerated for v2.5.1 or the
-   diff is only recorded is the user's decision once the diffs are in.
+   on your own. **Decided [user, 2026-11-25]: the four blocks are
+   regenerated for v2.5.1.** The release branch applies each machine's
+   kept diff.
 
 ### What each machine reports
 
@@ -217,6 +218,20 @@ that is more than a line goes under
 `docs/bench-evidence/<date>-<machine>-v2.5.1/`.
 
 ### After the legs — the release PR (one machine, after all four report)
+
+**State [Z, 2026-11-25].** All four machines have reported. Steps 1–4 are
+done on branch `release/v2.5.1` from `main` at `73ac916`: version 2.5.1;
+both Windows builds fresh and warning-free with correctness 132/132 each
+at the bumped version; the 2.5.1 CHANGELOG section written by hand
+(`git-cliff` is not installed on Z); the validation matrix; the four
+accuracy blocks regenerated from the kept diffs, with a "v2.5.1" section
+in the document; the version in `AGENTS.md` and `README.md`. Mentions of
+v2.5.0 that describe that release were left as they are. The branch also
+carries a documentation review pass [user, 2026-11-25] over 22 other
+documents: stale facts corrected against the tree, internal step
+identifiers and decision tags removed from reference documents, and
+wording tightened; `PLAN.md`, the evidence READMEs and past changelog
+entries were out of scope. Step 5 onward waits on the user's go-ahead.
 
 1. `CMakeLists.txt`: `project(libstats VERSION 2.5.1 ...)`; rebuild and
    rerun P1 step 3 on that machine, since the generated version header
