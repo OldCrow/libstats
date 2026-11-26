@@ -275,7 +275,15 @@ class ParallelUtils {
     /// remainder below a kernel's SIMD minimum would otherwise run that
     /// kernel's scalar fallback, and one call would mix two kernels (#191).
     ///
+    /// One pool task per thread (#323): each task runs a contiguous run of
+    /// ceil(S / T) whole slices, S the slice count and T the pool's thread
+    /// count, and calls task once per slice; the last task takes what is left.
+    /// One task per slice cost ceil(S / T) rounds of the pool with a last
+    /// round that left threads idle (T + 1 slices took two rounds). The
+    /// (start, len) pairs task receives are unchanged, so results are too.
+    ///
     /// Exception contract: identical to parallelFor (#118) on both branches.
+    /// A task that throws skips the rest of its own run of slices.
     template <typename Func>
     static void parallelForSlices(std::size_t count, std::size_t slice, Func&& task) {
         if (count == 0)
@@ -287,13 +295,15 @@ class ParallelUtils {
             return;
         }
         const std::size_t num_slices = std::max<std::size_t>(1, count / slice);
+        const std::size_t numThreads =
+            std::max<std::size_t>(1, ThreadPool::getOptimalThreadCount());
         parallelForUngated(
             std::size_t{0}, num_slices,
             [&task, slice, count, num_slices](std::size_t ci) {
                 const std::size_t begin = ci * slice;
                 task(begin, ci + 1 == num_slices ? count - begin : slice);
             },
-            std::size_t{1});
+            (num_slices + numThreads - 1) / numThreads);  // grain, in slices
     }
 
    private:

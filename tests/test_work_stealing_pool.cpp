@@ -311,3 +311,32 @@ TEST(WorkStealingPool, ParallelForPerCallFencePreventsDataRace) {
     std::cout << "  Per-call fence verified: sum=" << sum.load() << " (expected " << data.size()
               << ")\n";
 }
+
+// Slice sizing (#323, within #191). parallelForSlices submits one task per worker, each a
+// contiguous run of ceil(S / T) whole slices, where it used to aim for four tasks per worker.
+// The task count is read from the pool's own statistics, so the check is exact: 9 slices on 4
+// workers are 3 tasks of 3 (the old sizing: 9 tasks), 13 slices are 4 tasks (4, 4, 4, 1).
+TEST(WorkStealingPool, ParallelForSlicesSubmitsOneTaskPerWorker) {
+    constexpr std::size_t kWorkers = 4;
+    WorkStealingPool pool(kWorkers);
+    const std::size_t slice = stats::arch::get_min_elements_for_parallel();
+    for (const std::size_t numSlices : {std::size_t{4}, std::size_t{9}, std::size_t{13}}) {
+        const std::size_t perTask = (numSlices + kWorkers - 1) / kWorkers;
+        const std::size_t count = numSlices * slice + slice / 2;
+        std::vector<std::size_t> lengths(numSlices, 0);
+        std::atomic<int> badStarts{0};
+        pool.resetStatistics();
+        pool.parallelForSlices(count, slice, [&](std::size_t start, std::size_t len) {
+            if (start % slice != 0 || start / slice >= numSlices)
+                badStarts.fetch_add(1);
+            else
+                lengths[start / slice] = len;  // one writer per slice
+        });
+        pool.waitForAll();  // tasksExecuted is counted after a task's latch releases the caller
+        EXPECT_EQ(badStarts.load(), 0) << "a slice started off a slice multiple (#191)";
+        for (std::size_t s = 0; s < numSlices; ++s)
+            EXPECT_EQ(lengths[s], s + 1 == numSlices ? slice + slice / 2 : slice) << "slice " << s;
+        EXPECT_EQ(pool.getStatistics().tasksExecuted, (numSlices + perTask - 1) / perTask)
+            << numSlices << " slices on " << kWorkers << " workers";
+    }
+}

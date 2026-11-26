@@ -101,6 +101,10 @@ class WorkStealingPool {
      * ParallelUtils::parallelForSlices). Below the gate the whole range is
      * handed to func as ONE slice. Shares parallelFor's exception contract
      * (swallow; the latch must always decrement).
+     *
+     * One pool task per worker (#323), as in ParallelUtils::parallelForSlices:
+     * each task runs a contiguous run of ceil(S / T) whole slices and calls
+     * func once per slice. The (start, len) pairs func receives are unchanged.
      */
     template <typename Func>
     void parallelForSlices(std::size_t count, std::size_t slice, Func func);
@@ -301,11 +305,10 @@ void WorkStealingPool::parallelForSlices(std::size_t count, std::size_t slice, F
     // ParallelUtils::parallelForSlices: a remainder below a kernel's SIMD
     // minimum would run its scalar fallback and mix kernels in one call (#191).
     const std::size_t num_slices = std::max<std::size_t>(1, count / slice);
-    // Grain is in SLICE units here; aim for ~4 tasks per worker rather than
-    // letting the impl's element-denominated auto-grain lump the whole range
-    // into a handful of tasks.
-    const std::size_t grain =
-        std::max<std::size_t>(1, num_slices / (std::max<std::size_t>(1, getThreadCount()) * 4));
+    // Grain is in SLICE units here: one task per worker, each a contiguous run
+    // of ceil(S / T) whole slices (#323).
+    const std::size_t numWorkers = std::max<std::size_t>(1, getThreadCount());
+    const std::size_t grain = (num_slices + numWorkers - 1) / numWorkers;
     parallelForImpl(
         std::size_t{0}, num_slices,
         [func, slice, count, num_slices](std::size_t ci) {

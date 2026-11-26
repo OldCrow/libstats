@@ -10,17 +10,20 @@
  */
 
 // Standard library includes
+#include <atomic>   // for std::atomic
 #include <chrono>   // for std::chrono::high_resolution_clock
 #include <cmath>    // for mathematical functions
 #include <fstream>  // for std::ifstream (/proc/self/io)
 #include <future>   // for std::future, std::async
 #include <gtest/gtest.h>
-#include <iomanip>   // for std::setprecision
-#include <iostream>  // for std::cout, std::endl
-#include <numeric>   // for std::iota, std::accumulate
-#include <random>    // for std::random_device, std::mt19937
-#include <thread>    // for std::thread
-#include <vector>    // for std::vector
+#include <iomanip>    // for std::setprecision
+#include <iostream>   // for std::cout, std::endl
+#include <numeric>    // for std::iota, std::accumulate
+#include <random>     // for std::random_device, std::mt19937
+#include <stdexcept>  // for std::runtime_error
+#include <string>     // for std::to_string
+#include <thread>     // for std::thread
+#include <vector>     // for std::vector
 
 // Include the enhanced thread_pool.h with Level 0-2 integration
 #include "libstats/platform/thread_pool.h"
@@ -788,6 +791,69 @@ TEST(ThreadPoolIntegration, PerformanceScaling) {
 TEST(ThreadPoolIntegration, DocumentationExamples) {
     ThreadPoolTest t;
     t.testDocumentationExamples();
+}
+
+// Slice sizing (#323, within #191 and #118). parallelForSlices gives each pool thread one task: a
+// contiguous run of ceil(S / T) whole slices. Before, every slice was its own task, so T + 1
+// slices took two rounds of the pool. Checked: the (start, len) pairs are the #191 ones (every
+// start a slice multiple, none shorter than a slice, the remainder folded into the last), and the
+// slices of one run execute on one thread. The 1 ms body makes the old one-task-per-slice code
+// spread a run over several threads, which fails the second check.
+TEST(ThreadPoolIntegration, ParallelForSlicesRunsOneTaskPerThread) {
+    const std::size_t threads = stats::ThreadPool::getOptimalThreadCount();
+    if (threads < 2)
+        GTEST_SKIP() << "one pool thread: every slice shares it";
+    const std::size_t slice = stats::arch::get_min_elements_for_parallel();
+    const std::size_t numSlices = 2 * threads + 1;  // not a multiple of the thread count
+    const std::size_t perTask = (numSlices + threads - 1) / threads;
+    const std::size_t count = numSlices * slice + slice / 2;
+
+    std::vector<std::size_t> lengths(numSlices, 0);
+    std::vector<std::thread::id> ranOn(numSlices);
+    std::atomic<int> badStarts{0};
+    stats::ParallelUtils::parallelForSlices(count, slice, [&](std::size_t start, std::size_t len) {
+        if (start % slice != 0 || start / slice >= numSlices) {
+            badStarts.fetch_add(1);
+            return;
+        }
+        lengths[start / slice] = len;  // one writer per slice
+        ranOn[start / slice] = std::this_thread::get_id();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    });
+
+    EXPECT_EQ(badStarts.load(), 0) << "a slice started off a slice multiple (#191)";
+    for (std::size_t s = 0; s < numSlices; ++s) {
+        EXPECT_EQ(lengths[s], s + 1 == numSlices ? slice + slice / 2 : slice) << "slice " << s;
+        const std::size_t runStart = (s / perTask) * perTask;
+        EXPECT_EQ(ranOn[s], ranOn[runStart])
+            << "slice " << s << " ran on another thread than slice " << runStart
+            << ", the first of its run of " << perTask << " (#323)";
+    }
+}
+
+// The #118 contract under the new sizing: every task is waited for, then the first exception in
+// task order reaches the caller. A throwing slice skips the rest of its own run only.
+TEST(ThreadPoolIntegration, ParallelForSlicesWaitsForAllThenRethrowsFirst) {
+    const std::size_t threads = stats::ThreadPool::getOptimalThreadCount();
+    const std::size_t slice = stats::arch::get_min_elements_for_parallel();
+    const std::size_t numSlices = 2 * threads + 1;
+    const std::size_t perTask = (numSlices + threads - 1) / threads;
+    std::vector<std::atomic<int>> ran(numSlices);
+    try {
+        stats::ParallelUtils::parallelForSlices(numSlices * slice, slice,
+                                                [&](std::size_t start, std::size_t) {
+                                                    const std::size_t s = start / slice;
+                                                    ran[s].store(1);
+                                                    if (s % perTask == 0)
+                                                        throw std::runtime_error(std::to_string(s));
+                                                });
+        FAIL() << "no exception reached the caller";
+    } catch (const std::runtime_error& e) {
+        EXPECT_STREQ(e.what(), "0") << "not the first task's exception";
+    }
+    // Every task ran its first slice (so all were waited for) and stopped there.
+    for (std::size_t s = 0; s < numSlices; ++s)
+        EXPECT_EQ(ran[s].load(), s % perTask == 0 ? 1 : 0) << "slice " << s;
 }
 
 #if defined(__linux__)
