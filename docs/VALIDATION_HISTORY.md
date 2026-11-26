@@ -1,20 +1,57 @@
 # libstats Validation History
 
 Historical per-version validation matrices and SIMD speedup benchmarks, extracted from
-`AGENTS.md` to keep that file lean for session start. `AGENTS.md` keeps only the
-current-release validation matrix and current deferred items; this file holds everything
-prior. For detailed per-version change narratives, see `CHANGELOG.md` (auto-generated via
+`AGENTS.md` to keep that file lean for session start. `AGENTS.md` keeps no validation
+matrix; this file holds every one. For detailed per-version change narratives, see `CHANGELOG.md` (auto-generated via
 git-cliff). For SIMD methodology, see `docs/SIMD_OPTIMIZATION_REFERENCE.md` and
 `docs/SIMD_BENCHMARK_RESULTS.md`.
 
 ## Validation matrices by release
+
+### v2.5.1 — validation matrix
+
+Patch over v2.5.0 from `main`; no API change. Every machine validated code
+identical to `7069adc` (its own checkout differs in documents only), with a
+fresh Release configure. Correctness column = `ctest -LE "timing|benchmark"`
+(132 registered). The scope is v2.5.0's matrix less what a patch does not
+need: no dispatch-table re-derivation, no cost bench against the previous
+release, no separate concurrency stress leg (CI's ThreadSanitizer and
+ASan/UBSan legs ran at `7069adc`). Evidence directories are under
+`docs/bench-evidence/`.
+
+| Machine | SIMD | Correctness | Timing | Notes |
+|---|---|---|---|---|
+| Asus TUF A16 (Windows 11) | AVX-512 | 132/132 ✅ MSVC 19.52 (toolset 14.52) and clang-cl 22.1.3 | 14/14 ✅ (clang-cl, quiet, boost) | Native, 2026-11-23, at `b5f0311`. 0 warnings each; 12 logical and 6 physical cores read. `simd_verification` 140 pass, 0 fail each. Each timing binary opted out of power throttling, CPU 6.1% at the start, clock probe 127 ms before and after. clang-cl sweep: 26,882 rows, 190 self-checks, 0 contract violations; the MSVC sweep 0 too. v2.5.0 was validated with toolset 14.51. `2026-11-23-zen4-v2.5.1/`. |
+| Kaby Lake (2017 MBP, macOS 13.7.8) | AVX2+FMA | 132/132 ✅ | 14/14 ✅ | Native, 2026-11-23, at `3dd8358`, AppleClang 15.0.0. 0 warnings; 8 logical and 4 physical cores read. `simd_verification` 140 pass, 0 fail. Timing with the screen locked, load 1.38 at the start. Sweep: 26,882 rows, 190 self-checks, 0 contract violations. `2026-11-23-kabylake-v2.5.1/`. |
+| Mac Mini M1 (macOS 27.2.1) | NEON | 132/132 ✅ | 14/14 ✅ | Native, 2026-11-24, at `53cef69`, AppleClang 21.0.0. 0 warnings; 8 logical and 8 physical cores read. `simd_verification` 140 pass, 0 fail. Timing with the screen locked, ambient CPU 4.8% at the start, fourteen background processes suspended for the run. Sweep: 26,882 rows, 190 self-checks, 0 contract violations. `2026-11-24-m1-v2.5.1/`. |
+| MacBook Pro 9,1 (2012), Linux Mint 22.3 | AVX (no FMA) | 132/132 ✅ GCC 13.3.0 and Clang 18.1.3 | 14/14 ✅ each (quiet) | Native, 2026-11-23, at `51e1390`. 0 warnings each; 8 logical and 4 physical cores read (16 at the 2026-11-16 baseline, #289); 131/132 at that baseline (#288). `simd_verification` 140 pass, 0 fail each. Timing at a 1-minute load of 0.29, governor `schedutil`: this machine's first timing run on `main`. GCC sweep: 26,882 rows, 190 self-checks, 0 contract violations. `2026-11-23-ivybridge-v2.5.1/`. |
+
+Zen 4 rebuilt both compilers after the version bump, which regenerates the
+version header, and reran the correctness suite: 132/132 each.
+
+All four `isa=` blocks of `docs/ACCURACY_CHARACTERIZATION.md` are regenerated
+from these sweeps. In each, the banner and seven `cauchy` rows change and
+nothing else (#316): quantile max_abs 5.403e+289 → 1.505e+289 with max_rel
+unchanged; the cdf, pdf and logpdf rows move by an ulp or two because the
+sweep builds their x grid from the quantile.
+
+New gates, all inside the correctness run: `ContractGates.Issue268_…` and
+`ContractGates.Issue316_…` on every machine, and
+`ThreadPoolIntegration.OptimalThreadCountMakesNoSystemCallPerCall` on Linux.
+
+Not in this release: #156 (the throughput of the special-function CDFs and
+quantiles, gated on the corvus adoption) and the thread-pool wake-up work, both
+v3.0.0.
 
 ### Post-v2.5.0 — Ivy Bridge AVX baseline on Linux (2026-11-16)
 
 Fourth fleet machine, at `main` `321bb98` (`src/` and `include/` identical
 to the `v2.5.0` tag). Pre-swap baseline for the corvus adoption (v3.0.0),
 not a release matrix. Machine in normal use, so no timing column: the 14
-timing tests and every bench are owed on a quiet machine.
+timing tests and the benches were not run (v2.5.1's matrix has the first
+quiet timing run). The machine validated the AVX tier under macOS Catalina
+through v1.5.x, left the fleet when v2.0.0 raised the macOS minimum, and
+returned here under Linux.
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
@@ -24,7 +61,7 @@ This is the AVX tier's first run on a CPU that selects it by CPUID since
 v1.5.2, and its first on Linux. It is a confirmation, not a first
 validation: `TrigUlpGates.Avx` gates the same `-mavx` kernels on any CPU
 with AVX, so Kaby Lake and Zen 4 ran it at v2.5.0. The capped
-`LIBSTATS_MAX_SIMD_TIER=AVX` trees there were timed (R8), not gated, so the
+`LIBSTATS_MAX_SIMD_TIER=AVX` trees there were timed, not gated, so the
 suite, `simd_verification` and the accuracy sweep through the AVX tier are
 new here.
 
@@ -32,20 +69,20 @@ new here.
 
 Correctness column = `ctest -LE "timing|benchmark"` (132 registered at v2.5.0;
 the 14 timing tests are the `*_timing` binaries split out by `4eb0816`). Every
-machine validated at the code head `d1adc95` (fix-9 round `8d3c9c7`), then again
-at its own dispatch-table header (R8, below). Evidence directories are under
-`docs/bench-evidence/`; the R8 bundles under `data/profiles/dispatcher/`.
+machine validated at the code head `d1adc95` (`8d3c9c7` included), then again
+at its own dispatch-table header ("Dispatch tables" below). Evidence directories are under
+`docs/bench-evidence/`; the dispatch-table bundles under `data/profiles/dispatcher/`.
 
 | Machine | SIMD | Correctness | Timing | Notes |
 |---|---|---|---|---|
-| Asus TUF A16 (Windows 11) | AVX-512 | 132/132 ✅ MSVC 14.51 and clang-cl 22.1.3 | 14/14 ✅ (clang-cl, quiet, boost) | Native, 2026-10-13/15. Fresh configures, 0 warnings. R9 stress 109 passed + 27 skipped (the work-stealing probe, unreachable on Windows) under both compilers. `isa=AVX-512` block regenerated from the clang-cl sweep (`85e1350`): 26,882 rows, 190 oracle self-checks, 0 contract violations; the MSVC sweep through the same oracle, 0. R8 four tiers (`2026-10-14T0*_windows-*`), table A/B five rounds (`2026-10-15-zen4-threshold-rows/`), R1 again at the kAvx512 header `6c149f1`: 132/132 both compilers, gates 0.235–0.254. Every timing process opted out of power throttling (below). |
-| Kaby Lake (2017 MBP, macOS 13.7.8) | AVX2+FMA | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 15 Release (`34baa1f`). R9 under ThreadSanitizer: stress 136/136, the whole correctness suite, 0 reports (`2026-10-14-kabylake-r9-tsan/`). `isa=AVX2` block regenerated (`fab7345`): 26,882 rows, 0 contract violations. R8 AVX2, AVX, SSE2 (`2026-10-13T*_darwin-*`); R3 costs (`2026-10-14-kabylake-v242-cost/`). Table A/B for kAvx2/kAvx three rounds (`2026-10-15-kabylake-threshold-rows/`), R1 at its header `4c3a133`: 0 warnings, 132/132, gates 0.270–0.296, timing 14/14. |
-| Mac Mini M1 (macOS 27.0.1) | NEON | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 21 Release, outside the sandbox (`10a7ff7`). Quiet batch gates 0.21–0.26. R9 under ThreadSanitizer: stress 109 + 27 skipped, 0 reports (`2026-10-14-m1-concurrency/`). `isa=NEON` block regenerated (`ea3e4f3`): 26,882 rows, 0 contract violations. R8 NEON bundle (2026-10-14); table A/B four rounds (`2026-10-14-m1-threshold-rows/`), R1 at the kNeon header `bb9ac0b`: 0 warnings, 132/132, gates 0.21–0.22. |
+| Asus TUF A16 (Windows 11) | AVX-512 | 132/132 ✅ MSVC 14.51 and clang-cl 22.1.3 | 14/14 ✅ (clang-cl, quiet, boost) | Native, 2026-10-13/15. Fresh configures, 0 warnings. Stress suite 109 passed + 27 skipped (the work-stealing probe, unreachable on Windows) under both compilers. `isa=AVX-512` block regenerated from the clang-cl sweep (`85e1350`): 26,882 rows, 190 oracle self-checks, 0 contract violations; the MSVC sweep through the same oracle, 0. Dispatch captures for four tiers (`2026-10-14T0*_windows-*`), table A/B five rounds (`2026-10-15-zen4-threshold-rows/`), correctness again at the kAvx512 header `6c149f1`: 132/132 both compilers, gates 0.235–0.254. Every timing process opted out of power throttling (below). |
+| Kaby Lake (2017 MBP, macOS 13.7.8) | AVX2+FMA | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 15 Release (`34baa1f`). Stress suite under ThreadSanitizer: 136/136, the whole correctness suite, 0 reports (`2026-10-14-kabylake-r9-tsan/`). `isa=AVX2` block regenerated (`fab7345`): 26,882 rows, 0 contract violations. Dispatch captures for AVX2, AVX, SSE2 (`2026-10-13T*_darwin-*`); cost bench (`2026-10-14-kabylake-v242-cost/`). Table A/B for kAvx2/kAvx three rounds (`2026-10-15-kabylake-threshold-rows/`), correctness at its header `4c3a133`: 0 warnings, 132/132, gates 0.270–0.296, timing 14/14. |
+| Mac Mini M1 (macOS 27.0.1) | NEON | 132/132 ✅ | 14/14 ✅ | Native, 2026-10-13/14, AppleClang 21 Release, outside the sandbox (`10a7ff7`). Quiet batch gates 0.21–0.26. Stress suite under ThreadSanitizer: 109 + 27 skipped, 0 reports (`2026-10-14-m1-concurrency/`). `isa=NEON` block regenerated (`ea3e4f3`): 26,882 rows, 0 contract violations. NEON dispatch bundle (2026-10-14); table A/B four rounds (`2026-10-14-m1-threshold-rows/`), correctness at the kNeon header `bb9ac0b`: 0 warnings, 132/132, gates 0.21–0.22. |
 
-Costs of the accuracy work (R3, `tools/bench/v242_cost_bench.cpp` against
+Costs of the accuracy work (`tools/bench/v242_cost_bench.cpp` against
 v2.4.1, quiet, per call and forced VECTORIZED). The cost moves in steps at
 the algorithm switch points in the parameters, so it is stated per band,
-never as "distribution X is slower" [user, 2026-10-16]. Kaby Lake's ratios
+never as "distribution X is slower". Kaby Lake's ratios
 (v2.5.0 / v2.4.1, median over sizes; above 1 is slower):
 
 | Family | Low band | High band | Inflection |
@@ -69,9 +106,9 @@ grid lookup became 0.3–0.6 µs, exact), Student-t quantile at ν ≥ 1e3
 sweeps parameter bands at a fixed input range, so it does not resolve
 x-regions (deep tails, near-boundary bands, log-space branches); timing the
 accuracy grid per x-region is a v3 input. Each machine's compare.txt lists
-the AUTO-vs-best gaps (Kaby Lake 49, M1 46, Zen 4 45 NEW), the input to R8.
+the AUTO-vs-best gaps (Kaby Lake 49, M1 46, Zen 4 45 NEW), the input to the dispatch-table re-derivation.
 
-Dispatch tables (R8): three quiet `strategy_profile --large` runs per tier on
+Dispatch tables: three quiet `strategy_profile --large` runs per tier on
 every machine at `d1adc95`, re-derived into kAvx512, kAvx2, kAvx and kNeon by
 `scripts/derive_threshold_rows.py` (`580b7f7`: 162 values on 85 rows), then
 verified by a loaded A/B (`tools/bench/table_ab_bench.cpp`, AUTO against the
@@ -164,7 +201,7 @@ minimum macOS raised to 13 Ventura).
 | Mac Mini M1 | NEON | 46/46 ✅ | Audit remediation complete (2026-07-01) |
 | Asus TUF A16 (Windows) | AVX-512 | 46/46 ✅ | Re-validation required after audit remediation |
 
-### v1.5.2 — final v1.x release (four machines)
+### v1.5.2 — last recorded v1.x matrix (four machines)
 
 | Machine | SIMD | Correctness | Notes |
 |---|---|---|---|
@@ -250,9 +287,7 @@ All four machines validated at v1.0.0 (Ivy Bridge/Catalina dropped in v2.0.0).
 
 ## Zen 4 timing: power throttling
 
-Moved here from AGENTS.md on 2026-09-07: it is needed when interpreting a
-timing run, not in every session. Corrected at v2.5.0: the v2.0.3 note blamed
-Precision Boost 2 frequency scaling.
+The v2.0.3 note blamed Precision Boost 2 frequency scaling; v2.5.0 corrected it.
 
 **Power throttling, not a threshold anomaly.** On the Zen 4 box (Asus TUF
 A16, Ryzen 7 7445), a locked screen puts running processes under Windows power
@@ -265,7 +300,7 @@ Opt each measured process out (`SetProcessInformation`,
 `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1`) and
 launch binaries directly, not through ctest: the opt-out is per process and a
 child does not inherit it. With the screen on, a single-core probe shows no
-drop over 90 s. Every v2.5.0 timing run on this machine (R3, R8, the table
+drop over 90 s. Every v2.5.0 timing run on this machine (cost bench, dispatch captures, table
 A/B) used the clang-cl performance build with each process opted out and a
 10-s clock probe before each phase (127–130 ms per pass at boost, ~190 at
 base clock), so the captures are comparable with each other. Whether Precision Boost 2 lowers the all-core sustained clock

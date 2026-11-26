@@ -5,6 +5,63 @@ All notable changes to libstats will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2026-11-25
+
+Patch release over v2.5.0 — no API change. Six library fixes, a fourth
+fleet machine, and CI that enforces the pre-commit hooks. Validated
+natively on four machines, each on code identical to `7069adc`:
+AVX-512 (Zen 4; MSVC 19.52 and clang-cl 22.1.3), AVX2 (Kaby Lake,
+AppleClang 15), NEON (M1, AppleClang 21) and AVX (Ivy Bridge; GCC 13.3
+and Clang 18). Every build is warning-free and correctness is 132/132 on each; timing is
+14/14 on each machine (Zen 4: clang-cl only); the accuracy sweep reads 26,882 rows with 0
+contract violations per ISA. #156 (throughput of the special-function
+CDFs and quantiles) is not addressed here; it belongs to v3.0.0.
+
+### Fixed
+- Cauchy quantile below a tail probability of 1e-9 is finite at subnormal
+  p whenever the answer is finite; it returned ±inf there. Elsewhere in
+  that region results move by at most 2 ulp (#316).
+- `ExponentialDistribution::setParameters(double)` is defined; it was
+  declared only (#268).
+- Gaussian `fit()` counts the between-chunk variance in full on its
+  parallel path (#308).
+- `logical_cores` and `physical_cores` take the operating system's
+  bound. CPUID leaf 1 reported 16 logical processors on a 4-core,
+  8-thread Ivy Bridge, and the pools were sized from it (#289).
+- The Intel_Legacy default grain is a default, no longer that tier's
+  32,768 maximum, which left Sandy Bridge and Ivy Bridge batches with a
+  single chunk (#288).
+- `ThreadPool::getOptimalThreadCount()` is computed once. It made system
+  calls on every parallel batch, about 10 µs per batch under glibc
+  (#324).
+
+### Added
+- Ivy Bridge (AVX without AVX2 or FMA, Linux, GCC and Clang) as the
+  fourth fleet machine: its accuracy block and baseline, and the first
+  native measurements of the AVX tier (#301).
+- Three regression gates: `Issue268_ExponentialSetParametersIsDefined`,
+  `Issue316_CauchyQuantileFiniteAtSubnormalP`, and, on Linux,
+  `OptimalThreadCountMakesNoSystemCallPerCall`.
+
+### Changed
+- `docs/ACCURACY_CHARACTERIZATION.md`: all four ISA blocks regenerated
+  at the release code. Only the Cauchy rows move.
+- Standalone tools link TBB where libstdc++'s parallel algorithms need
+  it, so `cpp20_features_inspector` links with `libtbb-dev` installed
+  (#290, in part).
+
+### Tests and CI
+- CI runs the pre-commit hooks; the project's own hooks are ported to
+  Python and each can fail (#296).
+- A weekly canary reports its own failures as an issue; the image under
+  versioned tools is pinned and the macOS leg floats (#294, #295).
+- The Documentation workflow uploads the Pages artifact in the build
+  job, which ends an intermittent deploy failure (#332).
+- A complex distribution's SIMD speed-up expectation is the base value
+  below AVX-512 (#312); the work-stealing exception test passes an
+  explicit grain (#288); the ThreadSanitizer suppression covers
+  libstdc++ 14 (#298).
+
 ## [2.5.0] - 2026-10-16
 
 Correctness and accuracy release — no source API change; the public API
