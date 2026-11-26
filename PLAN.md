@@ -7,7 +7,12 @@ carry (shipped releases, closed milestones, the Resolved log, the
 2026-08-21 defensive review, travel-era records, the corvus spike) is in
 `git show f508b12:PLAN.md`.
 
-## v2.5.1 patch release — fleet legs [OPEN; user, 2026-11-23]
+## v2.5.1 patch release — fleet legs [DONE 2026-11-25]
+
+**Released 2026-11-25**: PR #336 merged as `c744eb3`, signed tag
+`v2.5.1` on that commit, GitHub release published. What is left is step
+6 below (`main` into the v3.0.0 branch) and the pylibstats pin [user].
+The rest of this section is the record of how it was validated.
 
 A patch over v2.5.0 from `main`: no API change, six library commits since
 the tag. **Order [user, 2026-11-23]: every machine validates the code
@@ -219,19 +224,33 @@ that is more than a line goes under
 
 ### After the legs — the release PR (one machine, after all four report)
 
-**State [Z, 2026-11-25].** All four machines have reported. Steps 1–4 are
-done on branch `release/v2.5.1` from `main` at `73ac916`: version 2.5.1;
-both Windows builds fresh and warning-free with correctness 132/132 each
-at the bumped version; the 2.5.1 CHANGELOG section written by hand
-(`git-cliff` is not installed on Z); the validation matrix; the four
-accuracy blocks regenerated from the kept diffs, with a "v2.5.1" section
-in the document; the version in `AGENTS.md` and `README.md`. Mentions of
-v2.5.0 that describe that release were left as they are. The branch also
-carries a documentation review pass [user, 2026-11-25] over 22 other
-documents: stale facts corrected against the tree, internal step
-identifiers and decision tags removed from reference documents, and
-wording tightened; `PLAN.md`, the evidence READMEs and past changelog
-entries were out of scope. Step 5 onward waits on the user's go-ahead.
+**Done [Z, 2026-11-25].** Steps 1–5 on branch `release/v2.5.1` (PR
+#336): version 2.5.1; both Windows builds fresh and warning-free with
+correctness 132/132 each at the bumped version; the 2.5.1 CHANGELOG
+section written by hand (`git-cliff` is not installed on Z); the
+validation matrix; the four accuracy blocks regenerated from the kept
+diffs; the version in `AGENTS.md`, `README.md`, `PROJECT_CONCEPT.md` and
+`docs/test_architecture.md`. The PR also carried a documentation review
+pass [user, 2026-11-25] over 28 documents: stale facts corrected against
+the tree, internal step identifiers and decision tags removed from
+reference documents, wording tightened; `PLAN.md`'s content, the evidence
+READMEs and past changelog entries were out of scope. CI was green on
+the PR (41 checks) and on the merge commit (24), and the Pages deploy
+succeeded.
+
+Found by the review and not acted on [OPEN]:
+- `scripts/test-cross-compiler.sh` requests build types (`GCCStrict` and
+  the like) that `CMakeLists.txt` no longer defines.
+- `tools/copy_move_stress.cpp` and `tools/CMakeLists.txt` say "19
+  distributions"; there are 27.
+- `dispatch_thresholds.h` and `scripts/derive_threshold_rows.py` carry
+  runbook identifiers and machine letters in comments.
+- `docs/NEON_LOG_DERIVATION.md`: a bound near line 94 that may be a typo
+  in the mathematics, and two measured figures for scalar `std::log`
+  that differ slightly (2.72 and 2.75 ns). Not changed: it is a
+  provenance record.
+- `AGENTS.md`'s maintainer note asks for about 150 lines; the file has
+  about 350.
 
 1. `CMakeLists.txt`: `project(libstats VERSION 2.5.1 ...)`; rebuild and
    rerun P1 step 3 on that machine, since the generated version header
