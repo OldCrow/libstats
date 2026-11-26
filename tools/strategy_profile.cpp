@@ -13,6 +13,14 @@
  * the CPU clock the previous cell left behind — after a parallel section the
  * calling core runs slow for 50-100 ms — so the earlier "3 warm-up calls,
  * median of 7" method made a cell's reading depend on its neighbours.
+ *
+ * Spaced capture (--spaced, --gap-us N): after every call the calling thread
+ * does N microseconds of serial work (2000 with --spaced) and only the time
+ * inside the call is counted. Back to back, the thread pool's workers never
+ * sleep between parallel sections; a caller that does anything else between
+ * batches meets sleeping workers, and the V->P crossover moves up, by more
+ * than an order of magnitude on some machines. v3.0.0's thresholds are set for
+ * that caller, so its tables are captured in this mode.
  */
 
 #include "bench/sustained_timing.h"
@@ -61,6 +69,8 @@ namespace {
 
 constexpr int DEFAULT_RNG_SEED = 42;
 constexpr const char* TIMING_METHOD = "sustained-v1";  // recorded in capture bundles
+constexpr const char* SPACED_TIMING_METHOD = "spaced-v1";
+constexpr double DEFAULT_SPACED_GAP_US = 2000.0;  // --spaced; the accepted "conservative" gap
 constexpr const char* RESULTS_CSV_FILENAME = "strategy_profile_results.csv";
 
 enum class ProfileOperation { PDF, LOG_PDF, CDF };
@@ -107,11 +117,13 @@ constexpr std::array<Strategy, 4> STRATEGIES = {Strategy::SCALAR, Strategy::VECT
 class StrategyProfiler {
    public:
     StrategyProfiler(bool include_large, std::vector<std::size_t> sizes,
-                     std::vector<std::string> only, std::vector<std::string> strategies)
+                     std::vector<std::string> only, std::vector<std::string> strategies,
+                     double gap_us)
         : gen_(DEFAULT_RNG_SEED),
           only_(std::move(only)),
           strategies_(std::move(strategies)),
-          budget_(bench_timing::cellBudgetFromEnv()) {
+          budget_(bench_timing::cellBudgetFromEnv()),
+          gap_us_(gap_us) {
         if (sizes.empty()) {
             initialize_batch_sizes(include_large);
         } else {
@@ -128,9 +140,16 @@ class StrategyProfiler {
             std::cout << " " << size;
         }
         std::cout << "\n";
-        std::cout << "Timing method: " << TIMING_METHOD << " (per cell: " << budget_.warmup_s
-                  << " s warm-up of the cell's own work, then at least " << budget_.timed_s
-                  << " s timed; median block per call)\n\n";
+        if (gap_us_ > 0.0) {
+            std::cout << "Timing method: " << SPACED_TIMING_METHOD << " (per cell: a call, then "
+                      << gap_us_ << " us of serial work on the calling thread, repeated; "
+                      << budget_.warmup_s << " s of the pattern unmeasured, then at least "
+                      << budget_.timed_s << " s; median call, gaps not counted)\n\n";
+        } else {
+            std::cout << "Timing method: " << TIMING_METHOD << " (per cell: " << budget_.warmup_s
+                      << " s warm-up of the cell's own work, then at least " << budget_.timed_s
+                      << " s timed; median block per call)\n\n";
+        }
 
         profile_all_distributions();
         print_summary();
@@ -144,6 +163,7 @@ class StrategyProfiler {
     std::vector<std::string> only_;        // empty = every distribution
     std::vector<std::string> strategies_;  // empty = every strategy (CSV names)
     bench_timing::CellBudget budget_;
+    double gap_us_;  // 0 = back to back (sustained-v1); > 0 = spaced capture
 
     void initialize_batch_sizes(bool include_large) {
         // Standard grid: powers-of-2 to L1/L2 cache boundary (8 doubles per
@@ -252,9 +272,11 @@ class StrategyProfiler {
         std::span<const double> input_span(input_values);
         std::span<double> output_span(output_values);
 
-        return bench_timing::timeCell(
-            [&] { perform_operation(distribution, input_span, output_span, operation, strategy); },
-            budget_);
+        const auto call = [&] {
+            perform_operation(distribution, input_span, output_span, operation, strategy);
+        };
+        return gap_us_ > 0.0 ? bench_timing::timeCellSpaced(call, gap_us_, budget_)
+                             : bench_timing::timeCell(call, budget_);
     }
 
     template <typename Distribution>
@@ -735,15 +757,17 @@ class StrategyProfiler {
         std::ofstream csv_file(output_csv_path);
         // The first five columns are the format every reader knows (threshold_validator reads
         // them by position, the scripts by name); the rest are appended and optional.
+        // Gap_us is the serial work between calls: 0 for a back-to-back capture.
         csv_file << "Distribution,Operation,BatchSize,Strategy,MedianTime_us,MinTime_us,"
-                    "MeanTime_us,Blocks\n";
+                    "MeanTime_us,Blocks,Gap_us\n";
         csv_file << std::fixed << std::setprecision(6);
 
         for (const auto& result : results_) {
             csv_file << result.distribution << "," << result.operation << "," << result.batch_size
                      << "," << stats::detail::detail::strategyToString(result.strategy) << ","
                      << result.median_time_us << "," << result.min_time_us << ","
-                     << result.mean_time_us << "," << result.blocks << "\n";
+                     << result.mean_time_us << "," << result.blocks << ","
+                     << static_cast<long long>(gap_us_) << "\n";
         }
 
         std::cout << "Results saved to " << output_csv_path << "\n";
@@ -759,6 +783,11 @@ void print_usage(const char* program_name) {
     std::cout << "  -d, --only NAME[,NAME..] Profile only these distributions (CSV names)\n";
     std::cout << "  -S, --strategies S[,S..] Profile only these strategies (CSV names, e.g.\n";
     std::cout << "                           VECTORIZED,PARALLEL)\n";
+    std::cout
+        << "  -g, --spaced             Spaced capture: 2000 us of serial work on the calling\n";
+    std::cout << "                           thread after every call, so pool workers sleep\n";
+    std::cout
+        << "      --gap-us N           Spaced capture with a gap of N microseconds (0 = off)\n";
     std::cout << "\nPer-cell timing (seconds, environment): LIBSTATS_BENCH_CELL_WARMUP_SECONDS\n";
     std::cout << "(default 0.15), LIBSTATS_BENCH_CELL_SECONDS (default 0.25)\n";
     std::cout << "  -h, --help               Show this help message\n";
@@ -771,6 +800,7 @@ int main(int argc, char* argv[]) {
     std::vector<std::size_t> sizes;
     std::vector<std::string> only;
     std::vector<std::string> strategies;
+    double gap_us = 0.0;
     const auto split = [](const std::string& list) {
         std::vector<std::string> parts;
         std::size_t begin = 0;
@@ -788,6 +818,21 @@ int main(int argc, char* argv[]) {
         const std::string arg = argv[i];
         if (arg == "-l" || arg == "--large") {
             include_large = true;
+        } else if (arg == "-g" || arg == "--spaced") {
+            gap_us = DEFAULT_SPACED_GAP_US;
+        } else if (arg == "--gap-us") {
+            if (i + 1 >= argc) {
+                std::cerr << "Missing value for " << arg << "\n";
+                return 1;
+            }
+            constexpr unsigned long long kMaxGapUs = 10000000ULL;
+            char* end = nullptr;
+            const unsigned long long value = std::strtoull(argv[++i], &end, 10);
+            if (end == argv[i] || *end != '\0' || value > kMaxGapUs) {
+                std::cerr << "Bad gap (whole microseconds, at most 10000000): " << argv[i] << "\n";
+                return 1;
+            }
+            gap_us = static_cast<double>(value);
         } else if (arg == "-o" || arg == "--output-csv") {
             if (i + 1 >= argc) {
                 std::cerr << "Missing value for " << arg << "\n";
@@ -829,7 +874,7 @@ int main(int argc, char* argv[]) {
     }
 
     return stats::detail::detail::runTool("Strategy Profile", [&]() {
-        StrategyProfiler profiler(include_large, sizes, only, strategies);
+        StrategyProfiler profiler(include_large, sizes, only, strategies, gap_us);
         profiler.run(output_csv_path);
     });
 }

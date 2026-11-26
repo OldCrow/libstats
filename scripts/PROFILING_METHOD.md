@@ -144,6 +144,20 @@ header prints `Timing method: sustained-v1` with the two durations, which
 `LIBSTATS_BENCH_CELL_WARMUP_SECONDS` and `LIBSTATS_BENCH_CELL_SECONDS` change.
 Bundles captured with the earlier method are not comparable cell for cell.
 
+### Spaced capture (`spaced-v1`)
+
+`strategy_profile --spaced` puts 2 ms of serial work on the calling thread
+after every call (`--gap-us N` for another gap) and counts only the time
+inside the call. Back to back, the thread pool's workers never sleep between
+parallel sections; with a gap they do, and a parallel batch pays for waking
+them and for the clock their cores dropped to. That is the caller v3.0.0's
+thresholds are set for. The warm-up and timed budgets are wall time of the
+pattern, gaps included, so a run takes about as long as a back-to-back one.
+The log header prints `Timing method: spaced-v1` with the gap, and the CSV's
+last column, `Gap_us`, holds it (0 for a back-to-back capture). Since v3.0.0
+the WORK_STEALING column repeats PARALLEL on every machine; leave it out with
+`--strategies SCALAR,VECTORIZED,PARALLEL`.
+
 The standard grid has 28 sizes, stepping by whole 1024-element slices from
 3072 to 8192 and through 10240, 12288, 16384 and 20480 (#323). A standard run
 is at least 0.4 s per cell: about an hour for 27 distributions, so a three-run

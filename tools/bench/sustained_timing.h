@@ -17,6 +17,9 @@
 //   - timed: blocks until `timed_s` has passed and at least `min_blocks` blocks are in.
 // A call longer than the budgets is still timed `min_blocks` times, after one warm-up call.
 //
+// timeCellSpaced is the second method: the same cell with serial work between calls, for callers
+// whose batches do not arrive back to back. See its comment.
+//
 // Environment (seconds, for quick smoke runs or longer windows):
 //   LIBSTATS_BENCH_CELL_WARMUP_SECONDS (default 0.15), LIBSTATS_BENCH_CELL_SECONDS (default 0.25).
 #pragma once
@@ -122,6 +125,60 @@ CellTiming timeCell(F&& f, const CellBudget& budget = cellBudgetFromEnv()) {
                      block_ns.begin() + static_cast<std::ptrdiff_t>(out.blocks / 2),
                      block_ns.end());
     out.median_ns = block_ns[out.blocks / 2];
+    return out;
+}
+
+/// Serial work on the calling thread for `gap_us` microseconds: a loop that reads the clock, as
+/// tools/bench/batch_gap_bench.cpp does. The caller stays busy, so its core's clock stays up;
+/// the pool's workers have nothing to do and go to sleep.
+inline void busyGap(double gap_us) {
+    using clk = std::chrono::steady_clock;
+    const auto t0 = clk::now();
+    while (std::chrono::duration<double, std::micro>(clk::now() - t0).count() < gap_us) {
+    }
+}
+
+/// Spaced timing: one call, then `gap_us` of serial work on the calling thread, repeated. Only
+/// the time inside the call is counted, one call per block. The pattern runs for `warmup_s`
+/// unmeasured, then for at least `timed_s` and kSpacedMinCalls calls; both budgets are wall time
+/// of the pattern, gaps included, so a cell costs about what a back-to-back cell costs.
+///
+/// What it measures that timeCell cannot: back to back, the pool's workers never sleep between
+/// parallel sections. With a gap they do, and a parallel batch then pays for waking them and for
+/// whatever clock their cores dropped to (PLAN.md, "Pool wake-up and batch spacing").
+template <class F>
+CellTiming timeCellSpaced(F&& f, double gap_us, const CellBudget& budget = cellBudgetFromEnv()) {
+    using clk = std::chrono::steady_clock;
+    constexpr std::size_t kSpacedMinCalls = 20;
+    const auto seconds = [](clk::duration d) { return std::chrono::duration<double>(d).count(); };
+
+    const auto w0 = clk::now();
+    do {
+        f();
+        busyGap(gap_us);
+    } while (seconds(clk::now() - w0) < budget.warmup_s);
+
+    std::vector<double> call_ns;
+    call_ns.reserve(1024);
+    double total_ns = 0.0;
+    for (const auto t0 = clk::now();
+         call_ns.size() < kSpacedMinCalls || seconds(clk::now() - t0) < budget.timed_s;) {
+        const auto a = clk::now();
+        f();
+        const double ns = std::chrono::duration<double, std::nano>(clk::now() - a).count();
+        total_ns += ns;
+        call_ns.push_back(ns);
+        busyGap(gap_us);
+    }
+
+    CellTiming out;
+    out.blocks = call_ns.size();
+    out.calls = out.blocks;
+    out.mean_ns = total_ns / static_cast<double>(out.calls);
+    out.min_ns = *std::min_element(call_ns.begin(), call_ns.end());
+    std::nth_element(call_ns.begin(), call_ns.begin() + static_cast<std::ptrdiff_t>(out.blocks / 2),
+                     call_ns.end());
+    out.median_ns = call_ns[out.blocks / 2];
     return out;
 }
 
