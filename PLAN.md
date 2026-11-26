@@ -528,6 +528,17 @@ design decision (all four machines' L7).
   The CPU also steps down some 8–15 s into sustained load: set
   `LIBSTATS_BENCH_WARMUP_SECONDS=25` for the benches and precede each
   `strategy_profile` run with a discarded short pass.
+- **Every timing bundle records the clock policy it ran under** [user,
+  2026-11-25]. Linux: kernel version (`uname -r`) and, from
+  `/sys/devices/system/cpu/cpu0/cpufreq/`, `scaling_driver`,
+  `scaling_governor` and `energy_performance_preference` where it
+  exists, plus `/sys/devices/system/cpu/intel_pstate/status` on Intel.
+  macOS: `pmset -g` (power source and low-power mode). Windows: the
+  active power plan (`powercfg /getactivescheme`). The driver, not the
+  distribution, decides which governors exist: `schedutil` on I is the
+  passive `intel_pstate` of a CPU without hardware P-states, and newer
+  Intel and AMD CPUs pick their own frequency, so I's Linux readings are
+  not assumed to hold for them.
 - Macs: run every library binary outside the Claude Code sandbox. It
   blocks the `hw.*cachesize` sysctls, so cache sizes read 0 and the
   cache-derived tuning changes; it also blocks the SSH agent.
@@ -1127,7 +1138,8 @@ From the four L7 results and Z's `pool_wake_bench` run.
 3. **Concurrency validation**: the stress suite, and the stress suite
    under ThreadSanitizer, as v2.5.0 ran them. Lost wake-ups and
    deadlocks are the risk.
-4. **Measurements on the prototype**, quiet machine, one sitting each:
+4. **Measurements on the prototype**, quiet machine, one sitting each,
+   with the clock policy recorded ("Rules on every machine"):
 
    | Machine | Owes |
    |---|---|
