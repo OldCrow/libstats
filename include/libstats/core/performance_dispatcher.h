@@ -57,7 +57,9 @@ namespace detail {  // Performance utilities
  *                  Exception: Von Mises uses a scalar loop (no vector_cos)
  *   PARALLEL     — multi-threaded via ParallelUtils::parallelFor; inner
  *                  loops may or may not be vectorized per distribution
- *   WORK_STEALING — work-stealing thread pool for irregular workloads
+ *   WORK_STEALING — work-stealing thread pool. Never selected by AUTO or by
+ *                  a hint since v3.0.0; DispatchUtils::executeStrategy still
+ *                  runs it when handed this value
  *
  * GPU_ACCELERATED was removed: the implementation silently fell back to
  * WORK_STEALING, making the name actively deceptive. If GPU support is
@@ -67,7 +69,7 @@ enum class Strategy {
     SCALAR,        ///< Element-by-element loop (below SIMD threshold)
     VECTORIZED,    ///< Batch path through VectorOps
     PARALLEL,      ///< Multi-threaded via ParallelUtils::parallelFor
-    WORK_STEALING  ///< Work-stealing pool for irregular workloads
+    WORK_STEALING  ///< Work-stealing pool; not selected by AUTO or by any hint
 };
 
 // ComputationComplexity removed in v2.0.0 (Part 4): was the old
@@ -125,12 +127,12 @@ class PerformanceDispatcher {
                             const SystemCapabilities& system) const;
 
     /**
-     * @brief Select multi-threaded strategy (PARALLEL vs WORK_STEALING)
+     * @brief Select the multi-threaded strategy
      *
-     * The choice depends on the threading backend (GCD vs Windows TP) and
-     * whether hyperthreading is present, per four-architecture profiling data.
-     * Public so DispatchUtils::mapHintToStrategy can route MAXIMIZE_THROUGHPUT
-     * through the same OS-aware selection instead of hardcoding WORK_STEALING.
+     * Strategy::PARALLEL on every platform since v3.0.0. Until then it returned
+     * WORK_STEALING on hyper-threaded macOS. Public so
+     * DispatchUtils::mapHintToStrategy routes MAXIMIZE_THROUGHPUT through the
+     * same choice AUTO makes.
      */
     static Strategy selectMultiThreadedStrategy(DistributionType dist_type,
                                                 const SystemCapabilities& system) noexcept;

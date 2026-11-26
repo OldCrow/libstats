@@ -151,8 +151,8 @@ Complete Library Interface (`libstats.h`).
 
 One batch API: the span overloads, with an optional `detail::PerformanceHint`
 (`AUTO` by default; `FORCE_SCALAR`, `FORCE_VECTORIZED`, `FORCE_PARALLEL`,
-`MINIMIZE_LATENCY`, `MAXIMIZE_THROUGHPUT`). No hint forces `WORK_STEALING`;
-`AUTO` and `MAXIMIZE_THROUGHPUT` reach it only on hyper-threaded macOS. Thread safety
+`MINIMIZE_LATENCY`, `MAXIMIZE_THROUGHPUT`). Neither `AUTO` nor any hint selects
+`WORK_STEALING` since v3.0.0; that pool is used directly or not at all. Thread safety
 rests on one `shared_mutex` per distribution; scalar and batch paths read one
 parameter snapshot (`withCacheSnapshot`/`readConsistent`).
 

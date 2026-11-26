@@ -808,7 +808,8 @@ void differential(const Row<D>& row) {
 // one task submitted to the global pool blocks until released, and a batch run beside it must
 // return while it is still blocked. A lambda that calls the pool's global waitForAll() after its
 // latched loop waits for that task instead. Reachable only where MAXIMIZE_THROUGHPUT resolves to
-// WORK_STEALING (SMT machines after #190); elsewhere the test skips, saying so.
+// WORK_STEALING. Since v3.0.0 that is nowhere (the dispatcher returns PARALLEL on every platform),
+// so these tests skip on every machine, saying so, until a way to force the strategy exists.
 // The budget is 20 times the batch's own unloaded time, and at least 1 s: a fixed 1 s could pass
 // for a slow batch on a sanitizer build of a loaded runner (milliseconds in Release, far more
 // under ASan Debug), while the defect waits until the blocked task is released, however long.
@@ -826,7 +827,7 @@ void crossWaiting(const Row<D>& row, KnownIssues& known) {
     if (detail::PerformanceDispatcher::selectMultiThreadedStrategy(
             D::kDistributionType, detail::SystemCapabilities::current()) !=
         detail::Strategy::WORK_STEALING)
-        GTEST_SKIP() << "MAXIMIZE_THROUGHPUT does not reach WORK_STEALING on this machine";
+        GTEST_SKIP() << "no hint reaches WORK_STEALING since v3.0.0";
     const D d = row.makeA();
     for (int op = 0; op < 3; ++op) {
         const auto t0 = std::chrono::steady_clock::now();
@@ -974,8 +975,7 @@ void seededSample(const Row<D>& row) {
     EXPECT_EQ(draw(), first) << row.name << ": a freshly seeded draw depends on an earlier draw";
 }
 
-// What this machine reaches. physical_cores comes from the CPU detector (#190), so
-// MAXIMIZE_THROUGHPUT reaches WORK_STEALING only where logical > physical (K, not M or Z).
+// What this machine reaches. MAXIMIZE_THROUGHPUT is PARALLEL on every machine since v3.0.0.
 template <typename D>
 void runRow(const Row<D>& row) {
     std::printf(
@@ -996,9 +996,10 @@ void runRow(const Row<D>& row) {
 }  // namespace
 
 // Core topology (#190): physical_cores came from logical / 2 on every platform, so every Mac looked
-// SMT and MAXIMIZE_THROUGHPUT took WORK_STEALING on the M1 (8 cores, no SMT). Two-sided: the
-// expected counts come from sysctl, independent of the library, and the strategy must follow
-// them both ways. Apple only, where sysctl is the oracle; elsewhere only the invariants.
+// SMT. The expected count comes from sysctl, independent of the library: Apple only, where sysctl
+// is the oracle; elsewhere only the invariants. The multi-threaded strategy is PARALLEL on every
+// platform since v3.0.0, whatever the topology (until then: WORK_STEALING where logical >
+// physical).
 TEST(ConcurrencyStressMachine, CoreTopology) {
     const auto& caps = detail::SystemCapabilities::current();
     EXPECT_GE(caps.physical_cores(), 1u);
@@ -1010,11 +1011,10 @@ TEST(ConcurrencyStressMachine, CoreTopology) {
     size = sizeof(int);
     ASSERT_EQ(sysctlbyname("hw.logicalcpu", &logical, &size, nullptr, 0), 0);
     EXPECT_EQ(caps.physical_cores(), static_cast<std::size_t>(physical));
-    const auto strategy = detail::PerformanceDispatcher::selectMultiThreadedStrategy(
-        detail::DistributionType::GAUSSIAN, caps);
-    EXPECT_EQ(strategy == detail::Strategy::WORK_STEALING, logical > physical)
-        << "logical " << logical << ", physical " << physical;
 #endif
+    EXPECT_EQ(detail::PerformanceDispatcher::selectMultiThreadedStrategy(
+                  detail::DistributionType::GAUSSIAN, caps),
+              detail::Strategy::PARALLEL);
 }
 
 #define STRESS_ROW(Name, MakeRow)                                                                  \

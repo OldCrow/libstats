@@ -6,6 +6,7 @@
 // Use focused header for system capabilities testing
 #include "libstats/core/dispatch_thresholds.h"
 #include "libstats/core/performance_dispatcher.h"
+#include "libstats/platform/simd_policy.h"
 
 // Standard library includes
 #include <chrono>  // for std::chrono::microseconds
@@ -180,8 +181,9 @@ TEST_F(SystemCapabilitiesIntegrationTest, IntegrationWithDispatcher) {
     if (capabilities.physical_cores() > 1) {
         auto large_strategy = dispatcher.selectStrategy(100000, DistributionType::GAMMA,
                                                         OperationType::CDF, capabilities);
-        EXPECT_TRUE(large_strategy == Strategy::PARALLEL ||
-                    large_strategy == Strategy::WORK_STEALING);
+        const auto threshold = getParallelThreshold(stats::arch::simd::SIMDPolicy::getBestLevel(),
+                                                    DistributionType::GAMMA, OperationType::CDF);
+        EXPECT_EQ(large_strategy, threshold <= 100000 ? Strategy::PARALLEL : Strategy::VECTORIZED);
     }
 }
 

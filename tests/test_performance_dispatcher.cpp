@@ -55,8 +55,7 @@ TEST_F(PerformanceDispatcherTest, BasicStrategySelection) {
         getParallelThreshold(stats::arch::simd::SIMDPolicy::getBestLevel(),
                              DistributionType::GAUSSIAN, OperationType::CDF);
     if (gaussian_cdf_threshold != SIZE_MAX && gaussian_cdf_threshold <= 100000) {
-        EXPECT_TRUE(strategy_large == Strategy::PARALLEL ||
-                    strategy_large == Strategy::WORK_STEALING);
+        EXPECT_EQ(strategy_large, Strategy::PARALLEL);
     } else {
         EXPECT_EQ(strategy_large, Strategy::VECTORIZED);
     }
@@ -131,8 +130,7 @@ TEST_F(PerformanceDispatcherTest, EdgeCases) {
         // Profiling policy says UNIFORM/PDF should never parallelize on this SIMD profile.
         EXPECT_EQ(huge_strategy, Strategy::VECTORIZED);
     } else {
-        EXPECT_TRUE(huge_strategy == Strategy::PARALLEL ||
-                    huge_strategy == Strategy::WORK_STEALING);
+        EXPECT_EQ(huge_strategy, Strategy::PARALLEL);
     }
 }
 

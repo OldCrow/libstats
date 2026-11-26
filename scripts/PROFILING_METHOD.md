@@ -12,7 +12,8 @@ The dispatch table encodes, for each (SIMD tier, distribution, operation)
 triple, the minimum batch size at which a parallel execution strategy
 (PARALLEL or WORK_STEALING) sustainably outperforms VECTORIZED.  Below that
 threshold the library uses VECTORIZED; at or above it, it dispatches to the
-parallel strategy chosen at runtime by `selectMultiThreadedStrategy()`.
+parallel strategy chosen at runtime by `selectMultiThreadedStrategy()`
+(PARALLEL on every platform since v3.0.0).
 
 ---
 

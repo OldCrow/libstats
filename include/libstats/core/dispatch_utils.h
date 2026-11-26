@@ -180,8 +180,8 @@ class DispatchUtils {
                 return (count <= arch::simd::SIMDPolicy::getMinThreshold()) ? Strategy::SCALAR
                                                                             : Strategy::VECTORIZED;
             case PerformanceHint::PreferredStrategy::MAXIMIZE_THROUGHPUT:
-                // Route through selectMultiThreadedStrategy() so Windows gets
-                // PARALLEL (3.3:1 win over WS) rather than being hardcoded to WS.
+                // The same multi-threaded choice AUTO makes: PARALLEL on every
+                // platform since v3.0.0.
                 return PerformanceDispatcher::selectMultiThreadedStrategy(
                     DistributionType::GAUSSIAN,  // dist_type unused; OS is the deciding factor
                     SystemCapabilities::current());

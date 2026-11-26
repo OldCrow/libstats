@@ -113,9 +113,9 @@ Available preferences:
 | `FORCE_VECTORIZED` | Use SIMD/vectorized path |
 | `FORCE_PARALLEL` | Use standard parallel path |
 | `MINIMIZE_LATENCY` | Prefer low overhead for small batches |
-| `MAXIMIZE_THROUGHPUT` | The dispatcher's multi-threaded choice: `PARALLEL` on Windows and Linux, `WORK_STEALING` on hyper-threaded macOS |
+| `MAXIMIZE_THROUGHPUT` | The dispatcher's multi-threaded choice: `PARALLEL` on every platform since v3.0.0 |
 
-No hint forces `WORK_STEALING`. When a call does run `WORK_STEALING`, it uses the shared `GlobalWorkStealingPool`, not a per-thread pool. This avoids spawning `N * hardware_concurrency` worker threads when multiple callers run concurrently.
+Neither `AUTO` nor any hint selects `WORK_STEALING` since v3.0.0 (until then `AUTO` and `MAXIMIZE_THROUGHPUT` chose it on hyper-threaded macOS). When a call does run `WORK_STEALING`, it uses the shared `GlobalWorkStealingPool`, not a per-thread pool. This avoids spawning `N * hardware_concurrency` worker threads when multiple callers run concurrently.
 
 `PARALLEL` (forced or chosen) falls back to the serial batch kernel below
 `arch::get_min_elements_for_parallel()` (1,536–8,192 elements, by SIMD

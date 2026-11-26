@@ -27,33 +27,20 @@ Strategy PerformanceDispatcher::selectStrategy(size_t batch_size, DistributionTy
         return Strategy::VECTORIZED;
     }
 
-    // 3. At or above parallel threshold → PARALLEL or WORK_STEALING
+    // 3. At or above parallel threshold → the multi-threaded strategy (PARALLEL)
     return selectMultiThreadedStrategy(dist_type, system);
 }
 
 Strategy PerformanceDispatcher::selectMultiThreadedStrategy(
     [[maybe_unused]] DistributionType dist_type,
     [[maybe_unused]] const SystemCapabilities& system) noexcept {
-    // Four-architecture profiling shows the threading backend is the dominant
-    // factor in P-vs-WS selection:
-    //   macOS/GCD + HT:       WORK_STEALING wins (up to 7:1)
-    //   macOS/GCD + no HT:    roughly even, slight PARALLEL preference
-    //   Windows/Thread Pool:   PARALLEL wins (3.3:1)
-
-#if defined(_WIN32)
-    // Windows Thread Pool: PARALLEL dominates across distributions.
+    // PARALLEL on every platform (decided 2026-11-25). Work stealing was selected on
+    // hyper-threaded macOS on profiling that showed it up to 7:1 ahead there. Those captures ran
+    // with its idle workers polling, which held the cores' clock up, and with twice the threads
+    // (logical against physical cores); neither is a property of stealing. The pool now sleeps
+    // when idle (#333). Strategy::WORK_STEALING and WorkStealingPool remain, but no hint and no
+    // AUTO decision selects them.
     return Strategy::PARALLEL;
-#elif defined(__APPLE__)
-    // macOS/GCD: prefer WORK_STEALING when hyperthreading is present.
-    if (system.logical_cores() > system.physical_cores()) {
-        return Strategy::WORK_STEALING;
-    }
-    return Strategy::PARALLEL;
-#else
-    // Linux/other: default to PARALLEL (conservative; no profiling data yet).
-    (void)system;
-    return Strategy::PARALLEL;
-#endif
 }
 
 }  // namespace detail
