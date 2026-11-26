@@ -28,9 +28,12 @@ released 2026-11-25** (tag on `c744eb3`) and is merged in here.
 - **What is not settled is the threading, not the numerics**: the pool
   design ("Pool wake-up and batch spacing"; #323, #333) and, behind it,
   the threshold tables (kAvx512 and kAvx2 held, kNeon and kAvx
-  provisional). The fix is due by v3.0.0, changes `src/`, and is followed
-  by L1 on every machine, with L2 again on I, K and M ("Three accuracy
-  blocks" below).
+  provisional). **The design is decided [user, 2026-11-25]** ("Pool
+  design — decided"): wake-up on submit, thresholds for sleeping
+  workers, work stealing out of AUTO, #323 in the same change, nothing
+  back-ported. **Next step: the prototype branch**; each machine then
+  owes one measurement sitting on it, and after the merge L1, with L2
+  again on I, K and M ("Three accuracy blocks" below).
 - **#156 is decided [user, 2026-11-25]: the cost is accepted** ("#156 —
   decided" below). No decision is owed before the pool design.
 - **Then the release documents** ("After the legs", step 4):
@@ -748,10 +751,11 @@ one-element call).
 2. Remove the `PROTOTYPE` tags once all three have reported L3. **Done
    2026-11-24** [user].
 3. #156: decided 2026-11-25 (the section above).
-   The pool design ("Pool wake-up and batch spacing") from the four L7
-   results [user]; the fix is due by v3.0.0. After it: L1 on every
-   machine, and L2 again on I, K and M, which they owe for #326 ("where
-   it stands", "Three accuracy blocks").
+   The pool design: decided 2026-11-25 ("Pool design — decided"), which
+   carries the order of work: prototype, guards, stress and
+   ThreadSanitizer, one measurement sitting per machine, then the table
+   capture, L1 on every machine, and L2 again on I, K and M, which they
+   owe for #326 ("where it stands", "Three accuracy blocks").
 4. Release docs: version 2.5.0 → 3.0.0, `CHANGELOG.md`,
    `docs/VALIDATION_HISTORY.md` (matrix, costs, the threshold tables),
    `MIGRATION_GUIDE.md`, README and AGENTS status lines.
@@ -794,8 +798,9 @@ and guarded here, each with a status comment.
   on AVX-512 reads max_rel 6.3e+291 at p = 0.5, as in the v2.5.0 block:
   that row is #277 in the patch milestone (the median of a symmetric
   window is −1.4e-16, not 0, on Zen 4).
-- **Pool design, not started (2):** #323 (slice arithmetic, corrected
-  2026-11-22) and #333 (no wake-up on submit; a timer tick on Windows).
+- **Pool design, decided 2026-11-25, not started (2):** #323 (slice
+  arithmetic, corrected 2026-11-22) and #333 (no wake-up on submit; a
+  timer tick on Windows). Both in v3.0.0.
 
 Kept in libstats and not on corvus, by decision: the Student-t tail
 kernels (`beta_continued_fraction`, `beta_i_large_a_half`) and
@@ -1034,12 +1039,14 @@ problem with the same symptom; and whether work stealing's wins on K
 cores awake rather than the stealing. L7 answers the first and third and
 shows whether the second needs a trace.
 
-**User's positions** [user, 2026-11-22]: which spacing is the primary
+**User's positions** [user, 2026-11-22; the back-port is withdrawn
+2026-11-25, "Pool design — decided"]: which spacing is the primary
 use cannot be known, it depends on the caller; the idle burn should go
 in v2.5.x or v2.6.x if the fix is cheap, and v3.0.0 is the line it must
 not cross.
 
-**Options, undecided:**
+**Options** (decided 2026-11-25, "Pool design — decided" below: 2 for
+v3.0.0, 4 in v3.1.x, 1 and 3 rejected):
 1. Keep the polling pool, add the short spin: thresholds hold for both
    spacings, back-to-back gains 12–18%, the idle burn stays.
 2. Remove the polling and set thresholds for sleeping workers: no burn,
@@ -1059,7 +1066,81 @@ only where AUTO selects it, and a guard (an idle initialised process
 burns no CPU; fails on unfixed `main`, passes fixed). The second part
 must not land alone: without the polling pool an initialised caller
 with spaced batches is about 2.5× slower at 10,000. The kAvx re-capture
-waits on the design.
+waits on the design. **Disposition [DERIVED from the decision below]:**
+the guard is reused; the spin is dropped; the conditional start is
+superseded by the wake-up on submit.
+
+### Pool design — decided [user, 2026-11-25]
+
+From the four L7 results and Z's `pool_wake_bench` run.
+
+**Decided.**
+- **The idle burn goes in v3.0.0**: the work-stealing pool gets a real
+  wake-up on submit (#333) and its idle workers sleep.
+- **Not back-ported to v2.5.x.** The fix is small in code and large in
+  effect: it removes the clock-holding that v2.5 callers on Linux and
+  macOS get from the polling. This replaces the 2026-11-22 position.
+- **Thresholds are set for sleeping workers** (option 2): AUTO never
+  picks PARALLEL where it is slower than VECTORIZED for a spaced caller.
+  Back-to-back streams lose speedup below the new thresholds.
+- **AUTO stops selecting work stealing.** The pool stays available on
+  request.
+- **Two thresholds by pool state, or a time-based gate** (option 4), is
+  v3.1.x work, investigated and decided with #307.
+- **No spin** (options 1 and 3).
+- **Slice arithmetic (#323) goes in v3.0.0**, in the same change. It
+  alters PARALLEL's time at every size between 4 and about 12 slices, so
+  it must land before the tables are captured or they are captured twice.
+- **A "keep warm" opt-in** for callers who block between batches is a
+  v3.1.x candidate, not a commitment. v3.0.0 states the change in the
+  migration guide: after a blocking gap on macOS the first milliseconds
+  run about 3× slower, serial code included.
+
+**Open, each waiting on a measurement.**
+- **Thread count on hyper-threaded machines.** Coupled to retiring work
+  stealing: on K its win at large sizes is its eight threads (508–574 µs
+  against 847–870 µs for four at 204,800). With the pool at physical
+  cores, large batches there get about 1.6× slower. Measure first.
+- **What "conservative" means** [proposed, not accepted]: crossover
+  measured at a 2 ms busy gap, PARALLEL chosen only where it is at least
+  1.25× faster than VECTORIZED (the #156 margin).
+- **AVX2 under Linux is unmeasured.** Tables are per SIMD tier; the
+  effect follows the operating system and its governor. kAvx2 comes from
+  K under macOS and serves every AVX2 Linux machine. A virtual machine
+  does not close this: the host sets the clock and schedules the virtual
+  CPUs, so the guest's governor is not what gets measured (WSL2 on Z is
+  the same). What can: (a) K capped to the AVX tier against I, same
+  tier, two operating systems, different CPUs; (b) K or Z booted into
+  Linux from external media, Z capped to AVX2. Neither is planned; if
+  none is run, the release notes state the gap.
+
+**Order of work** [OPEN; nobody assigned]:
+1. **Prototype branch from dev**: wake-up on submit; AUTO without work
+   stealing; `initialize_performance_systems()` no longer starts a
+   polling pool (README and its documentation follow); #323 slice
+   sizing within #191 and #118; a thread-count override for the
+   measurements; a spaced capture mode in `strategy_profile`.
+2. **Guards**, each shown to fail on the unfixed code: an idle
+   initialised process burns no CPU (I's guard), and wake latency on
+   submit stays under a bound (catches Z's 13–15 ms timer tick).
+3. **Concurrency validation**: the stress suite, and the stress suite
+   under ThreadSanitizer, as v2.5.0 ran them. Lost wake-ups and
+   deadlocks are the risk.
+4. **Measurements on the prototype**, quiet machine, one sitting each:
+
+   | Machine | Owes |
+   |---|---|
+   | K | Thread pool at 4 and 8 threads on SIMD kernels (cheap and expensive row), back to back and at 2 and 20 ms gaps. Decides the thread count on hyper-threaded macOS. Run first. |
+   | Z | The same at 6 and 12 threads (the integer workload gave 1.6–1.9× for 12; SIMD kernels are not measured). |
+   | I | Spaced crossovers at 2 and 20 ms under `schedutil` and under `performance`. Sizes the conservative thresholds on Linux. |
+   | M | Spaced crossovers at 2 and 20 ms; 8 threads across 4 performance and 4 efficiency cores against 4. |
+
+5. **Decide** thread count per platform and the definition of
+   conservative; merge the prototype to dev; CI.
+6. **Capture**: every table again in the spaced mode (all existing
+   tables were measured with the polling alive), then L1 on every
+   machine and L2 on I, K and M ("Three accuracy blocks").
+7. #52, #291, #323 and #333 close with the release.
 
 ### K against I: two mechanisms, one symptom [DERIVED from the two L7 runs, K, 2026-11-23]
 
