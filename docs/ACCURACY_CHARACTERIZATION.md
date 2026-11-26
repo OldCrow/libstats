@@ -19,7 +19,11 @@ scalar and batch where a batch path exists (none for `quantile` and
 > DBL_MIN (see "Reading the tables"): 26,882 rows, 0 contract violations
 > and 190 oracle self-checks on all three ISAs. A fourth block, AVX on
 > Ivy Bridge, was added 2026-11-16 on the same grid: 0 contract violations
-> (see "Fourth machine").
+> (see "Fourth machine"). All four blocks were regenerated at v2.5.1
+> (2026-11-23/24) on the same grid: 0 contract violations; only the Cauchy
+> rows move (see "v2.5.1"). On the v3.0.0 branch all four are
+> regenerated again on corvus (2026-11-21/23; see the "v3.0.0 adoption"
+> sections): those are the blocks below.
 
 > **CHARACTERIZATION, not an audited claim.** All four fleet ISAs have
 > generated blocks: Zen 4 (AVX-512, clang-cl Release, UCRT libm), Kaby Lake
@@ -28,8 +32,8 @@ scalar and batch where a batch path exists (none for `quantile` and
 > Bridge (AVX, GCC Release, glibc, delta summarised in "Fourth machine"),
 > each labelled with its sweep banner. Bounds hold per ISA block only — do not
 > read one block's bound as holding on another target — and none of this
-> has the standing of the audited per-tier gates in `docs/ACCURACY`-class
-> documents.
+> has the standing of the audited per-tier gates in the test suite (see "Consistency with the
+> existing accuracy gates").
 
 ## Regenerating
 
@@ -40,7 +44,7 @@ build-release/tools/accuracy_sweep sweep.csv
 <python-with-mpmath> tools/accuracy_vs_mpmath.py sweep.csv
 ```
 
-`accuracy_sweep` (owned separately, `tools/accuracy_sweep.cpp` +
+`accuracy_sweep` (`tools/accuracy_sweep.cpp` +
 `tools/CMakeLists.txt`) emits the `dist,method,p1_bits,p2_bits,x_bits,
 scalar_bits,batch_bits` CSV described in that tool's own header comment.
 `accuracy_vs_mpmath.py` runs its oracle self-checks first (exits non-zero
@@ -183,15 +187,15 @@ that row, not a defect:
   right-continuous inverse, and the oracle scores that rule (Discrete by its
   library-CDF tie rule), so the one-count `rel = 1.0` lattice rows of earlier
   generations no longer appear: every discrete `quantile` row reads
-  `max_rel` 0 in all three blocks.
+  `max_rel` 0 in all four blocks.
 - **A quantile whose reference is exactly 0 (#277).** An exact-zero
   reference is scored relative to DBL_MIN, so any nonzero result reads as
   an enormous `max_rel`. The AVX-512 block's `truncated_normal` `quantile`
   row (`max_rel` 6.341e+291 at `p = 0.5`) is TruncatedNormal(0, 1) on the
-  window (−2, 2) returning −1.41e-16 for the exact-zero median; the AVX2
-  and NEON blocks do not show it. Such a row belongs to the
+  window (−2, 2) returning −1.41e-16 for the exact-zero median; the AVX2,
+  NEON and AVX blocks do not show it. Such a row belongs to the
   near-zero-crossing class: read `max_abs` against the window width.
-  Deferred to milestone #8; inside the contract.
+  Inside the contract; tracked in #277.
 - **References beyond double range score a matching-sign `±inf` as
   correct (comparator rule since 2026-09-03).** A reference with
   `|ref| ≥ 2^1024 − 2^970` (the binary64 rounds-to-inf midpoint) has
@@ -241,7 +245,7 @@ against the then-current Zen 4 tables per (distribution, method, source) on
   the lognormal logpdf value), which the AVX-512 kernels happen not to
   exhibit. **#102 re-scope: the batch-NaN victim list is ISA-dependent —
   8 distributions on AVX-512, 11 on AVX2.** Any fix must be gated on the
-  AVX2 tier (the sweep re-run the plan asked for, done).
+  AVX2 tier.
 
 ## Third machine: Mac Mini M1 NEON (2026-08-23)
 
@@ -276,7 +280,7 @@ Compared against the Zen 4 tables per (distribution, method, source) on
 
 The Zen 4 AVX-512 generated block was regenerated at **v2.3.1**
 (banner `commit=aa897ac`), superseding the v2.3.0-era numbers the prose
-above compares against; the current block's banner is `df78931`. What
+above compares against; the current block's banner is `164cbce`. What
 changed:
 
 - **Grid: 5928 → 6063 rows.** `accuracy_sweep` now emits NaN/±inf special
@@ -308,7 +312,7 @@ changed:
 ## Second machine re-run: Kaby Lake AVX2 at v2.3.1 (2026-08-26)
 
 The AVX2 generated block then reflected **v2.3.1** (banner
-`commit=6fa1c68`, 6063-row grid; the current banner is `d1adc95`),
+`commit=6fa1c68`, 6063-row grid; the current banner is `09c7ea0`),
 regenerated from a native sweep on the
 i7-7820HQ, AppleClang Release, libc++ (Bessel Tier 2 active), 42/42
 oracle self-checks. Compared against the Zen 4 v2.3.1 block:
@@ -330,7 +334,7 @@ oracle self-checks. Compared against the Zen 4 v2.3.1 block:
 ## Third machine re-run: Mac Mini M1 NEON at v2.3.1 (2026-08-27)
 
 The NEON generated block then reflected **v2.3.1** (banner
-`commit=b30cdb0`, 6063-row grid; the current banner is `df78931`),
+`commit=b30cdb0`, 6063-row grid; the current banner is `cfbb992`),
 regenerated from a native sweep on the
 Apple M1, AppleClang Release, libc++ (Bessel Tier 2 active), 42/42
 oracle self-checks. Compared against the Zen 4 / Kaby Lake v2.3.1
@@ -619,6 +623,42 @@ machine; it does not separate libm from FMA. Scalar rows differ too, which
 points at libm and FMA contraction in scalar code, not at the batch tier.
 
 Evidence: `docs/bench-evidence/2026-11-16-ivybridge-avx-baseline/`.
+
+## v2.5.1: all four blocks regenerated (2026-11-23/24)
+
+v2.5.1 changes one thing the sweep can see: the Cauchy quantile below a tail
+probability of 1e-9 (#316, `7069adc`), which is now finite at subnormal p
+wherever the answer is finite (it was ±inf) and moves by at most 2 ulp
+elsewhere in that region. Each machine
+swept the release code on the v2.5.0 grid (26,882 rows, 190 oracle
+self-checks, **0 contract violations** each) and its block was regenerated
+from that sweep:
+
+| ISA | Machine | Compiler | Sweep banner |
+|---|---|---|---|
+| AVX-512 | Zen 4 | clang-cl 22.1.3 | `b5f0311`, 2026-11-23 |
+| AVX2 | Kaby Lake | AppleClang 15.0.0 | `3dd8358`, 2026-11-23 |
+| NEON | Mac Mini M1 | AppleClang 21.0.0 | `53cef69`, 2026-11-24 |
+| AVX | Ivy Bridge | GCC 13.3.0 | `51e1390`, 2026-11-23 |
+
+The four banner commits differ in documents only; the library code at each is
+`7069adc`'s. In every block the banner and seven `cauchy` rows change and
+nothing else:
+
+- `quantile` max_abs 5.403e+289 → 1.505e+289, with max_rel unchanged
+  (2.543e-16 on AVX-512 and AVX, 2.774e-16 on AVX2 and NEON).
+- `cdf` max_rel 2.847e-16 → 2.904e-16 and `logpdf` max_abs 2.336e-13 →
+  2.333e-13, scalar and batch. The sweep builds the x grid of these methods
+  from the quantile, so their points move by an ulp or two with it.
+- `pdf`: p99_rel 4.213e-16 → 3.465e-16 on AVX-512 and NEON with max_rel
+  unchanged at 4.713e-16; on AVX2 and AVX max_rel 4.213e-16 → 3.465e-16 and
+  p99_rel 3.465e-16 → 3.209e-16.
+
+Each machine's diff and oracle log are under
+`docs/bench-evidence/2026-11-2{3,4}-<machine>-v2.5.1/`.
+
+On the v3.0.0 branch the generated blocks below are the corvus-adoption
+sweeps, not these: the v2.5.1 blocks are in the `v2.5.1` tag.
 
 ## v3.0.0 adoption: AVX block regenerated at the corvus v1.2.0 pin (2026-11-17)
 

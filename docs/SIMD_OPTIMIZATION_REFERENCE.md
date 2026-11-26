@@ -4,7 +4,7 @@ This document records SIMD design decisions for libstats v2.x.
 
 ## Current status
 
-Resolved work from v1.4.0 through v2.0.0:
+Resolved work from v1.4.0 through v2.5.0:
 
 - `vector_cos` across SSE2, AVX, AVX2, NEON, and AVX-512
 - AVX2+FMA native `vector_exp`, `vector_log`, and `vector_cos`
@@ -25,8 +25,8 @@ Resolved work from v1.4.0 through v2.0.0:
   batch (VECTORIZED) kernel, not a serial scalar loop (ee11e62), and
   `parallelForSlices` folds a partial last slice into the one before it, so
   every strategy returns VECTORIZED's bits (045acd9, #191). On 2026-10-14
-  `scripts/derive_threshold_rows.py` re-derived all four tables from the R8
-  three-run bundles at code head d1adc95 (`data/profiles/dispatcher/`); a
+  `scripts/derive_threshold_rows.py` re-derived all four tables from the
+  three-run `strategy_profile --large` bundles at code head d1adc95 (`data/profiles/dispatcher/`); a
   back-to-back A/B with `tools/bench/table_ab_bench.cpp` then settled the kNeon,
   kAvx512, kAvx2 and kAvx rows (580b7f7, bb9ac0b, 6c149f1, 4c3a133). Evidence and numbers:
   `SIMD_BENCHMARK_RESULTS.md` §v2.5.0.
@@ -60,7 +60,7 @@ When a dispatch threshold is too low, the parallel strategy fires before its ove
 - At the threshold, throughput drops sharply as threading overhead dominates.
 - Throughput recovers as N grows and parallel work amortises the overhead.
 
-Example from the v2.0.2 AVX-512 recalibration (perf/dispatch-threshold-recalibration):
+Example from the v2.0.2 AVX-512 recalibration:
 
 | Distribution / Op | Threshold | Trough N | Trough throughput | Pre-trough |
 |---|---|---|---|---|
@@ -152,7 +152,7 @@ table rows.
 
 When iterating threshold values, the target state is a parallel entry that exceeds the last VECTORIZED point in the sweep. If the first benchmark measurement at the new threshold T falls below the VECTORIZED level just below T, the parallel path has not yet amortised its threading overhead — raise the threshold further.
 
-Example from the NEON Laplace PDF recalibration (perf/dispatch-threshold-recalibration, M1):
+Example from the v2.0.2 NEON Laplace PDF recalibration (M1):
 
 | Threshold | Last VECTORIZED | Parallel entry (N=T) | Entry delta |
 |---|---|---|---|
@@ -224,7 +224,7 @@ The `vector_cos`/`vector_sin` implementations are the clean-room quadrant-reduct
 
 ### Scipy version independence
 
-All other distributions (Gaussian, Exponential, Laplace, Gamma, etc.) produce bit-identical or near-identical accuracy results across Zen4 and Kaby Lake with the same scipy version. The VonMises accuracy difference was initially suspected to be a scipy version artefact (1.17.1 vs 1.18.0); upgrading to 1.18.0 on Zen4 left the Zen4 accuracy unchanged, ruling out scipy.
+All other distributions (Gaussian, Exponential, Laplace, Gamma, etc.) produce bit-identical or near-identical accuracy results across Zen4 and Kaby Lake with the same scipy version. The earlier VonMises difference was not a scipy artefact: upgrading scipy 1.17.1 to 1.18.0 on Zen4 left its accuracy unchanged.
 
 ---
 
@@ -251,8 +251,8 @@ Binomial PMF evaluates `detail::binomial_log_pmf` per element in a scalar loop, 
 ## MSVC vectorization limits
 
 Evidence: `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/README.md`
-(Zen 4, MSVC 19.51 against clang-cl 22.1.3). The Windows benchmark and R3/R8
-captures (`kAvx512`, and Zen 4's R3 and R8) come from clang-cl; cl.exe is the
+(Zen 4, MSVC 19.51 against clang-cl 22.1.3). The Windows benchmark and threshold
+captures (`kAvx512`) come from clang-cl; cl.exe is the
 correctness build.
 
 - **No loop around an inner loop.** cl.exe does not vectorize a loop whose

@@ -11,7 +11,7 @@ libstats v2.x requires C++20 and the following minimum compilers:
 | macOS | AppleClang 15 | macOS 13 Ventura or newer |
 | Linux | GCC 13 or Clang 17 | CI exercises GCC 14 and Clang 17; GCC 13 is the CMake-enforced floor (coverage job and the two AVX-512 workflows only) |
 | Windows | MSVC 19.38 | Visual Studio 2022 17.8 or newer; the correctness build |
-| Windows | clang-cl, Clang 17 | The performance build (Ninja), used for every timing and threshold capture; the VS-bundled 22.1.3 is the version used |
+| Windows | clang-cl, Clang 17 | The performance build (Ninja), used for every timing and threshold capture; version used: 22.1.3 (VS-bundled) |
 
 macOS builds use system AppleClang and Apple libc++. The v2.x build path does not support alternate LLVM toolchain setup.
 
@@ -59,7 +59,7 @@ ctest --test-dir build --output-on-failure -LE "timing|benchmark"
 | `Debug` | Full debug build |
 | `Release` | Optimised production build |
 | `RelWithDebInfo` | Optimised build with debug symbols |
-| `Strict` | Warnings-as-errors compatibility build |
+| `Strict` | Cross-compiler strict warnings with `-Werror` |
 
 Use `Strict` for warning audits:
 
@@ -141,9 +141,7 @@ Aliases:
 The source tree mirrors the install tree directly: headers live under
 `include/libstats/`, so `#include "libstats/core/foo.h"` resolves identically
 in the build tree and after `cmake --install` — no shim, symlink, or copy
-step is involved (issue #83 removed the previous include-shim machinery,
-which cost a configure-time symlink on macOS/Linux and a flat copy plus an
-ALL-target refresh on Windows).
+step is involved (#83 removed the earlier include-shim machinery).
 
 The build tree carries the same dual include contract as the installed
 package: `<src>/include` (for `#include "libstats/core/foo.h"`),
@@ -291,10 +289,6 @@ Using these as identifiers causes parse errors on MSVC even though the code comp
 
 ## Where the build logic lives
 
-Moved here from AGENTS.md on 2026-09-07: navigation detail needed when
-editing the build, not in every session. The guarded-FORCE gotcha stayed in
-AGENTS.md, because it is a silent-failure trap rather than a signpost.
-
 Threading detection and compiler-flag/warning-set logic live in
 `cmake/Threading.cmake` and `cmake/CompilerFlags.cmake`; tests and tools are registered from their own
 `tests/CMakeLists.txt` and `tools/CMakeLists.txt` via `add_subdirectory`.
@@ -308,11 +302,9 @@ AGENTS.md.
 
 ## The #97 config-header incident
 
-Moved here from AGENTS.md on 2026-09-07. The rule it produced — a
-configure-time fact a public header branches on goes in the generated
-`libstats_config.h`, never in `target_compile_definitions` — stays in
-AGENTS.md next to the fleet rule it implements (CMake House Style §7).
-This is what happened when it was broken.
+Rule: a configure-time fact a public header branches on goes in the generated
+`libstats_config.h`, never in `target_compile_definitions` (`AGENTS.md`, CMake
+House Style §7). Breaking it caused #97:
 
   libstats #97 was the rule's second incident: `$<LINK_ONLY:>` stripped the
   macro from the installed export, so every consumer compiled Tier 2 Bessel

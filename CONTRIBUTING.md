@@ -1,6 +1,6 @@
 # Contributing to libstats
 
-Thank you for your interest in contributing to libstats! We welcome contributions from the community and are pleased to have you join us in making this project better.
+Thank you for contributing to libstats.
 
 ## Quick Start for Contributors
 
@@ -117,7 +117,7 @@ libstats/
 ### Adding New Distributions
 
 When contributing new probability distributions, follow the 5-step registration
-checklist in `include/libstats/core/distribution_meta.h` (authoritative), then implement:
+checklist in `include/libstats/core/distribution_meta.h` (authoritative):
 
 1. **Append** the `DistributionType` enum value to `include/libstats/core/distribution_type.h`
    (append-only — values are used as array indices).
@@ -223,13 +223,13 @@ For new features:
 
 ```bash
 # Debug build
-cmake -DCMAKE_BUILD_TYPE=Debug ..
+cmake --preset debug
 
 # Release build with optimizations
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake --preset release
 
 # Strict warnings (compile error on warnings)
-cmake -DCMAKE_BUILD_TYPE=Strict ..
+cmake --preset strict
 ```
 
 ### Useful CMake Options
@@ -265,12 +265,10 @@ We are committed to fostering a welcoming and inclusive community. Please:
 
 We're particularly interested in contributions in these areas:
 
-1. **New Distributions**: All 27 distributions are fully implemented as of v2.4.0
-   (the v2.4.0 milestone added Logistic, Gumbel, Bernoulli, Erlang, FisherF,
-   InverseGamma, HalfNormal, TruncatedNormal). KDE (kernel
+1. **New Distributions**: All 27 planned distributions are implemented. KDE (kernel
    density estimation) and GMM (Gaussian mixture models) are wanted but
    unscheduled. See the [milestones](https://github.com/OldCrow/libstats/milestones)
-   for what is currently planned rather than a version named here.
+   for current plans.
 2. **Statistical Tests**: More goodness-of-fit tests and validation methods
 3. **Performance Optimization**: SIMD improvements and cache optimizations
 4. **Documentation**: API documentation and usage examples
@@ -284,7 +282,7 @@ We're particularly interested in contributions in these areas:
 
 ## 📝 Commit Message Guidelines
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear communication and automated versioning.
+We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear communication and generated changelogs (`cliff.toml`).
 
 ### Commit Message Format
 
@@ -298,8 +296,8 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear
 
 ### Commit Types
 
-- **feat**: New feature (triggers minor version bump)
-- **fix**: Bug fix (triggers patch version bump)
+- **feat**: New feature (minor version bump)
+- **fix**: Bug fix (patch version bump)
 - **docs**: Documentation changes
 - **style**: Code style changes (formatting, etc.)
 - **refactor**: Code refactoring without changing functionality
@@ -319,7 +317,7 @@ git commit -m "feat(gaussian): add parallel batch fitting support"
 # Bug fix
 git commit -m "fix(simd): correct AVX2 detection on older CPUs"
 
-# Breaking change (triggers major version bump)
+# Breaking change (major version bump)
 git commit -m "feat(api)!: change distribution interface
 
 BREAKING CHANGE: All distribution classes now require explicit template parameters"
@@ -351,7 +349,3 @@ Follows [Semantic Versioning](https://semver.org/):
 - **MAJOR**: Breaking API changes
 - **MINOR**: New distributions or features, backward-compatible
 - **PATCH**: Bug fixes and performance improvements
-
----
-
-Thank you for contributing to libstats! Your efforts help make statistical computing in C++ more accessible and powerful for everyone.

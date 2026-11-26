@@ -1,0 +1,13 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v251\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = WeibullEnhancedTest.VectorizedSpeedup
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from WeibullEnhancedTest
+[ RUN      ] WeibullEnhancedTest.VectorizedSpeedup
+Weibull LogPDF VECTORIZED speedup: 6.88119x (VECTORIZED 111.1μs, SCALAR 764.5μs)
+[       OK ] WeibullEnhancedTest.VectorizedSpeedup (30 ms)
+[----------] 1 test from WeibullEnhancedTest (30 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (32 ms total)
+[  PASSED  ] 1 test.

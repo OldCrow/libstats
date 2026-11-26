@@ -12,9 +12,11 @@ These are part of the normal development workflow and are expected to be used re
 - `ci-local.sh` — run the CI suite locally before pushing
 - `test-cross-compiler.sh` — exercise libstats warning/build profiles on the current host compiler
 
-  **Note:** On a Clang host, the `GCCStrict`/`GCCWarn`/`MSVCStrict`/`MSVCWarn` build types
-  validate the repository's *emulated* warning profiles, not real GCC or MSVC front ends.
-  Real compiler validation still requires native GCC or MSVC runs.
+  **Note:** The script requests build types (`ClangStrict`, `GCCStrict`, `MSVCStrict`
+  and their `*Warn` variants) that `CMakeLists.txt` no longer defines; it accepts
+  `Debug`, `Release`, `RelWithDebInfo`, `Dev` and `Strict`. Those passes therefore do
+  not apply the warning profiles their names suggest. Real GCC and MSVC validation
+  needs native runs.
 
 - `check_pragma_once.py` — verify all headers use `#pragma once`
 - `check_no_debug.py` — fail on leftover debug markers (`DO NOT COMMIT`, `HACK:`, DEBUG prints, `#define DEBUG`) and on `std::cout` in library code outside a DEBUG-gated block
@@ -34,9 +36,8 @@ These are part of the normal development workflow and are expected to be used re
   combined across runs; `--table` compares the candidates with an ArchTable.
   The v2.4.0 bundles carry an earlier copy of it.
 - `derive_threshold_rows.py` — turns each table's three-run bundle into
-  `dispatch_thresholds.h` rows by the PLAN.md R8 rules (keep, standing override,
-  fork value, candidate), with per-row user decisions and their evidence; writes
-  per-table decisions and a proposed header. Derived the 2026-10-14 tables.
+  `dispatch_thresholds.h` rows by the rules in its docstring (keep, standing override,
+  fork value, candidate); writes per-table decisions and a proposed header. Derived the 2026-10-14 tables.
 - `PROFILING_METHOD.md` — the binding threshold-measurement method doc.
 - `gen_neon_erf_table.py` — regenerates `src/neon_erf_data.inc`, the
   1537-entry precomputed erf table used by `vector_erf_neon`. Re-run if the

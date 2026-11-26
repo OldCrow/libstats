@@ -1,0 +1,5 @@
+commit:   53cef69 dirty=0
+machine:  Macmini9,1 Apple M1, macOS 27.2.1 (26B131)
+compiler: Apple clang version 21.0.0 (clang-2100.4.1.1)
+power:    Now drawing from 'AC Power'
+suspended during the run: mediaanalysisd corespotlightd spotlightknowledged spotlightknowledged.updater mdworker_shared storeuid CGPDFService VTEncoderXPCService VTDecoderXPCService photolibraryd photoanalysisd OneDrive contactsd AddressBookSourceSync

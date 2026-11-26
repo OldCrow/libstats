@@ -1,0 +1,13 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v251\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = ParetoEnhancedTest.VectorizedSpeedup
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ParetoEnhancedTest
+[ RUN      ] ParetoEnhancedTest.VectorizedSpeedup
+Pareto LogPDF VECTORIZED speedup: 8.10251x (VECTORIZED 51.7μs, SCALAR 418.9μs)
+[       OK ] ParetoEnhancedTest.VectorizedSpeedup (30 ms)
+[----------] 1 test from ParetoEnhancedTest (31 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (32 ms total)
+[  PASSED  ] 1 test.

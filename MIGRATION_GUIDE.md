@@ -171,14 +171,14 @@ dist.getProbability(std::span<const double>(xs), std::span<double>(ys), hint);
 
 ---
 
-## Result<T> API change (2026-07-01)
+## `Result<T>` API change
 
 `Result<T>` was redesigned from a plain aggregate struct to a discriminated union
 (`std::variant<T, ErrorInfo>`). The public **fields** are gone; use the methods below.
 
 | Old (v1.x – v2.0.0-pre) | New (v2.0.0) |
 |---|---|
-| `result.value` | `*result` (lvalue ref) or `result.unwrap()` (move) |
+| `result.value` | `*result` or `result.unwrap()` (both lvalue refs) |
 | `std::move(result.value)` | `std::move(result).unwrap()` |
 | `result.error_code` | `result.errorCode()` |
 | `result.message` | `result.message()` |
@@ -257,11 +257,9 @@ C++20 concepts in `stats::concepts` (`include/libstats/core/distribution_concept
 | `FittableDistribution<D>` | `AnyDistribution<D>` + `std::default_initializable<D>` + `fit(const std::vector<double>&)` — required by the bootstrap and cross-validation templates |
 
 Two practical consequences for custom distributions:
-- **`getSkewness()`/`getKurtosis()` are now required** by `AnyDistribution` —
-  they weren't part of the earlier trait contract. A custom distribution
-  missing either method will now fail to satisfy the concept (clearer
-  compile error than a SFINAE substitution failure) rather than silently
-  compiling with reduced trait support.
+- **`getSkewness()`/`getKurtosis()` are now required** by `AnyDistribution`;
+  the earlier trait contract did not require them. A custom distribution
+  missing either method no longer satisfies the concept.
 - Passing a custom distribution to `stats::analysis` templates now produces a
   concept-based compile error (naming the unsatisfied requirement) instead of
   an opaque SFINAE failure, if it doesn't satisfy the relevant concept.
@@ -325,24 +323,6 @@ GaussianDistribution::kolmogorovSmirnovTest(data, dist, alpha);
 // v2.0.0 — single path
 #include "libstats/stats/analysis/goodness_of_fit.h"
 stats::analysis::kolmogorovSmirnovTest(data, dist, alpha);
-```
-
----
-
-## Factory method Doxygen updated
-
-The `create()` factory rationale has changed. In v1.x the comment cited an ABI
-workaround for Homebrew LLVM libc++. In v2.0.0 the rationale is the deliberate API
-design choice documented in `error_handling.h`. The factory itself is unchanged:
-
-```cpp
-auto result = stats::GaussianDistribution::create(0.0, 1.0);
-if (result.isOk()) {
-    auto& g = *result;  // operator* — see Result<T> API change above
-    // ...
-} else {
-    std::cerr << result.message() << "\n";
-}
 ```
 
 ---

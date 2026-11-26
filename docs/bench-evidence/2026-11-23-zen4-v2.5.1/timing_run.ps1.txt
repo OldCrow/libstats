@@ -1,0 +1,79 @@
+# v2.5.1 leg P3 on Z: the 14 timing tests, quiet, each test binary launched directly and opted out of
+# Windows power throttling (docs/VALIDATION_HISTORY.md, "Zen 4 timing: power throttling"). ctest is used
+# only to list the tests, their commands and their GTEST_FILTER; it does not launch them. A 10-s clock
+# probe (docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/clock_probe.cpp) runs before and after.
+param([string]$Build = 'clangcl', [double]$QuietPct = 8.0, [int]$QuietMaxWaitMin = 10)
+$ErrorActionPreference = 'Continue'
+$Root = Split-Path $PSScriptRoot -Parent
+$Wt = "$Root\wt"
+$B = "$Root\$Build"
+$Ev = "$Root\evidence\$Build"
+$Out = "$Ev\timing"
+New-Item -ItemType Directory -Force $Out | Out-Null
+$Log = "$Ev\ctest_timing.txt"
+Remove-Item $Log -ErrorAction SilentlyContinue
+. "$Wt\docs\bench-evidence\2026-10-05-zen4-msvc-vs-clangcl\nothrottle.ps1"
+Add-Type -Namespace Win32 -Name Power -MemberDefinition @'
+[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);
+'@
+[Win32.Power]::SetThreadExecutionState([uint32]'0x80000001') | Out-Null
+
+function CpuPct {
+    $s = Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 2 -MaxSamples 3 -ErrorAction SilentlyContinue
+    if (-not $s) { return -1 }
+    [math]::Round(($s.CounterSamples | Measure-Object CookedValue -Average).Average, 1)
+}
+function Log($msg) { $line = "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) $msg"; Add-Content -Path $Log -Value $line; Write-Host $line }
+function RunOptedOut($label, $exe, $wd, $stdout, $argList) {
+    $extra = @{}; if ($argList) { $extra.ArgumentList = $argList }
+    $p = Start-Process @extra -FilePath $exe -WorkingDirectory $wd -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError "$stdout.err"
+    $h = $p.Handle  # keep the handle so ExitCode is readable after exit
+    $ok = Disable-PowerThrottling $p
+    $state = Get-PowerThrottling $p
+    $t0 = Get-Date; $p.WaitForExit()
+    if ((Test-Path "$stdout.err") -and (Get-Item "$stdout.err").Length -eq 0) { Remove-Item "$stdout.err" }
+    Log ("{0,-36} exit={1} {2,6:N1}s optout(set={3} {4})" -f $label, $p.ExitCode, ((Get-Date) - $t0).TotalSeconds, $ok, $state)
+    return $p.ExitCode
+}
+
+# Clock probe, built once with clang-cl beside this script.
+$Probe = "$PSScriptRoot\clock_probe.exe"
+if (-not (Test-Path $Probe)) {
+    $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+    $envVars = cmd /c "`"$vsPath\VC\Auxiliary\Build\vcvars64.bat`" > nul 2>&1 && set"
+    foreach ($line in $envVars) { if ($line -match "^([^=]+)=(.*)$") { [System.Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process') } }
+    & "$vsPath\VC\Tools\Llvm\x64\bin\clang-cl.exe" /nologo /O2 /EHsc "/Fe$Probe" "/Fo$PSScriptRoot\clock_probe.obj" "$Wt\docs\bench-evidence\2026-10-05-zen4-msvc-vs-clangcl\clock_probe.cpp" | Out-Null
+}
+
+Log "commit=$(git -C $Wt rev-parse --short HEAD) dirty=$((git -C $Wt status --porcelain --untracked-files=no | Measure-Object).Count) build=$Build"
+Log "cpu=$((Get-CimInstance Win32_Processor).Name) os=$((Get-CimInstance Win32_OperatingSystem).Version)"
+Log "power: $((powercfg /getactivescheme) -replace '^.*GUID: ', '') ac=$((Get-CimInstance -Namespace root\wmi -ClassName BatteryStatus -ErrorAction SilentlyContinue | Select-Object -First 1).PowerOnline)"
+
+$t0 = Get-Date
+while ($true) {
+    $c = CpuPct
+    if ($c -ge 0 -and $c -lt $QuietPct) { Log "cpu=$c% quiet"; break }
+    if (((Get-Date) - $t0).TotalMinutes -ge $QuietMaxWaitMin) { Log "cpu=$c% NOT quiet after $QuietMaxWaitMin min, starting anyway (indicative)"; break }
+    Log "cpu=$c% waiting"; Start-Sleep -Seconds 20
+}
+
+RunOptedOut 'clock_probe (before, 10 s)' $Probe $PSScriptRoot "$Out\clock_probe_before.txt" '10' | Out-Null
+Log "probe before: $((Get-Content "$Out\clock_probe_before.txt") -join ' | ')"
+
+$cfg = if ($Build -eq 'msvc') { @('-C', 'Release') } else { @() }
+$tests = (ctest --test-dir $B @cfg --show-only=json-v1 -L timing | ConvertFrom-Json).tests
+$pass = 0; $fail = @()
+foreach ($t in $tests) {
+    $envProp = ($t.properties | Where-Object name -eq 'ENVIRONMENT').value
+    $wdProp = ($t.properties | Where-Object name -eq 'WORKING_DIRECTORY').value
+    $set = @()
+    foreach ($e in $envProp) { $k, $v = $e -split '=', 2; Set-Item "env:$k" $v; $set += $k }
+    $code = RunOptedOut $t.name $t.command[0] $wdProp "$Out\$($t.name).txt"
+    foreach ($k in $set) { Remove-Item "env:$k" }
+    if ($code -eq 0) { $pass++ } else { $fail += $t.name }
+}
+
+RunOptedOut 'clock_probe (after, 10 s)' $Probe $PSScriptRoot "$Out\clock_probe_after.txt" '10' | Out-Null
+Log "probe after: $((Get-Content "$Out\clock_probe_after.txt") -join ' | ')"
+Log "cpu=$(CpuPct)% at end"
+Log "RESULT $pass/$($tests.Count) passed; failed: $($fail -join ', ')"

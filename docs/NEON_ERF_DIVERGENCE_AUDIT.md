@@ -2,7 +2,7 @@
 
 Date: 2026-07-19
 Author: orchestrator (not the clean-room implementer). Purpose: document, for
-Issue #67, that the clean-room implementation in this directory does not reuse the
+Issue #67, that the clean-room `vector_erf_neon` (src/simd_neon.cpp, src/neon_erf_data.inc) does not reuse the
 copyrightable *expression* of glibc's LGPL-2.1+ `sysdeps/aarch64/fpu/erf_advsimd.c`,
 and to record exactly where the two coincide and why.
 

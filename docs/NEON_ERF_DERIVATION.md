@@ -84,9 +84,7 @@ removes a genuine knife-edge: erf(A_max) sits within ~10⁻¹⁹ of the rounding
 midpoint between 1 and 1−2⁻⁵³, and during development the series path
 (h = 2⁻⁵, N = 8) computed it a hair below the midpoint — a 1-ULP miss that no
 reasonable series accuracy can guarantee to avoid. Saturating exactly at the
-threshold makes the question moot. (First measured with A_max = 6.0; the
-final A_max = 5.921587195794507 is why every config now passes the edge
-tests.)
+threshold makes the question moot.
 
 Edge behaviour falls out of the vector code without branches:
 - ±0: cell 0 has E = 0, r = 0, so the result is S·(±0 + 0) = ±0 with the
@@ -148,8 +146,10 @@ These predictions match the measured max-ULP table below (configs predicted
 >1·2⁻⁵² show >1 ulp max; configs predicted ≪1 all achieve max 1 ulp, the
 floor set by final rounding).
 
-## 5. Measured design space (Apple M1, clang -O3, 22008-point
-correctly-rounded reference set; hot = 2048 doubles, stream = 262144)
+## 5. Measured design space
+
+Apple M1, clang -O3, 22008-point correctly-rounded reference set; hot = 2048
+doubles, stream = 262144.
 
     config       comp maxULP  comp meanULP  nocomp maxULP  hot ns/el  stream ns/el  table
     h=2^-5 N=7   2.00         0.0507        3.00           1.84       1.90           6.2 KB
@@ -191,10 +191,9 @@ erf, which itself shows max 3 ulp on the same reference set). The shortest
 series wins because the kernel is arithmetic-bound, and even the 49 KB
 table stays effectively resident (hot and stream throughput are equal). If
 table footprint mattered more than ~0.26 ns/element, h=2^-7 N=6 (24.6 KB)
-or h=2^-6 N=7 (12.3 KB) achieve the same max 1 ulp; that trade-off is noted
-in the code.
+or h=2^-6 N=7 (12.3 KB) achieve the same max 1 ulp.
 
 ## 7. Reproducing
 
-See README.md. All numbers above are from a real run on this machine
-(Apple M1, AppleClang, -std=c++20 -O3).
+`scripts/gen_neon_erf_table.py` regenerates the table. All numbers above are
+from a run on an Apple M1 (AppleClang, -std=c++20 -O3).

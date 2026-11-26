@@ -1,9 +1,8 @@
 # Dispatcher Threshold Profiling Method
 
 This document is the authoritative reference for how dispatch thresholds in
-`include/libstats/core/dispatch_thresholds.h` are measured and derived.  All agents
-that capture profiling runs or encode table values **must** follow this method
-exactly to ensure consistency across architectures and sessions.
+`include/libstats/core/dispatch_thresholds.h` are measured and derived.  Follow this method exactly when you capture profiling runs or encode table
+values, so the tables stay consistent across architectures.
 
 ---
 
@@ -175,8 +174,7 @@ bash scripts/capture_dispatcher_profile.sh --sleep 0
 
 ### Windows (PowerShell)
 
-`scripts/capture_dispatcher_profile.ps1` is the maintained PS1 translation
-(originally generated from the Bash script's header-comment guide).
+`scripts/capture_dispatcher_profile.ps1` is the PowerShell equivalent.
 Key differences:
 - `.exe` suffix on tool binaries
 - `python` instead of `python3`
@@ -354,13 +352,8 @@ constexpr ArchTable kArch = {
 
 ## Architecture status
 
-| SIMD tier | Machine | Status |
-|---|---|---|
-| AVX2+FMA (kAvx2) | Kaby Lake i7-7820HQ | ✅ current (2026-09-03/04 native re-measure post-#143, sustained crossovers, bundle 2026-09-04T02-36-22Z, 7c2ca49) |
-| NEON (kNeon)     | Mac Mini M1         | ✅ current (2026-09-04 native re-measure post-#143, bundle 2026-09-04T04-22-28Z, 5f9bb5e) |
-| AVX-512 (kAvx512)| Asus TUF A16 Zen 4  | ✅ current (2026-09-03 native re-measure post-#143, PR #143; von Mises CDF cell still provisional — #144) |
-| AVX (kAvx)       | Kaby Lake, capped build | ✅ MEASURED for the first time 2026-09-04 (`LIBSTATS_MAX_SIMD_TIER=AVX`, bundle 2026-09-04T23-51-14Z, cb13f34) — no longer inferred |
-| SSE2 (kSse2)     | no dedicated hardware | delegates to kAvx by design |
+Each table's measurement provenance is recorded in the comment above it in
+`include/libstats/core/dispatch_thresholds.h`. kSse2 shares kAvx by design.
 
 ---
 
@@ -393,7 +386,7 @@ June harness bundles carry the full `capture_dispatcher_profile.sh` layout
 v2.4.0 bundles (2026-09-04T*) were captured directly via
 `strategy_profile -o` and instead carry raw per-run CSVs +
 `analyze_crossovers.py` + `sustained_crossovers.txt` (see
-`data/profiles/dispatcher/README.md`; #146 consolidates the tooling).
+`data/profiles/dispatcher/README.md`; the canonical tool is `scripts/analyze_crossovers.py`, #146).
 Resolved issues are recorded below for reference.
 
 **kAvx512 (Windows, 2026-06-22):** Three bundles under

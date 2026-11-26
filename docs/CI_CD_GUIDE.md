@@ -2,7 +2,7 @@
 
 This guide explains the libstats CI/CD setup, how to reproduce failures locally, and how to debug common workflow issues.
 
-The guide is written for contributors and users of the v2.x series. It avoids project-owner-specific setup requirements except where the release process uses additional real hardware validation to explain CI limits.
+The guide is written for contributors and users of the v2.x series. It omits project-owner-specific setup, except where it describes the release process's real-hardware validation to explain CI limits.
 
 ## CI purpose
 
@@ -17,20 +17,17 @@ CI does not replace release validation on real SIMD hardware. GitHub-hosted runn
 
 ## Supported CI baseline
 
-The v2.x build matrix (ci.yml) is four legs, all Release — Debug legs were
-deliberately dropped:
+The v2.x build matrix (`ci.yml`) has four Release legs and no Debug legs:
 
 | Platform | Compiler | Build | Purpose |
 |---|---|---|---|
-| Ubuntu latest | GCC 14 | Release | Current stable GCC |
-| Ubuntu latest | Clang 17 | Release | Minimum Clang baseline |
-| macOS 15 | AppleClang | Release | macOS baseline |
+| Ubuntu 24.04 | GCC 14 | Release | Current stable GCC |
+| Ubuntu 24.04 | Clang 17 | Release | Minimum Clang baseline |
+| macOS latest | AppleClang | Release | macOS baseline |
 | Windows latest | MSVC 19.38+ | Release | Production Windows validation |
 
 GCC 13 is the CMake-enforced minimum. It is not in the main matrix; three
-places build with it: the `coverage` job in `ci.yml`, the
-`avx512-compilation.yml` matrix, and `avx512-testing.yml`. The project
-requires C++20. Do
+places build with it: the `coverage` job in `ci.yml`, the `avx512-compilation.yml` matrix, and `avx512-testing.yml`. Do
 not reintroduce matrix entries below the baseline unless a maintenance
 branch explicitly needs them.
 
@@ -78,8 +75,8 @@ added in v2.5.0:
 
 `test_concurrency_stress` runtime on the macOS runner (`macos-latest`: the
 macos-15 image when measured, macOS 26 since) varies 97–372 s on
-unchanged code (six runs, 00d1597–d7e9dbd), against 68–102 s on Linux and Windows: shared ARM VMs and
-the spin-then-yield barriers, not a regression. The headroom is ctest's
+unchanged code (six runs, 00d1597–d7e9dbd), against 68–102 s on Linux and Windows. The cause is shared ARM VMs and
+  the spin-then-yield barriers, not a regression. The headroom is ctest's
 1,500 s default timeout and the stress test's 120 s per-race watchdog. If
 macOS nears half the limit, lower `LIBSTATS_STRESS_SCALE` for that job.
 
@@ -124,8 +121,9 @@ changes excluded via paths-ignore), and a weekly scheduled canary. A
 separate runtime workflow (`avx512-testing.yml`) builds AND runs the suite
 on the same pushes as `ci.yml` and the weekly canary, and on a pull
 request only when it carries the `avx512-test` label; it runs on
-`ubuntu-latest` and, when the runner has no `avx512f`, skips the build and
-tests with a notice. `docs.yml` builds documentation and
+`ubuntu-24.04` and, when the runner has no `avx512f`, skips the build and
+tests with a notice. `docs.yml` builds the Doxygen documentation (its build job uploads the Pages
+artifact) and, on pushes to `main`, deploys it to GitHub Pages;
 `lint-workflows.yml` lints the workflows themselves (actionlint/zizmor).
 
 ## Local reproduction
@@ -280,8 +278,6 @@ which codesign
 ```
 
 ## Release validation practice
-
-Project releases supplement CI with real hardware validation because SIMD runtime behaviour depends on CPU features that CI cannot guarantee.
 
 The current project validation set covers:
 

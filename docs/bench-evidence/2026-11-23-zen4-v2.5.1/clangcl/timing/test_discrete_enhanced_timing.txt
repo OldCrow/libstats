@@ -1,0 +1,34 @@
+Running main() from C:\Users\gdwol\Development\libstats-z-v251\clangcl\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = DiscreteEnhancedTest.SIMDAndParallelBatchImplementations:DiscreteEnhancedTest.CachingSpeedupVerification
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from DiscreteEnhancedTest
+[ RUN      ] DiscreteEnhancedTest.SIMDAndParallelBatchImplementations
+
+=== SIMD and Parallel Batch Implementations ===
+
+--- Batch Size: 5000 elements ---
+  Sequential: 33.5μs (baseline)
+  Vectorized: 1.6μs (20.9375x speedup)
+  Parallel: 1.6μs (20.9375x speedup)
+  Work Stealing: 1.6μs (20.9375x speedup)
+
+--- Batch Size: 50000 elements ---
+  Sequential: 328μs (baseline)
+  Vectorized: 14.1μs (23.2624x speedup)
+  Parallel: 27.5μs (11.9273x speedup)
+  Work Stealing: 21.1μs (15.545x speedup)
+[       OK ] DiscreteEnhancedTest.SIMDAndParallelBatchImplementations (32 ms)
+[ RUN      ] DiscreteEnhancedTest.CachingSpeedupVerification
+
+=== Caching Speedup Verification ===
+  First getter calls (cache miss): 500ns
+  Second getter calls (cache hit): 100ns
+  Cache speedup: 5x
+  After parameter change: 200ns
+[       OK ] DiscreteEnhancedTest.CachingSpeedupVerification (0 ms)
+[----------] 2 tests from DiscreteEnhancedTest (33 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (35 ms total)
+[  PASSED  ] 2 tests.

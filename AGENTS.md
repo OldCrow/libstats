@@ -22,8 +22,7 @@ performance. One dependency: [corvus](https://github.com/OldCrow/corvus)
 beneath it — found or fetched at configure time, pinned to a release
 (`cmake/FindOrFetchCorvus.cmake`).
 
-**Current status**: v2.5.0 (correctness and accuracy release over v2.4.1; no
-source API change) — 27 distributions across 7 families, API additive over
+**Current status**: v2.5.1 (patch over v2.5.0; no API change) — 27 distributions across 7 families, API additive over
 v2.1.0. v1.5.3 is the final v1.x release; v2.0.0
 introduced breaking changes, and `MIGRATION_GUIDE.md` has the old→new call
 mapping.
@@ -118,7 +117,7 @@ in the fleet standards repo; this section is self-sufficient for this repo. libs
 | MacBook Pro 14,1 (2017) | macOS Ventura | Intel Kaby Lake | SSE2+AVX+AVX2+FMA | AVX2/FMA validation |
 | Mac Mini M1 | macOS 27 Golden Gate | Apple Silicon M1 | NEON only | ARM/NEON path validation |
 | Asus TUF A16 (2025) | Windows 11 Pro | Ryzen 7 7445 (Zen 4) | +**AVX-512** | Windows (clang-cl performance, MSVC correctness), only AVX-512 machine |
-| MacBook Pro 9,1 (2012) | Linux Mint 22.3 | Intel Ivy Bridge (i7-3820QM) | SSE2+AVX, no AVX2, no FMA | Linux (GCC, Clang, glibc), only machine that selects the AVX tier natively |
+| MacBook Pro 9,1 (2012) | Linux Mint 22.3 | Intel Ivy Bridge (i7-3820QM) | SSE2+AVX, no AVX2, no FMA | Linux (GCC, Clang, glibc), only machine that selects the AVX tier natively. In the fleet under macOS Catalina through v1.5.x; back under Linux since 2026-11 |
 
 macOS requires Ventura 13+. On the Zen 4 box a locked screen puts running
 processes under Windows power throttling, which reads like a dispatch-threshold
@@ -288,7 +287,7 @@ never `p = c * x; isfinite(p) ? log(p) : log(c) + log(x)`. GCC 14 and 16 (-O1
 and up, no fast-math) take an overflowed `c * x`, with `c` a compile-time
 constant, to mean `x = ±inf` (and `1 / x` to mean `x = 0`), and fold the
 fallback's `log(x)` to `+inf`: von Mises at κ > 2.9e307 and InverseGamma past
-the reciprocal range read `+inf` on CI's gcc-14 leg only (fixed 2026-10-13).
+the reciprocal range read `+inf` on CI's gcc-14 leg only.
 The comparison is strict because `fl(DBL_MAX / c)` may round up. A guard whose
 fallback returns a constant is unaffected, and a GCC-against-AppleClang probe
 of every other product, quotient and sum guard (about 650k results) found no

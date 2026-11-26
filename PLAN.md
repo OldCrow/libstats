@@ -16,8 +16,8 @@ naming its commits.
 
 Branch `dev/v3.0.0-corvus-adoption`, built on the v2.5.0 release. corvus
 v1.2.0 is the special-function engine (found or fetched, pinned;
-`cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line at `7069adc`
-and is merged in.
+`cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line; **v2.5.1 was
+released 2026-11-25** (tag on `c744eb3`) and is merged in here.
 
 - **The legs are run on all four machines.** L1–L4 and L7 are done on I,
   K, M and Z (status lines below); every ISA block is regenerated with 0
@@ -29,15 +29,46 @@ and is merged in.
   design ("Pool wake-up and batch spacing"; #323, #333) and, behind it,
   the threshold tables (kAvx512 and kAvx2 held, kNeon and kAvx
   provisional). The fix is due by v3.0.0, changes `src/`, and is followed
-  by L1 on every machine.
+  by L1 on every machine, with L2 again on I, K and M ("Three accuracy
+  blocks" below).
 - **One decision is owed [user]: #156.** All four machines' bench and
   per-call scaling are on the issue.
 - **Then the release documents** ("After the legs", step 4):
   `MIGRATION_GUIDE.md` is still the v1 → v2 guide, `README.md` still
   says "Zero Dependencies", and the per-family quantile accuracy notes
   #104 asked for are not written.
-- **Project version is still 2.5.0** in `CMakeLists.txt`; the bump is a
-  release step. v2.5.1 goes out from `main` first and is merged in here.
+- **Project version is 2.5.1** in `CMakeLists.txt` since the merge of the
+  v2.5.1 release; the bump to 3.0.0 is a release step.
+- **The merge of v2.5.1 (2026-11-25, Z).** It brings the version, the
+  2.5.1 CHANGELOG section (placed under this branch's unreleased 3.0.0
+  section), the v2.5.1 evidence and the documentation review's edits.
+  Kept from this branch where the two sides conflicted: this file, the
+  third-party notices, and all four generated accuracy blocks exactly as
+  swept here. The accuracy document gains the "v2.5.1" section with a note
+  that its blocks are the tag's, not this branch's. Z rebuilt the merged
+  tree with clang-cl 22.1.3 and cl.exe 19.52: no compiler warnings of
+  libstats' own, correctness 135/135 each.
+- **Three accuracy blocks here predate the Cauchy fix; I, K and M owe
+  L2 again [user, 2026-11-25: no separate sitting, do it with the next
+  one each machine has].** #326 came in with `e4026b3` (2026-11-23). The
+  AVX (`98810cf`), AVX2 (`09c7ea0`) and NEON (`cfbb992`) sweeps are from
+  2026-11-21, so their seven `cauchy` rows are the pre-fix values;
+  AVX-512 (`164cbce`) is after it and owes nothing. The merge did not
+  copy `main`'s rows in: a block states what its banner commit measured.
+  - **What each of I, K and M does**: L2 as in "The steps", from a head
+    at or after the v2.5.1 merge: `accuracy_sweep`, the oracle, its own
+    `isa=` block regenerated and committed. No L2b, L3 or timing is asked
+    for by this.
+  - **When**: in the sitting that follows the pool fix, where L1 is
+    already owed on every machine. A threading fix does not by itself
+    ask for L2 (the leg rule asks only when results change), so this is
+    not covered unless it is written here. If the pool fix slips past
+    the release documents, do it before step 4 of "After the legs".
+  - **Expect**: 26,882 rows, 0 contract violations, and only the banner
+    and the seven `cauchy` rows moving, to the figures in the accuracy
+    document's "v2.5.1" section for that ISA (the Cauchy code is
+    identical on `main` and here). Any other row moving is a
+    stop-and-report.
 
 ## Fleet legs for v3.0.0 [OPEN; user, 2026-11-21]
 
@@ -693,7 +724,9 @@ one-element call).
 3. #156: decide the gates from the four machines' numbers [user]; what
    is still owed is in the section above.
    The pool design ("Pool wake-up and batch spacing") from the four L7
-   results [user]; the fix is due by v3.0.0.
+   results [user]; the fix is due by v3.0.0. After it: L1 on every
+   machine, and L2 again on I, K and M, which they owe for #326 ("where
+   it stands", "Three accuracy blocks").
 4. Release docs: version 2.5.0 → 3.0.0, `CHANGELOG.md`,
    `docs/VALIDATION_HISTORY.md` (matrix, costs, the threshold tables),
    `MIGRATION_GUIDE.md`, README and AGENTS status lines.

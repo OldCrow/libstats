@@ -30,13 +30,11 @@ ctest --test-dir build --output-on-failure -LE "timing|benchmark"
 ## Header audit grep checks
 
 ```bash
-# Deleted v1.x headers should not appear.
-# Check the old statistical-utilities stub header and the old distribution-memory header
-# by exact filename during release audits.
+# Deleted v1.x headers must not be included. Expect no output.
+rg "core/distribution_memory|core/statistical_utilities" include src tests tools examples
 
-# Removed v1.x batch APIs should not appear in headers.
-# Check strategy-suffix methods and vector-returning batch helpers by their
-# exact removed method names during release audits.
+# Removed v1.x batch APIs must not appear. Expect no output.
+rg "WithStrategy|getBatch(Probabilities|LogProbabilities|CumulativeProbabilities|Quantiles)" include src tests
 
 # Analysis namespace usage
 rg "stats::analysis" include src tests docs
