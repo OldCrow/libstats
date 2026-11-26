@@ -1101,7 +1101,8 @@ From the four L7 results and Z's `pool_wake_bench` run.
   stealing: on K its win at large sizes is its eight threads (508–574 µs
   against 847–870 µs for four at 204,800). With the pool at physical
   cores, large batches there get about 1.6× slower. Measure first.
-- **What "conservative" means** [proposed, not accepted]: crossover
+- **What "conservative" means** [user, 2026-11-25: accepted as the
+  initial definition, reassessed after the measurements]: crossover
   measured at a 2 ms busy gap, PARALLEL chosen only where it is at least
   1.25× faster than VECTORIZED (the #156 margin).
 - **AVX2 under Linux is unmeasured.** Tables are per SIMD tier; the
