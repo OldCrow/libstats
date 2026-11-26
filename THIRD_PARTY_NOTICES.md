@@ -57,8 +57,8 @@ file, and the derivations in `docs/NEON_*_DERIVATION.md` /
 
 ## Numerical Recipes (algorithmic reference only)
 
-**Reference**: Press, W.H. et al., *Numerical Recipes in C++*, Cambridge
-University Press, 3rd edition 2007.
+**Reference**: Press, W.H. et al., *Numerical Recipes: The Art of Scientific
+Computing*, Cambridge University Press, 3rd edition 2007.
 
 **Usage**: One function in `src/math_utils.cpp` evaluates a classical
 continued fraction that Numerical Recipes also describes:
