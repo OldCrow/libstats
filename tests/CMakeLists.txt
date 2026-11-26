@@ -276,6 +276,15 @@ endif()
 # <concepts> and <ranges> are guaranteed on the v2.0.0 baseline — always register.
 create_libstats_gtest(test_work_stealing_pool test_work_stealing_pool.cpp)
 set(LIBSTATS_HAS_WORK_STEALING_POOL_TEST TRUE)
+# #333 guards: an idle initialised process burns no CPU, and submit() wakes a worker (the unfixed
+# pool started a task 13-15 ms late on Windows). Deliberately NOT in the "timing" label block: CI's
+# correctness run is -LE "timing|benchmark", and neither bound depends on the machine's load (a
+# sleeping thread uses no CPU; the latency bound is a median, far above the fixed delay).
+# Serial, so no other test's threads hold the cores while the latency is read.
+create_libstats_gtest(test_pool_idle_wake_guards test_pool_idle_wake_guards.cpp)
+if(TEST test_pool_idle_wake_guards)
+    set_tests_properties(test_pool_idle_wake_guards PROPERTIES RUN_SERIAL TRUE)
+endif()
 
 # =======================================================================
 # LEVEL 3 TESTS: Advanced Infrastructure
