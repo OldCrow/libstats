@@ -149,7 +149,7 @@ ctest --output-on-failure  # Run tests
 #include <vector>
 
 int main() {
-    // Initialize performance systems (recommended)
+    // Optional: detect the CPU and start the thread pool now, not on the first batch call
     stats::initialize_performance_systems();
 
     // Create distributions with safe factory methods

@@ -235,7 +235,9 @@ namespace stats {
  * **What gets initialized:**
  * - System capability detection (CPU features, SIMD support)
  * - SIMD policy detection and configuration
- * - Thread pool singletons (GlobalThreadPool, GlobalWorkStealingPool)
+ * - The global thread pool (ParallelUtils::getGlobalThreadPool()), whose idle
+ *   workers sleep. GlobalWorkStealingPool is not started since v3.0.0: no batch
+ *   call selects it, and it starts on first direct use
  *
  * **When to call:**
  * - Once at application startup, before using batch operations
