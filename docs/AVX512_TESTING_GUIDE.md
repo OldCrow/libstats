@@ -33,14 +33,13 @@ cmake -B build-clangcl -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=
 cmake --build build-clangcl --parallel
 ```
 
-`/arch:AVX512` enables AVX-512 F, CD, BW, DQ and VL; clang-cl's `-mavx512f`
-would enable F alone.
+See `docs/BUILD_SYSTEM_GUIDE.md` for the `/arch:` flag set.
 
 A timing run on Zen 4 must opt every measured process out of Windows power
 throttling and launch it directly, not through ctest (a child does not
-inherit the opt-out); otherwise a locked screen drops the clock and the
-result reads like a dispatch-threshold anomaly: `docs/VALIDATION_HISTORY.md`, "Zen 4 timing:
-power throttling"; helper
+inherit the opt-out). Otherwise a locked screen drops the clock and the
+result reads like a dispatch-threshold anomaly. See `docs/VALIDATION_HISTORY.md`,
+"Zen 4 timing: power throttling"; helper script
 `docs/bench-evidence/2026-10-05-zen4-msvc-vs-clangcl/nothrottle.ps1`.
 
 ## Runtime validation

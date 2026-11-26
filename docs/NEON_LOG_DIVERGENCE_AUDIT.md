@@ -7,7 +7,7 @@
 
 Date: 2026-07-19
 Author: orchestrator (not the clean-room implementer). Purpose: document that the
-clean-room implementation in this directory does not reuse the expression of any
+clean-room `vector_log_neon` (src/simd_neon.cpp) does not reuse the expression of any
 existing vector logarithm, and record exactly where the two coincide and why. As with
 the trig audit, the comparison target is MIT-licensed; this audit protects
 *independence of derivation* (the basis of the accuracy claims), not license
@@ -33,7 +33,7 @@ table contents and layout, centering mechanism, accumulation scheme, special-cas
 structure — is independently derived. The implementer's report notes they deliberately
 derived the anchor identity (`L = −log(fl(1/r))` making the decomposition exact)
 rather than recalling "how it is usually arranged"; that identity and its exactness
-proof are in DERIVATION.md.
+proof are in docs/NEON_LOG_DERIVATION.md.
 
 ## Coincidences, and why they are not copying
 1. **Mathematically forced.**
@@ -51,7 +51,7 @@ proof are in DERIVATION.md.
    - **Table size N = 128 in both** (ARM's `V_LOG_TABLE_BITS` = 7 upstream).
      Convergent optimum, not copied: the clean-room implementer measured N = 64
      (needs degree 8), 128, and 256 (gather-dominated, slower) and chose 128 from
-     that data; the design-space table is in DERIVATION.md §10. With a 52-bit
+     that data; the design-space table is in docs/NEON_LOG_DERIVATION.md §10. With a 52-bit
      mantissa and a gather-cost cliff on this core, the practical optimum is narrow;
      coincidence here is expected.
 2. **Idiomatic / spec-given technique.** Reciprocal-table residual without division,
@@ -69,12 +69,10 @@ proof are in DERIVATION.md.
   series — a feature ARM's scheme does not have.
 - **Table entry contents/layout**: ARM `{invc, logc}` (16 B, single-double log).
   Clean-room `{L_hi, L_lo, R, pad}` (32 B, 64-B aligned, **compensated** log anchor).
-  The compensation is the central accuracy choice (same philosophy as this program's
-  erf kernel) and has no counterpart in ARM's entries.
+  The compensation is the central accuracy choice (same philosophy as libstats' erf kernel) and has no counterpart in ARM's entries.
 - **Accumulation scheme**: ARM sums with plain FMA chains and a single ln2 multiply.
   Clean-room uses two proved-exact Fast2Sum steps with a generator-verified table
-  margin precondition, tails summed small-to-large — the DERIVATION.md §-level error
-  analysis is the implementer's own.
+  margin precondition, tails summed small-to-large — the error analysis in docs/NEON_LOG_DERIVATION.md §8 is the implementer's own.
 - **Series**: degree 7 Taylor in `t + t²·q(t)` form (keeping c1, c2 exact for the
   near-1 regime) vs ARM's degree-4 minimax in odd/even split form. Different degree,
   different form, different digits, different rationale.

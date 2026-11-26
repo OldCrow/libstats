@@ -19,6 +19,8 @@ Affected files:
   coefficients, 2·atanh series)
 - `src/simd_avx512.cpp` — 512-bit ports of the same SLEEF-derived exp/log
   kernels (`vector_exp_avx512`, `vector_log_avx512`)
+- `src/simd_sse2.cpp` — 128-bit ports of the same SLEEF-derived exp/log
+  kernels (`vector_exp_sse2`, `vector_log_sse2`)
 
 The NEON `vector_log_neon` (`src/simd_neon.cpp`), which previously carried the
 SLEEF `xlog_u1` coefficients via a port of the AVX2 kernel, was replaced
@@ -69,7 +71,7 @@ experimental AVX-512 table-based `exp` (Issue #33 Stage 3, dev-tool only) reprod
 the N=128 lookup table and the argument-reduction constants and minimax polynomial
 coefficients from ARM optimized-routines `math/exp_data.c` + `math/exp.c`. The
 experimental NEON table-based `log` (Issue #33 Q1, dev-tool only -- not
-productionized; see PLAN.md) similarly reproduces `math/log_data.c` + `math/log.c`.
+productionized) similarly reproduces `math/log_data.c` + `math/log.c`.
 
 Affected files:
 - `scripts/gen_neon_exp_table.py` — regenerates the **production** NEON exp table
@@ -165,7 +167,7 @@ Functions*, National Bureau of Standards Applied Mathematics Series 55,
 **Usage**: Polynomial approximations from A&S are used in:
 - `include/libstats/core/bessel.h` — Bessel I₀/I₁ Tier 2 fallback
   (§9.8.1–9.8.4 polynomial approximations)
-- `src/half_normal.cpp` — §26.2.23 rational approximation as the Newton
+- `src/math_utils.cpp` (`inv_survival_normal`, used by HalfNormal and TruncatedNormal) — §26.2.23 rational approximation as the Newton
   seed for the inverse normal CDF (|error| < 4.5e-4, refined to full
   precision by iteration)
 
@@ -202,7 +204,7 @@ independent clean-room table kernel of Issue #67 (see
 
 ## Numerical Recipes (algorithmic reference only)
 
-**Reference**: Press, W.H. et al., *Numerical Recipes in C++*, Cambridge
+**Reference**: Press, W.H. et al., *Numerical Recipes: The Art of Scientific Computing*, Cambridge
 University Press, 3rd edition 2007.
 
 **Usage**: The following functions in `src/math_utils.cpp` use the same

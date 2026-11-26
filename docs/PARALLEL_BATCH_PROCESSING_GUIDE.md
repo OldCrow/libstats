@@ -53,8 +53,7 @@ parameter snapshot and evaluates every element on it, so a concurrent setter
 cannot mix two states into one result span. `SCALAR` is the exception: it
 calls the locking scalar method per element, so a forced `SCALAR` batch, or
 AUTO's choice of `SCALAR` for counts below the SIMD minimum, can mix states
-under a concurrent setter. Per-element is the v2.x decision; one state under
-every strategy is a v3 design input.
+under a concurrent setter. Per-element is the v2.x behaviour.
 
 ## Aliasing
 
@@ -65,20 +64,19 @@ written — the Gaussian CDF tail fixups, the von Mises PDF/LogPDF NaN and
 ±inf fixups, the Gamma PDF pipeline, the LogNormal LogPDF support fixup and
 the InverseGamma and Cauchy LogPDF fixups — so an in-place call
 (`dist.getCumulativeProbability(buf, buf, hint)`) returns wrong values with
-no error (review 2026-08-21, issue #112). Use a separate output buffer. The
+no error (#112). Use a separate output buffer. The
 lower-level `VectorOps` kernels *are* in-place safe by design; that guarantee
 does not extend to the distribution layer.
 
-#112 was resolved by documenting the contract rather than by making the tail
-fixups aliasing-safe. Debug builds carry an assert
+The contract is documented rather than enforced by aliasing-safe tail
+fixups. Debug builds carry an assert
 (`LIBSTATS_ASSERT_NO_OVERLAP`) beside the size check in
 `detail::DispatchUtils::autoDispatch`. Every batch overload reaches
 `autoDispatch`, directly or through its delegate; Cauchy and InverseGamma
 LogPDF repeat the size check and the overlap assert on the caller's spans
 before delegating. An aliased call therefore trips immediately in a Debug
-build. Under `NDEBUG` the assert compiles to nothing and
-nothing checks it: Release builds of an aliased call are silently wrong, as
-before.
+build. Under `NDEBUG` the assert compiles out, so an aliased call in
+a Release build returns wrong values silently.
 
 ## Exceptions from batch kernels
 
@@ -87,8 +85,8 @@ exception thrown inside a chunk: it waits for every chunk, then harvests the
 futures in order and rethrows the first exception (#118).
 `ParallelUtils::parallelReduce` and `parallelStatOperation` share that contract
 (#127); their combine step does not run when a chunk threw. The work-stealing
-path does not — `WorkStealingPool::parallelFor` swallows chunk exceptions
-silently (no log), and the rest of the failing chunk is skipped, because its
+path does not propagate: `WorkStealingPool::parallelFor` swallows chunk exceptions
+silently (no log) and skips the rest of the failing chunk, because its
 completion latch must be decremented on every path.
 A batch call dispatched to `Strategy::WORK_STEALING` therefore loses a throwing
 kernel's exception where `Strategy::PARALLEL` reports it.
@@ -195,7 +193,7 @@ std::vector<stats::GaussianDistribution> results;
 stats::GaussianDistribution::parallelBatchFit(datasets, results);
 ```
 
-`parallelBatchFit` is still an output-parameter API in v2.x. Changing it to `Result<T>` is tracked separately as an API design decision.
+`parallelBatchFit` is an output-parameter API in v2.x.
 
 ## SIMD validation
 
