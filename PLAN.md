@@ -31,12 +31,13 @@ released 2026-11-25** (tag on `c744eb3`) and is merged in here.
   provisional). The fix is due by v3.0.0, changes `src/`, and is followed
   by L1 on every machine, with L2 again on I, K and M ("Three accuracy
   blocks" below).
-- **One decision is owed [user]: #156.** All four machines' bench and
-  per-call scaling are on the issue.
+- **#156 is decided [user, 2026-11-25]: the cost is accepted** ("#156 —
+  decided" below). No decision is owed before the pool design.
 - **Then the release documents** ("After the legs", step 4):
   `MIGRATION_GUIDE.md` is still the v1 → v2 guide, `README.md` still
-  says "Zero Dependencies", and the per-family quantile accuracy notes
-  #104 asked for are not written.
+  says "Zero Dependencies", the per-family quantile accuracy notes #104
+  asked for are not written, and #156's decision asks for the cost of
+  the scalar special-function routes to be stated per route and tier.
 - **Project version is 2.5.1** in `CMakeLists.txt` since the merge of the
   v2.5.1 release; the bump to 3.0.0 is a release step.
 - **The merge of v2.5.1 (2026-11-25, Z).** It brings the version, the
@@ -676,7 +677,32 @@ back to back, which is what the pool design waits on.
   this CPU (check `other_assists.avx_to_sse` with `perf stat` if the
   bench reads oddly).
 
-### #156 — what each machine still owes [OPEN; user, 2026-11-24]
+### #156 — decided [user, 2026-11-25]
+
+All four machines measured both items below, and the decision is on the
+issue (comment of 2026-11-25):
+
+1. **The cost is accepted for v3.0.0.** Against `main`, across the four
+   machines: batch CDF 0.67–12.4×, scalar CDF 3.5–14.4×, quantile
+   2.0–15.6× on the gamma, beta, poisson, student_t and binomial
+   families; up to 19× on the all-MSVC build. The batch API is the fast
+   path.
+2. **No local fast path.** Keeping v2.5.x cores for scalar calls would
+   bring back the defects the adoption fixes and make scalar and batch
+   disagree.
+3. **The gate is a regression guard, not a target.** The NEON targets
+   named below are withdrawn. Each tier's figures on #156 are the
+   v3.0.0 baseline; a later change may not worsen a cell by more than
+   1.25×.
+4. **The release documents state the cost** per route and tier, and
+   advise the batch API for bulk work and clang-cl on Windows.
+5. **Follow-ups in v3.1.0:** #338 (a batch quantile for the
+   corvus-backed inverses) and #339 (corvus scalar code paths, which
+   waits on corvus #110).
+
+#156 is labelled `fixed-on-branch` and closes with the release. What
+follows is the record of what was asked of each machine.
+
 
 The gate on #156 was set on M as absolute NEON targets (`gamma_p` ≤ 40
 and `beta_p` ≤ 30 ns per element at batch, a single-lane call ≤ 250 ns).
@@ -721,8 +747,7 @@ one-element call).
 1. Open the dev-branch PR once one other leg is complete.
 2. Remove the `PROTOTYPE` tags once all three have reported L3. **Done
    2026-11-24** [user].
-3. #156: decide the gates from the four machines' numbers [user]; what
-   is still owed is in the section above.
+3. #156: decided 2026-11-25 (the section above).
    The pool design ("Pool wake-up and batch spacing") from the four L7
    results [user]; the fix is due by v3.0.0. After it: L1 on every
    machine, and L2 again on I, K and M, which they owe for #326 ("where
@@ -740,8 +765,8 @@ Milestone #6: 33 open, 3 closed (#312; #266 and #272 as split). Issues stay open
 branch reaches `main`; `fixed-on-branch` marks the ones that are fixed
 and guarded here, each with a status comment.
 
-- **Labelled `fixed-on-branch` (28):** #47, #103, #104, #107, #108,
-  #110, #113, #126, #136, #138, #141, #179, #213, #214, #221, #247, #248,
+- **Labelled `fixed-on-branch` (29):** #47, #103, #104, #107, #108,
+  #110, #113, #126, #136, #138, #141, #156, #179, #213, #214, #221, #247, #248,
   #251, #252, #258, #262, #267, #270, #271, #287, #290, #311, #320. #107
   was labelled by M on 2026-11-24 (one trig table, `7879e9a`). #103, #104
   and #141 were labelled 2026-11-24, once all four ISA blocks were
@@ -760,8 +785,8 @@ and guarded here, each with a status comment.
 - **Closed as split 2026-11-24 [user]:** #266 (CDF side resolved here;
   the density prefactors are #314) and #272 (Beta and NegativeBinomial
   CDF NaNs cleared here; the density paths are #315).
-- **Decision owed [user] (1):** #156. All four machines are complete
-  and stated on the issue ("#156 — what each machine still owes" above).
+- **Decided 2026-11-25 [user]:** #156, the cost accepted ("#156 —
+  decided" above); labelled `fixed-on-branch` with the others.
 - **Left by #104, not blockers [OPEN]:** the 14 off-grid quantile rows
   over 100 ε (small shape, deep tail; present on `main`) are #334 in the
   patch milestone; the per-family quantile accuracy notes #104's acceptance
