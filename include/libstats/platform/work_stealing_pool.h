@@ -32,6 +32,7 @@ namespace stats {
  *
  * - Per-thread work queues to reduce contention
  * - Work stealing algorithm for automatic load balancing
+ * - Idle workers sleep on a condition variable; submit() wakes one (#333)
  * - Thread affinity optimization (basic CPU core binding)
  * - Lock-free operations where possible
  * - Persistent threads to avoid creation/destruction overhead
@@ -63,6 +64,8 @@ class WorkStealingPool {
     /**
      * @brief Submit a task for execution
      * @param task Function to execute
+     *
+     * Wakes one sleeping worker, if any sleeps (#333). An idle pool uses no CPU.
      */
     void submit(Task task);
 
@@ -178,6 +181,22 @@ class WorkStealingPool {
     std::atomic<bool> shutdown_{false};
     std::atomic<std::size_t> activeTasks_{0};
 
+    // Wake-up on submit (#333). An idle worker sleeps on workAvailable_ until a task is queued
+    // anywhere in the pool or the pool shuts down. queuedTasks_ counts the tasks sitting in all
+    // local queues; it changes only under the owning queue's mutex, with the push or pop it
+    // counts. It is pool-wide because a worker also steals: a predicate on the worker's own
+    // queue would leave it asleep beside another worker's backlog.
+    //
+    // No wake-up is lost: a worker registers in sleepers_ and then reads queuedTasks_, both
+    // under sleepMutex_; submit() writes queuedTasks_ and then reads sleepers_. The operations
+    // are sequentially consistent, so one side sees the other. When submit() sees a sleeper it
+    // takes sleepMutex_ before notifying, so the notification cannot fall between the worker's
+    // predicate check and its wait.
+    std::atomic<std::size_t> queuedTasks_{0};
+    std::atomic<std::size_t> sleepers_{0};
+    std::mutex sleepMutex_;
+    std::condition_variable workAvailable_;
+
     // Global synchronization for waitForAll()
     mutable std::mutex globalMutex_;
     std::condition_variable allTasksComplete_;
@@ -195,6 +214,11 @@ class WorkStealingPool {
      * @param workerId ID of this worker thread
      */
     void workerLoop(int workerId);
+
+    /**
+     * @brief Wake one sleeping worker after a task was queued; no-op when none sleeps
+     */
+    void wakeOneWorker();
 
     /**
      * @brief Try to steal work from another worker

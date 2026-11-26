@@ -102,6 +102,13 @@ WorkStealingPool::~WorkStealingPool() {
         allTasksComplete_.notify_all();
     }
 
+    // Wake every idle worker. Taking sleepMutex_ orders this after any worker's predicate
+    // check: a worker either sees shutdown_ or is already waiting and receives the notify.
+    {
+        std::lock_guard<std::mutex> lock(sleepMutex_);
+        workAvailable_.notify_all();
+    }
+
     // Join all worker threads.
     for (const auto& worker : workers_) {
         if (worker && worker->worker.joinable()) {
@@ -118,9 +125,15 @@ void WorkStealingPool::submit(Task task) {
     // Try to submit to current worker's local queue first
     const int workerId = currentWorkerId_;
     if (workerId >= detail::ZERO_INT && workerId < static_cast<int>(workers_.size())) {
-        std::lock_guard<std::mutex> lock(workers_[static_cast<std::size_t>(workerId)]->queueMutex);
-        workers_[static_cast<std::size_t>(workerId)]->localQueue.push_back(std::move(task));
-        activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_relaxed);
+        {
+            std::lock_guard<std::mutex> lock(
+                workers_[static_cast<std::size_t>(workerId)]->queueMutex);
+            workers_[static_cast<std::size_t>(workerId)]->localQueue.push_back(std::move(task));
+            activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_relaxed);
+            queuedTasks_.fetch_add(1);
+        }
+        // The submitting worker is busy with the task that submitted; let a sleeper steal this.
+        wakeOneWorker();
         return;
     }
 
@@ -129,9 +142,25 @@ void WorkStealingPool::submit(Task task) {
     const std::size_t targetWorker =
         nextWorker.fetch_add(1, std::memory_order_relaxed) % workers_.size();
 
-    std::lock_guard<std::mutex> lock(workers_[targetWorker]->queueMutex);
-    workers_[targetWorker]->localQueue.push_back(std::move(task));
-    activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(workers_[targetWorker]->queueMutex);
+        workers_[targetWorker]->localQueue.push_back(std::move(task));
+        activeTasks_.fetch_add(detail::ONE_INT, std::memory_order_relaxed);
+        queuedTasks_.fetch_add(1);
+    }
+    wakeOneWorker();
+}
+
+void WorkStealingPool::wakeOneWorker() {
+    // Sequentially consistent on purpose: paired with the worker's sleepers_ increment and
+    // queuedTasks_ read in workerLoop (see the member comment in the header).
+    if (sleepers_.load() == 0) {
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(sleepMutex_);
+    }
+    workAvailable_.notify_one();
 }
 
 void WorkStealingPool::waitForAll() {
@@ -222,6 +251,7 @@ void WorkStealingPool::workerLoop(int workerId) {
             if (!workerData.localQueue.empty()) {
                 task = std::move(workerData.localQueue.front());
                 workerData.localQueue.pop_front();
+                queuedTasks_.fetch_sub(1);
                 taskFound = true;
             }
         }
@@ -237,21 +267,19 @@ void WorkStealingPool::workerLoop(int workerId) {
             }
         }
 
-        static thread_local int backoffCount = 0;
         if (taskFound && task && !shutdown_.load(std::memory_order_acquire)) {
-            backoffCount = 0;  // Reset so next idle period starts fresh with yields
             executeTask(std::move(task), workerId);
         } else {
-            // No work available, sleep briefly to avoid busy waiting
-            // Use exponential backoff: yield first, then short sleep
-            if (backoffCount < 10) {
-                std::this_thread::yield();
-                backoffCount++;
-            } else {
-                std::this_thread::sleep_for(
-                    std::chrono::microseconds(detail::MAX_NEWTON_ITERATIONS));
-                backoffCount = 0;  // Reset backoff counter
-            }
+            // No task anywhere in the pool: sleep until submit() queues one or the pool shuts
+            // down (#333). The predicate is pool-wide, so a task queued for another worker
+            // wakes this one to steal it. A task queued after the sweep above but before this
+            // lock makes the predicate true at once.
+            std::unique_lock<std::mutex> lock(sleepMutex_);
+            sleepers_.fetch_add(1);
+            workAvailable_.wait(lock, [this] {
+                return queuedTasks_.load() != 0 || shutdown_.load(std::memory_order_acquire);
+            });
+            sleepers_.fetch_sub(1);
         }
     }
 }
@@ -279,8 +307,9 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
                                             static_cast<int>(numWorkers) - detail::ONE_INT);
     const int startVictim = dist(thiefData.rng);
 
-    for (std::size_t attempt = detail::ZERO_INT; attempt < numWorkers - detail::ONE_INT;
-         ++attempt) {
+    // Visit every other worker once. The sweep must be complete: a worker sleeps only when
+    // queuedTasks_ is zero, so a sweep that skipped a victim would spin instead of sleeping.
+    for (std::size_t attempt = detail::ZERO_INT; attempt < numWorkers; ++attempt) {
         const int victimId =
             static_cast<int>((static_cast<std::size_t>(startVictim) + attempt) % numWorkers);
         if (victimId == thiefId)
@@ -304,6 +333,7 @@ WorkStealingPool::Task WorkStealingPool::tryStealWork(int thiefId) {
         if (!victimData.localQueue.empty()) {
             Task stolenTask = std::move(victimData.localQueue.back());
             victimData.localQueue.pop_back();
+            queuedTasks_.fetch_sub(1);
             return stolenTask;
         }
     }
