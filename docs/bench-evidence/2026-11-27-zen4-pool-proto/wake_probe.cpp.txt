@@ -1,0 +1,60 @@
+// Probe, not for the repo: latency from WorkStealingPool::submit() to task entry for a single
+// task after a busy gap, with worker affinity on and off. Many trials, to see the tail.
+#include "libstats/platform/work_stealing_pool.h"
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <thread>
+#include <vector>
+
+using clk = std::chrono::steady_clock;
+
+static void busy(std::chrono::microseconds d) {
+    const auto t0 = clk::now();
+    while (clk::now() - t0 < d) {
+    }
+}
+
+static void run(bool affinity, int trials, int gap_us) {
+    stats::WorkStealingPool pool(0, affinity);
+    std::vector<double> us;
+    us.reserve(static_cast<std::size_t>(trials));
+    for (int t = 0; t < trials; ++t) {
+        busy(std::chrono::microseconds(gap_us));
+        std::atomic<bool> entered{false};
+        clk::time_point entry;
+        const auto t0 = clk::now();
+        pool.submit([&] {
+            entry = clk::now();
+            entered.store(true, std::memory_order_release);
+        });
+        while (!entered.load(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+        pool.waitForAll();
+        us.push_back(std::chrono::duration<double, std::micro>(entry - t0).count());
+    }
+    std::sort(us.begin(), us.end());
+    const auto q = [&](double p) { return us[static_cast<std::size_t>(p * (us.size() - 1))]; };
+    int over1 = 0, over10 = 0;
+    for (double v : us) {
+        over1 += v > 1000.0;
+        over10 += v > 10000.0;
+    }
+    std::printf("affinity %-3s gap %5d us  n=%d  median %7.1f  p99 %9.1f  max %10.1f us   >1ms: %d  >10ms: %d\n",
+                affinity ? "on" : "off", gap_us, trials, q(0.5), q(0.99), us.back(), over1, over10);
+}
+
+int main() {
+    for (int rep = 0; rep < 2; ++rep) {
+        for (int gap : {2000, 20000}) {
+            const int trials = gap == 2000 ? 1500 : 300;
+            run(true, trials, gap);
+            run(false, trials, gap);
+        }
+    }
+    return 0;
+}

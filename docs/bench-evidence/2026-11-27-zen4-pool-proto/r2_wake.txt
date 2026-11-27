@@ -1,0 +1,8 @@
+affinity on  gap  2000 us  n=1500  median    29.9  p99     119.7  max    17585.4 us   >1ms: 8  >10ms: 1
+affinity off gap  2000 us  n=1500  median    29.4  p99     112.3  max      141.0 us   >1ms: 0  >10ms: 0
+affinity on  gap 20000 us  n=300  median    35.4  p99     125.6  max     1464.1 us   >1ms: 1  >10ms: 0
+affinity off gap 20000 us  n=300  median    36.4  p99     125.1  max      144.9 us   >1ms: 0  >10ms: 0
+affinity on  gap  2000 us  n=1500  median    29.7  p99     118.6  max    16752.9 us   >1ms: 8  >10ms: 1
+affinity off gap  2000 us  n=1500  median    29.4  p99     113.0  max      122.9 us   >1ms: 0  >10ms: 0
+affinity on  gap 20000 us  n=300  median    36.0  p99     128.7  max     4504.2 us   >1ms: 2  >10ms: 0
+affinity off gap 20000 us  n=300  median    36.3  p99     125.2  max      133.0 us   >1ms: 0  >10ms: 0
