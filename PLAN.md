@@ -39,12 +39,14 @@ released 2026-11-25** (tag on `c744eb3`) and is merged in here.
   below).
 - **corvus v1.2.1 is in review** (OldCrow/corvus#117; one value through
   the span API; no result moves) and **this release pins it [user,
-  2026-11-26]** once it is tagged. Z, indicative [2026-11-27, machine in
-  use]: this branch built against it reads the scalar Gaussian quantile
-  at 75.8 ns and the LogNormal at 85.5, against 106.2 and 116.5 with
-  v1.2.0 and 72 and 76 in v2.5.1. Nothing else moves. The pin change
-  rides with the correctness leg that follows the pool fix; a sweep
-  with no row moved is the per-tier proof.
+  2026-11-26]** once it is tagged. Z, quiet [DERIVED, 2026-11-27,
+  `docs/bench-evidence/2026-11-27-zen4-corvus-v121-quantiles/`]: this
+  branch built against it reads the scalar Gaussian quantile at 76.3 ns
+  and the LogNormal at 85.5, against 105.9 and 116.6 with v1.2.0 and 72
+  and 76 in v2.5.1: 6% and 12% over v2.5.1, inside the 1.25× guard of
+  #156. von Mises and Student's t gain 5% and 3%; nothing else moves.
+  The pin change rides with the correctness leg that follows the pool
+  fix; a sweep with no row moved is the per-tier proof.
 - **#156 is decided [user, 2026-11-25]: the cost is accepted** ("#156 —
   decided" below). No decision is owed before the pool design.
 - **Then the release documents** ("After the legs", step 4):
@@ -1181,24 +1183,31 @@ From the four L7 results and Z's `pool_wake_bench` run.
    - The 1.25× margin is not implemented; it belongs in
      `scripts/derive_threshold_rows.py`.
    - `MIGRATION_GUIDE.md` and `CHANGELOG.md` are untouched.
-   **Z, indicative [user asked to record, 2026-11-27; machine in use,
-   clang-cl, prototype at `974704a`; a quiet run is to follow and
-   replaces these]:**
+   **Z, quiet run [DERIVED, 2026-11-27; clang-cl, prototype at
+   `974704a`; evidence on the prototype branch,
+   `docs/bench-evidence/2026-11-27-zen4-pool-proto/`, commit
+   `0b14ac9`]. This is Z's sitting of step 4, except the sizes between
+   10,000 and 25,000.**
    - **6 against 12 threads** (`LIBSTATS_THREAD_COUNT`,
-     `batch_gap_bench`, Poisson PDF and Gamma CDF, two runs each).
-     12 threads are 1.4–1.7× faster than 6 at 50,000 and 200,000
-     elements, at every gap; at 10,000 back to back they are 1.2–1.5×
-     slower. So one thread count is not right at every size here.
+     `batch_gap_bench`, Poisson PDF and Gamma CDF, six sizes, two
+     rounds). From 25,000 elements up 12 threads are faster than 6 at
+     every gap, by 1.1–1.9×. At 10,000 back to back 6 are faster
+     (1.15× on Gamma CDF, 1.39× on Poisson); with a gap the two are
+     level. One thread count is not right at every size here.
    - **Sleeping workers cost little on Windows.** PARALLEL was never
      slower than VECTORIZED from 10,000 elements up, at 0, 2 and 20 ms
-     gaps (Poisson at 10,000, 6 threads: 0.47, 0.63, 0.80 of
-     VECTORIZED). Milder than I under `schedutil`.
-   - **The slow wake-ups follow worker pinning.** One task submitted to
-     the work-stealing pool after a busy gap, 3,600 trials each way:
-     pinned (the default), median 30–36 µs, worst 25 ms, 26 trials over
-     1 ms; unpinned, median 6–14 µs, worst 0.12 ms, none over 1 ms. A
-     pinned worker waits for its one core. Whether the pool should pin
-     at all on Windows is a design question [OPEN].
+     gaps. Poisson at 10,000, 6 threads: 0.43, 0.71, 0.80 of
+     VECTORIZED. Against the 1.25× margin at a 2 ms gap the cheap row
+     qualifies at 10,000 (1.4–1.5× faster); at 20 ms it does not
+     (1.16–1.25×). Milder than I under `schedutil`.
+   - **Worker pinning adds a tail to the wake-up; it does not change
+     the median.** One task submitted to the work-stealing pool after a
+     busy gap, 7,200 trials each way: pinned (the default), median
+     30–36 µs, worst 25 ms, 74 over 1 ms, 10 over 10 ms; unpinned,
+     median 29–36 µs, worst 0.14 ms, none over 1 ms. An earlier
+     indicative note here said unpinned was also quicker at the median;
+     the quiet run does not show that. Whether the pool should pin at
+     all on Windows is a design question [OPEN].
 4. **Measurements on the prototype**, quiet machine, one sitting each,
    with the clock policy recorded ("Rules on every machine"). Check out
    `proto/v3.0.0-pool-wake`; commit evidence to it, not here. Thread

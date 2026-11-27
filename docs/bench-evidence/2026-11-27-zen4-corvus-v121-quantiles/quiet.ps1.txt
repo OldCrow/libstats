@@ -1,0 +1,47 @@
+# Quiet run for libstats on Zen 4: scalar quantiles against corvus v1.2.0 and v1.2.1, the pool
+# prototype at 6 and 12 threads, and wake latency with worker pinning on and off. Every measured
+# process is launched directly and opted out of Windows power throttling.
+$ErrorActionPreference = "Continue"
+$run = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $run
+. "$run\nothrottle.ps1"
+Disable-PowerThrottling ([System.Diagnostics.Process]::GetCurrentProcess()) | Out-Null
+$log = "$run\run.log"
+function Log($m) { "{0}  {1}" -f (Get-Date -Format "HH:mm:ss"), $m | Add-Content $log }
+function Cpu() { [math]::Round((Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 5 -MaxSamples 1).CounterSamples[0].CookedValue, 1) }
+function Gate() {
+  $deadline = (Get-Date).AddMinutes(20)
+  while ((Get-Date) -lt $deadline) { $a = Cpu; $b = Cpu; if ($a -lt 8 -and $b -lt 8) { return "$a,$b" } }
+  return "TIMEOUT"
+}
+function Probe() {
+  $best = 1e9
+  1..5 | ForEach-Object { $sw = [Diagnostics.Stopwatch]::StartNew(); $x = 0L; for ($i = 0; $i -lt 2000000; $i++) { $x += $i }; $t = $sw.Elapsed.TotalMilliseconds; if ($t -lt $best) { $best = $t } }
+  [math]::Round($best, 1)
+}
+function RunOne($exe, $out, $argList, $threads) {
+  $g = Gate; $pr = Probe
+  if ($threads) { $env:LIBSTATS_THREAD_COUNT = "$threads" } else { Remove-Item Env:LIBSTATS_THREAD_COUNT -ErrorAction SilentlyContinue }
+  $a = @{ FilePath = "$run\$exe"; NoNewWindow = $true; PassThru = $true; RedirectStandardOutput = "$run\$out"; RedirectStandardError = "$run\$out.err" }
+  if ($argList) { $a.ArgumentList = $argList }
+  $p = Start-Process @a
+  Disable-PowerThrottling $p | Out-Null
+  $p.WaitForExit()
+  Log "$exe $argList threads=$threads -> $out  gate=$g  probe_ms=$pr  exit=$($p.ExitCode)"
+}
+$env:LIBSTATS_BENCH_WARMUP_SECONDS = "25"
+Log "start; power plan: $((powercfg /getactivescheme) -join ' ')"
+Log "first gate: $(Gate)"
+RunOne "dist_c120.exe" "warmup.txt" $null $null
+foreach ($r in 1..3) {
+  RunOne "dist_c120.exe" "r${r}_dist_c120.txt" $null $null
+  RunOne "dist_c121.exe" "r${r}_dist_c121.txt" $null $null
+}
+$gap = @("--dist","Poisson,GammaCDF","--gaps","0,2000,20000","--sizes","4096,10000,25000,50000,100000,200000")
+foreach ($r in 1..2) {
+  RunOne "batch_gap_proto.exe" "r${r}_gap_t6.csv"  $gap 6
+  RunOne "batch_gap_proto.exe" "r${r}_gap_t12.csv" $gap 12
+}
+foreach ($r in 1..2) { RunOne "wake_probe.exe" "r${r}_wake.txt" $null $null }
+Log "done"
+"done" | Set-Content "$run\DONE"
