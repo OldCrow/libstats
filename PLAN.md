@@ -31,9 +31,12 @@ released 2026-11-25** (tag on `c744eb3`) and is merged in here.
   provisional). **The design is decided [user, 2026-11-25]** ("Pool
   design — decided"): wake-up on submit, thresholds for sleeping
   workers, work stealing out of AUTO, #323 in the same change, nothing
-  back-ported. **Next step: the prototype branch**; each machine then
-  owes one measurement sitting on it, and after the merge L1, with L2
-  again on I, K and M ("Three accuracy blocks" below).
+  back-ported. **The prototype is built [Z, 2026-11-26]:**
+  `proto/v3.0.0-pool-wake` at `974704a`, pushed, not merged. **Next
+  step: each machine owes one sitting on it** (ThreadSanitizer and the
+  guards on Linux and macOS, then the measurements; K first), and after
+  the merge L1, with L2 again on I, K and M ("Three accuracy blocks"
+  below).
 - **#156 is decided [user, 2026-11-25]: the cost is accepted** ("#156 —
   decided" below). No decision is owed before the pool design.
 - **Then the release documents** ("After the legs", step 4):
@@ -1126,20 +1129,56 @@ From the four L7 results and Z's `pool_wake_bench` run.
   Linux from external media, Z capped to AVX2. Neither is planned; if
   none is run, the release notes state the gap.
 
-**Order of work** [OPEN; nobody assigned]:
-1. **Prototype branch from dev**: wake-up on submit; AUTO without work
-   stealing; `initialize_performance_systems()` no longer starts a
-   polling pool (README and its documentation follow); #323 slice
-   sizing within #191 and #118; a thread-count override for the
-   measurements; a spaced capture mode in `strategy_profile`.
-2. **Guards**, each shown to fail on the unfixed code: an idle
-   initialised process burns no CPU (I's guard), and wake latency on
-   submit stays under a bound (catches Z's 13–15 ms timer tick).
-3. **Concurrency validation**: the stress suite, and the stress suite
-   under ThreadSanitizer, as v2.5.0 ran them. Lost wake-ups and
-   deadlocks are the risk.
+**Order of work** [steps 1–2 DERIVED, Z, 2026-11-26; the rest OPEN]:
+1. **Prototype branch: built.** `proto/v3.0.0-pool-wake`, seven signed
+   commits `7f2684a`..`974704a` on `b30929c`, pushed. Not merged; this
+   branch is unchanged. On Z: MSVC 19.52 and clang-cl 22.1.3 build
+   warning-free, correctness 137/137 on each (135, the guards, the
+   override test), stress 109 passed and 27 skipped.
+   - `7f2684a` wake-up on submit (#333): idle workers wait on a
+     condition variable whose predicate is a pool-wide queued count.
+     Also fixes `tryStealWork`, whose sweep could skip a victim.
+   - `6c31612` AUTO and MAXIMIZE_THROUGHPUT select PARALLEL everywhere.
+   - `a84f933` `initialize_performance_systems()` no longer starts the
+     work-stealing pool.
+   - `a7d7374` #323: at most one pool task per thread, each a run of
+     `ceil(S / T)` whole slices. The kernel is still called once per
+     slice, so results cannot move.
+   - `d13af0f` `LIBSTATS_THREAD_COUNT` (1–1024) overrides the thread
+     pool's size. Read once, at the pool's first use.
+   - `9d404ea` `strategy_profile --spaced` (2 ms busy gap between timed
+     batches) and `--gap-us N`; the CSV gains a last column `Gap_us`.
+   - `974704a` the guards, `tests/test_pool_idle_wake_guards.cpp`.
+2. **Guards: written, shown on Z.** `IdleProcessBurnsNoCpu` and
+   `SubmitWakesAWorker` (median of 25 trials under 1 ms) fail 8/8 on a
+   clang-cl build of `b30929c` and pass on the branch, 25/25 repeats on
+   each compiler. Unfixed: wake medians 7–13 ms; fixed: 15–34 µs
+   (indicative). **Owed on Linux and macOS:** run both on the unfixed
+   head and on the branch. The idle guard should fail unfixed there;
+   the latency guard targets the Windows tick and may pass unfixed.
+3. **Concurrency validation [OPEN].** ThreadSanitizer is owed on a
+   Linux or macOS machine: the stress suite, `test_work_stealing_pool`
+   and the guards. CI was dispatched on the branch 2026-11-26 (run
+   45919517500); its result is not recorded here.
+   **Open points from the prototype [OPEN, user decides]:**
+   - Single slow wake-ups on the fixed pool: one trial in 25 read 35 ms
+     against a 22 µs median (Z, machine in use). Unverified guess: the
+     woken worker is pinned to a busy core. Needs a quiet run.
+   - `LIBSTATS_THREAD_COUNT` is read by the shipped library. Keep it
+     documented, or remove it once the thread count is decided.
+   - No batch call reaches WORK_STEALING now: the 27 cross-waiting
+     stress tests skip on every machine and the profiler's
+     WORK_STEALING column repeats PARALLEL. Keep, force by hint, or
+     remove the path.
+   - The 1.25× margin is not implemented; it belongs in
+     `scripts/derive_threshold_rows.py`.
+   - `MIGRATION_GUIDE.md` and `CHANGELOG.md` are untouched.
 4. **Measurements on the prototype**, quiet machine, one sitting each,
-   with the clock policy recorded ("Rules on every machine"):
+   with the clock policy recorded ("Rules on every machine"). Check out
+   `proto/v3.0.0-pool-wake`; commit evidence to it, not here. Thread
+   counts: set `LIBSTATS_THREAD_COUNT` before the process starts.
+   Spacing: `strategy_profile --spaced` for 2 ms, `--gap-us 20000` for
+   20 ms; `tools/bench/batch_gap_bench` and `pool_wake_bench` as in L7.
 
    | Machine | Owes |
    |---|---|
