@@ -379,37 +379,106 @@ double binomial_log_pmf(double xa, double xb, double pa, double lgamma_xa_plus_1
 // =============================================================================
 namespace {
 
-// One value through a corvus span function. Only for the functions corvus exports as spans alone
-// (the erf family, lgamma, lbeta, digamma, trigamma, the Bessel functions). gamma_p, gamma_q,
-// beta_p, beta_q and their four inverses have scalar entry points since corvus v1.1.0, called
-// directly below: each name is an overload set, which Fn cannot deduce, and the scalar entry
-// returns the same bits as a length-1 span without this hop.
-template <class Fn>
-[[nodiscard]] inline double corvus_scalar(Fn fn, double x) noexcept {
+// One value through a corvus span function, for the functions corvus exports as spans alone (the
+// erf family, lgamma, lbeta, digamma, trigamma, the Bessel functions). gamma_p, gamma_q, beta_p,
+// beta_q and their four inverses have scalar entry points since corvus v1.1.0 and are called
+// directly below.
+//
+// Each wrapper names its corvus function and passes spans explicitly, so the call resolves to the
+// span form whether the name is one function or an overload set. A template that took the function
+// by name and deduced its type stopped compiling for gamma_p and its siblings at v1.1.0, when
+// their scalar overloads arrived; corvus #110 plans the same for the functions here (v1.3.0). When
+// a scalar entry exists, its wrapper becomes that call: corvus promises it the bits of a length-1
+// span.
+namespace one_value {
+
+[[nodiscard]] inline double erf(double x) noexcept {
     double out;
-    fn(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    corvus::erf(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
     return out;
 }
 
-template <class Fn>
-[[nodiscard]] inline double corvus_scalar(Fn fn, double a, double b) noexcept {
+[[nodiscard]] inline double erfc(double x) noexcept {
     double out;
-    fn(std::span<const double>{&a, 1}, std::span<const double>{&b, 1}, std::span<double>{&out, 1});
+    corvus::erfc(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
     return out;
 }
+
+[[nodiscard]] inline double erfinv(double x) noexcept {
+    double out;
+    corvus::erfinv(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double erfcinv(double x) noexcept {
+    double out;
+    corvus::erfcinv(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double lgamma(double x) noexcept {
+    double out;
+    corvus::lgamma(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double digamma(double x) noexcept {
+    double out;
+    corvus::digamma(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double trigamma(double x) noexcept {
+    double out;
+    corvus::trigamma(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double i0(double x) noexcept {
+    double out;
+    corvus::i0(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double i1(double x) noexcept {
+    double out;
+    corvus::i1(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double i0e(double x) noexcept {
+    double out;
+    corvus::i0e(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double i1e(double x) noexcept {
+    double out;
+    corvus::i1e(std::span<const double>{&x, 1}, std::span<double>{&out, 1});
+    return out;
+}
+
+[[nodiscard]] inline double lbeta(double a, double b) noexcept {
+    double out;
+    corvus::lbeta(std::span<const double>{&a, 1}, std::span<const double>{&b, 1},
+                  std::span<double>{&out, 1});
+    return out;
+}
+
+}  // namespace one_value
 
 }  // namespace
 
 double erf(double x) noexcept {
-    return corvus_scalar(corvus::erf, x);
+    return one_value::erf(x);
 }
 
 double erfc(double x) noexcept {
-    return corvus_scalar(corvus::erfc, x);
+    return one_value::erfc(x);
 }
 
 double erf_inv(double x) noexcept {
-    return corvus_scalar(corvus::erfinv, x);
+    return one_value::erfinv(x);
 }
 
 // log Γ(x) from corvus (v3.0.0). #173's signgam race is moot here: corvus::lgamma writes no
@@ -429,7 +498,7 @@ const std::array<double, kLgammaTableSize + 1>& lgamma_integer_table() noexcept 
     static const std::array<double, kLgammaTableSize + 1> table = [] {
         std::array<double, kLgammaTableSize + 1> t{};
         for (int i = 1; i <= kLgammaTableSize; ++i)
-            t[static_cast<std::size_t>(i)] = corvus_scalar(corvus::lgamma, static_cast<double>(i));
+            t[static_cast<std::size_t>(i)] = one_value::lgamma(static_cast<double>(i));
         return t;
     }();
     return table;
@@ -443,7 +512,7 @@ double lgamma(double x) noexcept {
         if (static_cast<double>(i) == x)
             return lgamma_integer_table()[static_cast<std::size_t>(i)];
     }
-    return corvus_scalar(corvus::lgamma, x);
+    return one_value::lgamma(x);
 }
 
 // log Γ(1 + a) for |a| ≤ ½. std::lgamma(1 + a) first rounds a into 1 + a, a relative error of
@@ -844,20 +913,20 @@ static double beta_continued_fraction_unscaled(double x, double y, double a, dou
 double lbeta(double a, double b) noexcept {
     if (std::isnan(a) || std::isnan(b))
         return std::numeric_limits<double>::quiet_NaN();
-    return corvus_scalar(corvus::lbeta, a, b);
+    return one_value::lbeta(a, b);
 }
 
 double digamma(double x) noexcept {
     // ψ(x) from corvus (v3.0.0); x ≤ 0 keeps the pre-adoption NaN contract.
     if (x <= detail::ZERO_DOUBLE)
         return std::numeric_limits<double>::quiet_NaN();
-    return corvus_scalar(corvus::digamma, x);
+    return one_value::digamma(x);
 }
 
 double trigamma(double x) noexcept {
     if (x <= detail::ZERO_DOUBLE)
         return std::numeric_limits<double>::quiet_NaN();
-    return corvus_scalar(corvus::trigamma, x);
+    return one_value::trigamma(x);
 }
 
 // x with I_x(a, b) = p (#137), by Newton in the logit u = log(x/(1 − x)) on the small side of
@@ -889,7 +958,7 @@ double inverse_beta_i(double p, double a, double b) noexcept {
 // Each solves against whichever of p and 1 − p is the smaller, so one call is accurate on both
 // sides of the median (corvus.h).
 double erfc_inv(double y) noexcept {
-    return corvus_scalar(corvus::erfcinv, y);
+    return one_value::erfcinv(y);
 }
 
 double gamma_q_inv(double a, double q) noexcept {
@@ -905,11 +974,11 @@ double beta_q_inv(double a, double b, double q) noexcept {
 // =============================================================================
 
 double bessel_i0(double x) noexcept {
-    return corvus_scalar(corvus::i0, x);
+    return one_value::i0(x);
 }
 
 double bessel_i1(double x) noexcept {
-    return corvus_scalar(corvus::i1, x);
+    return one_value::i1(x);
 }
 
 double log_bessel_i0(double x) noexcept {
@@ -927,13 +996,13 @@ double log_bessel_i0(double x) noexcept {
         // to 1 (fix-9's gate: log_bessel_i0(5e-324) = 0, as I0 is 1 to double).
         return 0.25 * ax * ax;
     }
-    return ax + std::log(corvus_scalar(corvus::i0e, ax));
+    return ax + std::log(one_value::i0e(ax));
 }
 
 double log_bessel_i0_scaled(double x) noexcept {
     // log I0(x) − x = log i0e(x) directly; the series past kBesselRatioAsymptoticCut that v2.5.0
     // needed to avoid e^x is unnecessary when the scaled function is the primitive.
-    return std::log(corvus_scalar(corvus::i0e, x));
+    return std::log(one_value::i0e(x));
 }
 
 double bessel_i1_i0_complement(double x) noexcept {
@@ -961,7 +1030,7 @@ double bessel_i1_over_i0(double x) noexcept {
     if (x >= kBesselRatioAsymptoticCut) {
         return 1.0 - bessel_i1_i0_complement(x);
     }
-    return corvus_scalar(corvus::i1e, x) / corvus_scalar(corvus::i0e, x);
+    return one_value::i1e(x) / one_value::i0e(x);
 }
 
 // =============================================================================
