@@ -143,7 +143,7 @@ jobs:
     # Highway for the same reason. Both go into the prefix that the
     # consumer_example steps below consume; every other leg takes the
     # FetchContent path, which is what pylibstats wheels use.
-    - name: Install Highway 1.4.0 and corvus v1.2.0 to prefix
+    - name: Install Highway 1.4.0 and corvus v1.2.1 to prefix
       if: runner.os == 'Linux' && matrix.compiler.name == 'gcc-14' && matrix.build_type == 'Release'
       run: |
         set -euo pipefail
@@ -154,7 +154,7 @@ jobs:
           -DHWY_FORCE_STATIC_LIBS=ON -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$PREFIX"
         cmake --build _deps/highway/build --parallel 2
         cmake --install _deps/highway/build
-        git clone --depth 1 --branch v1.2.0 https://github.com/OldCrow/corvus.git _deps/corvus
+        git clone --depth 1 --branch v1.2.1 https://github.com/OldCrow/corvus.git _deps/corvus
         cmake -S _deps/corvus -B _deps/corvus/build -DCMAKE_BUILD_TYPE=Release \
           -DCORVUS_BUILD_TESTS=OFF -DCORVUS_BUILD_EXAMPLES=OFF \
           -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_INSTALL_PREFIX="$PREFIX"
@@ -547,7 +547,7 @@ jobs:
     # and corvus::corvus is itself an imported target — exactly the class this
     # guard exists for — so the job installs Highway and corvus first, as the
     # install-contract leg of `build` does.
-    - name: Install Highway 1.4.0 and corvus v1.2.0 to prefix
+    - name: Install Highway 1.4.0 and corvus v1.2.1 to prefix
       run: |
         set -euo pipefail
         PREFIX="$GITHUB_WORKSPACE/_install"
@@ -557,7 +557,7 @@ jobs:
           -DHWY_FORCE_STATIC_LIBS=ON -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX="$PREFIX"
         cmake --build _deps/highway/build --parallel 2
         cmake --install _deps/highway/build
-        git clone --depth 1 --branch v1.2.0 https://github.com/OldCrow/corvus.git _deps/corvus
+        git clone --depth 1 --branch v1.2.1 https://github.com/OldCrow/corvus.git _deps/corvus
         cmake -S _deps/corvus -B _deps/corvus/build -DCMAKE_BUILD_TYPE=Release \
           -DCORVUS_BUILD_TESTS=OFF -DCORVUS_BUILD_EXAMPLES=OFF \
           -DCMAKE_PREFIX_PATH="$PREFIX" -DCMAKE_INSTALL_PREFIX="$PREFIX"

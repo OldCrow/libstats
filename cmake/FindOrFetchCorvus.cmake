@@ -6,7 +6,9 @@
 # against an mpmath oracle, so the pin below is an accuracy pin as much as an API pin: bump it only
 # together with a characterization-sweep regeneration (docs/ACCURACY_CHARACTERIZATION.md). The
 # version floor is the same number for the same reason — an older system corvus predates the
-# validated bounds.
+# validated bounds. The fetched pin is v1.2.1 and the floor stays 1.2: v1.2.1 returns v1.2.0's bits
+# (a sweep with no row moved, 2026-11-27) and changes only what a one-value span call costs, so a
+# system v1.2.0 is as accurate and slower on the scalar routes.
 #
 # Provider matters downstream. corvus reaches libstats_static as $<LINK_ONLY:corvus::corvus>, which
 # install(EXPORT) can only express when corvus is a package (an imported target); a fetched corvus
@@ -28,7 +30,7 @@ else()
     FetchContent_Declare(
         corvus
         GIT_REPOSITORY https://github.com/OldCrow/corvus.git
-        GIT_TAG v1.2.0
+        GIT_TAG v1.2.1
         GIT_SHALLOW TRUE
         SYSTEM
     )
@@ -70,7 +72,7 @@ else()
     endfunction()
     _libstats_fetch_corvus()
     set(LIBSTATS_CORVUS_PROVIDER "fetched")
-    message(STATUS "libstats: fetched corvus v1.2.0 via FetchContent; 'install' target disabled")
+    message(STATUS "libstats: fetched corvus v1.2.1 via FetchContent; 'install' target disabled")
 
     # A fetched corvus is compiled by this build's compiler. Under cl.exe that costs twice: Highway
     # blocklists AVX-512, so corvus stops at AVX2, and the kernels come out 3-19x slower than

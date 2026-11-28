@@ -76,11 +76,11 @@ AVX-512 behind an MSVC libstats, build corvus as a system package with
 clang-cl, which keeps the MSVC ABI:
 
 1. From a `vcvars64` shell with the VS-bundled clang-cl on `PATH`, build and
-   install Highway 1.4.0 and corvus `v1.2.0` (Ninja, Release,
+   install Highway 1.4.0 and corvus `v1.2.1` (Ninja, Release,
    `-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl`) to one prefix;
    Highway takes the flags the CI install-contract leg uses.
 2. Configure both libstats trees with Ninja, Release, `cl`; give the branch
-   `-DCMAKE_PREFIX_PATH=<prefix>`. It must report `using system corvus 1.2.0`.
+   `-DCMAKE_PREFIX_PATH=<prefix>`. It must report `using system corvus 1.2.1`.
 3. Compile each bench with the flags and definitions of the library's own TUs
    (`build.ninja`): `/std:c++20 /O2 /Ob2 /DNDEBUG /EHsc /MD /utf-8
    /arch:AVX512 /DNOMINMAX /D_USE_MATH_DEFINES` plus the four
