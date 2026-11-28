@@ -1669,29 +1669,27 @@ Ivy Bridge capture of 2026-11-18. Full analysis: `git show e1a11ec:PLAN.md`,
 
 corvus's v1.3.0 milestone ("Scalar paths and ISA tuning") holds #22, #97,
 #110, #111, #120 and #121; v1.4.0 holds #19. Read against this branch's
-code at `7c4b809`. Items 1 and 2 are proposals for the user; the rest
-are rules for measuring and for the bump.
+code at `7c4b809`. Item 1 is done; the rest are rules for measuring
+and for the bump.
 
-1. **The v1.3.0 bump will not compile as the code stands [proposal].**
-   `corvus_scalar(Fn, …)` in `src/math_utils.cpp` takes a corvus
-   function by name and deduces its type. That works only while the name
-   is one function. corvus #110 adds scalar overloads for the span-only
-   functions, and each name then becomes an overload set, as `gamma_p`
-   and the seven others did at v1.1.0. Fifteen calls, twelve functions:
-   `erf`, `erfc`, `erfinv`, `erfcinv`, `lgamma`, `lbeta`, `digamma`,
-   `trigamma`, `i0`, `i0e`, `i1`, `i1e`. Two ways to be ready, both
-   leaving results untouched:
-   - now: give each of those functions its own named one-value wrapper
-     that calls the span form with explicit span arguments (overload
-     resolution then picks the span form under either release); the bump
-     becomes a one-line pin change, and each wrapper moves to the scalar
-     entry when it exists;
-   - or at the bump: replace the fifteen calls with the scalar entries in
-     one change. corvus promises the scalar entry returns the bits of a
-     length-1 span, so a sweep with no row moved is the proof, as for
-     v1.2.1.
-   Every one-value corvus call is already in that one file, so either is
-   a change to `src/math_utils.cpp` alone.
+1. **The overload-set break is fixed ahead of the bump [user, 2026-11-27;
+   K, `05fdb41`].** `corvus_scalar(Fn, …)` in
+   `src/math_utils.cpp` took a corvus function by name and deduced its
+   type, which works only while the name is one function. corvus #110
+   adds scalar overloads for the span-only functions, and each name then
+   becomes an overload set, as `gamma_p` and the seven others did at
+   v1.1.0. The template is gone: twelve named wrappers in a `one_value`
+   namespace (`erf`, `erfc`, `erfinv`, `erfcinv`, `lgamma`, `lbeta`,
+   `digamma`, `trigamma`, `i0`, `i1`, `i0e`, `i1e`) each call the span
+   form with explicit spans, and the fifteen calls use them. Shown on K:
+   with the twelve scalar overloads declared ahead of `corvus.h`, the
+   old file fails to compile (15 errors, "no matching function for call
+   to 'corvus_scalar'") and the new one compiles; `accuracy_sweep`'s
+   26,882 rows are bit-identical before and after; 0 warnings, 135/135.
+   No test guards it: the break needs a corvus that does not exist yet.
+   At the v1.3.0 bump each wrapper's body becomes the scalar entry,
+   which corvus promises returns the bits of a length-1 span; a sweep
+   with no row moved is the proof, as for v1.2.1.
 2. **A v1.3.0 that carries #22 is an accuracy bump on the tiers it
    covers, not a patch [rule for the bump].** #22 is a non-gather kernel
    for gather-weak CPUs before AVX-512 (Kaby Lake's class); it is a
