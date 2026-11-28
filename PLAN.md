@@ -268,11 +268,29 @@ Found by the review and not acted on [OPEN]:
    (Cross-Repo Dependencies below) is the user's call.
 
 ## Status [DERIVED] — 2026-11-02
-**corvus v1.2.0 released 2026-11-02 — bump owed [OPEN].** Signed tag
-`v1.2.0` on corvus `691db43`; release notes on corvus's GitHub release.
-It is the release the v3.0.0 adoption targets, so the next libstats
-session moves `dev/v3.0.0-corvus-adoption`'s corvus pin to `v1.2.0`
-(standards workplan task 2). What the bump carries:
+**corvus v1.2.1 released 2026-11-27 — bump owed [OPEN].** Signed tag
+`v1.2.1` on corvus `77bd92b`; release notes on corvus's GitHub release.
+v3.0.0 pins v1.2.1 [DECIDED, user], not v1.2.0 (released 2026-11-02),
+so the next libstats session moves `dev/v3.0.0-corvus-adoption`'s corvus
+pin to `v1.2.1` (standards workplan task 2). What v1.2.1 adds to v1.2.0
+[source: corvus `PLAN.md` and its release notes; nothing measured here]:
+- **No result changes, no bound moves, no API change.** A sweep with no
+  row moved against the v1.2.0 pin is the per-tier proof.
+- **One value through a span is cheaper.** In v1.2.0 a one-value call
+  waited for the call before it. On Zen 4 under Windows corvus reads
+  `erfinv` 64.7 -> 29.3 ns, `erf` 32.9 -> 15.7, `exp` 35.8 -> 14.4 per
+  call, and `erfcinv` 132.0 -> 29.4. Off Windows the gain is small: Kaby
+  Lake AVX2 0.84x to 1.01x, Ivy Bridge SSE4 0.89x to 0.98x, the M1 4 to
+  10% less per call.
+- **For #156:** the scalar Gaussian and LogNormal quantiles are one
+  `erfcinv` call each (72 -> 106 ns on Z at adoption). What v1.2.1 does
+  to them is not measured in libstats; measure it after the bump.
+- **Known in corvus, left for its v1.3.0:** short spans above the lane
+  count (corvus #121), and on Kaby Lake a table kernel's one-value cost
+  can differ by 10 to 30 ns between two links of the same code (corvus
+  #120), which matters when comparing two libstats builds there.
+
+What the bump from the current pin carries besides, from v1.2.0:
 - **Wrapper change:** since corvus v1.1.0, `gamma_p`, `gamma_q`, `beta_p`,
   `beta_q` and their four inverses have scalar overloads, so each name is
   an overload set and the deducing `corvus_scalar` wrapper no longer
@@ -293,7 +311,7 @@ MacBook Pro 9,1 (i7-3820QM: AVX, no AVX2, no FMA), Linux Mint 22.3, glibc
 2.39, GCC 13.3 and clang 17/18. Source: corvus #101 and corvus `PLAN.md`.
 Now in AGENTS.md's fleet table. The 2026-11-11 note here was a source read
 from the Zen 4 box; the native run below replaces its first two inferences.
-None of this blocks the v1.2.0 pin bump.
+None of this blocks the corvus pin bump.
 
 Measured on the machine [DERIVED] (2026-11-16, `main` `321bb98`, GCC 13.3
 and Clang 18.1.3 Release; matrix row in `docs/VALIDATION_HISTORY.md`,
