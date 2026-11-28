@@ -37,8 +37,7 @@ released 2026-11-25** (tag on `c744eb3`) and is merged in here.
   guards on Linux and macOS, then the measurements; K first), and after
   the merge L1, with L2 again on I, K and M ("Three accuracy blocks"
   below).
-- **corvus v1.2.1 is the pin [user, 2026-11-27; K, not yet
-  committed]** (released 2026-11-27, tag on corvus `77bd92b`; one value
+- **corvus v1.2.1 is the pin [user, 2026-11-27; K, `ba1463f`]** (released 2026-11-27, tag on corvus `77bd92b`; one value
   through the span API; no result moves). Changed:
   `cmake/FindOrFetchCorvus.cmake` (the fetched tag; the `find_package`
   floor stays 1.2, since v1.2.0 returns the same bits), the two CI steps
