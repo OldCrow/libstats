@@ -15,7 +15,7 @@ naming its commits.
 ## v3.0.0 corvus adoption — where it stands [DERIVED, 2026-11-25]
 
 Branch `dev/v3.0.0-corvus-adoption`, built on the v2.5.0 release. corvus
-v1.2.0 is the special-function engine (found or fetched, pinned;
+v1.2.1 is the special-function engine (found or fetched, pinned;
 `cmake/FindOrFetchCorvus.cmake`). `main` is the v2.5.x line; **v2.5.1 was
 released 2026-11-25** (tag on `c744eb3`) and is merged in here.
 
@@ -37,16 +37,26 @@ released 2026-11-25** (tag on `c744eb3`) and is merged in here.
   guards on Linux and macOS, then the measurements; K first), and after
   the merge L1, with L2 again on I, K and M ("Three accuracy blocks"
   below).
-- **corvus v1.2.1 is in review** (OldCrow/corvus#117; one value through
-  the span API; no result moves) and **this release pins it [user,
-  2026-11-26]** once it is tagged. Z, quiet [DERIVED, 2026-11-27,
+- **corvus v1.2.1 is the pin [user, 2026-11-27; K, not yet
+  committed]** (released 2026-11-27, tag on corvus `77bd92b`; one value
+  through the span API; no result moves). Changed:
+  `cmake/FindOrFetchCorvus.cmake` (the fetched tag; the `find_package`
+  floor stays 1.2, since v1.2.0 returns the same bits), the two CI steps
+  that install corvus to a prefix, and `tools/bench/README.md`.
+  **Proof on AVX2 (K, AppleClang 15, at `7c4b809`)**: the same tree built
+  at v1.2.0 and at v1.2.1, 0 warnings each; `accuracy_sweep`'s 26,882
+  rows are bit-identical between the two; correctness 135/135 and
+  `simd_verification` 140 pass at v1.2.1. I, M and Z owe the same sweep
+  comparison, or L1 at the new pin, with their next sitting. Z, quiet
+  [DERIVED, 2026-11-27,
   `docs/bench-evidence/2026-11-27-zen4-corvus-v121-quantiles/`]: this
   branch built against it reads the scalar Gaussian quantile at 76.3 ns
   and the LogNormal at 85.5, against 105.9 and 116.6 with v1.2.0 and 72
   and 76 in v2.5.1: 6% and 12% over v2.5.1, inside the 1.25× guard of
   #156. von Mises and Student's t gain 5% and 3%; nothing else moves.
-  The pin change rides with the correctness leg that follows the pool
-  fix; a sweep with no row moved is the per-tier proof.
+  K's cost at the new pin is not measured (corvus reads 0.84× to 1.01×
+  of v1.2.0 per one-value call on this machine). What corvus's v1.3.0
+  asks of this repo is under "Cross-Repo Dependencies".
 - **#156 is decided [user, 2026-11-25]: the cost is accepted** ("#156 —
   decided" below). No decision is owed before the pool design.
 - **Then the release documents** ("After the legs", step 4):
@@ -1650,7 +1660,87 @@ Ivy Bridge capture of 2026-11-18. Full analysis: `git show e1a11ec:PLAN.md`,
   #111 (`LgammaDiffDd` cost) are the v1.3.0 work that v3.1.0 waits on;
   #44 (von Mises quadrature machinery, fixed-cost incomplete gamma/beta)
   and #45 (`expm1`, `log1pmx` spans, landed) came from v2.5.0. The
-  corvus session is the user's own.
+  corvus session is the user's own. What its v1.3.0 milestone asks of
+  this repo is the subsection below.
 - **standards**: the Node 20 action finding and the capture-harness
   convention (one harness for warm-up, the quiet gate, the throttling
   opt-out and the bundle layout) are candidates for the fleet repo.
+
+### corvus v1.3.0 — what it asks of this repo [OPEN; K, 2026-11-27, from its six open issues]
+
+corvus's v1.3.0 milestone ("Scalar paths and ISA tuning") holds #22, #97,
+#110, #111, #120 and #121; v1.4.0 holds #19. Read against this branch's
+code at `7c4b809`. Items 1 and 2 are proposals for the user; the rest
+are rules for measuring and for the bump.
+
+1. **The v1.3.0 bump will not compile as the code stands [proposal].**
+   `corvus_scalar(Fn, …)` in `src/math_utils.cpp` takes a corvus
+   function by name and deduces its type. That works only while the name
+   is one function. corvus #110 adds scalar overloads for the span-only
+   functions, and each name then becomes an overload set, as `gamma_p`
+   and the seven others did at v1.1.0. Fifteen calls, twelve functions:
+   `erf`, `erfc`, `erfinv`, `erfcinv`, `lgamma`, `lbeta`, `digamma`,
+   `trigamma`, `i0`, `i0e`, `i1`, `i1e`. Two ways to be ready, both
+   leaving results untouched:
+   - now: give each of those functions its own named one-value wrapper
+     that calls the span form with explicit span arguments (overload
+     resolution then picks the span form under either release); the bump
+     becomes a one-line pin change, and each wrapper moves to the scalar
+     entry when it exists;
+   - or at the bump: replace the fifteen calls with the scalar entries in
+     one change. corvus promises the scalar entry returns the bits of a
+     length-1 span, so a sweep with no row moved is the proof, as for
+     v1.2.1.
+   Every one-value corvus call is already in that one file, so either is
+   a change to `src/math_utils.cpp` alone.
+2. **A v1.3.0 that carries #22 is an accuracy bump on the tiers it
+   covers, not a patch [rule for the bump].** #22 is a non-gather kernel
+   for gather-weak CPUs before AVX-512 (Kaby Lake's class); it is a
+   different method and corvus does not expect bit-identity. Where
+   corvus dispatches it, this repo owes L2 and L2b again: the `isa=`
+   block, `data/accuracy/allow_<ISA>.csv` and the row gate. #110, #111,
+   #120 and #121 are performance only and need the no-row-moved sweep.
+   Before that bump, check that no test on a corvus-backed route asserts
+   exact bits where the published bound is what is promised [not
+   audited].
+3. **On K, a comparison of two builds under about 1.3× on a gather-kernel
+   route is not a result until the link is checked (#120).** A load that
+   follows an AVX2 gather is delayed when it touches bytes 0x7c0–0x7cf
+   of its page, and the linker decides whether a kernel's literal lies
+   there: 10–30 ns per one-value call on `erf`, and 19% on `erfinv` at
+   batch (54.5 against 45.8 ns per element). The routes exposed are the
+   ones through corvus's table kernels (`erf`, `erfinv`, `erfcinv`,
+   `lgamma` and their consumers); libstats' own AVX2 kernels use no
+   gather. It bears on three things here: #156's 1.25× guard read on K,
+   the VECTORIZED side of every kAvx2 row captured through those
+   kernels, and any A/B on K. Check with corvus's
+   `docs/bench-evidence/2026-11-26-kaby-v1.2.1/n7/window_check.py`
+   against the executable, or relink with the constants moved 64 bytes.
+   Which of K's committed figures were taken with a literal in the
+   window is not known. Nothing a consumer can do removes it; corvus's
+   candidates are an aligned constant table or #22.
+4. **A guard or baseline figure comes from at least three fresh
+   processes (#97).** `digamma`, `trigamma` and `i0` read at one of two
+   speeds, 1.50× apart, from process to process on Zen 4, cause unknown
+   and suspected to follow buffer addresses. The routes here are von
+   Mises (`i0`) and the entropy and fitting paths (`digamma`,
+   `trigamma`). The benches' three passes are three processes already;
+   a single run of one of those routes is not a regression reading.
+5. **Keep one-value calls at length 1, and do not build spans of 2 to
+   N−1 values in place just before a call (#121).** v1.2.1 fixed the
+   one-element case only: a caller that writes N or more values and then
+   calls still waits on its own stores (about 30 ns on `erfinv`), and a
+   2- or 3-element tail after a full vector is 2–8 ns slower than
+   before on AVX2. The batch wrappers here fill their constant-parameter
+   block once before the loop, so only a batch's first block can pay it.
+   #338 (a batch quantile) should hand corvus long spans, not short ones
+   assembled per call.
+6. **Normalising constants are the consumer side of #110 and #111.**
+   `lbeta` costs 1.2–1.8 µs a call on the non-FMA tier and is 31–48% of
+   four concurrency races there, most of it `LgammaDiffDd`, which a
+   scalar entry does not remove. What this repo controls is how often it
+   asks: once per parameter set, from the cache. Whether any setter
+   recomputes a constant it did not change is not audited.
+7. **#19 (v1.4.0)** is the von Mises complement 1 − I₁/I₀ in
+   double-double. `bessel_i1_i0_complement` stays here until then, in
+   one function, as #47's decision 5 left it.
